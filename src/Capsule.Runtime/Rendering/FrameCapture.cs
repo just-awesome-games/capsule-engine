@@ -19,16 +19,11 @@ internal static class FrameCapture
         device.PresentationParameters.BackBufferWidth > 0 && device.PresentationParameters.BackBufferHeight > 0;
 
     // Saves the surface the world was drawn on as a PNG at path, creating the directory it names and
-    // overwriting the file. Called after Draw and before the frame is presented, while that surface
-    // still holds the frame. The surface is target where a render resolution is configured, whose
-    // extent is independent of the window, and the back buffer where there is none.
+    // overwriting the file. Called on a frame CanCapture admits, after Draw and before the present,
+    // while that surface still holds the frame. The surface is target where a render resolution is
+    // configured, whose extent is independent of the window, and the back buffer where there is none.
     internal static void Save(GraphicsDevice device, RenderTarget2D? target, string path)
     {
-        if (!CanCapture(device))
-        {
-            return;
-        }
-
         byte[] png;
 
         try

@@ -33,15 +33,14 @@
       <PrivateAssets>compile;contentfiles;analyzers;build</PrivateAssets>
     </PackageReference>
 
-    <!-- The neutral host holds no implicit location and no native binding; BannedSymbols.txt is
-         the list, each entry with its reason. A site that seems to need one belongs in a platform
-         module, never under a suppression. -->
     <!-- The decoder MonoGame bundles internally, referenced so a texture decodes off the game
          thread into memory the runtime owns. Hidden from games like the substrate. -->
     <PackageReference Include="StbImageSharp" Version="2.30.16">
       <PrivateAssets>compile</PrivateAssets>
     </PackageReference>
 
+    <!-- A site that seems to need a banned symbol belongs in a platform module, never under a
+         suppression. -->
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -55,7 +54,6 @@
     <ProjectReference Include="../Capsule/Capsule.csproj" />
   </ItemGroup>
 
-  <!-- Test access; see AGENTS.md section Public surface. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Tests" />
     <InternalsVisibleTo Include="Capsule.AotSmoke" />

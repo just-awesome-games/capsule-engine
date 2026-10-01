@@ -63,6 +63,7 @@ internal static class AudioProbe
         Span<byte> chunk = stackalloc byte[8];
         Span<byte> format = stackalloc byte[16];
 
+        int tag = 0;
         int channels = 0;
         int bits = 0;
         uint rate = 0;
@@ -85,7 +86,7 @@ internal static class AudioProbe
 
                 Read(stream, format);
 
-                int tag = BinaryPrimitives.ReadUInt16LittleEndian(format);
+                tag = BinaryPrimitives.ReadUInt16LittleEndian(format);
                 if (tag is not 1 and not 3)
                 {
                     throw new FormatException(
@@ -117,6 +118,14 @@ internal static class AudioProbe
         {
             throw new FormatException(
                 "carries no usable 'fmt ' chunk. Its rate, channel count or sample width is zero or not a whole number of bytes.");
+        }
+
+        RequireMonoOrStereo(channels);
+
+        if (tag == 1 ? bits is not (8 or 16 or 24 or 32) : bits != 32)
+        {
+            throw new FormatException(
+                $"is WAVE format {Number(tag)} at {Number(bits)} bits. Capsule plays 8-, 16-, 24- and 32-bit PCM and 32-bit float. Re-encode it as 16-bit PCM.");
         }
 
         if (dataBytes < 0)
@@ -393,6 +402,8 @@ internal static class AudioProbe
             throw new FormatException("opens with no Vorbis identification header. Capsule reads Ogg Vorbis.");
         }
 
+        RequireMonoOrStereo(identification[11]);
+
         uint rate = BinaryPrimitives.ReadUInt32LittleEndian(identification[12..]);
         if (rate == 0)
         {
@@ -400,6 +411,15 @@ internal static class AudioProbe
         }
 
         return rate;
+    }
+
+    // The host plays mono and stereo and refuses anything wider when the clip first plays.
+    private static void RequireMonoOrStereo(int channels)
+    {
+        if (channels is not (1 or 2))
+        {
+            throw new FormatException($"carries {Number(channels)} channels. Capsule plays mono and stereo. Mix it down to stereo.");
+        }
     }
 
     private static bool Is(ReadOnlySpan<byte> bytes, string ascii)

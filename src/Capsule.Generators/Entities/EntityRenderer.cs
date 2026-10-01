@@ -1,6 +1,4 @@
-using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
@@ -17,14 +15,11 @@ internal static class EntityRenderer
 
     internal static void Emit(SourceProductionContext context, EntityPlan plan)
     {
-        foreach (Diagnostic diagnostic in plan.Diagnostics.Items)
-        {
-            context.ReportDiagnostic(diagnostic);
-        }
+        GeneratedFile.Report(context, plan.Diagnostics);
 
         if (plan.Generates)
         {
-            context.AddSource(FileName, SourceText.From(Render(plan), Encoding.UTF8));
+            GeneratedFile.Add(context, FileName, Render(plan));
         }
     }
 
@@ -33,7 +28,10 @@ internal static class EntityRenderer
         List<RegisteredEntity> registrations = [.. plan.Registrations];
         List<string> claims = [.. registrations.Select(static entry =>
             GeneratedFile.ClaimAttribute(RegistryClaimKind.Entity, entry.SpawnType, entry.Model.QualifiedName))];
-        string members = EntityAccessorRenderer.Constructors(registrations.Select(static entry => entry.Model).Where(static model => model.Required))
+        string members = string.Concat(registrations
+                .Where(static entry => entry.Model.Required)
+                .Select(static entry => EntityAccessorRenderer.Constructor(
+                    entry.Model.QualifiedName, entry.Model.SpawnModifier + "global::Capsule.Scenes.Spawning.EntitySpawn spawn")))
             + EntityAccessorRenderer.Setters(registrations.SelectMany(static entry => entry.Model.Authored).Where(static property => !property.Direct))
             + string.Concat(plan.Lookups.Items.Select(Lookup));
 

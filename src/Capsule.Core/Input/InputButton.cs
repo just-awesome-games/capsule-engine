@@ -20,6 +20,11 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
     /// </summary>
     public const float StickPressPoint = 0.5f;
 
+    // The accepted-shape text Parse and InputButtonJsonConverter share.
+    internal const string ExpectedShape =
+        "Expected 'None' or '<Device>.<Name>', such as 'Key.Space', 'PadButton.South', " +
+        "'MouseButton.Left' or 'StickDirection.LeftStickUp'.";
+
     private readonly Key _key;
     private readonly PadButton _padButton;
     private readonly MouseButton _mouseButton;
@@ -94,18 +99,12 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
     /// <summary>The qualified, parseable form, such as <c>Key.Space</c>, or <c>None</c>.</summary>
     public override string ToString() => IsNone ? nameof(None) : $"{Qualified.Device}.{Qualified.Name}";
 
-    // The device constant's own type name and bare name, shared by Name and ToString. Not called
-    // when IsNone; callers guard that first.
+    // The device constant's type name and bare name. Callers rule out None first.
     private (string Device, string Name) Qualified =>
         _key != Key.None ? (nameof(Key), _key.ToString())
         : _padButton != PadButton.None ? (nameof(PadButton), _padButton.ToString())
         : _stickDirection != StickDirection.None ? (nameof(StickDirection), _stickDirection.ToString())
         : (nameof(MouseButton), _mouseButton.ToString());
-
-    // The accepted-shape text, shared by Parse and InputButtonJsonConverter so it exists once.
-    internal const string ExpectedShape =
-        "Expected 'None' or '<Device>.<Name>', such as 'Key.Space', 'PadButton.South', " +
-        "'MouseButton.Left' or 'StickDirection.LeftStickUp'.";
 
     /// <summary>Parses the form <see cref="ToString"/> writes, such as <c>Key.Space</c> or <c>None</c>.</summary>
     /// <exception cref="FormatException"><paramref name="s"/> is not that shape.</exception>
@@ -182,6 +181,12 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
 
         return Positive(_stickDirection) ? position >= StickPressPoint : position <= -StickPressPoint;
     }
+
+    internal DeviceSnapshot AddTo(in DeviceSnapshot snapshot) =>
+        _key != Key.None ? snapshot.With(_key)
+        : _padButton != PadButton.None ? snapshot.With(_padButton)
+        : _stickDirection != StickDirection.None ? snapshot.WithAxis(Axis(_stickDirection), Positive(_stickDirection) ? 1f : -1f)
+        : snapshot.With(_mouseButton);
 
     internal DeviceSnapshot RemoveFrom(in DeviceSnapshot snapshot) =>
         _key != Key.None ? snapshot.Without(_key)

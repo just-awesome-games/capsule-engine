@@ -213,6 +213,28 @@ public sealed class RidingTests
         Assert.Equal(32f, far.Position.X, CollisionFixtures.Tolerance);
     }
 
+    // A collider moved off its body's entity still names that body. A pusher driving into the collider
+    // on its new entity has no body to shove and crushes nothing.
+    [Fact]
+    public void AColliderMovedToAnotherEntity_NoLongerCrushesItsFormerBody()
+    {
+        Scene scene = new();
+        Slab pusher = new(new Vector2(60f, 20f), Platform, new Vector2(8f, 16f));
+        Rider former = new(new Vector2(200f, 24f), Platform);
+        SceneFixtures.Drifter holder = new(new Vector2(50f, 24f));
+        List<ColliderContact2D> crushes = [];
+        former.Mover.Crushed += crushes.Add;
+        scene.Add(pusher);
+        scene.Add(former);
+        scene.Add(holder);
+
+        former.Remove(former.Collider);
+        holder.Add(former.Collider);
+        pusher.Position += new Vector2(-20f, 0f);
+
+        Assert.Empty(crushes);
+    }
+
     private static readonly Vector2 Gravity = new(0f, 1f);
 
     private static void Land(Rider rider)

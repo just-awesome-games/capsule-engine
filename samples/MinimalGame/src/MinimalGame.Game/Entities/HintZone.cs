@@ -38,7 +38,6 @@ public sealed class HintZone : Entity
         };
         Add(_hint);
 
-        // Nothing blocks on the default layer the area sits on.
         BoxCollider2D area = new(Size) { ReportsContacts = true, Detects = new(CollisionLayers.Player) };
         area.ContactEntered += OnPlayerEntered;
         area.ContactExited += OnPlayerExited;

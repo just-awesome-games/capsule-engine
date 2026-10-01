@@ -63,8 +63,8 @@ internal static class MgfxWriter
             const int Transform = 0;
             const int Sprite = 1;
             const int Coverage = 2;
-            int firstConstant = 3;
-            int firstTexture = firstConstant + constants.Count;
+            const int FirstConstant = 3;
+            int firstTexture = FirstConstant + constants.Count;
             bool pixelBuffer = constants.Count > 0;
 
             // Constant buffers: the pixel stage's first when it has one, then the vertex stage's.
@@ -76,7 +76,7 @@ internal static class MgfxWriter
                 writer.Write(constants.Count);
                 for (int i = 0; i < constants.Count; i++)
                 {
-                    writer.Write(firstConstant + i);
+                    writer.Write(FirstConstant + i);
                     writer.Write((ushort)constants[i].Offset);
                 }
             }
@@ -118,7 +118,7 @@ internal static class MgfxWriter
             WriteAttribute(writer, "vs_v2", ColorUsage, 1);
             WriteAttribute(writer, "vs_v3", TextureCoordinateUsage, 0);
 
-            writer.Write(firstConstant + constants.Count + textures.Count);
+            writer.Write(FirstConstant + constants.Count + textures.Count);
             WriteParameter(writer, ShaderTemplate.MatrixTransform, MatrixClass, SingleType, 4, 4);
             WriteParameter(writer, ShaderTemplate.SpriteTexture, ObjectClass, Texture2DType, 0, 0);
             WriteParameter(writer, ShaderTemplate.Coverage, ScalarClass, SingleType, 1, 1);

@@ -30,16 +30,6 @@ public sealed class SpriteRotationTests
         Assert.Equal(angle, StepInterpolation.Interpolate(angle, angle, 1f / 3f));
     }
 
-    [Fact]
-    public void Interpolation_IsLinearAcrossAQuarterTurn()
-    {
-        const float quarter = MathF.PI / 2f;
-
-        Assert.Equal(0f, StepInterpolation.Interpolate(0f, quarter, 0f));
-        Assert.Equal(quarter / 4f, StepInterpolation.Interpolate(0f, quarter, 0.25f), 1e-6f);
-        Assert.Equal(quarter, StepInterpolation.Interpolate(0f, quarter, 1f), 1e-6f);
-    }
-
     // A whole extra turn in the written value is not a turn on screen: the arc is the wrapped
     // difference, so an angle that grew past a full turn interpolates as the small turn it is.
     [Fact]

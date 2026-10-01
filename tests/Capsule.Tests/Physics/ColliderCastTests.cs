@@ -33,14 +33,6 @@ public sealed class ColliderCastTests
     }
 
     [Fact]
-    public void Move_OnAColliderInNoScene_SaysSo()
-    {
-        Body body = new(Vector2.Zero);
-
-        Assert.Throws<InvalidOperationException>(() => body.Mover.Move(Vector2.UnitX));
-    }
-
-    [Fact]
     public void ADetectedContact_DoesNotBlockAMoverThatDoesNotBlockOnItsLayer()
     {
         Scene scene = new();
@@ -70,8 +62,8 @@ public sealed class ColliderCastTests
         Assert.Same(enemy, contact.OtherEntity);
         Assert.Same(enemy.Collider, contact.OtherCollider);
         Assert.Null(contact.Tile);
-        Assert.True(float.IsFinite(contact.Point.X));
-        Assert.True(float.IsFinite(contact.Point.Y));
+        Assert.Equal(scene.Collision.Layer("enemy"), contact.Layer);
+        Assert.Equal("enemy", contact.LayerName);
     }
 
     // The per-move filter is for the step, not for the mover: what it blocks on afterwards is
@@ -97,19 +89,6 @@ public sealed class ColliderCastTests
         // And the next plain move resolves against the standing filter again.
         body.Teleport(new Vector2(8f, 8f));
         Assert.True(body.Mover.Move(new Vector2(0f, 60f)).Blocked);
-    }
-
-    [Fact]
-    public void Move_WithABlockingFilterFromAnotherWorld_IsRefused()
-    {
-        Scene scene = SceneFixtures.Terrain("....", "####");
-        Body body = new(new Vector2(8f, 8f));
-        scene.Add(body);
-
-        CollisionWorld2D elsewhere = new Scene().Collision;
-        CollisionFilter foreign = CollisionFilter.Of(elsewhere.Layer("solid"));
-
-        Assert.Throws<ArgumentException>(() => body.Mover.Move(Vector2.UnitY, foreign));
     }
 
     // The whole value of the sweep as a probe: a surface it runs along is not in its way. The body

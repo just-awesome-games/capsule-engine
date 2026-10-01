@@ -36,7 +36,7 @@ public sealed class VorbisAllocationTests
     {
         string path = Path.Combine(AppContext.BaseDirectory, FixturePath);
 
-        using VorbisReader reader = new(File.OpenRead(path), closeOnDispose: true);
+        using VorbisReader reader = new(File.OpenRead(path));
         VorbisPcmSource source = new(reader);
 
         int samplesPerBuffer = source.Channels * (int)(source.SampleRate * BufferSeconds);

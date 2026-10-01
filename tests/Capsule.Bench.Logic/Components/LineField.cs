@@ -3,7 +3,7 @@ using Capsule.Rendering;
 
 namespace Capsule.Bench.Logic.Components;
 
-/// <summary>10 000 lines a frame from one renderer — a hundred fans of a hundred spokes — as a debug-draw-heavy frame submits them.</summary>
+/// <summary>10 000 lines a frame from one renderer, as a hundred fans of a hundred spokes, the way a debug-draw-heavy frame submits them.</summary>
 public sealed class LineField : Renderer
 {
     private static readonly ColorRgba[] Colors =

@@ -5,24 +5,14 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Capsule.Runtime.Input;
 
-// Turns the OS mouse into the pointer and the mouse buttons of a DeviceSnapshot. The window position
-// it reads is mapped back through the screen layer's placement, so the simulation sees a canvas
-// position whatever the window's size and wherever the fit put the layer.
-//
-// The OS reports the mouse whether or not the window has focus. An unfocused window is sampled as a
-// pointer standing still with nothing held, and one host's window never moves another's menu focus. A
-// button still held when focus returns stays unreported until it is released, so the return is not a
-// click. The wheel behaves the same way: nothing while unfocused, and the cumulative baseline is
-// re-seeded on the first active sample, and a wheel turned away from the window does not arrive as one
-// enormous notch.
+// Turns the OS mouse into the canvas pointer, wheel and mouse buttons of a DeviceSnapshot. An
+// unfocused window samples as a still pointer with nothing held. A button held when focus returns
+// stays unreported until it is released. The wheel baseline is re-seeded on the first active sample.
 internal sealed class MouseSampler
 {
     // MonoGame's SDL platform adds 120 per notch to each cumulative wheel value, positive away from
     // the user and positive to the right, which is the snapshot's own convention.
     private const float NotchUnit = 120f;
-
-    private static readonly MouseButton[] Buttons =
-        [MouseButton.Left, MouseButton.Right, MouseButton.Middle, MouseButton.X1, MouseButton.X2];
 
     // Canvas pixels, as last sampled while the window was active. The canvas origin until then.
     private Vector2 _pointer;
@@ -101,18 +91,7 @@ internal sealed class MouseSampler
         _wheelHorizontal = horizontal;
         _wheelVertical = vertical;
 
-        snapshot = snapshot.WithPointer(pointer).WithScroll(notches);
-
-        uint reported = held & ~_masked;
-        foreach (MouseButton button in Buttons)
-        {
-            if ((reported & Bit(button)) != 0)
-            {
-                snapshot = snapshot.With(button);
-            }
-        }
-
-        return snapshot;
+        return snapshot.WithPointer(pointer).WithScroll(notches).WithMouseButtons(held & ~_masked);
     }
 
     private static uint Down(ReadOnlySpan<MouseButton> held)

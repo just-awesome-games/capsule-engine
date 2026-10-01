@@ -33,19 +33,11 @@ public sealed class SaveDocumentAnalyzerTests
         Assert.Contains("Item.Count", diagnostic.GetMessage());
     }
 
-    // A required init property, a positional record, a metadata-type leaf (InputButton), and a
-    // self-referencing type with a BCL generic leaf (List<int>): none of these is init-only save
-    // state, so the walk that stops at the visited set reports nothing for any of them.
-    private const string RequiredInit = """
-        public sealed record Save
-        {
-            public required int Level { get; init; }
-        }
-        """;
-
+    // A role-free project, a required init property, a positional record, a metadata-type leaf (InputButton),
+    // and a self-referencing type with a BCL generic leaf (List<int>).
     [Theory]
-    [InlineData(RequiredInit, true, false)]
-    [InlineData(RequiredInit, false, false)]
+    [InlineData("public sealed record Save { public int Level { get; init; } }", false, false)]
+    [InlineData("public sealed record Save { public required int Level { get; init; } }", true, false)]
     [InlineData("public sealed record Save(int A, int B = default);", true, false)]
     [InlineData(
         """

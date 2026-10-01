@@ -198,18 +198,12 @@ internal static class Program
             .WithoutLogging()
             .RunHeadless<FixtureScene>(new InputScript().Wait(IdleSteps).Tap(Key.Escape).Build());
 
-    private static SceneDocument Document(string path)
-    {
-        using StreamReader inflated = new(new GZipStream(File.OpenRead(Path.Combine(AppContext.BaseDirectory, path)), CompressionMode.Decompress));
-
-        return SceneDocumentFile.Parse(inflated.ReadToEnd());
-    }
-
     // Assets/Textures/TileSets/Cave_Wall.png is spelled one way and keyed another, and the document
     // names it under the authored spelling: this is where the whole key path is proved end to end.
     private static bool ContentShipped()
     {
-        SceneDocument fixture = Document(NativeScenePath);
+        using StreamReader inflated = new(new GZipStream(File.OpenRead(Path.Combine(AppContext.BaseDirectory, NativeScenePath)), CompressionMode.Decompress));
+        SceneDocument fixture = SceneDocumentFile.Parse(inflated.ReadToEnd());
 
         return fixture.Source is { Tool: "native" }
             && Shipped(CapsuleAssets.Textures.PixelTexture)

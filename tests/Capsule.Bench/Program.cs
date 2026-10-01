@@ -8,10 +8,8 @@ using Capsule.Runtime.Desktop;
 
 namespace Capsule.Bench;
 
-// An ordinary Capsule game whose scenes are workloads: `suite` runs them all and records the
-// results, and `assets` times the asset build over a generated corpus; anything else is the
-// engine's own command line, so `--scene <Name>` runs one by hand. `--soak-seconds <n>` is the bench's
-// own and sets how long the Soak drivers run.
+// `suite` and `assets` are the bench's commands. Anything else is the engine's own command line plus
+// `--soak-seconds <n>`.
 internal static class Program
 {
     public static int Main(string[] args)

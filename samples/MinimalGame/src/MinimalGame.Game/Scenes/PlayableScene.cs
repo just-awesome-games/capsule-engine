@@ -9,11 +9,9 @@ using MinimalGame.Game.UI;
 namespace MinimalGame.Game.Scenes;
 
 /// <summary>
-/// What every playable scene is made of, with the level left to the document: the head-up display,
-/// the pause menu, arriving at the <see cref="Entrance"/> an <see cref="Arrival"/> payload names, and
-/// returning to the <see cref="MainMenu"/> at no health. A level is a document
-/// that names it as its <c>baseScene</c>. The camera and the music come from the document, and the display and the
-/// menu are installed in the constructor so their contents are collected for its preload.
+/// The base of every level document (<c>"baseScene": "playable-scene"</c>): the head-up display, the
+/// pause menu, arriving at the <see cref="Entrance"/> an <see cref="Arrival"/> names, and returning to
+/// the <see cref="MainMenu"/> at no health. The document supplies the level, the camera and the music.
 /// </summary>
 public abstract class PlayableScene : Scene
 {
@@ -29,6 +27,7 @@ public abstract class PlayableScene : Scene
     [Authorable(Required = true)]
     public AudioClip Music { get; private set; }
 
+    // The display and the menu are added here, so their assets join the scene's preload.
     protected PlayableScene(SceneContent content)
         : base(content)
     {

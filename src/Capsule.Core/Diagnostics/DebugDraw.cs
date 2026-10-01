@@ -37,15 +37,11 @@ public static class DebugDraw
     private const int CircleSegments = 24;
     private const int CapSegments = CircleSegments / 2;
 
-    // Private, like Log's sink, because a reader would let a game inspect what the host attached. It is
-    // thread-static. A draw reaches only the buffer attached on the thread that emitted it. The buffer
-    // is a single-threaded list and the host attaches it on the thread that steps the simulation, so test
-    // hosts stepping their own runs in parallel stay out of each other's buffers.
+    // Thread-static. Hosts stepping runs on parallel threads keep separate buffers.
     [field: ThreadStatic]
     private static DebugDrawBuffer? Buffer { get; set; }
 
-    // Write-only from the game's side. The host resolves a colour at draw time, and the simulation can
-    // read back neither a channel's colour nor its toggle.
+    // Write-only from the game's side. The host resolves a colour at draw time.
     private static readonly Dictionary<string, ColorRgba> Colors = new(StringComparer.Ordinal)
     {
         [Colliders] = ColorRgba.Lime,
@@ -74,9 +70,8 @@ public static class DebugDraw
     // Attaches buffer, replacing whatever was there. Null drops every draw again.
     internal static void UseBuffer(DebugDrawBuffer? buffer) => Buffer = buffer;
 
-    // Whether a call would land anywhere, letting an engine pass skip the walk that feeds it. Internal
-    // because no game may branch on it. The development switch is tested first. A trimmed shipping publish
-    // folds it to false and drops the walk along with every OnDebugDraw override.
+    // Whether a call would land anywhere, letting an engine pass skip the walk that feeds it. A trimmed
+    // shipping publish folds it to false.
     internal static bool IsAttached => Development.IsSupported && Buffer is not null;
 
     /// <summary>Draws the segment from <paramref name="a"/> to <paramref name="b"/>.</summary>
@@ -85,8 +80,7 @@ public static class DebugDraw
         Segment(channel, a, b, color, steps, default);
 
     // For one step, following something that moved by motion this step. The host draws the shape back
-    // along that motion by the frame's unsimulated fraction, as it does the sprite. Every verb below has
-    // a twin like this.
+    // along that motion by the frame's unsimulated fraction. Every verb below has a twin like this.
     [Conditional(Development.Symbol)]
     internal static void Line(string channel, Vector2 a, Vector2 b, ColorRgba? color, Vector2 motion) =>
         Segment(channel, a, b, color, 1, motion);

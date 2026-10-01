@@ -11,11 +11,8 @@ namespace MinimalGame.Game.UI;
 /// </summary>
 public sealed class PauseMenu : ScreenEntity
 {
-    // Canvas pixels between neighbouring items' centres.
-    private const float ItemSpacing = 20f;
-
-    private readonly MenuItem _resume = new(Anchor.Center, new Vector2(0f, -0.5f * ItemSpacing), "Resume");
-    private readonly MenuItem _quit = new(Anchor.Center, new Vector2(0f, 0.5f * ItemSpacing), "Quit");
+    private readonly MenuItem _resume = new(Anchor.Center, new Vector2(0f, -0.5f * MenuItem.Spacing), "Resume");
+    private readonly MenuItem _quit = new(Anchor.Center, new Vector2(0f, 0.5f * MenuItem.Spacing), "Quit");
 
     private readonly FocusNavigator _navigator;
 
@@ -56,8 +53,6 @@ public sealed class PauseMenu : ScreenEntity
         Show(false);
     }
 
-    // The items are anchored to the canvas's centre rather than to this entity, so they are the
-    // scene's peers, the same shape TitleMenu adds its own items in.
     /// <inheritdoc/>
     protected override void OnAddedToScene()
     {

@@ -21,10 +21,7 @@ public sealed class HeadlessRunTests
     {
         StartThenQuit driver = new();
 
-        HeadlessRunResult result = CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
-            .WithRunStart(GameBoot.Start)
-            .WithoutLogging()
-            .RunHeadless<MainMenu>(driver);
+        HeadlessRunResult result = Boot().RunHeadless<MainMenu>(driver);
 
         Assert.True(driver.EnteredPlay, "confirming Start never opened play");
         Assert.True(result.ExitRequested, "the run ended on the driver's budget, not on the game's exit");
@@ -36,25 +33,18 @@ public sealed class HeadlessRunTests
     [Fact]
     public void LosingWindowFocusInPlay_OpensThePauseMenu()
     {
-        HeadlessRunResult result = CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
-            .WithRunStart(GameBoot.Start)
-            .WithoutLogging()
-            .RunHeadless<MainMenu>(new StartThenQuit(DeviceSnapshot.Empty.WithWindowFocus(false)));
+        HeadlessRunResult result = Boot().RunHeadless<MainMenu>(new StartThenQuit(DeviceSnapshot.Empty.WithWindowFocus(false)));
 
         Assert.True(result.ExitRequested, "the window focus loss did not open the pause menu");
     }
 
-    // The driver `--driver Walkthrough` names is an ordinary object, so the test hands the same one
-    // to the same run the shell boots. It ends on the pause menu's Quit rather than by running out of
-    // script, which is what closes a windowed run by itself: a run that only ran dry would report no
-    // exit. The room has no class of its own. This run also proves a document naming a base and a camera loads and plays.
+    // The shell's own driver, handed to the same run the shell boots. It ends on the pause menu's Quit,
+    // and a run that only ran out of script would report no exit. The room is a document naming a base
+    // scene and a camera, with no class of its own.
     [Fact]
     public void Walkthrough_PlaysTheRoomHeadlessAndEndsOnQuit()
     {
-        HeadlessRunResult result = CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
-            .WithRunStart(GameBoot.Start)
-            .WithoutLogging()
-            .RunHeadless(CapsuleAssets.Scenes.RoomScene, new Walkthrough());
+        HeadlessRunResult result = Boot().RunHeadless(CapsuleAssets.Scenes.RoomScene, new Walkthrough());
 
         Assert.True(result.ExitRequested, "the walkthrough ran out of script before it pressed Quit");
     }
@@ -66,10 +56,7 @@ public sealed class HeadlessRunTests
     {
         CrossFadesTheMenuThemeIntoTheRoomTheme driver = new();
 
-        HeadlessRunResult result = CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
-            .WithRunStart(GameBoot.Start)
-            .WithoutLogging()
-            .RunHeadless<MainMenu>(driver);
+        HeadlessRunResult result = Boot().RunHeadless<MainMenu>(driver);
 
         Assert.True(driver.TitleDied, "the title voice was still live when the driver gave up");
         Assert.True(driver.RoomIsPlaying, "the room's own loop was not sounding once the crossfade landed");
@@ -84,16 +71,18 @@ public sealed class HeadlessRunTests
     {
         JumpsFromPlayToMenuAndBack driver = new();
 
-        HeadlessRunResult result = CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
-            .WithRunStart(GameBoot.Start)
-            .WithoutLogging()
-            .RunHeadless<MainMenu>(driver);
+        HeadlessRunResult result = Boot().RunHeadless<MainMenu>(driver);
 
         Assert.True(driver.RoomIsPlaying, "the room's own loop was not sounding after the second entry");
         Assert.True(driver.ExactlyOneVoiceIsLive, "the jump left two room voices alive, or none");
         Assert.True(result.ExitRequested, "the run ended on the driver's budget, not on Quit");
         Assert.True(result.Steps < JumpsFromPlayToMenuAndBack.Budget);
     }
+
+    private static EngineBuilder Boot() =>
+        CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
+            .WithRunStart(GameBoot.Start)
+            .WithoutLogging();
 
     // Presses Confirm on the menu, which opens focused on Start, then quits through the pause menu as
     // soon as a playable scene is the scene about to step. The budget is a floor under a transition

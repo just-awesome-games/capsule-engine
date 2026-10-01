@@ -1,13 +1,12 @@
 #nullable disable
 #pragma warning disable
-using Capsule.Runtime.Audio.Vorbis.Contracts;
 using System;
 using System.IO;
 
 namespace Capsule.Runtime.Audio.Vorbis
 {
     // each channel gets its own pass, one dimension at a time
-    class Residue0 : IResidue
+    class Residue0
     {
         static int icount(int v)
         {
@@ -27,8 +26,8 @@ namespace Capsule.Runtime.Audio.Vorbis
         int _classifications;
         int _maxStages;
 
-        ICodebook[][] _books;
-        ICodebook _classBook;
+        Codebook[][] _books;
+        Codebook _classBook;
 
         int[] _cascade;
         int[][] _decodeMap;
@@ -42,7 +41,7 @@ namespace Capsule.Runtime.Audio.Vorbis
         int[] _entryCache;
 
 
-        virtual public void Init(IPacket packet, int channels, ICodebook[] codebooks)
+        virtual public void Init(Ogg.Packet packet, int channels, Codebook[] codebooks)
         {
             // this is pretty well stolen directly from libvorbis...  BSD license
             _begin = (int)packet.ReadBits(24);
@@ -85,7 +84,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             }
 
             // now the lookups
-            _books = new ICodebook[_classifications][];
+            _books = new Codebook[_classifications][];
 
             acc = 0;
             var maxstage = 0;
@@ -93,7 +92,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             for (int j = 0; j < _classifications; j++)
             {
                 stages = Utils.ilog(_cascade[j]);
-                _books[j] = new ICodebook[stages];
+                _books[j] = new Codebook[stages];
                 if (stages > 0)
                 {
                     maxstage = Math.Max(maxstage, stages);
@@ -126,7 +125,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             _channels = channels;
         }
 
-        virtual public void Decode(IPacket packet, bool[] doNotDecodeChannel, int blockSize, float[][] buffer)
+        virtual public void Decode(Ogg.Packet packet, bool[] doNotDecodeChannel, int blockSize, float[][] buffer)
         {
             // this is pretty well stolen directly from libvorbis...  BSD license
             var end = _end < blockSize / 2 ? _end : blockSize / 2;
@@ -192,7 +191,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             }
         }
 
-        virtual protected bool WriteVectors(ICodebook codebook, IPacket packet, float[][] residue, int channel, int offset, int partitionSize)
+        virtual protected bool WriteVectors(Codebook codebook, Ogg.Packet packet, float[][] residue, int channel, int offset, int partitionSize)
         {
             var res = residue[channel];
             var steps = partitionSize / codebook.Dimensions;

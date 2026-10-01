@@ -6,14 +6,14 @@ internal static class EntityAccessorRenderer
 {
     private const string UnsafeAccessor = "global::System.Runtime.CompilerServices.UnsafeAccessor";
 
-    // C#'s required members are checked at a new expression. The scene sets a class's required references
-    // after construction, so its spawner calls the constructor through an accessor the check does not reach.
-    internal static string Constructors(IEnumerable<EntityModel> required) => string.Concat(required.Select(static model => $$"""
+    // C#'s required members are checked at a new expression. Generated code sets a class's required references
+    // past construction, so it calls the constructor through an accessor the check does not reach.
+    internal static string Constructor(string qualifiedName, string parameter) => $$"""
 
                 [{{UnsafeAccessor}}({{UnsafeAccessor}}Kind.Constructor)]
-                private static extern {{model.QualifiedName}} {{ConstructorName(model.QualifiedName)}}({{model.SpawnModifier}}global::Capsule.Scenes.Spawning.EntitySpawn spawn);
+                private static extern {{qualifiedName}} {{ConstructorName(qualifiedName)}}({{parameter}});
 
-        """));
+        """;
 
     // One accessor per member, however many classes inherit it. A member of a generic class is set through a
     // generic class of accessors whose type parameters match that class's.
@@ -40,9 +40,8 @@ internal static class EntityAccessorRenderer
         return owner.Length == 0 ? SetterName(property) : $"{owner}.{SetterName(property)}";
     }
 
-    // New and the class's qualified name with every other character an underscore: Game.Door is New_Game_Door.
-    internal static string ConstructorName(string qualifiedName) =>
-        "New_" + CodeText.Underscored(qualifiedName.Substring("global::".Length));
+    // Game.Door's constructor accessor is New_Game_Door.
+    internal static string ConstructorName(string qualifiedName) => "New_" + CodeText.TypeIdentifier(qualifiedName);
 
     // The accessor that sets one member: a field's returns a reference to it, a property's calls its setter.
     private static string Setter(PropertyModel property, string indent, string access) => property.Field
@@ -58,15 +57,7 @@ internal static class EntityAccessorRenderer
 
     // The class of accessors for a member of a generic type, named for that type and taking the given type
     // arguments: a member of Game.Held<T> is set through Game_HeldAccessors<T>. Empty for any other member.
-    private static string AccessorClass(PropertyModel property, string arguments)
-    {
-        if (property.TypeParameters.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        string declaring = property.Declaring.Substring("global::".Length);
-
-        return $"{CodeText.Underscored(declaring.Substring(0, declaring.IndexOf('<')))}Accessors<{arguments}>";
-    }
+    private static string AccessorClass(PropertyModel property, string arguments) => property.TypeParameters.Length == 0
+        ? string.Empty
+        : $"{CodeText.TypeIdentifier(property.Declaring.Substring(0, property.Declaring.IndexOf('<')))}Accessors<{arguments}>";
 }

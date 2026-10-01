@@ -57,14 +57,6 @@ internal static class Guard
         }
     }
 
-    internal static void RequireSeconds(float seconds, string parameterName)
-    {
-        if (!(seconds >= 0f) || float.IsInfinity(seconds))
-        {
-            throw new ArgumentOutOfRangeException(parameterName, seconds, "Expected a finite, non-negative number.");
-        }
-    }
-
     internal static void RequireEase(Ease ease, string parameterName)
     {
         if (ease is < Ease.Linear or > Ease.InOutBounce)

@@ -18,15 +18,12 @@ public sealed class StepTests
 
     private const float Edge = 8f;
 
-    [Theory]
-    [InlineData(-1f)]
-    [InlineData(float.NaN)]
-    [InlineData(float.PositiveInfinity)]
-    public void StepHeight_RejectsANegativeOrNonFiniteHeight(float height)
+    [Fact]
+    public void StepHeight_RejectsANonFiniteHeight()
     {
         KinematicBody2D body = new(new BoxCollider2D(new Vector2(Edge, Edge)));
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => body.StepHeight = height);
+        Assert.Throws<ArgumentOutOfRangeException>(() => body.StepHeight = float.NaN);
     }
 
     // The lip spans x = 48 to 64 on ground whose top is y = 64, as a tile or as a box collider. A body

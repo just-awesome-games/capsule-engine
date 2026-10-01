@@ -1,8 +1,8 @@
 #nullable disable
 #pragma warning disable
-namespace Capsule.Runtime.Audio.Vorbis.Contracts
+namespace Capsule.Runtime.Audio.Vorbis
 {
-    class HuffmanListNode
+    sealed class HuffmanListNode
     {
         internal int Value;
 

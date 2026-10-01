@@ -162,7 +162,7 @@ public sealed class ShaderBuildTests
 
         byte[] effect = Assert.IsType<byte[]>(ShaderCompiler.Compile(ToolWorkspace.ShaderTools, "capsule-sprite.fx").Effect);
 
-        string committed = ToolWorkspace.Metadata("CapsuleSpriteShader");
+        string committed = Path.Combine(ToolWorkspace.Metadata("CapsuleCheckout"), "src", "Capsule.Runtime", "Rendering", "Shaders", "sprite.mgfx");
         if (Environment.GetEnvironmentVariable("CAPSULE_UPDATE_ENGINE_SHADER") == "1")
         {
             File.WriteAllBytes(committed, effect);

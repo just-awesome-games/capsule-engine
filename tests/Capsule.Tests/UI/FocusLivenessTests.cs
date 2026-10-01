@@ -109,8 +109,8 @@ public sealed class FocusLivenessTests
         Assert.Equal(1, menu.FocusedIndex);
     }
 
-    // Nothing live to land on, so the navigator holds no focus at all — and takes one again by itself
-    // once an item is live, which is what makes an item re-entering the scene simply usable again.
+    // With nothing live to land on, the navigator holds no focus at all. It takes one again by itself
+    // once an item is live, and an item re-entering the scene is simply usable again.
     [Fact]
     public void TheLastLiveItemLeavingTheScene_LeavesNoFocusUntilOneIsLiveAgain()
     {

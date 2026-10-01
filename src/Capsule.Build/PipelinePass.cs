@@ -295,9 +295,6 @@ internal sealed class PipelinePass(string outputDirectory, CapsuleBuild configur
     internal void Declare<T>(Source source, T model, MemberWriter<T> write) =>
         Assets.Declare(source, (code, indent, identifier) => write(code, indent, identifier, source, model));
 
-    /// <summary>Declares <paramref name="declaration"/> once beside <c>CapsuleAssets</c>, as a type the members use.</summary>
-    internal void Beside(string declaration) => Assets.Beside(declaration);
-
     /// <summary>Reports one defect against <paramref name="anchor"/>, the file or line it is in.</summary>
     internal void Fail(string anchor, string message)
     {

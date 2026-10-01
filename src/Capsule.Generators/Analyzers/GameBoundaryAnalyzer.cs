@@ -110,17 +110,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeProperty(OperationAnalysisContext context)
     {
         IPropertyReferenceOperation operation = (IPropertyReferenceOperation)context.Operation;
-        Subject subject = new(operation.Property);
-
-        // Time and randomness are judged first. Their types count as external state too, and the
-        // narrower rule names what to reach for instead.
-        DiagnosticDescriptor? rule = IsAmbientTime(subject) ? Diagnostics.AmbientTime
-            : subject.IsSystem("Random") ? Diagnostics.AmbientRandom
-            : IsExternalIo(subject) || IsExternalState(subject) ? Diagnostics.ExternalIo
-            : IsConcurrency(subject) ? Diagnostics.Concurrency
-            : null;
-
-        if (rule is not null)
+        if (Classify(new Subject(operation.Property)) is { } rule)
         {
             Report(context, rule, operation.Syntax.GetLocation(), Display(operation.Property));
         }
@@ -173,30 +163,15 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static DiagnosticDescriptor? Classify(in Subject subject)
-    {
-        if (IsExternalIo(subject) || IsExternalState(subject))
-        {
-            return Diagnostics.ExternalIo;
-        }
-
-        if (IsConcurrency(subject))
-        {
-            return Diagnostics.Concurrency;
-        }
-
-        if (IsAmbientTime(subject))
-        {
-            return Diagnostics.AmbientTime;
-        }
-
-        if (IsAmbientRandom(subject))
-        {
-            return Diagnostics.AmbientRandom;
-        }
-
-        return IsPlatformMath(subject) ? Diagnostics.PlatformMath : null;
-    }
+    // Time and randomness are judged first. Environment.TickCount is external state too, and the narrower
+    // rule names what to reach for instead.
+    private static DiagnosticDescriptor? Classify(in Subject subject) =>
+        IsAmbientTime(subject) ? Diagnostics.AmbientTime
+        : IsAmbientRandom(subject) ? Diagnostics.AmbientRandom
+        : IsExternalIo(subject) || IsExternalState(subject) ? Diagnostics.ExternalIo
+        : IsConcurrency(subject) ? Diagnostics.Concurrency
+        : IsPlatformMath(subject) ? Diagnostics.PlatformMath
+        : null;
 
     private static bool IsMonoGame(string assemblyName) =>
         assemblyName.StartsWith("MonoGame.Framework", StringComparison.Ordinal)

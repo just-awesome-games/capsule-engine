@@ -28,13 +28,29 @@ public readonly record struct EmitShape
     public static EmitShape Point => default;
 
     /// <summary>A disc of <paramref name="radius"/>, filled and uniform by area.</summary>
-    public static EmitShape Circle(float radius) => new(Kind.Circle, radius, 0f);
+    public static EmitShape Circle(float radius)
+    {
+        Guard.NonNegative(radius, nameof(radius));
+
+        return new(Kind.Circle, radius, 0f);
+    }
 
     /// <summary>The rim of a disc of <paramref name="radius"/>.</summary>
-    public static EmitShape Ring(float radius) => new(Kind.Ring, radius, 0f);
+    public static EmitShape Ring(float radius)
+    {
+        Guard.NonNegative(radius, nameof(radius));
+
+        return new(Kind.Ring, radius, 0f);
+    }
 
     /// <summary>A rectangle of <paramref name="width"/> by <paramref name="height"/>, filled and centred on the emitter's offset.</summary>
-    public static EmitShape Rect(float width, float height) => new(Kind.Rect, width, height);
+    public static EmitShape Rect(float width, float height)
+    {
+        Guard.NonNegative(width, nameof(width));
+        Guard.NonNegative(height, nameof(height));
+
+        return new(Kind.Rect, width, height);
+    }
 
     // The offset in the emitter's own space, about its Offset.
     internal Vector2 Sample(RandomSource random) => _kind switch

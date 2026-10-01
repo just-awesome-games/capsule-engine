@@ -1,6 +1,4 @@
-using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
@@ -15,7 +13,7 @@ internal static class RegistryProviderRenderer
     {
         if (providerName is not null)
         {
-            context.AddSource(FileName, SourceText.From(Render(providerName), Encoding.UTF8));
+            GeneratedFile.Add(context, FileName, Render(providerName));
         }
     }
 

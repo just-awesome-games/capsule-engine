@@ -7,7 +7,6 @@ namespace Capsule.Scenes.Documents;
 // one fails at load instead of in play. TileGridJson is serializable on its own because a tile-map entry's
 // properties form a nested document.
 [JsonSourceGenerationOptions(
-    WriteIndented = true,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]

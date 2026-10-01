@@ -61,15 +61,6 @@ public sealed class BitmapFontTests
             Assert.Throws<ArgumentException>(() => new BitmapFont(10, 8, [], [], [])).ParamName);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void ALineThatIsNotAtLeastOnePixelTall_IsRefused(int lineHeight)
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new BitmapFont(lineHeight, 8, [FontFixtures.Page], [FontFixtures.A], []));
-    }
-
     // The pen carries the previous glyph's advance plus the pair's kerning, and nothing else.
     [Fact]
     public void ARun_AdvancesByEachGlyphAndKernsBetweenThePairsItCarries()

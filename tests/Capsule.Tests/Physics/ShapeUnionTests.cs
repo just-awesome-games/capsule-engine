@@ -29,22 +29,6 @@ public sealed class ShapeUnionTests
         Assert.Equal(target, contacts[0].Target.Layer);
     }
 
-    [Theory]
-    [MemberData(nameof(Union))]
-    public void EveryShape_IsHitByARayAimedAtIt(string kind)
-    {
-        CollisionWorld2D world = new();
-        world.Add(Of(kind), new Vector2(50f, 50f), world.Layer("target"));
-
-        Assert.True(world.Raycast(
-            new Vector2(0f, 50f),
-            Vector2.UnitX,
-            200f,
-            CollisionFilter.Everything,
-            out RayHit2D hit));
-        Assert.InRange(hit.Distance, 1f, 50f);
-        Assert.True(Vector2.Dot(hit.Normal, Vector2.UnitX) < 0f);
-    }
 
     [Theory]
     [MemberData(nameof(Union))]

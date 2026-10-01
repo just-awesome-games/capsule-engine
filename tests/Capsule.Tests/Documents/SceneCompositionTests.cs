@@ -71,22 +71,19 @@ public sealed class SceneCompositionTests
         SceneDocument document = new(
             [
                 new TileMapPlacement(3, SceneFixtures.RoomGrid()),
-                new EntityPlacement(1, "player", 32f, 24f),
+                new EntityPlacement(1, "chest", 32f, 24f),
                 new TileMapPlacement(4, SceneFixtures.RoomGrid()),
-                new EntityPlacement(2, "effect", 48f, 16f),
+                new EntityPlacement(2, "chest", 48f, 16f),
             ],
             5);
 
         Scene scene = SceneFixtures.RoomScene(
             document,
-            SceneFixtures.Registry(
-                ("player", static spawn => new SceneFixtures.Placed(spawn)),
-                ("effect", static spawn => new SceneFixtures.Placed(spawn))));
+            SceneFixtures.Registry(("chest", static spawn => new SceneFixtures.Placed(spawn))));
 
-        Assert.IsType<TileMap>(scene.Entities[0]);
-        Assert.IsType<SceneFixtures.Placed>(scene.Entities[1]);
-        Assert.IsType<TileMap>(scene.Entities[2]);
-        Assert.IsType<SceneFixtures.Placed>(scene.Entities[3]);
+        Assert.Equal(
+            [typeof(TileMap), typeof(SceneFixtures.Placed), typeof(TileMap), typeof(SceneFixtures.Placed)],
+            scene.Entities.ToArray().Select(static entity => entity.GetType()));
     }
 
     // The document writes degrees, and the entity reads radians before its own body runs.
@@ -121,18 +118,6 @@ public sealed class SceneCompositionTests
             "set Rotation = 0 in the Solid constructor before adding the BoxCollider2D and read spawn.Rotation",
             error.Message,
             StringComparison.Ordinal);
-    }
-
-    // Code places an entity through the same constructor a document does, with no document identity.
-    [Fact]
-    public void ACodeBuiltSpawn_HasIdZero_NoType_AndScaleOne()
-    {
-        SceneFixtures.Placed placed = new(new EntitySpawn(new Vector2(4f, 8f)));
-
-        Assert.Equal(0, placed.Spawn.Id);
-        Assert.Null(placed.Spawn.Type);
-        Assert.Equal(Vector2.One, placed.Spawn.Scale);
-        Assert.Equal(new Vector2(4f, 8f), placed.Position);
     }
 
     private sealed class Turned : Entity

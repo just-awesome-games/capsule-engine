@@ -172,7 +172,21 @@ public sealed class EntityPoolTests
         simulation.Step(SceneFixtures.Step());
 
         Assert.True(second.Emitter.Alive > 0, "the prewarm did not run again on the second life");
+
+        // The second life draws the stream its add reserved, as a new emitter added second would.
+        SceneFixtures.HookScene freshScene = new();
+        using SceneSimulation freshSimulation = new(freshScene);
+        Animated discarded = new();
+        freshScene.Add(discarded);
+        freshScene.Remove(discarded);
+        freshScene.Add(new Animated());
+        freshSimulation.Step(SceneFixtures.Step());
+
+        Assert.Equal(Particles(freshSimulation), Particles(simulation));
     }
+
+    private static Vector2[] Particles(SceneSimulation simulation) =>
+        [.. simulation.View.Sprites.ToArray().Where(static intent => intent.Size.X < 4f).Select(static intent => intent.Position)];
 
     private sealed class Sprited : Entity
     {
@@ -206,6 +220,7 @@ public sealed class EntityPoolTests
             {
                 PrewarmSeconds = 0.1f,
                 Rate = 20f,
+                Shape = EmitShape.Circle(4f),
                 Lifetime = (5f, 5f),
             };
             Add(Emitter);

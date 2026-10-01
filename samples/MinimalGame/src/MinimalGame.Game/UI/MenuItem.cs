@@ -13,6 +13,9 @@ namespace MinimalGame.Game.UI;
 /// </summary>
 public sealed class MenuItem : ScreenEntity
 {
+    /// <summary>Canvas pixels between the centres of neighbouring items in a column.</summary>
+    public const float Spacing = 20f;
+
     // The box is at least this wide, whatever the caption measures.
     private const float MinWidth = 88f;
     private const float BoxHeight = 16f;

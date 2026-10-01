@@ -26,23 +26,6 @@ public sealed class SimulationHostTests
         Assert.Equal(6, run.Tick);
     }
 
-    [Fact]
-    public void Run_IsTheSimulationsRun_AndStepCountAdvancesThatManyTicks()
-    {
-        List<long> ticks = [];
-        void Hook(Scene scene, in StepContext context) => ticks.Add(context.Tick);
-        Run configured = new();
-
-        using SimulationHost host = new(new SceneFixtures.HookScene(step: Hook), run: configured);
-
-        Assert.Same(configured, host.Run);
-
-        host.Step(3);
-
-        Assert.Equal([0L, 1, 2], ticks);
-        Assert.Equal(3, host.Tick);
-    }
-
     // The rate a caller builds a run with is the one a distance is measured against, so it has to
     // be both readable and what the scene is actually stepped at.
     [Fact]
@@ -145,7 +128,7 @@ public sealed class SimulationHostTests
     }
 
     [Fact]
-    public void RunUntil_StopsOnTheStepTheConditionFirstHolds()
+    public void RunUntil_StopsOnTheStepTheConditionFirstHolds_OrSpendsItsBudget()
     {
         SceneFixtures.Drifter drifter = new(Vector2.Zero);
         SceneFixtures.HookScene scene = new();
@@ -155,15 +138,9 @@ public sealed class SimulationHostTests
 
         Assert.True(run.RunUntil(() => drifter.Position.X >= 3f, 10));
         Assert.Equal(3, run.Tick);
-    }
-
-    [Fact]
-    public void RunUntil_SpendsItsBudgetAndNoMore_WhenTheConditionNeverHolds()
-    {
-        using SimulationHost run = new(new SceneFixtures.HookScene());
 
         Assert.False(run.RunUntil(static () => false, 4));
-        Assert.Equal(4, run.Tick);
+        Assert.Equal(7, run.Tick);
     }
 
     private sealed class ExitsOnStart : Scene

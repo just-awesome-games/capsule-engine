@@ -7,6 +7,5 @@ internal static class SoundPitch
     private const float MaxOctaves = 10f;
 
     // The mixer's pitch is a playback-rate multiplier. The backend's is octaves off unit rate.
-    internal static float Octaves(float rate) =>
-        rate <= 0f ? -MaxOctaves : Math.Clamp(MathF.Log2(rate), -MaxOctaves, MaxOctaves);
+    internal static float Octaves(float rate) => Math.Clamp(MathF.Log2(rate), -MaxOctaves, MaxOctaves);
 }

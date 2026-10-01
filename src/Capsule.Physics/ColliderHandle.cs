@@ -8,7 +8,7 @@ namespace Capsule.Physics;
 /// handle reads as absent.
 /// </para>
 /// </remarks>
-public readonly struct ColliderHandle : IEquatable<ColliderHandle>
+public readonly record struct ColliderHandle
 {
     internal ColliderHandle(int world, int index, int generation)
     {
@@ -28,20 +28,4 @@ public readonly struct ColliderHandle : IEquatable<ColliderHandle>
     internal int Index { get; }
 
     internal int Generation { get; }
-
-    /// <summary>Whether two handles name the same collider of the same world.</summary>
-    public static bool operator ==(ColliderHandle left, ColliderHandle right) => left.Equals(right);
-
-    /// <summary>Whether two handles name different colliders, or colliders of different worlds.</summary>
-    public static bool operator !=(ColliderHandle left, ColliderHandle right) => !left.Equals(right);
-
-    /// <inheritdoc/>
-    public bool Equals(ColliderHandle other) =>
-        World == other.World && Index == other.Index && Generation == other.Generation;
-
-    /// <inheritdoc/>
-    public override bool Equals(object? obj) => obj is ColliderHandle other && Equals(other);
-
-    /// <inheritdoc/>
-    public override int GetHashCode() => HashCode.Combine(World, Index, Generation);
 }

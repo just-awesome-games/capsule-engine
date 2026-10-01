@@ -8,19 +8,6 @@ public sealed class LetterboxTests
     // A declared span that matches a 320x180 canvas one world unit to the pixel.
     private static readonly Vector2 Canvas = new(320f, 180f);
 
-    [Theory]
-    [InlineData(320f, 180f, 1920, 1080)]
-    [InlineData(320f, 180f, 1000, 1000)]
-    [InlineData(4f, 3f, 3440, 1440)]
-    [InlineData(16f, 9f, 640, 480)]
-    public void Fit_ScalesBothAxesByTheSameFactor(float contentWidth, float contentHeight, int containerWidth, int containerHeight)
-    {
-        Letterbox fit = Letterbox.Fit(contentWidth, contentHeight, containerWidth, containerHeight);
-
-        Assert.Equal(contentWidth * fit.Scale, fit.Width, 0.5);
-        Assert.Equal(contentHeight * fit.Scale, fit.Height, 0.5);
-    }
-
     // A container the content's aspect does not match gets bars on the axis with room to spare:
     // pillars on a wider container, a letterbox on a taller one.
     [Theory]

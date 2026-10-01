@@ -21,14 +21,19 @@ public sealed class GamepadRumbleTests
         Assert.Equal([(0, Buzz)], writes);
     }
 
-    [Fact]
-    public void LosingFocus_RestsTheMotorsAndRegainingItRewritesTheLevel()
+    // Lost focus, an unplugged pad, a keyboard step and a held run each rest the motors.
+    [Theory]
+    [InlineData(false, true, true, false)]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, true, true, true)]
+    public void AClosedGate_RestsTheMotorsAndReopeningItRewritesTheLevel(bool focused, bool connected, bool padActive, bool runHeld)
     {
         (GamepadRumble applier, List<(int Player, RumbleLevel Level)> writes) = Applier();
 
         applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
-        applier.Apply(Buzz, focused: false, connected: true, padActive: true, runHeld: false, player: 0, Frame);
-        applier.Apply(Buzz, focused: false, connected: true, padActive: true, runHeld: false, player: 0, Frame);
+        applier.Apply(Buzz, focused, connected, padActive, runHeld, player: 0, Frame);
+        applier.Apply(Buzz, focused, connected, padActive, runHeld, player: 0, 2.0);
         applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
 
         Assert.Equal([(0, Buzz), (0, RumbleLevel.Zero), (0, Buzz)], writes);
@@ -60,34 +65,6 @@ public sealed class GamepadRumbleTests
         applier.Apply(RumbleLevel.Zero, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
         applier.Apply(RumbleLevel.Zero, focused: true, connected: true, padActive: true, runHeld: false, player: 0, 2.0);
         Assert.Equal([(0, Buzz), (0, Buzz), (0, RumbleLevel.Zero)], writes);
-    }
-
-    [Fact]
-    public void AKeyboardStep_RestsTheMotorsAndThePadReturningRewritesTheLevel()
-    {
-        (GamepadRumble applier, List<(int Player, RumbleLevel Level)> writes) = Applier();
-
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
-        applier.Apply(Buzz, focused: true, connected: true, padActive: false, runHeld: false, player: 0, Frame);
-        applier.Apply(Buzz, focused: true, connected: true, padActive: false, runHeld: false, player: 0, Frame);
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
-
-        Assert.Equal([(0, Buzz), (0, RumbleLevel.Zero), (0, Buzz)], writes);
-    }
-
-    [Fact]
-    public void AHeldRun_RestsTheMotorsAndReleasingItRewritesTheLevel()
-    {
-        (GamepadRumble applier, List<(int Player, RumbleLevel Level)> writes) = Applier();
-
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: true, player: 0, Frame);
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: true, player: 0, 2.0);
-        Assert.Empty(writes);
-
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: false, player: 0, Frame);
-        applier.Apply(Buzz, focused: true, connected: true, padActive: true, runHeld: true, player: 0, Frame);
-
-        Assert.Equal([(0, Buzz), (0, RumbleLevel.Zero)], writes);
     }
 
     [Fact]

@@ -8,7 +8,7 @@ namespace Capsule.Generators;
 internal static class RegistryPass
 {
     /// <summary>
-    /// Hands <paramref name="resolve"/> every sound model once, in declaration order, and reports
+    /// Hands <paramref name="resolve"/> every sound model once, in <see cref="DeclarationOrder"/>, and reports
     /// the diagnostic <paramref name="reported"/> names for the faulted ones.
     /// </summary>
     internal static void ValidateAndOrder<TModel>(

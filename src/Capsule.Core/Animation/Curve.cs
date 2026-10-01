@@ -11,43 +11,44 @@ public readonly record struct CurveKey(float Time, float Value);
 /// A value over a normalised time in [0, 1], eased between adjacent keys by one <see cref="Ease"/>.
 /// It holds the first key's value before that key and the last key's value after it.
 /// </summary>
-/// <remarks>
-/// A curve stores up to eight keys inline.
-/// <para>
-/// Allocates nothing.
-/// </para>
-/// </remarks>
-///
+/// <remarks>A curve stores up to eight keys inline and allocates nothing.</remarks>
 public readonly struct Curve
 {
     private readonly KeyBuffer _keys;
     private readonly byte _count;
     private readonly Ease _ease;
-    private readonly float _max;
+
+    // The largest magnitude the curve reaches, overshoot included. A particle emitter's bounds inflate by this.
+    internal float Reach { get; }
 
     private Curve(ReadOnlySpan<CurveKey> keys, Ease ease)
     {
         _count = (byte)keys.Length;
         _ease = ease;
 
-        float max = keys[0].Value;
-        for (int index = 0; index < keys.Length; index++)
+        // The back and elastic families leave [0, 1] by at most these margins between two keys.
+        float low = ease switch
+        {
+            >= Ease.InBack and <= Ease.InOutBack => -0.11f,
+            >= Ease.InElastic and <= Ease.InOutElastic => -0.38f,
+            _ => 0f,
+        };
+
+        _keys[0] = keys[0];
+        float reach = MathF.Abs(keys[0].Value);
+        for (int index = 1; index < keys.Length; index++)
         {
             _keys[index] = keys[index];
-            if (keys[index].Value > max)
-            {
-                max = keys[index].Value;
-            }
+            float from = keys[index - 1].Value;
+            float change = keys[index].Value - from;
+            reach = MathF.Max(reach, MathF.Max(MathF.Abs(from + (change * low)), MathF.Abs(from + (change * (1f - low)))));
         }
 
-        _max = max;
+        Reach = reach;
     }
 
     /// <summary>A curve holding one constant value.</summary>
     public static Curve Constant(float value) => FromKeys([new CurveKey(0f, value)]);
-
-    // The largest value any key holds. A particle emitter's bounds inflate by this.
-    internal float Max => _max;
 
     /// <summary>A constant curve, as <see cref="Constant"/>.</summary>
     public static implicit operator Curve(float value) => Constant(value);
@@ -72,11 +73,14 @@ public readonly struct Curve
             throw new ArgumentOutOfRangeException(nameof(keys), keys.Length, "A curve holds one to eight keys.");
         }
 
+        Guard.RequireEase(ease, nameof(ease));
+
         float previous = float.NegativeInfinity;
         for (int index = 0; index < keys.Length; index++)
         {
             float time = keys[index].Time;
             Guard.InUnit(time, nameof(keys));
+            Guard.Finite(keys[index].Value, nameof(keys));
 
             if (time < previous)
             {

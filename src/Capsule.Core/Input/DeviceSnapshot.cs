@@ -125,14 +125,6 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <exception cref="ArgumentOutOfRangeException">The button is outside <see cref="MouseCapacity"/>.</exception>
     public DeviceSnapshot Without(MouseButton button) => new(_down, _padDown, _mouseDown & ~MouseBit(button), _pointer, _scroll, _axes, _unfocused);
 
-    // A sampler walks a device's held buttons once and folds them into one mask. A sample costs one
-    // snapshot instead of one per button.
-    internal static UInt128 MaskOf(Key key) => Bit(key);
-
-    internal static uint MaskOf(PadButton button) => PadBit(button);
-
-    internal static uint MaskOf(MouseButton button) => MouseBit(button);
-
     // Whether a pad button is down here that was not down in the older snapshot.
     internal bool AnyPadButtonNewlyDown(in DeviceSnapshot older) => (_padDown & ~older._padDown) != 0;
 
@@ -140,8 +132,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     internal bool AnyKeyOrMouseButtonNewlyDown(in DeviceSnapshot older) =>
         (_down & ~older._down) != UInt128.Zero || (_mouseDown & ~older._mouseDown) != 0;
 
-    // The lowest-valued key, pad button or mouse button newly down here, or null. The trailing zero
-    // count of the newly-pressed mask is that lowest value's index, so no loop is needed.
+    // The lowest-valued key newly down here, or null.
     internal Key? NewlyDownKey(in DeviceSnapshot older)
     {
         UInt128 pressed = _down & ~older._down;
@@ -177,17 +168,15 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         }
     }
 
-    internal DeviceSnapshot WithKeys(UInt128 keys) => new(_down | keys, _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused);
-
-    internal DeviceSnapshot WithPadButtons(uint buttons) => new(_down, _padDown | buttons, _mouseDown, _pointer, _scroll, _axes, _unfocused);
-
+    // Mouse buttons as a mask whose bit n is the button of value n.
     internal DeviceSnapshot WithMouseButtons(uint buttons) => new(_down, _padDown, _mouseDown | buttons, _pointer, _scroll, _axes, _unfocused);
 
-    internal DeviceSnapshot WithoutKeys(UInt128 keys) => new(_down & ~keys, _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused);
-
-    internal DeviceSnapshot WithoutPadButtons(uint buttons) => new(_down, _padDown & ~buttons, _mouseDown, _pointer, _scroll, _axes, _unfocused);
-
-    internal DeviceSnapshot WithoutMouseButtons(uint buttons) => new(_down, _padDown, _mouseDown & ~buttons, _pointer, _scroll, _axes, _unfocused);
+    /// <summary>
+    /// This snapshot with <paramref name="button"/> additionally held. A stick direction is held by
+    /// pushing its axis fully in that direction.
+    /// </summary>
+    /// <param name="button">The key, pad button, mouse button or stick direction to hold.</param>
+    public DeviceSnapshot With(InputButton button) => button.AddTo(this);
 
     /// <summary>
     /// This snapshot with <paramref name="button"/> released. A stick direction is removed by

@@ -19,7 +19,7 @@ internal sealed class LoopedPcmReader
     private IPcmSource? _source;
     private bool _loop;
     private long _start;
-    private long _end = NoRegion;
+    private long _end;
 
     // Frames read since the last rewind. A region the source yields nothing from would otherwise
     // wrap forever inside one fill.
@@ -57,13 +57,7 @@ internal sealed class LoopedPcmReader
 
     // Lets go of the source this reader was armed over, so a voice back in the pool holds neither a
     // file handle nor an ended clip's samples. Reads nothing until it is armed again.
-    internal void Clear()
-    {
-        _source = null;
-        _start = 0;
-        _end = NoRegion;
-        _frame = 0;
-    }
+    internal void Clear() => _source = null;
 
     // Interleaved samples written, always a whole number of frames. Zero once the source is spent with
     // nothing repeating it, and for a reader holding no source.

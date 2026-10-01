@@ -34,6 +34,9 @@ public class Scene
     // next read in order. A batch of removals then costs one pass instead of one shift each.
     private int _holes;
     private int _firstHole;
+
+    // Bumped whenever an entity moves to another slot of _entities. A walk that sees it change throws.
+    private int _entitiesVersion;
     private readonly List<Entity> _pendingAdds = [];
     private readonly List<Entity> _pendingRemoves = [];
 
@@ -50,9 +53,6 @@ public class Scene
     // How many bodies in this scene are moved by each collision layer, indexed by layer.
     private readonly int[] _movedByCounts = new int[CollisionWorld2D.MaxLayers];
 
-    // The deepest any body in this scene has stood below the pose it sweeps. A pusher looks this far
-    // below its path for the bodies whose swept pose it crosses.
-    private float _deepestSink;
     private readonly SettleList<VisibleOnScreenNotifier2D> _screenNotifiers = new();
 
     // The frame's visible region, held so notifiers settle against it.
@@ -83,6 +83,16 @@ public class Scene
     // How many steps have begun, wrapping. A held particle emitter compares it for equality to tell its
     // particles spawned this step from older ones.
     internal int StepsBegun { get; private set; }
+
+    // The current stepping tick, or null if not stepping.
+    internal long? SteppingTick { get; private set; }
+
+    // One bit per layer some body in this scene is moved by. A collider on none of them shoves nothing.
+    internal ulong MovedByLayers { get; private set; }
+
+    // The deepest any body in this scene has stood below the pose it sweeps. A pusher looks this far
+    // below its path for the bodies whose swept pose it crosses.
+    internal float DeepestSink { get; private set; }
 
     // Every texture and sound the document's placements author, which the preload collects. Null for a scene built in code.
     private readonly AssetCollection? _authoredAssets;
@@ -400,12 +410,9 @@ public class Scene
     public T? FindFirst<T>()
         where T : class
     {
-        foreach (Entity entity in Entities)
+        foreach (T found in FindAll<T>())
         {
-            if (entity is T found)
-            {
-                return found;
-            }
+            return found;
         }
 
         return null;
@@ -421,9 +428,9 @@ public class Scene
     {
         ArgumentNullException.ThrowIfNull(match);
 
-        foreach (Entity entity in Entities)
+        foreach (T found in FindAll<T>())
         {
-            if (entity is T found && match(found))
+            if (match(found))
             {
                 return found;
             }
@@ -433,7 +440,11 @@ public class Scene
     }
 
     /// <summary>Every entity in <see cref="Entities"/> assignable to <typeparamref name="T"/>, in step order.</summary>
-    /// <remarks>It walks the scene as it stands. An add or remove during a step lands when the step ends.</remarks>
+    /// <remarks>
+    /// It walks the scene as it stands. An add or remove during a step lands when the step ends. Outside
+    /// a step an add lands at once and ends the walk with an <see cref="InvalidOperationException"/>. So does
+    /// a removal outside a step once any query compacts the list.
+    /// </remarks>
     /// <example>
     /// <code>
     /// foreach (IEnemy enemy in FindAll&lt;IEnemy&gt;())
@@ -446,7 +457,7 @@ public class Scene
         where T : class
     {
         Compact();
-        return new(_entities);
+        return new(this);
     }
 
     /// <summary>The only entity in <see cref="Entities"/> assignable to <typeparamref name="T"/>.</summary>
@@ -456,13 +467,8 @@ public class Scene
     {
         T? found = null;
 
-        foreach (Entity entity in Entities)
+        foreach (T candidate in FindAll<T>())
         {
-            if (entity is not T candidate)
-            {
-                continue;
-            }
-
             if (found is not null)
             {
                 throw new InvalidOperationException(
@@ -563,7 +569,6 @@ public class Scene
     /// </remarks>
     protected internal virtual void CollectAssets(AssetCollection assets)
     {
-        ArgumentNullException.ThrowIfNull(assets);
     }
 
     /// <summary>
@@ -712,8 +717,7 @@ public class Scene
     internal void InvalidateRenderers() => _renderIndex.Invalidate();
 
     // Rewrites view from the scene as it stands, calling every visible renderer's Draw in draw order.
-    // Draw only writes the view. A change to the scene from inside it throws, so the draw order is
-    // fixed for the whole pass and a frame is the same whenever and however often it is built.
+    // A change to the scene from inside Draw throws. A frame is then the same however often it is built.
     internal void DrawFrame(FrameView view)
     {
         view.Clear();
@@ -735,9 +739,7 @@ public class Scene
                     continue;
                 }
 
-                // The only place the render space, scroll factor, tint, flash and material are chosen. A
-                // renderer follows its entity. A hidden or fully faded entity's renderers are skipped
-                // before Draw.
+                // The only place the render space, scroll factor, tint, flash and material are chosen.
                 Entity entity = renderer.Entity!;
                 if (entity.TryGetDrawStyle(out ColorRgba tint, out ColorRgba flash))
                 {
@@ -759,8 +761,7 @@ public class Scene
         }
     }
 
-    // Guards every change that reaches the draw order. The pass holds no deferral queue, and a change
-    // made inside Draw would otherwise change what later renderers and later frames draw.
+    // Guards every change that reaches the draw order. The draw pass holds no deferral queue.
     internal void ThrowIfDrawing(string change)
     {
         if (_drawing)
@@ -774,9 +775,6 @@ public class Scene
     internal bool Contains(Entity entity) =>
         ReferenceEquals(entity.SceneOrNull, this) &&
         (_pendingRemoveSet.Count == 0 || !_pendingRemoveSet.Contains(entity));
-
-    // The current stepping tick, or null if not stepping.
-    internal long? SteppingTick { get; private set; }
 
     internal void BeginStep()
     {
@@ -855,12 +853,7 @@ public class Scene
 
     internal void TrackContacts(Collider2D collider) => _contactReporters.Add(collider);
 
-    internal float DeepestSink => _deepestSink;
-
-    internal void NoteSink(float sink) => _deepestSink = MathF.Max(_deepestSink, sink);
-
-    // One bit per layer some body in this scene is moved by. A collider on none of them shoves nothing.
-    internal ulong MovedByLayers { get; private set; }
+    internal void NoteSink(float sink) => DeepestSink = MathF.Max(DeepestSink, sink);
 
     // Adds or withdraws one body's moved-by layers from the scene's union.
     internal void CountMovedBy(CollisionFilter filter, int delta)
@@ -869,17 +862,11 @@ public class Scene
         while (bits != 0)
         {
             int layer = BitOperations.TrailingZeroCount(bits);
+            ulong bit = 1UL << layer;
             bits &= bits - 1;
 
             _movedByCounts[layer] += delta;
-            if (_movedByCounts[layer] > 0)
-            {
-                MovedByLayers |= 1UL << layer;
-            }
-            else
-            {
-                MovedByLayers &= ~(1UL << layer);
-            }
+            MovedByLayers = _movedByCounts[layer] > 0 ? MovedByLayers | bit : MovedByLayers & ~bit;
         }
     }
 
@@ -959,7 +946,7 @@ public class Scene
                 {
                     Entity pending = _pendingAdds[processed];
 
-                    // Mark as processed before attempting attach so failures are not retried.
+                    // Counted before the attach. A failed attach is then not retried.
                     processed++;
                     Attach(pending);
                 }
@@ -1039,7 +1026,6 @@ public class Scene
         Attach(entity);
     }
 
-    // Drop processed items from the queue and its membership set.
     private static void DropProcessed(List<Entity> queue, HashSet<Entity> membership, int processed)
     {
         for (int index = 0; index < processed; index++)
@@ -1068,7 +1054,7 @@ public class Scene
         }
     }
 
-    // Attach entity and children in tree order. Each lands after its parent so list stays in step order.
+    // Each entity lands after its parent's held subtree, keeping the list in step order.
     private void AttachTree(Entity entity)
     {
         // A subtree's span is contiguous only once the holes are gone.
@@ -1078,6 +1064,7 @@ public class Scene
             : _entities.Count;
 
         _entities.Insert(index, entity);
+        _entitiesVersion++;
         Renumber(index);
         _renderIndex.Invalidate();
         entity.SceneOrNull = this;
@@ -1108,7 +1095,6 @@ public class Scene
         }
     }
 
-    // Count entities of a subtree held in this scene.
     private int HeldCount(Entity entity)
     {
         int count = 1;
@@ -1123,7 +1109,7 @@ public class Scene
         return count;
     }
 
-    // Start pending entities. OnStart may attach more, and this loop drains those too.
+    // OnStart may attach more, and this loop drains those too.
     private void StartPending()
     {
         if (_starting)
@@ -1324,6 +1310,7 @@ public class Scene
 
         _entities.RemoveRange(kept, _entities.Count - kept);
         _holes = 0;
+        _entitiesVersion++;
     }
 
     // Restores each entity's slot from `from` on, after an insert shifted them.
@@ -1378,34 +1365,45 @@ public class Scene
         }
     }
 
-    // A list that can be walked while its callbacks modify it. Entries added during a walk are
-    // skipped until the next one.
     /// <summary>The entities of a scene assignable to <typeparamref name="T"/>, walked by <see langword="foreach"/>.</summary>
     /// <typeparam name="T">The class or interface the walk yields.</typeparam>
     public struct EntityWalk<T>
         where T : class
     {
-        private readonly List<Entity> _entities;
+        private readonly Scene _scene;
+        private readonly int _version;
         private int _index;
 
-        internal EntityWalk(List<Entity> entities)
+        internal EntityWalk(Scene scene)
         {
-            _entities = entities;
+            _scene = scene;
+            _version = scene._entitiesVersion;
             _index = -1;
         }
 
         /// <summary>The entity the walk stands on.</summary>
-        public readonly T Current => (T)(object)_entities[_index];
+        public readonly T Current => (T)(object)_scene._entities[_index];
 
         /// <summary>The walk itself, which <see langword="foreach"/> binds to.</summary>
         public readonly EntityWalk<T> GetEnumerator() => this;
 
         /// <summary>Steps to the next entity assignable to <typeparamref name="T"/>, or returns false past the last.</summary>
+        /// <exception cref="InvalidOperationException">
+        /// An entity was added outside a step since the walk began, or removed outside a step and then compacted away by a query.
+        /// </exception>
         public bool MoveNext()
         {
-            while (++_index < _entities.Count)
+            if (_version != _scene._entitiesVersion)
             {
-                if (_entities[_index] is T)
+                throw new InvalidOperationException(
+                    $"A {_scene.GetType().Name}'s entities moved during a walk over them, which would skip or repeat one. " +
+                    "Collect the entities to add or remove, and change the scene after the walk.");
+            }
+
+            List<Entity> entities = _scene._entities;
+            while (++_index < entities.Count)
+            {
+                if (entities[_index] is T)
                 {
                     return true;
                 }
@@ -1415,6 +1413,8 @@ public class Scene
         }
     }
 
+    // A list that can be walked while its callbacks modify it. Entries added during a walk are
+    // skipped until the next one.
     private sealed class SettleList<T>
         where T : class
     {

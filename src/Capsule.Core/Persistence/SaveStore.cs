@@ -38,19 +38,12 @@ public sealed class SaveStore
     /// <summary>Reads the document, deserialized afresh, or the key's fallback when absent.</summary>
     /// <exception cref="KeyNotFoundException">The document is absent and the key declares no fallback.</exception>
     /// <exception cref="JsonException">The document no longer deserializes as <typeparamref name="T"/>.</exception>
-    public T Read<T>(SaveKey<T> key)
-    {
-        ArgumentNullException.ThrowIfNull(key);
-
-        if (_documents.TryGetValue(key.Name, out Entry entry))
-        {
-            return JsonSerializer.Deserialize(entry.Document, key.TypeInfo)!;
-        }
-
-        return JsonSerializer.Deserialize(
-            key.FallbackJson ?? throw new KeyNotFoundException($"No save document is named '{key.Name}' and the key declares no fallback."),
-            key.TypeInfo)!;
-    }
+    public T Read<T>(SaveKey<T> key) =>
+        TryRead(key, out T value)
+            ? value
+            : JsonSerializer.Deserialize(
+                key.FallbackJson ?? throw new KeyNotFoundException($"No save document is named '{key.Name}' and the key declares no fallback."),
+                key.TypeInfo)!;
 
     /// <summary>Reads the document when present, reporting absence instead of using the key's fallback.</summary>
     /// <param name="key">The document to read.</param>
@@ -80,16 +73,7 @@ public sealed class SaveStore
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        string document = Serialize(key, value);
-
-        ref Entry entry = ref CollectionsMarshal.GetValueRefOrAddDefault(_documents, key.Name, out bool present);
-        entry.Document = document;
-
-        if (!present)
-        {
-            _names.Insert(~_names.BinarySearch(key.Name, StringComparer.Ordinal), key.Name);
-        }
-
+        Put(key.Name, Serialize(key, value));
         _dirty.Add(key.Name);
     }
 
@@ -170,16 +154,20 @@ public sealed class SaveStore
         _dirty.Clear();
     }
 
-    private void Restore(string name, string document, SaveMetadata metadata)
+    private void Restore(string name, string document, SaveMetadata metadata) => Put(name, document).Metadata = metadata;
+
+    // Sets the document under name, adding the name in order when it is new.
+    private ref Entry Put(string name, string document)
     {
         ref Entry entry = ref CollectionsMarshal.GetValueRefOrAddDefault(_documents, name, out bool present);
         entry.Document = document;
-        entry.Metadata = metadata;
 
         if (!present)
         {
             _names.Insert(~_names.BinarySearch(name, StringComparer.Ordinal), name);
         }
+
+        return ref entry;
     }
 
     private string Serialize<T>(SaveKey<T> key, T value)

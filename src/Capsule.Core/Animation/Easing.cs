@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Capsule.Animation;
 
 /// <summary>
@@ -29,12 +31,8 @@ public static class Easing
     /// </remarks>
     public static float Apply(Ease ease, float t)
     {
-        // Checked ahead of the clamp. An undeclared curve is refused at every progress, endpoints
-        // included. The members are contiguous from Linear.
-        if (ease is < Ease.Linear or > Ease.InOutBounce)
-        {
-            throw new ArgumentOutOfRangeException(nameof(ease), ease, "No such easing curve.");
-        }
+        // Checked ahead of the clamp, so an undeclared curve is refused at the endpoints too.
+        Guard.RequireEase(ease, nameof(ease));
 
         if (t <= 0f || float.IsNaN(t))
         {
@@ -92,9 +90,7 @@ public static class Easing
                 ? (1f - OutBounce(1f - t - t)) * 0.5f
                 : (1f + OutBounce(t + t - 1f)) * 0.5f,
 
-            // Unreachable, because the range check admits only the members the arms enumerate. The
-            // compiler still requires this arm.
-            _ => throw new ArgumentOutOfRangeException(nameof(ease), ease, "No such easing curve."),
+            _ => throw new UnreachableException(),
         };
     }
 

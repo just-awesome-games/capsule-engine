@@ -83,6 +83,7 @@ public sealed class AudioVoiceTimeTests
 
         Voice region = mixer.Play(new AudioPlayback(scored) { Loop = true });
         Voice whole = mixer.Play(new AudioPlayback(Theme) { Loop = true });
+        Assert.Equal(new AudioLoopRegion(2.0, 6.0), mixer.Commands[0].Clip.LoopRegion);
 
         // Seven seconds in: one second past the region's end, and three seconds past the four-second
         // clip that has no region.
@@ -120,44 +121,16 @@ public sealed class AudioVoiceTimeTests
         Assert.Equal(7.0, mixer.GetTime(voice), 6);
     }
 
-    // A region the game sets on the clip is the same region a file-authored one is: it rides the play
-    // command to the host and is what the voice's position folds into.
-    [Fact]
-    public void ARegionSetInCode_IsWhatThePlayCommandCarriesAndTimeFoldsInto()
+    // The mixer refuses an inverted region that HasRegion would read as none. A one-shot is checked too.
+    [Theory]
+    [InlineData(2.0, 10.0)]
+    [InlineData(5.0, 3.0)]
+    public void ARegionTheClipCannotHold_IsRefused(double start, double end)
     {
         AudioMixer mixer = new();
-        AudioClip unscored = new("music/scored", ".ogg", 8.0, AudioLoopRegion.None);
-        AudioClip scored = unscored with { LoopRegion = new AudioLoopRegion(2.0, 6.0) };
+        AudioClip clip = new("music/scored", ".ogg", 8.0, new AudioLoopRegion(start, end));
 
-        Voice voice = mixer.Play(new AudioPlayback(scored) { Loop = true });
-
-        Assert.Equal(new AudioLoopRegion(2.0, 6.0), mixer.Commands[0].Clip.LoopRegion);
-
-        // Seven seconds in: one second past the region's end, so one second into the region.
-        Advance(mixer, 420);
-
-        Assert.Equal(3.0, mixer.GetTime(voice), 6);
-    }
-
-    [Fact]
-    public void ARegionEndingPastTheClip_IsRefused()
-    {
-        AudioMixer mixer = new();
-        AudioClip overrun = new("music/scored", ".ogg", 8.0, new AudioLoopRegion(2.0, 10.0));
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => mixer.Play(new AudioPlayback(overrun) { Loop = true }));
-        Assert.Empty(mixer.Commands.ToArray());
-    }
-
-    // HasRegion reads a region whose end precedes its start as no region at all, so nothing downstream
-    // would report it: the mixer refuses it instead of playing the clip whole.
-    [Fact]
-    public void AMalformedRegion_IsRefused()
-    {
-        AudioMixer mixer = new();
-        AudioClip inverted = new("music/scored", ".ogg", 8.0, new AudioLoopRegion(5.0, 3.0));
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => mixer.Play(inverted));
+        Assert.Throws<ArgumentOutOfRangeException>(() => mixer.Play(clip));
         Assert.Empty(mixer.Commands.ToArray());
     }
 
@@ -228,9 +201,4 @@ public sealed class AudioVoiceTimeTests
         Assert.Throws<ArgumentOutOfRangeException>(() => mixer.SetPitch(voice, pitch));
         Assert.Throws<ArgumentOutOfRangeException>(() => mixer.Play(new AudioPlayback(Step) { Pitch = pitch }));
     }
-
-    // The constructor's defaults are what a playback carries, so the default value carries none.
-    [Fact]
-    public void ADefaultPlayback_IsRefused() =>
-        Assert.Throws<ArgumentOutOfRangeException>(() => new AudioMixer().Play(default(AudioPlayback)));
 }

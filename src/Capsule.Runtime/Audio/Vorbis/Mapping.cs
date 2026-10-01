@@ -1,26 +1,25 @@
 #nullable disable
 #pragma warning disable
-using Capsule.Runtime.Audio.Vorbis.Contracts;
 using System;
 
 namespace Capsule.Runtime.Audio.Vorbis
 {
-    class Mapping : IMapping
+    sealed class Mapping
     {
-        IMdct _mdct;
+        Mdct _mdct;
         int[] _couplingAngle;
         int[] _couplingMangitude;
         IFloor[] _submapFloor;
-        IResidue[] _submapResidue;
+        Residue0[] _submapResidue;
         IFloor[] _channelFloor;
-        IResidue[] _channelResidue;
+        Residue0[] _channelResidue;
 
         // Capsule: DecodePacket's per-packet scratch, sized once at setup instead of `new
         // IFloorData[]`/`new bool[]` per packet.
         IFloorData[] _floorData;
         bool[] _noExecuteChannel;
 
-        public void Init(IPacket packet, int channels, IFloor[] floors, IResidue[] residues, IMdct mdct)
+        public void Init(Ogg.Packet packet, int channels, IFloor[] floors, Residue0[] residues, Mdct mdct)
         {
             var submapCount = 1;
             if (packet.ReadBit())
@@ -69,7 +68,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             }
 
             _submapFloor = new IFloor[submapCount];
-            _submapResidue = new IResidue[submapCount];
+            _submapResidue = new Residue0[submapCount];
             for (var j = 0; j < submapCount; j++)
             {
                 packet.SkipBits(8); // unused placeholder
@@ -89,7 +88,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             }
 
             _channelFloor = new IFloor[channels];
-            _channelResidue = new IResidue[channels];
+            _channelResidue = new Residue0[channels];
             for (var c = 0; c < channels; c++)
             {
                 _channelFloor[c] = _submapFloor[mux[c]];
@@ -103,7 +102,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             _noExecuteChannel = new bool[_channelFloor.Length];
         }
 
-        public void DecodePacket(IPacket packet, int blockSize, int channels, float[][] buffer)
+        public void DecodePacket(Ogg.Packet packet, int blockSize, int channels, float[][] buffer)
         {
             var halfBlockSize = blockSize >> 1;
 

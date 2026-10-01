@@ -9,8 +9,8 @@ namespace Capsule.Tests.Physics;
 
 public sealed class ColliderValidationTests
 {
-    // A rejected set must leave the component, its entity and the world identical — not commit the
-    // field and then fail on the way to the broadphase.
+    // A rejected set must leave the component, its entity and the world identical. It must not commit
+    // the field and then fail on the way to the broadphase.
     [Fact]
     public void ARejectedSizeOrOffsetSet_LeavesTheColliderAndItsProxyExactlyAsTheyWere()
     {
@@ -133,59 +133,21 @@ public sealed class ColliderValidationTests
         Assert.Equal(CollisionWorld2D.MaxLayers, scene.Collision.LayerCount);
     }
 
-    [Fact]
-    public void AColliderTakingTheLastLayerTheWorldHasRoomFor_Registers()
+    private static void Saturate(CollisionWorld2D world)
     {
-        Scene scene = new();
-        Body host = new(Vector2.Zero);
-        scene.Add(host);
-
-        // One short of the cap, so the collider's own layer is the last name that fits.
-        Saturate(scene.Collision, spare: 1);
-
-        BoxCollider2D last = new(new Vector2(8f, 8f)) { Layer = "the last one that fits" };
-        host.Add(last);
-
-        Assert.Same(scene.Collision, last.World);
-        Assert.True(scene.Collision.Contains(last.Handle));
-        Assert.Equal(CollisionWorld2D.MaxLayers, scene.Collision.LayerCount);
-    }
-
-    private static void Saturate(CollisionWorld2D world, int spare = 0)
-    {
-        for (int index = world.LayerCount; index < CollisionWorld2D.MaxLayers - spare; index++)
+        for (int index = world.LayerCount; index < CollisionWorld2D.MaxLayers; index++)
         {
             world.Layer($"filler-{index}");
         }
     }
 
-    // Every typed collider validates through the shape factory it builds with, at construction and
-    // at every set, so a shape the queries would refuse never reaches one.
-    [Fact]
-    public void ATypedCollider_RefusesAShapeItsFactoryWould()
-    {
-        Assert.Throws<ArgumentException>(() => new BoxCollider2D(new Vector2(0f, 8f)));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CircleCollider2D(0f));
-        Assert.Throws<ArgumentException>(() => new CapsuleCollider2D(Vector2.Zero, Vector2.Zero, 4f));
-        Assert.Throws<ArgumentException>(() => new PolygonCollider2D([Vector2.Zero, Vector2.UnitX]));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CircleCollider2D(4f) { Radius = float.NaN });
-    }
-
-    // Setting the layer of a registered collider has to reach the world at once: a query on the very
-    // next line filters by what it is on now, not by what it was on.
+    // Setting the layer of a registered collider reaches the world at once.
     [Fact]
     public void SettingTheLayerOfARegisteredCollider_ReFiltersImmediately()
     {
         Scene scene = new();
         Body body = new(Vector2.Zero);
         scene.Add(body);
-
-        // A collider is on the default layer until it is told otherwise, which is what makes
-        // things collide out of the box.
-        Assert.Equal(CollisionWorld2D.DefaultLayerName, body.Collider.Layer);
-        Assert.Equal(
-            scene.Collision.Layer(CollisionWorld2D.DefaultLayerName),
-            scene.Collision.LayerOf(body.Collider.Handle));
 
         Span<Contact2D> contacts = stackalloc Contact2D[4];
         Aabb2D probe = Aabb2D.FromCorner(Vector2.Zero, new Vector2(8f, 8f));

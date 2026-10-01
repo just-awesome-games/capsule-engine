@@ -124,9 +124,6 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
                 case AudioCommandKind.SetPan:
                     voice.SetPan(command.Pan);
                     break;
-
-                default:
-                    throw new InvalidOperationException($"Unknown audio command kind '{command.Kind}'.");
             }
         }
     }

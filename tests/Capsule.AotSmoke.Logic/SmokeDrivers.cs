@@ -1,5 +1,3 @@
-using Capsule.Input;
-
 namespace Capsule.AotSmoke.Logic;
 
 /// <summary>
@@ -15,18 +13,5 @@ public static class SmokeDrivers
     public const string DevelopmentOnly = "DevelopmentOnlyDriver";
 
     /// <summary>Every name this assembly registers, in declaration order.</summary>
-    public static string[] Names { get; } = Read();
-
-    private static string[] Read()
-    {
-        InputDriverRegistration[] registrations = CapsuleInputDrivers.Registrations;
-        string[] names = new string[registrations.Length];
-
-        for (int i = 0; i < registrations.Length; i++)
-        {
-            names[i] = registrations[i].Name;
-        }
-
-        return names;
-    }
+    public static string[] Names { get; } = Array.ConvertAll(CapsuleInputDrivers.Registrations, static registration => registration.Name);
 }

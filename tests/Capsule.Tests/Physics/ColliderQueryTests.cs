@@ -69,20 +69,15 @@ public sealed class ColliderQueryTests
         Assert.Equal(FloorTop - prober.Collider.Bounds.Center.Y, farther.Distance);
     }
 
-    [Theory]
-    [InlineData(0f, 0f, 40f)]
-    [InlineData(0f, 1f, 0f)]
-    [InlineData(0f, 1f, -1f)]
-    [InlineData(0f, 1f, float.NaN)]
-    [InlineData(0f, 1f, float.PositiveInfinity)]
-    public void AColliderRay_RefusesADirectionOrDistanceThatNamesNoRay(float x, float y, float distance)
+    // The world allows a zero distance. A collider ignoring itself would always miss, so it refuses one.
+    [Fact]
+    public void AColliderRay_RefusesAZeroDistance()
     {
         Scene scene = new();
         Prober prober = new(Vector2.Zero);
         scene.Add(prober);
 
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => prober.Collider.Raycast(new Vector2(x, y), distance, out _));
+        Assert.Throws<ArgumentOutOfRangeException>(() => prober.Collider.Raycast(Vector2.UnitY, 0f, out _));
     }
 
     [Fact]

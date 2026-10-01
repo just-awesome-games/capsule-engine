@@ -118,7 +118,7 @@ public sealed class AudioMixer
     public void FadeVolume(AudioBus bus, float volume, float seconds, Ease ease = Ease.Linear)
     {
         Guard.InUnit(volume, nameof(volume));
-        Guard.RequireSeconds(seconds, nameof(seconds));
+        Guard.NonNegative(seconds, nameof(seconds));
         Guard.RequireEase(ease, nameof(ease));
 
         int index = Register(bus);
@@ -230,7 +230,7 @@ public sealed class AudioMixer
     public Voice CrossFade(Voice from, in AudioPlayback to, float seconds)
     {
         Guard.InUnit(to.Volume, nameof(to));
-        Guard.RequireSeconds(seconds, nameof(seconds));
+        Guard.NonNegative(seconds, nameof(seconds));
 
         Voice started = Play(to with { Volume = 0f });
         if (started.IsNone)
@@ -272,7 +272,7 @@ public sealed class AudioMixer
     /// </remarks>
     public void Stop(Voice voice, float seconds)
     {
-        Guard.RequireSeconds(seconds, nameof(seconds));
+        Guard.NonNegative(seconds, nameof(seconds));
 
         if (TryResolve(voice, out int index))
         {
@@ -350,7 +350,7 @@ public sealed class AudioMixer
     public void FadeVolume(Voice voice, float volume, float seconds, Ease ease = Ease.Linear)
     {
         Guard.InUnit(volume, nameof(volume));
-        Guard.RequireSeconds(seconds, nameof(seconds));
+        Guard.NonNegative(seconds, nameof(seconds));
         Guard.RequireEase(ease, nameof(ease));
 
         if (!TryResolve(voice, out int index))
@@ -467,11 +467,8 @@ public sealed class AudioMixer
     public bool IsPaused(Voice voice) => TryResolve(voice, out int index) && _slots[index].Paused;
 
     // Clears the previous step's commands and moves the mixer's clock onto this step. A voice started
-    // during the step expires against this step's tick and step length.
-    // The mixer used to be lazy: BeginStep cleared the commands and moved the clock, and everything
-    // else was derived when something asked. It now does one allocation-free walk over the bus table
-    // and the slots every step, advancing whatever ramp is active and raising the gain a moved one
-    // lands on.
+    // during the step expires against this step's tick and step length. One walk over the buses and
+    // slots advances every active ramp and raises the gain each moved one lands on.
     internal void BeginStep(in StepContext context)
     {
         _commands.Clear();
@@ -921,8 +918,7 @@ public sealed class AudioMixer
 
         internal Ramp Ramp;
 
-        // Whether this step's BeginStep walk moved Volume, by SetVolume or by the ramp. Recomputed every
-        // step, never accumulated.
+        // Whether this step's ramp moved Volume. Recomputed every step.
         internal bool Moved;
     }
 

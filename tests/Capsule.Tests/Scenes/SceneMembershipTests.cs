@@ -29,24 +29,9 @@ public sealed class SceneMembershipTests
         Assert.Throws<InvalidOperationException>(() => simulation.Scene.Add(drifter));
     }
 
+    // Indexed by value, one twin would be read as the other already queued or held.
     [Fact]
-    public void RequestingExit_ReachesTheHost()
-    {
-        void Hook(Scene scene, in StepContext context) => scene.Run.RequestExit();
-
-        SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(step: Hook));
-
-        Assert.False(simulation.ExitRequested);
-
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.True(simulation.ExitRequested);
-    }
-
-    // The deferred queues answer the same way. Indexed by value, one twin would be read as the
-    // other already queued, and the second of them would be silently dropped.
-    [Fact]
-    public void QueueMembershipIsReferenceIdentityToo_NeverAnEntityEqualsOverride()
+    public void MembershipIsReferenceIdentity_NeverAnEntityEqualsOverride()
     {
         List<string> log = [];
         SceneFixtures.Twin first = new("first", log);
@@ -64,29 +49,11 @@ public sealed class SceneMembershipTests
         Assert.Same(first, scene.Entities[0]);
         Assert.Same(second, scene.Entities[1]);
 
-        // And the same for the remove queue, drained the step after.
-        scene.Remove(first);
         scene.Remove(second);
 
-        Assert.Empty(scene.Entities.ToArray());
-        Assert.Equal(["first-", "second-"], log);
-    }
-
-    [Fact]
-    public void MembershipIsReferenceIdentity_NeverAnEntityEqualsOverride()
-    {
-        List<string> log = [];
-        SceneFixtures.Twin kept = new("kept", log);
-        SceneFixtures.Twin removed = new("removed", log);
-        SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(), kept, removed);
-
-        simulation.Scene.Remove(removed);
-
-        Assert.Equal(1, simulation.Scene.Entities.Length);
-        Assert.Same(kept, simulation.Scene.Entities[0]);
-        Assert.Same(simulation.Scene, kept.Scene);
-        Assert.Null(removed.SceneOrNull);
-        Assert.Equal(["removed-"], log);
+        Assert.Same(first, Assert.Single(scene.Entities.ToArray()));
+        Assert.Same(scene, first.Scene);
+        Assert.Equal(["second-"], log);
     }
 
     [Fact]

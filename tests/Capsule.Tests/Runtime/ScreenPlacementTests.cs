@@ -130,9 +130,9 @@ public sealed class ScreenPlacementTests
         Assert.Equal(0f, Layout(null, View(Canvas), 0, 720).Layer.Scale);
     }
 
-    // One routine resolves the surface, the slack in it and the present, so the layer a pointer is
-    // sampled through before the first frame is the layer that frame draws at — including under a fit
-    // that grows the surface past the declared resolution on a window of another aspect.
+    // One routine resolves the surface, the slack in it and the present. The layer a pointer is
+    // sampled through before the first frame is the layer that frame draws at, also under a fit that
+    // grows the surface past the declared resolution on a window of another aspect.
     [Theory]
     [InlineData(ViewportFit.Letterbox, 320, 180, 3f, 0f, 1f)]
     [InlineData(ViewportFit.Expand, 320, 180, 3f, 0f, 1f)]

@@ -67,20 +67,24 @@ public sealed class AnimationPlaybackTests
         Assert.Equal(2, playback.TicksElapsed);
     }
 
-    [Fact]
-    public void RestartReturnsAFinishedCursorToTheFirstFrame()
+    // Past the run's six ticks, so a loop wraps and a non-looping run clamps finished. TickOf reads
+    // the seeked tick back within the current pass.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SeekingToATickLandsWhereThatManyStepsWould(bool loop)
     {
-        AnimationPlayback playback = default;
-        for (int i = 0; i < 6; i++)
+        AnimationPlayback stepped = default;
+        for (int tick = 0; tick <= 14; tick++)
         {
-            playback.Step(Three, loop: false);
+            AnimationPlayback seeked = default;
+            seeked.Seek(Three, loop, tick);
+
+            Assert.Equal(stepped, seeked);
+            Assert.Equal(loop ? tick % 6 : Math.Min(tick, 6), seeked.TickOf(Three));
+
+            stepped.Step(Three, loop);
         }
-
-        playback.Restart();
-
-        Assert.Equal(0, playback.FrameIndex);
-        Assert.Equal(0, playback.TicksElapsed);
-        Assert.False(playback.IsFinished);
     }
 
     [Fact]

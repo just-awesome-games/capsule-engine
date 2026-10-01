@@ -232,26 +232,14 @@ public sealed class SceneRegistry
                 + "Capsule.Scenes.Scene with either a public parameterless constructor, or a public constructor "
                 + "taking one Capsule.Scenes.SceneContent, which composes it from the scene document it names, "
                 + "the key its namespace names unless [SceneDocument(\"key\")] overrides that. "
-                + $"Registered: {RegisteredTypes()}.");
+                + $"Registered: {Registered.Names(_byType.Keys)}.");
         }
 
         return registration;
     }
 
-    // Every registered class, for a message naming what a caller could ask for by class.
-    private string RegisteredTypes() => Registered.Names(_byType.Keys);
-
     // Every registered class name, for a message naming what the command line could have named.
-    internal string RegisteredClassNames()
-    {
-        List<string> names = new(_byType.Count);
-        foreach (Type sceneType in _byType.Keys)
-        {
-            names.Add(sceneType.Name);
-        }
-
-        return Registered.Names(names);
-    }
+    internal string RegisteredClassNames() => Registered.Names(_byType.Keys.Select(static type => type.Name));
 
     // Every registered document key, for a message naming what a caller could ask for by key.
     internal string RegisteredDocumentKeys() => Registered.Names(_byDocumentName.Keys);

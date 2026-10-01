@@ -25,37 +25,12 @@ namespace Capsule;
 /// </remarks>
 public sealed class Run
 {
-    private bool _exitRequested;
-    private string? _frameCapturePath;
-    private SceneTransition? _transition;
-    private SceneTransition? _prefetch;
-    private object? _state;
-
     // The canvas a run uses when none is supplied, 1280 by 720 pixels.
     internal static Vector2 StandardCanvas { get; } = new(1280f, 720f);
 
-    /// <summary>Starts a run with the default random seed, a 1280 by 720 canvas and linear sampling.</summary>
-    public Run()
-        : this(new RandomSource())
-    {
-    }
-
-    /// <summary>
-    /// Starts a run using <paramref name="random"/> and keeps that source for the run's lifetime. The
-    /// canvas starts at 1280 by 720 pixels and sampling at <see cref="TextureSampling.Linear"/> until the
-    /// game changes them.
-    /// </summary>
-    /// <param name="random">The deterministic random source shared by every scene this run opens.</param>
-    public Run(RandomSource random)
-    {
-        ArgumentNullException.ThrowIfNull(random);
-
-        Random = random;
-        Audio = new AudioMixer();
-        Rumble = new Rumble();
-        Cursor = new Cursor();
-        Saves = new SaveStore();
-    }
+    private SceneTransition? _transition;
+    private SceneTransition? _prefetch;
+    private object? _state;
 
     // Whether this run's scenes draw the engine's debug channels. On for the game's run. A host turns
     // it off on the run backing its own overlay, whose entities are not the game's.
@@ -79,21 +54,15 @@ public sealed class Run
     /// draws a smaller interface. Screen entities lay out against the new value from the next step. The
     /// host never refits the game's run.
     /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// Either component is not greater than zero or is NaN.
-    /// </exception>
     public Vector2 Canvas
     {
         get;
 
         set
         {
-            if (value.X <= 0f || float.IsNaN(value.X) || value.Y <= 0f || float.IsNaN(value.Y))
+            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y) || value.X <= 0f || value.Y <= 0f)
             {
-                throw new ArgumentOutOfRangeException(
-                    nameof(value),
-                    value,
-                    "A canvas component must be greater than zero and not NaN.");
+                throw new ArgumentOutOfRangeException(nameof(value), value, "A canvas component must be finite and greater than zero.");
             }
 
             field = value;
@@ -149,9 +118,76 @@ public sealed class Run
     /// </summary>
     public SaveStore Saves { get; }
 
+    /// <summary>Whether game code has asked this run to end. Once true, it stays true.</summary>
+    public bool ExitRequested { get; private set; }
+
+    /// <summary>
+    /// The path of the frame capture waiting for the next drawn frame, or null when none is pending. The
+    /// host clears it when it takes the request.
+    /// </summary>
+    public string? FrameCaptureRequested { get; private set; }
+
+    /// <summary>
+    /// The run's input configuration, the one the shell built through
+    /// <c>EngineBuilder.WithRunStart</c>. It stays live: a rebind applies from the next read and a
+    /// deadzone change from the next sampled frame.
+    /// </summary>
+    public InputConfiguration Input { get; init; } = new();
+
+    /// <summary>
+    /// How many simulation seconds one wall second is worth, defaulting to 1.
+    /// </summary>
+    /// <remarks>
+    /// A different pace makes the run step more or less often per wall second. The fixed step, each
+    /// step's tick and each step's time stay identical at any pace. A run at 0.25 is the same run as at
+    /// 1, played slower.
+    /// <para>
+    /// Read it only from host-facing code. A simulation that branches on it stops being a function of
+    /// its snapshots, and a replay of it diverges. A headless run counts steps and ignores it. The
+    /// per-frame step bound does not change. A pace that needs more steps than one frame allows runs that
+    /// frame at its bound and drops the backlog.
+    /// </para>
+    /// </remarks>
+    public double TimeScale
+    {
+        get;
+
+        set
+        {
+            if (!double.IsFinite(value) || value <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "The time scale must be finite and greater than zero.");
+            }
+
+            field = value;
+        }
+    } = 1;
+
+    /// <summary>Starts a run with the default random seed, a 1280 by 720 canvas and linear sampling.</summary>
+    public Run()
+        : this(new RandomSource())
+    {
+    }
+
+    /// <summary>
+    /// Starts a run using <paramref name="random"/> and keeps that source for the run's lifetime. The
+    /// canvas starts at 1280 by 720 pixels and sampling at <see cref="TextureSampling.Linear"/> until the
+    /// game changes them.
+    /// </summary>
+    /// <param name="random">The deterministic random source shared by every scene this run opens.</param>
+    public Run(RandomSource random)
+    {
+        ArgumentNullException.ThrowIfNull(random);
+
+        Random = random;
+        Audio = new AudioMixer();
+        Rumble = new Rumble();
+        Cursor = new Cursor();
+        Saves = new SaveStore();
+    }
+
     /// <summary>Attaches the game's one run-scoped object.</summary>
     /// <param name="state">The object to attach.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="state"/> is null.</exception>
     /// <exception cref="InvalidOperationException">A run already holds one attached object.</exception>
     public void Attach<TState>(TState state)
         where TState : class
@@ -185,45 +221,6 @@ public sealed class Run
 
         return state;
     }
-
-    /// <summary>
-    /// The run's input configuration, the one the shell built through
-    /// <c>EngineBuilder.WithRunStart</c>. It stays live: a rebind applies from the next read and a
-    /// deadzone change from the next sampled frame.
-    /// </summary>
-    public InputConfiguration Input { get; init; } = new();
-
-    /// <summary>
-    /// How many simulation seconds one wall second is worth, defaulting to 1.
-    /// </summary>
-    /// <remarks>
-    /// A different pace makes the run step more or less often per wall second. The fixed step, each
-    /// step's tick and each step's time stay identical at any pace. A run at 0.25 is the same run as at
-    /// 1, played slower.
-    /// <para>
-    /// Read it only from host-facing code. A simulation that branches on it stops being a function of
-    /// its snapshots, and a replay of it diverges. A headless run counts steps and ignores it. The
-    /// per-frame step bound does not change. A pace that needs more steps than one frame allows runs that
-    /// frame at its bound and drops the backlog.
-    /// </para>
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// The value is not greater than zero, or is not finite.
-    /// </exception>
-    public double TimeScale
-    {
-        get;
-
-        set
-        {
-            if (!double.IsFinite(value) || value <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(value), value, "The time scale must be finite and greater than zero.");
-            }
-
-            field = value;
-        }
-    } = 1;
 
     /// <summary>
     /// Asks the host to replace the current scene with <typeparamref name="TScene"/> after the
@@ -274,25 +271,16 @@ public sealed class Run
     /// <remarks>A second call does nothing, and nothing cancels it.</remarks>
     public void RequestExit()
     {
-        if (_exitRequested)
+        if (ExitRequested)
         {
             return;
         }
 
-        _exitRequested = true;
+        ExitRequested = true;
         _transition = SceneTransition.Exit();
-        _frameCapturePath = null;
+        FrameCaptureRequested = null;
         _prefetch = null;
     }
-
-    /// <summary>Whether game code has asked this run to end. Once true, it stays true.</summary>
-    public bool ExitRequested => _exitRequested;
-
-    /// <summary>
-    /// The path of the frame capture waiting for the next drawn frame, or null when none is pending. The
-    /// host clears it when it takes the request.
-    /// </summary>
-    public string? FrameCaptureRequested => _frameCapturePath;
 
     /// <summary>
     /// Asks the host to save the next frame it draws as a PNG at <paramref name="path"/>,
@@ -309,53 +297,37 @@ public sealed class Run
     /// with no graphics device (<c>RunHeadless</c>, or <c>--headless</c>) clears the request and writes
     /// nothing. A failed save writes no file, reports through <see cref="Capsule.Diagnostics.Log"/> at
     /// <see cref="Capsule.Diagnostics.LogLevel.Warning"/>, and drops the request instead of throwing
-    /// into the frame loop. See <c>docs/input.md</c> for the host side.
+    /// into the frame loop. See <c>docs/debugging.md</c> for the host side.
     /// </remarks>
     public void CaptureFrame(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ThrowIfExitRequested();
 
-        _frameCapturePath = path;
+        FrameCaptureRequested = path;
     }
 
     internal bool TryTakeTransition(out SceneTransition transition)
     {
-        if (_transition is not { } requested)
-        {
-            transition = default;
-            return false;
-        }
-
+        bool pending = _transition.HasValue;
+        transition = _transition.GetValueOrDefault();
         _transition = null;
-        transition = requested;
-        return true;
+        return pending;
     }
 
     internal bool TryTakePrefetch(out SceneTransition target)
     {
-        if (_prefetch is not { } requested)
-        {
-            target = default;
-            return false;
-        }
-
+        bool pending = _prefetch.HasValue;
+        target = _prefetch.GetValueOrDefault();
         _prefetch = null;
-        target = requested;
-        return true;
+        return pending;
     }
 
     internal bool TryTakeFrameCapture(out string path)
     {
-        if (_frameCapturePath is not { } requested)
-        {
-            path = "";
-            return false;
-        }
-
-        _frameCapturePath = null;
-        path = requested;
-        return true;
+        path = FrameCaptureRequested ?? "";
+        FrameCaptureRequested = null;
+        return path.Length > 0;
     }
 
     // The non-generic entry point the public request methods share. The host's development overlay uses
@@ -383,7 +355,7 @@ public sealed class Run
 
     private void ThrowIfExitRequested()
     {
-        if (_exitRequested)
+        if (ExitRequested)
         {
             throw new InvalidOperationException("This run has already requested exit. Make no further requests on it.");
         }

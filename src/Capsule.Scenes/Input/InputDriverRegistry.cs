@@ -72,16 +72,9 @@ public sealed class InputDriverRegistry
     // Constructs the driver registered under name, or returns false when none is registered.
     internal bool TryCreate(string name, [NotNullWhen(true)] out IInputDriver? driver)
     {
-        if (!_byName.TryGetValue(name, out InputDriverRegistration registration))
-        {
-            driver = null;
+        driver = _byName.TryGetValue(name, out InputDriverRegistration registration) ? registration.Create() : null;
 
-            return false;
-        }
-
-        driver = registration.Create();
-
-        return true;
+        return driver is not null;
     }
 
     internal string RegisteredNames() => Registered.Names(_byName.Keys);

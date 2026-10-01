@@ -10,8 +10,6 @@ namespace Capsule.Build.Fonts;
 /// </summary>
 internal static class FontStep
 {
-    private const string Step = "fonts";
-
     // A byte that is no UTF-8 fails the font instead of reading as a replacement character.
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
@@ -20,7 +18,7 @@ internal static class FontStep
         HashSet<string> pages = new(StringComparer.Ordinal);
 
         foreach ((Source font, BmFontDescription description) in pass.Each(
-            Step,
+            "fonts",
             pass.Of(AssetType.Fonts),
             source => Derivation.Of(source),
             (source, _) => BmFontParser.Parse(File.ReadAllText(source.Path, StrictUtf8)),

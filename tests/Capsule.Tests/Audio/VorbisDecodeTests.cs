@@ -66,7 +66,7 @@ public sealed class VorbisDecodeTests
     private static float[] ReadVendored(AudioLoopRegion region, long frames)
     {
         string path = Path.Combine(AppContext.BaseDirectory, FixturePath);
-        using VorbisReader reader = new(File.OpenRead(path), closeOnDispose: true);
+        using VorbisReader reader = new(File.OpenRead(path));
         VorbisPcmSource source = new(reader);
 
         LoopedPcmReader loop = new();

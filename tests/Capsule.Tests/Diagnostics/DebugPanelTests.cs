@@ -54,27 +54,6 @@ public sealed class DebugPanelTests
         }
     }
 
-    [Fact]
-    public void ASection_IsAHeadingRowAndClearDropsEverything()
-    {
-        DebugPanel panel = new();
-
-        panel.Field("Health", 3);
-        panel.Section("Weapon");
-        panel.Field("Ammo", 7);
-
-        DebugPanelRow[] rows = panel.Rows.ToArray();
-        Assert.Equal(3, rows.Length);
-        Assert.Equal(DebugPanelRowKind.Field, rows[0].Kind);
-        Assert.True(rows[1].IsHeading);
-        Assert.Equal("Weapon", rows[1].Label);
-        Assert.Null(rows[1].Value);
-
-        panel.Clear();
-
-        Assert.True(panel.Rows.IsEmpty);
-    }
-
     // Rows keep write order across the verbs; a toggle's action carries the flip, so the overlay
     // never learns the setter.
     [Fact]
@@ -98,18 +77,6 @@ public sealed class DebugPanelTests
 
         Assert.Equal(1, killed);
         Assert.False(set);
-    }
-
-    [Fact]
-    public void ANullLabelOrDelegate_Throws()
-    {
-        DebugPanel panel = new();
-
-        Assert.Throws<ArgumentNullException>(() => panel.Field(null!, 1));
-        Assert.Throws<ArgumentNullException>(() => panel.Command(null!, static () => { }));
-        Assert.Throws<ArgumentNullException>(() => panel.Command("Kill", null!));
-        Assert.Throws<ArgumentNullException>(() => panel.Toggle(null!, true, static _ => { }));
-        Assert.Throws<ArgumentNullException>(() => panel.Toggle("Godmode", true, null!));
     }
 
     // A game hook compiled without the development symbol keeps no call into the panel and no

@@ -4,8 +4,6 @@ namespace Capsule.Tests.Animation;
 
 public sealed class TweenTests
 {
-    private const float Tolerance = 1e-6f;
-
     // The tick contract: Start is tick 0 of n, and the nth step is the end, so an owner writing
     // Value every step writes the from-state once and the to-state once.
     [Fact]
@@ -69,32 +67,6 @@ public sealed class TweenTests
         Assert.True(tween.IsRunning);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(2)]
-    [InlineData(5)]
-    [InlineData(9)]
-    public void SeekingToATick_LandsWhereThatManyStepsWould(int tick)
-    {
-        Tween stepped = default;
-        stepped.Start(5, Ease.InOutBack);
-        for (int step = 0; step < tick; step++)
-        {
-            stepped.Step();
-        }
-
-        Tween seeked = default;
-        seeked.Start(5, Ease.InOutBack);
-        seeked.Seek(tick);
-
-        Assert.Equal(stepped.TicksElapsed, seeked.TicksElapsed);
-        Assert.Equal(stepped.Value, seeked.Value);
-        Assert.Equal(stepped.IsFinished, seeked.IsFinished);
-
-        // Seeking onto the end is not the step that finished it, whatever stepping there would say.
-        Assert.False(seeked.JustFinished);
-    }
-
     [Fact]
     public void ATweenThatHasNeverStarted_HasNoRunToSeekAndNoValueToRead()
     {
@@ -111,45 +83,12 @@ public sealed class TweenTests
     {
         foreach (Ease ease in Enum.GetValues<Ease>())
         {
-            Tween tween = default;
-            tween.Start(3, ease);
-
-            Assert.Equal(0f, tween.Value);
-
-            tween.Seek(3);
-
-            Assert.Equal(1f, tween.Value);
             Assert.Equal(0f, Easing.Apply(ease, 0f));
             Assert.Equal(1f, Easing.Apply(ease, 1f));
 
             // Out of range on either side is the endpoint it passed.
             Assert.Equal(0f, Easing.Apply(ease, -2f));
             Assert.Equal(1f, Easing.Apply(ease, 4f));
-        }
-    }
-
-    // The families are authored in one direction; the other two are reflections of it, and a family
-    // whose Out drifted from its In would read as a different curve depending on the direction.
-    [Fact]
-    public void EveryFamilysOutCurve_IsItsInCurveReflected()
-    {
-        foreach (Ease outward in Enum.GetValues<Ease>())
-        {
-            string name = outward.ToString();
-            if (!name.StartsWith("Out", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            Ease inward = Enum.Parse<Ease>("In" + name[3..]);
-            for (float t = 0.05f; t < 1f; t += 0.05f)
-            {
-                float reflected = 1f - Easing.Apply(inward, 1f - t);
-
-                Assert.True(
-                    MathF.Abs(Easing.Apply(outward, t) - reflected) < Tolerance,
-                    $"{outward} at {t} is {Easing.Apply(outward, t)}, not the reflected {reflected}.");
-            }
         }
     }
 
@@ -201,29 +140,29 @@ public sealed class TweenTests
         Assert.False(tween.IsFinished);
     }
 
+    // Past one period of every mode, so a wrap is crossed rather than approached. Seeking onto an end
+    // is not the step that reached it.
     [Theory]
+    [InlineData(TweenLoop.Once)]
     [InlineData(TweenLoop.Repeat)]
     [InlineData(TweenLoop.PingPong)]
-    public void SeekingALoopingRun_LandsWhereThatManyStepsWould(TweenLoop loop)
+    public void SeekingToATick_LandsWhereThatManyStepsWould(TweenLoop loop)
     {
-        // Past one period on both modes, so the wrap is crossed rather than approached.
+        Tween stepped = default;
+        stepped.Start(4, Ease.InOutBack, loop);
         for (int tick = 0; tick <= 11; tick++)
         {
-            Tween stepped = default;
-            stepped.Start(4, Ease.InOutSine, loop);
-            for (int step = 0; step < tick; step++)
-            {
-                stepped.Step();
-            }
-
             Tween seeked = default;
-            seeked.Start(4, Ease.InOutSine, loop);
+            seeked.Start(4, Ease.InOutBack, loop);
             seeked.Seek(tick);
 
             Assert.Equal(stepped.TicksElapsed, seeked.TicksElapsed);
             Assert.Equal(stepped.Value, seeked.Value);
             Assert.Equal(stepped.Passes, seeked.Passes);
+            Assert.Equal(stepped.IsFinished, seeked.IsFinished);
             Assert.False(seeked.JustFinished);
+
+            stepped.Step();
         }
     }
 

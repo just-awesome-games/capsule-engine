@@ -56,8 +56,6 @@ internal sealed class OverlayScene : Scene
 
     internal OverlayScene(string toggleName)
     {
-        ArgumentNullException.ThrowIfNull(toggleName);
-
         Sampling = TextureSampling.Point;
 
         _panel = new ScreenEntity(Anchor.TopLeft, Vector2.Zero);
@@ -96,7 +94,7 @@ internal sealed class OverlayScene : Scene
 
     internal string Status => _status.Text;
 
-    // The scrollbar's track and thumb as drawn; each empty while the page fits its window.
+    // The scrollbar's track and thumb as drawn. Both are empty while the page fits its window.
     internal Rect ScrollTrack => _track.Bounds;
 
     internal Rect ScrollThumb => _thumb.Bounds;
@@ -112,9 +110,6 @@ internal sealed class OverlayScene : Scene
 
         return shown;
     }
-
-    // The focused row's highlight, empty while no row is focused.
-    internal Rect Highlight => _highlight.Bounds;
 
     // Withdraws the panel from the scene, or brings it back. Returns whether anything changed.
     internal bool ShowMenu(bool shown)
@@ -167,8 +162,6 @@ internal sealed class OverlayScene : Scene
     // The status row is one line, so it shows the first line of text.
     internal void SetStatus(string text)
     {
-        ArgumentNullException.ThrowIfNull(text);
-
         int end = text.AsSpan().IndexOfAny('\r', '\n');
         _status.Text = end < 0 ? text : text[..end];
     }
@@ -195,28 +188,24 @@ internal sealed class OverlayScene : Scene
 
         column += HotkeyGap;
 
+        // Every row of the page is measured, shown or not, so the panel keeps one width as the window
+        // moves.
         float width = Widest(_readout.Text, _title.Text, _status.Text, _legend.Text);
-        for (int index = 0; index < _shown; index++)
+        for (int index = 0; index < rows.Count; index++)
         {
-            ReadOnlySpan<char> text = RowText(rows[_first + index], column);
-            _rows[index].SetText(text);
-            _rows[index].Offset = new Vector2(Padding, RowTop(_rowsAbove + index));
+            ReadOnlySpan<char> text = RowText(rows[index], column);
             width = MathF.Max(width, Font.Measure(text).X);
+            int shown = index - _first;
+            if (shown >= 0 && shown < _shown)
+            {
+                _rows[shown].SetText(text);
+                _rows[shown].Offset = new Vector2(Padding, RowTop(_rowsAbove + shown));
+            }
         }
 
         for (int index = _shown; index < _rows.Length; index++)
         {
             _rows[index].SetText(default);
-        }
-
-        // Every row of the page is measured, shown or not, so the panel keeps one width as the window
-        // moves.
-        for (int index = 0; index < rows.Count; index++)
-        {
-            if (index < _first || index >= _first + MaxRows)
-            {
-                width = MathF.Max(width, Font.Measure(RowText(rows[index], column)).X);
-            }
         }
 
         _width = (int)width + (Padding * 2);

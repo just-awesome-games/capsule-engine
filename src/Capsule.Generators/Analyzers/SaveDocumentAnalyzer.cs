@@ -1,7 +1,5 @@
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -23,7 +21,8 @@ public sealed class SaveDocumentAnalyzer : DiagnosticAnalyzer
 
     private static void Start(CompilationStartAnalysisContext context)
     {
-        if (GeneratorRoles.Read(context.Options.AnalyzerConfigOptionsProvider.GlobalOptions) == GeneratorRole.None)
+        if (GeneratorRoles.Read(context.Options.AnalyzerConfigOptionsProvider.GlobalOptions) == GeneratorRole.None
+            || context.Compilation.GetTypeByMetadataName(MetadataNames.SaveKey) is not { } saveKey)
         {
             return;
         }
@@ -31,30 +30,15 @@ public sealed class SaveDocumentAnalyzer : DiagnosticAnalyzer
         // A property can be reached through several save keys, and is reported once per compilation.
         ConcurrentDictionary<ISymbol, byte> reported = new(SymbolEqualityComparer.Default);
         context.RegisterOperationAction(
-            operationContext => AnalyzeObjectCreation(operationContext, reported),
+            operationContext =>
+            {
+                if (((IObjectCreationOperation)operationContext.Operation).Constructor?.ContainingType is { } created
+                    && SymbolEqualityComparer.Default.Equals(created.OriginalDefinition, saveKey))
+                {
+                    Walk(created.TypeArguments[0], operationContext, reported);
+                }
+            },
             OperationKind.ObjectCreation);
-    }
-
-    private static void AnalyzeObjectCreation(
-        OperationAnalysisContext context,
-        ConcurrentDictionary<ISymbol, byte> reported)
-    {
-        IObjectCreationOperation operation = (IObjectCreationOperation)context.Operation;
-        if (operation.Constructor?.ContainingType is not INamedTypeSymbol created
-            || created.TypeArguments.Length != 1
-            || !IsSaveKey(created))
-        {
-            return;
-        }
-
-        Walk(created.TypeArguments[0], context, reported);
-    }
-
-    private static bool IsSaveKey(INamedTypeSymbol type)
-    {
-        INamedTypeSymbol definition = type.OriginalDefinition;
-        return definition.MetadataName == "SaveKey`1"
-            && definition.ContainingNamespace?.ToDisplayString() == "Capsule.Persistence";
     }
 
     // Walks the document's type graph breadth-first: T, then the type of every public instance

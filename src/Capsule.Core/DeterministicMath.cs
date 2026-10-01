@@ -15,7 +15,6 @@ namespace Capsule;
 /// is <see cref="float.NaN"/>.
 /// </para>
 /// </remarks>
-///
 public static class DeterministicMath
 {
     // The working is double because argument reduction needs headroom a float cannot give, and each result

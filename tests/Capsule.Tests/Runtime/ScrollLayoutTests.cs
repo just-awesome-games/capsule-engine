@@ -51,30 +51,6 @@ public sealed class ScrollLayoutTests
         Assert.Equal(new Vector2(100, 0), Layer(sweeping, 1f, 0.5f));
     }
 
-    // With the layer's corner at the frame's, a position is placed as the world always was: snapped
-    // to whole pixels from the frame's corner.
-    [Fact]
-    public void Place_WithTheFramesOwnCorner_IsTheWorldsPlacement()
-    {
-        Vector2 corner = new(10.3f, 20.7f);
-        Vector2 position = new(15.5f, 25.1f);
-
-        Assert.Equal(corner + PixelGrid.SnapOffset(corner, position, 3f), ScrollLayout.Place(position, corner, corner, snap: true, 3f));
-        Assert.Equal(position, ScrollLayout.Place(position, corner, corner, snap: false, 3f));
-    }
-
-    // An entity's own motion composes with the camera term: its interpolated position is what is
-    // placed, and it lands the same distance into the frame that it is into its layer.
-    [Fact]
-    public void Place_CarriesAnOffsetFromTheLayerIntoTheFrame()
-    {
-        Vector2 interpolated = StepInterpolation.Interpolate(new Vector2(40, 8), new Vector2(44, 8), 0.5f);
-
-        Vector2 placed = ScrollLayout.Place(interpolated, new Vector2(30, 0), new Vector2(130, 100), snap: false, 1f);
-
-        Assert.Equal(new Vector2(142, 108), placed);
-    }
-
     // A camera moving right at a fractional speed: every layer's tiles step left by whole pixels,
     // never back, and two tiles that abut stay abutting.
     [Theory]

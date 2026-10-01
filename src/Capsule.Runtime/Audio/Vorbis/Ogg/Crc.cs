@@ -2,7 +2,7 @@
 #pragma warning disable
 namespace Capsule.Runtime.Audio.Vorbis.Ogg
 {
-    class Crc : Contracts.Ogg.ICrc
+    sealed class Crc
     {
         const uint CRC32_POLY = 0x04c11db7;
         static readonly uint[] s_crcTable;

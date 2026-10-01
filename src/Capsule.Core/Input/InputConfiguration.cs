@@ -83,7 +83,6 @@ public sealed class InputConfiguration
     /// suspended. Closing it resumes both.
     /// </remarks>
     /// <param name="button">The button that toggles the menu on its leading edge.</param>
-    /// <returns>This configuration.</returns>
     /// <exception cref="InvalidOperationException">
     /// The run's first scene has started. Call this from <c>WithRunStart</c>.
     /// </exception>

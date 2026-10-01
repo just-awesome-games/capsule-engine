@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -121,8 +120,6 @@ public abstract class Collider2D : Component
     private protected ColorRgba? DebugColor => _enabled ? null : DebugDraw.ColorOf(DebugDraw.Colliders) with { A = 128 };
 
     private protected Vector2 Motion => Entity!.WorldPosition - Entity.PreviousWorld.Position;
-
-    private protected static Rect Edges(in Aabb2D box) => new(box.Min.X, box.Min.Y, box.Max.X, box.Max.Y);
 
     /// <summary>Added to the entity's position to place the shape. Zero by default.</summary>
     /// <exception cref="ArgumentException">The shape cannot be placed at this offset.</exception>
@@ -314,20 +311,13 @@ public abstract class Collider2D : Component
             ArgumentException.ThrowIfNullOrWhiteSpace(value);
             RequireNotDispatching();
 
-            if (_scene?.Collision is { } world)
+            if (_scene is { } scene)
             {
                 // Intern first. A world with no layer slots left throws here, while the collider
                 // still holds its old layer.
-                CollisionLayer layer = world.Layer(value);
-
-                _layer = value;
+                CollisionLayer layer = scene.Collision.Layer(value);
                 _layerIndex = layer.Index;
-                if (_world is not null)
-                {
-                    world.SetLayer(_handle, layer);
-                }
-
-                return;
+                _world?.SetLayer(_handle, layer);
             }
 
             _layer = value;
@@ -446,9 +436,8 @@ public abstract class Collider2D : Component
     public bool Raycast(Vector2 direction, float distance, CollisionFilter filter, out RayHit2D hit)
     {
         RequireRayDistance(distance);
-        CollisionWorld2D world = RequireWorld();
 
-        return world.Raycast(Bounds.Center, direction, distance, filter, out hit, _handle);
+        return RequireWorld().Raycast(Bounds.Center, direction, distance, filter, out hit, _handle);
     }
 
     /// <summary>
@@ -604,7 +593,7 @@ public abstract class Collider2D : Component
 
     private void Unregister()
     {
-        if (_world is not { } world || _handle.IsNone)
+        if (_world is not { } world)
         {
             return;
         }
@@ -965,13 +954,13 @@ public abstract class Collider2D : Component
         }
     }
 
-    private static void RequireShape(in Shape2D shape, [CallerArgumentExpression(nameof(shape))] string? parameterName = null)
+    private static void RequireShape(in Shape2D shape)
     {
         if (shape.PointCount == 0)
         {
             throw new ArgumentException(
                 "A default Shape2D holds no points. Build one with Shape2D.Box, Shape2D.Circle, Shape2D.Capsule or Shape2D.Polygon.",
-                parameterName);
+                nameof(shape));
         }
     }
 
@@ -983,21 +972,6 @@ public abstract class Collider2D : Component
         {
             Array.Resize(ref buffer, (int)BitOperations.RoundUpToPowerOf2((uint)count));
         }
-    }
-
-    internal static int Describe(
-        CollisionWorld2D world,
-        ReadOnlySpan<Contact2D> found,
-        ref ColliderContact2D[] into)
-    {
-        Grow(ref into, found.Length);
-
-        for (int index = 0; index < found.Length; index++)
-        {
-            into[index] = Describe(world, found[index]);
-        }
-
-        return found.Length;
     }
 
     internal static ColliderContact2D Describe(CollisionWorld2D world, in Contact2D contact)

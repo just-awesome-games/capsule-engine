@@ -10,10 +10,9 @@ using Capsule.Scenes.Spawning;
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// Collides without blocking: on the <c>hazard</c> layer the <see cref="Player"/> reports but
-/// walks through, and reporting nothing itself. Its box stays axis-aligned while the nested
-/// <see cref="Visual"/> child spins the sprite and the nested <see cref="Orbit"/> child carries
-/// the spark round it.
+/// A box on the <c>hazard</c> layer, which the <see cref="Player"/> reports and walks through.
+/// An entity holding a collider cannot turn, so the nested <see cref="Visual"/> child spins the
+/// sprite and the nested <see cref="Orbit"/> child carries the spark round it.
 /// </summary>
 public sealed class Hazard : Entity
 {
@@ -31,10 +30,7 @@ public sealed class Hazard : Entity
         _ = new Orbit(this, Body / 2f);
     }
 
-    /// <summary>
-    /// A child at <c>centre</c> that draws the frame and turns itself each step. A child rather
-    /// than the hazard, which holds a collider and so cannot turn.
-    /// </summary>
+    /// <summary>A child at <c>centre</c> that draws the frame and turns itself each step.</summary>
     private sealed class Visual : Entity
     {
         /// <summary>Radians per second: one turn every two seconds.</summary>
@@ -49,10 +45,7 @@ public sealed class Hazard : Entity
             Rotation = (Rotation + (SpinSpeed * context.DeltaSeconds)) % MathF.Tau;
     }
 
-    /// <summary>
-    /// A child at <c>centre</c> that turns itself each step, carrying the spark at the orbit
-    /// radius. A child rather than the hazard, which holds a collider and so cannot turn.
-    /// </summary>
+    /// <summary>A child at <c>centre</c> that turns itself each step, carrying the spark at the orbit radius.</summary>
     private sealed class Orbit : Entity
     {
         /// <summary>Radians per second: one orbit every three seconds, against the spin.</summary>
@@ -67,7 +60,6 @@ public sealed class Hazard : Entity
     }
 
     // A world-space trail from a moving emitter, and the frame it trails behind, at the orbit radius.
-    // A child of Orbit rather than the hazard, which holds a collider and so cannot turn.
     private sealed class Spark : Entity
     {
         /// <summary>World units from the centre: where <see cref="Orbit"/> carries <see cref="Spark"/>.</summary>
@@ -77,7 +69,6 @@ public sealed class Hazard : Entity
 
         // The trail's colour: a warm orange fading to nothing.
         private static readonly ColorRgba SparkOrange = new(255, 150, 40);
-
 
         internal Spark(Entity parent)
             : base(parent, new Vector2(0f, -OrbitRadius))

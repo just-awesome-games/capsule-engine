@@ -14,8 +14,8 @@ public sealed class Lamp : Entity
     private static readonly ColorRgba PostColor = new(40, 40, 44);
     private static readonly ColorRgba HeadColor = new(255, 200, 140);
 
-    // An 8-texel greyscale falloff drawn three times its size. Its config makes it an r8 mask the
-    // lamp's colour tints, sampled linearly so it stays soft in this point-sampled game.
+    // An 8-texel greyscale falloff. Its config makes it an r8 mask the lamp's colour tints, sampled
+    // linearly so it stays soft in this point-sampled game.
     private static readonly Sprite Glow = new(CapsuleAssets.Textures.GlowTexture, new TextureRegion(0, 0, 8, 8), new Vector2(4f, 4f));
 
     public Lamp(EntitySpawn spawn)

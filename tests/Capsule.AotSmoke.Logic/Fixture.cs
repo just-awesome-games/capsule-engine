@@ -69,10 +69,8 @@ public sealed class FixtureLabel : Entity
     public const int Glyphs = 2;
 
     public FixtureLabel(Vector2 position)
-        : base(position)
-    {
+        : base(position) =>
         Add(new Label(CapsuleAssets.Fonts.MenuFont, Text));
-    }
 }
 
 public sealed class FixtureEntity : Entity
@@ -80,10 +78,8 @@ public sealed class FixtureEntity : Entity
     private static readonly Sprite Visual = new(CapsuleAssets.Textures.PixelTexture, new TextureRegion(0, 0, 1, 1));
 
     public FixtureEntity(EntitySpawn spawn)
-        : base(spawn)
-    {
+        : base(spawn) =>
         Add(new SpriteRenderer(Visual));
-    }
 }
 
 // The authorable members NativeAOT can break: a private field and a generic base's member, which the generated
@@ -93,13 +89,10 @@ public sealed class Beacon : Signal<string>
 {
     public const string Expected = "cave>vault 3 12";
 
-    public Beacon(EntitySpawn spawn)
-        : base(spawn)
-    {
-        Read = FormattableString.Invariant($"{Route.From}>{Route.To} {Band} {_charge * 4}");
-    }
+    [Authorable]
+    private int _charge = 1;
 
-    // What the last constructed beacon read, for the shell to check after the run: a fixture's static.
+    // What the last constructed beacon read, for the shell to check after the run.
     public static string? Read { get; private set; }
 
     // Whether the last started beacon held the entity its entry names, for the shell to check after the run.
@@ -111,8 +104,9 @@ public sealed class Beacon : Signal<string>
     [Authorable]
     public required FixtureEntity Anchor { get; set; }
 
-    [Authorable]
-    private int _charge = 1;
+    public Beacon(EntitySpawn spawn)
+        : base(spawn) =>
+        Read = FormattableString.Invariant($"{Route.From}>{Route.To} {Band} {_charge * 4}");
 
     protected override void OnStart() => Anchored = Anchor is not null;
 }

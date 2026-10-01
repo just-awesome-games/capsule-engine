@@ -71,14 +71,9 @@ internal static class TypeNaming
                 : null;
     }
 
+    // The hash keeps two assembly names that underscore alike apart.
     internal static string RegistryProviderName(string assemblyName)
     {
-        StringBuilder identifier = new("CapsuleRegistryProvider_");
-        foreach (char character in assemblyName)
-        {
-            identifier.Append(char.IsLetterOrDigit(character) ? character : '_');
-        }
-
         uint hash = 2166136261;
         foreach (char character in assemblyName)
         {
@@ -86,9 +81,6 @@ internal static class TypeNaming
             hash *= 16777619;
         }
 
-        identifier.Append('_');
-        identifier.Append(hash.ToString("X8", System.Globalization.CultureInfo.InvariantCulture));
-
-        return identifier.ToString();
+        return $"CapsuleRegistryProvider_{CodeText.Underscored(assemblyName)}_{hash.ToString("X8", System.Globalization.CultureInfo.InvariantCulture)}";
     }
 }

@@ -9,305 +9,280 @@ using static Capsule.Tests.Runtime.PanelFixtures;
 
 namespace Capsule.Tests.Runtime;
 
-// What a panel's commands and toggles do to the run, and what a step or a load does to the pages over
-// it.
-// A failed command logs, and the sink is one process-wide slot.
+// What a panel's commands do to the run, and what a step or a load does to the pages over it. A failed
+// command logs to the process-wide sink.
 [Collection(LogSinkCollection.Name)]
 public sealed class OverlayCommandTests
 {
-    // A command or toggle runs between ticks and is followed by exactly one stepped tick, after which
-    // the pages are rebuilt: the toggle shows its new state, the fields re-read, the focus stays. A
-    // section's commands sit under their own sub-heading after its fields whatever order the hook
-    // wrote them in.
+    // A command or toggle runs inside exactly one stepped tick, and the pages are rebuilt after it. A
+    // section's commands follow its fields under their own sub-heading.
     [Fact]
     public void ACommandOrToggle_RunsThenStepsOnceAndRebuildsThePagesWithTheToggleShown()
     {
         Seamed seamed = new();
-        using SceneHost host = CreateHost(seamed);
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayRig rig = new(CreateHost(seamed));
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.S);
+        rig.Open();
+        rig.Press(Key.S);
 
-        Assert.Equal("Seamed", overlay.Title);
+        Assert.Equal("Seamed", rig.Overlay.Title);
         Assert.Equal(
             [.. Head[..11], "Spawned", "  (Commands)", "  Spawn", "  [ ] Slow", "", "[Entities]", "Nudger"],
-            Named(overlay));
-        Assert.Equal(13, overlay.Focus);
+            Named(rig));
+        Assert.Equal(13, rig.Overlay.Focus);
 
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Press(Key.Enter);
 
         Assert.Equal(1, seamed.Spawned);
-        Assert.Equal(1, scheduler.Tick);
-        Assert.Equal("Spawned          1", Drawn(overlay, 11));
-        Assert.Equal(13, overlay.Focus);
+        Assert.Equal(1, rig.Scheduler.Tick);
+        Assert.Equal("Spawned          1", Drawn(rig, 11));
+        Assert.Equal(13, rig.Overlay.Focus);
 
-        Press(overlay, scheduler, host, Key.Down);
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Press(Key.Down);
+        rig.Press(Key.Enter);
 
         Assert.True(seamed.Slow);
-        Assert.Equal(2, scheduler.Tick);
-        Assert.Equal("  [x] Slow", Drawn(overlay, 14));
-        Assert.Equal(14, overlay.Focus);
+        Assert.Equal(2, rig.Scheduler.Tick);
+        Assert.Equal("  [x] Slow", Drawn(rig, 14));
+        Assert.Equal(14, rig.Overlay.Focus);
 
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Press(Key.Enter);
 
         Assert.False(seamed.Slow);
-        Assert.Equal("  [ ] Slow", Drawn(overlay, 14));
+        Assert.Equal("  [ ] Slow", Drawn(rig, 14));
 
-        Press(overlay, scheduler, host, Key.Down);
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Press(Key.Down);
+        rig.Press(Key.Enter);
 
-        Assert.Equal("Nudger", overlay.Title);
+        Assert.Equal("Nudger", rig.Overlay.Title);
         Assert.Equal(
             ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [x] Visible", "  Remove", "  Nudge"],
-            Named(overlay));
-        Assert.Equal(8, overlay.Focus);
+            Named(rig));
+        Assert.Equal(8, rig.Overlay.Focus);
 
-        Press(overlay, scheduler, host, Key.Down);
-        Press(overlay, scheduler, host, Key.Down);
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Press(Key.Down);
+        rig.Press(Key.Down);
+        rig.Press(Key.Enter);
 
-        Assert.Equal("Transform     (2, 2) r 0 s (1, 1)", Drawn(overlay, 1));
-        Assert.Equal(3, overlay.Depth);
-        Assert.Equal(4, scheduler.Tick);
+        Assert.Equal("Transform     (2, 2) r 0 s (1, 1)", Drawn(rig, 1));
+        Assert.Equal(3, rig.Overlay.Depth);
+        Assert.Equal(4, rig.Scheduler.Tick);
 
         // The page beneath is rebuilt from the scene as it now stands on the way back to it.
         seamed.Spawned = 5;
-        Press(overlay, scheduler, host, Key.Backspace);
+        rig.Press(Key.Backspace);
 
-        Assert.Equal("Seamed", overlay.Title);
-        Assert.Equal("Spawned          5", Drawn(overlay, 11));
-        Assert.Equal(17, overlay.Focus);
+        Assert.Equal("Seamed", rig.Overlay.Title);
+        Assert.Equal("Spawned          5", Drawn(rig, 11));
+        Assert.Equal(17, rig.Overlay.Focus);
     }
 
-    // A transition a command asks the run for is consumed by the command's own tick, as a load row's
-    // is; a start that fails shows on the status line and the run stays on its scene.
+    // The command's own tick consumes the transition it requests. A start that fails shows on the
+    // status line and the run stays on its scene.
     [Fact]
     public void ACommandThatRequestsAScene_IsConsumedByItsTickAndAFailedStartShowsOnTheStatusLine()
     {
         Log.UseSink(null);
         Requesting requesting = new();
-        using SceneHost host = CreateHost(requesting);
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayRig rig = new(CreateHost(requesting));
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.S);
-        Assert.Equal([.. Head[..11], "  (Commands)", "  Break", "  Next", "", "[Entities]", "Lone"], Named(overlay));
-        Assert.Equal(12, overlay.Focus);
+        rig.Open();
+        rig.Press(Key.S);
+        Assert.Equal([.. Head[..11], "  (Commands)", "  Break", "  Next", "", "[Entities]", "Lone"], Named(rig));
+        Assert.Equal(12, rig.Overlay.Focus);
 
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Press(Key.Enter);
 
-        Assert.StartsWith("Command failed", overlay.Status, StringComparison.Ordinal);
-        Assert.Contains(nameof(InvalidOperationException), overlay.Status, StringComparison.Ordinal);
-        Assert.Same(requesting, host.Scene);
-        Assert.True(scheduler.Held);
-        Assert.Equal("Requesting", overlay.Title);
+        Assert.StartsWith("Command failed", rig.Overlay.Status, StringComparison.Ordinal);
+        Assert.Contains(nameof(InvalidOperationException), rig.Overlay.Status, StringComparison.Ordinal);
+        Assert.Same(requesting, rig.Host.Scene);
+        Assert.True(rig.Scheduler.Held);
+        Assert.Equal("Requesting", rig.Overlay.Title);
 
-        Press(overlay, scheduler, host, Key.Down);
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Press(Key.Down);
+        rig.Press(Key.Enter);
 
-        Assert.IsType<OtherScene>(host.Scene);
-        Assert.Equal("OtherScene", overlay.Title);
-        Assert.Equal(2, overlay.Depth);
-        Assert.Equal([.. Head, "Lone"], Named(overlay));
-        Assert.Equal(string.Empty, overlay.Status);
+        Assert.IsType<OtherScene>(rig.Host.Scene);
+        Assert.Equal("OtherScene", rig.Overlay.Title);
+        Assert.Equal(2, rig.Overlay.Depth);
+        Assert.Equal([.. Head, "Lone"], Named(rig));
+        Assert.Equal(string.Empty, rig.Overlay.Status);
     }
 
     [Fact]
     public void AStep_RefreshesThePanelInPlaceAndThePageBeneathIt()
     {
-        using SceneHost host = CreateHost();
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayRig rig = new(CreateHost());
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.S);
-        Press(overlay, scheduler, host, Key.Up);
-        Press(overlay, scheduler, host, Key.Enter);
-        Assert.Equal("Transform     (20, 0) r 0 s (1, 1)", Drawn(overlay, 1));
+        rig.Open();
+        rig.Press(Key.S);
+        rig.Press(Key.Up);
+        rig.Press(Key.Enter);
+        Assert.Equal("Transform     (20, 0) r 0 s (1, 1)", Drawn(rig, 1));
 
-        Press(overlay, scheduler, host, Key.Right);
+        rig.Press(Key.Right);
 
-        Assert.Equal(1, scheduler.Tick);
-        Assert.Equal("Walker (1)", overlay.Title);
-        Assert.Equal(3, overlay.Depth);
-        Assert.Equal("Transform     (21, 0) r 0 s (1, 1)", Drawn(overlay, 1));
+        Assert.Equal(1, rig.Scheduler.Tick);
+        Assert.Equal("Walker (1)", rig.Overlay.Title);
+        Assert.Equal(3, rig.Overlay.Depth);
+        Assert.Equal("Transform     (21, 0) r 0 s (1, 1)", Drawn(rig, 1));
 
-        Press(overlay, scheduler, host, Key.Backspace);
+        rig.Press(Key.Backspace);
 
-        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Named(overlay));
-        Assert.Equal(FirstEntity + 3, overlay.Focus);
+        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Named(rig));
+        Assert.Equal(FirstEntity + 3, rig.Overlay.Focus);
     }
 
     [Fact]
     public void AnEntityRemovedByAStep_PopsItsPanelWithTheStatusLineAndLeavesThePage()
     {
-        using SceneHost host = CreateHost();
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayRig rig = new(CreateHost());
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.S);
-        Press(overlay, scheduler, host, Key.Down);
-        Press(overlay, scheduler, host, Key.Down);
-        Press(overlay, scheduler, host, Key.Enter);
-        Assert.Equal("Vanisher", overlay.Title);
+        rig.Open();
+        rig.Press(Key.S);
+        rig.Press(Key.Down);
+        rig.Press(Key.Down);
+        rig.Press(Key.Enter);
+        Assert.Equal("Vanisher", rig.Overlay.Title);
 
-        Press(overlay, scheduler, host, Key.Right);
-        Assert.Equal("Vanisher", overlay.Title);
-        Assert.Equal(1, scheduler.Tick);
+        rig.Press(Key.Right);
+        Assert.Equal("Vanisher", rig.Overlay.Title);
+        Assert.Equal(1, rig.Scheduler.Tick);
 
-        Press(overlay, scheduler, host, Key.Right);
+        rig.Press(Key.Right);
 
-        Assert.Equal(2, scheduler.Tick);
-        Assert.Equal("Populated", overlay.Title);
-        Assert.Equal(2, overlay.Depth);
-        Assert.Contains("Vanisher", overlay.Status, StringComparison.Ordinal);
-        Assert.Equal([.. Head, "Lone", "Walker", "Walker (1)"], Named(overlay));
-        Assert.Equal(FirstEntity + 2, overlay.Focus);
+        Assert.Equal(2, rig.Scheduler.Tick);
+        Assert.Equal("Populated", rig.Overlay.Title);
+        Assert.Equal(2, rig.Overlay.Depth);
+        Assert.Contains("Vanisher", rig.Overlay.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Lone", "Walker", "Walker (1)"], Named(rig));
+        Assert.Equal(FirstEntity + 2, rig.Overlay.Focus);
     }
 
-    // The engine's own Remove command on an entity: the tick after it takes the entity out, and the
-    // panel pops as for any removed subject.
     [Fact]
     public void TheRemoveCommand_TakesTheEntityOutAndPopsItsPanel()
     {
-        using SceneHost host = CreateHost();
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayRig rig = new(CreateHost());
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.S);
-        Press(overlay, scheduler, host, Key.Down);
-        Press(overlay, scheduler, host, Key.Enter);
-        Assert.Equal("Walker", overlay.Title);
-        Press(overlay, scheduler, host, Key.Down);
-        Assert.Equal("  Remove", Drawn(overlay, overlay.Focus));
+        rig.Open();
+        rig.Press(Key.S);
+        rig.Press(Key.Down);
+        rig.Press(Key.Enter);
+        Assert.Equal("Walker", rig.Overlay.Title);
+        rig.Press(Key.Down);
+        Assert.Equal("  Remove", Drawn(rig, rig.Overlay.Focus));
 
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Press(Key.Enter);
 
-        Assert.Equal(1, scheduler.Tick);
-        Assert.Equal("Populated", overlay.Title);
-        Assert.Equal(2, overlay.Depth);
-        Assert.Contains("Walker", overlay.Status, StringComparison.Ordinal);
-        Assert.Equal([.. Head, "Lone", "Vanisher", "Walker"], Named(overlay));
+        Assert.Equal(1, rig.Scheduler.Tick);
+        Assert.Equal("Populated", rig.Overlay.Title);
+        Assert.Equal(2, rig.Overlay.Depth);
+        Assert.Contains("Walker", rig.Overlay.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Lone", "Vanisher", "Walker"], Named(rig));
     }
 
-    // Only a transition that fails to bring its scene up is a status-line matter; the tick's own
-    // failure after a command is the game's crash, as it is from the Step row.
+    // Only a failed scene start is a status-line matter. Any other failure of the tick is the game's
+    // crash.
     [Fact]
     public void ACommandWhoseFollowingStepThrows_Propagates()
     {
-        using SceneHost host = CreateHost(new Brittle());
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayRig rig = new(CreateHost(new Brittle()));
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.S);
-        Assert.Equal([.. Head[..11], "  (Commands)", "  Arm", "", "[Entities]", "<Nothing to show>"], Named(overlay));
+        rig.Open();
+        rig.Press(Key.S);
+        Assert.Equal([.. Head[..11], "  (Commands)", "  Arm", "", "[Entities]", "<Nothing to show>"], Named(rig));
 
         InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(
-            () => Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Enter)));
+            () => rig.Frame(DeviceSnapshot.Of(Key.Enter)));
 
         Assert.Equal("armed", thrown.Message);
-        Assert.Equal(string.Empty, overlay.Status);
+        Assert.Equal(string.Empty, rig.Overlay.Status);
     }
 
     [Fact]
     public void ALoad_RefillsThePageFromTheNewSceneAndAnEmptySceneShowsThePlaceholder()
     {
-        using SceneHost host = CreateHost();
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
+        using OverlayRig rig = new(CreateHost(), CreateRegistry());
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.S);
-        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Named(overlay));
+        rig.Open();
+        rig.Press(Key.S);
+        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Named(rig));
 
-        Press(overlay, scheduler, host, Key.Backspace);
-        Press(overlay, scheduler, host, Key.L);
-        Press(overlay, scheduler, host, Key.Down);
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Press(Key.Backspace);
+        rig.Press(Key.L);
+        rig.Press(Key.Down);
+        rig.Press(Key.Enter);
 
-        Assert.IsType<OtherScene>(host.Scene);
-        Assert.Equal("Load Scene", overlay.Title);
+        Assert.IsType<OtherScene>(rig.Host.Scene);
+        Assert.Equal("Load Scene", rig.Overlay.Title);
 
-        Press(overlay, scheduler, host, Key.Backspace);
-        Press(overlay, scheduler, host, Key.S);
+        rig.Press(Key.Backspace);
+        rig.Press(Key.S);
 
-        Assert.Equal("OtherScene", overlay.Title);
-        Assert.Equal([.. Head, "Lone"], Named(overlay));
+        Assert.Equal("OtherScene", rig.Overlay.Title);
+        Assert.Equal([.. Head, "Lone"], Named(rig));
 
-        Press(overlay, scheduler, host, Key.Backspace);
-        Press(overlay, scheduler, host, Key.L);
-        Press(overlay, scheduler, host, Key.Enter);
-        Assert.IsType<EmptyScene>(host.Scene);
+        rig.Press(Key.Backspace);
+        rig.Press(Key.L);
+        rig.Press(Key.Enter);
+        Assert.IsType<EmptyScene>(rig.Host.Scene);
 
-        Press(overlay, scheduler, host, Key.Backspace);
-        Press(overlay, scheduler, host, Key.S);
+        rig.Press(Key.Backspace);
+        rig.Press(Key.S);
 
-        Assert.Equal("EmptyScene", overlay.Title);
-        Assert.Equal(2, overlay.Depth);
-        Assert.Equal([.. Head, "<Nothing to show>"], Named(overlay));
+        Assert.Equal("EmptyScene", rig.Overlay.Title);
+        Assert.Equal(2, rig.Overlay.Depth);
+        Assert.Equal([.. Head, "<Nothing to show>"], Named(rig));
     }
 
-    // A panel open across a load: its entity's scene is gone, so the next frame pops it to the page,
-    // which is built from the new scene.
     [Fact]
     public void ALoadWithAPanelOpen_PopsToTheRefilledPage()
     {
-        using SceneHost host = CreateHost();
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host, registry: CreateRegistry());
+        using OverlayRig rig = new(CreateHost(), CreateRegistry());
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.S);
-        Press(overlay, scheduler, host, Key.Enter);
-        Assert.Equal("Lone", overlay.Title);
+        rig.Open();
+        rig.Press(Key.S);
+        rig.Press(Key.Enter);
+        Assert.Equal("Lone", rig.Overlay.Title);
 
-        overlay.Load(SceneTransition.ToScene(typeof(OtherScene), null));
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        rig.Overlay.Load(SceneTransition.ToScene(typeof(OtherScene), null));
+        rig.Frame();
 
-        Assert.Equal("OtherScene", overlay.Title);
-        Assert.Equal(2, overlay.Depth);
-        Assert.Contains("Lone", overlay.Status, StringComparison.Ordinal);
-        Assert.Equal([.. Head, "Lone"], Named(overlay));
+        Assert.Equal("OtherScene", rig.Overlay.Title);
+        Assert.Equal(2, rig.Overlay.Depth);
+        Assert.Contains("Lone", rig.Overlay.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Lone"], Named(rig));
     }
 
-    // A step from its parent's panel takes the child out and leaves the child's panel beneath stale;
-    // the frame whose Back exposes it shows the page it pops to, never the departed entity's panel.
+    // A step from the parent's panel takes the child out. The Back that exposes the child's panel
+    // shows the page it pops to on the same frame.
     [Fact]
     public void ABackThatExposesAStalePanel_PopsItOnTheSameFrame()
     {
-        using SceneHost host = CreateHost(new Parented());
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayRig rig = new(CreateHost(new Parented()));
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.S);
-        Assert.Equal([.. Head, "Walker", "  Vanisher"], Named(overlay));
+        rig.Open();
+        rig.Press(Key.S);
+        Assert.Equal([.. Head, "Walker", "  Vanisher"], Named(rig));
 
-        Press(overlay, scheduler, host, Key.Up);
-        Press(overlay, scheduler, host, Key.Enter);
-        Assert.Equal("Vanisher", overlay.Title);
+        rig.Press(Key.Up);
+        rig.Press(Key.Enter);
+        Assert.Equal("Vanisher", rig.Overlay.Title);
 
-        Press(overlay, scheduler, host, Key.Enter);
-        Assert.Equal("Walker", overlay.Title);
-        Assert.Equal(4, overlay.Depth);
+        rig.Press(Key.Enter);
+        Assert.Equal("Walker", rig.Overlay.Title);
+        Assert.Equal(4, rig.Overlay.Depth);
 
-        Press(overlay, scheduler, host, Key.Right);
-        Press(overlay, scheduler, host, Key.Right);
-        Assert.Equal(2, scheduler.Tick);
-        Assert.Equal("Walker", overlay.Title);
+        rig.Press(Key.Right);
+        rig.Press(Key.Right);
+        Assert.Equal(2, rig.Scheduler.Tick);
+        Assert.Equal("Walker", rig.Overlay.Title);
 
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Backspace));
+        rig.Frame(DeviceSnapshot.Of(Key.Backspace));
 
-        Assert.Equal("Parented", overlay.Title);
-        Assert.Equal(2, overlay.Depth);
-        Assert.Contains("Vanisher", overlay.Status, StringComparison.Ordinal);
-        Assert.Equal([.. Head, "Walker"], Named(overlay));
+        Assert.Equal("Parented", rig.Overlay.Title);
+        Assert.Equal(2, rig.Overlay.Depth);
+        Assert.Contains("Vanisher", rig.Overlay.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Walker"], Named(rig));
     }
 }

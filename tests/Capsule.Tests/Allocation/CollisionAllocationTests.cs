@@ -136,7 +136,7 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
 
     // A RaycastAll whose span is full has the same reach left as the Raycast that took one hit, so
     // it must stop in the same place. Left to run to the grid's far edge it would cell-test the
-    // rest of the map for results it has already decided it cannot keep — counted in cells
+    // rest of the map for results it has already decided it cannot keep. The test counts cells
     // reached, which reads the same on every machine.
     [Fact]
     public void ASaturatedRaycastAll_StopsWhereItsSpanFillsRatherThanWalkingOnToTheGridsEdge()

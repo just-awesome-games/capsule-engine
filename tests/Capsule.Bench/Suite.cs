@@ -197,21 +197,18 @@ internal static class Suite
             sha256 = Convert.ToHexStringLower(SHA256.HashData(stream));
         }
 
-        Percentiles draw = Percentiles.Of(frames.ConvertAll(static frame => frame.DrawMs).ToArray());
-        Percentiles interval = Percentiles.Of(frames.ConvertAll(static frame => frame.IntervalMs).ToArray());
-
         return new WorkloadRecord(
             workload,
             "windowed",
             Program.Describe(lane.Surface),
             null,
             frames.Count,
-            new DrawTiming(draw.Median, draw.P95, draw.Max),
+            Percentiles.Of(frames.ConvertAll(static frame => frame.DrawMs).ToArray()),
             null,
             null,
             null,
             null,
-            new IntervalTiming(interval.Median, interval.P95, interval.Max),
+            Percentiles.Of(frames.ConvertAll(static frame => frame.IntervalMs).ToArray()),
             gen0,
             sha256);
     }

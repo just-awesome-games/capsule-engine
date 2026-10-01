@@ -162,20 +162,6 @@ public sealed class CollisionGuardTests
         Assert.Equal(0, world.OverlapBoxAll(probe, CollisionFilter.Everything, contacts, reused));
     }
 
-    [Fact]
-    public void AShapeWhoseBoundsOverflow_IsRefusedThoughEveryInputIsFinite()
-    {
-        // Each value is a real float; the box they describe is not.
-        Assert.Throws<ArgumentException>(() => Shape2D.Circle(new Vector2(3e38f, 0f), 3e38f));
-        Assert.Throws<ArgumentException>(
-            () => Shape2D.Polygon([new Vector2(-3e38f, -1f), new Vector2(3e38f, -1f), new Vector2(0f, 1f)], 3e38f));
-
-        // A shape that fits where it was built and not where it is being put.
-        Assert.Throws<ArgumentException>(
-            () => Shape2D.Circle(Vector2.Zero, 8e37f).Translated(new Vector2(3e38f, 0f)));
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)).Translated(new Vector2(float.NaN, 0f)));
-    }
 
     [Fact]
     public void EveryShapeSeam_RefusesADefaultShapeRatherThanActingOnAnEmptyPointSet()

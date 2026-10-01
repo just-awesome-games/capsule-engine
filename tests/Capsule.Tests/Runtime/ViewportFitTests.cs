@@ -13,11 +13,10 @@ public sealed class ViewportFitTests
     private static readonly Vector2 Canvas = new(320f, 180f);
     private static readonly Vector2 Size = new(160f, 90f);
 
-    // The grown axis is quantised down to a whole number of surface pixels, so the placed span
-    // never exceeds the one the fit resolved, and the world sits on the surface at exactly the
-    // declared scale — bars around it where the surface is the canvas the span fell short of —
-    // whatever shape the window is: 8:7, 16:9, 16:10, a dragged 1300 by 1000, a window smaller
-    // than the surface, and an ultrawide.
+    // The grown axis is quantised down to whole surface pixels. The placed span never exceeds the
+    // one the fit resolved, and the world sits on the surface at exactly the declared scale, with
+    // bars where the span fell short of the canvas. The windows are 8:7, 16:9, 16:10, a dragged
+    // 1300 by 1000, one smaller than the surface, and an ultrawide.
     [Theory]
     [InlineData(ViewportFit.Expand, 1280, 1120, 320, 280, 0, 0, 320, 280)]
     [InlineData(ViewportFit.Expand, 1280, 720, 320, 180, 0, 0, 320, 180)]
@@ -59,7 +58,7 @@ public sealed class ViewportFitTests
         Assert.Equal(layout.Span.Y, world.Bottom - world.Top);
     }
 
-    // A camera wider than its canvas — 200 by 90 on 320 by 180. FixedHeight binds the height, so
+    // A camera wider than its canvas: 200 by 90 on 320 by 180. FixedHeight binds the height, so
     // its scale is the canvas height over the camera's, 2, and its span is the one ResolveSpan
     // gives the window; Expand and Letterbox bind on the axis the canvas holds tighter, 1.6.
     [Theory]
@@ -161,7 +160,7 @@ public sealed class ViewportFitTests
         Assert.Equal(PixelsPerUnit, layout.World.Scale);
     }
 
-    // On a surface 181 pixels tall the camera's half-span is 45.25 units — a quarter pixel — so a
+    // On a surface 181 pixels tall the camera's half-span is 45.25 units, a quarter pixel, so a
     // followed sprite advancing 0.3 units a step would flip between two pixels if it and the
     // camera were rounded apart. Snapped from the camera's corner it holds its pixel, a static
     // sprite recedes by whole pixels only, and a sprite at another sub-pixel phase never jitters
@@ -205,7 +204,7 @@ public sealed class ViewportFitTests
     // The grown axis's pixel count is the binding canvas extent times the output's ratio, taken in
     // integers, so neither float's shortfall nor its excess reaches it: 180 by 365 over 180 is
     // exactly 365 pixels where float spells 364.99997, and 180 by 930 over 1027 is 162.999, which
-    // is 162 — the span 54 units, under the 54.333 the fit resolved — where a tolerance would have
+    // is 162 (the span 54 units, under the 54.333 the fit resolved) where a tolerance would have
     // rounded it up past the resolved span. The span is that count over the scale, exactly.
     [Theory]
     [InlineData(ViewportFit.Expand, 365, 180, 365)]
@@ -236,7 +235,7 @@ public sealed class ViewportFitTests
 
     // Where the canvas holds the grown axis tighter than the other, the camera's size does not
     // cancel and the count is the true fraction in double: 4 × 320 × 5746 over 9 × 1593 is
-    // 512.99997, which float's product rounds up to 513 — one pixel past the resolved span — and
+    // 512.99997, which float's product rounds up to 513 (one pixel past the resolved span) and
     // double floors to 512; 4 × 320 × 4500 over 9 × 1280 is exactly 500 and loses nothing; and
     // 30.6 × 320 × 7722 over 57.2 × 3264 is 404.99999965, a third of a millionth under, which a
     // relative billionth would have lifted to 405 and four ulps leave at 404.
@@ -319,7 +318,7 @@ public sealed class ViewportFitTests
         Assert.Equal(2, host.Simulation.View.Sprites.Length);
     }
 
-    // With the camera still, a sprite advancing half a unit a step — one pixel — lands one pixel
+    // With the camera still, a sprite advancing half a unit (one pixel) a step lands one pixel
     // further each step, never two and never none.
     [Fact]
     public void SnappedFromAStillCamera_ASpriteAdvancingOnePixelAStepLandsOnePixelFurther()

@@ -40,18 +40,3 @@ internal readonly record struct PlacementInputs(
     ScenePlan Scenes,
     EquatableArray<SceneDocumentModel> Documents,
     EquatableArray<AssetModel> Assets);
-
-/// <summary>What the document claim check reads.</summary>
-internal readonly record struct DocumentClaimInputs(
-    ScenePlan Scenes,
-    EquatableArray<SceneDocumentModel> Documents);
-
-/// <summary>What a logic assembly's driver registry is written from.</summary>
-internal readonly record struct InputDriverInputs(
-    InputDriverPlan Drivers,
-    bool IsLogicAssembly);
-
-/// <summary>What the boot resolver reads: the referenced registries, and the drivers the shell declares itself.</summary>
-internal readonly record struct BootInputs(
-    BootModel Boot,
-    InputDriverPlan Drivers);

@@ -6,11 +6,9 @@ namespace Capsule.Tests.Documents;
 
 public sealed class ScrollFieldsTests
 {
-    // Both fields are optional and additive under the current format: a document authoring neither
-    // reads as it always did, and one authoring both is written back byte for byte, the centre after
-    // the version and the factor after the band.
+    // The centre sits after the version, and the band and the factor after the scale on either entry type.
     [Fact]
-    public void ScrollCenterAndScrollFactor_RoundTripCanonicallyOnEveryEntryType()
+    public void ScrollCenterBandAndScrollFactor_RoundTripCanonicallyOnEveryEntryType()
     {
         string json = """
             {
@@ -51,7 +49,7 @@ public sealed class ScrollFieldsTests
                   "x": 0,
                   "y": 0,
                   "scale": [2, 2],
-                  "zIndex": 3,
+                  "zIndex": 0,
                   "scrollFactor": [1, 1]
                 },
                 {
@@ -69,61 +67,23 @@ public sealed class ScrollFieldsTests
         SceneDocument document = SceneDocumentFile.Parse(json);
 
         Assert.Equal(new Vector2(160, 90), document.Settings.ScrollCenter);
-        Assert.Equal(new Vector2(0.5f, 1f), document.Entries[0].TileMap!.Value.ScrollFactor);
+        Assert.Equal((-20, new Vector2(0.5f, 1f)), (document.Entries[0].ZIndex, document.Entries[0].ScrollFactor));
         Assert.Equal(new EntityPlacement(2, "sky", 8f, 0f, ScrollFactor: Vector2.Zero), document.Entries[1].Entity);
 
-        // An authored one is a factor, an absent field is no factor, and the two survive the round
-        // trip as the different documents they are.
-        Assert.Equal(Vector2.One, document.Entries[2].ScrollFactor);
-        Assert.Null(document.Entries[3].ScrollFactor);
+        // An authored identity is a value, an absent field is none, and the two survive the round trip
+        // as the different documents they are.
+        Assert.Equal((0, Vector2.One), (document.Entries[2].ZIndex, document.Entries[2].ScrollFactor));
+        Assert.Equal((null, null), (document.Entries[3].ZIndex, document.Entries[3].ScrollFactor));
         Assert.Equal(json, SceneDocumentFile.ToJson(document));
     }
 
-    [Fact]
-    public void ADocumentAuthoringNeither_WritesNeither()
-    {
-        SceneDocument document = new([new EntityPlacement(1, "coin", 0f, 0f)], 2);
-
-        string json = SceneDocumentFile.ToJson(document);
-
-        Assert.DoesNotContain("scrollCenter", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("scrollFactor", json, StringComparison.Ordinal);
-        Assert.Null(SceneDocumentFile.Parse(json).Settings.ScrollCenter);
-    }
-
     [Theory]
-    [InlineData("[0.5]", "scrollFactor of 1 components")]
-    [InlineData("[0.5, 1, 2]", "scrollFactor of 3 components")]
-    public void Parse_RejectsAScrollFactorThatIsNotTwoComponents(string factor, string expected)
+    [InlineData("\"scrollCenter\": [160], \"entities\": []", "the scene document has a scrollCenter of 1 components")]
+    [InlineData("\"entities\": [{\"id\": 1, \"type\": \"coin\", \"x\": 0, \"y\": 0, \"scrollFactor\": [0.5, 1, 2]}]", "entities[0] has a scrollFactor of 3 components")]
+    public void Parse_RejectsAPairThatIsNotTwoComponents(string fields, string expected)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse($$"""
-                {
-                  "formatVersion": 8,
-                  "entities": [
-                    { "id": 1, "type": "coin", "x": 0, "y": 0, "scrollFactor": {{factor}} }
-                  ],
-                  "nextEntityId": 2
-                }
-                """));
-
-        Assert.Contains(expected, error.Message, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("[160]", "scrollCenter of 1 components")]
-    [InlineData("[160, 90, 0]", "scrollCenter of 3 components")]
-    public void Parse_RejectsAScrollCenterThatIsNotTwoComponents(string center, string expected)
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse($$"""
-                {
-                  "formatVersion": 8,
-                  "scrollCenter": {{center}},
-                  "entities": [],
-                  "nextEntityId": 1
-                }
-                """));
+            () => SceneDocumentFile.Parse($$"""{"formatVersion": 8, {{fields}}, "nextEntityId": 2}"""));
 
         Assert.Contains(expected, error.Message, StringComparison.Ordinal);
     }

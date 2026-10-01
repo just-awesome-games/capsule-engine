@@ -79,14 +79,9 @@ internal static class SheetFile
 
     private static SheetFrame[] Frames(List<FrameJson>? declared, string[] sockets)
     {
-        if (declared is null)
+        if (declared is not { Count: > 0 })
         {
             throw new FormatException("has no frames. A sheet names at least one region of its texture.");
-        }
-
-        if (declared.Count == 0)
-        {
-            throw new FormatException("has an empty frames list. A sheet names at least one region of its texture.");
         }
 
         SheetFrame[] frames = new SheetFrame[declared.Count];
@@ -120,7 +115,7 @@ internal static class SheetFile
                     $"has frame \"{name}\" {width}x{height}. A region has at least one texel on each axis.");
             }
 
-            (float pivotX, float pivotY) = Pivot(frame.Pivot, name);
+            (float pivotX, float pivotY) = frame.Pivot is { } pivot ? Point(pivot, name, "a pivot") : (0F, 0F);
             frames[i] = new SheetFrame(name, x, y, width, height, pivotX, pivotY, FrameSockets(frame, name, sockets, set));
         }
 
@@ -154,21 +149,9 @@ internal static class SheetFile
                 continue;
             }
 
-            if (point.Length != 2)
-            {
-                throw new FormatException(
-                    $"has frame \"{name}\" setting socket \"{declared[i]}\" with {point.Length} components. A socket is written [x, y] in texels of the frame from its top-left corner, as a pivot is.");
-            }
-
-            // A JSON number too large for a float reads as an infinity, which is no texel offset.
-            if (!float.IsFinite(point[0]) || !float.IsFinite(point[1]))
-            {
-                throw new FormatException(
-                    $"has frame \"{name}\" setting socket \"{declared[i]}\" to a point that is not finite. A socket is a pair of texel offsets.");
-            }
-
+            (float x, float y) = Point(point, name, $"socket \"{declared[i]}\"");
             set[i] = true;
-            sockets.Add(new SheetSocket(declared[i], point[0], point[1]));
+            sockets.Add(new SheetSocket(declared[i], x, y));
         }
 
         if (sockets.Count != points.Count)
@@ -194,11 +177,7 @@ internal static class SheetFile
             return [];
         }
 
-        HashSet<string> frameNames = new(StringComparer.Ordinal);
-        foreach (SheetFrame frame in frames)
-        {
-            frameNames.Add(frame.Name);
-        }
+        HashSet<string> frameNames = frames.Select(static frame => frame.Name).ToHashSet(StringComparer.Ordinal);
 
         SheetClip[] clips = new SheetClip[declared.Count];
 
@@ -254,23 +233,19 @@ internal static class SheetFile
     private static string Missing(FrameJson frame) =>
         frame.X is null ? "x" : frame.Y is null ? "y" : frame.Width is null ? "width" : "height";
 
-    private static (float X, float Y) Pivot(float[]? pivot, string name)
+    // A pivot or a socket: [x, y] in texels of the frame from its top-left corner. A JSON number too
+    // large for a float reads as an infinity, which is no texel offset.
+    private static (float X, float Y) Point(float[] point, string frame, string what)
     {
-        if (pivot is null)
-        {
-            return (0F, 0F);
-        }
-
-        if (pivot.Length != 2)
+        if (point.Length != 2)
         {
             throw new FormatException(
-                $"has frame \"{name}\" with a pivot of {pivot.Length} components. A pivot is written [x, y] in texels of the frame from its top-left corner, and a frame anchored at that corner leaves it out.");
+                $"has frame \"{frame}\" with {what} of {point.Length} components. A point on a frame is written [x, y] in texels from its top-left corner.");
         }
 
-        return !float.IsFinite(pivot[0]) || !float.IsFinite(pivot[1])
-            ? throw new FormatException(
-                $"has frame \"{name}\" with a pivot that is not finite. A pivot is a pair of texel offsets.")
-            : (pivot[0], pivot[1]);
+        return float.IsFinite(point[0]) && float.IsFinite(point[1])
+            ? (point[0], point[1])
+            : throw new FormatException($"has frame \"{frame}\" with {what} that is not finite. A point on a frame is a pair of texel offsets.");
     }
 
     // One rule for all three name spaces: non-empty, unique, an identifier, and not the name of the

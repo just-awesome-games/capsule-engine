@@ -18,22 +18,15 @@ internal static class SceneDescriber
         }
 
         bool concreteScene = SymbolShape.IsConcreteClass(type);
-        List<IMethodSymbol> constructors = concreteScene
-            ? SymbolShape.PublicConstructorsTaking(type, compilation, MetadataNames.SceneContent)
-            : [];
+
+        // A derived type in this assembly can call any of these. A baseScene needs exactly one.
+        List<IMethodSymbol> derivable = SymbolShape.ConstructorsTaking(type, compilation, MetadataNames.SceneContent);
+        List<IMethodSymbol> constructors = concreteScene ? SymbolShape.Public(derivable) : [];
         int contentConstructors = constructors.Count;
-        string contentModifier = contentConstructors == 1
-            ? constructors[0].Parameters[0].RefKind switch
-            {
-                RefKind.In => "in ",
-                RefKind.RefReadOnlyParameter => "ref readonly ",
-                _ => string.Empty,
-            }
-            : string.Empty;
+        string contentModifier = contentConstructors == 1 ? SymbolShape.Modifier(constructors[0].Parameters[0].RefKind) : string.Empty;
         bool parameterless = concreteScene && SymbolShape.HasPublicParameterlessConstructor(type);
         AttributeData? annotation = SymbolShape.Attribute(type, compilation, MetadataNames.SceneDocumentAttribute);
         bool accessible = SymbolShape.IsAccessibleFromGeneratedCode(type);
-        int derivableContentConstructors = DerivableConstructorsTaking(type, compilation, MetadataNames.SceneContent);
         EquatableArray<PropertyModel> properties = PropertySchema.Of(type, compilation, MetadataNames.Scene);
 
         if (annotation is not null)
@@ -75,15 +68,12 @@ internal static class SceneDescriber
         SceneModel Model(SceneFault fault, bool documented = false, string? declared = null, bool registrable = true) =>
             new(
                 SymbolShape.QualifiedName(type), type.ToDisplayString(), SymbolShape.NamespaceOf(type), type.Name,
-                documented, declared, fault, registrable, type.IsAbstract, type.IsGenericType, derivableContentConstructors, accessible,
+                documented, declared, fault, registrable, type.IsAbstract, type.IsGenericType, derivable.Count, accessible,
                 DeclaredAt.From(declaration.Identifier.GetLocation()), properties, contentModifier);
     }
 
-    // A document's "camera" is resolved against every Camera subclass in the assembly, at generation
-    // time: the key it claims comes from the same rule a scene document's class does, so no runtime
-    // lookup by name is needed. Unlike a scene, no attribute makes the claim explicit, so every class
-    // in the hierarchy is modeled, valid or not, and the resolver reports the difference between a name
-    // that resolves to an unusable class and one no class claims at all.
+    // Every Camera subclass is modeled, valid or not. The resolver then tells a document naming an unusable
+    // class from one naming a key no class claims.
     internal static CameraModel? DescribeCamera(INamedTypeSymbol type, TypeDeclarationSyntax declaration, Compilation compilation)
     {
         if (!SymbolShape.DerivesFrom(type, compilation, MetadataNames.Camera))
@@ -101,9 +91,7 @@ internal static class SceneDescriber
             DeclaredAt.From(declaration.Identifier.GetLocation()));
     }
 
-    // A palette entry's type is resolved against every TileType subclass in the assembly by the key its
-    // namespace and name claim, as a camera's is. Every class is modeled, valid or not, so a palette entry
-    // naming an unusable class reports what is wrong with it.
+    // Every TileType subclass is modeled, valid or not, as a camera is.
     internal static TileTypeModel? DescribeTileType(INamedTypeSymbol type, TypeDeclarationSyntax declaration, Compilation compilation)
     {
         if (!SymbolShape.DerivesFrom(type, compilation, MetadataNames.TileType))
@@ -267,35 +255,4 @@ internal static class SceneDescriber
         TypedConstantKind.Type => PlacementModel.JsonObject,
         _ => constant.Value,
     };
-
-    // Constructors taking one parameterTypeName that a derived type declared in this assembly can
-    // call: every accessibility but private. Counts rather than finds one, so a baseScene candidate
-    // faults both zero and more than one the way a registered scene's constructors already do.
-    private static int DerivableConstructorsTaking(INamedTypeSymbol type, Compilation compilation, string parameterTypeName)
-    {
-        INamedTypeSymbol? parameterType = compilation.GetTypeByMetadataName(parameterTypeName);
-        if (parameterType is null)
-        {
-            return 0;
-        }
-
-        int count = 0;
-
-        foreach (IMethodSymbol constructor in type.InstanceConstructors)
-        {
-            if (constructor.DeclaredAccessibility == Accessibility.Private || constructor.Parameters.Length != 1)
-            {
-                continue;
-            }
-
-            IParameterSymbol parameter = constructor.Parameters[0];
-            bool passable = parameter.RefKind is RefKind.None or RefKind.In or RefKind.RefReadOnlyParameter;
-            if (passable && SymbolEqualityComparer.Default.Equals(parameter.Type, parameterType))
-            {
-                count++;
-            }
-        }
-
-        return count;
-    }
 }

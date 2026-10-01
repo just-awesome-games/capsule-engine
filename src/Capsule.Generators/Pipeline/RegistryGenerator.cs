@@ -35,21 +35,11 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         IncrementalValuesProvider<RegistryCandidate> candidates = context.SyntaxProvider
             .CreateSyntaxProvider(static (node, _) => MayBeRegistered(node), static (syntax, cancellation) => Describe(syntax, cancellation))
             .Where(static candidate => !candidate.IsEmpty);
-        IncrementalValueProvider<EquatableArray<EntityModel>> entities = Collected(candidates
-            .Where(static candidate => candidate.Entity is not null)
-            .Select(static (candidate, _) => candidate.Entity!.Value));
-        IncrementalValueProvider<EquatableArray<SceneModel>> scenes = Collected(candidates
-            .Where(static candidate => candidate.Scene is not null)
-            .Select(static (candidate, _) => candidate.Scene!.Value));
-        IncrementalValueProvider<EquatableArray<InputDriverModel>> drivers = Collected(candidates
-            .Where(static candidate => candidate.Driver is not null)
-            .Select(static (candidate, _) => candidate.Driver!.Value));
-        IncrementalValueProvider<EquatableArray<CameraModel>> cameras = Collected(candidates
-            .Where(static candidate => candidate.Camera is not null)
-            .Select(static (candidate, _) => candidate.Camera!.Value));
-        IncrementalValueProvider<EquatableArray<TileTypeModel>> tileTypes = Collected(candidates
-            .Where(static candidate => candidate.TileType is not null)
-            .Select(static (candidate, _) => candidate.TileType!.Value));
+        IncrementalValueProvider<EquatableArray<EntityModel>> entities = Collected(candidates, static candidate => candidate.Entity);
+        IncrementalValueProvider<EquatableArray<SceneModel>> scenes = Collected(candidates, static candidate => candidate.Scene);
+        IncrementalValueProvider<EquatableArray<InputDriverModel>> drivers = Collected(candidates, static candidate => candidate.Driver);
+        IncrementalValueProvider<EquatableArray<CameraModel>> cameras = Collected(candidates, static candidate => candidate.Camera);
+        IncrementalValueProvider<EquatableArray<TileTypeModel>> tileTypes = Collected(candidates, static candidate => candidate.TileType);
 
         // What the build declares on CapsuleAssets: every scene document it shipped, whether or not a class
         // claims it, with the baseScene, camera and game entries it authors, resolved once by the build's own
@@ -106,7 +96,7 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .WithTrackingName("InputDriverPlan");
         IncrementalValueProvider<BootPlan> bootPlan = boot
             .Combine(driverPlan)
-            .Select(static (input, _) => BootResolver.Resolve(new BootInputs(input.Left, input.Right)))
+            .Select(static (input, _) => BootResolver.Resolve(input.Left, input.Right))
             .WithTrackingName("BootPlan");
 
         // Every file and every check, one per row.
@@ -118,12 +108,8 @@ public sealed class RegistryGenerator : IIncrementalGenerator
                 .Select(static (input, _) => new PlacementInputs(input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right)),
             PlacementCheck.Run);
         context.RegisterSourceOutput(scenePlan.Combine(providerName), SceneRenderer.Emit);
-        context.RegisterSourceOutput(
-            scenePlan.Combine(documents).Select(static (input, _) => new DocumentClaimInputs(input.Left, input.Right)),
-            DocumentClaimCheck.Run);
-        context.RegisterSourceOutput(
-            driverPlan.Combine(isLogicAssembly).Select(static (input, _) => new InputDriverInputs(input.Left, input.Right)),
-            InputDriverRenderer.Emit);
+        context.RegisterSourceOutput(scenePlan.Combine(documents), DocumentClaimCheck.Run);
+        context.RegisterSourceOutput(driverPlan.Combine(isLogicAssembly), InputDriverRenderer.Emit);
         context.RegisterSourceOutput(providerName, RegistryProviderRenderer.Emit);
         context.RegisterSourceOutput(bootPlan, BootRenderer.Emit);
         context.RegisterSourceOutput(project, GlobalUsingsRenderer.Emit);
@@ -180,4 +166,10 @@ public sealed class RegistryGenerator : IIncrementalGenerator
 
     private static IncrementalValueProvider<EquatableArray<TModel>> Collected<TModel>(IncrementalValuesProvider<TModel> models) =>
         models.Collect().Select(static (items, _) => new EquatableArray<TModel>(items));
+
+    // One domain's models out of the candidates.
+    private static IncrementalValueProvider<EquatableArray<TModel>> Collected<TModel>(
+        IncrementalValuesProvider<RegistryCandidate> candidates, Func<RegistryCandidate, TModel?> domain)
+        where TModel : struct =>
+        Collected(candidates.Where(candidate => domain(candidate) is not null).Select((candidate, _) => domain(candidate)!.Value));
 }

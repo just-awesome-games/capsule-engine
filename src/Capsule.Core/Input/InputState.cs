@@ -9,19 +9,17 @@ namespace Capsule.Input;
 /// </summary>
 public sealed class InputState
 {
-    private readonly ActionBindings _bindings;
-
     // How far the pointer moves in one step before the mouse counts as used. Mouse sensors report a
     // pixel of drift while a hand rests on a pad.
     private const float PointerActivationPixels = 2f;
 
+    private readonly ActionBindings _bindings;
     private DeviceSnapshot _previous;
     private DeviceSnapshot _current;
     private InputDevice _activeDevice;
     private bool _activeDeviceChanged;
 
-    internal InputState(ActionBindings bindings) =>
-        _bindings = bindings ?? throw new ArgumentNullException(nameof(bindings));
+    internal InputState(ActionBindings bindings) => _bindings = bindings;
 
     /// <summary>
     /// Where the pointer sits this step, in canvas pixels from the canvas's top-left corner.

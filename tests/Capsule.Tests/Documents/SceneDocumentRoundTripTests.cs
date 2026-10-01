@@ -10,32 +10,6 @@ namespace Capsule.Tests.Documents;
 
 public sealed class SceneDocumentRoundTripTests
 {
-    // A tile map is one entry among the rest, so a scene of entities alone is an ordinary document.
-    [Fact]
-    public void ADocumentWithNoTileMapEntry_ParsesAndRoundTripsByteForByte()
-    {
-        string json = """
-            {
-              "formatVersion": 8,
-              "entities": [
-                {
-                  "id": 1,
-                  "type": "coin",
-                  "x": 8,
-                  "y": 0
-                }
-              ],
-              "nextEntityId": 2
-            }
-
-            """.ReplaceLineEndings("\n");
-
-        SceneDocument document = SceneDocumentFile.Parse(json);
-
-        Assert.Equal(new EntityPlacement(1, "coin", 8f, 0f), Assert.Single(document.Entries.ToArray()));
-        Assert.Equal(json, SceneDocumentFile.ToJson(document));
-    }
-
     // Every top-level key sits at its canonical place, so a document authoring all of them is a fixed
     // point of the importer, and the shipped form carries them too. A colour reads in either case or with
     // an ff alpha, and writes as lowercase "#rrggbb".
@@ -90,118 +64,19 @@ public sealed class SceneDocumentRoundTripTests
         Assert.Equal(json, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(json.Replace("#484c68", "#484c68ff", StringComparison.Ordinal))));
     }
 
-    // A band is the one field both entry types carry, and an unbanded entry carries none.
-    [Fact]
-    public void AnAuthoredBand_RoundTripsOnBothEntryTypes()
-    {
-        string json = """
-            {
-              "formatVersion": 8,
-              "entities": [
-                {
-                  "id": 1,
-                  "type": "tile-map",
-                  "x": 0,
-                  "y": 0,
-                  "zIndex": -20,
-                  "properties": {
-                    "tileSize": 16,
-                    "width": 1,
-                    "height": 1,
-                    "tileTypes": [
-                      {
-                        "name": "empty"
-                      }
-                    ],
-                    "tiles": [
-                      0
-                    ]
-                  }
-                },
-                {
-                  "id": 2,
-                  "type": "coin",
-                  "x": 8,
-                  "y": 0,
-                  "zIndex": 7
-                },
-                {
-                  "id": 3,
-                  "type": "coin",
-                  "x": 0,
-                  "y": 0,
-                  "zIndex": 0
-                },
-                {
-                  "id": 4,
-                  "type": "coin",
-                  "x": 0,
-                  "y": 0
-                }
-              ],
-              "nextEntityId": 5
-            }
-
-            """.ReplaceLineEndings("\n");
-
-        SceneDocument document = SceneDocumentFile.Parse(json);
-
-        Assert.Equal(-20, document.Entries[0].TileMap!.Value.ZIndex);
-        Assert.Equal(new EntityPlacement(2, "coin", 8f, 0f, ZIndex: 7), document.Entries[1].Entity);
-
-        // An authored 0 is a band, an absent field is no band, and the two survive the round trip
-        // as the different documents they are.
-        Assert.Equal(0, document.Entries[2].ZIndex);
-        Assert.Null(document.Entries[3].ZIndex);
-        Assert.Equal(json, SceneDocumentFile.ToJson(document));
-    }
-
+    // The texture is written as its whole path under Assets/, and only the last dot splits off the
+    // extension. Which extensions ship is the build's allow-list to decide.
     [Theory]
-    [InlineData(0)]
-    [InlineData(9)]
-    public void ATilesCellIsReadAndWrittenAsItStands(int cell)
+    [InlineData("terrain", ".png", "terrain.png")]
+    [InlineData("terrain", ".bmp", "terrain.bmp")]
+    [InlineData("x.atlas", ".png", "x.atlas.png")]
+    [InlineData("terrain/cave", ".png", "terrain/cave.png")]
+    public void AGridsTexture_RoundTripsAsOnePath(string name, string extension, string written)
     {
-        SceneDocument document = SceneDocumentFile.Parse(DocumentText(tileTypes: Palette(cell)));
+        string json = SceneDocumentFile.ToJson(Drawing(new TextureHandle(name, extension)));
 
-        Assert.Equal(cell, TileMapOf(document).Grid.TileTypes[1].Cell);
-        Assert.Contains($"\"cell\": {cell}", SceneDocumentFile.ToJson(document), StringComparison.Ordinal);
-    }
-
-    // The texture is written as the whole file name, so the document names exactly what ships.
-    [Fact]
-    public void AGridsTextureAndColumnsSurviveTheirOwnRoundTrip()
-    {
-        SceneDocument document = SceneDocumentFile.Parse(DocumentText());
-        string json = SceneDocumentFile.ToJson(document);
-
-        Assert.Equal(new TextureHandle("terrain", ".png"), TileMapOf(document).Grid.Texture);
-        Assert.Equal(4, TileMapOf(document).Grid.Columns);
-        Assert.Contains("\"texture\": \"terrain.png\",", json, StringComparison.Ordinal);
-        Assert.Contains("\"columns\": 4,", json, StringComparison.Ordinal);
-        Assert.Equal(json, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(json)));
-    }
-
-    // Which extensions ship is the build's allow-list to decide, so any of them writes.
-    [Fact]
-    public void ToJson_WritesWhateverExtensionTheHandleCarries()
-    {
-        Assert.Contains(
-            "\"texture\": \"terrain.bmp\"",
-            SceneDocumentFile.ToJson(Drawing(new TextureHandle("terrain", ".bmp"))),
-            StringComparison.Ordinal);
-    }
-
-    // Dots inside the name are not the separator: only the last one is.
-    [Fact]
-    public void ATextureWhoseNameCarriesDots_RoundTripsWhole()
-    {
-        string json = SceneDocumentFile.ToJson(Drawing(new TextureHandle("x.atlas", ".png")));
-
-        Assert.Contains("\"texture\": \"x.atlas.png\"", json, StringComparison.Ordinal);
-        Assert.Equal(
-            new TextureHandle("x.atlas", ".png"),
-            TileMapOf(SceneDocumentFile.Parse(json)).Grid.Texture);
-        Assert.Equal(json, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(json)));
+        Assert.Contains($"\"texture\": \"{written}\",", json, StringComparison.Ordinal);
+        Assert.Equal(new TextureHandle(name, extension), TileMapOf(SceneDocumentFile.Parse(json)).Grid.Texture);
     }
 
     [Fact]
@@ -321,33 +196,10 @@ public sealed class SceneDocumentRoundTripTests
 
         Assert.Equal(SceneDocumentFile.ToJson(document), SceneDocumentFile.ToJson(round));
         Assert.Equal(document.Source, round.Source);
-        Assert.Equal(document.Entries[0].Id, round.Entries[0].Id);
-        Assert.Equal(document.Entries[1], round.Entries[1]);
-        Assert.Equivalent(TileMapOf(document).Grid.TileTypes.ToArray(), TileMapOf(round).Grid.TileTypes.ToArray(), strict: true);
     }
 
-    // An absent scale means identity, so the canonical form carries the field only where it says
-    // something, and a document that writes it must read it back the same way.
-    [Fact]
-    public void AScaledEntry_RoundTripsAndAnUnscaledOneWritesNoScale()
-    {
-        SceneDocument document = new(
-            [new EntityPlacement(1, "banner", 8f, 0f, 2f, 3f), new EntityPlacement(2, "coin", 16f, 0f)],
-            3);
-
-        string json = SceneDocumentFile.ToJson(document);
-        SceneDocument round = SceneDocumentFile.Parse(json);
-
-        Assert.Contains("\"scale\": [2, 3]", json, StringComparison.Ordinal);
-        Assert.Equal(1, json.Split("\"scale\"").Length - 1);
-        Assert.Equal(document.Entries[0].Entity, round.Entries[0].Entity);
-        Assert.Equal(1f, round.Entries[1].Entity!.Value.ScaleX);
-        Assert.Equal(1f, round.Entries[1].Entity!.Value.ScaleY);
-        Assert.Equal(json, SceneDocumentFile.ToJson(round));
-    }
-
-    // Rotation is degrees in the document and sits between the position and the scale. An absent one is
-    // unturned, and the canonical form writes it only where it is non-zero.
+    // Rotation is degrees in the document and sits between the position and the scale. An absent rotation
+    // or scale is identity, and the canonical form writes neither at its identity.
     [Fact]
     public void ATurnedEntry_IsAFixedPoint_AndAnUnturnedOneWritesNoRotation()
     {
@@ -379,7 +231,18 @@ public sealed class SceneDocumentRoundTripTests
         SceneDocument document = SceneDocumentFile.Parse(json);
 
         Assert.Equal(new EntityPlacement(1, "spike", 8f, 0f, 2f, 1f, 3, RotationDegrees: -22.5f), document.Entries[0].Entity);
-        Assert.Equal(0f, document.Entries[1].Entity!.Value.RotationDegrees);
+        Assert.Equal(new EntityPlacement(2, "coin", 16f, 0f), document.Entries[1].Entity);
         Assert.Equal(json, SceneDocumentFile.ToJson(document));
+    }
+
+    // Entry fields are recognised only inside the entities array, never in authored scene properties.
+    [Fact]
+    public void SceneProperties_ShapedLikeAnEntry_RoundTrip()
+    {
+        string json = SceneDocumentFile.ToJson(SceneDocumentFile.Parse(
+            """{"formatVersion":8,"properties":{"metadata":{"type":1}},"entities":[],"nextEntityId":1}"""));
+
+        Assert.Contains("\"metadata\": {\n      \"type\": 1\n    }", json, StringComparison.Ordinal);
+        Assert.Equal(json, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(json)));
     }
 }

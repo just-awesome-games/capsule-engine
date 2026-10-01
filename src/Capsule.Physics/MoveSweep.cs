@@ -5,39 +5,27 @@ namespace Capsule.Physics;
 // One move in progress: where the shape stands, what it has applied, and the contacts it has written.
 // Every pass appends to the same contact span. A stopped pass marks its contacts in `stopped` when the
 // caller keeps one.
-internal ref struct MoveSweep
+internal ref struct MoveSweep(
+    CollisionWorld2D world,
+    in Shape2D shape,
+    Vector2 origin,
+    CollisionFilter filter,
+    ColliderHandle ignore,
+    bool throughOneWay,
+    Span<Contact2D> contacts,
+    Span<bool> stopped = default)
 {
     // The most sweeps one slide makes, the first and then one along each surface that stopped it.
     internal const int MaxPasses = 4;
 
-    private readonly CollisionWorld2D _world;
-    private readonly Shape2D _shape;
-    private readonly CollisionFilter _filter;
-    private readonly ColliderHandle _ignore;
-    private readonly bool _throughOneWay;
-    private readonly Span<Contact2D> _contacts;
-    private readonly Span<bool> _stopped;
-    private Vector2 _at;
-
-    internal MoveSweep(
-        CollisionWorld2D world,
-        in Shape2D shape,
-        Vector2 origin,
-        CollisionFilter filter,
-        ColliderHandle ignore,
-        bool throughOneWay,
-        Span<Contact2D> contacts,
-        Span<bool> stopped = default)
-    {
-        _world = world;
-        _shape = shape;
-        _filter = filter;
-        _ignore = ignore;
-        _throughOneWay = throughOneWay;
-        _contacts = contacts;
-        _stopped = stopped;
-        _at = origin;
-    }
+    private readonly CollisionWorld2D _world = world;
+    private readonly Shape2D _shape = shape;
+    private readonly CollisionFilter _filter = filter;
+    private readonly ColliderHandle _ignore = ignore;
+    private readonly bool _throughOneWay = throughOneWay;
+    private readonly Span<Contact2D> _contacts = contacts;
+    private readonly Span<bool> _stopped = stopped;
+    private Vector2 _at = origin;
 
     internal Vector2 Applied { get; private set; }
 

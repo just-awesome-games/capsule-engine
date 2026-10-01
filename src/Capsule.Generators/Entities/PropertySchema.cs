@@ -8,7 +8,6 @@ namespace Capsule.Generators;
 // is kept with the reason it cannot be set.
 internal static class PropertySchema
 {
-
     /// <summary>Whether a member of <paramref name="type"/> names another entry: an entity class or any interface.</summary>
     internal static bool IsReference(ITypeSymbol type, Compilation compilation) =>
         type.TypeKind == TypeKind.Interface

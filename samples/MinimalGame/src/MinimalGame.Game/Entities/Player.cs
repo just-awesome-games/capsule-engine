@@ -36,7 +36,6 @@ public sealed class Player : Entity
     // keeps its feet on the floor.
     private static readonly Vector2 FramePivot = CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Idle0.Pivot;
 
-    // Entity-specific components
     private readonly Visual _visual;
     private readonly KinematicBody2D _body;
     private readonly BoxCollider2D _hurtbox;
@@ -95,7 +94,7 @@ public sealed class Player : Entity
         {
             Offset = new Vector2(_tuning.HurtboxInset, _tuning.HurtboxInset),
             ReportsContacts = true,
-            Detects = CollisionLayers.Damaging,
+            Detects = new(CollisionLayers.Hazard),
         };
         _hurtbox.ContactEntered += OnHurtboxEntered;
         _hurtbox.ContactExited += OnHurtboxExited;
@@ -225,7 +224,7 @@ public sealed class Player : Entity
         return null;
     }
 
-    // Steps current toward target by at most maxStep and lands on target exactly once within reach.
+    // Steps current toward target by at most maxStep, landing on it exactly.
     private static float MoveTowards(float current, float target, float maxStep) =>
         MathF.Abs(target - current) <= maxStep ? target : current + (MathF.Sign(target - current) * maxStep);
 
@@ -288,8 +287,6 @@ public sealed class Player : Entity
         panel.Command("Heal", () => Health++);
     }
 
-    // Named methods rather than lambdas: a handler with a name is one a subclass or a reader can
-    // find, and it can be detached by the same method group that subscribed it.
     private void OnHurtboxEntered(ColliderContact2D contact)
     {
         if (_invulnerable.IsRunning)
@@ -357,7 +354,7 @@ public sealed class Player : Entity
             Vector2 velocity = _player.Velocity;
 
             // Recovery runs before this step's impulses, so an impulse is drawn whole.
-            _squash = new Vector2(Approach(_squash.X, 1f, step), Approach(_squash.Y, 1f, step));
+            _squash = new Vector2(MoveTowards(_squash.X, 1f, step), MoveTowards(_squash.Y, 1f, step));
 
             // Facing is kept through a standstill, so the player stops looking where it walked.
             if (velocity.X != 0f)
@@ -398,9 +395,5 @@ public sealed class Player : Entity
             Tint = grace > 0 ? _tuning.HurtTint : ColorRgba.White;
             Visible = Flash > 0f || grace / _tuning.BlinkTicks % 2 == 0;
         }
-
-        // Towards the target by at most maxDelta, landing on it exactly.
-        private static float Approach(float value, float target, float maxDelta) =>
-            value > target ? MathF.Max(value - maxDelta, target) : MathF.Min(value + maxDelta, target);
     }
 }

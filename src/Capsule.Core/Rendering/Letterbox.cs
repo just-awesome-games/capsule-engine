@@ -8,16 +8,8 @@ internal readonly record struct Letterbox(int X, int Y, int Width, int Height, f
 
     // Fits content measured in its own units, such as a camera's world extent, into a surface. The scale
     // takes whatever the binding axis allows, because a world unit answers to no pixel grid.
-    internal static Letterbox Fit(float contentWidth, float contentHeight, int containerWidth, int containerHeight)
-    {
-        // Negated to reject a NaN extent alongside the non-positive ones.
-        if (!(contentWidth > 0f) || !(contentHeight > 0f) || containerWidth <= 0 || containerHeight <= 0)
-        {
-            return default;
-        }
-
-        return Place(contentWidth, contentHeight, containerWidth, containerHeight, UniformScale(contentWidth, contentHeight, containerWidth, containerHeight));
-    }
+    internal static Letterbox Fit(float contentWidth, float contentHeight, int containerWidth, int containerHeight) =>
+        FitAt(contentWidth, contentHeight, containerWidth, containerHeight, UniformScale(contentWidth, contentHeight, containerWidth, containerHeight));
 
     // Fits a pixel surface into a container of pixels. The scale is the largest whole number that fits
     // and the bars absorb the remainder, so every source pixel covers the same square block instead of
@@ -45,6 +37,7 @@ internal readonly record struct Letterbox(int X, int Y, int Width, int Height, f
     // Content the container cannot hold at that scale is clipped to the container, centred.
     internal static Letterbox FitAt(float contentWidth, float contentHeight, int containerWidth, int containerHeight, float scale)
     {
+        // Negated comparisons reject a NaN extent or scale along with the non-positive ones.
         if (!(contentWidth > 0f) || !(contentHeight > 0f) || containerWidth <= 0 || containerHeight <= 0 || !(scale > 0f))
         {
             return default;

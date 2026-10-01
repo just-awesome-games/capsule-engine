@@ -354,7 +354,9 @@ public readonly struct AuthoredProperties
         ArgumentNullException.ThrowIfNull(find);
         string authored = Authored(key) is { ValueKind: JsonValueKind.String } value ? value.GetString()! : throw Mismatch(key, typeof(T).Name, form);
         string? keyed = normalize(authored);
-        T asset = keyed is not null && find(keyed) is { } found ? found : throw UnknownAsset(key, authored, keyed, typeof(T).Name, fix);
+        T asset = keyed is not null && find(keyed) is { } found
+            ? found
+            : throw new SceneDocumentFormatException($"{Sets(key)} to the string \"{authored}\", but no {typeof(T).Name} keys as \"{keyed ?? authored}\". {fix}");
         if (_assets is { } assets)
         {
             join?.Invoke(assets, asset);
@@ -362,9 +364,6 @@ public readonly struct AuthoredProperties
 
         return asset;
     }
-
-    private SceneDocumentFormatException UnknownAsset(string key, string authored, string? keyed, string type, string fix) =>
-        new($"{Sets(key)} to the string \"{authored}\", but no {type} keys as \"{keyed ?? authored}\". {fix}");
 
     private static bool TryFloat(JsonElement value, out float read)
     {

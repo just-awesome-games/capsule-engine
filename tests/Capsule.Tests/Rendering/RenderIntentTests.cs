@@ -9,21 +9,6 @@ public sealed class RenderIntentTests
     private static readonly TextureHandle Atlas = new("atlas", ".png");
 
     [Fact]
-    public void AView_ReadsBackTheSpritesAddedInOrder()
-    {
-        FrameView view = new();
-        SpriteIntent first = Unit(Vector2.Zero, Vector2.Zero);
-        SpriteIntent second = Unit(Vector2.One, Vector2.One) with { Color = ColorRgba.Black };
-
-        view.Add(first);
-        view.Add(second);
-
-        Assert.Equal(2, view.Sprites.Length);
-        Assert.Equal(first, view.Sprites[0]);
-        Assert.Equal(second, view.Sprites[1]);
-    }
-
-    [Fact]
     public void AView_KeepsVisibleSpritesInSubmissionOrder()
     {
         FrameView view = Looking();
@@ -59,21 +44,6 @@ public sealed class RenderIntentTests
         Assert.Equal(TextureSampling.Point, view.Sampling);
         Assert.Equal(default, view.Metrics);
         Assert.Empty(view.Sprites.ToArray());
-    }
-
-    [Fact]
-    public void RewritingAView_YieldsOnlyTheNewSprites()
-    {
-        FrameView view = new();
-        view.Add(Unit(Vector2.Zero, Vector2.Zero));
-        view.Add(Unit(Vector2.One, Vector2.One));
-
-        SpriteIntent rewritten = Unit(Vector2.One, new Vector2(2, 2));
-        view.Clear();
-        view.Add(rewritten);
-
-        Assert.Equal(1, view.Sprites.Length);
-        Assert.Equal(rewritten, view.Sprites[0]);
     }
 
     [Fact]
@@ -206,20 +176,6 @@ public sealed class RenderIntentTests
         view.Add(travelling with { FlipX = true });
 
         Assert.True(Assert.Single(view.Sprites.ToArray()).FlipX);
-    }
-
-    // Y is the same rule on the other axis: the vertical flip swings a frame anchored 2 texels
-    // down back up over the camera for the whole of a downward sweep.
-    [Fact]
-    public void AView_AppliesTheVerticalFlipToBothEndsOfASweep()
-    {
-        FrameView view = Looking();
-        SpriteIntent falling = Swept(new Vector2(5, 13), new Vector2(5, 16), new Vector2(0, 2));
-
-        view.Add(falling);
-        view.Add(falling with { FlipY = true });
-
-        Assert.True(Assert.Single(view.Sprites.ToArray()).FlipY);
     }
 
     [Fact]

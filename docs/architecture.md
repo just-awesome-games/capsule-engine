@@ -16,25 +16,20 @@ clock or platform. The runtime hosts them and draws, plays and samples on their 
 | `Capsule.Runtime` | The platform-neutral host: window, device, clock, input sampling, rendering, sound playback, scene hosting, and the `HostPlatform` contract. | the pure modules |
 | `Capsule.Runtime.Desktop` | The desktop platform module: content beside the executable, the per-user local folder, window raising and focus, the default audio output. | Runtime |
 | `Capsule.Generators` | Source generation from the game's C#: the entity, scene and input-driver registries and `CapsuleBoot`. Compile-time enforcement of the game-logic boundary. | unconstrained |
-| `Capsule.Build` | The build a game's build project runs through `CapsuleBuild`, which reads every authored file: importers, the key pass, scene document validation and canonicalization, sprite sheet and font compilation, atlas packing, audio measurement, shader compilation, `CapsuleAssets`, and the cache that reuses each unchanged derivation. Packed as `JAG.Capsule.Build`, which only build projects and importer libraries reference. | unconstrained |
-| `Capsule` | No code. The pack root of `JAG.Capsule`: its project-reference list is the package's admission list, and it packs the build targets and the generators beside them. | the pure modules |
+| `Capsule.Build` | The asset build a game's build project runs through `CapsuleBuild`: importers, keys, validation, compilation, atlas packing, `CapsuleAssets` and the derivation cache. | unconstrained |
+| `Capsule` | No code. The pack root of `JAG.Capsule`, whose project references admit what the package holds. | the pure modules |
 
-The pure modules perform no external I/O. `SceneDocumentFile.Load` and `Save` are filesystem adapters for
-tools and hosts, beside the pure `Parse` and `ToJson`. `Capsule.Architecture.targets` enforces the reference
-direction and that no package dependency reaches the compile or the runtime. MonoGame belongs to `Capsule.Runtime`, for
-project-reference and package consumers alike.
+The pure modules perform no external I/O, except `SceneDocumentFile.Load` and `Save`, which are filesystem
+adapters for tools and hosts. `build/engine/Capsule.Architecture.targets` enforces the reference direction, and that the pure modules take no package dependency.
+MonoGame belongs to `Capsule.Runtime` alone.
 
 ## Placement
 
-Assemblies follow layers, and the compiler enforces their reference direction. Namespaces and folders
-follow domains, and one `using` reaches a subsystem. A type's assembly follows the charters above. What it
-depends on decides it, and a type that knows an operating system's locations or links a native library
-belongs in a platform module.
-
-Its namespace is its domain whichever assembly it lives in: `Capsule` for the step, the run, randomness and
-deterministic math, then a namespace per subsystem, the runtime's `Capsule.Runtime.*` mirrors, and the
-development overlay under `Capsule.Runtime.DevTools`. A new domain adds a namespace. A new assembly waits
-until the compiler must enforce a reference direction.
+Assemblies follow layers, and namespaces and folders follow domains. A type's assembly is decided by what
+it depends on. A type that knows an operating system's locations or links a native library belongs in a
+platform module. A type's namespace is its domain whichever assembly it lives in: `Capsule` for the step,
+the run, randomness and deterministic math, then one namespace per subsystem. A new domain adds a
+namespace. A new assembly waits until the compiler must enforce a reference direction.
 
 ## Logic boundary
 
@@ -46,10 +41,8 @@ of `set` (`CAP106`), and a platform transcendental that `DeterministicMath` repl
 
 ## Argument validation
 
-Argument validation follows .NET conventions. A null, non-finite or out-of-range argument throws from the
-`ArgumentException` family, and no member documents that per parameter. An `<exception>` tag marks a state
-rule a caller can violate, such as reaching a run before the scene has started or reconfiguring an object
-from inside its own handler.
+A null, non-finite or out-of-range argument throws from the `ArgumentException` family, and no member
+documents that per parameter. An `<exception>` tag marks a state rule a caller can violate.
 
 ## Determinism contract
 
@@ -58,8 +51,8 @@ extents, a simulation produces the same state transitions and render intents.
 
 - Simulation is single-threaded. Work too large for one step is sliced across steps by its owner. Input
   edges are differences between snapshots, and the host preserves edges sampled between fixed steps.
-- A step runs in this order: the mixer opens the step, the scene steps, each entity steps and then its
-  components, contacts settle, every entity's late step runs in the same order, the scene's late step runs
+- A step runs in this order: the mixer and the rumble open the step, the scene steps, each entity steps
+  and then its components, contacts settle, every entity's late step runs in the same order, the scene's late step runs
   and the camera settles the visible region the frame will use, deferred structural changes are applied and
   newly attached objects started, the visible-screen notifiers settle once against that region, and the
   frame is rewritten. An entity held by a pause or a freeze is skipped by every pass but the drain and
@@ -93,11 +86,8 @@ Every thread the engine runs is the host's, and each has one shape: a step emits
 it, a worker fulfils it, and only the hand-off touches a device or the file system. A headless run runs no
 worker.
 
-How frames, layers, cameras and parallax are drawn is [`rendering.md`](rendering.md). Saved state is
-`Run.Saves` ([`persistence.md`](persistence.md)), sound is `Run.Audio` ([`audio.md`](audio.md)), and what a
-scene preloads and when it is released is [`assets.md`](assets.md#loading-and-residency). What the game
-itself keeps for a run's length is one object it attaches at run start (`Run.Attach`) and reads anywhere
-as `Run.State<T>()`.
+State that outlives a scene belongs to `Run`: saves (`Run.Saves`), sound (`Run.Audio`), and the one
+object a game attaches at run start (`Run.Attach`) and reads anywhere as `Run.State<T>()`.
 
 ## Platforms
 
@@ -111,12 +101,10 @@ how sound follows the default output.
 compile time (`src/Capsule.Runtime/BannedSymbols.txt`).
 
 `Capsule.Runtime.Desktop` is the platform module the engine ships. It uses only the neutral host's public
-surface, which proves a private module can be written against the same contract. Writing one is
-[`build-and-publish.md`](build-and-publish.md#a-private-platform-module).
+surface. Writing another is [`build-and-publish.md`](build-and-publish.md#a-private-platform-module).
 
 ## NativeAOT floor
 
 Shipping assemblies remain ahead-of-time analyzable: no reflection-based discovery, runtime code generation,
 `dynamic`, AOT-unsafe package or reflection-based serialization. CI publishes the package-consuming sample
-and the source-backed headless smoke with NativeAOT on Windows and Linux, and it runs the smoke. A console
-platform module builds on the same floor.
+and the source-backed headless smoke with NativeAOT on Windows, Linux and macOS, and it runs the smoke.

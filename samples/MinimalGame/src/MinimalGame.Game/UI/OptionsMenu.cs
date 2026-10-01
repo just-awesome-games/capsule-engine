@@ -13,13 +13,10 @@ namespace MinimalGame.Game.UI;
 /// </summary>
 public sealed class OptionsMenu : ScreenEntity
 {
-    // Canvas pixels between neighbouring items' centres.
-    private const float ItemSpacing = 20f;
-
-    private readonly MenuItem _jump = new(Anchor.Center, new Vector2(0f, -1.5f * ItemSpacing), "");
-    private readonly MenuItem _shoot = new(Anchor.Center, new Vector2(0f, -0.5f * ItemSpacing), "");
-    private readonly MenuItem _sound = new(Anchor.Center, new Vector2(0f, 0.5f * ItemSpacing), "");
-    private readonly MenuItem _back = new(Anchor.Center, new Vector2(0f, 1.5f * ItemSpacing), "Back");
+    private readonly MenuItem _jump = new(Anchor.Center, new Vector2(0f, -1.5f * MenuItem.Spacing), "");
+    private readonly MenuItem _shoot = new(Anchor.Center, new Vector2(0f, -0.5f * MenuItem.Spacing), "");
+    private readonly MenuItem _sound = new(Anchor.Center, new Vector2(0f, 0.5f * MenuItem.Spacing), "");
+    private readonly MenuItem _back = new(Anchor.Center, new Vector2(0f, 1.5f * MenuItem.Spacing), "Back");
 
     private readonly FocusNavigator _navigator;
 
@@ -44,8 +41,6 @@ public sealed class OptionsMenu : ScreenEntity
         _back.Pressed += Leave;
     }
 
-    // The items are anchored to the canvas's centre rather than to this entity, so they are the
-    // scene's peers, the same shape TitleMenu adds its own items in.
     /// <inheritdoc/>
     protected override void OnAddedToScene()
     {
@@ -135,7 +130,7 @@ public sealed class OptionsMenu : ScreenEntity
         Run.Audio.SetVolume(AudioBuses.Sfx, _settings.SoundOn ? 1f : 0f);
         Run.Audio.FadeVolume(AudioBuses.Music, _settings.SoundOn ? 1f : 0f, 0.2f);
 
-        _sound.Caption = _settings.SoundOn ? "Sound: On" : "Sound: Off";
+        Refresh(_shownDevice);
     }
 
     private void Leave() => Run.RequestScene<MainMenu>();

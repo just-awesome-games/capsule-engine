@@ -1,12 +1,11 @@
 #nullable disable
 #pragma warning disable
-using Capsule.Runtime.Audio.Vorbis.Contracts;
 using System;
 using System.Collections.Generic;
 
 namespace Capsule.Runtime.Audio.Vorbis
 {
-    class Mdct : IMdct
+    sealed class Mdct
     {
         const float M_PI = 3.14159265358979323846264f;
 

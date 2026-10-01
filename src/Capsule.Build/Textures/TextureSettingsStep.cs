@@ -120,7 +120,7 @@ internal static class TextureSettingsStep
                 string key = dot < 0 ? config.Key : config.Key[..dot];
                 string[] suggested = [.. files.Values.Where(file => file.Key == key).Select(static file => $"\"{Path.GetFileName(file.Path)}.config.json\"").Order(StringComparer.Ordinal)];
                 throw new FormatException(suggested.Length > 0
-                    ? $"configures \"{named}\", and no asset file beside it is named that. A sidecar names its asset's whole file name, so rename it to {List(suggested, "or")}."
+                    ? $"configures \"{named}\", and no asset file beside it is named that. A sidecar names its asset's whole file name, so rename it to {string.Join(" or ", suggested)}."
                     : $"configures \"{named}\", and no asset file beside it is named that. A <file>.<ext>.config.json configures that file beside it, and a .config.json configures the whole folder. Rename or delete it.");
             }
 
@@ -143,8 +143,4 @@ internal static class TextureSettingsStep
 
         return file;
     }
-
-    // "a", "a" or "b", "a", "b" or "c".
-    private static string List(string[] values, string conjunction) =>
-        values.Length < 2 ? string.Concat(values) : $"{string.Join(", ", values[..^1])} {conjunction} {values[^1]}";
 }

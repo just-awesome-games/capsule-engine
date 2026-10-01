@@ -1,5 +1,4 @@
 using Capsule.Input;
-using Capsule.UI;
 
 namespace Capsule.Runtime.DevTools;
 
@@ -21,12 +20,6 @@ internal static class OverlayActions
     internal static readonly InputAction Exit = new("debug-menu.exit");
     internal static readonly InputAction Click = new("debug-menu.click");
     internal static readonly AxisAction Scroll = new("debug-menu.scroll");
-
-    // The menu handles sideways moves itself (back and step), so the navigator is given a direction
-    // bound to nothing.
-    private static readonly InputAction None = new("debug-menu.none");
-
-    internal static readonly FocusActions MenuFocus = new(MenuUp, MenuDown, None, None, Confirm, Click);
 
     internal static readonly InputAction[] Actions =
         [MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, TimeScale, FramePane, ScenePage, Exit, Click];

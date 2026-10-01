@@ -10,13 +10,12 @@ using Capsule.Scenes;
 namespace Capsule.Runtime.DevTools;
 
 // The development overlay beside the game: the toggle, the input quarantine, the hold, and the page
-// of rows it draws. The overlay holds the run while open, so its page can change only through the
-// host's own acts; the current page's rows, the root's hotkey rows and the readout are rebuilt from
-// the run only when an act since the last rebuild could have changed them, never on an idle frame.
+// of rows it draws. The run is held while the overlay is open, so the page is rebuilt only after one
+// of the host's own acts, never on an idle frame.
 internal sealed class OverlayHost : IDisposable
 {
-    // The paces the Time Scale page offers, slowest first. 4x is the top, because the default frame
-    // budget is eight steps and past it a frame drops the backlog it cannot run.
+    // The paces the Time Scale page offers, slowest first. 4x is the top because the default frame
+    // budget is eight steps.
     internal static readonly (double Scale, string Label)[] TimeScales =
         [(0.25, "0.25x"), (0.5, "0.5x"), (1, "1x"), (2, "2x"), (4, "4x")];
 
@@ -27,33 +26,34 @@ internal sealed class OverlayHost : IDisposable
     private readonly FixedStepScheduler _scheduler;
     private readonly ISimulation _simulation;
     private readonly SceneHost? _scenes;
+    private readonly IReadOnlyCollection<SceneRegistration> _registrations;
 
-    // The overlay's own scene and the run it is drawn under. The scene is never stepped. Its rows are
-    // written straight onto it and the view is rewritten from there.
+    // The overlay's own scene is never stepped. Its rows are written straight onto it.
     private readonly SceneSimulation _overlay;
     private readonly Run _overlayRun;
     private readonly InputState _input = new(OverlayActions.Bindings);
 
-    // Where the game's DebugDraw calls land while this overlay is attached, the channels switched on,
-    // and the renderer that reads both onto the scene's world.
     private readonly DebugDrawBuffer _buffer = new();
     private readonly HashSet<string> _enabledChannels = new(StringComparer.Ordinal);
     private readonly DebugDrawRenderer _draws;
 
-    // The scene page and entity panels over the held scene. Null without a run of scenes.
+    // Null without a run of scenes.
     private readonly PanelRows? _panels;
 
     // The open pages, root first. The last one is drawn.
     private readonly List<Page> _pages = [new Page(PageKind.Root, null, 0, null)];
 
-    // The current page's rows and the root's, which carry the hotkeys at any depth.
     private readonly List<OverlayRow> _rows = [];
+
+    // The root's rows never change. They carry the hotkeys at any depth.
     private readonly List<OverlayRow> _rootRows = [];
 
     // The toggle first, then every button the overlay binds. Each is stripped from the game's
     // snapshot while the overlay is open, and after it closes until the button is released.
     private readonly InputButton[] _quarantine;
     private readonly bool[] _withheld;
+
+    private readonly Func<long> _timestamp;
 
     private OverlayState _state;
     private bool _toggleDown;
@@ -65,53 +65,36 @@ internal sealed class OverlayHost : IDisposable
     private int _heldFrames;
     private bool _repeating;
 
-    // Set by every host act that could change the current page, the root's hotkey rows or the
-    // readout, and cleared once each open frame after everything that reads it this frame has.
-    // An idle frame, with nothing set it, rebuilds nothing.
+    // Set by every host act that could change the page or the readout.
     private bool _pageStale = true;
 
-    // Whether _rootRows still matches the run. Paired with _pageStale rather than folded into it:
-    // the current page is rebuilt by the one place that reads _pageStale for it, but HotkeyRows is
-    // reached at whatever depth the frame is at when a hotkey is checked, which is depth one (no
-    // _rootRows involved at all) on the very frame a submenu is pushed. A cache keyed on _pageStale
-    // alone would then find the flag already spent by the current page's own rebuild and never fill
-    // _rootRows for the submenu that just opened. Both bits go stale together; only this one is
-    // consumed at its own point of use.
-    private bool _rootRowsValid;
-
-    // The focus and window as Scene.Show last drew them, so a frame that neither rebuilt the page
-    // nor moved either one skips the draw. -1 forces the first open frame to draw regardless.
+    // The focus and window as last drawn. -1 forces the first open frame to draw.
     private int _shownFocus = -1;
     private int _shownFirst = -1;
 
-    // Wheel notches not yet applied to the window: a fine wheel or a touchpad reports fractions of a
-    // notch, which add up here until they make a whole one.
+    // Wheel notches not yet applied to the window. A touchpad reports fractions of a notch.
     private float _scrollRemainder;
 
-    // Where the pointer sat last frame, so it only takes the focus by moving onto a row, not by
-    // resting on one the keys just moved off of.
+    // The pointer takes the focus only by moving onto a row.
     private Vector2 _lastPointer;
 
-    // Ticks the overlay stepped by hand since the last sample. They run after the frame is sampled and
-    // the next advance clears the scheduler's count, so they are counted on the frame that follows.
+    // Ticks stepped by hand run after the frame is sampled, so they count toward the next sample.
     private int _steppedTicks;
 
-    // The frame's clock. Observe stamps the start, and Step reads the update bracket and the interval
-    // from the previous frame's start. Negative while no frame is in progress.
-    private readonly Func<long> _timestamp;
+    // Observe stamps the frame's start. Negative while no frame is in progress.
     private long _observed = -1;
     private long _previousObserved = -1;
 
-    // Set by the hide press that showed the overlay and cleared on its release. That press is withheld
-    // from the rows, or they would read it as a fresh press and hide again.
+    // The hide press that showed the overlay is withheld from the rows until released, or the Hide
+    // row would read it as a fresh press.
     private bool _hidePressConsumed;
 
-    // The frame's device state as sampled for the rows, and with their buttons stripped for a stepped
-    // tick.
+    // The frame's device state as sampled for the rows, and with the overlay's buttons stripped for a
+    // stepped tick.
     private DeviceSnapshot _sampled;
     private DeviceSnapshot _stripped;
 
-    private RenderStats _lastFrame;
+    private double _lastFrameMs;
     private bool _exited;
     private bool _disposed;
 
@@ -123,19 +106,17 @@ internal sealed class OverlayHost : IDisposable
         SceneRegistry? registry = null,
         Func<long>? timestamp = null)
     {
-        ArgumentNullException.ThrowIfNull(scheduler);
-        ArgumentNullException.ThrowIfNull(simulation);
-
         _scheduler = scheduler;
         _simulation = simulation;
         _scenes = scenes;
         _timestamp = timestamp ?? Stopwatch.GetTimestamp;
-        Registrations = registry is { } registered ? registered.Registrations : [];
+        _registrations = registry?.Registrations ?? [];
 
         Scene = new OverlayScene(OverlayActions.KeyName(button));
         _draws = new DebugDrawRenderer(_buffer, _enabledChannels);
         Scene.Add(new DebugDrawEntity(_draws));
-        _panels = scenes is { } held ? new PanelRows(held, activate => StepGame("Command", activate), Open) : null;
+        _panels = scenes is null ? null : new PanelRows(scenes, activate => StepGame("Command", activate), Open);
+        BuildRoot();
 
         _overlayRun = new Run
         {
@@ -144,8 +125,7 @@ internal sealed class OverlayHost : IDisposable
             EmitsDebugDraw = false,
         };
 
-        // Withdrawn before the simulation writes its first frame, which stands until a frame with the
-        // overlay open rewrites it.
+        // Withdrawn before the simulation writes its first frame.
         Scene.ShowMenu(false);
         _overlay = new SceneSimulation(Scene, run: _overlayRun);
 
@@ -168,7 +148,6 @@ internal sealed class OverlayHost : IDisposable
         Hidden,
     }
 
-    // Which page is drawn. An entity panel carries its subject.
     private enum PageKind
     {
         Root,
@@ -184,17 +163,13 @@ internal sealed class OverlayHost : IDisposable
     // What the overlay draws, rewritten every frame it is on screen.
     internal FrameView View => _overlay.View;
 
-    internal bool HasScenes => _scenes is not null;
-
-    internal IReadOnlyCollection<SceneRegistration> Registrations { get; }
-
     internal bool IsOpen => _state == OverlayState.Open;
 
     internal bool IsHidden => _state == OverlayState.Hidden;
 
     internal bool IsFramePaneOn => _framePaneOn;
 
-    // What the current page holds, as the last overlay frame built it.
+    // The current page's rows as the last overlay frame built them.
     internal IReadOnlyList<OverlayRow> Rows => _rows;
 
     internal string? Title => _title;
@@ -205,12 +180,12 @@ internal sealed class OverlayHost : IDisposable
 
     internal string Status => Scene.Status;
 
-    // Raised on each edge of the hold, true as the overlay takes it and false as it lets go, for host
-    // presentation that follows the simulation's standstill.
+    internal string Readout => Scene.Readout;
+
+    // Raised on each edge of the hold: true as the overlay takes it, false as it lets go.
     internal Action<bool>? HoldChanged { get; set; }
 
-    // Every channel a DebugDraw call has named since the overlay was attached, sorted the way a
-    // reader reads it.
+    // Every channel a DebugDraw call has named since the buffer was attached, in reading order.
     internal string[] Channels
     {
         get
@@ -222,37 +197,35 @@ internal sealed class OverlayHost : IDisposable
         }
     }
 
-    internal bool IsChannelEnabled(string channel) => _enabledChannels.Contains(channel);
-
-    internal string Readout
+    // The pace in force: the run's on a run of scenes, where a game can set it, else the scheduler's.
+    // A write applies at once.
+    private double Pace
     {
-        get
+        get => _scenes is { } scenes ? scenes.Run.TimeScale : _scheduler.TimeScale;
+        set
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_scenes is { } scenes)
+            {
+                scenes.Run.TimeScale = value;
+            }
 
-            RefreshReadout();
-
-            return Scene.Readout;
+            _scheduler.TimeScale = value;
         }
     }
 
-    // The scale the overlay is drawn at on a back buffer of this height, so its text is legible at
-    // any window size.
+    internal bool IsChannelEnabled(string channel) => _enabledChannels.Contains(channel);
+
+    // The overlay's integer scale on a back buffer of this height.
     internal static int ScaleFor(int height) => height < 1080 ? 1 : height < 2160 ? 2 : 3;
 
-    // The host calls this before the game's scheduler with the frame's device state, whose pointer is
-    // already on the game's canvas, and hands the game what it returns. gameLayer and overlayScale
-    // carry that pointer onto the overlay's canvas, and a placement with no scale leaves it alone. The
-    // game's snapshot keeps its own pointer.
+    // Called before the game's scheduler with the frame's device state, whose pointer is on the game's
+    // canvas. Returns the snapshot the game sees. gameLayer and overlayScale carry the pointer onto
+    // the overlay's canvas for the rows. A placement with no scale leaves it alone.
     internal DeviceSnapshot Observe(DeviceSnapshot snapshot, in ScreenPlacement gameLayer = default, int overlayScale = 1)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
         _observed = _timestamp();
 
-        // The toggle's leading edge, read on the raw state, takes closed to open, open to closed and
-        // hidden back to open. The toggle is withheld from the rows, and a toggle that is also a
-        // hotkey does not fire that key's action on the frame it opens.
+        // The toggle's leading edge takes closed to open, open to closed and hidden to open.
         InputButton toggle = _quarantine[0];
         bool wasOpen = _state == OverlayState.Open;
         bool toggleDown = toggle.IsDown(snapshot);
@@ -267,25 +240,20 @@ internal sealed class OverlayHost : IDisposable
                 HoldChanged?.Invoke(held);
             }
 
-            // Entering Open from Closed or Hidden: the run stepped freely while this was shut, so
-            // the page it shows next may be stale even though nothing here changed it.
-            if (_state == OverlayState.Open && !wasOpen)
-            {
-                SetStale();
-            }
+            // The run stepped freely while the overlay was shut.
+            _pageStale |= _state == OverlayState.Open;
         }
 
         _toggleDown = toggleDown;
         DeviceSnapshot sampled = toggle.IsNone ? snapshot : snapshot.Without(toggle);
 
-        // The overlay is not read while hidden, so the edge that shows it again is read here, and
-        // that press is withheld from the rows until released.
+        // Hidden rows read no input, so the edge that shows the overlay again is read here.
         bool hideDown = OverlayActions.Bindings.IsAnyDown(OverlayActions.Hide, snapshot);
         if (hideDown && !_hideDown && _state == OverlayState.Hidden)
         {
             _state = OverlayState.Open;
             _hidePressConsumed = true;
-            SetStale();
+            _pageStale = true;
         }
 
         _hideDown = hideDown;
@@ -306,9 +274,7 @@ internal sealed class OverlayHost : IDisposable
 
         _sampled = sampled;
 
-        // Every listed button is withheld from the game while the overlay is open, and after it closes
-        // until that button is released. A press that served the overlay cannot land on the resumed
-        // step.
+        // A press that served the overlay cannot land on the resumed step.
         bool open = wasOpen || _state == OverlayState.Open;
         for (int index = 0; index < _quarantine.Length; index++)
         {
@@ -330,16 +296,12 @@ internal sealed class OverlayHost : IDisposable
         return snapshot;
     }
 
-    // The host calls this after the game's scheduler. The game is held while the overlay is open, so
-    // this reads the frame's input onto the rows and rewrites them. While closed, the frame is
-    // rewritten without input, so the draws and the pane still follow the game's ticks. renderer
-    // places the overlay on the back buffer and carries the game frame's cost. A host with no
-    // renderer supplies that cost as lastFrame.
-    internal void Step(FrameRenderer? renderer = null, RenderStats lastFrame = default)
+    // Called after the game's scheduler. Open, the frame's input is read onto the rows. Closed, the
+    // frame is rewritten without input, so the draws and the pane follow the game's ticks. renderer
+    // places the overlay on the back buffer and carries the game frame's cost. A host with no renderer
+    // supplies that cost as lastFrameMs.
+    internal void Step(FrameRenderer? renderer = null, double lastFrameMs = 0)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        // The update bracket ends here, ahead of the overlay's own work.
         long stepped = _timestamp();
 
         SettleDraws();
@@ -349,51 +311,38 @@ internal sealed class OverlayHost : IDisposable
             return;
         }
 
-        _lastFrame = lastFrame;
+        _lastFrameMs = lastFrameMs;
         if (renderer is not null)
         {
             (int Width, int Height) backBuffer = renderer.BackBufferSize;
             Refit(backBuffer);
 
-            // Font pixels into world units at the last frame's placement, which keeps a label at the
-            // overlay's glyph size at any zoom. One until a frame has drawn a world.
+            // Font pixels into world units, which keeps a label at the overlay's glyph size at any
+            // zoom. One until a frame has drawn a world.
             float pixelsPerUnit = renderer.WorldPixelsPerUnit;
             _draws.TextScale = pixelsPerUnit > 0f ? ScaleFor(backBuffer.Height) / pixelsPerUnit : 1f;
-            _lastFrame = renderer.LastFrame;
+            _lastFrameMs = renderer.LastFrameMs;
         }
 
         SampleFrame(stepped);
-
-        // The frame's alpha, which the game frame is about to be drawn at. One while held.
         _draws.Alpha = _scheduler.InterpolationAlpha;
 
         bool open = _state == OverlayState.Open;
         bool menuChanged = Scene.ShowMenu(open);
-        if (menuChanged && !open)
-        {
-            _scrollRemainder = 0f;
-        }
-
         if (open)
         {
             _input.Advance(in _sampled);
             ReadRows();
 
-            // The readout changes only on a step or a transition, both of which set _pageStale, so
-            // an idle frame between them reads it here and does nothing.
             if (_pageStale)
             {
                 RefreshReadout();
             }
 
+            // An act may have hidden or closed the overlay from inside its own frame.
             if (_state == OverlayState.Open)
             {
-                // The rows are rebuilt after the input as well as before it, because an act may have
-                // stepped the run, changed the scene or opened a page. The frame that did so shows
-                // the result. An idle frame rebuilds nothing, and draws again only if the pointer or
-                // the keys moved the focus or the window since the last draw.
-                bool rebuilt = BuildRows();
-                if (rebuilt || _focus != _shownFocus || _first != _shownFirst)
+                if (BuildRows() || _focus != _shownFocus || _first != _shownFirst)
                 {
                     Scene.Show(_title, _rows, _focus, _first);
                     _shownFocus = _focus;
@@ -402,43 +351,31 @@ internal sealed class OverlayHost : IDisposable
             }
             else
             {
-                // Hidden or closed from inside its own frame, so the panel leaves before this frame
-                // is drawn.
                 Scene.ShowMenu(false);
                 _scrollRemainder = 0f;
             }
 
-            // Every consumer of this frame's staleness (RefreshReadout, BuildRows) has now run, so
-            // the current page goes stale again only on the next act. HotkeyRows keeps _rootRows
-            // valid on its own, since it is reached at whatever depth a hotkey is checked at.
             _pageStale = false;
-
             _overlay.RewriteView();
         }
         else if (menuChanged || _enabledChannels.Count > 0 || _framePaneOn)
         {
+            _scrollRemainder = 0f;
             _overlay.RewriteView();
         }
     }
 
     internal void Draw(FrameRenderer renderer)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        ArgumentNullException.ThrowIfNull(renderer);
-
-        // Nothing of the overlay is on screen, so the frame it would submit holds nothing. Step has
-        // already refitted this back buffer.
         if (_exited || (_state == OverlayState.Closed && !_framePaneOn && _enabledChannels.Count == 0))
         {
             return;
         }
 
-        (int _, int height) = renderer.BackBufferSize;
-        renderer.DrawOverlay(_overlay.View, ScaleFor(height));
+        renderer.DrawOverlay(_overlay.View, ScaleFor(renderer.BackBufferSize.Height));
     }
 
-    // Flips the pane for the rest of the play session. It draws on the overlay's next frame, open,
-    // closed or hidden.
+    // Flips the pane for the rest of the play session.
     internal void ToggleFramePane()
     {
         _framePaneOn = !_framePaneOn;
@@ -448,16 +385,13 @@ internal sealed class OverlayHost : IDisposable
         }
 
         Scene.ShowFramePane(_framePaneOn);
-        SetStale();
+        _pageStale = true;
     }
 
-    // Flips a channel for the rest of the play session. Draws follow on the overlay's next frame
-    // whether or not the game steps, because the scene is asked to emit as it stands. A run held on
-    // its settled step shows the toggle immediately.
+    // Flips a channel for the rest of the play session. The held scene is asked to emit as it stands,
+    // so the toggle shows on the next frame without a step.
     internal void ToggleChannel(string channel)
     {
-        ArgumentNullException.ThrowIfNull(channel);
-
         if (!_enabledChannels.Remove(channel))
         {
             _enabledChannels.Add(channel);
@@ -465,38 +399,12 @@ internal sealed class OverlayHost : IDisposable
 
         AttachBuffer();
         EmitDraws();
-        SetStale();
+        _pageStale = true;
     }
-
-    // Whether scale is the pace in force. A pace a game set off the ladder matches no row.
-    internal bool IsTimeScale(double scale) => Pace == scale;
-
-    // Sets the pace for the rest of the run. The overlay never resets it, the simulation is unchanged,
-    // and no tick is stepped.
-    internal void SetTimeScale(double scale)
-    {
-        Pace = scale;
-        SetStale();
-    }
-
-    internal void Hide() => _state = OverlayState.Hidden;
-
-    internal void Restart() => Request("Restart", SceneTransition.Restart(null, false));
 
     internal void Load(in SceneTransition transition) => Request("Load", in transition);
 
-    internal void Exit()
-    {
-        GameRun.RequestExit();
-        StepGame();
-    }
-
-    // A stepped tick is an ordinary tick. A game that throws inside one crashes as usual.
-    internal void StepGame() => StepGame(null);
-
-    void IDisposable.Dispose() => Dispose();
-
-    internal void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
@@ -508,37 +416,15 @@ internal sealed class OverlayHost : IDisposable
         _overlay.Dispose();
     }
 
-    // The pace in force: the run's on a run of scenes, where a value a game set marks its ladder row
-    // and a ladder pick is visible to the game. Without a run to hold it, the scheduler's own. A write
-    // applies at once and does not wait for the host's next copy.
-    private double Pace
-    {
-        get => _scenes is { } scenes ? scenes.Run.TimeScale : _scheduler.TimeScale;
-        set
-        {
-            if (_scenes is { } scenes)
-            {
-                scenes.Run.TimeScale = value;
-            }
-
-            _scheduler.TimeScale = value;
-        }
-    }
-
-    private SceneHost GameHost =>
-        _scenes ?? throw new InvalidOperationException("The overlay's scene actions need a run of scenes.");
-
-    private Run GameRun => GameHost.Run;
-
-    // Reads this frame's input onto the rows: the page beneath, the focus, the row chosen by key or
-    // pointer, and the hotkeys.
+    // Reads this frame's input onto the rows: back, the focus, the row chosen by key or pointer, and
+    // the hotkeys.
     private void ReadRows()
     {
         BuildRows();
 
         bool held = _input.IsHeld(OverlayActions.MenuUp) || _input.IsHeld(OverlayActions.MenuDown);
         bool pressed = _input.WasPressed(OverlayActions.MenuUp) || _input.WasPressed(OverlayActions.MenuDown);
-        foreach (OverlayRow row in HotkeyRows())
+        foreach (OverlayRow row in _rootRows)
         {
             if (row is { Repeats: true, Hotkey: { } hotkey })
             {
@@ -569,8 +455,6 @@ internal sealed class OverlayHost : IDisposable
 
         Scroll(_input.Axis(OverlayActions.Scroll));
 
-        // The pointer takes the focus by moving onto a row or by a click landing on one; resting
-        // still, the keys own the focus and are not overwritten by the row the pointer already sat on.
         bool pointerMoved = _sampled.Pointer != _lastPointer;
         _lastPointer = _sampled.Pointer;
 
@@ -594,13 +478,9 @@ internal sealed class OverlayHost : IDisposable
             Activate(_rows[_focus]);
         }
 
-        // The root's rows carry the hotkeys at any depth, so the run can be stepped from an entity
-        // panel. An opener's hotkey fires only at the root, and no page is stacked from inside one.
         bool atRoot = _pages.Count == 1;
-        List<OverlayRow> hotkeys = HotkeyRows();
-        for (int index = 0; index < hotkeys.Count; index++)
+        foreach (OverlayRow row in _rootRows)
         {
-            OverlayRow row = hotkeys[index];
             if (row.Hotkey is { } hotkey && (atRoot || !row.OpensMenu) && Pressed(hotkey, row.Repeats))
             {
                 Activate(row);
@@ -608,36 +488,7 @@ internal sealed class OverlayHost : IDisposable
         }
     }
 
-    // The root's rows, which are the current ones at the root and a cached list below it, rebuilt
-    // whenever the same act that stales the current page has also invalidated the cache.
-    private List<OverlayRow> HotkeyRows()
-    {
-        if (_pages.Count == 1)
-        {
-            return _rows;
-        }
-
-        if (!_rootRowsValid)
-        {
-            _rootRows.Clear();
-            BuildRoot(_rootRows);
-            _rootRowsValid = true;
-        }
-
-        return _rootRows;
-    }
-
-    // Marks the current page, the readout and the root's hotkey rows stale: called by every host act
-    // that could change what any of them show. A rebuild each then runs at its own point of use on
-    // the frame that follows, and not before.
-    private void SetStale()
-    {
-        _pageStale = true;
-        _rootRowsValid = false;
-    }
-
-    // True on the press edge, and again every RepeatIntervalFrames while the key is held past the
-    // delay. Directions always repeat. A row repeats where it says so.
+    // True on the press edge, and again every RepeatIntervalFrames while held past the delay.
     private bool Pressed(InputAction action, bool repeats = true) =>
         _input.WasPressed(action) || (repeats && _repeating && _input.IsHeld(action));
 
@@ -650,15 +501,10 @@ internal sealed class OverlayHost : IDisposable
         }
     }
 
-    // Moves the focus by step over the interactive rows, wrapping at either end, then brings the
-    // window to it: the least the wheel left it that still shows the new focus.
+    // Moves the focus by step over the interactive rows, wrapping at either end, then scrolls the
+    // window the least that shows it.
     private void Move(int step)
     {
-        if (_rows.Count == 0)
-        {
-            return;
-        }
-
         for (int moved = 1; moved <= _rows.Count; moved++)
         {
             int index = ((_focus + (step * moved)) % _rows.Count + _rows.Count) % _rows.Count;
@@ -672,9 +518,8 @@ internal sealed class OverlayHost : IDisposable
         }
     }
 
-    // Moves the window three rows per whole notch turned, up for a positive notch (away from the
-    // user) and down for a negative one, as the pre-audit overlay did; the focus stays where it is.
-    // The fraction of a notch that does not make a whole one carries to the next frame.
+    // Moves the window three rows per notch, up for a positive notch, and leaves the focus alone. The
+    // fraction of a row carries to the next frame.
     private void Scroll(float notches)
     {
         if (notches == 0f)
@@ -689,10 +534,8 @@ internal sealed class OverlayHost : IDisposable
         _first = Math.Clamp(_first + rows, 0, Math.Max(0, _rows.Count - OverlayScene.MaxRows));
     }
 
-    // Rebuilds the current page's rows from the run as it stands when a host act has made them
-    // stale, dropping an entity panel whose subject has left the scene, and brings the focus and
-    // the window to them. Returns at once, doing nothing, on a frame nothing set stale. Returns
-    // whether it rebuilt.
+    // Rebuilds a stale page from the run, popping entity panels whose subject has left the scene.
+    // Returns whether it rebuilt.
     private bool BuildRows()
     {
         if (!_pageStale)
@@ -700,50 +543,40 @@ internal sealed class OverlayHost : IDisposable
             return false;
         }
 
-        while (true)
+        while (_pages[^1] is { Kind: PageKind.Entity } departed && !_panels!.Holds(departed.Subject!))
         {
-            _rows.Clear();
-            Page page = _pages[^1];
-
-            if (page.Kind == PageKind.Entity && _panels is { } panels)
-            {
-                if (panels.Holds(page.Subject!))
-                {
-                    _title = panels.EntityPanel(page.Subject!, _rows);
-                    break;
-                }
-
-                // Named as it was when its panel was opened, because an entity out of the scene has
-                // no readable place among its siblings.
-                Scene.SetStatus($"{page.Name} left the scene");
-                Pop();
-
-                continue;
-            }
-
-            _title = page.Kind switch
-            {
-                PageKind.Root => BuildRoot(_rows),
-                PageKind.Scene => _panels!.ScenePage(_rows),
-                PageKind.DebugDraw => BuildDebugDraw(_rows),
-                PageKind.TimeScale => BuildTimeScale(_rows),
-                _ => BuildLoadScene(_rows),
-            };
-
-            break;
+            // The name it had when opened. An entity out of the scene has no place among its siblings.
+            Scene.SetStatus($"{departed.Name} left the scene");
+            Pop();
         }
+
+        _rows.Clear();
+        Page page = _pages[^1];
+        if (page.Kind == PageKind.Root)
+        {
+            _rows.AddRange(_rootRows);
+        }
+
+        _title = page.Kind switch
+        {
+            PageKind.Root => null,
+            PageKind.Scene => _panels!.ScenePage(_rows),
+            PageKind.Entity => _panels!.EntityPanel(page.Subject!, _rows),
+            PageKind.DebugDraw => BuildDebugDraw(),
+            PageKind.TimeScale => BuildTimeScale(),
+            _ => BuildLoadScene(),
+        };
 
         _focus = Nearest(Math.Clamp(_focus, 0, Math.Max(0, _rows.Count - 1)));
 
-        // Clamped to the page alone, not to the focus: the wheel moves this away from the focus, and
-        // Move is what brings it back once a direction press changes which row is focused.
+        // Clamped to the page, not to the focus. The wheel moves the window away from the focus.
         _first = Math.Clamp(_first, 0, Math.Max(0, _rows.Count - OverlayScene.MaxRows));
 
         return true;
     }
 
-    // The interactive row nearest index, searched outward and preferring the earlier row at a tie,
-    // because the reader came from above. Returns index where the page has no interactive row.
+    // The interactive row nearest index, preferring the earlier at a tie. Returns index where the
+    // page has none.
     private int Nearest(int index)
     {
         for (int distance = 0; distance < _rows.Count; distance++)
@@ -762,70 +595,66 @@ internal sealed class OverlayHost : IDisposable
         return index;
     }
 
-    private string? BuildRoot(List<OverlayRow> rows)
+    private void BuildRoot()
     {
-        if (HasScenes)
+        bool scenes = _scenes is not null;
+        if (scenes)
         {
-            rows.Add(new OverlayRow("Scene", () => Open(PageKind.Scene), OverlayActions.ScenePage, OpensMenu: true));
+            _rootRows.Add(new OverlayRow("Scene", () => Open(PageKind.Scene), OverlayActions.ScenePage, OpensMenu: true));
         }
 
-        rows.Add(new OverlayRow("Step", StepGame, OverlayActions.Step, Repeats: true));
-        rows.Add(new OverlayRow("Debug Draw", OpenDebugDraw, OverlayActions.DebugDraw, OpensMenu: true));
-        rows.Add(new OverlayRow("Time Scale", () => Open(PageKind.TimeScale), OverlayActions.TimeScale, OpensMenu: true));
+        _rootRows.Add(new OverlayRow("Step", StepGame, OverlayActions.Step, Repeats: true));
+        _rootRows.Add(new OverlayRow("Debug Draw", OpenDebugDraw, OverlayActions.DebugDraw, OpensMenu: true));
+        _rootRows.Add(new OverlayRow("Time Scale", () => Open(PageKind.TimeScale), OverlayActions.TimeScale, OpensMenu: true));
 
-        if (HasScenes)
+        if (scenes)
         {
-            rows.Add(new OverlayRow("Restart", Restart, OverlayActions.Restart));
+            _rootRows.Add(new OverlayRow("Restart", () => Request("Restart", SceneTransition.Restart(null, false)), OverlayActions.Restart));
 
-            if (Registrations.Count > 0)
+            if (_registrations.Count > 0)
             {
-                rows.Add(new OverlayRow("Load Scene", () => Open(PageKind.LoadScene), OverlayActions.LoadScene, OpensMenu: true));
+                _rootRows.Add(new OverlayRow("Load Scene", () => Open(PageKind.LoadScene), OverlayActions.LoadScene, OpensMenu: true));
             }
         }
 
-        rows.Add(new OverlayRow("Frame Pane", ToggleFramePane, OverlayActions.FramePane));
-        rows.Add(new OverlayRow("Hide", Hide, OverlayActions.Hide));
+        _rootRows.Add(new OverlayRow("Frame Pane", ToggleFramePane, OverlayActions.FramePane));
+        _rootRows.Add(new OverlayRow("Hide", () => _state = OverlayState.Hidden, OverlayActions.Hide));
 
-        if (HasScenes)
+        if (scenes)
         {
-            rows.Add(new OverlayRow("Exit", Exit, OverlayActions.Exit));
+            _rootRows.Add(new OverlayRow("Exit", Exit, OverlayActions.Exit));
         }
-
-        return null;
     }
 
-    // A row per channel that has emitted, in name order, its label carrying the channel's state.
-    private string BuildDebugDraw(List<OverlayRow> rows)
+    private string BuildDebugDraw()
     {
         foreach (string channel in Channels)
         {
             string label = (IsChannelEnabled(channel) ? "[x] " : "[ ] ") + channel;
-            rows.Add(new OverlayRow(label, () => ToggleChannel(channel)));
+            _rows.Add(new OverlayRow(label, () => ToggleChannel(channel)));
         }
 
-        if (rows.Count == 0)
+        if (_rows.Count == 0)
         {
-            rows.Add(new OverlayRow("<No channel has emitted yet>", null));
+            _rows.Add(new OverlayRow("<No channel has emitted yet>", null));
         }
 
         return "Debug Draw";
     }
 
-    // A row per pace on the ladder, marking the pace in force. No row is marked when a game set a pace
-    // off the ladder.
-    private string BuildTimeScale(List<OverlayRow> rows)
+    // No row is marked when a game set a pace off the ladder.
+    private string BuildTimeScale()
     {
         foreach ((double scale, string label) in TimeScales)
         {
-            rows.Add(new OverlayRow((IsTimeScale(scale) ? "(x) " : "( ) ") + label, () => SetTimeScale(scale)));
+            _rows.Add(new OverlayRow((Pace == scale ? "(x) " : "( ) ") + label, () => SetTimeScale(scale)));
         }
 
         return "Time Scale";
     }
 
-    // Orders labels the way a reader reads them: case-insensitive, falling back to ordinal when
-    // two labels differ only by case. The fallback is load-bearing. A scene class "Room" and an
-    // unclaimed document "room" are two labels equal under ignore-case. List<T>.Sort is unstable.
+    // Case-insensitive, then ordinal. A scene class "Room" and an unclaimed document "room" differ
+    // only by case, and List<T>.Sort is unstable.
     private static int CompareLabels(string a, string b)
     {
         int result = string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
@@ -833,13 +662,13 @@ internal sealed class OverlayHost : IDisposable
         return result != 0 ? result : string.CompareOrdinal(a, b);
     }
 
-    // Every registration by its name, sorted the way a reader reads it: a registered class by its
-    // class name, a document-only registration by its document's key.
-    private string BuildLoadScene(List<OverlayRow> rows)
+    // Every registration by its name: a class by its class name, a document-only registration by its
+    // document's key.
+    private string BuildLoadScene()
     {
         List<(string Label, SceneTransition Target)> entries = [];
 
-        foreach (SceneRegistration registration in Registrations)
+        foreach (SceneRegistration registration in _registrations)
         {
             SceneTransition target = registration.DocumentName is { } name
                 ? SceneTransition.ToName(name, null)
@@ -851,14 +680,20 @@ internal sealed class OverlayHost : IDisposable
 
         foreach ((string label, SceneTransition target) in entries)
         {
-            rows.Add(new OverlayRow(label, () => Load(in target)));
+            _rows.Add(new OverlayRow(label, () => Load(in target)));
         }
 
         return "Load Scene";
     }
 
-    // Opens the Debug Draw page. The scene is asked to emit first, which lets a run held before its
-    // first step still list its channels.
+    // The overlay never resets the pace, and no tick is stepped.
+    private void SetTimeScale(double scale)
+    {
+        Pace = scale;
+        _pageStale = true;
+    }
+
+    // The scene emits first, so a run held before its first step still lists its channels.
     private void OpenDebugDraw()
     {
         EmitDraws();
@@ -876,7 +711,7 @@ internal sealed class OverlayHost : IDisposable
         _focus = 0;
         _first = 0;
         _scrollRemainder = 0f;
-        SetStale();
+        _pageStale = true;
     }
 
     // Returns to the page beneath, focused on the row that opened this one. Does nothing at the root.
@@ -891,19 +726,24 @@ internal sealed class OverlayHost : IDisposable
         _first = 0;
         _scrollRemainder = 0f;
         _pages.RemoveAt(_pages.Count - 1);
-        SetStale();
+        _pageStale = true;
     }
 
-    // A request the run declines, because a transition is already pending, is shown on the status line
-    // and not stepped, or the pending transition would be stepped in its place. A request the run or
-    // the host refuses is shown and logged in full. Either way the run stays held on its current scene.
-    // Refused or not, the request is the act: either path can leave something for the page to show.
+    private void Exit()
+    {
+        _scenes!.Run.RequestExit();
+        StepGame();
+    }
+
+    // A request the run declines because a transition is pending is shown and not stepped, or the
+    // pending transition would be stepped in its place. A refused request is shown and logged. Either
+    // way the run stays held on its current scene.
     private void Request(string action, in SceneTransition transition)
     {
-        SetStale();
+        _pageStale = true;
         try
         {
-            if (!GameRun.TryRequest(in transition))
+            if (!_scenes!.Run.TryRequest(in transition))
             {
                 Scene.SetStatus($"{action} refused: a transition is already pending");
 
@@ -920,32 +760,29 @@ internal sealed class OverlayHost : IDisposable
         StepGame(action, null);
     }
 
-    // The stepped tick that follows a host act and consumes whatever transition the act requested. An
-    // incoming scene that fails to come up is shown on the status line and logged in full, and the run
-    // stays on its current scene. The tick's own failure propagates as it does from the Step row, since
-    // the simulation does not continue after it.
+    // An incoming scene that fails to come up is shown and logged, and the run stays on its current
+    // scene. Any other failure of the tick propagates, as it does from the Step row.
     private void StepGame(string action, Action? before)
     {
         try
         {
             StepGame(before);
         }
-        catch (Exception failure) when (GameHost.TransitionFailed)
+        catch (Exception failure) when (_scenes!.TransitionFailed)
         {
             Report(action, failure);
         }
     }
 
-    // `before` is a host act that belongs to the tick. It runs inside the step, after the step begins
-    // and ahead of the scene's own work, so what it changes and the sounds it asks for are this
-    // step's.
+    private void StepGame() => StepGame(null);
+
+    // before is a host act that runs inside the step, ahead of the scene's own work.
     private void StepGame(Action? before)
     {
         _exited = _scheduler.StepOnce(in _stripped, _simulation, before);
         _steppedTicks += _scheduler.StepsThisFrame;
         SettleDraws();
-        RefreshReadout();
-        SetStale();
+        _pageStale = true;
     }
 
     private void Report(string action, Exception failure)
@@ -954,9 +791,8 @@ internal sealed class OverlayHost : IDisposable
         Scene.SetStatus($"{action} failed: {failure.GetType().Name}: {failure.Message}");
     }
 
-    // Closes the frame Observe opened and hands the pane its sample. The first frame has no
-    // predecessor to measure an interval against and is not sampled. A Step with no Observe before it
-    // is not a frame.
+    // Closes the frame Observe opened and hands the pane its sample. The first frame has no interval
+    // and is not sampled. A Step with no Observe before it is not a frame.
     private void SampleFrame(long stepped)
     {
         long observed = _observed;
@@ -978,34 +814,25 @@ internal sealed class OverlayHost : IDisposable
         Scene.Pane.Push(new FrameSample(
             Milliseconds(observed - previous),
             Milliseconds(stepped - observed),
-            _lastFrame.Milliseconds,
+            _lastFrameMs,
             steps));
     }
 
     private static double Milliseconds(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
 
-    // The overlay's canvas is the back buffer at its own integer scale, so one canvas pixel is that
-    // many window pixels.
+    // The overlay's canvas is the back buffer at its own integer scale.
     private void Refit((int Width, int Height) backBuffer)
     {
         (int width, int height) = backBuffer;
-        if (width <= 0 || height <= 0)
+        if (width > 0 && height > 0)
         {
-            return;
-        }
-
-        int scale = ScaleFor(height);
-        Vector2 canvas = new(width / (float)scale, height / (float)scale);
-        if (_overlayRun.Canvas != canvas)
-        {
-            _overlayRun.Canvas = canvas;
+            int scale = ScaleFor(height);
+            _overlayRun.Canvas = new Vector2(width / (float)scale, height / (float)scale);
         }
     }
 
-    // The held scene's debug pass into the buffer, run when the buffer is attached, there is a run of
-    // scenes to ask, and the step the settled frame shows has not already drawn into it. The buffer is
-    // settled first at that step's tick, so the pass stamps as the step's would have and expires with
-    // the next step.
+    // The held scene's debug pass, run when the settled step has not already drawn into the buffer.
+    // The buffer is settled at that step's tick first, so the draws expire with the next step.
     private void EmitDraws()
     {
         long tick = _scheduler.Tick;
@@ -1022,18 +849,16 @@ internal sealed class OverlayHost : IDisposable
     private void RefreshReadout() =>
         Scene.SetReadout(_scenes is { } scenes ? scenes.Scene.GetType().Name : string.Empty, _scheduler.Tick);
 
-    // Once per frame and again after a stepped tick, so the frame that stepped shows what that step
-    // left. A frame that ran several steps settles once at its last tick, so draws emitted by its
-    // later steps are stamped with its first and leave up to that many ticks early.
+    // A frame that ran several steps settles once at its last tick, so draws from its later steps
+    // leave up to that many ticks early.
     private void SettleDraws() => _buffer.Settle(_scheduler.Tick);
 
-    // The buffer is attached only while what it holds can be seen, and an ordinary frame runs no
-    // debug-draw walk. As a result the Debug Draw page lists the channels that emitted while the
-    // overlay was open, not every channel the run has drawn on since boot.
+    // The buffer is attached only while what it holds can be seen. The Debug Draw page therefore lists
+    // the channels that emitted while attached, not every channel since boot.
     private void AttachBuffer() =>
         DebugDraw.UseBuffer(_state != OverlayState.Closed || _enabledChannels.Count > 0 ? _buffer : null);
 
-    // One open page: which page it is, the entity a panel is for and the name it had when opened, and
-    // the row that opened it, which the focus returns to on pop.
+    // One open page. An entity panel carries its subject and the name it had when opened. ReturnFocus
+    // is the row that opened it.
     private readonly record struct Page(PageKind Kind, Entity? Subject, int ReturnFocus, string? Name);
 }

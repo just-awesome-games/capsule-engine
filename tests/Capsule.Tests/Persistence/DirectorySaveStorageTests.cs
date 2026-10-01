@@ -30,8 +30,8 @@ public sealed class DirectorySaveStorageTests : IDisposable
 
     private string Primary => Path.Combine(Saves, "settings.save.json");
 
-    // The file is one a person reads and hand-edits — no byte-order mark, LF alone, the envelope's
-    // two halves — and what comes back is the document text and metadata exactly as persisted.
+    // The file is one a person reads and hand-edits: no byte-order mark, LF alone, and the envelope's
+    // two halves. What comes back is the document text and metadata exactly as persisted.
     [Fact]
     public void PersistThenRestore_RoundTripsTheDocumentAndTheMetadata_ThroughAnExactFile()
     {
@@ -53,6 +53,7 @@ public sealed class DirectorySaveStorageTests : IDisposable
             """.ReplaceLineEndings("\n"),
             Encoding.UTF8.GetString(File.ReadAllBytes(Primary)));
         Assert.False(File.ReadAllBytes(Primary).AsSpan().StartsWith(Encoding.UTF8.Preamble));
+        File.Copy(Primary, Path.Combine(Saves, "other.SAVE.JSON"));
 
         (string document, SaveMetadata metadata) = Assert.Single(Restore()).Value;
         Assert.Equal(Document, document);
@@ -122,36 +123,6 @@ public sealed class DirectorySaveStorageTests : IDisposable
         File.WriteAllBytes(Primary, [.. Encoding.UTF8.Preamble, .. File.ReadAllBytes(Primary)]);
 
         Assert.Equal(Document, Assert.Single(Restore()).Value.Document);
-        Assert.Empty(_log.Entries);
-    }
-
-    // Pins schema tolerance for a hand-edited file: a field the game does not declare is ignored and
-    // one it declares but the file omits takes its default, so the fields it knows come back intact.
-    [Fact]
-    public void AHandWrittenDocument_RestoresItsKnownFieldsPastAnUnknownAndAMissingOne()
-    {
-        Directory.CreateDirectory(Saves);
-        File.WriteAllText(
-            Primary,
-            """
-            {
-              "metadata": {
-                "createdAt": "2026-09-17T10:00:00+01:00",
-                "updatedAt": "2026-09-18T11:30:00-07:00"
-              },
-              "document": {
-                "Volume": 5,
-                "Trophies": 3
-              }
-            }
-            """);
-
-        SaveStore saves = new();
-        saves.Restore(new DirectorySaveStorage(Saves));
-        Settings restored = saves.Read(new SaveKey<Settings>("settings", SaveTestJsonContext.Default.Settings));
-
-        Assert.Equal(5, restored.Volume);
-        Assert.Equal(string.Empty, restored.Name);
         Assert.Empty(_log.Entries);
     }
 

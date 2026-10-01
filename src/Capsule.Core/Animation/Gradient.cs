@@ -13,13 +13,7 @@ public readonly record struct GradientStop(float Time, ColorRgba Color);
 /// <see cref="ColorRgba.Lerp"/>. It holds the first stop's colour before that stop and the last
 /// stop's colour after it.
 /// </summary>
-/// <remarks>
-/// A gradient stores up to eight stops inline.
-/// <para>
-/// Allocates nothing.
-/// </para>
-/// </remarks>
-///
+/// <remarks>A gradient stores up to eight stops inline and allocates nothing.</remarks>
 public readonly struct Gradient
 {
     private readonly StopBuffer _stops;
@@ -78,7 +72,7 @@ public readonly struct Gradient
     /// </remarks>
     public ColorRgba Evaluate(float t)
     {
-        // Not handled by the loop: the backing array's default stop is transparent black, not white.
+        // The buffer's default stop is transparent black, not white.
         if (_count == 0)
         {
             return ColorRgba.White;

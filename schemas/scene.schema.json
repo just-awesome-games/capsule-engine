@@ -108,7 +108,7 @@
             "type": "integer"
           },
           "scrollFactor": {
-            "description": "How far the entry moves with the camera, as [x, y], both finite. On a tile-map entry it applies to the composed map.",
+            "description": "How far the entry moves with the camera, as [x, y], both finite. On a tile-map entry it applies to the composed map. A tile-map entry whose palette names a collision layer refuses it.",
             "type": "array",
             "items": {
               "type": "number"

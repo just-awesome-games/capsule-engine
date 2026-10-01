@@ -53,31 +53,13 @@
     </ItemGroup>
   </Target>
 
-  <!-- CapsuleReturnPureModules: a project referencing this one compiles against every pure module,
-       as a package consumer does.
-
-       What it does. It asks each module above for its GetTargetPath output and appends that to this
-       project's own. A referencing project's ResolveProjectReferences then receives Capsule.dll and
-       every module assembly from one reference.
-
-       Why it is needed. Pack reads each project reference's PrivateAssets from the restore's assets
-       file and lists no dependency for one marked "all". That is the only way to keep the modules
-       out of the dependency list. The same marking stops restore flowing them to a referencing
-       project as transitive references, and this target restores that flow.
-
-       What it hooks. AfterTargets GetTargetPathWithTargetPlatformMoniker, the SDK target that fills
-       @(TargetPathWithTargetPlatformMoniker). Build and GetTargetPath both return that item. A
-       reference resolved through either one sees the modules. The MSBuild call copies the one in the
-       SDK's GetReferenceTargetPlatformMonikers and names the build the references above made.
-
-       After an SDK upgrade. If a referencing project stops compiling against Capsule.Core,
-       Capsule.Physics or Capsule.Scenes types, check in Microsoft.Common.CurrentVersion.targets that
-       GetTargetPathWithTargetPlatformMoniker still fills that item and that Build and GetTargetPath
-       still return it. Then check that PrepareProjectReferences still produces
-       @(_MSBuildProjectReferenceExistent) with its SetConfiguration, SetPlatform, SetTargetFramework
-       and GlobalPropertiesToRemove metadata. If pack starts listing the modules as dependencies,
-       check that the assets file still records privateAssets "all" on each module reference.
-       PackageTests checks both the dependency list and lib/. -->
+  <!-- A project referencing this one compiles against every pure module, as a package consumer
+       does. PrivateAssets="all" keeps the modules out of pack's dependency list and also stops restore
+       flowing them to a referencing project. This target appends each module's GetTargetPath output
+       to @(TargetPathWithTargetPlatformMoniker), which Build and GetTargetPath both return. The
+       MSBuild call copies the SDK's GetReferenceTargetPlatformMonikers. An SDK upgrade that renames that
+       item or the _MSBuildProjectReferenceExistent metadata breaks it. PackageTests checks the
+       dependency list and lib/. -->
   <Target Name="CapsuleReturnPureModules"
           AfterTargets="GetTargetPathWithTargetPlatformMoniker"
           DependsOnTargets="PrepareProjectReferences">

@@ -5,7 +5,7 @@ namespace Capsule.Generators;
 // Refuses an inaccessible driver and a second driver claiming a taken name.
 internal static class InputDriverResolver
 {
-    // Names are claimed in declaration order, so the registry keeps that order.
+    // The first class by qualified name keeps a taken name.
     internal static InputDriverPlan Resolve(EquatableArray<InputDriverModel> models)
     {
         List<Diagnostic> diagnostics = [];

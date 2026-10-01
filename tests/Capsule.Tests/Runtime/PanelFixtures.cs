@@ -1,6 +1,5 @@
 using System.Numerics;
 using Capsule.Diagnostics;
-using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
@@ -10,11 +9,8 @@ namespace Capsule.Tests.Runtime;
 // The scenes the overlay's panel specs walk: entities that move, leave, nest and carry hooks.
 internal static class PanelFixtures
 {
-    internal const ulong Seed = 42;
-
-    // The page's head for a scene with no hook of its own: the Scene section holding the engine's own
-    // rows, then the Entities heading. The first entity row is at index FirstEntity. Rows are named
-    // rather than spelt out; what each one reads is DebugPanelTests' to hold.
+    // The page's head for a scene with no hook of its own: the engine's Scene section, then the
+    // Entities heading. Rows are named, not read.
     internal static readonly string[] Head =
     [
         "[Scene]",
@@ -32,13 +28,13 @@ internal static class PanelFixtures
         "[Entities]",
     ];
 
-    internal const int FirstEntity = 13;
+    internal static readonly int FirstEntity = Head.Length;
 
     // Every row named rather than read: its heading, its command, or the field's name without the
     // column the panel pads it into.
-    internal static string[] Named(OverlayHost overlay)
+    internal static string[] Named(OverlayRig rig)
     {
-        string[] rows = OverlayRig.Rows(overlay);
+        string[] rows = rig.Rows();
         for (int index = 0; index < rows.Length; index++)
         {
             string row = rows[index];
@@ -52,7 +48,7 @@ internal static class PanelFixtures
     }
 
     // One row as drawn, hotkey column and all.
-    internal static string Drawn(OverlayHost overlay, int row) => overlay.Scene.ShownRows()[row];
+    internal static string Drawn(OverlayRig rig, int row) => rig.Overlay.Scene.ShownRows()[row];
 
     internal static SceneHost CreateHost(Scene? first = null) =>
         new(
@@ -66,7 +62,7 @@ internal static class PanelFixtures
                 Type type when type == typeof(BrokenScene) => new BrokenScene(),
                 _ => throw new InvalidOperationException($"Unexpected transition {target.Kind}."),
             },
-            new Run(new RandomSource(Seed)));
+            new Run(new RandomSource(42)));
 
     internal static SceneRegistry CreateRegistry() =>
         new(
@@ -116,7 +112,7 @@ internal static class PanelFixtures
         }
     }
 
-    // Two Vanishers around a Lone; only the first leaves.
+    // Two Vanishers around a Lone. Only the first leaves.
     internal sealed class Departing : Scene
     {
         internal Departing()
@@ -157,7 +153,7 @@ internal static class PanelFixtures
         }
     }
 
-    // Arm is a plain command; the step that follows it throws.
+    // The step after the Arm command throws.
     internal sealed class Brittle : Scene
     {
         private bool _armed;

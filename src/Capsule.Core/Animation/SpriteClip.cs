@@ -34,15 +34,7 @@ public sealed class SpriteClip
                 nameof(frameTicks));
         }
 
-        for (int i = 0; i < frameTicks.Length; i++)
-        {
-            if (frameTicks[i] <= 0)
-            {
-                throw new ArgumentException(
-                    $"Frame {i} is held for {frameTicks[i]} ticks. Hold every frame for at least one fixed step.",
-                    nameof(frameTicks));
-            }
-        }
+        AnimationPlayback.ValidatedTotal(frameTicks);
 
         _frames = frames.ToArray();
         _frameTicks = frameTicks.ToArray();

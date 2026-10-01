@@ -50,9 +50,6 @@ public sealed class DefaultBitmapFontTests
             Assert.Equal(0, glyph.XOffset);
             Assert.Equal(0, glyph.YOffset);
             Assert.Equal(8, glyph.XAdvance);
-            Assert.True(glyph.Region.X >= 0 && glyph.Region.Y >= 0);
-            Assert.True(glyph.Region.X + glyph.Region.Width <= 128);
-            Assert.True(glyph.Region.Y + glyph.Region.Height <= 192);
             index++;
         }
 

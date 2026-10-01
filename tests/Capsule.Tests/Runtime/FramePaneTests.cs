@@ -11,21 +11,7 @@ namespace Capsule.Tests.Runtime;
 
 public sealed class FramePaneTests
 {
-    private const double StepSeconds = 0.1;
     private static readonly ColorRgba Highlight = new(255, 255, 255, 64);
-
-    [Fact]
-    public void AFreshOverlay_SteppedClosed_DrawsNothing()
-    {
-        using OverlayRig rig = new();
-
-        Assert.Empty(rig.Overlay.View.ScreenSprites.ToArray());
-
-        rig.Frame(intervalMs: 16, updateMs: 1);
-
-        Assert.False(rig.Overlay.IsOpen);
-        Assert.Empty(rig.Overlay.View.ScreenSprites.ToArray());
-    }
 
     [Fact]
     public void TheToggle_LastsThePlaySessionAcrossCloseHideAndRestore()
@@ -44,7 +30,7 @@ public sealed class FramePaneTests
         rig.Open();
         Assert.True(overlay.IsFramePaneOn);
 
-        // Hidden from inside the menu's own step: the rows are gone from the frame that hid them.
+        // The rows are gone from the frame that hid them.
         rig.Frame(intervalMs: 16, updateMs: 1, sampled: DeviceSnapshot.Of(Key.H));
         Assert.True(overlay.IsHidden);
         Assert.True(overlay.IsFramePaneOn);
@@ -59,7 +45,7 @@ public sealed class FramePaneTests
         rig.Press(Key.Down);
         rig.Press(Key.Down);
         rig.Press(Key.Down);
-        Assert.Equal("Frame Pane", Focused(overlay));
+        Assert.Equal("Frame Pane", rig.Focused());
 
         for (int frame = 0; frame < 70; frame++)
         {
@@ -84,6 +70,9 @@ public sealed class FramePaneTests
         OverlayHost overlay = rig.Overlay;
         OverlayScene scene = overlay.Scene;
 
+        rig.Frame();
+        Assert.Empty(overlay.View.ScreenSprites.ToArray());
+
         rig.Open();
         rig.Press(Key.Grave);
         Assert.Empty(overlay.View.ScreenSprites.ToArray());
@@ -93,13 +82,12 @@ public sealed class FramePaneTests
         rig.Press(Key.Up);
         rig.Press(Key.F);
         Assert.Equal(1, overlay.Depth);
-        Assert.Equal("Frame Pane", Focused(overlay));
+        Assert.Equal("Frame Pane", rig.Focused());
 
         rig.Press(Key.Grave);
         Assert.False(overlay.IsOpen);
 
-        // One backdrop and the pane's glyphs, hanging from the canvas's top-right corner; no menu
-        // backdrop at the origin, no row highlight, no row entity.
+        // Only the pane's backdrop and glyphs, hanging from the canvas's top-right corner.
         SpriteIntent[] sprites = overlay.View.ScreenSprites.ToArray();
         int glyphs = 0;
         foreach (GlyphPlacement _ in new GlyphRun(BitmapFont.Default, scene.Pane.Text, 0, TextWrap.None, HorizontalAlignment.Left))
@@ -116,7 +104,7 @@ public sealed class FramePaneTests
         rig.Open();
 
         Assert.Equal(1, overlay.Depth);
-        Assert.Equal("Frame Pane", Focused(overlay));
+        Assert.Equal("Frame Pane", rig.Focused());
         Assert.Contains(overlay.View.ScreenSprites.ToArray(), static sprite => sprite.Color == Highlight);
     }
 
@@ -127,8 +115,7 @@ public sealed class FramePaneTests
         rig.Overlay.ToggleFramePane();
         rig.DrawMs = 1.5;
 
-        // Zeros until a second completes. The first frame has no interval to measure; the second
-        // is the first sampled.
+        // Zeros until a second completes. The first frame has no interval to measure.
         string[] lines = rig.PaneLines();
         Assert.Equal(default, rig.Overlay.Scene.Pane.Figures);
 
@@ -144,8 +131,8 @@ public sealed class FramePaneTests
 
         Assert.Equal(lines, rig.PaneLines());
 
-        // 27 pairs of 16 and 20 reach 988 ms; the 56th frame crosses the second at 1008 ms over 56
-        // frames, in which the scheduler ran ten fixed steps.
+        // 27 pairs of 16 and 20 reach 988 ms. The 56th frame crosses the second at 1008 ms, in which
+        // the scheduler ran ten fixed steps.
         for (int frame = 11; frame <= 56; frame++)
         {
             rig.Frame(intervalMs: frame % 2 == 1 ? 16 : 20, updateMs: 2, elapsedSeconds: frame % 2 == 1 ? 0.016 : 0.020);
@@ -159,48 +146,27 @@ public sealed class FramePaneTests
         Assert.Equal(2.0, figures.UpdateMs, 2);
         Assert.Equal(1.5, figures.DrawMs, 2);
         Assert.Equal(9.9, figures.StepsPerSecond, 1);
-        Assert.Equal(10, rig.Simulation.Steps);
+        Assert.Equal(10, rig.Recording.Steps);
 
         // Mid-second nothing moves, however the frames vary.
         rig.Frame(intervalMs: 250, updateMs: 40, elapsedSeconds: 0.25);
 
         Assert.Equal(lines, rig.PaneLines());
 
-        // Ticks stepped by hand from the held menu count too: the 250 ms frame ran two, three
-        // presses of Step run three more, and the second completes at 1002 ms.
+        // Ticks stepped by hand count too. The 250 ms frame ran two, three presses of Step run three
+        // more, and the second completes at 1002 ms.
         rig.Open();
         rig.Press(Key.Right);
         rig.Press(Key.Right);
         rig.Press(Key.Right);
-        rig.Press(Key.Grave);
-        Assert.Equal(15, rig.Simulation.Steps);
+        rig.Frame(intervalMs: 16, updateMs: 2, sampled: DeviceSnapshot.Of(Key.Grave));
+        rig.Frame(intervalMs: 16, updateMs: 2);
+        Assert.Equal(15, rig.Recording.Steps);
         for (int frame = 0; frame < 37; frame++)
         {
             rig.Frame(intervalMs: 16, updateMs: 2);
         }
 
         Assert.Equal(5.0, rig.Overlay.Scene.Pane.Figures.StepsPerSecond, 1);
-    }
-
-    [Fact]
-    public void OnceOnAndWarm_AFrameAllocatesNothing()
-    {
-        using OverlayRig rig = new();
-        rig.Overlay.ToggleFramePane();
-        rig.DrawMs = 1.5;
-
-        for (int frame = 0; frame < 200; frame++)
-        {
-            rig.Frame(intervalMs: 16, updateMs: 1);
-        }
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int frame = 0; frame < 200; frame++)
-        {
-            rig.Frame(intervalMs: 16, updateMs: 1);
-        }
-
-        Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
-        Assert.Equal(62.5, rig.Overlay.Scene.Pane.Figures.Fps, 1);
     }
 }

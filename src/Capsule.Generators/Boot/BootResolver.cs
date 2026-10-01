@@ -6,9 +6,9 @@ namespace Capsule.Generators;
 // at least one, and no two claim one key.
 internal static class BootResolver
 {
-    internal static BootPlan Resolve(BootInputs inputs)
+    // The drivers are the ones the shell declares itself.
+    internal static BootPlan Resolve(BootModel model, InputDriverPlan drivers)
     {
-        BootModel model = inputs.Boot;
         if (!model.RuntimePresent)
         {
             return default;
@@ -28,9 +28,9 @@ internal static class BootResolver
         }
 
         RejectDuplicateClaims(diagnostics, model.Providers);
-        diagnostics.AddRange(inputs.Drivers.Diagnostics.Items);
+        diagnostics.AddRange(drivers.Diagnostics.Items);
 
-        return new BootPlan(Generates: true, model.Providers, inputs.Drivers.Registered, new([.. diagnostics]));
+        return new BootPlan(Generates: true, model.Providers, drivers.Registered, new([.. diagnostics]));
     }
 
     // Each logic assembly refused its own duplicates. Two assemblies claiming one key are caught only here.

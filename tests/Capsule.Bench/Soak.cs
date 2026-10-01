@@ -6,14 +6,10 @@ using Capsule.Scenes;
 
 namespace Capsule.Bench;
 
-/// <summary>The profiling lane's driver steps for 20 real seconds after 180 warm-up steps and presses nothing.</summary>
+/// <summary>The profiling driver: presses nothing for <see cref="Seconds"/> after 180 warm-up steps, then prints what the window ran and allocated.</summary>
 /// <remarks>
-/// A sampling profiler gathers thousands of steady-state samples in that time. The driver then
-/// prints the steps it ran, their mean, what they allocated and the managed heap around them, and
-/// ends the run. A headless run builds no frame, and <see cref="SoakView"/> also builds one between
-/// steps, as a presenting host does.
-/// <para>It reads the clock once every 256 steps. The runtime's sampler stops a thread at its next safe
-/// point, and a clock read every step would be that point and collect the samples of a light step.</para>
+/// It reads the clock once every 256 steps. The runtime's sampler stops a thread at its next safe
+/// point, and a clock read every step would be that point and collect the samples of a light step.
 /// </remarks>
 public class Soak : IInputDriver
 {
@@ -32,7 +28,7 @@ public class Soak : IInputDriver
     private long _heapAtStart;
     private long _heapMax;
 
-    // Real seconds after warm-up. `--soak-seconds <n>` on the bench's command line sets it.
+    // `--soak-seconds <n>` sets it.
     internal static double Seconds { get; set; } = 20d;
 
     public Soak()
@@ -74,9 +70,6 @@ public class Soak : IInputDriver
         return true;
     }
 
-    // The thread's bytes are the step's and the build's. The process's add every other thread over the
-    // same window, and the heap is read without a collection at the window's start, its end and every
-    // clock read between.
     private void Report(long steps)
     {
         double meanMs = Stopwatch.GetElapsedTime(_startedAt).TotalMilliseconds / steps;

@@ -22,17 +22,7 @@ internal static class AtlasPacker
     {
         (string Key, int Width, int Height)[] ordered = [.. items];
         Array.Sort(ordered, static (a, b) =>
-        {
-            int byHeight = b.Height.CompareTo(a.Height);
-            if (byHeight != 0)
-            {
-                return byHeight;
-            }
-
-            int byWidth = b.Width.CompareTo(a.Width);
-
-            return byWidth != 0 ? byWidth : string.CompareOrdinal(a.Key, b.Key);
-        });
+            (b.Height, b.Width).CompareTo((a.Height, a.Width)) is var bySize and not 0 ? bySize : string.CompareOrdinal(a.Key, b.Key));
 
         List<Bin> pages = [];
         Placement[] placements = new Placement[ordered.Length];

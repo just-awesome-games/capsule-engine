@@ -46,12 +46,12 @@ public sealed class CommandLineException : Exception
         if (HelpRequested)
         {
             Console.Out.WriteLine(Usage);
-
-            return ExitCode;
         }
-
-        Console.Error.WriteLine(Message);
-        Console.Error.WriteLine(Usage);
+        else
+        {
+            Console.Error.WriteLine(Message);
+            Console.Error.WriteLine(Usage);
+        }
 
         return ExitCode;
     }

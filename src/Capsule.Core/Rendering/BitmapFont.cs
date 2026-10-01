@@ -156,11 +156,6 @@ public sealed partial class BitmapFont
     /// </summary>
     public int GetKerning(int first, int second)
     {
-        if (_pairs.Length == 0)
-        {
-            return 0;
-        }
-
         int found = _pairs.AsSpan().BinarySearch(Pair(first, second));
 
         return found < 0 ? 0 : _kernings[found].Amount;

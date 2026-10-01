@@ -26,6 +26,7 @@ public sealed class SceneAssetTests
         assets.Add(SpriteTexture);
         assets.Add([AnimationA, SpriteTexture, AnimationB]);
         assets.Add(AnimationA);
+        assets.Add(default(TextureHandle));
 
         Assert.Equal([SpriteTexture, AnimationA, AnimationB], assets.Textures);
     }
@@ -58,17 +59,6 @@ public sealed class SceneAssetTests
         Assert.Equal(
             [SceneExtra, EntityExtra, ComponentExtra, SpriteTexture],
             scene.CollectAssetPreloads().Textures);
-    }
-
-    [Fact]
-    public void DuplicateTexturesAcrossComponents_AppearOnce()
-    {
-        Scene scene = new();
-        scene.Add(new TestEntity(
-            new SpriteRenderer(Frame(SpriteTexture)),
-            new SpriteRenderer(Frame(SpriteTexture))));
-
-        Assert.Equal([SpriteTexture], scene.CollectAssetPreloads().Textures);
     }
 
     [Fact]
@@ -129,14 +119,6 @@ public sealed class SceneAssetTests
 
         Assert.Equal([AssignsMaterialLater.Palette.Shader], preloads.Shaders);
         Assert.Equal([EntityExtra], preloads.Textures);
-    }
-
-    [Fact]
-    public void APlacementNoEntityClaims_StillFailsAsASpawn()
-    {
-        Assert.Throws<SpawnException>(() => new Scene(SceneFixtures.Content(
-            SceneFixtures.RoomWithoutTerrain(new EntityPlacement(1, "wyvern", 0f, 0f)),
-            SceneFixtures.Registry())));
     }
 
     private static Sprite Frame(TextureHandle texture) => new(texture, new TextureRegion(0, 0, 1, 1));

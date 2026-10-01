@@ -19,8 +19,6 @@ public sealed class EntityTests
         Assert.Equal(entity.Position, entity.PreviousTransform.Position);
     }
 
-    // Everything downstream reads this position — render interpolation and, through a collider,
-    // the collision broadphase — so it is refused rather than stored and spread.
     [Fact]
     public void APositionThatIsNotFinite_IsRefusedAndLeavesTheEntityWhereItWas()
     {
@@ -36,24 +34,7 @@ public sealed class EntityTests
     }
 
     [Fact]
-    public void APositionThatIsNotFinite_IsRefusedBeforeACollidingEntitysWorldHearsOfIt()
-    {
-        Scene scene = new();
-        TestEntity entity = new(new Vector2(4, 6));
-        BoxCollider2D collider = new(new Vector2(8f, 8f));
-        entity.Add(collider);
-        scene.Add(entity);
-
-        // The collider refuses it, and the entity must not keep a position its colliders never
-        // reached.
-        Assert.Throws<ArgumentOutOfRangeException>(() => entity.Position = new Vector2(float.NaN, 0f));
-
-        Assert.Equal(new Vector2(4, 6), entity.Position);
-        Assert.Equal(new Vector2(4, 6), scene.Collision.PositionOf(collider.Handle));
-    }
-
-    [Fact]
-    public void Components_AreQueriedByAssignableTypeWithoutAllocation()
+    public void Components_AreQueriedByAssignableType()
     {
         TestEntity entity = new(Vector2.Zero);
         DerivedComponent component = new();

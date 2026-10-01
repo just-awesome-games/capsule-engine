@@ -9,12 +9,9 @@ namespace Capsule.Physics;
 /// </summary>
 public sealed class PolygonCollider2D : Collider2D
 {
-    /// <param name="points">The hull's three to eight corners, convex and in either winding order.</param>
+    /// <param name="points">The hull's corners, convex and in either winding order.</param>
     /// <param name="radius">How far the collider extends beyond that hull. Zero for a plain polygon.</param>
-    /// <exception cref="ArgumentException">
-    /// There are not three to eight points, a point is not finite, two points nearly coincide, the
-    /// points are not strictly convex, or the bounds they and the radius describe are not finite.
-    /// </exception>
+    /// <exception cref="ArgumentException">The points and radius are ones <see cref="Shape2D.Polygon"/> refuses.</exception>
     public PolygonCollider2D(ReadOnlySpan<Vector2> points, float radius = 0f)
         : base(Shape2D.Polygon(points, radius))
     {

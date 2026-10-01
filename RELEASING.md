@@ -25,10 +25,9 @@ If CI on `HEAD` is red or still running, stop: a tag publishes whatever it point
 
 ## 2. Run the gates locally
 
-The pre-commit hook runs the first four. The last one boots the NativeAOT smoke, which the build
-compiles but does not run; CI runs it published, and a release is worth the local check too. The
-smoke plays twice and expects the second run to read the first's save, so it needs a saves
-directory: a headless run persists nothing unless one is named.
+The pre-commit hook runs the first four. The last one runs the NativeAOT smoke, which the build
+compiles but does not run. The smoke plays twice and expects the second run to read the first's
+save. It needs a saves directory, because a headless run persists nothing unless one is named.
 
 ```bash
 dotnet restore --locked-mode
@@ -49,7 +48,7 @@ git tag --sort=-v:refname | head -1      # the current release
 
 Before 1.0, bump patch for compatible fixes and minor for additions or breaking public-contract
 changes. At and after 1.0, bump per SemVer. A version pushed to NuGet.org can never be reused or
-overwritten, only unlisted, so a broken release is followed by a new patch, never re-tagged.
+overwritten, only unlisted. A broken release is followed by a new patch, never re-tagged.
 
 ## 4. Tag and push
 

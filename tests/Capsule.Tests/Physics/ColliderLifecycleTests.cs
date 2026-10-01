@@ -147,4 +147,33 @@ public sealed class ColliderLifecycleTests
 
         Assert.Equal(["solid"], body.Collider.Touching.ToArray().Select(contact => contact.LayerName));
     }
+
+    [Fact]
+    public void AGameDefinedCollider_StepsAsItsEntitysOnlyComponent()
+    {
+        Scene scene = new();
+        Holder entity = new();
+        SteppingCollider collider = new();
+        entity.Add(collider);
+        scene.Add(entity);
+
+        using SimulationHost run = new(scene);
+        run.Step();
+
+        Assert.Equal(1, collider.StepCount);
+        Assert.Equal(1, collider.LateStepCount);
+    }
+
+    private sealed class Holder() : Entity(Vector2.Zero);
+
+    private sealed class SteppingCollider() : Collider2D(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)))
+    {
+        internal int StepCount { get; private set; }
+
+        internal int LateStepCount { get; private set; }
+
+        protected internal override void OnStep(in StepContext context) => StepCount++;
+
+        protected internal override void OnLateStep(in StepContext context) => LateStepCount++;
+    }
 }

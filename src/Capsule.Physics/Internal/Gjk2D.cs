@@ -54,17 +54,7 @@ internal static class Gjk2D
             int saved = simplex.Count;
             simplex.Save(savedA, savedB);
 
-            switch (simplex.Count)
-            {
-                case 2:
-                    simplex.Solve2();
-                    break;
-                case 3:
-                    simplex.Solve3();
-                    break;
-                default:
-                    break;
-            }
+            simplex.Solve();
 
             if (simplex.Count == 3)
             {
@@ -77,8 +67,8 @@ internal static class Gjk2D
                 break;
             }
 
-            int indexA = SupportIndex(a, -direction);
-            int indexB = SupportIndex(b, direction);
+            int indexA = a.SupportIndex(-direction);
+            int indexB = b.SupportIndex(direction);
 
             if (IsDuplicate(savedA, savedB, saved, indexA, indexB))
             {
@@ -116,7 +106,6 @@ internal static class Gjk2D
         float tolerance = 0.5f * CollisionTolerance.LinearSlop;
 
         Simplex simplex = default;
-        simplex.Count = 0;
 
         Vector2 witnessTarget = target.Support(-translation);
         Vector2 witnessMoving = moving.Support(translation);
@@ -166,17 +155,7 @@ internal static class Gjk2D
                 IndexB = 0,
             });
 
-            switch (simplex.Count)
-            {
-                case 2:
-                    simplex.Solve2();
-                    break;
-                case 3:
-                    simplex.Solve3();
-                    break;
-                default:
-                    break;
-            }
+            simplex.Solve();
 
             if (simplex.Count == 3)
             {
@@ -221,24 +200,6 @@ internal static class Gjk2D
             IndexA = indexA,
             IndexB = indexB,
         };
-    }
-
-    private static int SupportIndex(in Shape2D shape, Vector2 direction)
-    {
-        int best = 0;
-        float bestDot = Vector2.Dot(shape.PointAt(0), direction);
-
-        for (int index = 1; index < shape.PointCount; index++)
-        {
-            float dot = Vector2.Dot(shape.PointAt(index), direction);
-            if (dot > bestDot)
-            {
-                bestDot = dot;
-                best = index;
-            }
-        }
-
-        return best;
     }
 
     // Terminates the search when the simplex already holds this support point and cannot improve.
@@ -301,6 +262,19 @@ internal static class Gjk2D
             savedB[2] = V2.IndexB;
         }
 
+        // Reduces the simplex to the feature nearest the origin.
+        internal void Solve()
+        {
+            if (Count == 2)
+            {
+                Solve2();
+            }
+            else if (Count == 3)
+            {
+                Solve3();
+            }
+        }
+
         internal readonly Vector2 ClosestPoint() => Count switch
         {
             1 => V0.W,
@@ -342,7 +316,7 @@ internal static class Gjk2D
             }
         }
 
-        internal void Solve2()
+        private void Solve2()
         {
             Vector2 w0 = V0.W;
             Vector2 w1 = V1.W;
@@ -371,7 +345,7 @@ internal static class Gjk2D
             Count = 2;
         }
 
-        internal void Solve3()
+        private void Solve3()
         {
             Vector2 w0 = V0.W;
             Vector2 w1 = V1.W;

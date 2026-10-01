@@ -1,11 +1,10 @@
 #nullable disable
 #pragma warning disable
-using Capsule.Runtime.Audio.Vorbis.Contracts;
 using System;
 
 namespace Capsule.Runtime.Audio.Vorbis
 {
-    class Mode : IMode
+    sealed class Mode
     {
         const float M_PI2 = 3.1415926539f / 2;
 
@@ -13,9 +12,9 @@ namespace Capsule.Runtime.Audio.Vorbis
         bool _blockFlag;
         int _block0Size;
         int _block1Size;
-        IMapping _mapping;
+        Mapping _mapping;
 
-        public void Init(IPacket packet, int channels, int block0Size, int block1Size, IMapping[] mappings)
+        public void Init(Ogg.Packet packet, int channels, int block0Size, int block1Size, Mapping[] mappings)
         {
             _channels = channels;
             _block0Size = block0Size;
@@ -93,7 +92,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             }
         }
 
-        private bool GetPacketInfo(IPacket packet, bool isLastInPage, out int blockSize, out int windowIndex, out int leftOverlapHalfSize, out int packetStartIndex, out int packetValidLength, out int packetTotalLength)
+        private bool GetPacketInfo(Ogg.Packet packet, bool isLastInPage, out int blockSize, out int windowIndex, out int leftOverlapHalfSize, out int packetStartIndex, out int packetValidLength, out int packetTotalLength)
         {
             bool prevFlag, nextFlag;
             if (_blockFlag)
@@ -134,7 +133,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             return true;
         }
 
-        public bool Decode(IPacket packet, float[][] buffer, out int packetStartindex, out int packetValidLength, out int packetTotalLength)
+        public bool Decode(Ogg.Packet packet, float[][] buffer, out int packetStartindex, out int packetValidLength, out int packetTotalLength)
         {
             if (GetPacketInfo(packet, false, out var blockSize, out var windowIndex, out _, out packetStartindex, out packetValidLength, out packetTotalLength))
             {
@@ -153,7 +152,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             return false;
         }
 
-        public int GetPacketSampleCount(IPacket packet, bool isLastInPage)
+        public int GetPacketSampleCount(Ogg.Packet packet, bool isLastInPage)
         {
             GetPacketInfo(packet, isLastInPage, out _, out _, out _, out var packetStartIndex, out var packetValidLength, out _);
             return packetValidLength - packetStartIndex;

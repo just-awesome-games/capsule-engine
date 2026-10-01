@@ -67,7 +67,7 @@ public sealed class EntityRegistry
                 + "a type by being a non-abstract Capsule.Scenes.Entity with a public constructor taking one "
                 + "Capsule.Scenes.Spawning.EntitySpawn. The type is the key its namespace names unless "
                 + "[SpawnType] gives one. A class with a C# required member other than an entity reference is placed in code only. "
-                + $"Claimed: {KnownTypes()}.");
+                + $"Claimed: {Registered.Names(_entities.Keys)}.");
         }
 
         // The spawn carries the entry to the base constructor, which applies it before the derived body.
@@ -83,6 +83,4 @@ public sealed class EntityRegistry
     // The delegate setting the entity references of a class claiming the type, or null when it holds none.
     internal EntityApplier? Link(string type) =>
         _entities.TryGetValue(type, out EntityRegistration registered) ? registered.Link : null;
-
-    private string KnownTypes() => Registered.Names(_entities.Keys);
 }

@@ -30,12 +30,13 @@ internal static partial class ShaderCompiler
     {
         string source = Path.GetFullPath(sourcePath);
         string spirv = Path.ChangeExtension(source, ".spv");
+        string directory = Path.GetDirectoryName(source)!;
 
         // Run beside the source and handed its bare name, so no machine path reaches a diagnostic's
         // anchor or a shipped file.
         (int exit, string output, string errors) = Run(
             Binary(tools.Dxc, "dxc", inBin: true),
-            Path.GetDirectoryName(source)!,
+            directory,
             "-spirv",
             "-T",
             "ps_6_0",
@@ -58,7 +59,7 @@ internal static partial class ShaderCompiler
         try
         {
             string crossCompiler = Binary(tools.SpirvCross, "spirv-cross", inBin: false);
-            (exit, output, errors) = Run(crossCompiler, Path.GetDirectoryName(source)!, spirv, "--reflect");
+            (exit, output, errors) = Run(crossCompiler, directory, spirv, "--reflect");
             if (exit != 0)
             {
                 return Failed("the shader cross-compiler could not reflect it: " + Flatten(output + errors), diagnostics);
@@ -78,7 +79,7 @@ internal static partial class ShaderCompiler
                 arguments.AddRange(["--rename-interface-variable", "in", location.ToString(CultureInfo.InvariantCulture), MgfxWriter.Varyings[location]]);
             }
 
-            (exit, output, errors) = Run(crossCompiler, Path.GetDirectoryName(source)!, [.. arguments]);
+            (exit, output, errors) = Run(crossCompiler, directory, [.. arguments]);
             if (exit != 0)
             {
                 return Failed("the shader cross-compiler could not write it as GLSL: " + Flatten(output + errors), diagnostics);
@@ -358,8 +359,8 @@ internal static partial class ShaderCompiler
         return (process.ExitCode, output, error);
     }
 
-    private static ShaderCompilation Failed(string failure, IReadOnlyList<ShaderDiagnostic>? diagnostics = null) =>
-        new(null, [], diagnostics ?? [], failure);
+    private static ShaderCompilation Failed(string failure, IReadOnlyList<ShaderDiagnostic> diagnostics) =>
+        new(null, [], diagnostics, failure);
 
     private static string Flatten(string output) => output.Trim().ReplaceLineEndings(" ");
 

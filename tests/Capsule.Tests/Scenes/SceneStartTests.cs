@@ -23,8 +23,7 @@ public sealed class SceneStartTests
         Assert.Equal(1, scene.Starts);
     }
 
-    // The whole reason the structural and temporal hooks are separate: composition adds one entry
-    // at a time, so an entry notified as it attaches cannot see the ones after it.
+    // Composition adds one entry at a time. An entry starting sees the entries after it.
     [Fact]
     public void AnEntityStarting_SeesEveryEntryTheDocumentComposedAlongsideIt()
     {
@@ -45,8 +44,7 @@ public sealed class SceneStartTests
         Assert.Equal(["placed"], found);
     }
 
-    // A wave spawned together is one batch: the drain attaches all of it before any of it starts,
-    // so no member of the wave sees a half-built scene.
+    // The drain attaches a whole wave before any of it starts.
     [Fact]
     public void ABatchSpawnedInOneStep_StartsOnlyOnceAllOfItHasAttached()
     {
@@ -86,12 +84,9 @@ public sealed class SceneStartTests
         Assert.Equal(["late!"], log);
     }
 
-    // Removal is deferred, so an entity queued to leave still names its scene while the drain runs.
-    // It has no step left in it, and starting is once for a component's lifetime, so one taken on
-    // there must wait: started then it would have searched a scene it never steps, and could never
-    // start again on the add that does step it. The same holds wherever the removal was issued —
-    // from a peer's start, which runs in the drain, or from the scene's own step, which leaves the
-    // entity walked for the rest of that step and so must leave the new component unstepped too.
+    // An entity queued to leave still names its scene but has no step left. A component starts once
+    // in its life, and one attached there waits for the add that steps it. The removal may come from a
+    // peer's start in the drain or from the scene's own step.
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -141,8 +136,7 @@ public sealed class SceneStartTests
         Assert.Equal(["late!", "late"], log);
     }
 
-    // The drain starts a batch after the removes, so a peer that started first may already have
-    // queued one of them to leave. It never steps, so time must never begin for it either.
+    // A peer's start can queue a batch member to leave before its own start. It never starts.
     [Fact]
     public void AnEntityQueuedForRemovalByAPeersStart_NeverStarts()
     {
@@ -185,8 +179,7 @@ public sealed class SceneStartTests
         Assert.Empty(simulation.Scene.Entities.ToArray());
     }
 
-    // An entity that left from its own start holds components that never started, and its own
-    // start does not run twice. Added again it steps them, so the second start must reach them.
+    // An entity that left from its own start does not start twice. Added again, its components start.
     [Fact]
     public void AComponentOnAnEntityAddedBackToTheScene_StartsBeforeItSteps()
     {
@@ -208,9 +201,7 @@ public sealed class SceneStartTests
         Assert.Equal(["component!", "component"], log);
     }
 
-    // A start that throws leaves the entities queued behind it stranded: the scene holds them and
-    // the next step would otherwise walk them. Nothing steps before it has started, so they wait
-    // for the drain that starts them.
+    // A start that throws strands the entities behind it in the scene. They take no step until started.
     [Fact]
     public void AnEntityStrandedByAPeersFailedStart_TakesNoStepUntilItHasStarted()
     {
@@ -240,8 +231,7 @@ public sealed class SceneStartTests
         Assert.Equal(["stranded+", "stranded!", "stranded", "stranded.late"], log);
     }
 
-    // A component's start may detach a sibling, which shifts the rest of the list left. The one
-    // shifted into the vacated slot still steps, so it must still start.
+    // A component's start may detach a sibling. The one shifted into its slot still starts.
     [Fact]
     public void AComponentDetachingASiblingFromItsStart_LeavesNoLaterSiblingUnstarted()
     {

@@ -16,15 +16,6 @@ internal static class SceneDocumentFixtures
                               "tiles": [0, 1] } }
         """;
 
-    /// <summary>An authored document of <see cref="TileMapEntry"/> alone.</summary>
-    internal const string AuthoredTileMap = """
-        { "formatVersion": 8,
-          "entities": [
-        """ + TileMapEntry + """
-         ],
-          "nextEntityId": 2 }
-        """;
-
     /// <summary>An authored document of <see cref="TileMapEntry"/> and one placed entity.</summary>
     internal const string AuthoredTileMapAndPlayer = """
         { "formatVersion": 8,
@@ -70,9 +61,6 @@ internal static class SceneDocumentFixtures
     internal static TileMapPlacement TileMapOf(SceneDocument document, int index = 0) =>
         document.Entries[index].TileMap!.Value;
 
-    internal static string Palette(int cell) =>
-        $$"""[{"name": "empty"}, {"name": "ground", "cell": {{cell}}}]""";
-
     internal static string DocumentText(
         string? tileTypes = null,
         string tiles = "[0, 1]",
@@ -97,7 +85,7 @@ internal static class SceneDocumentFixtures
                 "height": 1,
                 "texture": {{texture}},
                 "columns": 4,
-                "tileTypes": {{tileTypes ?? Palette(0)}},
+                "tileTypes": {{tileTypes ?? """[{"name": "empty"}, {"name": "ground", "cell": 0}]"""}},
                 "tiles": {{tiles}}
               }
             }{{entities}}

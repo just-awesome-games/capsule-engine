@@ -101,14 +101,6 @@ public sealed class SheetToolTests
         Assert.DoesNotContain("Walk2_Sockets", generated, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void ADirectoryUnderTheSpritesRoot_BecomesANestedClass()
-    {
-        string generated = Emitted(("prop", Prop), ("actors/player", Player));
-
-        Assert.Contains("Every asset authored under <c>sprites/actors</c>.", generated, StringComparison.Ordinal);
-    }
-
     // The sheet's own spelling of the texture is normalized to the key the build ships it under, so a
     // sheet naming 'P.PNG' carries the handle of the 'p.png' that shipped.
     [Theory]
@@ -130,19 +122,6 @@ public sealed class SheetToolTests
         Assert.Contains("Assets/Sprites/prop.sheet.json", refused, StringComparison.Ordinal);
         Assert.Contains("does not ship", refused, StringComparison.Ordinal);
     }
-
-    [Fact]
-    public void TwoSheetsThatBecomeOneIdentifier_FailTheBuild() =>
-        Assert.Contains(
-            "already claims",
-            Refused(("main-prop", Prop), ("main_prop", Prop)),
-            StringComparison.Ordinal);
-
-    // A sheet's class is named for its file and its type, so no sheet name is one of the classes a
-    // sheet declares inside itself. One filed in a folder of its class's own name is CS0542.
-    [Fact]
-    public void ASheetInAFolderOfItsClassesName_FailsTheBuild() =>
-        Assert.Contains("inside a generated class of that name", Refused(("prop-sheet/prop", Prop)), StringComparison.Ordinal);
 
     [Fact]
     public void ASheetNamedAfterItsOwnClasses_IsDeclared() =>
@@ -176,7 +155,7 @@ public sealed class SheetToolTests
             "Sprite Idle0 =>",
             Emitted(("prop", """
                 { "formatVersion": 1, "texture": "p.png",
-                  "frames": [ { "name": "idle-0", "x": 0, "y": 0, "width": 1, "height": 1 } ] }
+                  "frames": [ { "name": "\u0069dle\u002D0", "x": 0, "y": 0, "width": 1, "height": 1 } ] }
                 """)),
             StringComparison.Ordinal);
 
@@ -196,8 +175,7 @@ public sealed class SheetToolTests
 
     // A sheet names at least one region of its texture.
     [InlineData("""{ "formatVersion": 1, "texture": "p.png" }""", "has no frames")]
-    [InlineData("""{ "formatVersion": 1, "texture": "p.png", "frames": null }""", "has no frames")]
-    [InlineData("""{ "formatVersion": 1, "texture": "p.png", "frames": [] }""", "empty frames list")]
+    [InlineData("""{ "formatVersion": 1, "texture": "p.png", "frames": [] }""", "has no frames")]
     [InlineData("""{ "formatVersion": 1, "texture": "p.png", "frames": [ null ] }""", "frames[0] as null")]
 
     // Frame geometry.

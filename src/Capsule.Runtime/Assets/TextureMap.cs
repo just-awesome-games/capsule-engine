@@ -4,8 +4,8 @@ using Capsule.Rendering;
 
 namespace Capsule.Runtime.Assets;
 
-// Where a packed texture's texels are: the page that holds it and the texel its (0, 0) landed on.
-internal readonly record struct AtlasSlot(TextureHandle Page, int X, int Y);
+// Where a packed texture's texels are: the page that holds it, the texel its (0, 0) landed on and its size.
+internal readonly record struct AtlasSlot(TextureHandle Page, int X, int Y, int Width, int Height);
 
 // A texture file's non-default settings. The default is four channels sampled as the scene says.
 internal readonly record struct TextureFacts(bool SingleChannel, TextureSampling? Sampling);
@@ -15,12 +15,11 @@ internal readonly record struct TextureFacts(bool SingleChannel, TextureSampling
 // texture unpacked and default ships no map, and every handle resolves to itself.
 internal sealed class TextureMap
 {
-    internal static readonly TextureMap Empty = new([], []);
-
     private const string MapPath = "assets/textures.json";
 
-    private readonly Dictionary<TextureHandle, AtlasSlot> _slots;
+    internal static readonly TextureMap Empty = new([], []);
 
+    private readonly Dictionary<TextureHandle, AtlasSlot> _slots;
     private readonly Dictionary<TextureHandle, TextureFacts> _facts;
 
     private TextureMap(Dictionary<TextureHandle, AtlasSlot> slots, Dictionary<TextureHandle, TextureFacts> facts)
@@ -79,7 +78,12 @@ internal sealed class TextureMap
                     throw new InvalidDataException($"The texture map '{path}' gives '{key}' a page and no offset or a negative one.");
                 }
 
-                slots.Add(handle, new AtlasSlot(new TextureHandle(page, ".png"), entry.X.Value, entry.Y.Value));
+                if (entry.Width is not > 0 || entry.Height is not > 0)
+                {
+                    throw new InvalidDataException($"The texture map '{path}' gives '{key}' a page and no size or an empty one.");
+                }
+
+                slots.Add(handle, new AtlasSlot(new TextureHandle(page, ".png"), entry.X.Value, entry.Y.Value, entry.Width.Value, entry.Height.Value));
             }
             else if (entry is null || (entry.Format is null && entry.Sampling is null))
             {

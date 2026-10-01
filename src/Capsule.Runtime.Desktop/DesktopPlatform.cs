@@ -34,8 +34,7 @@ public sealed class DesktopPlatform : HostPlatform
     {
         SdlPlatform.RaiseWindow(window.Value);
 
-        // A launch through the dotnet muxer breaks the foreground permission chain, so Windows
-        // refuses the raise on its own.
+        // Windows refuses the raise alone after a launch through the dotnet muxer.
         WindowsForeground.Claim(SdlPlatform.NativeWindowHandle(window.Value));
     }
 

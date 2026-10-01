@@ -114,19 +114,14 @@ internal sealed class SpriteBatcher : IDisposable
         return indices;
     }
 
-    // Opens a batch drawing with Capsule's own sprite shader. Sets the device states, using
-    // SpriteBatch's defaults where none is given, and applies the shader with transform then the
-    // viewport's projection.
-    internal void Begin(
-        in Matrix transform,
-        SamplerState sampler,
-        BlendState? blend = null,
-        DepthStencilState? depth = null,
-        RasterizerState? rasterizer = null)
+    // Opens a batch drawing with Capsule's own sprite shader. Sets SpriteBatch's default device
+    // states, blending premultiplied unless told otherwise, and applies the shader with transform
+    // then the viewport's projection.
+    internal void Begin(in Matrix transform, SamplerState sampler, BlendState? blend = null)
     {
         _device.BlendState = blend ?? BlendState.AlphaBlend;
-        _device.DepthStencilState = depth ?? DepthStencilState.None;
-        _device.RasterizerState = rasterizer ?? RasterizerState.CullCounterClockwise;
+        _device.DepthStencilState = DepthStencilState.None;
+        _device.RasterizerState = RasterizerState.CullCounterClockwise;
         _device.SamplerStates[0] = sampler;
 
         _transform = transform * Projection(_device);

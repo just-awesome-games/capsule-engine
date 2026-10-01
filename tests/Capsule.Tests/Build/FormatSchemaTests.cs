@@ -9,7 +9,7 @@ public sealed class FormatSchemaTests
     [Fact]
     public void EachCommittedSchema_IsWhatItsParserGenerates()
     {
-        string committed = SchemaDirectory();
+        string committed = Path.Combine(ToolWorkspace.Metadata("CapsuleCheckout"), "schemas");
         string fresh = Directory.CreateDirectory(Path.Combine(AppContext.BaseDirectory, "schemas")).FullName;
         List<string> stale = [];
         foreach ((string file, string title, var parser) in FormatSchemas.Formats)
@@ -36,19 +36,5 @@ public sealed class FormatSchemaTests
             stale.Count == 0,
             $"schemas/{string.Join(", schemas/", stale)} differ from what the parser classes generate. "
                 + $"The schemas are generated, so a hand edit or a parser change alone makes them stale. Copy the fresh output from '{fresh}' over '{committed}' and commit it.");
-    }
-
-    // Walks up from the test binaries to the checkout, which holds the solution beside schemas/.
-    private static string SchemaDirectory()
-    {
-        for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Capsule.slnx")))
-            {
-                return Path.Combine(directory.FullName, "schemas");
-            }
-        }
-
-        throw new DirectoryNotFoundException($"No directory above '{AppContext.BaseDirectory}' holds Capsule.slnx. Run the tests from inside the engine checkout.");
     }
 }

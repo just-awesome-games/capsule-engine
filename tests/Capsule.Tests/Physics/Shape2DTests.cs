@@ -13,25 +13,23 @@ public sealed class Shape2DTests
         Assert.Equal(new Vector2(2.5e38f, -2.5e38f), box.Center);
     }
 
-    // Corners within range are not enough: the width between them is what the mover's inset and the
-    // tree's area heuristic compute with, and an infinity there is computed with silently.
+    // Each input is a real float while the box or edge it describes is not. The tree's area
+    // heuristic and the mover's inset compute with that extent, and an infinity there spreads.
     [Fact]
-    public void AShapeWhoseExtentOverflows_IsRefusedThoughEveryCornerIsFinite()
+    public void AShapeWhoseBoundsOrEdgesOverflow_IsRefusedThoughEveryInputIsFinite()
     {
         Assert.Throws<ArgumentException>(() => Shape2D.Box(new Aabb2D(new Vector2(-3e38f, -1f), new Vector2(3e38f, 1f))));
         Assert.Throws<ArgumentException>(() => Shape2D.Box(Vector2.Zero, new Vector2(3e38f, 3e38f)));
         Assert.Throws<ArgumentException>(() => Shape2D.Circle(Vector2.Zero, 2e38f));
-    }
-
-    // A polygon spanning the float range has finite points and infinite edges, whose normals come
-    // out NaN rather than refused.
-    [Fact]
-    public void APolygonWhoseEdgesOverflow_IsRefusedThoughEveryPointIsFinite()
-    {
+        Assert.Throws<ArgumentException>(() => Shape2D.Circle(new Vector2(3e38f, 0f), 3e38f));
+        Assert.Throws<ArgumentException>(() => Shape2D.Capsule(new Vector2(-3e38f, 0f), new Vector2(3e38f, 0f), 1f));
         Assert.Throws<ArgumentException>(() => Shape2D.Polygon(
             [new Vector2(-3e38f, -1f), new Vector2(3e38f, -1f), new Vector2(0f, 1f)]));
 
-        Assert.Throws<ArgumentException>(() => Shape2D.Capsule(new Vector2(-3e38f, 0f), new Vector2(3e38f, 0f), 1f));
+        // A shape that fits where it was built and not where it is being put.
+        Assert.Throws<ArgumentException>(() => Shape2D.Circle(Vector2.Zero, 8e37f).Translated(new Vector2(3e38f, 0f)));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)).Translated(new Vector2(float.NaN, 0f)));
     }
 
     // As far out as a unit box can go and still have width, it is placed and found.
@@ -79,52 +77,20 @@ public sealed class Shape2DTests
     }
 
     [Fact]
-    public void Circle_RejectsARadiusThatIsNotPositive()
+    public void EveryFactory_RefusesAShapeWithNoWellDefinedOutline()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => Shape2D.Circle(Vector2.Zero, 0f));
         Assert.Throws<ArgumentOutOfRangeException>(() => Shape2D.Circle(Vector2.Zero, float.NaN));
-    }
-
-    [Fact]
-    public void Capsule_RejectsCoincidentEndpoints()
-    {
         Assert.Throws<ArgumentException>(() => Shape2D.Capsule(new Vector2(4f, 4f), new Vector2(4f, 4f), 2f));
-    }
-
-    [Fact]
-    public void Box_RejectsAnInvertedOrFlatRectangle()
-    {
         Assert.Throws<ArgumentException>(() => Shape2D.Box(new Aabb2D(new Vector2(4f, 0f), new Vector2(0f, 8f))));
         Assert.Throws<ArgumentException>(() => Shape2D.Box(new Aabb2D(Vector2.Zero, new Vector2(8f, 0f))));
-    }
-
-    [Fact]
-    public void Polygon_RejectsAPointSetOutsideTheUnionsLimits()
-    {
         Assert.Throws<ArgumentException>(() => Shape2D.Polygon([Vector2.Zero, Vector2.One]));
         Assert.Throws<ArgumentException>(() => Shape2D.Polygon(
-            [
-                new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(2f, 0f), new Vector2(3f, 0f),
-                new Vector2(4f, 1f), new Vector2(3f, 2f), new Vector2(2f, 2f), new Vector2(1f, 2f),
-                new Vector2(0f, 1f),
-            ]));
-    }
-
-    [Fact]
-    public void Polygon_RejectsAConcaveOrCollinearOutline()
-    {
+            [new Vector2(0f, 0f), new Vector2(8f, 0f), new Vector2(8f, 8f), new Vector2(4f, 10f), new Vector2(0f, 8f)]));
         Assert.Throws<ArgumentException>(() => Shape2D.Polygon(
-            [new Vector2(0f, 0f), new Vector2(8f, 0f), new Vector2(4f, 4f), new Vector2(8f, 8f), new Vector2(0f, 8f)]));
-
-        Assert.Throws<ArgumentException>(() => Shape2D.Polygon(
-            [new Vector2(0f, 0f), new Vector2(4f, 0f), new Vector2(8f, 0f)]));
-    }
-
-    [Fact]
-    public void Polygon_RejectsPointsThatNearlyCoincide()
-    {
-        Assert.Throws<ArgumentException>(() => Shape2D.Polygon(
-            [new Vector2(0f, 0f), new Vector2(0f, 0.001f), new Vector2(8f, 8f)]));
+            [new Vector2(0f, 0f), new Vector2(8f, 0f), new Vector2(4f, 4f), new Vector2(8f, 8f)]));
+        Assert.Throws<ArgumentException>(() => Shape2D.Polygon([new Vector2(0f, 0f), new Vector2(4f, 0f), new Vector2(8f, 0f)]));
+        Assert.Throws<ArgumentException>(() => Shape2D.Polygon([new Vector2(0f, 0f), new Vector2(0f, 0.001f), new Vector2(8f, 8f)]));
     }
 
     // Winding decides which way edge normals point, so the same outline authored backwards must
@@ -168,18 +134,6 @@ public sealed class Shape2DTests
         Assert.Equal(new Vector2(4f, 2f), scaled.Bounds.Min);
         Assert.Equal(new Vector2(20f, 6f), scaled.Bounds.Max);
         Assert.Equal(ShapeKind2D.Box, scaled.Kind);
-    }
-
-    [Fact]
-    public void Scaled_TakesAPolygonsPointsAndAxesIndependently()
-    {
-        Shape2D scaled = Shape2D.Polygon([new Vector2(0f, -4f), new Vector2(8f, 0f), new Vector2(0f, 4f)])
-            .Scaled(new Vector2(0.5f, 3f));
-
-        Assert.Equal(ShapeKind2D.Polygon, scaled.Kind);
-        Assert.Equal(new Vector2(0f, -12f), scaled.Point(0));
-        Assert.Equal(new Vector2(4f, 0f), scaled.Point(1));
-        Assert.Equal(new Vector2(0f, 12f), scaled.Point(2));
     }
 
     // A radius is one distance, so a non-uniform scale would name a shape the narrowphase has no
@@ -231,7 +185,4 @@ public sealed class Shape2DTests
         Assert.Throws<ArgumentException>(
             () => Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)).Scaled(new Vector2(1e-6f, 1e-6f)));
     }
-
-    // Scaled far enough up, a capsule's endpoints are still floats while the segment the
-    // narrowphase measures along is not.
 }

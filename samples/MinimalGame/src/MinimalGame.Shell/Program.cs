@@ -6,8 +6,7 @@ using MinimalGame.Game.Scenes;
 
 try
 {
-    // The render resolution is World.ViewportSize: one canvas pixel is one world pixel, so the font
-    // lands on the grid the room is drawn on unscaled.
+    // The render resolution matches World.ViewportSize, so one canvas pixel is one world pixel.
     return CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
         .WithCommandLine(args)
         .WithRunStart(GameBoot.Start)

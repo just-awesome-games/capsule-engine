@@ -4,7 +4,6 @@ using Capsule.Build.Caching;
 namespace Capsule.Build;
 
 /// <summary>One source an <see cref="IAssetImporter"/> imports, the files it reads, and the outputs it writes.</summary>
-/// <remarks>An importer reads and probes files only through this context, and its outputs reach disk only through <see cref="Write(string, ReadOnlySpan{byte})"/>.</remarks>
 public sealed class AssetImportContext
 {
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
@@ -14,10 +13,7 @@ public sealed class AssetImportContext
     private readonly DerivedFiles _files;
 
     /// <summary>The source, relative to the logic project's directory with forward slashes, as <c>Assets/Scenes/room-01.tmj</c>.</summary>
-    /// <remarks>
-    /// The build runs in the logic project's directory. The path opens the file as it stands. The source
-    /// is always an input of its import, however the importer reads it.
-    /// </remarks>
+    /// <remarks>The build runs in the logic project's directory, where the path opens the file.</remarks>
     public string SourcePath { get; }
 
     /// <summary>The asset root, relative to the logic project's directory with forward slashes, as <c>Assets</c>.</summary>
@@ -42,10 +38,6 @@ public sealed class AssetImportContext
 
     /// <summary>Reads the whole file at <paramref name="path"/> and makes it an input of this import.</summary>
     /// <param name="path">The file relative to the logic project's directory as <see cref="SourcePath"/> is spelled, as <c>Assets/Tilesets/cave.tsj</c>, or an absolute path.</param>
-    /// <remarks>
-    /// The build imports the source again when an input changes or is deleted, and reuses the last
-    /// outputs otherwise. The build cannot see a file the importer reads any other way.
-    /// </remarks>
     /// <example>
     /// A map reads the tileset it names, relative to itself:
     /// <code>
@@ -61,7 +53,7 @@ public sealed class AssetImportContext
 
     /// <summary>Reads the whole file at <paramref name="path"/> as text and makes it an input of this import, as <see cref="ReadAllBytes"/> reads bytes.</summary>
     /// <param name="path">The file relative to the logic project's directory as <see cref="SourcePath"/> is spelled, or an absolute path.</param>
-    /// <remarks>The text is UTF-8 unless a byte order mark names another encoding. The build cannot see a file the importer reads any other way.</remarks>
+    /// <remarks>The text is UTF-8 unless a byte order mark names another encoding.</remarks>
     public string ReadAllText(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -71,7 +63,6 @@ public sealed class AssetImportContext
 
     /// <summary>Whether a file is at <paramref name="path"/>, which makes the path an input of this import whether or not it exists.</summary>
     /// <param name="path">The file relative to the logic project's directory as <see cref="SourcePath"/> is spelled, or an absolute path.</param>
-    /// <remarks>The build imports the source again when a file it probed appears or disappears.</remarks>
     public bool Exists(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);

@@ -53,7 +53,7 @@ public sealed partial class CollisionWorld2D
 
     // What each CollisionMask resolved to here, indexed by the mask's id. A resolved entry stays
     // right because interned layers never move.
-    private ResolvedMask[] _masks = [];
+    private CollisionFilter?[] _masks = [];
 
     // How many masks this world's table has room for.
     internal int MaskTableLength => _masks.Length;
@@ -140,8 +140,6 @@ public sealed partial class CollisionWorld2D
     public string NameOf(CollisionLayer layer)
     {
         RequireOwn(layer);
-        ArgumentOutOfRangeException.ThrowIfNegative(layer.Index, nameof(layer));
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(layer.Index, _layerNames.Count, nameof(layer));
 
         return _layerNames[layer.Index];
     }
@@ -465,21 +463,10 @@ public sealed partial class CollisionWorld2D
     // The nearest-hit ray walk, for a caller that has validated every argument.
     private bool RaycastWalk(Vector2 origin, Vector2 unit, float distance, CollisionFilter filter, ColliderHandle ignore, out RayHit2D hit)
     {
-        hit = default;
+        RayAccumulator nearest = RayWalk(origin, unit, distance, filter, ignore, default, out _);
+        hit = nearest.Hit ? new RayHit2D(nearest.Target, origin + (unit * nearest.Distance), nearest.Normal, nearest.Distance) : default;
 
-        RayAccumulator accumulator = new() { Distance = distance };
-        int count = 0;
-        RaycastGrids(origin, unit, filter, ignore, ref accumulator, default, ref count);
-        RaycastColliders(origin, unit, filter, ignore, ref accumulator, default, ref count);
-
-        if (!accumulator.Hit)
-        {
-            return false;
-        }
-
-        hit = new RayHit2D(accumulator.Target, origin + (unit * accumulator.Distance), accumulator.Normal, accumulator.Distance);
-
-        return true;
+        return nearest.Hit;
     }
 
     /// <summary>
@@ -513,10 +500,7 @@ public sealed partial class CollisionWorld2D
             return 0;
         }
 
-        RayAccumulator accumulator = new() { Distance = distance };
-        int count = 0;
-        RaycastGrids(origin, unit, filter, ignore, ref accumulator, hits, ref count);
-        RaycastColliders(origin, unit, filter, ignore, ref accumulator, hits, ref count);
+        RayWalk(origin, unit, distance, filter, ignore, hits, out int count);
 
         return count;
     }
@@ -565,10 +549,12 @@ public sealed partial class CollisionWorld2D
     }
 
     /// <summary>
-    /// Everything a shape at <paramref name="origin"/> is inside or touching. Grid cells come
-    /// first, in the order their grids were added and then row-major within each.
+    /// Everything a shape at <paramref name="origin"/> is inside or touching.
     /// </summary>
-    /// <remarks>Colliders follow by handle.</remarks>
+    /// <remarks>
+    /// Grid cells come first, in the order their grids were added and then row-major within each.
+    /// Colliders follow by handle.
+    /// </remarks>
     /// <returns>
     /// How many overlaps there were. The span holds as many as fit, in that order, and the rest are
     /// counted only.
@@ -956,13 +942,9 @@ public sealed partial class CollisionWorld2D
     // removed collider's index may since have been reissued.
     private void RequireIgnorable(ColliderHandle ignore)
     {
-        RequireOwn(ignore, nameof(ignore));
-
-        if (!ignore.IsNone && !TryIndexOf(ignore, out _))
+        if (!ignore.IsNone)
         {
-            throw new ArgumentException(
-                "Handle names no collider in this world. It was never added, or it has been removed.",
-                nameof(ignore));
+            RequireSlot(ignore, nameof(ignore));
         }
     }
 
@@ -1019,15 +1001,15 @@ public sealed partial class CollisionWorld2D
             && _slots[index].Generation == handle.Generation;
     }
 
-    private int RequireSlot(ColliderHandle handle)
+    private int RequireSlot(ColliderHandle handle, string parameterName = "handle")
     {
-        RequireOwn(handle, nameof(handle));
+        RequireOwn(handle, parameterName);
 
         return TryIndexOf(handle, out int index)
             ? index
             : throw new ArgumentException(
                 "Handle names no collider in this world. It was never added, or it has been removed.",
-                nameof(handle));
+                parameterName);
     }
 
     private int RequireShapeSlot(ColliderHandle handle)
@@ -1075,12 +1057,6 @@ public sealed partial class CollisionWorld2D
         }
     }
 
-    private struct ResolvedMask
-    {
-        internal CollisionFilter Filter;
-        internal bool Resolved;
-    }
-
     private struct RayAccumulator
     {
         internal float Distance;
@@ -1115,9 +1091,5 @@ public sealed partial class CollisionWorld2D
         internal bool Anchored;
     }
 
-    private readonly struct BandHit(float fraction, Contact2D contact)
-    {
-        internal readonly float Fraction = fraction;
-        internal readonly Contact2D Contact = contact;
-    }
+    private readonly record struct BandHit(float Fraction, Contact2D Contact);
 }

@@ -178,9 +178,9 @@ public sealed partial class CollisionWorld2D
         ArgumentNullException.ThrowIfNull(mask);
 
         int id = mask.Id;
-        if (id < _masks.Length && _masks[id].Resolved)
+        if (id < _masks.Length && _masks[id] is { } resolved)
         {
-            return _masks[id].Filter;
+            return resolved;
         }
 
         // Intern before growing the table. A name the world has no room for leaves the table as it was.
@@ -190,7 +190,7 @@ public sealed partial class CollisionWorld2D
             Array.Resize(ref _masks, Math.Max(id + 1, _masks.Length * 2));
         }
 
-        _masks[id] = new ResolvedMask { Filter = filter, Resolved = true };
+        _masks[id] = filter;
 
         return filter;
     }

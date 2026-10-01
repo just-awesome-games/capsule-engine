@@ -27,15 +27,9 @@ internal static class KeyboardSampler
 
     private static Keys[] BuildLookup()
     {
+        // GetValues sorts by value, so the last key is the highest.
         Key[] keys = Enum.GetValues<Key>();
-
-        int length = 0;
-        foreach (Key key in keys)
-        {
-            length = Math.Max(length, (int)key + 1);
-        }
-
-        Keys[] lookup = new Keys[length];
+        Keys[] lookup = new Keys[(int)keys[^1] + 1];
         foreach (Key key in keys)
         {
             lookup[(int)key] = ToXna(key);

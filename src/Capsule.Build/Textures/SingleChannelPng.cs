@@ -10,13 +10,11 @@ internal static class SingleChannelPng
 
     private const string Fix = "An r8 texture has one channel. Export it as 8-bit greyscale or indexed colour, not interlaced.";
 
-    private static ReadOnlySpan<byte> Signature => [137, 80, 78, 71, 13, 10, 26, 10];
-
     /// <summary>The values of <paramref name="png"/>, one byte a texel.</summary>
     /// <exception cref="FormatException">The file is no PNG, or a PNG of a kind with no single channel.</exception>
     internal static Texels Read(byte[] png)
     {
-        if (png.Length < Signature.Length || !png.AsSpan(0, Signature.Length).SequenceEqual(Signature))
+        if (!png.AsSpan().StartsWith(PngWriter.Signature))
         {
             throw new FormatException("is not a PNG.");
         }
@@ -25,7 +23,7 @@ internal static class SingleChannelPng
         int height = 0;
         int depth = 0;
         using MemoryStream compressed = new();
-        int at = Signature.Length;
+        int at = PngWriter.Signature.Length;
 
         while (at + 8 <= png.Length)
         {
@@ -40,6 +38,11 @@ internal static class SingleChannelPng
 
             if (type.SequenceEqual("IHDR"u8))
             {
+                if (length != 13)
+                {
+                    throw new FormatException("is a PNG with a damaged header.");
+                }
+
                 width = BinaryPrimitives.ReadInt32BigEndian(data);
                 height = BinaryPrimitives.ReadInt32BigEndian(data[4..]);
                 depth = data[8];

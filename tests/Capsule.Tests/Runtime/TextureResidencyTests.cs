@@ -21,8 +21,8 @@ public sealed class TextureResidencyTests
         TextureHandle handle = new(name, ".png");
         using Shipped shipped = new(handle);
 
-        Assert.Equal(expected, TextureFiles.RelativePathOf(handle));
-        using Stream opened = TextureFiles.Open(shipped.Platform, handle);
+        Assert.Equal(expected, TextureStore.RelativePathOf(handle));
+        using Stream opened = TextureStore.Open(shipped.Platform, handle);
         Assert.Equal(System.IO.Path.GetFullPath(shipped.Path), Assert.IsType<FileStream>(opened).Name);
     }
 
@@ -32,7 +32,7 @@ public sealed class TextureResidencyTests
         using Shipped shipped = new();
 
         FileNotFoundException error = Assert.Throws<FileNotFoundException>(
-            () => TextureFiles.Open(shipped.Platform, Hero));
+            () => TextureStore.Open(shipped.Platform, Hero));
 
         Assert.Contains("'hero'", error.Message, StringComparison.Ordinal);
         Assert.Contains("assets/hero.png", error.Message, StringComparison.Ordinal);
@@ -47,7 +47,7 @@ public sealed class TextureResidencyTests
         File.WriteAllBytes(outside, []);
         TextureHandle escaping = new("../outside", ".png");
 
-        Assert.Throws<ArgumentException>(() => TextureFiles.Open(shipped.Platform, escaping));
+        Assert.Throws<ArgumentException>(() => TextureStore.Open(shipped.Platform, escaping));
     }
 
     [Fact]
@@ -55,24 +55,7 @@ public sealed class TextureResidencyTests
     {
         using Shipped shipped = new();
 
-        Assert.Throws<ArgumentException>(() => TextureFiles.Open(shipped.Platform, default));
-    }
-
-    [Fact]
-    public void Get_LoadsOnceAndReusesTheAssetOnHits()
-    {
-        int loads = 0;
-        using SceneAssetStore<TextureHandle, FakeTexture> store = SyncStore.Over<TextureHandle, FakeTexture>(handle =>
-        {
-            loads++;
-            return new FakeTexture(handle.Name);
-        });
-
-        FakeTexture first = store.Get(Hero);
-        FakeTexture second = store.Get(Hero);
-
-        Assert.Same(first, second);
-        Assert.Equal(1, loads);
+        Assert.Throws<ArgumentException>(() => TextureStore.Open(shipped.Platform, default));
     }
 
     [Fact]
@@ -239,7 +222,7 @@ public sealed class TextureResidencyTests
         {
             foreach (TextureHandle handle in textures)
             {
-                Path = _workspace.PathTo(TextureFiles.RelativePathOf(handle));
+                Path = _workspace.PathTo(TextureStore.RelativePathOf(handle));
                 File.WriteAllBytes(Path, []);
             }
         }

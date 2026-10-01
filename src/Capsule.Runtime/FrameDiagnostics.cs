@@ -4,11 +4,8 @@ using System.Globalization;
 
 namespace Capsule.Runtime;
 
-// Host timing capture written as one CSV: a boot trace of the stages between process start and the
-// first submitted frame, then a row per frame carrying its interval, update and draw milliseconds, the
-// fixed steps its update ran and the process's gen-0 collection count as the frame ended, which lets a
-// window of rows read its own collections as a difference. Owned by the host and reached through
-// WithFrameDiagnostics, and a game's logic assembly never sees it.
+// Host timing capture written as the CSV EngineBuilder.WithFrameDiagnostics documents. The gen-0
+// count is cumulative, and a window of rows reads its own collections as a difference.
 internal sealed class FrameDiagnostics : IDisposable
 {
     // Rows fill one of two buffers. A full buffer is handed to the writer thread and the other takes
@@ -46,18 +43,11 @@ internal sealed class FrameDiagnostics : IDisposable
     private int _count;
     private long _sectionStart;
     private long _previousUpdateStart = -1;
-    private long _firstDraw = -1;
     private double _intervalMs;
     private double _updateMs;
     private int _steps;
 
-    // path: Where the CSV is written. Its directory is created and an existing file is overwritten.
-    //
-    // builderEntered: The GetTimestamp taken when the builder was created, which is the trace's
-    // first stage after process start.
-    //
-    // exitAfterSeconds: Real seconds after the first submitted frame at which the host requests
-    // exit, or null to run until the game does.
+    // builderEntered is the GetTimestamp taken when the builder was created, the trace's first stage.
     internal FrameDiagnostics(string path, long builderEntered, double? exitAfterSeconds)
         : this(path, builderEntered, exitAfterSeconds, Stopwatch.GetTimestamp)
     {
@@ -66,7 +56,8 @@ internal sealed class FrameDiagnostics : IDisposable
     internal FrameDiagnostics(string path, long builderEntered, double? exitAfterSeconds, Func<long> timestamp)
     {
         _stages = [builderEntered, -1, -1, -1, -1, -1];
-        _exitAfterTicks = exitAfterSeconds is { } seconds ? (long)(seconds * Stopwatch.Frequency) : 0;
+        // A positive duration under one tick still binds. Zero is no budget.
+        _exitAfterTicks = exitAfterSeconds is { } seconds ? Math.Max(1L, (long)(seconds * Stopwatch.Frequency)) : 0;
         _timestamp = timestamp;
 
         if (Path.GetDirectoryName(Path.GetFullPath(path)) is { Length: > 0 } directory)
@@ -138,9 +129,8 @@ internal sealed class FrameDiagnostics : IDisposable
         long now = _timestamp();
         _rows[_count++] = new Row(_intervalMs, _updateMs, Milliseconds(now - _sectionStart), _steps, GC.CollectionCount(0));
 
-        if (_firstDraw < 0)
+        if (_stages[^1] < 0)
         {
-            _firstDraw = now;
             _stages[^1] = now;
 
             // Written after the frame's own timestamps are taken. Resolving the process start costs
@@ -155,7 +145,7 @@ internal sealed class FrameDiagnostics : IDisposable
             _count = 0;
         }
 
-        return _exitAfterTicks > 0 && now - _firstDraw >= _exitAfterTicks;
+        return _exitAfterTicks > 0 && now - _stages[^1] >= _exitAfterTicks;
     }
 
     // Every full buffer is written before the partial one. A graceful exit loses nothing and the rows

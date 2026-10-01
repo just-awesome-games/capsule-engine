@@ -1,36 +1,22 @@
 #nullable disable
 #pragma warning disable
-using Capsule.Runtime.Audio.Vorbis.Contracts;
 using System;
 using System.IO;
-using System.Text;
 
 namespace Capsule.Runtime.Audio.Vorbis
 {
-    // <summary>
-    // Implements a stream decoder for Vorbis data.
-    // </summary>
-    internal sealed class StreamDecoder : IStreamDecoder
+    internal sealed class StreamDecoder
     {
-        static internal Func<IFactory> CreateFactory { get; set; } = () => new Factory();
-
-        private Contracts.IPacketProvider _packetProvider;
-        private IFactory _factory;
-        private StreamStats _stats;
+        private readonly Ogg.PacketProvider _packetProvider;
 
         private byte _channels;
         private int _sampleRate;
         private int _block0Size;
         private int _block1Size;
-        private IMode[] _modes;
+        private Mode[] _modes;
         private int _modeFieldBits;
 
-        private string _vendor;
-        private string[] _comments;
-        private ITagData _tags;
-
         private long _currentPosition;
-        private bool _hasClipped;
         private bool _hasPosition;
         private bool _eosFound;
 
@@ -54,83 +40,30 @@ namespace Capsule.Runtime.Audio.Vorbis
         // way a static method group is. Passing `GetPacketGranules` directly instead of this cached
         // field is what let SeekTo (called on every loop wrap, via PacketProvider.SeekTo's
         // GetPacketGranuleCount parameter) allocate on an otherwise fully warm reader.
-        private readonly GetPacketGranuleCount _getPacketGranules;
+        private readonly Ogg.GetPacketGranuleCount _getPacketGranules;
 
-        // <summary>
-        // Creates a new instance of <see cref="StreamDecoder"/>.
-        // </summary>
-        // <param name="packetProvider">A <see cref="Contracts.IPacketProvider"/> instance for the decoder to read from.</param>
-        public StreamDecoder(Contracts.IPacketProvider packetProvider)
-            : this(packetProvider, new Factory())
+        public StreamDecoder(Ogg.PacketProvider packetProvider)
         {
-        }
-
-        internal StreamDecoder(Contracts.IPacketProvider packetProvider, IFactory factory)
-        {
-            _packetProvider = packetProvider ?? throw new ArgumentNullException(nameof(packetProvider));
-            _factory = factory ?? throw new ArgumentNullException(nameof(factory));
-
-            _stats = new StreamStats();
+            _packetProvider = packetProvider;
             _getPacketGranules = GetPacketGranules;
-
-            _currentPosition = 0L;
-            ClipSamples = true;
 
             var packet = _packetProvider.PeekNextPacket();
             if (!ProcessHeaderPackets(packet))
             {
-                _packetProvider = null;
                 packet.Reset();
-
-                throw GetInvalidStreamException(packet);
+                throw new ArgumentException("Could not find Vorbis data to decode.");
             }
         }
 
-        private static Exception GetInvalidStreamException(IPacket packet)
-        {
-            try
-            {
-                // let's give our caller some helpful hints about what they've encountered...
-                var header = packet.ReadBits(64);
-                if (header == 0x646165487375704ful)
-                {
-                    return new ArgumentException("Found OPUS bitstream.");
-                }
-                else if ((header & 0xFF) == 0x7F)
-                {
-                    return new ArgumentException("Found FLAC bitstream.");
-                }
-                else if (header == 0x2020207865657053ul)
-                {
-                    return new ArgumentException("Found Speex bitstream.");
-                }
-                else if (header == 0x0064616568736966ul)
-                {
-                    // ugh...  we need to add support for this in the container reader
-                    return new ArgumentException("Found Skeleton metadata bitstream.");
-                }
-                else if ((header & 0xFFFFFFFFFFFF00ul) == 0x61726f65687400ul)
-                {
-                    return new ArgumentException("Found Theora bitsream.");
-                }
-                return new ArgumentException("Could not find Vorbis data to decode.");
-            }
-            finally
-            {
-                packet.Reset();
-            }
-        }
-
-        #region Init
-
-        private bool ProcessHeaderPackets(IPacket packet)
+        private bool ProcessHeaderPackets(Ogg.Packet packet)
         {
             if (!ProcessHeaderPacket(packet, LoadStreamHeader, _ => _packetProvider.GetNextPacket().Done()))
             {
                 return false;
             }
 
-            if (!ProcessHeaderPacket(_packetProvider.GetNextPacket(), LoadComments, pkt => pkt.Done()))
+            // Capsule: the comment header is checked by its signature only. The build reads its tags.
+            if (!ProcessHeaderPacket(_packetProvider.GetNextPacket(), pkt => ValidateHeader(pkt, PacketSignatureComments), pkt => pkt.Done()))
             {
                 return false;
             }
@@ -145,7 +78,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             return true;
         }
 
-        private static bool ProcessHeaderPacket(IPacket packet, Func<IPacket, bool> processAction, Action<IPacket> doneAction)
+        private static bool ProcessHeaderPacket(Ogg.Packet packet, Func<Ogg.Packet, bool> processAction, Action<Ogg.Packet> doneAction)
         {
             if (packet != null)
             {
@@ -165,7 +98,7 @@ namespace Capsule.Runtime.Audio.Vorbis
         static private readonly byte[] PacketSignatureComments = { 0x03, 0x76, 0x6f, 0x72, 0x62, 0x69, 0x73 };
         static private readonly byte[] PacketSignatureBooks = { 0x05, 0x76, 0x6f, 0x72, 0x62, 0x69, 0x73 };
 
-        static private bool ValidateHeader(IPacket packet, byte[] expected)
+        static private bool ValidateHeader(Ogg.Packet packet, byte[] expected)
         {
             for (var i = 0; i < expected.Length; i++)
             {
@@ -177,25 +110,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             return true;
         }
 
-        static private string ReadString(IPacket packet)
-        {
-            var len = (int)packet.ReadBits(32);
-
-            if(len == 0)
-            {
-                return string.Empty;
-            }
-            
-            var buf = new byte[len];
-            var cnt = packet.Read(buf, 0, len);
-            if (cnt < len)
-            {
-                throw new InvalidDataException("Could not read full string!");
-            }
-            return Encoding.UTF8.GetString(buf);
-        }
-
-        private bool LoadStreamHeader(IPacket packet)
+        private bool LoadStreamHeader(Ogg.Packet packet)
         {
             if (!ValidateHeader(packet, PacketSignatureStream))
             {
@@ -204,59 +119,29 @@ namespace Capsule.Runtime.Audio.Vorbis
 
             _channels = (byte)packet.ReadBits(8);
             _sampleRate = (int)packet.ReadBits(32);
-            UpperBitrate = (int)packet.ReadBits(32);
-            NominalBitrate = (int)packet.ReadBits(32);
-            LowerBitrate = (int)packet.ReadBits(32);
+            packet.SkipBits(96); // upper, nominal and lower bitrate
 
             _block0Size = 1 << (int)packet.ReadBits(4);
             _block1Size = 1 << (int)packet.ReadBits(4);
 
-            if (NominalBitrate == 0 && UpperBitrate > 0 && LowerBitrate > 0)
-            {
-                NominalBitrate = (UpperBitrate + LowerBitrate) / 2;
-            }
-
-            _stats.SetSampleRate(_sampleRate);
-            _stats.AddPacket(-1, packet.BitsRead, packet.BitsRemaining, packet.ContainerOverheadBits);
-
             return true;
         }
 
-        private bool LoadComments(IPacket packet)
-        {
-            if (!ValidateHeader(packet, PacketSignatureComments))
-            {
-                return false;
-            }
-
-            _vendor = ReadString(packet);
-
-            _comments = new string[packet.ReadBits(32)];
-            for (var i = 0; i < _comments.Length; i++)
-            {
-                _comments[i] = ReadString(packet);
-            }
-
-            _stats.AddPacket(-1, packet.BitsRead, packet.BitsRemaining, packet.ContainerOverheadBits);
-
-            return true;
-        }
-
-        private bool LoadBooks(IPacket packet)
+        private bool LoadBooks(Ogg.Packet packet)
         {
             if (!ValidateHeader(packet, PacketSignatureBooks))
             {
                 return false;
             }
 
-            var mdct = _factory.CreateMdct();
-            var huffman = _factory.CreateHuffman();
+            var mdct = new Mdct();
+            var huffman = new Huffman();
 
             // read the books
-            var books = new ICodebook[packet.ReadBits(8) + 1];
+            var books = new Codebook[packet.ReadBits(8) + 1];
             for (var i = 0; i < books.Length; i++)
             {
-                books[i] = _factory.CreateCodebook();
+                books[i] = new Codebook();
                 books[i].Init(packet, huffman);
             }
 
@@ -268,31 +153,31 @@ namespace Capsule.Runtime.Audio.Vorbis
             var floors = new IFloor[packet.ReadBits(6) + 1];
             for (var i = 0; i < floors.Length; i++)
             {
-                floors[i] = _factory.CreateFloor(packet);
+                floors[i] = CreateFloor(packet);
                 floors[i].Init(packet, _channels, _block0Size, _block1Size, books);
             }
 
             // read the residues
-            var residues = new IResidue[packet.ReadBits(6) + 1];
+            var residues = new Residue0[packet.ReadBits(6) + 1];
             for (var i = 0; i < residues.Length; i++)
             {
-                residues[i] = _factory.CreateResidue(packet);
+                residues[i] = CreateResidue(packet);
                 residues[i].Init(packet, _channels, books);
             }
 
             // read the mappings
-            var mappings = new IMapping[packet.ReadBits(6) + 1];
+            var mappings = new Mapping[packet.ReadBits(6) + 1];
             for (var i = 0; i < mappings.Length; i++)
             {
-                mappings[i] = _factory.CreateMapping(packet);
+                mappings[i] = CreateMapping(packet);
                 mappings[i].Init(packet, _channels, floors, residues, mdct);
             }
 
             // read the modes
-            _modes = new IMode[packet.ReadBits(6) + 1];
+            _modes = new Mode[packet.ReadBits(6) + 1];
             for (var i = 0; i < _modes.Length; i++)
             {
-                _modes[i] = _factory.CreateMode();
+                _modes[i] = new Mode();
                 _modes[i].Init(packet, _channels, _block0Size, _block1Size, mappings);
             }
 
@@ -302,14 +187,28 @@ namespace Capsule.Runtime.Audio.Vorbis
             // save off the number of bits to read to determine packet mode
             _modeFieldBits = Utils.ilog(_modes.Length - 1);
 
-            _stats.AddPacket(-1, packet.BitsRead, packet.BitsRemaining, packet.ContainerOverheadBits);
-
             return true;
         }
 
-        #endregion
+        private static IFloor CreateFloor(Ogg.Packet packet) => packet.ReadBits(16) switch
+        {
+            0 => new Floor0(),
+            1 => new Floor1(),
+            _ => throw new InvalidDataException("Invalid floor type!"),
+        };
 
-        #region State Change
+        private static Residue0 CreateResidue(Ogg.Packet packet) => packet.ReadBits(16) switch
+        {
+            0 => new Residue0(),
+            1 => new Residue1(),
+            2 => new Residue2(),
+            _ => throw new InvalidDataException("Invalid residue type!"),
+        };
+
+        private static Mapping CreateMapping(Ogg.Packet packet) =>
+            packet.ReadBits(16) == 0 ? new Mapping() : throw new InvalidDataException("Invalid mapping type!");
+
+
 
         private void ResetDecoder()
         {
@@ -318,31 +217,16 @@ namespace Capsule.Runtime.Audio.Vorbis
             _prevPacketEnd = 0;
             _prevPacketStop = 0;
             _eosFound = false;
-            _hasClipped = false;
             _hasPosition = false;
         }
 
-        #endregion
 
-        #region Decoding
 
-        // <summary>
-        // Reads samples into the specified buffer.
-        // </summary>
-        // <param name="buffer">The buffer to read the samples into.</param>
-        // <param name="offset">The index to start reading samples into the buffer.</param>
-        // <param name="count">The number of samples that should be read into the buffer.  Must be a multiple of <see cref="Channels"/>.</param>
-        // <returns>The number of samples read into the buffer.</returns>
-        // <exception cref="ArgumentOutOfRangeException">Thrown when the buffer is too small or <paramref name="offset"/> is less than zero.</exception>
-        // <remarks>The data populated into <paramref name="buffer"/> is interleaved by channel in normal PCM fashion: Left, Right, Left, Right, Left, Right</remarks>
-        public int Read(Span<float> buffer, int offset, int count)
+        // Reads whole frames of interleaved samples and returns the count written.
+        public int Read(Span<float> buffer)
         {
-            if (buffer == null) throw new ArgumentNullException(nameof(buffer));
-            if (offset < 0 || offset + count > buffer.Length) throw new ArgumentOutOfRangeException(nameof(offset));
-            if (count % _channels != 0) throw new ArgumentOutOfRangeException(nameof(count), "Must be a multiple of Channels!");
-            if (_packetProvider == null) throw new ObjectDisposedException(nameof(StreamDecoder));
-
-            // if the caller didn't ask for any data, bail early
+            var offset = 0;
+            var count = buffer.Length - buffer.Length % _channels;
             if (count == 0)
             {
                 return 0;
@@ -384,14 +268,7 @@ namespace Capsule.Runtime.Audio.Vorbis
                 var copyLen = Math.Min((tgt - idx) / _channels, _prevPacketEnd - _prevPacketStart);
                 if (copyLen > 0)
                 {
-                    if (ClipSamples)
-                    {
-                        idx += ClippingCopyBuffer(buffer, idx, copyLen);
-                    }
-                    else
-                    {
-                        idx += CopyBuffer(buffer, idx, copyLen);
-                    }
+                    idx += ClippingCopyBuffer(buffer, idx, copyLen);
                 }
             }
 
@@ -412,20 +289,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             {
                 for (var ch = 0; ch < _channels; ch++)
                 {
-                    target[idx++] = Utils.ClipValue(_prevPacketBuf[ch][_prevPacketStart], ref _hasClipped);
-                }
-            }
-            return idx - targetIndex;
-        }
-
-        private int CopyBuffer(Span<float> target, int targetIndex, int count)
-        {
-            var idx = targetIndex;
-            for (; count > 0; _prevPacketStart++, count--)
-            {
-                for (var ch = 0; ch < _channels; ch++)
-                {
-                    target[idx++] = _prevPacketBuf[ch][_prevPacketStart];
+                    target[idx++] = Utils.ClipValue(_prevPacketBuf[ch][_prevPacketStart]);
                 }
             }
             return idx - targetIndex;
@@ -434,11 +298,10 @@ namespace Capsule.Runtime.Audio.Vorbis
         private bool ReadNextPacket(int bufferedSamples, out long? samplePosition)
         {
             // decode the next packet now so we can start overlapping with it
-            var curPacket = DecodeNextPacket(out var startIndex, out var validLen, out var totalLen, out var isEndOfStream, out samplePosition, out var bitsRead, out var bitsRemaining, out var containerOverheadBits);
+            var curPacket = DecodeNextPacket(out var startIndex, out var validLen, out var totalLen, out var isEndOfStream, out samplePosition);
             _eosFound |= isEndOfStream;
             if (curPacket == null)
             {
-                _stats.AddPacket(0, bitsRead, bitsRemaining, containerOverheadBits);
                 return false;
             }
 
@@ -466,9 +329,6 @@ namespace Capsule.Runtime.Audio.Vorbis
                 _prevPacketStart = validLen;
             }
 
-            // update stats
-            _stats.AddPacket(validLen - _prevPacketStart, bitsRead, bitsRemaining, containerOverheadBits);
-
             // keep the old buffer so the GC doesn't have to reallocate every packet
             _nextPacketBuf = _prevPacketBuf;
 
@@ -480,9 +340,9 @@ namespace Capsule.Runtime.Audio.Vorbis
             return true;
         }
 
-        private float[][] DecodeNextPacket(out int packetStartindex, out int packetValidLength, out int packetTotalLength, out bool isEndOfStream, out long? samplePosition, out int bitsRead, out int bitsRemaining, out int containerOverheadBits)
+        private float[][] DecodeNextPacket(out int packetStartindex, out int packetValidLength, out int packetTotalLength, out bool isEndOfStream, out long? samplePosition)
         {
-            IPacket packet = null;
+            Ogg.Packet packet = null;
             try
             {
                 if ((packet = _packetProvider.GetNextPacket()) == null)
@@ -501,15 +361,8 @@ namespace Capsule.Runtime.Audio.Vorbis
                         _hasPosition = false;
                     }
 
-                    // grab the container overhead now, since the read won't affect it
-                    containerOverheadBits = packet.ContainerOverheadBits;
-
                     // make sure the packet starts with a 0 bit as per the spec
-                    if (packet.ReadBit())
-                    {
-                        bitsRemaining = packet.BitsRemaining + 1;
-                    }
-                    else
+                    if (!packet.ReadBit())
                     {
                         // if we get here, we should have a good packet; decode it and add it to the buffer
                         var mode = _modes[(int)packet.ReadBits(_modeFieldBits)];
@@ -529,20 +382,14 @@ namespace Capsule.Runtime.Audio.Vorbis
                         {
                             // per the spec, do not decode more samples than the last granulePosition
                             samplePosition = packet.GranulePosition;
-                            bitsRead = packet.BitsRead;
-                            bitsRemaining = packet.BitsRemaining;
                             return _nextPacketBuf;
                         }
-                        bitsRemaining = packet.BitsRead + packet.BitsRemaining;
                     }
                 }
                 packetStartindex = 0;
                 packetValidLength = 0;
                 packetTotalLength = 0;
                 samplePosition = null;
-                bitsRead = 0;
-                bitsRemaining = 0;
-                containerOverheadBits = 0;
                 return null;
             }
             finally
@@ -562,47 +409,10 @@ namespace Capsule.Runtime.Audio.Vorbis
             }
         }
 
-        #endregion
 
-        #region Seeking
 
-        // <summary>
-        // Seeks the stream by the specified duration.
-        // </summary>
-        // <param name="timePosition">The relative time to seek to.</param>
-        // <param name="seekOrigin">The reference point used to obtain the new position.</param>
-        public void SeekTo(TimeSpan timePosition, SeekOrigin seekOrigin = SeekOrigin.Begin)
+        public void SeekTo(long samplePosition)
         {
-            SeekTo((long)(SampleRate * timePosition.TotalSeconds), seekOrigin);
-        }
-
-        // <summary>
-        // Seeks the stream by the specified sample count.
-        // </summary>
-        // <param name="samplePosition">The relative sample position to seek to.</param>
-        // <param name="seekOrigin">The reference point used to obtain the new position.</param>
-        public void SeekTo(long samplePosition, SeekOrigin seekOrigin = SeekOrigin.Begin)
-        {
-            if (_packetProvider == null) throw new ObjectDisposedException(nameof(StreamDecoder));
-            if (!_packetProvider.CanSeek) throw new InvalidOperationException("Seek is not supported by the Contracts.IPacketProvider instance.");
-
-            switch (seekOrigin)
-            {
-                case SeekOrigin.Begin:
-                    // no-op
-                    break;
-                case SeekOrigin.Current:
-                    samplePosition = SamplePosition - samplePosition;
-                    break;
-                case SeekOrigin.End:
-                    samplePosition = TotalSamples - samplePosition;
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(seekOrigin));
-            }
-
-            if (samplePosition < 0) throw new ArgumentOutOfRangeException(nameof(samplePosition));
-
             int rollForward;
             if (samplePosition == 0)
             {
@@ -649,7 +459,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             _currentPosition = samplePosition;
         }
 
-        private int GetPacketGranules(IPacket curPacket, bool isLastInPage)
+        private int GetPacketGranules(Ogg.Packet curPacket, bool isLastInPage)
         {
             // if it's a resync, there's not any audio data to return
             if (curPacket.IsResync) return 0;
@@ -668,97 +478,10 @@ namespace Capsule.Runtime.Audio.Vorbis
             return _modes[modeIdx].GetPacketSampleCount(curPacket, isLastInPage);
         }
 
-        #endregion
 
-        // <summary>
-        // Cleans up this instance.
-        // </summary>
-        public void Dispose()
-        {
-            (_packetProvider as IDisposable)?.Dispose();
-            _packetProvider = null;
-        }
-
-        #region Properties
-
-        // <summary>
-        // Gets the number of channels in the stream.
-        // </summary>
         public int Channels => _channels;
 
-        // <summary>
-        // Gets the sample rate of the stream.
-        // </summary>
         public int SampleRate => _sampleRate;
 
-        // <summary>
-        // Gets the upper bitrate limit for the stream, if specified.
-        // </summary>
-        public int UpperBitrate { get; private set; }
-
-        // <summary>
-        // Gets the nominal bitrate of the stream, if specified.  May be calculated from <see cref="LowerBitrate"/> and <see cref="UpperBitrate"/>.
-        // </summary>
-        public int NominalBitrate { get; private set; }
-
-        // <summary>
-        // Gets the lower bitrate limit for the stream, if specified.
-        // </summary>
-        public int LowerBitrate { get; private set; }
-
-        // <summary>
-        // Gets the tag data from the stream's header.
-        // </summary>
-        public ITagData Tags => _tags ?? (_tags = new TagData(_vendor, _comments));
-
-        // <summary>
-        // Gets the total duration of the decoded stream.
-        // </summary>
-        public TimeSpan TotalTime => TimeSpan.FromSeconds((double)TotalSamples / _sampleRate);
-
-        // <summary>
-        // Gets the total number of samples in the decoded stream.
-        // </summary>
-        public long TotalSamples => _packetProvider?.GetGranuleCount() ?? throw new ObjectDisposedException(nameof(StreamDecoder));
-
-        // <summary>
-        // Gets or sets the current time position of the stream.
-        // </summary>
-        public TimeSpan TimePosition
-        {
-            get => TimeSpan.FromSeconds((double)_currentPosition / _sampleRate);
-            set => SeekTo(value);
-        }
-
-        // <summary>
-        // Gets or sets the current sample position of the stream.
-        // </summary>
-        public long SamplePosition
-        {
-            get => _currentPosition;
-            set => SeekTo(value);
-        }
-
-        // <summary>
-        // Gets or sets whether to clip samples returned by <see cref="Read(Span&lt;float&gt;, int, int)"/>.
-        // </summary>
-        public bool ClipSamples { get; set; }
-
-        // <summary>
-        // Gets whether <see cref="Read(Span&lt;float&gt;, int, int)"/> has returned any clipped samples.
-        // </summary>
-        public bool HasClipped => _hasClipped;
-
-        // <summary>
-        // Gets whether the decoder has reached the end of the stream.
-        // </summary>
-        public bool IsEndOfStream => _eosFound && !_hasPrevPacketBuf;
-
-        // <summary>
-        // Gets the <see cref="IStreamStats"/> instance for this stream.
-        // </summary>
-        public IStreamStats Stats => _stats;
-
-        #endregion
     }
 }

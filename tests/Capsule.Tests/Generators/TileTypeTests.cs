@@ -4,6 +4,7 @@ using System.Reflection;
 using Capsule.Assets;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
+using Capsule.Tests.Build;
 using Capsule.Tiles;
 using Microsoft.CodeAnalysis;
 
@@ -68,6 +69,20 @@ public sealed class TileTypeTests
 
         FileLinePositionSpan at = refused.Location.GetLineSpan();
         Assert.Equal((Rink, 1, 2), (at.Path, at.StartLinePosition.Line, at.StartLinePosition.Character));
+    }
+
+    // The composer copies the engine's members by name. The committed sample is its output, which GeneratorSampleTests keeps current.
+    [Fact]
+    public void TheComposer_CopiesEverySettableTileTypeMember()
+    {
+        string composer = File.ReadAllText(
+            Path.Combine(ToolWorkspace.Metadata("CapsuleCheckout"), "src", "Capsule.Generators", "Scenes", "CapsuleScenes.sample.g.cs"));
+        IEnumerable<string> settable = typeof(TileType).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(static property => property.SetMethod is { IsPublic: true })
+            .Select(static property => property.Name)
+            .Concat(typeof(TileType).GetFields(BindingFlags.Public | BindingFlags.Instance).Select(static field => field.Name));
+
+        Assert.All(settable, name => Assert.Contains($"{name} = tile.{name},", composer, StringComparison.Ordinal));
     }
 
     // One tile-map entry whose palette entry "slick" carries what the test authors, painted at (0, 0).

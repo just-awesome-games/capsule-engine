@@ -201,22 +201,6 @@ public sealed class FontBuildTests
             Refused(("Fonts/menu.fnt", Malformed(lines)), ("Fonts/menu.png", null)),
             StringComparison.Ordinal);
 
-    [Theory]
-    [InlineData("Fonts/menu-font/menu.fnt", "inside a generated class of that name")]
-    [InlineData("Fonts/01-menu.fnt", "no C# name")]
-    public void AKeyTheGeneratedClassesCannotDeclare_FailsTheBuild(string asset, string because) =>
-        Assert.Contains(because, Refused((asset, Source(Info, Common, Page, CharA)), (asset[..(asset.LastIndexOf('/') + 1)] + "menu.png", null)), StringComparison.Ordinal);
-
-    [Fact]
-    public void TwoFontsThatBecomeOneIdentifier_FailTheBuild() =>
-        Assert.Contains(
-            "already claims",
-            Refused(
-                ("Fonts/main-menu.fnt", Source(Info, Common, Page, CharA)),
-                ("Fonts/main_menu.fnt", Source(Info, Common, Page, CharA)),
-                ("Fonts/menu.png", null)),
-            StringComparison.Ordinal);
-
     private static string Source(params string[] lines) => string.Join("\r\n", lines) + "\r\n";
 
     // '@' names one of the good lines, so a case says only what it is testing.

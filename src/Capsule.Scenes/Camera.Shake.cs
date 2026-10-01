@@ -38,7 +38,7 @@ public partial class Camera
 
         set
         {
-            Guard.RequireSeconds(value, nameof(value));
+            Guard.NonNegative(value, nameof(value));
             field = value;
         }
     } = 15f;
@@ -74,7 +74,7 @@ public partial class Camera
     /// <remarks>The shake draws nothing from <see cref="Run.Random"/>.</remarks>
     public void Shake(float intensity, float seconds)
     {
-        Guard.RequireSeconds(intensity, nameof(intensity));
+        Guard.NonNegative(intensity, nameof(intensity));
         Guard.Positive(seconds, nameof(seconds));
         intensity = MathF.Min(1f, intensity);
 

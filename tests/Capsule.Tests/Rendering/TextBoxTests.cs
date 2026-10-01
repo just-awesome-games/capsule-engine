@@ -78,36 +78,6 @@ public sealed class TextBoxTests
     }
 
     [Theory]
-    [InlineData(VerticalAlignment.Top, 2f)]
-    [InlineData(VerticalAlignment.Middle, 12f)]
-    [InlineData(VerticalAlignment.Bottom, 22f)]
-    public void TheRun_SitsAtItsVerticalAlignmentInsideTheBox(VerticalAlignment alignment, float top)
-    {
-        // One line of 10 in a box of 30, measured from the box's top edge; 'A' sits two font pixels
-        // below its own line's top edge.
-        TextIntent intent = Text("A") with { Size = new Vector2(0f, 30f), VerticalAlignment = alignment };
-
-        FrameView view = new();
-        view.Add(intent);
-
-        Assert.Equal(top, view.Sprites[0].Position.Y - intent.Bounds.Top);
-    }
-
-    [Fact]
-    public void APivot_IsWhereThePositionLands()
-    {
-        TextIntent centred = Text("A") with
-        {
-            Size = new Vector2(40f, 30f),
-            Pivot = Pivot.Center,
-            Position = new Vector2(100f, 50f),
-            PreviousPosition = new Vector2(100f, 50f),
-        };
-
-        Assert.Equal(new Rect(80f, 35f, 120f, 65f), centred.Bounds);
-    }
-
-    [Theory]
     [InlineData(HorizontalAlignment.Left, VerticalAlignment.Top, 1f, 2f)]
     [InlineData(HorizontalAlignment.Center, VerticalAlignment.Middle, 18f, 12f)]
     [InlineData(HorizontalAlignment.Right, VerticalAlignment.Bottom, 36f, 22f)]

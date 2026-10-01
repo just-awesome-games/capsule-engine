@@ -4,7 +4,7 @@ namespace Capsule.Tests.Audio;
 
 // The policy that keeps sound on the system's default output: when a reopen happens, how a failed
 // one is retried, and what a disconnected device does with no announcement. The device itself is
-// faked — nothing here asserts what OpenAL does.
+// faked, and nothing here asserts what OpenAL does.
 public sealed class OutputFollowerTests
 {
     // A power of two, so the retry arithmetic below is exact.
@@ -43,7 +43,7 @@ public sealed class OutputFollowerTests
         Assert.Equal(3, fixture.Reopens);
     }
 
-    // A fresh announcement during the wait — the replacement output arriving — is acted on at once.
+    // A fresh announcement during the wait, the replacement output arriving, is acted on at once.
     [Fact]
     public void AnAnnouncementDuringTheRetryWaitReopensAtOnce()
     {

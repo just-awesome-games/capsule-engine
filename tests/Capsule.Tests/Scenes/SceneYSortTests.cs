@@ -2,6 +2,7 @@ using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.UI;
+using static Capsule.Tests.Scenes.EntityHierarchyFixtures;
 
 namespace Capsule.Tests.Scenes;
 
@@ -68,19 +69,6 @@ public sealed class SceneYSortTests
         root.Add(Tag(tag));
 
         return root;
-    }
-
-    private static SpriteRenderer Tag(int tag) => new(SceneFixtures.Frame(1, 1)) { Offset = new Vector2(tag, 0f) };
-
-    private static int[] Order(ReadOnlySpan<SpriteIntent> sprites)
-    {
-        int[] tags = new int[sprites.Length];
-        for (int index = 0; index < tags.Length; index++)
-        {
-            tags[index] = (int)sprites[index].Position.X;
-        }
-
-        return tags;
     }
 
     private sealed class Marker(Vector2 position) : Entity(position);

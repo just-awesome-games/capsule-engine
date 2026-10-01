@@ -33,9 +33,9 @@ public sealed class SavePersistenceTests : IDisposable
         _workspace.Dispose();
     }
 
-    // The whole desktop path end to end: a headless run given a directory writes the file — the
-    // last write in the step that ends the run included — and the next run reads it before its
-    // first scene starts. The file is LF whatever the game's context declares.
+    // The whole desktop path end to end: a headless run given a directory writes the file, including
+    // the last write in the step that ends the run. The next run reads it before its first scene
+    // starts. The file is LF whatever the game's context declares.
     [Fact]
     public void AHeadlessRunWithASaveDirectory_WritesTheFileASecondRunReads()
     {

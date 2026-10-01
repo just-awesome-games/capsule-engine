@@ -50,6 +50,25 @@ public sealed class InputScriptTests
     {
         Assert.Throws<InvalidOperationException>(() => new InputScript().Down(Key.Space).Tap(Key.Space));
         Assert.Throws<InvalidOperationException>(() => new InputScript().Down(PadButton.South).Tap(PadButton.South));
+        Assert.Throws<InvalidOperationException>(() => new InputScript().Down(MouseButton.Left).Tap(MouseButton.Left));
+    }
+
+    [Fact]
+    public void AStickDirection_IsHeldReleasedAndTappedLikeAButton()
+    {
+        InputButton up = StickDirection.LeftStickUp;
+        InputButton left = StickDirection.LeftStickLeft;
+        List<DeviceSnapshot> steps = Steps(new InputScript()
+            .Down(up)
+            .Wait(1)
+            .Up(up)
+            .Tap(left)
+            .Build());
+
+        Assert.True(up.IsDown(steps[0]));
+        Assert.False(up.IsDown(steps[1]));
+        Assert.True(left.IsDown(steps[1]));
+        Assert.Throws<InvalidOperationException>(() => new InputScript().Down(up).Tap(up));
     }
 
     [Fact]
@@ -81,20 +100,6 @@ public sealed class InputScriptTests
         Assert.Equal(new Vector2(12f, 34f), steps[1].Pointer);
         Assert.Equal(new Vector2(-5f, 34f), steps[2].Pointer);
         Assert.False(steps[2].IsDown(MouseButton.Left));
-    }
-
-    [Fact]
-    public void AMouseButton_IsHeldAndReleasedLikeAnyOther()
-    {
-        List<DeviceSnapshot> steps = Steps(new InputScript()
-            .Down(MouseButton.Right)
-            .Wait(1)
-            .Up(MouseButton.Right)
-            .Wait(1)
-            .Build());
-
-        Assert.True(steps[0].IsDown(MouseButton.Right));
-        Assert.False(steps[1].IsDown(MouseButton.Right));
     }
 
     [Fact]
@@ -131,14 +136,6 @@ public sealed class InputScriptTests
             .Build());
 
         Assert.Equal([true, false, true], steps.Select(snapshot => snapshot.HasWindowFocus));
-    }
-
-    [Fact]
-    public void TappingAHeldMouseButton_IsRefused()
-    {
-        InputScript script = new InputScript().Down(MouseButton.Left);
-
-        Assert.Throws<InvalidOperationException>(() => script.Tap(MouseButton.Left));
     }
 
     private static List<DeviceSnapshot> Steps(IInputDriver driver)

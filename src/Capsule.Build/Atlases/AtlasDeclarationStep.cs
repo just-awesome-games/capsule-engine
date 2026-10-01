@@ -23,7 +23,7 @@ internal static class AtlasDeclarationStep
             try
             {
                 config = AssetConfigJsonContext.Read(file, AssetConfigJsonContext.Default.AtlasConfigJson, AtlasConfigJson.Shape);
-                if (config.MaxSize is { } maxSize && (maxSize <= 0 || maxSize > AtlasConfigJson.LargestMaxSize || !int.IsPow2(maxSize)))
+                if (config.MaxSize is { } maxSize && (maxSize > AtlasConfigJson.LargestMaxSize || !int.IsPow2(maxSize)))
                 {
                     throw new FormatException($"sets \"maxSize\" to {maxSize}. {AtlasConfigJson.Shape}");
                 }

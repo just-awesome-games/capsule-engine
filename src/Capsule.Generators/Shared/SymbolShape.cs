@@ -52,51 +52,38 @@ internal static class SymbolShape
         return false;
     }
 
-    // Public constructors taking one parameter of the named type. The generated call site passes an lvalue,
-    // which binds to any of these ref kinds.
-    internal static List<IMethodSymbol> PublicConstructorsTaking(INamedTypeSymbol type, Compilation compilation, string parameterTypeName)
+    // Non-private constructors taking one parameter of the named type. The generated call site passes an
+    // lvalue, which binds to any of these ref kinds.
+    internal static List<IMethodSymbol> ConstructorsTaking(INamedTypeSymbol type, Compilation compilation, string parameterTypeName)
     {
         INamedTypeSymbol? parameterType = compilation.GetTypeByMetadataName(parameterTypeName);
 
         return type.InstanceConstructors
-            .Where(constructor => constructor.DeclaredAccessibility == Accessibility.Public
+            .Where(constructor => constructor.DeclaredAccessibility != Accessibility.Private
                 && constructor.Parameters.Length == 1
                 && constructor.Parameters[0].RefKind is RefKind.None or RefKind.In or RefKind.RefReadOnlyParameter
                 && SymbolEqualityComparer.Default.Equals(constructor.Parameters[0].Type, parameterType))
             .ToList();
     }
 
-    internal static bool HasPublicParameterlessConstructor(INamedTypeSymbol type)
+    internal static List<IMethodSymbol> Public(List<IMethodSymbol> constructors) =>
+        constructors.Where(static constructor => constructor.DeclaredAccessibility == Accessibility.Public).ToList();
+
+    /// <summary>How the generated call passes the parameter: empty, <c>in </c> or <c>ref readonly </c>.</summary>
+    internal static string Modifier(RefKind kind) => kind switch
     {
-        foreach (IMethodSymbol constructor in type.InstanceConstructors)
-        {
-            if (constructor.DeclaredAccessibility == Accessibility.Public && constructor.Parameters.Length == 0)
-            {
-                return true;
-            }
-        }
+        RefKind.In => "in ",
+        RefKind.RefReadOnlyParameter => "ref readonly ",
+        _ => string.Empty,
+    };
 
-        return false;
-    }
+    internal static bool HasPublicParameterlessConstructor(INamedTypeSymbol type) =>
+        type.InstanceConstructors.Any(static constructor => constructor.Parameters.Length == 0 && constructor.DeclaredAccessibility == Accessibility.Public);
 
-    // A parameterless constructor generated code can call: public, internal or protected internal.
-    // Generated code sits in the same assembly but does not derive from the type. An internal
-    // constructor is reachable from there, and a protected or private protected one is not. A camera's
-    // claim is the one caller. A scene's or driver's parameterless shape instead runs through
-    // HasPublicParameterlessConstructor, a public API a game can also call.
-    internal static bool HasAccessibleParameterlessConstructor(INamedTypeSymbol type)
-    {
-        foreach (IMethodSymbol constructor in type.InstanceConstructors)
-        {
-            if (constructor.Parameters.Length == 0
-                && constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    // Generated code sits in the type's assembly but does not derive from it, so a protected constructor is out of reach.
+    internal static bool HasAccessibleParameterlessConstructor(INamedTypeSymbol type) =>
+        type.InstanceConstructors.Any(static constructor => constructor.Parameters.Length == 0
+            && constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal);
 
     internal static bool IsAccessibleFromGeneratedCode(INamedTypeSymbol type)
     {

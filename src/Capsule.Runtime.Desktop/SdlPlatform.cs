@@ -25,9 +25,7 @@ internal static class SdlPlatform
 
     private delegate int SdlEventFilter(nint userData, nint sdlEvent);
 
-    // Brings the window to the front and asks for keyboard focus. Windows grants foreground
-    // activation only to a process that already holds it, and a launch from a busy terminal can still
-    // leave the window behind that terminal.
+    // Brings the window to the front and asks for keyboard focus. Windows may refuse it.
     internal static void RaiseWindow(nint window) => SDL_RaiseWindow(window);
 
     // SDL's own keyboard-focus flag, false from creation until the OS grants focus. The backend's

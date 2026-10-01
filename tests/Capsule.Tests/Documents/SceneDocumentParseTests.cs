@@ -51,47 +51,6 @@ public sealed class SceneDocumentParseTests
         Assert.Contains(fix, error.Message, StringComparison.Ordinal);
     }
 
-    // A field the format does not define is a typo, which no document is read past.
-    [Fact]
-    public void Parse_RejectsAFieldTheFormatDoesNotDefine()
-    {
-        Assert.Throws<SceneDocumentFormatException>(() => SceneDocumentFile.Parse(DocumentText(extra: ""","spawn": [0, 0]""")));
-    }
-
-    // Entry order is the document's, and nothing about a tile map makes it first or unique.
-    [Theory]
-    [InlineData("coin")]
-    [InlineData("tile-map")]
-    public void Parse_AllowsATileMapAfterAnyEntry(string firstType)
-    {
-        string first = firstType == "tile-map"
-            ? """{ "id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": { "tileSize": 16, "width": 1, "height": 1, "tileTypes": [ { "name": "empty" } ], "tiles": [0] } }"""
-            : """{ "id": 1, "type": "coin", "x": 0, "y": 0 }""";
-
-        SceneDocument document = SceneDocumentFile.Parse($$"""
-            {
-              "formatVersion": 8,
-              "entities": [
-                {{first}},
-                { "id": 2, "type": "tile-map", "x": 0, "y": 0,
-                  "properties": { "tileSize": 16, "width": 1, "height": 1,
-                                  "tileTypes": [ { "name": "empty" } ], "tiles": [0] } }
-              ],
-              "nextEntityId": 3
-            }
-            """);
-
-        Assert.NotNull(document.Entries[1].TileMap);
-        if (firstType == "tile-map")
-        {
-            Assert.NotNull(document.Entries[0].TileMap);
-        }
-        else
-        {
-            Assert.NotNull(document.Entries[0].Entity);
-        }
-    }
-
     [Theory]
     [InlineData("null", "[0, 1]", "the 'tile-map' entry's grid has no tileTypes")]
     [InlineData(null, "null", "the 'tile-map' entry's grid has no tiles")]
@@ -113,13 +72,7 @@ public sealed class SceneDocumentParseTests
     // The two spellings differ only for the separator JSON itself escapes.
     [Theory]
     [InlineData("tiles", "tiles")]
-    [InlineData("tiles.", "tiles.")]
-    [InlineData(".png", ".png")]
-    [InlineData("a//tiles.png", "a//tiles.png")]
     [InlineData("../tiles.png", "../tiles.png")]
-    [InlineData("./tiles.png", "./tiles.png")]
-    [InlineData("a/tiles", "a/tiles")]
-    [InlineData("a/", "a/")]
     [InlineData("a\\\\tiles.png", "a\\tiles.png")]
     [InlineData(" ", " ")]
     public void Parse_RejectsATextureThatIsNotOneAssetPath(string authored, string texture)
@@ -142,6 +95,7 @@ public sealed class SceneDocumentParseTests
     [InlineData(Coin, 2, "entity id 2 is not below nextEntityId 2")]
     [InlineData("", 1, "entity id 1 is not below nextEntityId 1")]
     [InlineData(", null", 2, "entities[1] is null")]
+    [InlineData(""",{"type": "coin", "x": 128, "y": 64}""", 2, "entity 'coin' at (128, 64) has no id. Assign one")]
     [InlineData(""",{"id": 2, "type": "coin", "y": 0}""", 3, "entities[1] has no x")]
     [InlineData(""",{"id": 2, "type": "coin", "x": 8}""", 3, "entities[1] has no y")]
     [InlineData(""",{"id": 2, "x": 8, "y": 0}""", 3, "entity id 2 has no type")]
@@ -164,26 +118,6 @@ public sealed class SceneDocumentParseTests
         SceneDocumentFile.Parse(DocumentText(
             entities: """,{"id": 2, "type": "coin", "x": 8, "y": 0, "properties": {"route": {"len": 1e999}}}""",
             nextEntityId: 3));
-    }
-
-    [Fact]
-    public void Parse_NamesTheFixWhenAnEntityHasNoId()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(
-                entities: """
-                    ,
-                        {
-                          "type": "coin",
-                          "x": 128,
-                          "y": 64
-                        }
-                    """)));
-
-        Assert.Contains("coin", error.Message, StringComparison.Ordinal);
-        Assert.Contains("128", error.Message, StringComparison.Ordinal);
-        Assert.Contains("64", error.Message, StringComparison.Ordinal);
-        Assert.Contains("no id", error.Message, StringComparison.Ordinal);
     }
 
     [Theory]

@@ -32,19 +32,25 @@ public sealed class PointLightTests
         Assert.Equal(10f, light.Radius);
     }
 
-    // The headless/windowed identity: the host never touches the light list, so two identically
-    // stepped simulations of the same scene hold equal lights and ambient.
+    // Bounds is the light where the next frame places it, not swept from where the last frame drew it,
+    // and a light that draws nothing reports nothing.
     [Fact]
-    public void TwoSimulationsSteppedTheSame_HoldEqualLightsAndAmbient()
+    public void Bounds_IsTheLightAtRest_AndEmptyAtZeroIntensity()
     {
-        SceneSimulation first = new(new LitScene());
-        SceneSimulation second = new(new LitScene());
+        PointLight light = new() { Radius = 10f };
+        SceneFixtures.Drifter lit = new(new Vector2(100, 50));
+        lit.Add(light);
+        SceneFixtures.HookScene scene = new(SceneFixtures.Opens(new Vector2(100, 50)));
+        scene.Add(lit);
+        SceneSimulation simulation = new(scene);
 
-        first.Step(SceneFixtures.Step());
-        second.Step(SceneFixtures.Step());
+        simulation.Step(SceneFixtures.Step());
 
-        Assert.Equal(second.View.Lights.ToArray(), first.View.Lights.ToArray());
-        Assert.Equal(second.View.Ambient, first.View.Ambient);
+        Assert.Equal(new Rect(91, 40, 111, 60), light.Bounds);
+
+        light.Intensity = 0f;
+
+        Assert.True(light.Bounds.IsEmpty);
     }
 
     [Fact]
@@ -124,23 +130,5 @@ public sealed class PointLightTests
         FrameView view = simulation.View;
         Assert.Equal(1, view.Lights.Length);
         Assert.Contains(view.ParallaxLayers.ToArray(), layer => layer.FirstLight == 0);
-    }
-
-    private sealed class LitScene : Scene
-    {
-        internal LitScene()
-        {
-            Ambient = new ColorRgba(64, 68, 96);
-            Camera.Center = new Vector2(50, 50);
-            Camera.ViewportSize = SceneFixtures.Viewport;
-            Add(new LightEntity(new Vector2(50, 50), 12f));
-        }
-    }
-
-    private sealed class LightEntity : Entity
-    {
-        internal LightEntity(Vector2 position, float radius)
-            : base(position) =>
-            Add(new PointLight { Radius = radius, Color = ColorRgba.Cyan });
     }
 }

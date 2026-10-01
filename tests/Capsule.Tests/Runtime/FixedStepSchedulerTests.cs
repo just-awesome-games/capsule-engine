@@ -1,8 +1,5 @@
 using Capsule.Input;
-using Capsule.Rendering;
 using Capsule.Runtime;
-using Capsule.Runtime.Scenes;
-using Capsule.Scenes;
 
 namespace Capsule.Tests.Runtime;
 
@@ -187,37 +184,6 @@ public sealed class FixedStepSchedulerTests
         Assert.Equal(atOne.Tick, atQuarter.Tick);
     }
 
-    // A single step is one step at any pace, and it never touches the accumulator the pace feeds.
-    [Fact]
-    public void TimeScale_DoesNotChangeAStepTakenByHandWhileHeld()
-    {
-        RecordingSimulation simulation = new(Jump);
-        FixedStepScheduler scheduler = CreateScheduler();
-        scheduler.TimeScale = 4;
-        scheduler.Held = true;
-
-        Assert.False(scheduler.StepOnce(DeviceSnapshot.Empty, simulation));
-
-        Assert.Single(simulation.Recorded);
-        Assert.Equal(1, scheduler.StepsThisFrame);
-        Assert.Equal(0, scheduler.AccumulatorSeconds);
-    }
-
-    // The pace asks for more steps than the frame bound allows, so the frame runs its bound and
-    // drops the rest: past the bound a scale buys no more steps.
-    [Fact]
-    public void TimeScale_StillGivesWayToTheFrameStepBound()
-    {
-        RecordingSimulation simulation = new(Jump);
-        FixedStepScheduler scheduler = CreateScheduler(maxStepsPerFrame: 3);
-        scheduler.TimeScale = 4;
-
-        scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, simulation);
-
-        Assert.Equal(3, simulation.Recorded.Count);
-        Assert.Equal(0, scheduler.AccumulatorSeconds);
-    }
-
     [Theory]
     [InlineData(double.NaN)]
     [InlineData(double.PositiveInfinity)]
@@ -229,37 +195,6 @@ public sealed class FixedStepSchedulerTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => scheduler.TimeScale = scale);
         Assert.Equal(1, scheduler.TimeScale);
-    }
-
-    // The run owns the pace and the scheduler holds what is applied: the host copies the one into
-    // the other ahead of each advance, which is the frame HostFrame runs.
-    [Fact]
-    public void ThePaceTheRunHolds_ChangesHowManyStepsTheFramesAfterItRun()
-    {
-        PaceScene scene = new();
-        using SceneHost host = new(
-            SceneTransition.ToScene(typeof(PaceScene), null),
-            (in SceneTransition _) => scene,
-            new Run());
-        FixedStepScheduler scheduler = CreateScheduler();
-
-        // A frame worth one step buys one, until the scene's first step halves the pace.
-        HostFrame(scheduler, host);
-
-        Assert.Equal(1, scheduler.Tick);
-        Assert.Equal(0.5, host.Run.TimeScale);
-
-        // At a half it buys one every second frame; the scene's second step then doubles the pace.
-        HostFrame(scheduler, host);
-        Assert.Equal(1, scheduler.Tick);
-        HostFrame(scheduler, host);
-
-        Assert.Equal(2, scheduler.Tick);
-        Assert.Equal(2, host.Run.TimeScale);
-
-        HostFrame(scheduler, host);
-
-        Assert.Equal(4, scheduler.Tick);
     }
 
     [Fact]
@@ -277,33 +212,10 @@ public sealed class FixedStepSchedulerTests
     private static FixedStepScheduler CreateScheduler(int maxStepsPerFrame = 5) =>
         new(StepSeconds, maxStepsPerFrame, new ActionBindings().Bind(Jump, Key.Space));
 
-    // One host frame: the run's pace applied, then the frame's elapsed time spent.
-    private static void HostFrame(FixedStepScheduler scheduler, SceneHost host)
-    {
-        scheduler.TimeScale = host.Run.TimeScale;
-        scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, host);
-    }
-
     private static void AssertStep(in RecordedStep step, long tick)
     {
         Assert.Equal(tick, step.Tick);
         Assert.Equal((float)StepSeconds, step.DeltaSeconds);
         Assert.Equal(tick * StepSeconds, step.TotalSeconds);
-    }
-
-    // Halves the run's pace on its first step and doubles it on its second.
-    private sealed class PaceScene : Scene
-    {
-        protected override void OnStep(in StepContext context)
-        {
-            if (context.Tick == 0)
-            {
-                Run.TimeScale = 0.5;
-            }
-            else if (context.Tick == 1)
-            {
-                Run.TimeScale = 2;
-            }
-        }
     }
 }

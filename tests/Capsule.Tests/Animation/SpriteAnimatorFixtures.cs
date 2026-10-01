@@ -21,13 +21,11 @@ internal static class SpriteAnimatorFixtures
     // A one-tick first frame is the case a step that advanced too early would erase entirely.
     internal static readonly SpriteClip Blink = new([Frame(5), Frame(6)], [1, 3]);
 
-    // Pose variants: Walk's and Land's shape exactly, different frames.
+    // A pose variant: Walk's shape exactly, different frames.
     internal static readonly SpriteClip WalkArmed = new(
         [Frame(10), Frame(11), Frame(12)],
         [2, 2, 2],
         loop: true);
-
-    internal static readonly SpriteClip LandArmed = new([Frame(13), Frame(14)], [1, 1]);
 
     // An uneven, non-looping clip: the tick offset has to walk the durations, not divide by one.
     internal static readonly SpriteClip Shoot = new([Frame(20), Frame(21)], [4, 1]);

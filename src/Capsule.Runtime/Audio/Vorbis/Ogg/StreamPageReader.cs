@@ -1,16 +1,13 @@
 #nullable disable
 #pragma warning disable
-using Capsule.Runtime.Audio.Vorbis.Contracts.Ogg;
 using System;
 using System.Collections.Generic;
 
 namespace Capsule.Runtime.Audio.Vorbis.Ogg
 {
-    class StreamPageReader : IStreamPageReader
+    sealed class StreamPageReader
     {
-        internal static Func<IStreamPageReader, int, Contracts.IPacketProvider> CreatePacketProvider { get; set; } = (pr, ss) => new PacketProvider(pr, ss);
-
-        private readonly IPageData _reader;
+        private readonly PageReader _reader;
         private readonly List<long> _pageOffsets = new List<long>();
 
         private int _lastSeqNbr;
@@ -23,24 +20,15 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
         private bool _lastPageIsContinuation;
         private bool _lastPageIsContinued;
         private int _lastPagePacketCount;
-        private int _lastPageOverhead;
 
         private Memory<byte>[] _cachedPagePackets;
 
-        public Contracts.IPacketProvider PacketProvider { get; private set; }
+        public PacketProvider PacketProvider { get; }
 
-        public StreamPageReader(IPageData pageReader, int streamSerial)
+        public StreamPageReader(PageReader pageReader)
         {
             _reader = pageReader;
-
-            // The packet provider has a reference to us, and we have a reference to it.
-            // The page reader has a reference to us.
-            // The container reader has a _weak_ reference to the packet provider.
-            // The user has a reference to the packet provider.
-            // So long as the user doesn't drop their reference and the page reader doesn't drop us,
-            //  the packet provider will stay alive.
-            // This is important since the container reader only holds a week reference to it.
-            PacketProvider = CreatePacketProvider(this, streamSerial);
+            PacketProvider = new PacketProvider(this);
         }
 
         public void AddPage()
@@ -104,21 +92,13 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
                 pageOffset = -pageOffset;
             }
 
-            _reader.Lock();
-            try
+            _reader.ReadPageAt(pageOffset);
+            var packets = _reader.GetPackets();
+            if (pageIndex == _lastPageIndex)
             {
-                _reader.ReadPageAt(pageOffset);
-                var packets = _reader.GetPackets();
-                if (pageIndex == _lastPageIndex)
-                {
-                    _cachedPagePackets = packets;
-                }
-                return packets;
+                _cachedPagePackets = packets;
             }
-            finally
-            {
-                _reader.Release();
-            }
+            return packets;
         }
 
         public int FindPage(long granulePos)
@@ -204,24 +184,16 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             var pageCount = _pageOffsets.Count;
             while (pageCount == _pageOffsets.Count && !HasAllPages)
             {
-                _reader.Lock();
-                try
+                if (!_reader.ReadNextPage())
                 {
-                    if (!_reader.ReadNextPage())
-                    {
-                        HasAllPages = true;
-                        continue;
-                    }
-
-                    if (pageCount < _pageOffsets.Count)
-                    {
-                        granulePos = _reader.GranulePosition;
-                        return true;
-                    }
+                    HasAllPages = true;
+                    continue;
                 }
-                finally
+
+                if (pageCount < _pageOffsets.Count)
                 {
-                    _reader.Release();
+                    granulePos = _reader.GranulePosition;
+                    return true;
                 }
             }
             granulePos = 0;
@@ -274,24 +246,16 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
                 offset = -offset;
             }
 
-            _reader.Lock();
-            try
+            if (_reader.ReadPageAt(offset))
             {
-                if (_reader.ReadPageAt(offset))
-                {
-                    pageGranulePos = _reader.GranulePosition;
-                    return true;
-                }
-                pageGranulePos = 0;
-                return false;
+                pageGranulePos = _reader.GranulePosition;
+                return true;
             }
-            finally
-            {
-                _reader.Release();
-            }
+            pageGranulePos = 0;
+            return false;
         }
 
-        public bool GetPage(int pageIndex, out long granulePos, out bool isResync, out bool isContinuation, out bool isContinued, out int packetCount, out int pageOverhead)
+        public bool GetPage(int pageIndex, out long granulePos, out bool isResync, out bool isContinuation, out bool isContinued, out int packetCount)
         {
             if (_lastPageIndex == pageIndex)
             {
@@ -300,34 +264,25 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
                 isContinuation = _lastPageIsContinuation;
                 isContinued = _lastPageIsContinued;
                 packetCount = _lastPagePacketCount;
-                pageOverhead = _lastPageOverhead;
                 return true;
             }
 
-            _reader.Lock();
-            try
+            while (pageIndex >= _pageOffsets.Count && !HasAllPages)
             {
-                while (pageIndex >= _pageOffsets.Count && !HasAllPages)
+                if (_reader.ReadNextPage())
                 {
-                    if (_reader.ReadNextPage())
+                    // if we found our page, return it from here so we don't have to do further processing
+                    if (pageIndex < _pageOffsets.Count)
                     {
-                        // if we found our page, return it from here so we don't have to do further processing
-                        if (pageIndex < _pageOffsets.Count)
-                        {
-                            isResync = _reader.IsResync.Value;
-                            ReadPageData(pageIndex, out granulePos, out isContinuation, out isContinued, out packetCount, out pageOverhead);
-                            return true;
-                        }
-                    }
-                    else
-                    {
-                        break;
+                        isResync = _reader.IsResync.Value;
+                        ReadPageData(pageIndex, out granulePos, out isContinuation, out isContinued, out packetCount);
+                        return true;
                     }
                 }
-            }
-            finally
-            {
-                _reader.Release();
+                else
+                {
+                    break;
+                }
             }
 
             if (pageIndex < _pageOffsets.Count)
@@ -343,19 +298,11 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
                     isResync = false;
                 }
 
-                _reader.Lock();
-                try
+                if (_reader.ReadPageAt(offset))
                 {
-                    if (_reader.ReadPageAt(offset))
-                    {
-                        _lastPageIsResync = isResync;
-                        ReadPageData(pageIndex, out granulePos, out isContinuation, out isContinued, out packetCount, out pageOverhead);
-                        return true;
-                    }
-                }
-                finally
-                {
-                    _reader.Release();
+                    _lastPageIsResync = isResync;
+                    ReadPageData(pageIndex, out granulePos, out isContinuation, out isContinued, out packetCount);
+                    return true;
                 }
             }
 
@@ -364,18 +311,16 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             isContinuation = false;
             isContinued = false;
             packetCount = 0;
-            pageOverhead = 0;
             return false;
         }
 
-        private void ReadPageData(int pageIndex, out long granulePos, out bool isContinuation, out bool isContinued, out int packetCount, out int pageOverhead)
+        private void ReadPageData(int pageIndex, out long granulePos, out bool isContinuation, out bool isContinued, out int packetCount)
         {
             _cachedPagePackets = null;
             _lastPageGranulePos = granulePos = _reader.GranulePosition;
             _lastPageIsContinuation = isContinuation = (_reader.PageFlags & PageFlags.ContinuesPacket) != 0;
             _lastPageIsContinued = isContinued = _reader.IsContinued;
             _lastPagePacketCount = packetCount = _reader.PacketCount;
-            _lastPageOverhead = pageOverhead = _reader.PageOverhead;
             _lastPageIndex = pageIndex;
         }
 
@@ -384,7 +329,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             HasAllPages = true;
         }
 
-        // Capsule: pass-through to the underlying reader. See IPageReader.PinDiscoveredPage.
+        // Capsule: pass-through to the underlying reader. See PageReaderBase.PinDiscoveredPage.
         public void PinDiscoveredPage() => _reader.PinDiscoveredPage();
 
         public void UnpinPage() => _reader.UnpinPage();

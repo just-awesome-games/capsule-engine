@@ -14,33 +14,25 @@ using static Capsule.Tests.Runtime.OverlayRig;
 
 namespace Capsule.Tests.Runtime;
 
-// The debug draw buffer is one process-wide slot, attached by whichever overlay was built last.
-[Collection(LogSinkCollection.Name)]
 public sealed class EngineDebugDrawTests
 {
-    private const double StepSeconds = 0.1;
-
     [Fact]
     public void AfterOneStep_TheEngineEmitsCollidersCameraAndOriginsExactlyAsTheSceneHoldsThem()
     {
         // The camera's right edge lies exactly on the boundary after the grid's second cell, so the
         // view reaches two cells, the margin adds one, and the fourth solid cell must not emit.
         Physical scene = new();
-        using SceneHost host = new(SceneTransition.ToScene(typeof(Physical), null), (in SceneTransition _) => scene, new Run());
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
-        FrameView view = overlay.View;
+        using OverlayRig rig = Over(scene);
+        FrameView view = rig.Overlay.View;
 
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Right));
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        rig.Open();
+        rig.Press(Key.Right);
 
-        Assert.Equal(["Camera", "Colliders", "Origins"], overlay.Channels);
-        Assert.Equal(1, scheduler.Tick);
+        Assert.Equal(["Camera", "Colliders", "Origins"], rig.Overlay.Channels);
+        Assert.Equal(1, rig.Scheduler.Tick);
 
-        overlay.ToggleChannel("Colliders");
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        rig.Overlay.ToggleChannel("Colliders");
+        rig.Frame();
         ReadOnlySpan<LineIntent> lines = view.Lines;
 
         // Box, circle, capsule, triangle, the disabled box, then the grid's seven visible faces.
@@ -70,7 +62,7 @@ public sealed class EngineDebugDrawTests
         Assert.Equal(new ColorRgba(0, 255, 0, 128), lines[57].Color);
         Assert.Equal(new ColorRgba(0, 255, 0), lines[0].Color);
 
-        // Cell 0 owes three faces, cells 1 and 2 two each; the run's shared faces are not drawn.
+        // Cell 0 owes three faces and cells 1 and 2 two each. Shared faces are not drawn.
         GridCollider2D grid = scene.Map.Collision!;
         Aabb2D first = grid.CellBounds(0, 0);
         Assert.Equal((first.Min, new Vector2(first.Min.X, first.Max.Y)), (lines[61].A, lines[61].B));
@@ -78,92 +70,84 @@ public sealed class EngineDebugDrawTests
         Aabb2D third = grid.CellBounds(2, 0);
         Assert.Equal((new Vector2(third.Min.X, third.Max.Y), third.Max), (lines[67].A, lines[67].B));
 
-        overlay.ToggleChannel("Colliders");
-        overlay.ToggleChannel("Camera");
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        rig.Overlay.ToggleChannel("Colliders");
+        rig.Overlay.ToggleChannel("Camera");
+        rig.Frame();
         lines = view.Lines;
 
         Rect bounds = scene.Camera.Bounds!.Value;
         Assert.Equal(4, lines.Length);
         Assert.Equal((bounds.Position, new Vector2(bounds.Right, bounds.Top)), (lines[0].A, lines[0].B));
 
-        overlay.ToggleChannel("Camera");
-        overlay.ToggleChannel("Origins");
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        rig.Overlay.ToggleChannel("Camera");
+        rig.Overlay.ToggleChannel("Origins");
+        rig.Frame();
         lines = view.Lines;
 
-        // Every world entity gets a cross; the screen entity, whose position is canvas pixels, none.
+        // Every world entity gets a cross. The screen entity gets none.
         Assert.Equal((scene.Entities.Length - 1) * 2, lines.Length);
         Vector2 origin = scene.Box.Position;
         Assert.Equal((origin - new Vector2(1.5f, 0f), origin + new Vector2(1.5f, 0f)), (lines[0].A, lines[0].B));
         Assert.Equal((origin - new Vector2(0f, 1.5f), origin + new Vector2(0f, 1.5f)), (lines[1].A, lines[1].B));
     }
 
-    // Held before its first step, the run has drawn nothing into the buffer; opening Debug Draw
-    // asks the scene to emit as it stands, so the channels list without a tick, and a toggle shows
-    // its draws on the very next frame — stamped as the settled step's pass, so the step that
-    // follows replaces them rather than doubling them.
+    // A run held before its first step has drawn nothing. Opening Debug Draw asks the scene to emit
+    // as it stands. The next step replaces those draws and does not double them.
     [Fact]
     public void AHeldRun_ListsItsChannelsAndDrawsAToggleWithoutAStep()
     {
         Physical scene = new(withLowercaseChannel: true);
-        using SceneHost host = new(SceneTransition.ToScene(typeof(Physical), null), (in SceneTransition _) => scene, new Run());
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
-        FrameView view = overlay.View;
+        using OverlayRig rig = Over(scene);
+        FrameView view = rig.Overlay.View;
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.D);
+        rig.Open();
+        rig.Press(Key.D);
 
-        Assert.Equal("Debug Draw", overlay.Title);
+        Assert.Equal("Debug Draw", rig.Overlay.Title);
 
         // Ordinal would sort every capitalized channel above "extra". The overlay reads channel
         // names the way a person does.
-        Assert.Equal(["Camera", "Colliders", "extra", "Origins"], overlay.Channels);
-        Assert.Equal(0, scheduler.Tick);
+        Assert.Equal(["Camera", "Colliders", "extra", "Origins"], rig.Overlay.Channels);
+        Assert.Equal(0, rig.Scheduler.Tick);
 
-        overlay.ToggleChannel("Colliders");
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        rig.Overlay.ToggleChannel("Colliders");
+        rig.Frame();
 
         // The shapes, but none of the grid's faces: the camera's visible region is empty until its
         // first late step, so the map has nothing in view to outline yet.
-        Assert.Equal(0, scheduler.Tick);
+        Assert.Equal(0, rig.Scheduler.Tick);
         Assert.Equal(61, view.Lines.Length);
 
-        Press(overlay, scheduler, host, Key.Right);
+        rig.Press(Key.Right);
 
-        Assert.Equal(1, scheduler.Tick);
+        Assert.Equal(1, rig.Scheduler.Tick);
         Assert.Equal(68, view.Lines.Length);
     }
 
-    // The box walks two units a step. Held, the frame is settled and its collider sits where the
-    // step left it; with the run going and half a step accumulated, the frame is drawn halfway and
-    // so is the collider, on the sprite it follows.
+    // The box walks two units a step. With half a step accumulated, the frame and the collider are
+    // both drawn halfway.
     [Fact]
     public void AMovingCollider_IsDrawnWhereTheFrameDrawsItsEntity()
     {
         Physical scene = new();
-        using SceneHost host = new(SceneTransition.ToScene(typeof(Physical), null), (in SceneTransition _) => scene, new Run());
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
-        FrameView view = overlay.View;
-        overlay.ToggleChannel("Colliders");
+        using OverlayRig rig = Over(scene);
+        FrameView view = rig.Overlay.View;
+        rig.Overlay.ToggleChannel("Colliders");
 
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Right));
+        rig.Open();
+        rig.Frame(DeviceSnapshot.Of(Key.Right));
 
         Vector2 motion = scene.Box.Position - scene.Box.PreviousTransform.Position;
         Assert.Equal(new Vector2(2f, 0f), motion);
         Assert.Equal(scene.Box.Collider.Bounds.Min, view.Lines[0].A);
 
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
-        Assert.False(overlay.IsOpen);
+        rig.Frame();
+        rig.Frame(DeviceSnapshot.Of(Key.Grave));
+        Assert.False(rig.Overlay.IsOpen);
 
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty, StepSeconds / 2);
+        rig.Frame(DeviceSnapshot.Empty, StepSeconds / 2);
 
-        Assert.Equal(0.5f, scheduler.InterpolationAlpha);
+        Assert.Equal(0.5f, rig.Scheduler.InterpolationAlpha);
         Assert.Equal(scene.Box.Collider.Bounds.Min - (motion * 0.5f), view.Lines[0].A);
     }
 
@@ -174,22 +158,18 @@ public sealed class EngineDebugDrawTests
     {
         List<string> log = [];
         Scene scene = new HookScene(log);
-        using SceneHost host = new(SceneTransition.ToScene(typeof(HookScene), null), (in SceneTransition _) => scene, new Run());
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayRig rig = Over(scene);
 
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Right));
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Right));
+        rig.Open();
+        rig.Press(Key.Right);
+        rig.Frame(DeviceSnapshot.Of(Key.Right));
 
         Assert.Equal(["late", "debug", "late", "debug"], log);
 
         DebugDraw.UseBuffer(null);
         log.Clear();
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Right));
+        rig.Frame();
+        rig.Frame(DeviceSnapshot.Of(Key.Right));
 
         Assert.Equal(["late"], log);
     }
@@ -200,16 +180,13 @@ public sealed class EngineDebugDrawTests
     public void AnOverrideThatSkipsTheBase_StillGetsItsOriginsCross()
     {
         Scene scene = new SilentScene();
-        using SceneHost host = new(SceneTransition.ToScene(typeof(SilentScene), null), (in SceneTransition _) => scene, new Run());
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
-        FrameView view = overlay.View;
-        overlay.ToggleChannel("Origins");
-        overlay.ToggleChannel("Own");
+        using OverlayRig rig = Over(scene);
+        FrameView view = rig.Overlay.View;
+        rig.Overlay.ToggleChannel("Origins");
+        rig.Overlay.ToggleChannel("Own");
 
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Right));
+        rig.Open();
+        rig.Frame(DeviceSnapshot.Of(Key.Right));
         ReadOnlySpan<LineIntent> lines = view.Lines;
 
         Assert.Equal(3, lines.Length);
@@ -218,6 +195,9 @@ public sealed class EngineDebugDrawTests
         Assert.Equal((origin - new Vector2(0f, 1.5f), origin + new Vector2(0f, 1.5f)), (lines[1].A, lines[1].B));
         Assert.Equal((origin, origin + Vector2.One), (lines[2].A, lines[2].B));
     }
+
+    private static OverlayRig Over(Scene scene) =>
+        new(new SceneHost(SceneTransition.ToScene(scene.GetType(), null), (in SceneTransition _) => scene, new Run()));
 
     private sealed class Physical : Scene
     {

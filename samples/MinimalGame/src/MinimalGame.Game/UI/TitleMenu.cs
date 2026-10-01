@@ -16,12 +16,9 @@ public sealed class TitleMenu : ScreenEntity
     // Canvas pixels down from the canvas's top edge to the title's own top edge.
     private const float TitleMargin = 28f;
 
-    // Canvas pixels between neighbouring items' centres.
-    private const float ItemSpacing = 20f;
-
-    private readonly MenuItem _start = new(Anchor.Center, new Vector2(0f, -ItemSpacing), "Start");
+    private readonly MenuItem _start = new(Anchor.Center, new Vector2(0f, -MenuItem.Spacing), "Start");
     private readonly MenuItem _options = new(Anchor.Center, Vector2.Zero, "Options");
-    private readonly MenuItem _exit = new(Anchor.Center, new Vector2(0f, ItemSpacing), "Exit");
+    private readonly MenuItem _exit = new(Anchor.Center, new Vector2(0f, MenuItem.Spacing), "Exit");
 
     public TitleMenu()
         : base(Anchor.Top, new Vector2(0f, TitleMargin))
@@ -41,8 +38,8 @@ public sealed class TitleMenu : ScreenEntity
         _exit.Pressed += Quit;
     }
 
-    // The items are anchored to the canvas's centre rather than to this entity, so they are the
-    // scene's peers: an entity adds another by reaching the scene it has just joined.
+    // The items are anchored to the canvas rather than to this entity, so they are the scene's peers.
+    // An entity adds another by reaching the scene it has just joined. Every menu here does the same.
     /// <inheritdoc/>
     protected override void OnAddedToScene()
     {

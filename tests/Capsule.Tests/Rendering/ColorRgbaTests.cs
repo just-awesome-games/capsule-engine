@@ -28,14 +28,6 @@ public sealed class ColorRgbaTests
         Assert.Equal(new ColorRgba(128, 127, 101, 2), blended);
     }
 
-    [Fact]
-    public void AlphaIsBlendedAsAnyOtherChannel_BecauseTheColourIsNotPremultiplied()
-    {
-        Assert.Equal(
-            new ColorRgba(255, 255, 255, 64),
-            ColorRgba.Lerp(new ColorRgba(255, 255, 255, 0), ColorRgba.White, 0.25f));
-    }
-
     [Theory]
     [InlineData("#484c68", 72, 76, 104, 255)]
     [InlineData("#484c6880", 72, 76, 104, 128)]

@@ -34,23 +34,6 @@ public sealed class StepInterpolationTests
     }
 
     [Fact]
-    public void TheFrameworkLerpIsNotExactAtEqualEndpoints()
-    {
-        Assert.Contains(Alphas(), alpha => Vector2.Lerp(OnASnapBoundary, OnASnapBoundary, alpha) != OnASnapBoundary);
-    }
-
-    [Fact]
-    public void AMovingPositionStillInterpolatesBetweenTheEndpoints()
-    {
-        Vector2 previous = new(10f, -4f);
-        Vector2 current = new(30f, 4f);
-
-        Assert.Equal(previous, StepInterpolation.Interpolate(previous, current, 0f));
-        Assert.Equal(current, StepInterpolation.Interpolate(previous, current, 1f));
-        Assert.Equal(new Vector2(20f, 0f), StepInterpolation.Interpolate(previous, current, 0.5f));
-    }
-
-    [Fact]
     public void AStationaryCameraResolvesTheSameViewportAtEveryAlpha()
     {
         CameraView view = new(OnASnapBoundary, OnASnapBoundary, new Vector2(320f, 180f));

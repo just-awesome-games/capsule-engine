@@ -11,6 +11,7 @@ public sealed class LoopedPcmReaderTests
 {
     private const int Rate = 8;
 
+    // A repeat continues inside the buffer its boundary falls in, whatever the buffer size.
     [Theory]
     [InlineData(3)]
     [InlineData(4)]
@@ -22,19 +23,6 @@ public sealed class LoopedPcmReaderTests
         float[] expected = [0, 1, 2, 3, 4, 5, 2, 3, 4, 5, 2, 3, 4, 5, 2, 3, 4, 5];
 
         Assert.Equal(expected, Read(reader, expected.Length, buffer));
-    }
-
-    // The region's own end is the boundary, not the buffer's: a repeat continues inside the span it
-    // ended in, which is what makes it gapless at any buffer size.
-    [Fact]
-    public void ARegionsBoundary_IsCrossedInsideOneBuffer()
-    {
-        LoopedPcmReader reader = Reader(Frames(8), Region(2, 6), loop: true);
-        float[] read = new float[8];
-        float[] expected = [0, 1, 2, 3, 4, 5, 2, 3];
-
-        Assert.Equal(8, reader.Read(read));
-        Assert.Equal(expected, read);
     }
 
     [Fact]
@@ -56,10 +44,10 @@ public sealed class LoopedPcmReaderTests
         Assert.Equal(expected, Read(reader, expected.Length, buffer: 3));
     }
 
-    // A start offset is where the first read begins; the region is unaffected by it, so a loop still
+    // A start offset is where the first read begins. The region is unaffected by it, so a loop still
     // reaches the region's end once and repeats from its start. A start inside the region reads on
-    // from it rather than rewinding first — which is the position the mixer folds a start past the
-    // region's end into.
+    // from it rather than rewinding first, which is where the mixer folds a start past the region's
+    // end.
     [Theory]
     [InlineData(3, new float[] { 3, 4, 5, 2, 3, 4, 5, 2 })]
     [InlineData(4, new float[] { 4, 5, 2, 3, 4, 5, 2, 3 })]

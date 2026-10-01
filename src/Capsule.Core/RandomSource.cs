@@ -31,13 +31,28 @@ public sealed class RandomSource
     private ulong _s2;
     private ulong _s3;
 
+    /// <summary>The seed this source was created from. It is the run's identity, shared by every stream of it.</summary>
+    public ulong Seed { get; private set; }
+
+    /// <summary>The stream this source draws. It names the domain the source serves within <see cref="Seed"/>.</summary>
+    public ulong Stream { get; private set; }
+
+    /// <summary>
+    /// Raw 64-bit outputs consumed since construction. With <see cref="Seed"/> and
+    /// <see cref="Stream"/> it gives the full position, which <see cref="Advance"/> restores.
+    /// </summary>
+    public ulong DrawCount { get; private set; }
+
     /// <summary>Creates a source positioned at the start of a seed and stream's sequence.</summary>
     /// <param name="seed">Any 64-bit value, including zero. Every seed yields a full-period stream.</param>
     /// <param name="stream">
     /// The domain this source serves, as any 64-bit value. Streams of one seed are independent, and
     /// adjacent stream numbers are as far apart as distant ones.
     /// </param>
-    public RandomSource(ulong seed = DefaultSeed, ulong stream = 0)
+    public RandomSource(ulong seed = DefaultSeed, ulong stream = 0) => Reset(seed, stream);
+
+    // Repositions this source where a new one of the seed and stream would start, without allocating.
+    internal void Reset(ulong seed, ulong stream)
     {
         Seed = seed;
         Stream = stream;
@@ -52,19 +67,8 @@ public sealed class RandomSource
         // fixed point.
         _s2 = Avalanche(_s0 ^ Avalanche(_s1 + ThirdWordConstant));
         _s3 = Avalanche(_s1 + Avalanche(_s0 + FourthWordConstant));
+        DrawCount = 0;
     }
-
-    /// <summary>The seed this source was created from. It is the run's identity, shared by every stream of it.</summary>
-    public ulong Seed { get; }
-
-    /// <summary>The stream this source draws. It names the domain the source serves within <see cref="Seed"/>.</summary>
-    public ulong Stream { get; }
-
-    /// <summary>
-    /// Raw 64-bit outputs consumed since construction. With <see cref="Seed"/> and
-    /// <see cref="Stream"/> it gives the full position, which <see cref="Advance"/> restores.
-    /// </summary>
-    public ulong DrawCount { get; private set; }
 
     /// <summary>Draws the raw 64-bit output the other methods are built from. One draw.</summary>
     public ulong NextUInt64()
@@ -241,14 +245,6 @@ public sealed class RandomSource
             int swap = Range(0, index + 1);
             (values[index], values[swap]) = (values[swap], values[index]);
         }
-    }
-
-    /// <summary>Shuffles an array in place, as the span overload does.</summary>
-    public void Shuffle<T>(T[] values)
-    {
-        ArgumentNullException.ThrowIfNull(values);
-
-        Shuffle(values.AsSpan());
     }
 
     /// <summary>

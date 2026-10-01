@@ -17,15 +17,7 @@ public sealed class CrowdAllocationTests
 
         StepSample[] samples = StepMeasurement.Measure(simulation, StepSeconds, WarmupSteps, MeasuredSteps);
 
-        long stepped = 0;
-        long built = 0;
-        foreach (StepSample sample in samples)
-        {
-            stepped += sample.StepBytes;
-            built += sample.ViewBytes;
-        }
-
-        Assert.Equal(0, stepped);
-        Assert.Equal(0, built);
+        Assert.Equal(0, samples.Sum(static sample => sample.StepBytes));
+        Assert.Equal(0, samples.Sum(static sample => sample.ViewBytes));
     }
 }

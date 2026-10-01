@@ -37,36 +37,12 @@ internal sealed class AssetFiles(string noun, string parameterName)
     // separator but '/', no '.' or '..', no rooted or device path.
     private void Validate(string? name, string? extension)
     {
-        if (name is null || extension is null || !AssetPaths.Joins(name, extension))
+        if (name is null || extension is null || !AssetPaths.Joins(name, extension)
+            || !Array.TrueForAll((name + extension).Split('/'), SafeName.IsOneSafeDirectoryName))
         {
-            throw Invalid(name, extension);
-        }
-
-        int start = 0;
-        while (true)
-        {
-            int slash = name.IndexOf('/', start);
-            if (slash < 0)
-            {
-                if (!SafeName.IsOneSafeDirectoryName(name[start..] + extension))
-                {
-                    throw Invalid(name, extension);
-                }
-
-                return;
-            }
-
-            if (!SafeName.IsOneSafeDirectoryName(name[start..slash]))
-            {
-                throw Invalid(name, extension);
-            }
-
-            start = slash + 1;
+            throw new ArgumentException(
+                $"{noun} handle ('{name}', '{extension}') does not name one portable file under assets/.",
+                parameterName);
         }
     }
-
-    private ArgumentException Invalid(string? name, string? extension) =>
-        new(
-            $"{noun} handle ('{name}', '{extension}') does not name one portable file under assets/.",
-            parameterName);
 }

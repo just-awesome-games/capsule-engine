@@ -13,7 +13,6 @@ internal delegate Scene SceneResolver(in SceneTransition target);
 internal sealed class SceneHost : ISimulation, IDisposable
 {
     private readonly SceneResolver _resolve;
-    private readonly Run _run;
 
     // Null for a run with no medium behind its saves, which keeps them in memory and flushes nothing.
     private readonly ISaveStorage? _saveStorage;
@@ -28,6 +27,22 @@ internal sealed class SceneHost : ISimulation, IDisposable
     private AssetCollection? _initialPreloads;
     private bool _disposed;
 
+    public bool ExitRequested { get; private set; }
+
+    internal Run Run { get; }
+
+    // Null until the device is ready. Later transitions prepare their incoming scene through it.
+    internal Action<AssetCollection>? PrepareAssets { get; set; }
+
+    // Null until the device is ready, and for a run with none.
+    internal Action<AssetCollection>? PrefetchAssets { get; set; }
+
+    // Whether the last step's transition failed to bring its incoming scene up, because resolving,
+    // preparing or starting it threw. The run stays on the scene it was on and steps as before. The
+    // exception still propagated, and this reports where it came from. A step's own failure, after
+    // which the simulation does not continue, is not reported here.
+    internal bool TransitionFailed { get; private set; }
+
     internal SceneHost(
         in SceneTransition initialTarget,
         SceneResolver resolve,
@@ -39,7 +54,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
         ArgumentNullException.ThrowIfNull(run);
 
         _resolve = resolve;
-        _run = run;
+        Run = run;
         _target = initialTarget;
 
         // Restored ahead of the first scene, whose start may read its settings.
@@ -53,49 +68,13 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
         // Collected before the start, as a transition collects its incoming scene.
         Scene initial = resolve(initialTarget);
-        try
-        {
-            _initialPreloads = initial.CollectAssetPreloads();
-        }
-        catch (Exception collectionFailure)
-        {
-            try
-            {
-                initial.Abandon();
-            }
-            catch (Exception cleanupFailure)
-            {
-                throw new AggregateException(
-                    $"Collecting {initial.GetType().Name}'s assets and then releasing it both failed.",
-                    collectionFailure,
-                    cleanupFailure);
-            }
-
-            throw;
-        }
-
-        _current = new SceneSimulation(initial, initialTarget.Payload, _run);
+        _initialPreloads = Prepare(initial, prepare: null);
+        _current = new SceneSimulation(initial, initialTarget.Payload, run);
     }
-
-    public bool ExitRequested { get; private set; }
 
     public FrameView View => _current.View;
 
     internal Scene Scene => _current.Scene;
-
-    internal Run Run => _run;
-
-    // Null until the device is ready. Later transitions prepare their incoming scene through it.
-    internal Action<AssetCollection>? PrepareAssets { get; set; }
-
-    // Null until the device is ready, and for a run with none.
-    internal Action<AssetCollection>? PrefetchAssets { get; set; }
-
-    // Whether the last step's transition failed to bring its incoming scene up, because resolving,
-    // preparing or starting it threw. The run stays on the scene it was on and steps as before. The
-    // exception still propagated, and this reports where it came from. A step's own failure, after
-    // which the simulation does not continue, is not reported here.
-    internal bool TransitionFailed { get; private set; }
 
     public void Step(in StepContext context)
     {
@@ -189,7 +168,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
     // the same scenes.
     private void TakePrefetch()
     {
-        if (ExitRequested || !_run.TryTakePrefetch(out SceneTransition target) || _prefetched == target)
+        if (ExitRequested || !Run.TryTakePrefetch(out SceneTransition target) || _prefetched == target)
         {
             return;
         }
@@ -244,9 +223,9 @@ internal sealed class SceneHost : ISimulation, IDisposable
     // clock is read here, because the store in Core reads none, and only when a document will land.
     internal void FlushSaves()
     {
-        if (_saveStorage is { } storage && _run.Saves.IsDirty)
+        if (_saveStorage is { } storage && Run.Saves.IsDirty)
         {
-            _run.Saves.Flush(storage, DateTimeOffset.Now);
+            Run.Saves.Flush(storage, DateTimeOffset.Now);
         }
     }
 
@@ -321,31 +300,38 @@ internal sealed class SceneHost : ISimulation, IDisposable
         // The boundary consumes any prefetch, whether or not it named this scene.
         _prefetched = null;
         Scene next = _resolve(target);
+        Prepare(next, PrepareAssets);
 
+        return new SceneSimulation(next, target.Payload, Run);
+    }
+
+    // Collects a scene's preloads under every host and hands them to prepare, which only a host with
+    // a device sets. A failure releases the scene, which never started.
+    private static AssetCollection Prepare(Scene scene, Action<AssetCollection>? prepare)
+    {
         try
         {
-            // Collected under every host. Only the loading needs a device.
-            AssetCollection preloads = next.CollectAssetPreloads();
-            PrepareAssets?.Invoke(preloads);
+            AssetCollection preloads = scene.CollectAssetPreloads();
+            prepare?.Invoke(preloads);
+
+            return preloads;
         }
-        catch (Exception preparationFailure)
+        catch (Exception failure)
         {
             try
             {
-                next.Abandon();
+                scene.Abandon();
             }
             catch (Exception cleanupFailure)
             {
                 throw new AggregateException(
-                    $"Preparing {next.GetType().Name}'s assets and then releasing it both failed.",
-                    preparationFailure,
+                    $"Preparing {scene.GetType().Name}'s assets and then releasing it both failed.",
+                    failure,
                     cleanupFailure);
             }
 
             throw;
         }
-
-        return new SceneSimulation(next, target.Payload, _run);
     }
 
     private void ReleaseAssets()

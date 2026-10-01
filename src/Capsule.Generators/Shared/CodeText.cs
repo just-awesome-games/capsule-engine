@@ -16,4 +16,7 @@ internal static class CodeText
     /// <summary>The text with every character but a letter or digit replaced by an underscore: <c>Game.Door</c> is <c>Game_Door</c>.</summary>
     internal static string Underscored(string text) =>
         new(text.Select(static character => char.IsLetterOrDigit(character) ? character : '_').ToArray());
+
+    /// <summary>A fully qualified type name as one identifier: <c>global::Game.Door</c> is <c>Game_Door</c>.</summary>
+    internal static string TypeIdentifier(string qualifiedName) => Underscored(qualifiedName.Substring("global::".Length));
 }

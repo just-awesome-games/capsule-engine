@@ -6,10 +6,10 @@ namespace Capsule.Generators;
 // document would then name two bases for one scene, so this is not a question of which one wins.
 internal static class DocumentClaimCheck
 {
-    internal static void Run(SourceProductionContext context, DocumentClaimInputs inputs)
+    internal static void Run(SourceProductionContext context, (ScenePlan Scenes, EquatableArray<SceneDocumentModel> Shipped) inputs)
     {
         Dictionary<string, SceneDocumentModel> documents = new(StringComparer.Ordinal);
-        foreach (SceneDocumentModel document in inputs.Documents.Items)
+        foreach (SceneDocumentModel document in inputs.Shipped.Items)
         {
             documents[document.Key] = document;
         }

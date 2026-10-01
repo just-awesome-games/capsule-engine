@@ -111,7 +111,7 @@ internal sealed class DerivationCache
         Add(stamp, derivation.Settings);
         IReadOnlyList<string> inputs = derivation.Inputs;
         string[] hashes = new string[inputs.Count];
-        Build.Concurrently.For(hashes.Length, _parallelism, i => hashes[i] = Hashes.Of(inputs[i]));
+        Concurrently.For(hashes.Length, _parallelism, i => hashes[i] = Hashes.Of(inputs[i]));
         for (int i = 0; i < hashes.Length; i++)
         {
             Add(stamp, inputs[i]);

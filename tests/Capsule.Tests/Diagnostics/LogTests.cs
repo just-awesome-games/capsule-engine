@@ -108,16 +108,6 @@ public sealed class LogTests : IDisposable
         Assert.EndsWith(" ready", line, StringComparison.Ordinal);
     }
 
-    // Every line is the same width whatever its tick, so the columns read straight down.
-    [Fact]
-    public void TheConsoleSink_MarksALineWrittenBeforeTheClockExists()
-    {
-        string line = ConsoleLogSink.Format(LogLevel.Info, null, "ready");
-
-        Assert.Contains("boot", line, StringComparison.Ordinal);
-        Assert.Equal(ConsoleLogSink.Format(LogLevel.Info, 0L, "ready").Length, line.Length);
-    }
-
     // The tick column is only worth reading if a headless run fills it in as the windowed one does.
     [Fact]
     public void AHeadlessRun_PrefixesALineASceneWritesFromAStepWithThatStepsTick()

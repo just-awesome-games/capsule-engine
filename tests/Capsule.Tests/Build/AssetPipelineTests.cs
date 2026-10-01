@@ -39,6 +39,16 @@ public sealed class AssetPipelineTests
         Assert.StartsWith("usage:", workspace.Errors, StringComparison.Ordinal);
     }
 
+    // A project may name its asset root with a trailing separator.
+    [Fact]
+    public void AnAssetRootEndingInASeparator_NamesEachSourceAsWithoutOne()
+    {
+        using ToolWorkspace workspace = new() { Assets = "Assets/" };
+        workspace.Write("Assets/Audio/hum.wav", "not a wav");
+
+        Assert.StartsWith("Assets/Audio/hum.wav: ", workspace.Fail(), StringComparison.Ordinal);
+    }
+
     // A source deleted since the last run stops shipping, with no clean in between.
     [Fact]
     public void ASourceRemovedSinceTheLastRun_NoLongerShips()
@@ -213,7 +223,7 @@ public sealed class AssetPipelineTests
                 .Select(static path =>
                 {
                     string content = Path.GetFileName(path) == DerivationCache.FileName
-                        ? Regex.Replace(File.ReadAllText(path), "\"(started|walked|written)\":\"[^\"]*\"", string.Empty)
+                        ? Regex.Replace(File.ReadAllText(path), "\"(started|written)\":\"[^\"]*\"", string.Empty)
                         : Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(path)));
 
                     return Path.GetRelativePath(ToolWorkspace.Out, path).Replace('\\', '/') + " " + content;

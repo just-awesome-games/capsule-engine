@@ -1,5 +1,4 @@
 using System.Numerics;
-using Capsule.Assets;
 using Capsule.Rendering;
 
 namespace Capsule.Tests.Rendering;
@@ -19,6 +18,7 @@ public sealed class ScreenLayerTests
 
         Assert.Equal(new Vector2(1f, 1f), Assert.Single(view.Sprites.ToArray()).Position);
         Assert.Equal([new Vector2(2f, 2f), new Vector2(3f, 3f)], view.ScreenSprites.ToArray().Select(sprite => sprite.Position));
+        Assert.Equal(new RenderMetrics(Submitted: 3, Visible: 3), view.Metrics);
     }
 
     [Fact]
@@ -73,17 +73,6 @@ public sealed class ScreenLayerTests
     }
 
     [Fact]
-    public void Metrics_CountBothLists()
-    {
-        FrameView view = Canvas(100f, 100f);
-
-        view.Add(Quad(Vector2.Zero), RenderSpace.World);
-        view.Add(Quad(Vector2.Zero), RenderSpace.Screen);
-
-        Assert.Equal(new RenderMetrics(Submitted: 2, Visible: 2), view.Metrics);
-    }
-
-    [Fact]
     public void ARewrittenFrame_DropsBothListsAndReturnsToWorldSpace()
     {
         FrameView view = Canvas(100f, 100f);
@@ -95,19 +84,6 @@ public sealed class ScreenLayerTests
         Assert.Empty(view.ScreenSprites.ToArray());
         Assert.Equal(RenderSpace.World, view.Space);
         Assert.Equal(new RenderMetrics(Submitted: 0, Visible: 0), view.Metrics);
-    }
-
-    [Fact]
-    public void TheEngineWhiteTexel_IsReservedAndPreloadsNothing()
-    {
-        AssetCollection assets = new();
-
-        assets.Add(TextureHandle.White);
-        assets.Add(Sprite.White.Texture);
-
-        Assert.Empty(assets.Textures);
-        Assert.Equal(new TextureRegion(0, 0, 1, 1), Sprite.White.Region);
-        Assert.NotEqual(default, TextureHandle.White);
     }
 
     private static FrameView Canvas(float width, float height) => new() { Canvas = new Vector2(width, height) };

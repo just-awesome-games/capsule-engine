@@ -122,21 +122,7 @@ public sealed class TileGrid
     public ReadOnlySpan<TileTransform> Transforms => _transforms;
 
     // Whether any palette entry is on a layer. A grid with none needs no collider.
-    internal bool Collides
-    {
-        get
-        {
-            foreach (TileType tileType in _tileTypes)
-            {
-                if (tileType.Layer is not null)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-    }
+    internal bool Collides => Array.Exists(_tileTypes, static tileType => tileType.Layer is not null);
 
     // Memory instead of a span, so a map can hold them. A map never writes the grid's own table.
     internal ReadOnlyMemory<Sprite?> Sprites => _sprites;
@@ -214,14 +200,12 @@ public sealed class TileGrid
                 ValidateFrames(tileType, frames, i);
             }
 
-            if (tileType.Layer is { } layer)
+            if (tileType.Layer is { } layer && string.IsNullOrWhiteSpace(layer))
             {
-                if (string.IsNullOrWhiteSpace(layer))
-                {
-                    throw Malformed($"tileTypes[{i}] has a blank layer. Name the layer a colliding tile is on.", "tileTypes");
-                }
+                throw Malformed($"tileTypes[{i}] has a blank layer. Name the layer a colliding tile is on.", "tileTypes");
             }
-            else if (tileType.Shape is not null || tileType.OneWay)
+
+            if (tileType.Layer is null && (tileType.Shape is not null || tileType.OneWay))
             {
                 throw Malformed(
                     $"tileTypes[{i}] declares {(tileType.Shape is null ? "oneWay" : "a shape")} but no layer and collides as nothing. Add a layer or drop it.",
@@ -296,7 +280,7 @@ public sealed class TileGrid
     // half-written grid.
     private void ValidateTexture()
     {
-        int drawn = 0;
+        bool drawn = false;
         for (int i = 0; i < _tileTypes.Length; i++)
         {
             TileType tileType = _tileTypes[i];
@@ -305,7 +289,7 @@ public sealed class TileGrid
                 continue;
             }
 
-            drawn++;
+            drawn = true;
 
             if (Texture is null)
             {
@@ -328,7 +312,7 @@ public sealed class TileGrid
             return;
         }
 
-        if (drawn == 0)
+        if (!drawn)
         {
             throw Malformed(
                 $"the grid names texture \"{Texture.Value.Name}\" but no tile type draws a cell of it. Give a tile type a cell or frames, or drop the texture.",
@@ -448,12 +432,7 @@ public sealed class TileGrid
 
     private Animation[] CutAnimations()
     {
-        int count = 0;
-        foreach (TileType tileType in _tileTypes)
-        {
-            count += tileType.Frames is null ? 0 : 1;
-        }
-
+        int count = _tileTypes.Count(static tileType => tileType.Frames is not null);
         if (count == 0)
         {
             return [];

@@ -237,18 +237,12 @@ public sealed class Rumble
         {
             if (slots[i].Live)
             {
-                Rebase(ref slots[i]);
+                slots[i].ElapsedAtClock = ElapsedSeconds(in slots[i]);
+                slots[i].Clock = _tick;
             }
         }
 
         _stepSeconds = stepSeconds;
-    }
-
-    // Banks the elapsed time this pulse has reached, measured at the step length that produced it.
-    private void Rebase(ref Slot slot)
-    {
-        slot.ElapsedAtClock = ElapsedSeconds(in slot);
-        slot.Clock = _tick;
     }
 
     private RumbleHandle Start(float low, float high, float leftTrigger, float rightTrigger, float seconds, RumbleFade fade, bool held)

@@ -11,7 +11,7 @@ namespace Capsule.Physics;
 /// <see cref="Everything"/> name no table, and every world accepts them.
 /// </para>
 /// </remarks>
-public readonly struct CollisionFilter : IEquatable<CollisionFilter>
+public readonly record struct CollisionFilter
 {
     private readonly ulong _mask;
     private readonly int _world;
@@ -87,21 +87,6 @@ public readonly struct CollisionFilter : IEquatable<CollisionFilter>
     /// <exception cref="ArgumentException">The two filters belong to different worlds.</exception>
     public static CollisionFilter operator &(CollisionFilter left, CollisionFilter right) =>
         new(Shared(left._world, right._world, nameof(right)), left._mask & right._mask);
-
-    /// <summary>Whether two filters match the same set of layers of the same world.</summary>
-    public static bool operator ==(CollisionFilter left, CollisionFilter right) => left.Equals(right);
-
-    /// <summary>Whether two filters match different sets of layers, or belong to different worlds.</summary>
-    public static bool operator !=(CollisionFilter left, CollisionFilter right) => !left.Equals(right);
-
-    /// <inheritdoc/>
-    public bool Equals(CollisionFilter other) => _world == other._world && _mask == other._mask;
-
-    /// <inheritdoc/>
-    public override bool Equals(object? obj) => obj is CollisionFilter other && Equals(other);
-
-    /// <inheritdoc/>
-    public override int GetHashCode() => HashCode.Combine(_world, _mask);
 
     // A layer's world, required to be non-zero. An unstamped layer is a zero index, so treating it
     // as world-agnostic would build a filter every world accepts as its own index-0 entry.

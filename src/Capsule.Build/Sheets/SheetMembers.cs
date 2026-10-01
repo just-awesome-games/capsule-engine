@@ -51,23 +51,20 @@ internal static class SheetMembers
             {
                 code.Append(member).Append("private static readonly ").Append(GeneratedTypes.SpriteSocket).Append("[] ")
                     .Append(table).AppendLine(" =");
-                code.Append(member).Append('{');
-                for (int j = 0; j < frame.Sockets.Length; j++)
-                {
-                    SheetSocket socket = frame.Sockets[j];
-                    code.AppendLine().Append(member).Append("    new ").Append(GeneratedTypes.SpriteSocket).Append('(')
-                        .Append(Literal.Of(socket.Name)).Append(", new ").Append(GeneratedTypes.Vector2).Append('(')
-                        .Append(Literal.Of(socket.X)).Append(", ").Append(Literal.Of(socket.Y)).Append("))")
-                        .Append(j + 1 < frame.Sockets.Length ? "," : string.Empty);
-                }
-
+                code.Append(member).AppendLine("{").AppendJoin("," + Environment.NewLine, frame.Sockets.Select(socket =>
+                    $"{member}    new {GeneratedTypes.SpriteSocket}({Literal.Of(socket.Name)}, new {GeneratedTypes.Vector2}({Literal.Of(socket.X)}, {Literal.Of(socket.Y)}))"));
                 code.AppendLine().Append(member).AppendLine("};").AppendLine();
             }
 
             code.Append(member).Append("/// <summary><c>").Append(frame.Name).Append("</c>: ")
                 .Append(Literal.Of(frame.Width)).Append('x').Append(Literal.Of(frame.Height))
                 .Append(" at (").Append(Literal.Of(frame.X)).Append(", ").Append(Literal.Of(frame.Y)).Append(')');
-            AppendSocketNames(code, frame);
+            if (frame.Sockets.Length > 0)
+            {
+                code.Append(frame.Sockets.Length == 1 ? ", socket " : ", sockets ")
+                    .AppendJoin(", ", frame.Sockets.Select(static socket => $"<c>{socket.Name}</c>"));
+            }
+
             code.AppendLine(".</summary>");
             code.Append(member).Append("public static ").Append(GeneratedTypes.Sprite).Append(' ')
                 .Append(Identifier(frame.Name)).Append(" => new ").Append(GeneratedTypes.Sprite).AppendLine("(");
@@ -135,72 +132,22 @@ internal static class SheetMembers
 
             code.Append(member).Append("/// <summary><c>").Append(clip.Name).Append("</c>: ")
                 .Append(Literal.Of(clip.Frames.Length)).Append(clip.Frames.Length == 1 ? " frame, " : " frames, ")
-                .Append(Literal.Of(TotalTicks(clip))).Append(" ticks, ")
+                .Append(Literal.Of(clip.Frames.Sum(static frame => frame.Ticks))).Append(" ticks, ")
                 .Append(clip.Loop ? "looping" : "played once").AppendLine(".</summary>");
 
             // A property with a field initializer, not an expression body. A clip is immutable, so
             // every entity playing it reads the same instance.
             code.Append(member).Append("public static ").Append(GeneratedTypes.SpriteClip).Append(' ')
                 .Append(Identifier(clip.Name)).Append(" { get; } = new ").Append(GeneratedTypes.SpriteClip).AppendLine("(");
-            code.Append(member).Append("    new ").Append(GeneratedTypes.Sprite).Append("[] { ");
-            for (int j = 0; j < clip.Frames.Length; j++)
-            {
-                if (j > 0)
-                {
-                    code.Append(", ");
-                }
-
-                code.Append(FramesClass).Append('.').Append(Identifier(clip.Frames[j].Frame));
-            }
-
-            code.AppendLine(" },");
-            code.Append(member).Append("    new int[] { ");
-            for (int j = 0; j < clip.Frames.Length; j++)
-            {
-                if (j > 0)
-                {
-                    code.Append(", ");
-                }
-
-                code.Append(Literal.Of(clip.Frames[j].Ticks));
-            }
-
-            code.Append(" },").AppendLine();
+            code.Append(member).Append("    new ").Append(GeneratedTypes.Sprite).Append("[] { ")
+                .AppendJoin(", ", clip.Frames.Select(static frame => FramesClass + "." + Identifier(frame.Frame))).AppendLine(" },");
+            code.Append(member).Append("    new int[] { ")
+                .AppendJoin(", ", clip.Frames.Select(static frame => Literal.Of(frame.Ticks))).AppendLine(" },");
             code.Append(member).Append("    ").Append(clip.Loop ? "true" : "false").AppendLine(");");
         }
 
         code.Append(frames).AppendLine("}");
         code.Append(indent).AppendLine("}");
-    }
-
-    private static void AppendSocketNames(StringBuilder code, SheetFrame frame)
-    {
-        if (frame.Sockets.Length == 0)
-        {
-            return;
-        }
-
-        code.Append(frame.Sockets.Length == 1 ? ", socket " : ", sockets ");
-        for (int i = 0; i < frame.Sockets.Length; i++)
-        {
-            if (i > 0)
-            {
-                code.Append(", ");
-            }
-
-            code.Append("<c>").Append(frame.Sockets[i].Name).Append("</c>");
-        }
-    }
-
-    private static int TotalTicks(SheetClip clip)
-    {
-        int total = 0;
-        foreach (SheetClipFrame frame in clip.Frames)
-        {
-            total += frame.Ticks;
-        }
-
-        return total;
     }
 
     // The document has already been validated. A name that is not an identifier cannot reach here.

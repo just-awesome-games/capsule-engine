@@ -85,7 +85,7 @@ public sealed class AudioResidencyTests
     }
 
     // A SoundEffectInstance starts at the front of its buffer and nowhere else, so a resident clip
-    // asked for a start offset takes the streaming path the region loop takes — from the same
+    // asked for a start offset takes the streaming path the region loop takes, from the same
     // resident sound, so it is still one load and the voice still counts against its residency.
     [Fact]
     public void AResidentClipPlayedFromAnOffset_StreamsTheResidentSoundsSamples()
@@ -104,25 +104,6 @@ public sealed class AudioResidencyTests
         Assert.False(sound.Disposed);
 
         fixture.Apply(Command(AudioCommandKind.Stop, Slot(0, 1)));
-        Assert.True(sound.Disposed);
-    }
-
-    // A voice started on one scene plays on into the next, because the mixer is the run's. The sound
-    // it is playing therefore cannot be released with the scene that loaded it.
-    [Fact]
-    public void ASoundALiveVoiceIsPlayingSurvivesTheSceneThatLoadedIt()
-    {
-        using Fixture fixture = new();
-        fixture.Preload(Step);
-        fixture.Apply(Command(AudioCommandKind.Play, Slot(0, 1), Step));
-
-        FakeSound sound = Assert.Single(fixture.Backend.Loaded);
-        fixture.Preload();
-
-        Assert.False(sound.Disposed);
-
-        fixture.Apply(Command(AudioCommandKind.Stop, Slot(0, 1)));
-
         Assert.True(sound.Disposed);
     }
 

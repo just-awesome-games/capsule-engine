@@ -1,7 +1,5 @@
 using System.Collections.Immutable;
-using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
@@ -22,7 +20,7 @@ internal static class AuthorableSuppressionRenderer
     {
         if (fields.Items.Length > 0)
         {
-            context.AddSource(FileName, SourceText.From(Render(fields.Items), Encoding.UTF8));
+            GeneratedFile.Add(context, FileName, Render(fields.Items));
         }
     }
 

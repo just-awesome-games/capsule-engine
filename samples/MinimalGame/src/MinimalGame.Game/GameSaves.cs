@@ -7,7 +7,7 @@ namespace MinimalGame.Game;
 /// <summary>What the player keeps between runs. One document, written when the options screen changes it.</summary>
 public sealed record GameSettings
 {
-    /// <summary>Whether sound effects are audible; the <c>sfx</c> bus is levelled from it at boot.</summary>
+    /// <summary>Whether the game is audible. Both audio buses are levelled from it.</summary>
     public bool SoundOn { get; set; } = true;
 
     /// <summary>The bindings the player may change.</summary>

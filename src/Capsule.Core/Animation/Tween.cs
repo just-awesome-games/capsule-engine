@@ -215,8 +215,7 @@ public struct Tween
             return;
         }
 
-        // A pass is one duration in both modes, so the count is the same division. Only the period the
-        // position wraps within differs.
+        // A pass is one duration in both looping modes. Only the period differs.
         TicksElapsed = tick % (Loop == TweenLoop.Repeat ? Duration : Duration + Duration);
         Passes = tick / Duration;
         IsFinished = false;

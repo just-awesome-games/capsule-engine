@@ -5,12 +5,13 @@ namespace Capsule.Tests.Input;
 public sealed class InputButtonTests
 {
     [Fact]
-    public void TheNoneOfEitherDevice_IsNone()
+    public void TheNoneOfEitherDevice_IsNoneAndNeverDown()
     {
         Assert.True(((InputButton)Key.None).IsNone);
         Assert.True(((InputButton)PadButton.None).IsNone);
         Assert.Equal(InputButton.None, (InputButton)Key.None);
         Assert.Equal(InputButton.None, (InputButton)PadButton.None);
+        Assert.False(InputButton.None.IsDown(DeviceSnapshot.Of(Key.None).With(PadButton.South)));
     }
 
     [Fact]
@@ -22,15 +23,6 @@ public sealed class InputButtonTests
         Assert.True(((InputButton)PadButton.South).IsDown(snapshot));
         Assert.False(((InputButton)Key.W).IsDown(snapshot));
         Assert.False(((InputButton)PadButton.North).IsDown(snapshot));
-    }
-
-    [Fact]
-    public void None_IsNeverDown()
-    {
-        DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.Space).With(PadButton.South);
-
-        Assert.False(InputButton.None.IsDown(snapshot));
-        Assert.False(InputButton.None.IsDown(DeviceSnapshot.Empty));
     }
 
     [Fact]

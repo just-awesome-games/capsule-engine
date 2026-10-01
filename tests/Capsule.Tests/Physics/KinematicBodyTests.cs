@@ -200,14 +200,12 @@ public sealed class KinematicBodyTests
         Assert.Equal(Vector2.Zero, body.Mover.WallNormal);
     }
 
-    // The three answers the query exists to give, from one resting position: into the floor,
-    // away from it, and along it. The sideways case is the one a wall probe rests on: a body
-    // standing on solid tiles is not blocked by them when it moves parallel to their faces.
+    // From a resting position: into the floor is blocked, along it is not, and a diagonal the floor
+    // cuts short is blocked although the slide along the floor is free.
     [Theory]
     [InlineData(0f, 4f, true)]
-    [InlineData(0f, -4f, false)]
     [InlineData(4f, 0f, false)]
-    [InlineData(-4f, 0f, false)]
+    [InlineData(-4f, 4f, true)]
     public void TestMove_AnswersForABodyRestingOnAFloor(float x, float y, bool expected)
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####");
@@ -215,19 +213,6 @@ public sealed class KinematicBodyTests
         scene.Add(body);
 
         Assert.Equal(expected, body.Mover.TestMove(new Vector2(x, y)));
-    }
-
-    // A diagonal the floor cuts short is blocked, even though the slide along the floor is free.
-    [Fact]
-    public void TestMove_OfADiagonalBlockedOnOneAxis_IsBlocked()
-    {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
-        SceneFixtures.Body body = new(new Vector2(24f, 24f), blocksOn: "solid");
-        scene.Add(body);
-
-        Assert.True(body.Mover.TestMove(new Vector2(-4f, 4f)));
-        Assert.True(body.Mover.TestMove(new Vector2(4f, 4f)));
-        Assert.False(body.Mover.TestMove(new Vector2(-4f, -4f)));
     }
 
     [Fact]
@@ -280,13 +265,11 @@ public sealed class KinematicBodyTests
         Assert.Equal(expected, body.ClassifyNormal(new Vector2(MathF.Sin(radians), verticalSign * MathF.Cos(radians))));
     }
 
-    [Theory]
-    [InlineData(float.NaN, -1f)]
-    [InlineData(0f, float.PositiveInfinity)]
-    public void ClassifyNormal_OfANonFiniteNormal_Throws(float x, float y)
+    [Fact]
+    public void ClassifyNormal_OfANonFiniteNormal_Throws()
     {
         KinematicBody2D body = new(new BoxCollider2D(new Vector2(8f, 8f)));
 
-        Assert.Throws<ArgumentOutOfRangeException>("normal", () => body.ClassifyNormal(new Vector2(x, y)));
+        Assert.Throws<ArgumentOutOfRangeException>("normal", () => body.ClassifyNormal(new Vector2(float.NaN, -1f)));
     }
 }

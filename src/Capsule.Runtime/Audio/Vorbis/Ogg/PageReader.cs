@@ -1,20 +1,15 @@
 #nullable disable
 #pragma warning disable
-using Capsule.Runtime.Audio.Vorbis.Contracts.Ogg;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
 
 namespace Capsule.Runtime.Audio.Vorbis.Ogg
 {
-    class PageReader : PageReaderBase, IPageData
+    sealed class PageReader : PageReaderBase
     {
-        internal static Func<IPageData, int, IStreamPageReader> CreateStreamPageReader { get; set; } = (pr, ss) => new StreamPageReader(pr, ss);
-
-        private readonly Dictionary<int, IStreamPageReader> _streamReaders = new Dictionary<int, IStreamPageReader>();
-        private readonly Func<Contracts.IPacketProvider, bool> _newStreamCallback;
-        private readonly object _readLock = new object();
+        private readonly Dictionary<int, StreamPageReader> _streamReaders = new Dictionary<int, StreamPageReader>();
+        private readonly Func<PacketProvider, bool> _newStreamCallback;
 
         private long _nextPageOffset;
         private ushort _pageSize;
@@ -49,8 +44,8 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             return offsets;
         }
 
-        public PageReader(Stream stream, bool closeOnDispose, Func<Contracts.IPacketProvider, bool> newStreamCallback)
-            : base(stream, closeOnDispose)
+        public PageReader(Stream stream, Func<PacketProvider, bool> newStreamCallback)
+            : base(stream)
         {
             _newStreamCallback = newStreamCallback;
         }
@@ -131,26 +126,6 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             return list;
         }
 
-        public override void Lock()
-        {
-            Monitor.Enter(_readLock);
-        }
-
-        protected override bool CheckLock()
-        {
-            return Monitor.IsEntered(_readLock);
-        }
-
-        public override bool Release()
-        {
-            if (Monitor.IsEntered(_readLock))
-            {
-                Monitor.Exit(_readLock);
-                return true;
-            }
-            return false;
-        }
-
         protected override void SaveNextPageSearch()
         {
             _nextPageOffset = StreamPosition;
@@ -187,7 +162,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             }
             else
             {
-                var streamReader = CreateStreamPageReader(this, StreamSerial);
+                var streamReader = new StreamPageReader(this);
                 streamReader.AddPage();
                 _streamReaders.Add(StreamSerial, streamReader);
                 if (!_newStreamCallback(streamReader.PacketProvider))
@@ -201,9 +176,6 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
 
         public override bool ReadPageAt(long offset)
         {
-            // make sure we're locked; no sense reading if we aren't
-            if (!CheckLock()) throw new InvalidOperationException("Must be locked prior to reading!");
-
             // this should be safe; we've already checked the page by now
 
             if (offset == PageOffset)
@@ -260,8 +232,6 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
 
         public Memory<byte>[] GetPackets()
         {
-            if (!CheckLock()) throw new InvalidOperationException("Must be locked!");
-
             if (_packets == null)
             {
                 int slot = -1;

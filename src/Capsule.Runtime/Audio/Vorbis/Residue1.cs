@@ -1,13 +1,12 @@
 #nullable disable
 #pragma warning disable
-using Capsule.Runtime.Audio.Vorbis.Contracts;
 
 namespace Capsule.Runtime.Audio.Vorbis
 {
     // each channel gets its own pass, with the dimensions interleaved
-    class Residue1 : Residue0
+    sealed class Residue1 : Residue0
     {
-        protected override bool WriteVectors(ICodebook codebook, IPacket packet, float[][] residue, int channel, int offset, int partitionSize)
+        protected override bool WriteVectors(Codebook codebook, Ogg.Packet packet, float[][] residue, int channel, int offset, int partitionSize)
         {
             var res = residue[channel];
 

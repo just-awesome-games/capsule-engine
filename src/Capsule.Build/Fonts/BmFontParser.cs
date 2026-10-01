@@ -1,10 +1,11 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace Capsule.Build.Fonts;
 
 // Reads the text flavour of the BMFont format. The font is known at build time, so the generated
 // registry carries it as literal data and nothing is parsed at run time.
-internal static class BmFontParser
+internal static partial class BmFontParser
 {
     /// <summary>The extension a page ships as.</summary>
     private const string PageExtension = ".png";
@@ -175,59 +176,14 @@ internal static class BmFontParser
 
         internal static Fields Split(string text, int line)
         {
-            int i = 0;
-            SkipSpace(text, ref i);
-
-            int start = i;
-            while (i < text.Length && !char.IsWhiteSpace(text[i]))
-            {
-                i++;
-            }
-
-            string tag = text[start..i];
+            Match tag = TagPattern().Match(text);
             Dictionary<string, string> values = new(StringComparer.Ordinal);
-
-            while (tag.Length > 0)
+            for (Match pair = PairPattern().Match(text, tag.Index + tag.Length); pair.Success; pair = pair.NextMatch())
             {
-                SkipSpace(text, ref i);
-                if (i >= text.Length)
-                {
-                    break;
-                }
-
-                int keyStart = i;
-                while (i < text.Length && text[i] != '=' && !char.IsWhiteSpace(text[i]))
-                {
-                    i++;
-                }
-
-                string key = text[keyStart..i];
-                if (i >= text.Length || text[i] != '=')
-                {
-                    continue;
-                }
-
-                i++;
-                bool quoted = i < text.Length && text[i] == '"';
-                if (quoted)
-                {
-                    i++;
-                }
-
-                int valueStart = i;
-                while (i < text.Length && (quoted ? text[i] != '"' : !char.IsWhiteSpace(text[i])))
-                {
-                    i++;
-                }
-
-                values[key] = text[valueStart..i];
-                if (quoted && i < text.Length)
-                {
-                    i++;
-                }
+                values[pair.Groups["key"].Value] = pair.Groups["value"].Value;
             }
 
-            return new Fields(tag, line, values);
+            return new Fields(tag.Value, line, values);
         }
 
         /// <summary>A whole-number field the font is measured by.</summary>
@@ -254,13 +210,11 @@ internal static class BmFontParser
             && int.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int parsed)
                 ? parsed
                 : 0;
-
-        private static void SkipSpace(string text, ref int index)
-        {
-            while (index < text.Length && char.IsWhiteSpace(text[index]))
-            {
-                index++;
-            }
-        }
     }
+
+    [GeneratedRegex(@"\S+")]
+    private static partial Regex TagPattern();
+
+    [GeneratedRegex(@"(?<key>[^\s=]+)=(?:""(?<value>[^""]*)""?|(?<value>\S*))")]
+    private static partial Regex PairPattern();
 }

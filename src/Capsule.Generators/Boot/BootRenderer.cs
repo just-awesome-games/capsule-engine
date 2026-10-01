@@ -1,6 +1,4 @@
-using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
@@ -14,14 +12,11 @@ internal static class BootRenderer
 
     internal static void Emit(SourceProductionContext context, BootPlan plan)
     {
-        foreach (Diagnostic diagnostic in plan.Diagnostics.Items)
-        {
-            context.ReportDiagnostic(diagnostic);
-        }
+        GeneratedFile.Report(context, plan.Diagnostics);
 
         if (plan.Generates)
         {
-            context.AddSource(FileName, SourceText.From(Render(plan), Encoding.UTF8));
+            GeneratedFile.Add(context, FileName, Render(plan));
         }
     }
 

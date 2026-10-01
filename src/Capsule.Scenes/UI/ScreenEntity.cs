@@ -25,7 +25,6 @@ public class ScreenEntity : Entity
     /// Canvas pixels from that point to this entity's position. A negative component measures back towards
     /// the canvas's origin.
     /// </param>
-
     public ScreenEntity(Anchor anchor, Vector2 offset)
         : base(offset) =>
         Anchor = anchor;

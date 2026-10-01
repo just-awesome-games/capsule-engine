@@ -24,7 +24,6 @@ public sealed class FloorSwitch : Entity
         _plate = new ColorRect(Size) { Color = ColorRgba.FromHex("#a8433a") };
         Add(_plate);
 
-        // Nothing blocks on the default layer the plate sits on.
         BoxCollider2D plate = new(Size) { ReportsContacts = true, Detects = new(CollisionLayers.Player) };
         plate.ContactEntered += OnPlayerEntered;
         Add(plate);

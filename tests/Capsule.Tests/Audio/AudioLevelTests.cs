@@ -14,8 +14,10 @@ public sealed class AudioLevelTests
     {
         AudioMixer mixer = new();
         mixer.SetVolume(AudioBus.Master, 0.5f);
+        mixer.SetVolume(Sfx, 0.8f);
 
         Voice sfx = mixer.Play(new AudioPlayback(Step) { Bus = Sfx, Volume = 0.5f });
+        Assert.Equal(0.5f * 0.8f * 0.5f, mixer.Commands[0].Gain);
         Voice music = mixer.Play(Theme, Music);
 
         Advance(mixer, 1);
@@ -30,19 +32,6 @@ public sealed class AudioLevelTests
         Advance(mixer, 2);
         mixer.SetVolume(AudioBus.Master, 1f);
         Assert.Equal([(AudioCommandKind.SetGain, sfx), (AudioCommandKind.SetGain, music)], Raised(mixer));
-    }
-
-    [Fact]
-    public void AVoicesGain_IsMasterTimesBusTimesItsOwn()
-    {
-        AudioMixer mixer = new();
-        mixer.SetVolume(AudioBus.Master, 0.5f);
-        mixer.SetVolume(Sfx, 0.5f);
-
-        mixer.Play(new AudioPlayback(Step) { Bus = Sfx, Volume = 0.5f });
-
-        Assert.Equal(0.125f, mixer.Commands[0].Gain);
-        Assert.Equal(AudioCommandKind.Play, mixer.Commands[0].Kind);
     }
 
     [Fact]
@@ -111,40 +100,27 @@ public sealed class AudioLevelTests
         Assert.Equal(0.25f, raised.Pan);
     }
 
+    // Volumes take [0, 1] and pans [-1, 1].
     [Theory]
-    [InlineData(-1.001f)]
-    [InlineData(1.001f)]
-    [InlineData(float.NaN)]
-    public void APanOutsideTheStereoRange_IsRefused(float pan)
+    [InlineData(-1.001f, true)]
+    [InlineData(-0.001f, false)]
+    [InlineData(1.001f, true)]
+    [InlineData(float.NaN, true)]
+    public void ALevelOutsideItsRange_IsRefused(float level, bool panRefuses)
     {
         AudioMixer mixer = new();
         Voice voice = mixer.Play(Step);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => mixer.SetPan(voice, pan));
-        Assert.Throws<ArgumentOutOfRangeException>(() => mixer.Play(new AudioPlayback(Step) { Pan = pan }));
-    }
+        if (panRefuses)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => mixer.SetPan(voice, level));
+            Assert.Throws<ArgumentOutOfRangeException>(() => mixer.Play(new AudioPlayback(Step) { Pan = level }));
+        }
 
-    [Theory]
-    [InlineData(-0.001f)]
-    [InlineData(1.001f)]
-    [InlineData(float.NaN)]
-    public void AVolumeOutsideTheUnitRange_IsRefused(float volume)
-    {
-        AudioMixer mixer = new();
-        Voice voice = mixer.Play(Step);
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => mixer.SetVolume(voice, volume));
-        Assert.Throws<ArgumentOutOfRangeException>(() => mixer.SetVolume(Sfx, volume));
-        Assert.Throws<ArgumentOutOfRangeException>(() => mixer.Play(new AudioPlayback(Step) { Volume = volume }));
-    }
-
-    [Theory]
-    [InlineData(-0.001f)]
-    [InlineData(1.001f)]
-    [InlineData(float.NaN)]
-    public void UnfocusedVolume_OutsideTheUnitRange_IsRefused(float volume)
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new AudioMixer().UnfocusedVolume = volume);
+        Assert.Throws<ArgumentOutOfRangeException>(() => mixer.SetVolume(voice, level));
+        Assert.Throws<ArgumentOutOfRangeException>(() => mixer.SetVolume(Sfx, level));
+        Assert.Throws<ArgumentOutOfRangeException>(() => mixer.Play(new AudioPlayback(Step) { Volume = level }));
+        Assert.Throws<ArgumentOutOfRangeException>(() => mixer.UnfocusedVolume = level);
     }
 
     // The loss silences at the default, a new volume lands at once while unfocused, and the regain

@@ -50,17 +50,6 @@ public sealed class MoverContactTests
         Assert.Equal(-20f, escaping.Translation.X, Tolerance);
     }
 
-    [Fact]
-    public void MoveBox_RejectsATranslationThatIsNotFinite()
-    {
-        CollisionWorld2D world = new();
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => world.MoveBox(
-            CollisionFixtures.Box(0f, 0f, 8f, 8f),
-            new Vector2(float.NaN, 0f),
-            CollisionFilter.Everything,
-            default));
-    }
 
     // Handles and layers never compare across worlds, so what two runs owe each other is the same
     // surfaces in the same order: cells, layer names and normals.

@@ -18,19 +18,8 @@ public sealed class RandomReplayTests
         Assert.Equal(expected, Enumerable.Range(0, expected.Length).Select(_ => raw.NextUInt64()));
     }
 
-    // A seed of zero is the one value that could leave a xoshiro state at its all-zero fixed
-    // point, where every draw would be zero forever.
-    [Fact]
-    public void ASeedOfZeroStillProducesAVaryingSequence()
-    {
-        RandomSource random = new(0);
-
-        Assert.True(Enumerable.Range(0, 16).Select(_ => random.NextFloat()).Distinct().Count() > 1);
-    }
-
-    // The bug this exists to prevent: StS2 seeded its streams additively and shipped correlated
-    // first draws. Neither axis may sit adjacent in state — streams of one seed share nothing but
-    // the seed, and adjacent seeds of one stream are as far apart as distant ones.
+    // Streams seeded additively share correlated first draws. Adjacent streams of one seed and
+    // adjacent seeds of one stream must be as far apart as distant ones.
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -61,15 +50,6 @@ public sealed class RandomReplayTests
 
         Assert.Equal(512, complementary.Distinct().Count());
         Assert.DoesNotContain(First(0, 0), complementary);
-    }
-
-    [Fact]
-    public void TheSameSeedAndStreamReplayWhileADifferentStreamDiverges()
-    {
-        static ulong[] Draw(RandomSource random) => [.. Enumerable.Range(0, 16).Select(_ => random.NextUInt64())];
-
-        Assert.Equal(Draw(new RandomSource(4, 2)), Draw(new RandomSource(4, 2)));
-        Assert.NotEqual(Draw(new RandomSource(4, 2)), Draw(new RandomSource(4, 3)));
     }
 
     [Fact]

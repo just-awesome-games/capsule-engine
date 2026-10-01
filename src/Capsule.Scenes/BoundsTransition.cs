@@ -11,12 +11,6 @@ namespace Capsule.Scenes;
 /// opening to infinity, null bounds, <see cref="Camera.Teleport"/> and the camera's first step in a
 /// scene take effect at once whatever the transition.
 /// </remarks>
-/// <example>
-/// <code>
-/// Scene.Camera.BoundsTransition = BoundsTransition.Smooth(0.35f);
-/// Scene.Camera.SetBounds(arena, BoundsTransition.Eased(0.5f, Ease.InOutSine));
-/// </code>
-/// </example>
 public readonly record struct BoundsTransition
 {
     private enum Kind : byte
@@ -45,9 +39,6 @@ public readonly record struct BoundsTransition
     }
 
     /// <summary>Moves the view into changed bounds at once. It is the default.</summary>
-    /// <example>
-    /// <code>Scene.Camera.SetBounds(nextRoom, BoundsTransition.Snap);</code>
-    /// </example>
     public static BoundsTransition Snap => default;
 
     internal bool IsChase => _kind == Kind.Chase;
@@ -68,7 +59,7 @@ public readonly record struct BoundsTransition
     /// </example>
     public static BoundsTransition Smooth(float seconds, float maxSpeed = 0f)
     {
-        Guard.RequireSeconds(seconds, nameof(seconds));
+        Guard.NonNegative(seconds, nameof(seconds));
         Guard.NonNegative(maxSpeed, nameof(maxSpeed));
 
         return seconds > 0f || maxSpeed > 0f ? new(Kind.Chase, seconds, maxSpeed, default) : Snap;
@@ -111,7 +102,7 @@ public readonly record struct BoundsTransition
     /// </example>
     public static BoundsTransition Eased(float seconds, Ease ease)
     {
-        Guard.RequireSeconds(seconds, nameof(seconds));
+        Guard.NonNegative(seconds, nameof(seconds));
         Guard.RequireEase(ease, nameof(ease));
 
         return seconds > 0f ? new(Kind.Eased, seconds, 0f, ease) : Snap;

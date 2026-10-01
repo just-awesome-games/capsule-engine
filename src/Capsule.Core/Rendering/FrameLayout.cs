@@ -74,7 +74,7 @@ internal static class FrameLayout
     // The span the world is placed on. Under Letterbox it is the declared span. Under Expand or
     // FixedHeight the grown axis is quantised down to whole surface pixels at the declared scale and
     // to what the surface holds, while the binding axis stays the camera's.
-    internal static Vector2 QuantisedSpan(
+    private static Vector2 QuantisedSpan(
         in CameraView camera,
         (int Width, int Height) canvas,
         Vector2 span,
@@ -177,7 +177,7 @@ internal static class FrameLayout
     // FixedHeight the quantised span is a whole number of surface pixels at the declared pixels per
     // unit, so it is centred at that stated scale, with bars where the surface is larger. A scale
     // recomputed from a division could land an ulp off.
-    internal static Letterbox WorldFit(in CameraView camera, Vector2 span, float pixelsPerUnit, (int Width, int Height) surface) =>
+    private static Letterbox WorldFit(in CameraView camera, Vector2 span, float pixelsPerUnit, (int Width, int Height) surface) =>
         camera.Fit == ViewportFit.Letterbox || !(pixelsPerUnit > 0f)
             ? Letterbox.Fit(span.X, span.Y, surface.Width, surface.Height)
             : Letterbox.FitAt(span.X, span.Y, surface.Width, surface.Height, pixelsPerUnit);

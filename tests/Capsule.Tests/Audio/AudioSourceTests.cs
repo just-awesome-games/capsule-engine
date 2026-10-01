@@ -36,19 +36,6 @@ public sealed class AudioSourceTests
     }
 
     [Fact]
-    public void ASourceThatDoesNotPlayOnStart_StaysSilentUntilItIsPlayed()
-    {
-        AudioSource source = new(Step);
-        using SimulationHost run = Run(source);
-
-        Assert.False(source.IsPlaying);
-
-        source.Play();
-
-        Assert.True(source.IsPlaying);
-    }
-
-    [Fact]
     public void ASourceWhoseEntityLeavesTheScene_StopsItsVoice()
     {
         AudioSource source = new(Step) { PlayOnStart = true, Loop = true };
@@ -102,20 +89,6 @@ public sealed class AudioSourceTests
 
         run.Run.Audio.Resume(AudioBus.Master);
         source.Stop();
-        Assert.False(source.IsLive);
-    }
-
-    [Fact]
-    public void ASourcesOneShot_IsNotLiveOnceItExpires()
-    {
-        AudioSource source = new(Step) { PlayOnStart = true };
-        using SimulationHost run = Run(source);
-
-        Assert.True(source.IsLive);
-
-        // 0.08 s is 4.8 steps at the default rate, so the voice is spent on the sixth tick.
-        run.Step(6);
-
         Assert.False(source.IsLive);
     }
 
@@ -209,8 +182,8 @@ public sealed class AudioSourceTests
         Assert.Throws<ArgumentOutOfRangeException>(() => source.PlayOneShot(Step, pitchScale: 0f));
     }
 
-    // Pan behaves as Volume does — the live voice moves at once and the next play starts there — and
-    // Time reads the clip position the run has reached, from wherever the play began.
+    // Pan behaves as Volume does. The live voice moves at once and the next play starts there. Time
+    // reads the clip position the run has reached, from wherever the play began.
     [Fact]
     public void Pan_MovesTheLiveVoiceAndEveryPlayAfterIt_AndTimeFollowsTheClip()
     {

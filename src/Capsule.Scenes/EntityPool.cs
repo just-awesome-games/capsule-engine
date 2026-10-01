@@ -58,7 +58,6 @@ public sealed class EntityPool<T> : IEntityPool
     /// <summary>Builds <paramref name="capacity"/> entities now through <paramref name="create"/> and holds them idle.</summary>
     /// <param name="create">Builds one more entity, on demand. Every entity it ever returns is owned by this pool for life.</param>
     /// <param name="capacity">How many entities to build now. Positive.</param>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="capacity"/> is not positive.</exception>
     /// <exception cref="InvalidOperationException"><paramref name="create"/> returned an entity already owned by a pool.</exception>
     public EntityPool(Func<T> create, int capacity)
     {
@@ -96,13 +95,10 @@ public sealed class EntityPool<T> : IEntityPool
     /// pool for its peak.
     /// </para>
     /// </remarks>
-    ///
     public T Take()
     {
-        CheckForwarded();
-        if (_idle.TryPop(out T? entity))
+        if (TryTake(out T? entity))
         {
-            entity.IdleInPool = false;
             return entity;
         }
 
@@ -121,14 +117,13 @@ public sealed class EntityPool<T> : IEntityPool
     public bool TryTake([NotNullWhen(true)] out T? entity)
     {
         CheckForwarded();
-        if (_idle.TryPop(out entity))
+        if (!_idle.TryPop(out entity))
         {
-            entity.IdleInPool = false;
-            return true;
+            return false;
         }
 
-        entity = null;
-        return false;
+        entity.IdleInPool = false;
+        return true;
     }
 
     /// <summary>

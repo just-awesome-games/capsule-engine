@@ -9,13 +9,8 @@ using Capsule.Tiles;
 
 namespace Capsule.Tests.Allocation;
 
-/// <summary>
-/// A crowd in one room: a thousand kinematic bodies with box colliders walking a tile ring, each
-/// drawing an animated sprite. They collide with the room and never with each other, which is the
-/// shape a game's population takes — the density is in one place and the collision is against
-/// terrain. One lift sits among them on a layer they do block on, so the broadphase tree is never
-/// entirely invisible to a mover's filter.
-/// </summary>
+// A thousand animated kinematic bodies walking a tile ring. They collide with the room and never with
+// each other. One lift sits among them on a layer they block on, so the broadphase is always queried.
 internal static class CrowdWorkload
 {
     internal const int TileSize = 16;
@@ -82,8 +77,6 @@ internal static class CrowdWorkload
         return scene;
     }
 
-    // A single tree-resident collider on a layer the crowd blocks on, and no body: without it every
-    // mover's filter reaches nothing in the tree and the broadphase is never asked a real question.
     internal sealed class Lift : Entity
     {
         internal Lift(Vector2 position)

@@ -1,6 +1,5 @@
 <Project>
 
-  <!-- Empty. It shadows the engine repository's own Directory.Build.targets, which is for the
-       engine's projects. A game outside the engine repository has no such file. -->
+  <!-- Shadows the engine repository's Directory.Build.targets. A game outside it has no such file. -->
 
 </Project>

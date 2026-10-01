@@ -19,10 +19,10 @@ internal sealed class TextureStore : IDisposable
     // show in intervalMs max, and raise it if prefetched pages are not ready by their boundary.
     private const long UploadBytesPerFrame = 4 * 1024 * 1024;
 
+    private static readonly AssetFiles Files = new("Texture", "handle");
+
     private readonly SceneAssetStore<TextureHandle, Texture2D> _textures;
-
     private readonly TextureMap _map;
-
     private readonly HostPlatform _platform;
 
     internal TextureStore(GraphicsDevice device, HostPlatform platform)
@@ -38,7 +38,7 @@ internal sealed class TextureStore : IDisposable
         TextureUpload Decode(TextureHandle handle)
         {
             TextureFacts facts = _map.Facts(handle);
-            using Stream file = TextureFiles.Open(platform, handle);
+            using Stream file = Open(platform, handle);
             return new TextureUpload(device, pool, TextureDecoder.Decode(file, pool, handle.Name, facts.SingleChannel), Sampler(facts.Sampling));
         }
     }
@@ -78,26 +78,27 @@ internal sealed class TextureStore : IDisposable
 
     internal static byte[] ReadRegion(HostPlatform platform, TextureMap map, in TextureHandle handle, TextureRegion region)
     {
-        (TextureHandle file, int offsetX, int offsetY) = map.TryGet(handle, out AtlasSlot slot)
-            ? (slot.Page, slot.X, slot.Y)
-            : (handle, 0, 0);
+        bool packed = map.TryGet(handle, out AtlasSlot slot);
+        TextureHandle file = packed ? slot.Page : handle;
 
         TexelPool pool = new();
         DecodedTexture decoded;
-        using (Stream stream = TextureFiles.Open(platform, file))
+        using (Stream stream = Open(platform, file))
         {
             decoded = TextureDecoder.Decode(stream, pool, handle.Name, map.Facts(file).SingleChannel);
         }
 
-        int left = offsetX + region.X;
-        int top = offsetY + region.Y;
+        // A packed texture's own size bounds the region. Its page holds other textures' texels around it.
+        (int width, int height) = packed ? (slot.Width, slot.Height) : (decoded.Width, decoded.Height);
+        int left = slot.X + region.X;
+        int top = slot.Y + region.Y;
         if (region.X < 0 || region.Y < 0 || region.Width <= 0 || region.Height <= 0
-            || left + region.Width > decoded.Width || top + region.Height > decoded.Height)
+            || region.X + region.Width > width || region.Y + region.Height > height)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(region),
                 region,
-                $"The region falls outside the {decoded.Width} by {decoded.Height} texels of '{handle.Name}'. Cut the sprite from inside its texture.");
+                $"The region falls outside the {width} by {height} texels of '{handle.Name}'. Cut the sprite from inside its texture.");
         }
 
         byte[] texels = new byte[region.Width * region.Height * 4];
@@ -131,6 +132,11 @@ internal sealed class TextureStore : IDisposable
 
         return texels;
     }
+
+    // The handle's own file, relative to the publish root.
+    internal static string RelativePathOf(in TextureHandle handle) => Files.RelativePathOf(handle.Name, handle.Extension);
+
+    internal static Stream Open(HostPlatform platform, in TextureHandle handle) => Files.Open(platform, handle.Name, handle.Extension);
 
     public void Dispose() => _textures.Dispose();
 

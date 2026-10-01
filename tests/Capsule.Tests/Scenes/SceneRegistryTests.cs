@@ -50,18 +50,6 @@ public sealed class SceneRegistryTests
     }
 
     [Fact]
-    public void AnUnregisteredClass_NamesItselfAndWhatIsRegistered()
-    {
-        SceneRegistry scenes = Registry(Menu);
-
-        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(
-            () => scenes.Create(typeof(SceneFixtures.SpawnScene)));
-
-        Assert.Contains("SpawnScene", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("HookScene", failure.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void OneClassRegisteredTwice_IsRejectedWhereTheRegistryIsBuilt()
     {
         Assert.Throws<ArgumentException>(() => Registry(Menu, Menu));
@@ -98,7 +86,7 @@ public sealed class SceneRegistryTests
     }
 
     [Fact]
-    public void AnUnregisteredClass_NamesWhatIsRegisteredByClassAlone_NotADocumentOnlyRegistration()
+    public void AnUnregisteredClass_NamesItselfAndWhatIsRegisteredByClass()
     {
         SceneRegistration attic = SceneRegistration.DocumentOnly(
             "attic", static content => new Scene(content!.Value));
@@ -107,6 +95,7 @@ public sealed class SceneRegistryTests
         InvalidOperationException failure = Assert.Throws<InvalidOperationException>(
             () => scenes.Create(typeof(SceneFixtures.SpawnScene)));
 
+        Assert.Contains("SpawnScene", failure.Message, StringComparison.Ordinal);
         Assert.Contains("HookScene", failure.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("attic", failure.Message, StringComparison.Ordinal);
     }

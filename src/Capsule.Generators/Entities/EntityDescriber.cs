@@ -11,7 +11,7 @@ internal static class EntityDescriber
         Compilation compilation = model.Compilation;
         bool concreteEntity = SymbolShape.IsConcreteClass(type) && SymbolShape.DerivesFrom(type, compilation, MetadataNames.Entity);
         List<IMethodSymbol> constructors = concreteEntity
-            ? SymbolShape.PublicConstructorsTaking(type, compilation, MetadataNames.EntitySpawn)
+            ? SymbolShape.Public(SymbolShape.ConstructorsTaking(type, compilation, MetadataNames.EntitySpawn))
             : [];
         AttributeData? annotation = SymbolShape.Attribute(type, compilation, MetadataNames.SpawnTypeAttribute);
 
@@ -77,7 +77,6 @@ internal static class EntityDescriber
     // argument of that type, the spawn itself or one rewritten with { }, or a primary constructor's
     // base argument list carrying one. A this(...) target is trusted, as is a constructor with no
     // syntax here. Otherwise at is the constructor that drops the spawn.
-    /// <param name="declaring">The model the candidate arrived with, reused when it binds this tree.</param>
     private static bool PassesSpawnOn(IMethodSymbol constructor, SemanticModel declaring, out Location? at)
     {
         at = null;
@@ -146,10 +145,5 @@ internal static class EntityDescriber
             DeclaredAt.From(at ?? declaration.Identifier.GetLocation()),
             properties,
             PropertySchema.AssignableTo(type),
-            spawn switch
-            {
-                RefKind.In => "in ",
-                RefKind.RefReadOnlyParameter => "ref readonly ",
-                _ => string.Empty,
-            });
+            SymbolShape.Modifier(spawn));
 }

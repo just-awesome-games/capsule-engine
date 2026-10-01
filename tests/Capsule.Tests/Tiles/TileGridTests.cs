@@ -98,9 +98,9 @@ public sealed class TileGridTests
         Assert.Contains("columns is 4", error.Message, StringComparison.Ordinal);
     }
 
-    // Whatever makes a cell undrawable — no texture to cut it from, a negative index, or a region
-    // far enough down the atlas that its row alone multiplies past int, where the wrapped
-    // coordinate would cut from somewhere else rather than fail — the refusal names the cell.
+    // The refusal names the cell whatever makes it undrawable: no texture to cut it from, a negative
+    // index, or a region far enough down the atlas that its row alone multiplies past int. There the
+    // wrapped coordinate would cut from somewhere else rather than fail.
     // Frames, flattened here as cell and ticks pairs, are refused the same way and for their own
     // defects: beside a cell, empty, or held for no ticks.
     [Theory]

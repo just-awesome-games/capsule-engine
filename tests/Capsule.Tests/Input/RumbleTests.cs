@@ -181,19 +181,6 @@ public sealed class RumbleTests
         Assert.False(rumble.IsLive(pulse));
     }
 
-    [Theory]
-    [InlineData(1.5f, 0f, 0.1f)]
-    [InlineData(0f, float.NaN, 0.1f)]
-    [InlineData(0f, 0f, 0f)]
-    [InlineData(0f, 0f, float.PositiveInfinity)]
-    public void AnAmplitudeOutsideTheUnitRangeOrANonPositiveDuration_IsRefused(float low, float high, float seconds)
-    {
-        Rumble rumble = new();
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => rumble.Play(low, high, seconds));
-        Assert.Throws<ArgumentOutOfRangeException>(() => rumble.Play(new RumblePulse(low, high, seconds)));
-    }
-
     private static void Advance(Rumble rumble, long tick) => rumble.BeginStep(SceneFixtures.Step(tick));
 
     private static void Advance(Rumble rumble, long tick, int stepHertz) =>

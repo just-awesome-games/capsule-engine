@@ -142,4 +142,21 @@ public sealed class AudioProbeOggTests
 
         Assert.Contains("Vorbis", refused.Message, StringComparison.Ordinal);
     }
+
+    // A file wider than stereo fails the build, not its first play.
+    [Fact]
+    public void AnOggWiderThanStereo_IsRefused()
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        byte[] file = Ogg(48000, [0, 24000]);
+
+        // The channel count, eleven bytes into the identification header.
+        file[28 + 11] = 6;
+        File.WriteAllBytes("clip.ogg", file);
+
+        FormatException refused =
+            Assert.Throws<FormatException>(() => AudioProbe.Measure("clip.ogg"));
+
+        Assert.Contains("6 channels", refused.Message, StringComparison.Ordinal);
+    }
 }

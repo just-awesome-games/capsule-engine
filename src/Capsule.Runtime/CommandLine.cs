@@ -45,8 +45,6 @@ internal sealed class CommandLine
     // The saves directory, null unless --saves was given.
     internal string? SavesPath { get; private set; }
 
-    internal static string UsageFor(string gameName) => UsageFor(gameName, Development.IsSupported);
-
     // `development` is the process's Development.IsSupported. It is a parameter to let a test read the
     // usage a shipping build prints.
     internal static string UsageFor(string gameName, bool development) =>
@@ -118,7 +116,7 @@ internal sealed class CommandLine
         Refuse(gameName, Development.IsSupported, message);
 
     internal static CommandLineException Help(string gameName) =>
-        new("The command line asked for the usage block.", UsageFor(gameName), helpRequested: true);
+        new("The command line asked for the usage block.", UsageFor(gameName, Development.IsSupported), helpRequested: true);
 
     private static CommandLineException Refuse(string gameName, bool development, string message) =>
         new(message, UsageFor(gameName, development), helpRequested: false);

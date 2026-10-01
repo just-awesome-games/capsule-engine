@@ -14,9 +14,5 @@ public static class CollisionLayers
 
     public const string Hazard = "hazard";
 
-    public const string Enemy = "enemy";
-
     public static readonly CollisionMask Blocking = new(Solid, Platform);
-
-    public static readonly CollisionMask Damaging = new(Hazard, Enemy);
 }

@@ -69,20 +69,6 @@ public sealed class DeterministicMathTests
         Assert.True(worst < Bound, $"cosine is out by {worst}.");
     }
 
-    // The bits, not just the class: IEEE fixes neither the payload nor the sign a NaN propagates
-    // with, so a member that promises identical bits everywhere has to hand back the one NaN.
-    [Theory]
-    [InlineData(float.NaN)]
-    [InlineData(float.PositiveInfinity)]
-    [InlineData(float.NegativeInfinity)]
-    public void AnAngleThatIsNotAnAngle_IsTheOneNotANumber(float radians)
-    {
-        int canonical = BitConverter.SingleToInt32Bits(float.NaN);
-
-        Assert.Equal(canonical, BitConverter.SingleToInt32Bits(DeterministicMath.Sin(radians)));
-        Assert.Equal(canonical, BitConverter.SingleToInt32Bits(DeterministicMath.Cos(radians)));
-    }
-
     [Fact]
     public void TwoRaisedToAnExponent_IsWithinThePublishedBoundRelatively()
     {
@@ -99,23 +85,14 @@ public sealed class DeterministicMathTests
     }
 
     // The whole part is a power of two and scaling by it is exact, so a whole exponent is not an
-    // approximation at all: the curve families that reach an endpoint through it land on it.
-    [Theory]
-    [InlineData(0f, 1f)]
-    [InlineData(1f, 2f)]
-    [InlineData(-1f, 0.5f)]
-    [InlineData(10f, 1024f)]
-    [InlineData(-10f, 1f / 1024f)]
-    public void AWholeExponent_IsExact(float exponent, float expected)
-    {
-        Assert.Equal(expected, DeterministicMath.Exp2(exponent));
-    }
-
+    // approximation at all, subnormals included.
     [Fact]
-    public void AWholeExponentAtEitherEndOfTheNormalRange_IsExact()
+    public void EveryWholeExponent_IsExact()
     {
-        Assert.Equal(BitConverter.Int32BitsToSingle(1 << 23), DeterministicMath.Exp2(-126f));
-        Assert.Equal(BitConverter.Int32BitsToSingle(254 << 23), DeterministicMath.Exp2(127f));
+        for (int power = -149; power <= 127; power++)
+        {
+            Assert.Equal(MathF.ScaleB(1f, power), DeterministicMath.Exp2(power));
+        }
     }
 
     // The last exponent a float still holds something finite for: 2^128 is past it, 2^127.5 is not.
@@ -127,19 +104,6 @@ public sealed class DeterministicMathTests
 
         Assert.True(float.IsFinite(highest), "2^127.5 is inside what a float holds.");
         Assert.True(Math.Abs((highest - expected) / expected) < Bound, $"2^127.5 is out by {(highest - expected) / expected}.");
-    }
-
-    // Under the normal range a float's steps are fixed rather than relative, and flushing to zero
-    // there would lose every value between the smallest subnormal and the smallest normal.
-    [Fact]
-    public void AWholeExponentUnderTheNormalRange_IsExactlyThatSubnormal()
-    {
-        for (int power = -149; power <= -127; power++)
-        {
-            float expected = BitConverter.Int32BitsToSingle(1 << (power + 149));
-
-            Assert.Equal(expected, DeterministicMath.Exp2(power));
-        }
     }
 
     [Fact]

@@ -1,15 +1,22 @@
 #nullable disable
 #pragma warning disable
-using Capsule.Runtime.Audio.Vorbis.Contracts;
-using Capsule.Runtime.Audio.Vorbis.Contracts.Ogg;
 using System;
 using System.Collections.Generic;
 
 namespace Capsule.Runtime.Audio.Vorbis.Ogg
 {
-    class PacketProvider : Contracts.IPacketProvider, IPacketReader
+    // <summary>
+    // Encapsulates a method that calculates the number of granules decodable from the specified packet.
+    // </summary>
+    // <param name="packet">The <see cref="Packet"/> to calculate.</param>
+    // <param name="isLastInPage"><see langword="true"/> if the packet is the last in the page, otherise <see langword="false"/>.</param>
+    // <returns>The calculated number of granules.</returns>
+    internal delegate int GetPacketGranuleCount(Packet packet, bool isLastInPage);
+
+    // Capsule: upstream's IPacketProvider interface is folded into its one remaining implementation.
+    sealed class PacketProvider
     {
-        private IStreamPageReader _reader;
+        private StreamPageReader _reader;
 
         private int _pageIndex;
         private int _packetIndex;
@@ -21,21 +28,15 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
         private int _nextPacketPacketIndex;
 
         // Capsule: one Packet reused for every packet this provider ever hands out, in place of
-        // `new Packet(...)` per packet. StreamDecoder.ReadSamples calls packet.Done() right after
+        // `new Packet(...)` per packet. StreamDecoder.Read calls packet.Done() right after
         // decoding it and before asking for the next one (see StreamDecoder.cs). SeekTo (the only
         // other path through CreatePacket, via FindPacket) never runs while a packet returned by
         // GetNextPacket is still in use. Nothing outlives one reinitialization of this instance.
         private readonly Packet _packet = new();
 
-        public bool CanSeek => true;
-
-        public int StreamSerial { get; }
-
-        internal PacketProvider(IStreamPageReader reader, int streamSerial)
+        internal PacketProvider(StreamPageReader reader)
         {
             _reader = reader ?? throw new ArgumentNullException(nameof(reader));
-
-            StreamSerial = streamSerial;
         }
 
         public long GetGranuleCount()
@@ -45,17 +46,17 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             if (!_reader.HasAllPages)
             {
                 // this will force the reader to attempt to read all pages
-                _reader.GetPage(int.MaxValue, out _, out _, out _, out _, out _, out _);
+                _reader.GetPage(int.MaxValue, out _, out _, out _, out _, out _);
             }
             return _reader.MaxGranulePosition.Value;
         }
 
-        public IPacket GetNextPacket()
+        public Packet GetNextPacket()
         {
             return GetNextPacket(ref _pageIndex, ref _packetIndex);
         }
 
-        public IPacket PeekNextPacket()
+        public Packet PeekNextPacket()
         {
             var pageIndex = _pageIndex;
             var packetIndex = _packetIndex;
@@ -114,7 +115,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             // pageIndex is the correct page; we just need to figure out which packet
             bool isContinued;
             int firstRealPacket = 0;
-            if (_reader.GetPage(pageIndex - 1, out _, out _, out _, out isContinued, out _, out _))
+            if (_reader.GetPage(pageIndex - 1, out _, out _, out _, out isContinued, out _))
             {
                 if (isContinued)
                 {
@@ -127,7 +128,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             }
 
             // now get the ending granule of the page
-            if (!_reader.GetPage(pageIndex, out var pageGranulePos, out var isResync, out var isContinuation, out isContinued, out var packetCount, out _))
+            if (!_reader.GetPage(pageIndex, out var pageGranulePos, out var isResync, out var isContinuation, out isContinued, out var packetCount))
             {
                 throw new System.IO.InvalidDataException("Could not get found page?!");
             }
@@ -145,7 +146,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             {
                 // it would be nice to pass false instead of isContinued, but (hypothetically) we don't know if getPacketGranuleCount(...) needs the whole thing...
                 // Vorbis doesn't, but someone might decide to try to use us for another purpose so we'll be good here.
-                var packet = CreatePacket(ref pageIndex, ref packetIndex, false, pageGranulePos, packetIndex == 0 && isResync, isContinued, packetCount, 0);
+                var packet = CreatePacket(ref pageIndex, ref packetIndex, false, pageGranulePos, packetIndex == 0 && isResync, isContinued, packetCount);
                 if (packet == null)
                 {
                     throw new System.IO.InvalidDataException("Could not find end of continuation!");
@@ -164,7 +165,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
                 {
                     throw new System.IO.InvalidDataException("Failed to normalize packet index?");
                 }
-                var packet = CreatePacket(ref prevPageIndex, ref prevPacketIndex, false, endGP, false, isContinuation, prevPacketIndex + 1, 0);
+                var packet = CreatePacket(ref prevPageIndex, ref prevPacketIndex, false, endGP, false, isContinuation, prevPacketIndex + 1);
                 if (packet == null)
                 {
                     throw new System.IO.InvalidDataException("Could not load previous packet!");
@@ -182,7 +183,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
         // if packet index is larger than the current page allows, we just return it as-is
         private bool NormalizePacketIndex(ref int pageIndex, ref int packetIndex)
         {
-            if (!_reader.GetPage(pageIndex, out _, out var isResync, out var isContinuation, out _, out _, out _))
+            if (!_reader.GetPage(pageIndex, out _, out var isResync, out var isContinuation, out _, out _))
             {
                 return false;
             }
@@ -197,7 +198,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
 
                 // get the previous packet
                 var wasContinuation = isContinuation;
-                if (!_reader.GetPage(--pgIdx, out _, out isResync, out isContinuation, out var isContinued, out var packetCount, out _))
+                if (!_reader.GetPage(--pgIdx, out _, out isResync, out isContinuation, out var isContinued, out var packetCount))
                 {
                     return false;
                 }
@@ -222,11 +223,11 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             {
                 _lastPacket = null;
 
-                while (_reader.GetPage(pageIndex, out var granulePos, out var isResync, out _, out var isContinued, out var packetCount, out var pageOverhead))
+                while (_reader.GetPage(pageIndex, out var granulePos, out var isResync, out _, out var isContinued, out var packetCount))
                 {
                     _lastPacketPageIndex = pageIndex;
                     _lastPacketPacketIndex = packetIndex;
-                    _lastPacket = CreatePacket(ref pageIndex, ref packetIndex, true, granulePos, isResync, isContinued, packetCount, pageOverhead);
+                    _lastPacket = CreatePacket(ref pageIndex, ref packetIndex, true, granulePos, isResync, isContinued, packetCount);
                     _nextPacketPageIndex = pageIndex;
                     _nextPacketPacketIndex = packetIndex;
                     break;
@@ -240,7 +241,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             return _lastPacket;
         }
 
-        private Packet CreatePacket(ref int pageIndex, ref int packetIndex, bool advance, long granulePos, bool isResync, bool isContinued, int packetCount, int pageOverhead)
+        private Packet CreatePacket(ref int pageIndex, ref int packetIndex, bool advance, long granulePos, bool isResync, bool isContinued, int packetCount)
         {
             // save off the packet data for the initial packet
             var firstPacketData = _reader.GetPagePackets(pageIndex)[packetIndex];
@@ -248,7 +249,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
 
             // Capsule: protects the discovery ring's slot for this page for the rest of this call.
             // firstPacketData is captured once, above. Every later continuation part is re-fetched
-            // fresh instead of reusing a captured reference (see IPacketReader.GetPacketData
+            // fresh instead of reusing a captured reference (see GetPacketData
             // below). This page's slot is the only one the walk below could otherwise evict out
             // from under this packet before it is even returned. Nothing else rents from the
             // discovery ring until this call returns. The pin spans exactly this call. It does not
@@ -256,7 +257,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             _reader.PinDiscoveredPage();
             try
             {
-                return CreatePacketCore(ref pageIndex, ref packetIndex, advance, granulePos, isResync, isContinued, packetCount, pageOverhead, firstPart, firstPacketData);
+                return CreatePacketCore(ref pageIndex, ref packetIndex, advance, granulePos, isResync, isContinued, packetCount, firstPart, firstPacketData);
             }
             finally
             {
@@ -264,7 +265,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             }
         }
 
-        private Packet CreatePacketCore(ref int pageIndex, ref int packetIndex, bool advance, long granulePos, bool isResync, bool isContinued, int packetCount, int pageOverhead, int firstPart, Memory<byte> firstPacketData)
+        private Packet CreatePacketCore(ref int pageIndex, ref int packetIndex, bool advance, long granulePos, bool isResync, bool isContinued, int packetCount, int firstPart, Memory<byte> firstPacketData)
         {
             // Capsule: reinitialize the provider's one Packet instead of `new Packet(...)`. See
             // the `// Capsule:` note on _packet. Continuation parts (if any) are added below onto
@@ -274,29 +275,18 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
 
             // make sure we handle continuations
             bool isLastPacket;
-            bool isFirstPacket;
             var finalPage = pageIndex;
             if (isContinued && packetIndex == packetCount - 1)
             {
-                // by definition, it's the first packet in the page it ends on
-                isFirstPacket = true;
-
-                // but we don't want to include the current page's overhead if we didn't start the page
-                if (packetIndex > 0)
-                {
-                    pageOverhead = 0;
-                }
-
                 // go read the next page(s) that include this packet
                 var contPageIdx = pageIndex;
                 while (isContinued)
                 {
-                    if (!_reader.GetPage(++contPageIdx, out granulePos, out isResync, out var isContinuation, out isContinued, out packetCount, out var contPageOverhead))
+                    if (!_reader.GetPage(++contPageIdx, out granulePos, out isResync, out var isContinuation, out isContinued, out packetCount))
                     {
                         // no more pages?  In any case, we can't satify the request
                         return null;
                     }
-                    pageOverhead += contPageOverhead;
 
                     // if the next page isn't a continuation or is a resync, the stream is broken so we'll just return what we could get
                     if (!isContinuation || isResync)
@@ -322,18 +312,11 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             }
             else
             {
-                isFirstPacket = packetIndex == 0;
                 isLastPacket = packetIndex == packetCount - 1;
             }
 
             // populate the reused packet instance with the appropriate initial data
             packet.IsResync = isResync;
-
-            // if it's the first packet, associate the container overhead with it
-            if (isFirstPacket)
-            {
-                packet.ContainerOverheadBits = pageOverhead * 8;
-            }
 
             // if we're the last packet completed in the page, set the .GranulePosition
             if (isLastPacket)
@@ -377,7 +360,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             return packet;
         }
 
-        Memory<byte> IPacketReader.GetPacketData(int pagePacketIndex)
+        internal Memory<byte> GetPacketData(int pagePacketIndex)
         {
             var pageIndex = (pagePacketIndex >> 8) & 0xFFFFFF;
             var packetIndex = pagePacketIndex & 0xFF;
@@ -390,7 +373,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             return Memory<byte>.Empty;
         }
 
-        void IPacketReader.InvalidatePacketCache(IPacket packet)
+        internal void InvalidatePacketCache(Packet packet)
         {
             if (ReferenceEquals(_lastPacket, packet))
             {

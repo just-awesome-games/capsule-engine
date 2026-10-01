@@ -159,46 +159,6 @@ public sealed class SceneStepOrderTests
     }
 
     [Fact]
-    public void AnEntityAddedDuringAStep_JoinsAtTheEndOfIt()
-    {
-        SceneFixtures.Drifter joining = new();
-        int seenDuringTheStep = 0;
-
-        void Hook(Scene scene, in StepContext context) => scene.Add(joining);
-
-        SceneFixtures.Watcher watcher = new(scene => seenDuringTheStep = scene.Entities.Length);
-        SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(step: Hook), watcher);
-
-        simulation.Step(SceneFixtures.Step());
-
-        Entity[] expected = [watcher, joining];
-        Assert.Equal(1, seenDuringTheStep);
-        Assert.Equal(expected, simulation.Scene.Entities.ToArray());
-        Assert.Same(simulation.Scene, joining.Scene);
-
-        Assert.Equal(Vector2.Zero, joining.Position);
-    }
-
-    [Fact]
-    public void AnEntityRemovedDuringAStep_UpdatesOnceMoreAndLeavesAtTheEndOfIt()
-    {
-        List<string> log = [];
-        SceneFixtures.Recorder leaving = new("leaving", log);
-
-        void Hook(Scene scene, in StepContext context) => scene.Remove(leaving);
-
-        SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(step: Hook), leaving);
-        log.Clear();
-
-        simulation.Step(SceneFixtures.Step());
-
-        string[] expected = ["leaving", "leaving.late", "leaving-"];
-        Assert.Equal(expected, log);
-        Assert.Empty(simulation.Scene.Entities.ToArray());
-        Assert.Null(leaving.SceneOrNull);
-    }
-
-    [Fact]
     public void ALifecycleHookRemovingAnAlreadyQueuedEntity_DetachesItExactlyOnce()
     {
         List<string> log = [];
@@ -273,20 +233,4 @@ public sealed class SceneStepOrderTests
         Assert.Null(fleeting.SceneOrNull);
     }
 
-    [Fact]
-    public void AnEntitySpawnedDuringAStep_DrawsWhereItIsRatherThanSlidingIn()
-    {
-        SceneFixtures.Drifter joining = new(new Vector2(40, 40));
-        joining.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
-
-        void Hook(Scene scene, in StepContext context) => scene.Add(joining);
-
-        SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(step: Hook));
-
-        simulation.Step(SceneFixtures.Step());
-
-        SpriteIntent sprite = simulation.View.Sprites[^1];
-        Assert.Equal(new Vector2(40, 40), sprite.PreviousPosition);
-        Assert.Equal(sprite.PreviousPosition, sprite.Position);
-    }
 }

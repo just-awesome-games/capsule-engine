@@ -21,7 +21,8 @@ public abstract class HostPlatform
     /// with forward slashes and no leading separator, and is validated before it arrives here.
     /// </summary>
     /// <remarks>
-    /// The caller disposes the stream. Calls may arrive from any thread, several at once.
+    /// The returned stream must be seekable. The caller disposes the stream. Calls may arrive from any
+    /// thread, several at once.
     /// </remarks>
     /// <exception cref="FileNotFoundException">Nothing ships at that path.</exception>
     protected internal abstract Stream OpenContent(string relativePath);

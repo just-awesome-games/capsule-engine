@@ -19,40 +19,15 @@ internal static class FontMembers
         code.Append(body).Append(Literal.Of(described.LineHeight)).AppendLine(",");
         code.Append(body).Append(Literal.Of(described.Base)).AppendLine(",");
 
-        code.Append(body).Append("new ").Append(GeneratedTypes.TextureHandle).AppendLine("[]");
-        code.Append(body).AppendLine("{");
-        foreach (Source page in pages)
-        {
-            code.Append(body).Append("    new ").Append(GeneratedTypes.TextureHandle).Append('(').Append(Literal.Of(page.Key))
-                .Append(", ").Append(Literal.Of(page.Extension)).AppendLine("),");
-        }
-
-        code.Append(body).AppendLine("},");
-
-        code.Append(body).Append("new ").Append(GeneratedTypes.Glyph).AppendLine("[]");
-        code.Append(body).AppendLine("{");
-        foreach (BmGlyph glyph in described.Glyphs)
-        {
-            code.Append(body).Append("    new ").Append(GeneratedTypes.Glyph).Append('(').Append(Literal.Of(glyph.Codepoint))
-                .Append(", ").Append(Literal.Of(glyph.Page)).Append(", new ").Append(GeneratedTypes.TextureRegion).Append('(')
-                .Append(Literal.Of(glyph.X)).Append(", ").Append(Literal.Of(glyph.Y)).Append(", ")
-                .Append(Literal.Of(glyph.Width)).Append(", ").Append(Literal.Of(glyph.Height)).Append("), ")
-                .Append(Literal.Of(glyph.XOffset)).Append(", ").Append(Literal.Of(glyph.YOffset)).Append(", ")
-                .Append(Literal.Of(glyph.XAdvance)).AppendLine("),");
-        }
-
-        code.Append(body).AppendLine("},");
-
-        code.Append(body).Append("new ").Append(GeneratedTypes.KerningPair).AppendLine("[]");
-        code.Append(body).AppendLine("{");
-        foreach (BmKerning kerning in described.Kernings)
-        {
-            code.Append(body).Append("    new ").Append(GeneratedTypes.KerningPair).Append('(').Append(Literal.Of(kerning.First))
-                .Append(", ").Append(Literal.Of(kerning.Second)).Append(", ").Append(Literal.Of(kerning.Amount))
-                .AppendLine("),");
-        }
-
-        code.Append(body).AppendLine("});");
+        ArrayOf(code, body, GeneratedTypes.TextureHandle, pages.Select(static page => $"{Literal.Of(page.Key)}, {Literal.Of(page.Extension)}"));
+        code.AppendLine(",");
+        ArrayOf(code, body, GeneratedTypes.Glyph, described.Glyphs.Select(static glyph =>
+            $"{Literal.Of(glyph.Codepoint)}, {Literal.Of(glyph.Page)}, new {GeneratedTypes.TextureRegion}({Literal.Of(glyph.X)}, {Literal.Of(glyph.Y)}, "
+                + $"{Literal.Of(glyph.Width)}, {Literal.Of(glyph.Height)}), {Literal.Of(glyph.XOffset)}, {Literal.Of(glyph.YOffset)}, {Literal.Of(glyph.XAdvance)}"));
+        code.AppendLine(",");
+        ArrayOf(code, body, GeneratedTypes.KerningPair, described.Kernings.Select(static kerning =>
+            $"{Literal.Of(kerning.First)}, {Literal.Of(kerning.Second)}, {Literal.Of(kerning.Amount)}"));
+        code.AppendLine(");");
         code.AppendLine();
 
         code.Append(indent).Append("/// <summary><c>").Append(authored.Key)
@@ -61,5 +36,18 @@ internal static class FontMembers
             .Append(Literal.Of(pages.Length)).AppendLine(" page(s).</summary>");
         code.Append(indent).Append("public static ").Append(GeneratedTypes.BitmapFont).Append(' ').Append(identifier)
             .Append(" => ").Append(field).AppendLine(";");
+    }
+
+    // An array of type, one constructor call per element's arguments, ending at its closing brace.
+    private static void ArrayOf(StringBuilder code, string indent, string type, IEnumerable<string> arguments)
+    {
+        code.Append(indent).Append("new ").Append(type).AppendLine("[]");
+        code.Append(indent).AppendLine("{");
+        foreach (string element in arguments)
+        {
+            code.Append(indent).Append("    new ").Append(type).Append('(').Append(element).AppendLine("),");
+        }
+
+        code.Append(indent).Append('}');
     }
 }

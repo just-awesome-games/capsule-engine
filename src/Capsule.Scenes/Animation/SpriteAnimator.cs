@@ -12,15 +12,11 @@ namespace Capsule.Animation;
 /// <see cref="SpriteRenderer.Sprite"/> and nothing else.
 /// </summary>
 /// <remarks>
-/// Offset, scale, flips and colour stay with the renderer. Playback advances on ticks, not on the
-/// frame rate, and the frame an entity is on is simulation state.
+/// Playback advances on ticks, and the frame an entity is on is simulation state.
 /// <para>
-/// A <see cref="Component"/> steps after its entity. An entity reading its animator's
-/// <see cref="Clip"/>, <see cref="FrameIndex"/>, <see cref="FrameTick"/> or <see cref="Tick"/> in
-/// <see cref="Entity.OnStep"/> therefore sees the frame the previous step drew. A
-/// <see cref="Play(SpriteClip, int)"/> made there at that <see cref="Tick"/> re-enters the previous
-/// step's position and costs the clip a tick. Put logic that depends on the frame drawn in a
-/// component attached after the animator.
+/// A component steps after its entity. An entity reading the animator in <see cref="Entity.OnStep"/>
+/// sees the frame the previous step drew. Put logic that depends on the frame drawn in a component
+/// attached after the animator.
 /// </para>
 /// </remarks>
 /// <param name="renderer">The renderer whose frame this animator writes.</param>
@@ -69,18 +65,10 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
 
     /// <summary>Whether the clip holds on its current frame while the entity keeps stepping.</summary>
     /// <remarks>
-    /// A held clip keeps drawing its frame. Its <see cref="Tick"/> does not advance and
-    /// <see cref="IsFinished"/> does not change. Every <c>Play</c> method leaves this as it is. A
-    /// clip played while held draws its frame and stays held. Removal from the scene clears it.
-    /// <para>
-    /// After at least one held step, the animator's first step after this clears advances from the
-    /// held tick. A held step spends the step a <c>Play</c> holds its first frame for. A
-    /// <c>Play</c> followed by a clear with no held step between them keeps that first step.
-    /// </para>
-    /// <para>
-    /// This holds one clip's playback. Hit-stop and a pause menu hold whole entities with
-    /// <see cref="Scene.Freeze(int)"/> and <see cref="Scene.Paused"/>.
-    /// </para>
+    /// A held clip keeps drawing its frame, and <see cref="Tick"/> and <see cref="IsFinished"/> do
+    /// not change. A held step spends the step a <c>Play</c> holds its first frame for. <c>Play</c>
+    /// leaves this as it is. Removal from the scene clears it. Hit-stop and a pause menu hold whole
+    /// entities with <see cref="Scene.Freeze(int)"/> and <see cref="Scene.Paused"/>.
     /// </remarks>
     /// <example>
     /// Showing one frame of a clip, frozen:
@@ -115,14 +103,11 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// change shows on this step instead of the next.
     /// </summary>
     /// <remarks>
-    /// The first frame then holds for exactly its own ticks, counted from the tick of this call
-    /// whatever point in the step it came from. An entity, a component stepped after this animator
-    /// and a late step all produce the same frames. Called outside a step, the first frame holds
-    /// from the next step.
+    /// The first frame holds for exactly its own ticks, counted from the tick of this call wherever
+    /// in the step it came from. Called outside a step, it holds from the next step.
     /// <para>
-    /// Playing the clip that is already playing does nothing unless <paramref name="restart"/> is
-    /// true. A finished non-looping clip still counts as the clip playing. Re-triggering it from
-    /// unchanged state needs <paramref name="restart"/>.
+    /// Playing the clip already playing does nothing unless <paramref name="restart"/> is true. A
+    /// finished non-looping clip still counts as playing.
     /// </para>
     /// </remarks>
     /// <param name="clip">The clip to play.</param>
@@ -138,9 +123,7 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
 
         Clip = clip;
         _playback.Restart();
-        _pendingStart = true;
-        _startedOnTick = Entity?.SceneOrNull?.SteppingTick;
-        _renderer.Sprite = clip.Frames[0];
+        Reposition(clip);
     }
 
     /// <summary>
@@ -149,21 +132,13 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// next.
     /// </summary>
     /// <remarks>
-    /// The tick lands on the frame the clip would have reached, with that frame's ticks partly
-    /// spent, and the frame then holds for the rest of its ticks, counted from the tick of this
-    /// call whatever point in the step it came from. An <paramref name="atTick"/> of 0 matches
-    /// <see cref="Play(SpriteClip, bool)"/> with a restart.
+    /// The frame reached holds for the rest of its ticks, counted from the tick of this call. A
+    /// looping clip wraps the tick. A non-looping clip clamps a tick at or past its total to the last
+    /// frame, finished. This overload always repositions, even onto the clip already playing.
     /// <para>
-    /// A looping clip wraps the tick modulo its total ticks and never finishes. A non-looping clip
-    /// clamps a tick at or past its total to the last frame, already finished. This overload always
-    /// repositions, even when <paramref name="clip"/> is the clip already playing, which
-    /// <see cref="Play(SpriteClip, bool)"/> does not.
-    /// </para>
-    /// <para>
-    /// Played at <see cref="Tick"/>, a clip with the same frame count and per-frame ticks as the
-    /// one playing draws the frame that clip stood on and continues from there, and a finished clip
-    /// stays finished. A clip of any other shape only seeks, and nothing is validated.
-    /// <see cref="PlayAtFrame"/> keeps the frame across clips of any shape.
+    /// Played at <see cref="Tick"/>, a variant with the same per-frame ticks continues from the
+    /// frame the outgoing clip stood on. <see cref="PlayAtFrame"/> keeps the frame across clips of
+    /// any shape.
     /// </para>
     /// </remarks>
     /// <param name="clip">The clip to play.</param>
@@ -182,16 +157,10 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// <paramref name="frameTick"/> of its ticks already spent, and draws that frame immediately.
     /// </summary>
     /// <remarks>
-    /// The frame then holds for the rest of its ticks, counted from the tick of this call whatever
-    /// point in the step it came from. A frame tick of 0 starts the frame fresh. This method always
-    /// repositions, even when <paramref name="clip"/> is the clip already playing.
-    /// <para>
-    /// Played at <see cref="FrameIndex"/> and <see cref="FrameTick"/>, a variant clip keeps the
-    /// frame and the ticks spent on it even when its frames hold for different ticks. The variant's
-    /// frame then holds for its own remaining ticks. A frame tick equal to a non-looping clip's last
-    /// frame ticks lands finished on that frame, as <see cref="FrameTick"/> reads once such a clip
+    /// The frame holds for the rest of its own ticks, counted from the tick of this call. This method
+    /// always repositions, even onto the clip already playing. A frame tick equal to a non-looping
+    /// clip's last frame ticks lands finished, as <see cref="FrameTick"/> reads once such a clip
     /// finishes.
-    /// </para>
     /// </remarks>
     /// <example>
     /// Swapping a walk for its shooting variant mid-stride:
@@ -263,19 +232,15 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
             return;
         }
 
-        // A played frame is on screen for the whole pause. A paused step therefore spends the step
-        // Play would otherwise hold back.
+        // A played frame is on screen for the whole pause. A paused step spends the step Play holds back.
         if (Paused)
         {
             _pendingStart = false;
             return;
         }
 
-        // The frame Play chose is drawn for the tick Play ran in, so that tick spends no step on it.
-        // Advancing here would retire a one-tick first frame before any frame view saw it. The check
-        // is keyed on the tick, not on having stepped since, because a component stepped after this
-        // one reaches the animator on the following step, and its Play belongs to the earlier tick.
-        // A Play outside a step belongs to no tick and is spent on the next one.
+        // The tick Play ran in spends no step on its frame. A component stepped after this one plays
+        // during an earlier tick than this step's. A Play outside a step belongs to the next tick.
         if (_pendingStart)
         {
             _pendingStart = false;
@@ -289,8 +254,7 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         _renderer.Sprite = clip.Frames[_playback.FrameIndex];
     }
 
-    // A clip has no name, so playback is identified by its frames' span of the sheet and the frame's
-    // place in that span.
+    // A clip has no name. Its frames' span of the sheet identifies it.
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {

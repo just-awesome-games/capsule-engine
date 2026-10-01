@@ -5,36 +5,21 @@ namespace Capsule.Tests.Input;
 public sealed class DeviceSnapshotTests
 {
     [Fact]
-    public void EveryKey_FitsTheBitset()
+    public void EveryDeviceConstant_FitsItsBitset()
     {
         Assert.All(Enum.GetValues<Key>(), key => Assert.InRange((int)key, 0, DeviceSnapshot.Capacity - 1));
-    }
-
-    [Fact]
-    public void EveryPadButton_FitsTheBitset()
-    {
         Assert.All(Enum.GetValues<PadButton>(), button => Assert.InRange((int)button, 0, DeviceSnapshot.PadCapacity - 1));
-    }
-
-    [Fact]
-    public void Of_HoldsEveryKeyItWasGiven()
-    {
-        DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.Escape, Key.LeftShift, Key.F12);
-
-        Assert.True(snapshot.IsDown(Key.Escape));
-        Assert.True(snapshot.IsDown(Key.LeftShift));
-        Assert.True(snapshot.IsDown(Key.F12));
-        Assert.False(snapshot.IsDown(Key.A));
-        Assert.False(snapshot.IsEmpty);
+        Assert.All(Enum.GetValues<MouseButton>(), button => Assert.InRange((int)button, 0, DeviceSnapshot.MouseCapacity - 1));
     }
 
     [Fact]
     public void Without_ReleasesOnlyThatKey()
     {
-        DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.A, Key.B).Without(Key.A);
+        DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.A, Key.B, Key.F12).Without(Key.A);
 
         Assert.False(snapshot.IsDown(Key.A));
         Assert.True(snapshot.IsDown(Key.B));
+        Assert.True(snapshot.IsDown(Key.F12));
     }
 
     [Fact]
@@ -108,41 +93,6 @@ public sealed class DeviceSnapshotTests
         Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithAxis(axis, value));
     }
 
-    // A read is on the step path and answers rather than throws; only the write refuses the axis.
-    [Fact]
-    public void TheNoneAxis_ReadsAtRestAndCannotBeWritten()
-    {
-        Assert.Equal(0f, DeviceSnapshot.Empty.Axis(PadAxis.None));
-        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithAxis(PadAxis.None, 0f));
-    }
-
-    [Fact]
-    public void LatchedWith_UnionsTheButtonsOfBothSnapshots()
-    {
-        DeviceSnapshot older = DeviceSnapshot.Of(Key.A, Key.B).With(PadButton.South);
-        DeviceSnapshot newer = DeviceSnapshot.Of(Key.B, Key.C).With(PadButton.North);
-
-        DeviceSnapshot folded = older.LatchedWith(newer);
-
-        Assert.Equal(
-            DeviceSnapshot.Of(Key.A, Key.B, Key.C).With(PadButton.South).With(PadButton.North),
-            folded);
-    }
-
-    [Fact]
-    public void LatchedWith_TakesEveryAxisFromTheNewerSnapshot()
-    {
-        DeviceSnapshot older = DeviceSnapshot.Empty
-            .WithAxis(PadAxis.LeftStickX, 1f)
-            .WithAxis(PadAxis.LeftTrigger, 1f);
-        DeviceSnapshot newer = DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, -0.25f);
-
-        DeviceSnapshot folded = older.LatchedWith(newer);
-
-        Assert.Equal(-0.25f, folded.Axis(PadAxis.LeftStickX), InputFixtures.Tolerance);
-        Assert.Equal(0f, folded.Axis(PadAxis.LeftTrigger));
-    }
-
     [Fact]
     public void AnAxisAlone_DistinguishesTwoSnapshots()
     {
@@ -154,24 +104,19 @@ public sealed class DeviceSnapshotTests
         Assert.Equal(DeviceSnapshot.Empty.WithAxis(PadAxis.RightStickY, 0.5f).GetHashCode(), held.GetHashCode());
     }
 
-    [Theory]
-    [InlineData(-1)]
-    [InlineData(DeviceSnapshot.Capacity)]
-    public void AnUnrepresentableKey_Throws(int value)
+    [Fact]
+    public void AButtonPastItsDeviceCapacity_ThrowsOnAWriteAndReadsUp()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.With((Key)value));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.With((Key)DeviceSnapshot.Capacity));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.With((PadButton)DeviceSnapshot.PadCapacity));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.With((MouseButton)DeviceSnapshot.MouseCapacity));
+        Assert.False(DeviceSnapshot.Empty.IsDown((Key)(-1)));
     }
 
+    // A read is on the step path and answers rather than throws. Only the write refuses the axis.
     [Theory]
     [InlineData(-1)]
-    [InlineData(DeviceSnapshot.PadCapacity)]
-    public void AnUnrepresentablePadButton_Throws(int value)
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.With((PadButton)value));
-    }
-
-    [Theory]
-    [InlineData(-1)]
+    [InlineData(0)]
     [InlineData(99)]
     public void AnUnrepresentableAxis_Throws(int value)
     {

@@ -1,6 +1,4 @@
-using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
@@ -8,8 +6,6 @@ namespace Capsule.Generators;
 internal static class SceneRenderer
 {
     private const string FileName = "CapsuleScenes.g.cs";
-
-    private const string UnsafeAccessor = "global::System.Runtime.CompilerServices.UnsafeAccessor";
 
     // An applier's statements sit one level inside its method.
     private const string StatementIndent = "            ";
@@ -23,14 +19,11 @@ internal static class SceneRenderer
     internal static void Emit(SourceProductionContext context, (ScenePlan Plan, string? ProviderName) input)
     {
         (ScenePlan plan, string? providerName) = input;
-        foreach (Diagnostic diagnostic in plan.Diagnostics.Items)
-        {
-            context.ReportDiagnostic(diagnostic);
-        }
+        GeneratedFile.Report(context, plan.Diagnostics);
 
         if (plan.Generates)
         {
-            context.AddSource(FileName, SourceText.From(Render(plan, providerName!), Encoding.UTF8));
+            GeneratedFile.Add(context, FileName, Render(plan, providerName!));
         }
     }
 
@@ -49,7 +42,8 @@ internal static class SceneRenderer
         List<KeyedTileType> tileTypes = [.. plan.Composed];
         string members = string.Concat(plan.Registered.Items
                 .Where(static entry => entry.DocumentName is not null && entry.Model.Required)
-                .Select(static entry => Constructor(entry.Model)))
+                .Select(static entry => EntityAccessorRenderer.Constructor(
+                    entry.Model.QualifiedName, entry.Model.ContentModifier + "global::Capsule.Scenes.SceneContent content")))
             + string.Concat(composing.Select(Applier))
             + TileTypeComposer(tileTypes)
             + EntityAccessorRenderer.Setters(composing.SelectMany(static model => model.Authored)
@@ -144,15 +138,6 @@ internal static class SceneRenderer
         return folded.Count == 0 ? "content!.Value" : $"content!.Value with {{ {string.Join(", ", folded)} }}";
     }
 
-    // C#'s required members are checked at a new expression. The document sets a class's required references
-    // inside its constructor, so its factory calls the constructor through an accessor the check does not reach.
-    private static string Constructor(SceneModel model) => $$"""
-
-                [{{UnsafeAccessor}}({{UnsafeAccessor}}Kind.Constructor)]
-                private static extern {{model.QualifiedName}} {{EntityAccessorRenderer.ConstructorName(model.QualifiedName)}}({{model.ContentModifier}}global::Capsule.Scenes.SceneContent content);
-
-        """;
-
     // Sets each required member, and each optional one the document authors. The base constructor calls it once
     // every entry is constructed, before the derived body runs.
     private static string Applier(SceneModel model) => $$"""
@@ -174,7 +159,7 @@ internal static class SceneRenderer
         }
 
         string arms = string.Concat(tileTypes.Select(static entry =>
-            $"            {CodeText.Literal(entry.Key)} => {ComposerName}_{Underscored(entry.Model.QualifiedName)}(tile, properties),\n"));
+            $"            {CodeText.Literal(entry.Key)} => {ComposerName}_{CodeText.TypeIdentifier(entry.Model.QualifiedName)}(tile, properties),\n"));
 
         return $$"""
 
@@ -188,7 +173,7 @@ internal static class SceneRenderer
 
     private static string TileType(TileTypeModel model) => $$"""
 
-                private static {{model.QualifiedName}} {{ComposerName}}_{{Underscored(model.QualifiedName)}}(global::Capsule.Tiles.TileType tile, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+                private static {{model.QualifiedName}} {{ComposerName}}_{{CodeText.TypeIdentifier(model.QualifiedName)}}(global::Capsule.Tiles.TileType tile, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
                 {
                     {{model.QualifiedName}} composed = new {{model.QualifiedName}}
                     {
@@ -205,8 +190,6 @@ internal static class SceneRenderer
 
         """;
 
-    private static string Underscored(string qualifiedName) => CodeText.Underscored(qualifiedName.Substring("global::".Length));
-
-    // Apply and the class's qualified name with every other character an underscore: Game.Level is Apply_Game_Level.
-    private static string ApplierName(SceneModel model) => "Apply_" + CodeText.Underscored(model.QualifiedName.Substring("global::".Length));
+    // Game.Level's applier is Apply_Game_Level.
+    private static string ApplierName(SceneModel model) => "Apply_" + CodeText.TypeIdentifier(model.QualifiedName);
 }

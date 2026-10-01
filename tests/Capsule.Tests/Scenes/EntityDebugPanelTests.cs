@@ -30,15 +30,7 @@ public sealed class EntityDebugPanelTests
 
         Assert.Equal(
             [
-                ("[Entity]", null),
-                ("Transform", "(3, 4) r 0 s (1, 1)"),
-                ("ZIndex", "7"),
-                ("ScrollFactor", "(1, 1)"),
-                ("Visible", null),
-                ("Tint", "#ffffffff"),
-                ("Flash", "0"),
-                ("StepMode", "Inherit"),
-                ("Remove", null),
+                .. EntitySection("(3, 4) r 0 s (1, 1)", "7"),
                 ("Health", "12"),
                 ("[ReportingComponent]", null),
                 ("Name", "Second"),
@@ -49,8 +41,7 @@ public sealed class EntityDebugPanelTests
             Rows(panel));
     }
 
-    // Time has not begun for an entity in a scene that has not started, so neither hook runs; the
-    // innate rows and the headings are the engine's and are written regardless.
+    // Neither hook runs before the scene starts. The innate rows and the headings are the engine's.
     [Fact]
     public void AnUnstartedEntity_ReportsOnlyTheInnateRowsAndItsComponentHeadings()
     {
@@ -62,24 +53,10 @@ public sealed class EntityDebugPanelTests
 
         entity.RunDebugPanel(panel);
 
-        Assert.Equal(
-            [
-                ("[Entity]", null),
-                ("Transform", "(0, 0) r 0 s (1, 1)"),
-                ("ZIndex", "0"),
-                ("ScrollFactor", "(1, 1)"),
-                ("Visible", null),
-                ("Tint", "#ffffffff"),
-                ("Flash", "0"),
-                ("StepMode", "Inherit"),
-                ("Remove", null),
-                ("[ReportingComponent]", null),
-            ],
-            Rows(panel));
+        Assert.Equal([.. EntitySection("(0, 0) r 0 s (1, 1)"), ("[ReportingComponent]", null)], Rows(panel));
     }
 
-    // The entity has no override of its own, and the innate rows are still there ahead of the
-    // collider's; the collider's Enabled is a toggle that round-trips through the collider.
+    // The collider's Enabled is a toggle that round-trips through the collider.
     [Fact]
     public void ABoxCollider_ReportsItsSharedFieldsThenItsSizeAndItsEnabledToggleRoundTrips()
     {
@@ -95,15 +72,7 @@ public sealed class EntityDebugPanelTests
 
         Assert.Equal(
             [
-                ("[Entity]", null),
-                ("Transform", "(9, 9) r 0 s (1, 1)"),
-                ("ZIndex", "0"),
-                ("ScrollFactor", "(1, 1)"),
-                ("Visible", null),
-                ("Tint", "#ffffffff"),
-                ("Flash", "0"),
-                ("StepMode", "Inherit"),
-                ("Remove", null),
+                .. EntitySection("(9, 9) r 0 s (1, 1)"),
                 ("[BoxCollider2D]", null),
                 ("Offset", "(1, 2)"),
                 ("Layer", "solid"),
@@ -189,6 +158,20 @@ public sealed class EntityDebugPanelTests
             ],
             rows[(heading + 1)..]);
     }
+
+    // The rows every entity's section opens with.
+    private static (string Label, string? Value)[] EntitySection(string transform, string zIndex = "0") =>
+    [
+        ("[Entity]", null),
+        ("Transform", transform),
+        ("ZIndex", zIndex),
+        ("ScrollFactor", "(1, 1)"),
+        ("Visible", null),
+        ("Tint", "#ffffffff"),
+        ("Flash", "0"),
+        ("StepMode", "Inherit"),
+        ("Remove", null),
+    ];
 
     private static (string Label, string? Value)[] Rows(DebugPanel panel)
     {

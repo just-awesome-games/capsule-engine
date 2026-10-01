@@ -1,6 +1,4 @@
-using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
@@ -11,19 +9,16 @@ internal static class InputDriverRenderer
 {
     private const string FileName = "CapsuleInputDrivers.g.cs";
 
-    internal static void Emit(SourceProductionContext context, InputDriverInputs inputs)
+    internal static void Emit(SourceProductionContext context, (InputDriverPlan Drivers, bool IsLogicAssembly) inputs)
     {
         if (!inputs.IsLogicAssembly)
         {
             return;
         }
 
-        foreach (Diagnostic diagnostic in inputs.Drivers.Diagnostics.Items)
-        {
-            context.ReportDiagnostic(diagnostic);
-        }
+        GeneratedFile.Report(context, inputs.Drivers.Diagnostics);
 
-        context.AddSource(FileName, SourceText.From(Render(inputs.Drivers), Encoding.UTF8));
+        GeneratedFile.Add(context, FileName, Render(inputs.Drivers));
     }
 
     internal static string Render(InputDriverPlan plan) => GeneratedFile.Write([], $$"""

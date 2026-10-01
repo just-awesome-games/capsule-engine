@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using Capsule.Physics.Internal;
 
 namespace Capsule.Physics;
 
@@ -97,13 +98,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
                 nameof(box));
         }
 
-        PointBuffer points = default;
-        points[0] = box.Min;
-        points[1] = new Vector2(box.Max.X, box.Min.Y);
-        points[2] = box.Max;
-        points[3] = new Vector2(box.Min.X, box.Max.Y);
-
-        return new Shape2D(ShapeKind2D.Box, points, 4, 0f, box);
+        return Rectangle(box);
     }
 
     /// <summary>An axis-aligned rectangle of <paramref name="size"/> whose lower corner is <paramref name="corner"/>.</summary>
@@ -149,25 +144,8 @@ public readonly struct Shape2D : IEquatable<Shape2D>
 
     // A grid cell or one of its faces. The grid already validated these coordinates, so the bounds
     // are taken unchecked. A cell with no thickness on an axis becomes a segment.
-    internal static Shape2D OfCell(in Aabb2D cell)
-    {
-        if (cell.Min.X != cell.Max.X && cell.Min.Y != cell.Max.Y)
-        {
-            PointBuffer corners = default;
-            corners[0] = cell.Min;
-            corners[1] = new Vector2(cell.Max.X, cell.Min.Y);
-            corners[2] = cell.Max;
-            corners[3] = new Vector2(cell.Min.X, cell.Max.Y);
-
-            return new Shape2D(ShapeKind2D.Box, corners, 4, 0f, cell);
-        }
-
-        PointBuffer ends = default;
-        ends[0] = cell.Min;
-        ends[1] = cell.Max;
-
-        return new Shape2D(ShapeKind2D.Segment, ends, 2, 0f, cell);
-    }
+    internal static Shape2D OfCell(in Aabb2D cell) =>
+        cell.Min.X != cell.Max.X && cell.Min.Y != cell.Max.Y ? Rectangle(cell) : Segment(cell.Min, cell.Max);
 
     // A point query's probe, a circle of no radius. The caller validated the point.
     internal static Shape2D OfPoint(Vector2 point)
@@ -313,21 +291,23 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     /// <summary>Whether two shapes differ in kind, radius or points.</summary>
     public static bool operator !=(Shape2D left, Shape2D right) => !left.Equals(right);
 
-    // The furthest point along a direction. Ties go to the lowest index so identical inputs walk the
-    // same simplex.
-    internal Vector2 Support(Vector2 direction)
+    // The furthest point along a direction.
+    internal Vector2 Support(Vector2 direction) => _points[SupportIndex(direction)];
+
+    // The index of the furthest point along a direction. Ties go to the lowest index so identical
+    // inputs walk the same simplex.
+    internal int SupportIndex(Vector2 direction)
     {
-        Vector2 best = _points[0];
-        float bestDot = Vector2.Dot(best, direction);
+        int best = 0;
+        float bestDot = Vector2.Dot(_points[0], direction);
 
         for (int index = 1; index < _count; index++)
         {
-            Vector2 candidate = _points[index];
-            float dot = Vector2.Dot(candidate, direction);
+            float dot = Vector2.Dot(_points[index], direction);
             if (dot > bestDot)
             {
                 bestDot = dot;
-                best = candidate;
+                best = index;
             }
         }
 
@@ -335,6 +315,26 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     }
 
     internal Vector2 PointAt(int index) => _points[index];
+
+    // The outward unit normal of the edge leaving point index.
+    internal Vector2 EdgeNormal(int index)
+    {
+        Vector2 edge = _points[(index + 1) % _count] - _points[index];
+
+        return Vector2.Normalize(new Vector2(edge.Y, -edge.X));
+    }
+
+    // A box's four corners, in the winding every polygon is normalised to.
+    private static Shape2D Rectangle(in Aabb2D box)
+    {
+        PointBuffer points = default;
+        points[0] = box.Min;
+        points[1] = new Vector2(box.Max.X, box.Min.Y);
+        points[2] = box.Max;
+        points[3] = new Vector2(box.Min.X, box.Max.Y);
+
+        return new Shape2D(ShapeKind2D.Box, points, 4, 0f, box);
+    }
 
     private static void RequireApart(in PointBuffer points, string parameterName)
     {
@@ -369,9 +369,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         float twiceArea = 0f;
         for (int index = 0; index < count; index++)
         {
-            Vector2 current = points[index];
-            Vector2 next = points[(index + 1) % count];
-            twiceArea += (current.X * next.Y) - (current.Y * next.X);
+            twiceArea += Math2D.Cross(points[index], points[(index + 1) % count]);
         }
 
         if (twiceArea >= 0f)
@@ -389,13 +387,8 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     {
         for (int index = 0; index < count; index++)
         {
-            Vector2 previous = points[index];
             Vector2 current = points[(index + 1) % count];
-            Vector2 next = points[(index + 2) % count];
-
-            Vector2 incoming = current - previous;
-            Vector2 outgoing = next - current;
-            if ((incoming.X * outgoing.Y) - (incoming.Y * outgoing.X) <= PointTolerance * PointTolerance)
+            if (Math2D.Cross(current - points[index], points[(index + 2) % count] - current) <= PointTolerance * PointTolerance)
             {
                 throw new ArgumentException(
                     $"Polygon corner {(index + 1) % count} is collinear or reflex. A shape must be strictly convex.",

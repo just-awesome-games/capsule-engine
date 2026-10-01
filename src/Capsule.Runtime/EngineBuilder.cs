@@ -16,10 +16,7 @@ namespace Capsule.Runtime;
 /// Host configuration for one game, begun by <c>CapsuleBoot.Configure</c>. Each <c>With</c> call
 /// validates its arguments at once and returns this builder.
 /// </summary>
-/// <remarks>
-/// Every setting has a default. A <c>RunScene</c> call blocks until the game requests exit, then
-/// returns 0 as the process's exit code.
-/// </remarks>
+/// <remarks>Every setting has a default.</remarks>
 public sealed class EngineBuilder
 {
     private const int DefaultWindowWidth = 1280;
@@ -198,9 +195,8 @@ public sealed class EngineBuilder
 
     /// <summary>
     /// The most fixed steps one frame may run to catch up on a stall, 8 by default. At the bound
-    /// the frame drops the time it did not run.
+    /// the frame drops the time it did not run, and the simulation falls behind wall clock.
     /// </summary>
-    /// <remarks>The simulation then falls behind wall clock instead of spiralling.</remarks>
     /// <exception cref="ArgumentOutOfRangeException">The bound is not positive.</exception>
     public EngineBuilder WithMaxStepsPerFrame(int steps)
     {
@@ -443,11 +439,10 @@ public sealed class EngineBuilder
     /// device or textures, until the driver reports it is finished or the game requests exit.
     /// </summary>
     /// <remarks>
-    /// Every setting below the window applies, and scene transitions are honoured.
+    /// Every setting except the window's applies, and scene transitions are honoured.
     /// <paramref name="driver"/> replaces any driver <see cref="WithInputDriver"/> set. A headless run
     /// writes no crash log, and an escaping exception propagates to the caller. It persists nothing
-    /// unless <see cref="WithSaveDirectory"/> or <see cref="WithSaveStorage"/> named a medium. A
-    /// developer's own saves stay out of the run.
+    /// unless <see cref="WithSaveDirectory"/> or <see cref="WithSaveStorage"/> named a medium.
     /// </remarks>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
     /// <param name="driver">The run's input, one snapshot per fixed step.</param>
@@ -519,22 +514,11 @@ public sealed class EngineBuilder
         // exception is rethrown to preserve the exit code and the debugger break.
         try
         {
-            // Installed before composing, because a scene's OnStart logs while RunHost builds the host.
+            // Installed before composing, because a scene's OnStart logs while the host is built.
             InstallLogging();
 
-            SceneComposer composer = new(Scenes, Platform);
-
-            ISaveStorage storage = _saveStorage
-                ?? (_saveDirectory is { } directory ? new DirectorySaveStorage(directory) : Platform.OpenSaveStorage(_localFolderName));
-
-            using SceneHost host = new(
-                opening,
-                composer.Resolve,
-                new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, RenderResolution = RenderResolution },
-                storage,
-                _runStart);
-
-            RunHost(host, host);
+            using SceneHost host = CreateHost(opening, NamedSaveStorage() ?? Platform.OpenSaveStorage(_localFolderName));
+            RunHost(host);
         }
         catch (Exception exception) when (_writesCrashLog)
         {
@@ -551,20 +535,19 @@ public sealed class EngineBuilder
         : _commandLineScene is { } scene ? SceneTransition.ToScene(scene, target.Payload)
         : target;
 
-    // Builds the host and runs simulation until it requests exit.
-    private void RunHost(ISimulation simulation, SceneHost? scenes)
+    // Builds the window host and runs the scenes until they request exit.
+    private void RunHost(SceneHost scenes)
     {
         // Declared first so the host is disposed before it, with its last frame already written.
         using FrameDiagnostics? diagnostics = _frameDiagnosticsPath is null
             ? null
             : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds);
 
-        using CapsuleGame game = new(this, simulation, scenes, diagnostics);
+        using CapsuleGame game = new(this, scenes, diagnostics);
 
-        if (_consoleSink is not null)
-        {
-            _consoleSink.Tick = () => game.SimulationTick;
-        }
+        // The host owns the clock only while it runs. A line written after the run, or by the next
+        // run's scene construction, has no clock.
+        _consoleSink?.Tick = () => game.SimulationTick;
 
         try
         {
@@ -572,10 +555,7 @@ public sealed class EngineBuilder
         }
         finally
         {
-            if (_consoleSink is not null)
-            {
-                _consoleSink.Tick = null;
-            }
+            _consoleSink?.Tick = null;
         }
     }
 
@@ -587,27 +567,10 @@ public sealed class EngineBuilder
 
         InstallLogging();
 
-        SceneComposer composer = new(Scenes, Platform);
-
         // No medium unless one was named, which keeps a developer's local folder out of the run.
-        ISaveStorage? storage = _saveStorage
-            ?? (_saveDirectory is { } directory ? new DirectorySaveStorage(directory) : null);
-
-        using SceneHost host = new(
-            initialTarget,
-            composer.Resolve,
-            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, RenderResolution = RenderResolution },
-            storage,
-            _runStart);
-
+        using SceneHost host = CreateHost(initialTarget, NamedSaveStorage());
         FixedStepScheduler scheduler = new(StepSeconds, MaxStepsPerFrame, Input.Bindings, driver, host);
-
-        // The scheduler owns the clock only while it runs. A line written after the run, or by the
-        // next run's scene construction, has no clock.
-        if (_consoleSink is not null)
-        {
-            _consoleSink.Tick = () => scheduler.Tick;
-        }
+        _consoleSink?.Tick = () => scheduler.Tick;
 
         try
         {
@@ -630,12 +593,21 @@ public sealed class EngineBuilder
         }
         finally
         {
-            if (_consoleSink is not null)
-            {
-                _consoleSink.Tick = null;
-            }
+            _consoleSink?.Tick = null;
         }
     }
+
+    private SceneHost CreateHost(in SceneTransition opening, ISaveStorage? storage) =>
+        new(
+            opening,
+            new SceneComposer(Scenes, Platform).Resolve,
+            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, RenderResolution = RenderResolution },
+            storage,
+            _runStart);
+
+    // The medium the shell named, which wins over the platform's own.
+    private ISaveStorage? NamedSaveStorage() =>
+        _saveStorage ?? (_saveDirectory is { } directory ? new DirectorySaveStorage(directory) : null);
 
     private void InstallLogging()
     {

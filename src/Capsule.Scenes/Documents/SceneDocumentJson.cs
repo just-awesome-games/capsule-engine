@@ -77,10 +77,6 @@ internal sealed class SceneDocumentJson
 [Description("One entry: a game entity, or the engine's tile map when its type is \"tile-map\".")]
 internal sealed class SceneEntryJson
 {
-    private float? _rotation;
-
-    private float[]? _scale;
-
     [Description("The entry's id: positive, unique in the document and lower than nextEntityId.")]
     [Required]
     [Range(1, int.MaxValue)]
@@ -103,16 +99,14 @@ internal sealed class SceneEntryJson
     [DefaultValue(0f)]
     public float? Rotation
     {
-        get => _rotation;
+        get;
         set
         {
-            _rotation = value;
+            field = value;
             HasRotation = true;
         }
     }
 
-    // Whether the document carried the field. The tile-map entry rejects a rotation on presence, as it
-    // does a scale.
     [JsonIgnore]
     public bool HasRotation { get; private set; }
 
@@ -121,10 +115,10 @@ internal sealed class SceneEntryJson
     [Range(0d, double.MaxValue, MinimumIsExclusive = true)]
     public float[]? Scale
     {
-        get => _scale;
+        get;
         set
         {
-            _scale = value;
+            field = value;
             HasScale = true;
         }
     }
@@ -138,7 +132,7 @@ internal sealed class SceneEntryJson
     [Description("The entry's draw band. On a tile-map entry it applies to the composed map.")]
     public int? ZIndex { get; set; }
 
-    [Description("How far the entry moves with the camera, as [x, y], both finite. On a tile-map entry it applies to the composed map.")]
+    [Description("How far the entry moves with the camera, as [x, y], both finite. On a tile-map entry it applies to the composed map. A tile-map entry whose palette names a collision layer refuses it.")]
     [SchemaLength(2, 2)]
     public float[]? ScrollFactor { get; set; }
 

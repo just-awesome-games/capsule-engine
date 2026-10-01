@@ -9,26 +9,17 @@ namespace Capsule.Tests.Documents;
 public sealed class SceneDocumentModelTests
 {
     // The reader splits a written name on its last dot, so a handle has a written form only when
-    // that split hands it back unchanged. Each of these would come back as some other handle.
+    // that split hands it back unchanged. A default handle has no parts.
     [Theory]
+    [InlineData(null, null)]
     [InlineData("terrain.png", "")]
     [InlineData("a", ".b.png")]
     [InlineData("", ".png")]
     [InlineData("a", "png")]
-    public void ToJson_RefusesATextureHandleTheWrittenNameWouldNotSplitBackInto(string name, string extension)
+    public void ToJson_RefusesATextureHandleTheWrittenNameWouldNotSplitBackInto(string? name, string? extension)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.ToJson(Drawing(new TextureHandle(name, extension))));
-
-        Assert.Contains("does not split back out of one texture path", error.Message, StringComparison.Ordinal);
-    }
-
-    // A struct's default has null parts, which is a handle with no written form, not a crash.
-    [Fact]
-    public void ToJson_RefusesTheDefaultTextureHandle()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.ToJson(Drawing(default)));
+            () => SceneDocumentFile.ToJson(Drawing(new TextureHandle(name!, extension!))));
 
         Assert.Contains("does not split back out of one texture path", error.Message, StringComparison.Ordinal);
     }

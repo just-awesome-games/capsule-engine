@@ -30,7 +30,7 @@ public sealed class PngWriterTests
         }
 
         using MemoryStream png = new();
-        TexturePixels.Encode(texels, Width, Height, png, channels);
+        PngWriter.Write(texels, Width, Height, channels, png);
         ImageResult decoded = ImageResult.FromMemory(png.ToArray(), channels == 1 ? ColorComponents.Grey : ColorComponents.RedGreenBlueAlpha);
 
         Assert.Equal((Width, Height), (decoded.Width, decoded.Height));

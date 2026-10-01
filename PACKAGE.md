@@ -11,7 +11,7 @@ Capsule is a deterministic, code-first 2D game engine for C#. Scenes are authore
 | `JAG.Capsule.Runtime` | The platform-neutral host: window, device, clock, input sampling, renderer, sound playback, scene hosting, and the `HostPlatform` contract. |
 | `JAG.Capsule.Runtime.Desktop` | The desktop platform module a shell references: content beside the executable, saves and the crash log in the per-user local folder, window raising and focus, and sound following the default output. |
 
-`JAG.Capsule.Runtime` carries the [third-party notices](https://github.com/just-awesome-games/capsule-engine/blob/main/THIRD-PARTY-NOTICES.md) for the embedded default font and the vendored Vorbis decoder.
+`JAG.Capsule.Runtime` carries the [third-party notices](https://github.com/just-awesome-games/capsule-engine/blob/main/THIRD-PARTY-NOTICES.md).
 
 Start with the [repository quickstart](https://github.com/just-awesome-games/capsule-engine#quick-start). The [README](https://github.com/just-awesome-games/capsule-engine#documentation) indexes the task pages.
 

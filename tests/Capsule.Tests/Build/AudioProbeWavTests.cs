@@ -51,19 +51,24 @@ public sealed class AudioProbeWavTests
         Assert.Equal(882 / 22050.0, region.EndSeconds, 12);
     }
 
-    [Fact]
-    public void AWavCapsuleCannotDecode_IsRefused()
+    // 0x11 is IMA ADPCM. The other shapes measure cleanly but the host cannot play them.
+    [Theory]
+    [InlineData(0x11, 1, 16, "PCM")]
+    [InlineData(1, 1, 40, "40 bits")]
+    [InlineData(3, 1, 64, "64 bits")]
+    [InlineData(1, 6, 16, "6 channels")]
+    public void AWavCapsuleCannotPlay_IsRefused(int tag, int channels, int bits, string expected)
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        byte[] file = Wav(1, 16, 22050, 8);
+        byte[] file = Wav(channels, bits, 22050, 8);
 
-        // The format tag, at the head of the 'fmt ' chunk: 0x11 is IMA ADPCM.
-        file[20] = 0x11;
+        // The format tag, at the head of the 'fmt ' chunk.
+        file[20] = (byte)tag;
         File.WriteAllBytes("clip.wav", file);
 
         FormatException refused =
             Assert.Throws<FormatException>(() => AudioProbe.Measure("clip.wav"));
 
-        Assert.Contains("PCM", refused.Message, StringComparison.Ordinal);
+        Assert.Contains(expected, refused.Message, StringComparison.Ordinal);
     }
 }

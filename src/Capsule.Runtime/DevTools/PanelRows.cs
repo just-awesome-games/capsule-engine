@@ -30,10 +30,6 @@ internal sealed class PanelRows
     // and steps nothing.
     internal PanelRows(SceneHost scenes, Action<Action> tick, Action<Entity> open)
     {
-        ArgumentNullException.ThrowIfNull(scenes);
-        ArgumentNullException.ThrowIfNull(tick);
-        ArgumentNullException.ThrowIfNull(open);
-
         _scenes = scenes;
         _tick = tick;
         _open = open;

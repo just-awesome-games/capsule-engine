@@ -323,7 +323,6 @@ public partial class Entity
     // cursor shifts with the list so the shifted-down component still gets visited.
     private ComponentWalk LiveComponents => new(_components);
 
-
     /// <summary>Attaches <paramref name="component"/>, which no entity may already own.</summary>
     /// <exception cref="InvalidOperationException">
     /// The component is already attached to an entity, or this entity refuses it. An entity refuses
@@ -378,10 +377,8 @@ public partial class Entity
             component.EnterScene();
         }
 
-        // A started entity starts each component it gains. Both conditions are re-read because the
-        // hooks above may have detached the component or removed this entity from the scene. An
-        // entity queued for removal still reports a scene but will not step again, so its new
-        // component waits until the next add.
+        // The hooks above may have detached the component or removed this entity. An entity queued for
+        // removal will not step again, and its new component waits for the next add.
         if (_started && SceneOrNull?.Contains(this) == true && ReferenceEquals(component.Entity, this))
         {
             component.RunStart();
@@ -526,12 +523,10 @@ public partial class Entity
     /// </remarks>
     protected internal virtual void CollectAssets(AssetCollection assets)
     {
-        ArgumentNullException.ThrowIfNull(assets);
     }
 
     internal void CollectAssetPreloads(AssetCollection assets)
     {
-        ArgumentNullException.ThrowIfNull(assets);
         CollectAssets(assets);
 
         foreach (Component component in Components)

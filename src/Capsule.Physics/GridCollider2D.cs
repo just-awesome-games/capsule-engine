@@ -171,10 +171,7 @@ public sealed class GridCollider2D
             && edge.Side != CellState2D.None
             && !(CoverAcross(x, y, edge.Side, edge.Low, edge.High) is { } layer && filter.Admits(layer)));
 
-    internal Aabb2D CellBox(int x, int y) =>
-        new(
-            new Vector2(x * (float)CellSize, y * (float)CellSize),
-            new Vector2((x + 1) * (float)CellSize, (y + 1) * (float)CellSize));
+    internal Aabb2D CellBox(int x, int y) => new(CellCorner(x, y), CellCorner(x + 1, y + 1));
 
     // One side of a cell as a zero-thickness box, which the narrowphase reads as a segment.
     internal Aabb2D FaceEdge(int x, int y, CellState2D face)
@@ -283,8 +280,7 @@ public sealed class GridCollider2D
         {
             Vector2 start = shape.PointAt(corner);
             Vector2 end = shape.PointAt((corner + 1) % shape.PointCount);
-            Vector2 along = end - start;
-            Vector2 normal = Vector2.Normalize(new Vector2(along.Y, -along.X));
+            Vector2 normal = shape.EdgeNormal(corner);
 
             if (profile.OneWay && !OneWayKeeps(normal, profile.SolidSides))
             {

@@ -91,64 +91,21 @@ public sealed class EntityGeneratorTests
     }
 
     [Theory]
-    [InlineData("public abstract class Hazard : Entity { protected Hazard(EntitySpawn spawn) : base(spawn) { } }")]
-    [InlineData("public sealed class Marker { public Marker(EntitySpawn spawn) { } }")]
-    public void AClaimedTypeOnSomethingThatIsNotAConcreteEntity_FailsTheBuild(string declaration)
+    [InlineData("[SpawnType(\"hazard\")] public abstract class Hazard : Entity { protected Hazard(EntitySpawn spawn) : base(spawn) { } }", "CAP001")]
+    [InlineData("[SpawnType(\"marker\")] public sealed class Marker { public Marker(EntitySpawn spawn) { } }", "CAP001")]
+    [InlineData("[SpawnType(\"player\")] public sealed class Player : Entity { public Player() : base(Vector2.Zero) { } }", "CAP002")]
+    [InlineData("[SpawnType(\"  \")] public sealed class Player(EntitySpawn spawn) : Entity(spawn);", "CAP004")]
+    [InlineData("public static class Entities { private sealed class Player(EntitySpawn spawn) : Entity(spawn); }", "CAP008")]
+    [InlineData("public sealed class Player : Entity { public Player(EntitySpawn spawn) : base(spawn) { } public Player(in EntitySpawn spawn) : base(spawn) { } }", "CAP010")]
+    public void AnEntityOfAShapeTheRegistryCannotSpawn_FailsTheBuild(string declaration, string id)
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
-            [SpawnType("hazard")]
             {{declaration}}
             """).Diagnostics;
 
-        Assert.Equal("CAP001", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
-    }
-
-    [Fact]
-    public void AClaimedTypeWithoutASpawnConstructor_FailsTheBuild()
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            [SpawnType("player")]
-            public sealed class Player : Entity
-            {
-                public Player() : base(Vector2.Zero)
-                {
-                }
-            }
-            """).Diagnostics;
-
-        Assert.Equal("CAP002", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
-    }
-
-    [Fact]
-    public void ABlankSpawnType_FailsTheBuild()
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            [SpawnType("  ")]
-            public sealed class Player(EntitySpawn spawn) : Entity(spawn);
-            """).Diagnostics;
-
-        Assert.Equal("CAP004", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
-    }
-
-    [Fact]
-    public void ARegisteredEntityNestedBehindPrivateAccess_FailsTheBuild()
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            public static class Entities
-            {
-                private sealed class Player(EntitySpawn spawn) : Entity(spawn);
-            }
-            """).Diagnostics;
-
-        Assert.Equal("CAP008", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+        Assert.Equal(id, Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 
     // A public constructor taking a Vector2, for placement from code, is not a spawn constructor:
@@ -170,8 +127,8 @@ public sealed class EntityGeneratorTests
         Assert.Contains("\"player\"", Emitted(compiled), StringComparison.Ordinal);
     }
 
-    // The spawn carries the authored band and factor, so a claiming constructor that does not hand
-    // it on to a base constructor taking one drops them; the build says so at that constructor.
+    // The spawn carries the authored band and factor. A claiming constructor that does not hand it to a
+    // base constructor drops them, and the build reports that constructor.
     [Fact]
     public void ASpawnConstructorThatDropsItsSpawn_FailsTheBuild()
     {
@@ -230,22 +187,6 @@ public sealed class EntityGeneratorTests
             """).Diagnostics;
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
-    }
-
-    [Fact]
-    public void MoreThanOneSpawnConstructor_FailsTheBuild()
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            public sealed class Player : Entity
-            {
-                public Player(EntitySpawn spawn) : base(spawn) { }
-                public Player(in EntitySpawn spawn) : base(spawn) { }
-            }
-            """).Diagnostics;
-
-        Assert.Equal("CAP010", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 
     private static string Emitted(Compilation compiled) => GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleEntitiesFile);

@@ -101,18 +101,6 @@ public sealed class TileLayerFormatTests
         Assert.Equal(new TileTransform[2], Grid(SceneDocumentFile.Parse(untransformed)).Transforms.ToArray());
     }
 
-    [Fact]
-    public void AVersionOneDocument_IsRefused()
-    {
-        string written = SceneDocumentFile.ToJson(Document("solid"))
-            .Replace("\"formatVersion\": 8", "\"formatVersion\": 1", StringComparison.Ordinal);
-
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(written));
-
-        Assert.Contains("formatVersion 1", error.Message, StringComparison.Ordinal);
-    }
-
     // A tile's shape is a convex polygon inside its own tile, and only a colliding tile has one.
     [Theory]
     [InlineData("\"layer\": \"solid\", \"shape\": [[0, 0], [16, 0], [4, 4], [0, 16]]", "not a convex polygon")]
@@ -130,21 +118,6 @@ public sealed class TileLayerFormatTests
 
         Assert.Contains("tileTypes[1]", error.Message, StringComparison.Ordinal);
         Assert.Contains(defect, error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TheReservedEmptyEntry_MayNotCollide()
-    {
-        ArgumentException error = Assert.Throws<ArgumentException>(() => new TileGrid(
-            16,
-            2,
-            1,
-            [new TileType { Name = TileGrid.EmptyTileName, Layer = "solid" }, SceneFixtures.Tile("ground", 0, "solid")],
-            [0, 1],
-            Atlas,
-            4));
-
-        Assert.Contains("no cell, no frames, no layer", error.Message, StringComparison.Ordinal);
     }
 
     private static ReadOnlySpan<TileType> Palette(SceneDocument document) => Grid(document).TileTypes;

@@ -286,14 +286,8 @@ public sealed class TileMap : Entity
             }
         }
 
-        string[] names = new string[palette.Length];
-        for (int index = 0; index < names.Length; index++)
-        {
-            names[index] = palette[index].Name;
-        }
-
         throw new ArgumentException(
-            $"The palette has no tile type named \"{name}\". Use one of: {string.Join(", ", names)}.",
+            $"The palette has no tile type named \"{name}\". Use one of: {string.Join(", ", palette.ToArray().Select(static tileType => tileType.Name))}.",
             nameof(name));
     }
 
@@ -372,43 +366,14 @@ public sealed class TileMap : Entity
             }
 
             return (
-                StartCoordinate(swept.Left, grid.TileSize, grid.Width),
-                StartCoordinate(swept.Top, grid.TileSize, grid.Height),
-                EndCoordinate(swept.Right, grid.TileSize, grid.Width),
-                EndCoordinate(swept.Bottom, grid.TileSize, grid.Height));
+                (int)MathF.Floor(Cells(swept.Left, grid.Width)),
+                (int)MathF.Floor(Cells(swept.Top, grid.Height)),
+                (int)MathF.Ceiling(Cells(swept.Right, grid.Width)),
+                (int)MathF.Ceiling(Cells(swept.Bottom, grid.Height)));
         }
 
-        private static int StartCoordinate(float boundary, int tileSize, int limit)
-        {
-            float coordinate = boundary / tileSize;
-            if (coordinate <= 0f)
-            {
-                return 0;
-            }
-
-            if (coordinate >= limit)
-            {
-                return limit;
-            }
-
-            return (int)MathF.Floor(coordinate);
-        }
-
-        private static int EndCoordinate(float boundary, int tileSize, int limit)
-        {
-            float coordinate = boundary / tileSize;
-            if (coordinate <= 0f)
-            {
-                return 0;
-            }
-
-            if (coordinate >= limit)
-            {
-                return limit;
-            }
-
-            return (int)MathF.Ceiling(coordinate);
-        }
+        // A world coordinate in tiles, clamped to the grid's extent on that axis.
+        private float Cells(float boundary, int limit) => Math.Clamp(boundary / grid.TileSize, 0f, limit);
     }
 
     // Draws the grid's live edges on the Colliders channel, only for the cells the camera's view reaches

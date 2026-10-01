@@ -1,6 +1,4 @@
-using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Generators;
 
@@ -16,7 +14,7 @@ internal static class GlobalUsingsRenderer
     {
         if (project.IsLogicAssembly || project.IsShellAssembly)
         {
-            context.AddSource(FileName, SourceText.From(Text, Encoding.UTF8));
+            GeneratedFile.Add(context, FileName, Text);
         }
     }
 }

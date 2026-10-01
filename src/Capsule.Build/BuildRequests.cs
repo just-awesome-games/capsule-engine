@@ -24,8 +24,8 @@ internal sealed record BuildRequests(string AssetRoot, ShaderTools ShaderTools, 
     /// <summary>Walks every file under <paramref name="assetRoot"/>, which may not exist.</summary>
     internal static BuildRequests Walk(string assetRoot, ShaderTools shaderTools, bool shipping)
     {
-        string root = Relative(assetRoot);
         string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(assetRoot));
+        string root = Relative(full);
         List<Request> sources = [];
         if (Directory.Exists(full))
         {
@@ -50,5 +50,5 @@ internal sealed record BuildRequests(string AssetRoot, ShaderTools ShaderTools, 
     // Every path a message names is relative to the project, the working directory, so a build log
     // and a document's provenance carry no machine's own layout.
     internal static string Relative(string path) =>
-        System.IO.Path.GetRelativePath(Environment.CurrentDirectory, path).Replace('\\', '/');
+        Path.GetRelativePath(Environment.CurrentDirectory, path).Replace('\\', '/');
 }

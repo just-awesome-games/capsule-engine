@@ -67,12 +67,7 @@ internal sealed class FramePane : ScreenEntity
     // switched back on does not join samples from before it was off.
     internal void Reset()
     {
-        _sumMs = 0;
-        _maxMs = 0;
-        _updateMs = 0;
-        _drawMs = 0;
-        _count = 0;
-        _steps = 0;
+        StartSecond();
         Publish(0, 0, 0, 0, 0);
     }
 
@@ -91,13 +86,13 @@ internal sealed class FramePane : ScreenEntity
 
         double averageMs = _sumMs / _count;
         Publish(averageMs, _maxMs, _updateMs / _count, _drawMs / _count, _steps * SecondMs / _sumMs);
+        StartSecond();
+    }
 
-        _sumMs = 0;
-        _maxMs = 0;
-        _updateMs = 0;
-        _drawMs = 0;
-        _count = 0;
-        _steps = 0;
+    private void StartSecond()
+    {
+        _sumMs = _maxMs = _updateMs = _drawMs = 0;
+        _count = _steps = 0;
     }
 
     // Rewrites the label from one second's figures. The collection counts and the heap are read here,
@@ -140,5 +135,4 @@ internal sealed class FramePane : ScreenEntity
         _backdrop.Size = new Vector2(width, measured.Y + (Padding * 2));
         _label.Offset = new Vector2(Padding - width, Padding);
     }
-
 }

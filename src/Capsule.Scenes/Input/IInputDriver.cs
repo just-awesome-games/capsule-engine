@@ -15,7 +15,6 @@ namespace Capsule.Input;
 /// <see cref="InputScript"/> builds one from a fixed sequence instead.
 /// </para>
 /// </remarks>
-///
 public interface IInputDriver
 {
     /// <summary>Supplies the snapshot that drives the step at <paramref name="tick"/>.</summary>

@@ -123,30 +123,13 @@ internal static class FocusFixtures
         /// The one item reporting <see cref="Focusable.IsFocused"/>, or -1 where none does; -2 where
         /// more than one does, which is the state a half-applied move would leave.
         /// </summary>
-        internal int OnlyFocusedIndex
-        {
-            get
+        internal int OnlyFocusedIndex =>
+            _items.Count(static item => item.IsFocused) switch
             {
-                int only = -1;
-
-                for (int i = 0; i < _items.Count; i++)
-                {
-                    if (!_items[i].IsFocused)
-                    {
-                        continue;
-                    }
-
-                    if (only >= 0)
-                    {
-                        return -2;
-                    }
-
-                    only = i;
-                }
-
-                return only;
-            }
-        }
+                0 => -1,
+                1 => _items.FindIndex(static item => item.IsFocused),
+                _ => -2,
+            };
 
         internal Focusable At(int index) => _items[index];
 
@@ -358,17 +341,6 @@ internal static class FocusFixtures
             return this;
         }
 
-        private int IndexOf(Focusable? item)
-        {
-            for (int i = 0; i < _items.Count; i++)
-            {
-                if (ReferenceEquals(_items[i], item))
-                {
-                    return i;
-                }
-            }
-
-            return -1;
-        }
+        private int IndexOf(Focusable? item) => item is null ? -1 : _items.IndexOf(item);
     }
 }

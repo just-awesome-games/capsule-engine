@@ -33,16 +33,8 @@ internal static class GeneratorHarness
     private static readonly ImmutableArray<MetadataReference> References =
         Referenced(null, typeof(Entity).Assembly, typeof(TileGrid).Assembly, typeof(object).Assembly);
 
-    internal static IEnumerable<Diagnostic> Errors(IEnumerable<Diagnostic> diagnostics)
-    {
-        foreach (Diagnostic diagnostic in diagnostics)
-        {
-            if (diagnostic.Severity == DiagnosticSeverity.Error)
-            {
-                yield return diagnostic;
-            }
-        }
-    }
+    internal static IEnumerable<Diagnostic> Errors(IEnumerable<Diagnostic> diagnostics) =>
+        diagnostics.Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 
     /// <summary>
     /// Asserts every emitted line naming <paramref name="key"/> names <paramref name="type"/> too.
@@ -85,7 +77,7 @@ internal static class GeneratorHarness
     }
 
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) Compile(string source) =>
-        Run(Created("RegistrySpecs", source, References), Role.Logic);
+        Run(Created("RegistrySpecs", source, References), logic: true, shell: false);
 
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileWithRoles(
         string source,
@@ -112,7 +104,7 @@ internal static class GeneratorHarness
             ? References
             : References.Add(LogicAssembly("GameSpecs", logicSource));
 
-        return Run(Created("ShellSpecs", shellSource, references), Role.Shell);
+        return Run(Created("ShellSpecs", shellSource, references), logic: false, shell: true);
     }
 
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileShellWithLogicAssemblies(
@@ -125,28 +117,15 @@ internal static class GeneratorHarness
             references.Add(LogicAssembly(assemblyName, source));
         }
 
-        return Run(Created("ShellSpecs", shellSource, references.ToImmutable()), Role.Shell);
+        return Run(Created("ShellSpecs", shellSource, references.ToImmutable()), logic: false, shell: true);
     }
-
-    internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileWithAssets(
-        bool logic,
-        params string[] assetPaths) =>
-        CompileWithSources(logic, [.. assetPaths.Select(static path => (path, (string?)null))]);
-
-    /// <summary>Compiles against assets the compiler can read, as it reads a font description.</summary>
-    internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileWithSources(
-        bool logic,
-        params (string Path, string? Content)[] assets) =>
-        CompileAgainstSources("namespace Game; public sealed class Marker;", logic, assets);
 
     /// <summary>Compiles game code against those assets, so it names what the registry declares.</summary>
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileAgainstSources(
         string source,
         bool logic,
-        params (string Path, string? Content)[] assets)
-    {
-        return Run(Created("AssetSpecs", source, References, Documents(assets)), logic, shell: !logic);
-    }
+        params (string Path, string? Content)[] assets) =>
+        Run(Created("AssetSpecs", source, References, Documents(assets)), logic, shell: !logic);
 
     /// <summary>The generated registry as the game runs it, so a member hands back what it declares.</summary>
     internal static Assembly Loaded(Compilation compiled)
@@ -194,12 +173,13 @@ internal static class GeneratorHarness
     }
 
     /// <summary>
-    /// Runs both generators twice over one unchanged compilation, with every step tracked, which is
-    /// what the compiler does between keystrokes that changed nothing a generator reads.
+    /// Runs the generator over <paramref name="before"/>, then over the same compilation with the game's
+    /// source replaced by <paramref name="after"/>, with every step tracked, as the compiler does between keystrokes.
     /// </summary>
-    internal static GeneratorDriverRunResult RanTwice(params (string Path, string? Content)[] assets)
+    internal static GeneratorDriverRunResult RanTwice(string before, string after, params (string Path, string? Content)[] assets)
     {
-        CSharpCompilation compilation = Created("CachingSpecs", "namespace Game; public sealed class Marker;", References, Documents(assets));
+        CSharpCompilation first = Created("CachingSpecs", before, References, Documents(assets));
+        CSharpCompilation second = first.ReplaceSyntaxTree(first.SyntaxTrees[0], CSharpSyntaxTree.ParseText(after));
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             [new RegistryGenerator().AsSourceGenerator()],
@@ -209,7 +189,7 @@ internal static class GeneratorHarness
                 IncrementalGeneratorOutputKind.None,
                 trackIncrementalGeneratorSteps: true));
 
-        return driver.RunGenerators(compilation).RunGenerators(compilation).GetRunResult();
+        return driver.RunGenerators(first).RunGenerators(second).GetRunResult();
     }
 
     /// <summary>Compiles <paramref name="source"/> in an assembly declaring that root namespace.</summary>
@@ -222,12 +202,6 @@ internal static class GeneratorHarness
             logic: true,
             shell: false,
             rootNamespace: rootNamespace);
-
-    private enum Role
-    {
-        Logic,
-        Shell,
-    }
 
     private static MetadataReference LogicAssembly(string assemblyName, string source) =>
         MetadataReference.CreateFromImage(LogicImage(assemblyName, source));
@@ -248,7 +222,7 @@ internal static class GeneratorHarness
     internal static ShellContext LoadedShell(string shellSource, string logicSource, params (string Path, string? Content)[] assets)
     {
         byte[] logic = LogicImage("GameSpecs", logicSource, assets);
-        Compilation shell = Run(Created("ShellSpecs", shellSource, References.Add(MetadataReference.CreateFromImage(logic))), Role.Shell).Updated;
+        Compilation shell = Run(Created("ShellSpecs", shellSource, References.Add(MetadataReference.CreateFromImage(logic))), logic: false, shell: true).Updated;
 
         using MemoryStream image = new();
         EmitResult emitted = shell.Emit(image);
@@ -281,9 +255,6 @@ internal static class GeneratorHarness
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-    private static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) Run(CSharpCompilation compilation, Role role)
-        => Run(compilation, role == Role.Logic, role == Role.Shell);
-
     private static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) Run(
         CSharpCompilation compilation,
         bool logic,
@@ -298,26 +269,6 @@ internal static class GeneratorHarness
 
         return (diagnostics, updated);
     }
-
-    /// <summary>The generated registry as a game names it, off a Probe class holding <paramref name="members"/>.</summary>
-    internal static Assembly Probed(string members, params (string Path, string? Content)[] assets)
-    {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = CompileAgainstSources(
-            "namespace Game;\n\npublic static class Probe\n{\n" + members + "\n}\n",
-            logic: true,
-            assets);
-
-        Assert.Empty(Errors(diagnostics));
-
-        return Loaded(compiled);
-    }
-
-    /// <summary>The generated registry as a game loads it, with nothing named off it.</summary>
-    internal static Assembly Compiled(params (string Path, string? Content)[] assets) => Probed(string.Empty, assets);
-
-    /// <summary>Why the generators refused those assets.</summary>
-    internal static IEnumerable<Diagnostic> Refused(params (string Path, string? Content)[] assets) =>
-        Errors(CompileWithSources(logic: true, assets).Diagnostics);
 
     /// <summary>
     /// Whatever this test host is running against, minus what <paramref name="excluding"/> names,
@@ -390,6 +341,5 @@ internal static class GeneratorHarness
                 return false;
             }
         }
-
     }
 }

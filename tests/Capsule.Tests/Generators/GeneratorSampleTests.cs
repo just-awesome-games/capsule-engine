@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text;
+using Capsule.Tests.Build;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
@@ -115,7 +116,7 @@ public sealed class GeneratorSampleTests
     {
         string generated = GeneratorHarness.Emitted((shell ? ShellAssembly : LogicAssembly).Value, Path.GetFileName(sample) + ".g.cs");
         string file = sample.Replace('/', Path.DirectorySeparatorChar) + ".sample.g.cs";
-        string committed = Path.Combine(GeneratorDirectory(), file);
+        string committed = Path.Combine(ToolWorkspace.Metadata("CapsuleCheckout"), "src", "Capsule.Generators", file);
 
         // Byte for byte, so a committed CRLF or BOM is stale too. The samples are UTF-8 without a BOM.
         if (File.Exists(committed) && File.ReadAllBytes(committed).AsSpan().SequenceEqual(Encoding.UTF8.GetBytes(generated)))
@@ -137,19 +138,5 @@ public sealed class GeneratorSampleTests
         Assert.Empty(GeneratorHarness.Errors(compiled.Updated.GetDiagnostics()));
 
         return compiled.Updated;
-    }
-
-    // Walks up from the test binaries to the checkout, which holds the solution beside src/.
-    private static string GeneratorDirectory()
-    {
-        for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Capsule.slnx")))
-            {
-                return Path.Combine(directory.FullName, "src", "Capsule.Generators");
-            }
-        }
-
-        throw new DirectoryNotFoundException($"No directory above '{AppContext.BaseDirectory}' holds Capsule.slnx. Run the tests from inside the engine checkout.");
     }
 }

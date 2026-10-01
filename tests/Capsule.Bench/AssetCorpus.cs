@@ -75,8 +75,6 @@ internal sealed class AssetCorpus
         return corpus;
     }
 
-    // ==== The tree ====
-
     private void Generate()
     {
         AssetCorpusProjects.Write(Root, Path.GetRelativePath(Root, _engineRoot).Replace('\\', '/'));
@@ -368,8 +366,6 @@ internal sealed class AssetCorpus
 
             """);
     }
-
-    // ==== Files ====
 
     private static string SpriteName(int index) => $"sprite-{index:D3}";
 

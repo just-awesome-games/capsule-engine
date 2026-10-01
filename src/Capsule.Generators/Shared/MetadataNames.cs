@@ -19,6 +19,7 @@ internal static class MetadataNames
     internal const string TileType = "Capsule.Tiles.TileType";
     internal const string InputDriver = "Capsule.Input.IInputDriver";
     internal const string CapsuleEngine = "Capsule.Runtime.CapsuleEngine";
+    internal const string SaveKey = "Capsule.Persistence.SaveKey`1";
 
     // What the build marks CapsuleAssets with. A placement or tile type attribute is matched by its simple name.
     internal const string AssetAttribute = "Capsule.Generated.CapsuleGeneratedAssetAttribute";

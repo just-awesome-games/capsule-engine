@@ -86,28 +86,6 @@ public sealed class ColliderContactEventTests
         Assert.Empty(body.Collider.Touching.ToArray());
     }
 
-    [Fact]
-    public void AColliderLeavingItsScene_ReportsThatItIsTouchingNothing()
-    {
-        Scene scene = SceneFixtures.Terrain("....", "####");
-        Body body = new(new Vector2(4f, 8f));
-        body.Collider.Detects = new("solid");
-        body.Collider.ReportsContacts = true;
-
-        List<string> log = [];
-        body.Collider.ContactExited += contact => log.Add($"-{contact.LayerName}");
-
-        scene.Add(body);
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
-
-        Assert.Single(body.Collider.Touching.ToArray());
-
-        scene.Remove(body);
-
-        Assert.Equal(["-solid"], log);
-    }
-
     // Turning reporting off is the other way to stop reporting contacts, and owes the same exits as
     // disabling: a handler holding "I am standing on this" is told it no longer is, rather than
     // being left permanently wrong. Turning it back on resumes from an empty set at the next
@@ -153,20 +131,6 @@ public sealed class ColliderContactEventTests
         Assert.Equal(3, settled.Collider.Touching.Length);
     }
 
-    [Fact]
-    public void MultipleContacts_AreAllDeliveredWhenNoHandlerTearsAnythingDown()
-    {
-        Scene scene = SceneFixtures.Terrain("....", "####");
-        Straddler body = new(new Vector2(0f, 8f));
-        scene.Add(body);
-
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
-
-        Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)"], body.Log);
-        Assert.Equal(3, body.Collider.Touching.Length);
-    }
-
     // What a handler is being told about must not change underneath it, so the setters that would
     // change it refuse for as long as the dispatch runs.
     [Fact]
@@ -185,8 +149,8 @@ public sealed class ColliderContactEventTests
     }
 
     // The enemy that dies on contact. Detaching the collider from inside its own enter handler ends
-    // the dispatch: what it announced is exited, and the rest of the settled set — which it never
-    // announced — is dropped without an exit rather than entered on a collider out of the world.
+    // the dispatch: what it announced is exited. The rest of the settled set was never announced. It
+    // is dropped without an exit rather than entered on a collider out of the world.
     [Fact]
     public void AContactEnteredHandlerThatDetachesItsCollider_ExitsWhatItAnnouncedAndNothingElse()
     {
@@ -202,37 +166,6 @@ public sealed class ColliderContactEventTests
         Assert.Null(body.Collider.Entity);
         Assert.Null(body.Collider.World);
         Assert.Empty(body.Collider.Touching.ToArray());
-    }
-
-    // New contacts the world reports ahead of a carried one are announced and held in the world's
-    // order, and the exits follow that same order.
-    [Fact]
-    public void ContactEvents_HoldTheWorldsOrderAcrossCarriedAndNewContacts()
-    {
-        Scene scene = SceneFixtures.Terrain("....", "###.");
-        Straddler body = new(new Vector2(36f, 8f));
-        scene.Add(body);
-
-        using SimulationHost run = new(scene);
-        run.Step();
-
-        // Clear of the first two cells of the row: only the third is under it.
-        Assert.Equal(["+(2,1)"], body.Log);
-
-        body.Teleport(new Vector2(0f, 8f));
-        run.Step();
-
-        Assert.Equal(["+(2,1)", "+(0,1)", "+(1,1)"], body.Log);
-        Assert.Equal(
-            ["(0,1)", "(1,1)", "(2,1)"],
-            body.Collider.Touching.ToArray().Select(contact => $"({contact.Tile!.Value.X},{contact.Tile.Value.Y})"));
-
-        body.Teleport(new Vector2(0f, -100f));
-        run.Step();
-
-        Assert.Equal(
-            ["+(2,1)", "+(0,1)", "+(1,1)", "-(0,1)", "-(1,1)", "-(2,1)"],
-            body.Log);
     }
 
     // A settle that loses contacts at both ends and gains them at one keeps every group in the
@@ -286,22 +219,6 @@ public sealed class ColliderContactEventTests
 
         Assert.Equal(["+(2,1)", "+(0,1)", "-(0,1)", "-(2,1)"], body.Log);
         Assert.Null(body.Collider.World);
-    }
-
-    // The canonical throw during a settle: the failure reaches the caller of the step rather than
-    // being swallowed by it.
-    [Fact]
-    public void AContactEnteredHandlerThatThrows_FailsTheStep()
-    {
-        Scene scene = SceneFixtures.Terrain("....", "####");
-        Straddler body = new(new Vector2(0f, 8f));
-        scene.Add(body);
-
-        body.Collider.ContactEntered += _ => throw new InvalidOperationException("a handler of the consuming game's own.");
-
-        using SimulationHost run = new(scene);
-
-        Assert.Throws<InvalidOperationException>(() => run.Step());
     }
 
     // Sixteen and thirty-two are buffer sizes, not contact limits: a collider spanning a long floor

@@ -23,7 +23,6 @@ public sealed class Material
 {
     private readonly Vector4[] _values;
     private readonly TextureHandle[] _textures;
-    private readonly bool[] _set;
 
     /// <summary>A material drawing with <paramref name="shader"/>, with no parameter set.</summary>
     public Material(Shader shader)
@@ -34,7 +33,6 @@ public sealed class Material
         int count = shader.Parameters.Length;
         _values = new Vector4[count];
         _textures = new TextureHandle[count];
-        _set = new bool[count];
     }
 
     /// <summary>The shader this material draws with.</summary>
@@ -99,13 +97,8 @@ public sealed class Material
     // rest with zero.
     internal Vector4 Value(int index) => _values[index];
 
-    // The texture set on parameter index, or false when none was.
-    internal bool TryGetTexture(int index, out TextureHandle texture)
-    {
-        texture = _textures[index];
-
-        return _set[index];
-    }
+    // The texture set on parameter index, or false when none was. Set refuses a default handle.
+    internal bool TryGetTexture(int index, out TextureHandle texture) => (texture = _textures[index]).Name is not null;
 
     private static void Finite(Vector4 value)
     {
@@ -134,8 +127,6 @@ public sealed class Material
                 $"Shader '{Shader.Name}' declares '{name}' as a {Spelling(declared)}. Pass it {Argument(declared)}.",
                 nameof(name));
         }
-
-        _set[index] = true;
 
         return index;
     }

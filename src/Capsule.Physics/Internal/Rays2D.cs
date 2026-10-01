@@ -176,7 +176,7 @@ internal static class Rays2D
 
             case ShapeKind2D.Segment:
                 // A bare segment has no interior for the half-plane clip to bound.
-                normal = EdgeNormal(shape, 0);
+                normal = shape.EdgeNormal(0);
                 if (Vector2.Dot(normal, direction) > 0f)
                 {
                     normal = -normal;
@@ -202,12 +202,6 @@ internal static class Rays2D
     {
         Vector2 toStart = origin - center;
         float a = Vector2.Dot(direction, direction);
-        if (a < Parallel)
-        {
-            t = 0f;
-            return Vector2.Dot(toStart, toStart) <= radius * radius;
-        }
-
         float b = Vector2.Dot(toStart, direction);
         float c = Vector2.Dot(toStart, toStart) - (radius * radius);
 
@@ -229,14 +223,6 @@ internal static class Rays2D
         return t >= 0f && t <= limit;
     }
 
-    // The outward unit normal of the edge leaving point index.
-    private static Vector2 EdgeNormal(in Shape2D shape, int index)
-    {
-        Vector2 edge = shape.PointAt((index + 1) % shape.PointCount) - shape.PointAt(index);
-
-        return Vector2.Normalize(new Vector2(edge.Y, -edge.X));
-    }
-
     // Half-plane clipping over the polygon's edges. This routine reports which face was crossed
     // instead of deriving a normal from a witness point.
     private static bool RayPolygon(
@@ -256,7 +242,7 @@ internal static class Rays2D
 
         for (int index = 0; index < shape.PointCount; index++)
         {
-            Vector2 face = EdgeNormal(shape, index);
+            Vector2 face = shape.EdgeNormal(index);
             float numerator = Vector2.Dot(face, shape.PointAt(index) - origin);
             float denominator = Vector2.Dot(face, direction);
 
@@ -293,7 +279,7 @@ internal static class Rays2D
         }
 
         t = lower;
-        normal = EdgeNormal(shape, entered);
+        normal = shape.EdgeNormal(entered);
 
         return true;
     }
@@ -326,7 +312,7 @@ internal static class Rays2D
             // loop.
             for (int index = 0; index < count; index++)
             {
-                Vector2 face = EdgeNormal(shape, index);
+                Vector2 face = shape.EdgeNormal(index);
                 Vector2 offset = face * shape.Radius;
                 Vector2 a = shape.PointAt(index) + offset;
                 Vector2 b = shape.PointAt((index + 1) % count) + offset;

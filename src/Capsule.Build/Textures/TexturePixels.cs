@@ -3,15 +3,11 @@ using StbImageSharp;
 
 namespace Capsule.Build.Textures;
 
-/// <summary>A texture's texels in its format, decoded, copied and encoded as PNG.</summary>
+/// <summary>A texture's texels in its format, decoded and copied.</summary>
 internal static class TexturePixels
 {
     /// <summary>The bytes a texel of <paramref name="format"/> ships in.</summary>
     internal static int Channels(TextureFormatSetting format) => format == TextureFormatSetting.R8 ? 1 : 4;
-
-    /// <summary>Encodes texels as a PNG into <paramref name="destination"/>, straight-alpha RGBA8 at four channels and 8-bit greyscale at one.</summary>
-    internal static void Encode(byte[] texels, int width, int height, Stream destination, int channels = 4) =>
-        PngWriter.Write(texels, width, height, channels, destination);
 
     /// <summary>A texture's texels in its format: RGBA8 as authored, or an r8 texture's one channel.</summary>
     /// <exception cref="FormatException">The file cannot be read or decoded, or an r8 source is of a kind with no single channel.</exception>
@@ -20,7 +16,7 @@ internal static class TexturePixels
         try
         {
             byte[] file = File.ReadAllBytes(path);
-            if (Channels(format) == 1)
+            if (format == TextureFormatSetting.R8)
             {
                 return SingleChannelPng.Read(file);
             }
@@ -32,7 +28,7 @@ internal static class TexturePixels
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or IndexOutOfRangeException or IOException or UnauthorizedAccessException)
         {
             // How the decoder and the disk fail, as one defect of the file.
-            throw new FormatException($"is not a PNG the packer can decode: {ex.Message}", ex);
+            throw new FormatException($"is not a PNG the build can decode: {ex.Message}", ex);
         }
     }
 

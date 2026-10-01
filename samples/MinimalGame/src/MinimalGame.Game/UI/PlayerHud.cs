@@ -22,8 +22,6 @@ public sealed class PlayerHud : ScreenEntity
     {
     }
 
-    // The bar is anchored to the canvas rather than to this entity, so it is the scene's peer: an
-    // entity adds another by reaching the scene it has just joined.
     /// <inheritdoc/>
     protected override void OnAddedToScene() => Scene.Add(_healthBar);
 

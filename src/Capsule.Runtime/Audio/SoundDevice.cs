@@ -73,7 +73,15 @@ internal sealed class SoundDevice : IAudioBackend
 
     public IAudioVoice Stream(in AudioClip clip, float gain, float pitch, float pan, bool loop, double startSeconds)
     {
-        VorbisReader reader = new(AudioFiles.Open(_platform, clip), closeOnDispose: true);
+        Stream file = AudioFiles.Open(_platform, clip);
+        if (!file.CanSeek)
+        {
+            file.Dispose();
+            throw new InvalidOperationException(
+                $"The platform module opened audio clip '{clip.Name}' as a stream that cannot seek. Return a seekable stream from its HostPlatform.OpenContent.");
+        }
+
+        VorbisReader reader = new(file);
 
         // The device takes mono and stereo. Anything wider would need downmixing.
         if (reader.Channels is not (1 or 2))

@@ -50,6 +50,8 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
 
     internal override bool Steps => false;
 
+    internal override TransformSupport Supports => TransformSupport.Scale;
+
     /// <inheritdoc/>
     public override Rect Bounds => Entity is null ? default : Intent().Bounds;
 
@@ -58,11 +60,7 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
     {
         ArgumentNullException.ThrowIfNull(assets);
 
-        TextureHandle texture = Sprite.Texture;
-        if (texture != default)
-        {
-            assets.Add(texture);
-        }
+        assets.Add(Sprite.Texture);
     }
 
     /// <inheritdoc/>
@@ -72,8 +70,6 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
 
         view.Add(Intent());
     }
-
-    internal override TransformSupport Supports => TransformSupport.Scale;
 
     private NineSliceIntent Intent()
     {

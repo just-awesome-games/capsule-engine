@@ -21,6 +21,9 @@ internal sealed class ToolWorkspace : IDisposable
 
     private readonly SceneDocumentFixtures.Workspace _workspace = new();
 
+    /// <summary>The asset root every run names, relative to the workspace.</summary>
+    internal string Assets { get; set; } = "Assets";
+
     /// <summary>What the game's build project configures on every run.</summary>
     internal Func<CapsuleBuild, CapsuleBuild> Configure { get; set; } = static build => build;
 
@@ -72,7 +75,7 @@ internal sealed class ToolWorkspace : IDisposable
         }
 
         using MemoryStream png = new();
-        TexturePixels.Encode(texels, width, height, png);
+        PngWriter.Write(texels, width, height, 4, png);
 
         return Write(name, png.ToArray());
     }
@@ -82,7 +85,7 @@ internal sealed class ToolWorkspace : IDisposable
     {
         byte[] values = [.. Enumerable.Range(0, width * height).Select(static i => (byte)(i * 17))];
         using MemoryStream png = new();
-        TexturePixels.Encode(values, width, height, png, channels: 1);
+        PngWriter.Write(values, width, height, 1, png);
 
         return Write(name, png.ToArray());
     }
@@ -93,7 +96,7 @@ internal sealed class ToolWorkspace : IDisposable
     {
         StringWriter output = new WatchedWriter(Watch);
         StringWriter error = new();
-        int exitCode = Configure(CapsuleBuild.Configure(["--assets", Path.GetFullPath("Assets"), "--out", Out, .. options, "--shader-tools", ShaderTools.Dxc, ShaderTools.SpirvCross])).Run(output, error);
+        int exitCode = Configure(CapsuleBuild.Configure(["--assets", Path.GetFullPath(Assets), "--out", Out, .. options, "--shader-tools", ShaderTools.Dxc, ShaderTools.SpirvCross])).Run(output, error);
         Output = output.ToString();
         Errors = error.ToString();
 

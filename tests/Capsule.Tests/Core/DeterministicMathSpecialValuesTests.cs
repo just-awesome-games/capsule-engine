@@ -10,6 +10,8 @@ public sealed class DeterministicMathSpecialValuesTests
         float[] edges = [0f, -0f, float.PositiveInfinity, float.NegativeInfinity, float.NaN];
         float[] bounded = [.. edges, 1f, -1f, 2f, -2f];
 
+        AssertFollows(DeterministicMath.Sin, Math.Sin, edges);
+        AssertFollows(DeterministicMath.Cos, Math.Cos, edges);
         AssertFollows(DeterministicMath.Tan, Math.Tan, edges);
         AssertFollows(DeterministicMath.Atan, Math.Atan, edges);
         AssertFollows(DeterministicMath.Exp, Math.Exp, edges);

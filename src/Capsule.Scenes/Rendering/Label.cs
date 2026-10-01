@@ -136,6 +136,8 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
 
     internal override bool Steps => false;
 
+    internal override TransformSupport Supports => TransformSupport.Scale;
+
     /// <summary>
     /// The box this label lays its text out in. It uses <see cref="Size"/> on each axis where that
     /// is positive and the measured run elsewhere, placed by <see cref="Pivot"/> at the entity's
@@ -162,8 +164,6 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
 
         view.Add(Intent());
     }
-
-    internal override TransformSupport Supports => TransformSupport.Scale;
 
     private TextIntent Intent()
     {

@@ -1,6 +1,6 @@
 #nullable disable
 #pragma warning disable
-namespace Capsule.Runtime.Audio.Vorbis.Contracts
+namespace Capsule.Runtime.Audio.Vorbis
 {
     interface IFloorData
     {

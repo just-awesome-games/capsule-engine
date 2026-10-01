@@ -19,7 +19,6 @@ public sealed partial class CollisionWorld2D
         ref RayAccumulator accumulator,
         Span<RayHit2D> hits,
         ref int count,
-        bool all,
         float distance,
         in CollisionTarget target,
         Vector2 normal,
@@ -28,7 +27,7 @@ public sealed partial class CollisionWorld2D
     {
         RayHit2D candidate = new(target, origin + (unit * distance), normal, distance);
 
-        if (all)
+        if (!hits.IsEmpty)
         {
             Insert(hits, ref count, candidate);
 
@@ -421,8 +420,7 @@ public sealed partial class CollisionWorld2D
     {
         for (int index = 0; index < hull.PointCount; index++)
         {
-            Vector2 edge = hull.PointAt((index + 1) % hull.PointCount) - hull.PointAt(index);
-            Vector2 face = sign * Vector2.Normalize(new Vector2(edge.Y, -edge.X));
+            Vector2 face = sign * hull.EdgeNormal(index);
             float alignment = Vector2.Dot(face, normal);
             float separation = Vector2.Dot(moving.Support(-face) + offset - target.Support(face), face);
             if (separation > least)
@@ -510,16 +508,19 @@ public sealed partial class CollisionWorld2D
             && index != _passThrough;
     }
 
-    private void RaycastGrids(
+    // Walks the grids and then the tree. An empty span takes the nearest hit into the accumulator,
+    // and any other span takes the nearest hits that fit.
+    private RayAccumulator RayWalk(
         Vector2 origin,
         Vector2 unit,
+        float distance,
         CollisionFilter filter,
         ColliderHandle ignore,
-        ref RayAccumulator accumulator,
         Span<RayHit2D> hits,
-        ref int count)
+        out int count)
     {
-        bool all = !hits.IsEmpty;
+        RayAccumulator accumulator = new() { Distance = distance };
+        count = 0;
 
         foreach (GridCollider2D grid in Grids)
         {
@@ -533,8 +534,14 @@ public sealed partial class CollisionWorld2D
                 continue;
             }
 
-            WalkGrid(grid, origin, unit, enter, exit, filter, grid.AdmitsEveryLayer(filter), ref accumulator, hits, ref count, all);
+            WalkGrid(grid, origin, unit, enter, exit, filter, grid.AdmitsEveryLayer(filter), ref accumulator, hits, ref count);
         }
+
+        RayVisitor visitor = new(this, origin, unit, filter, ignore, hits, count, accumulator);
+        _tree.RayCast(origin, unit, accumulator.Distance, filter.Bits, ref visitor);
+        count = visitor.Count;
+
+        return visitor.Accumulator;
     }
 
     // Amanatides and Woo. A ray touches only the cells it crosses, in the order it crosses them.
@@ -548,9 +555,9 @@ public sealed partial class CollisionWorld2D
         bool admitsEvery,
         ref RayAccumulator accumulator,
         Span<RayHit2D> hits,
-        ref int count,
-        bool all)
+        ref int count)
     {
+        bool all = !hits.IsEmpty;
         int size = grid.CellSize;
         Vector2 start = origin + (unit * enter);
         int x = Math.Clamp(GridCollider2D.FloorDiv(start.X, size), 0, grid.Width - 1);
@@ -569,7 +576,7 @@ public sealed partial class CollisionWorld2D
 
         while (true)
         {
-            if (TestCell(grid, x, y, origin, unit, filter, admitsEvery, ref accumulator, hits, ref count, all) && !all)
+            if (TestCell(grid, x, y, origin, unit, filter, admitsEvery, ref accumulator, hits, ref count) && !all)
             {
                 return;
             }
@@ -587,7 +594,7 @@ public sealed partial class CollisionWorld2D
             // and hide the exposed face of the cell never visited.
             if (boundaryX == boundaryY
                 && (uint)(y + stepY) < (uint)grid.Height
-                && TestCell(grid, x, y + stepY, origin, unit, filter, admitsEvery, ref accumulator, hits, ref count, all)
+                && TestCell(grid, x, y + stepY, origin, unit, filter, admitsEvery, ref accumulator, hits, ref count)
                 && !all)
             {
                 return;
@@ -621,8 +628,7 @@ public sealed partial class CollisionWorld2D
         bool admitsEvery,
         ref RayAccumulator accumulator,
         Span<RayHit2D> hits,
-        ref int count,
-        bool all)
+        ref int count)
     {
         if (!TryCell(grid, x, y, filter, out CellState2D state, out CollisionLayer layer))
         {
@@ -661,7 +667,6 @@ public sealed partial class CollisionWorld2D
             ref accumulator,
             hits,
             ref count,
-            all,
             t,
             CollisionTarget.ForGridCell(grid.Handle, x, y, layer),
             normal,
@@ -747,22 +752,6 @@ public sealed partial class CollisionWorld2D
         }
 
         return true;
-    }
-
-    private void RaycastColliders(
-        Vector2 origin,
-        Vector2 unit,
-        CollisionFilter filter,
-        ColliderHandle ignore,
-        ref RayAccumulator accumulator,
-        Span<RayHit2D> hits,
-        ref int count)
-    {
-        RayVisitor visitor = new(this, origin, unit, filter, ignore, hits, count, accumulator);
-        _tree.RayCast(origin, unit, accumulator.Distance, filter.Bits, ref visitor);
-
-        count = visitor.Count;
-        accumulator = visitor.Accumulator;
     }
 
     private int FindContacts(
@@ -1192,9 +1181,8 @@ public sealed partial class CollisionWorld2D
             bool horizontal = translation.Y == 0f;
             Aabb2D bounds = moving.Bounds;
             Vector2 size = bounds.Size;
-            float inset = horizontal
-                ? MathF.Max(0f, MathF.Min(CollisionTolerance.LinearSlop, (size.Y - (2f * Shape2D.PointTolerance)) * 0.5f))
-                : MathF.Max(0f, MathF.Min(CollisionTolerance.LinearSlop, (size.X - (2f * Shape2D.PointTolerance)) * 0.5f));
+            float across = horizontal ? size.Y : size.X;
+            float inset = MathF.Max(0f, MathF.Min(CollisionTolerance.LinearSlop, (across - (2f * Shape2D.PointTolerance)) * 0.5f));
             Vector2 shrink = horizontal ? new Vector2(0f, inset) : new Vector2(inset, 0f);
             moving = Shape2D.Box(new Aabb2D(bounds.Min + shrink, bounds.Max - shrink));
         }
@@ -1218,51 +1206,32 @@ public sealed partial class CollisionWorld2D
         return new MovePass(moved, true, accumulator.Normal, accumulator.Written, accumulator.Found);
     }
 
-    private ref struct RayVisitor : IRayVisitor2D
+    private ref struct RayVisitor(
+        CollisionWorld2D world,
+        Vector2 origin,
+        Vector2 unit,
+        CollisionFilter filter,
+        ColliderHandle ignore,
+        Span<RayHit2D> hits,
+        int count,
+        RayAccumulator accumulator) : IRayVisitor2D
     {
-        private readonly CollisionWorld2D _world;
-        private readonly Vector2 _origin;
-        private readonly Vector2 _unit;
-        private readonly CollisionFilter _filter;
-        private readonly ColliderHandle _ignore;
-        private readonly Span<RayHit2D> _hits;
+        private readonly Span<RayHit2D> _hits = hits;
 
-        // These are fields because the visitor is handed to the tree by reference and every visited proxy
-        // reads and writes them in place.
-        internal int Count;
-        internal RayAccumulator Accumulator;
-
-        internal RayVisitor(
-            CollisionWorld2D world,
-            Vector2 origin,
-            Vector2 unit,
-            CollisionFilter filter,
-            ColliderHandle ignore,
-            Span<RayHit2D> hits,
-            int count,
-            RayAccumulator accumulator)
-        {
-            _world = world;
-            _origin = origin;
-            _unit = unit;
-            _filter = filter;
-            _ignore = ignore;
-            _hits = hits;
-            Count = count;
-            Accumulator = accumulator;
-        }
+        internal int Count = count;
+        internal RayAccumulator Accumulator = accumulator;
 
         public float Visit(int proxyId, float maxFraction)
         {
-            if (!_world.TryProxy(proxyId, _filter, _ignore, out int index))
+            if (!world.TryProxy(proxyId, filter, ignore, out int index))
             {
                 return maxFraction;
             }
 
-            ref ColliderSlot slot = ref _world._slots[index];
+            ref ColliderSlot slot = ref world._slots[index];
 
             // A one-way collider meets only a ray arriving from outside on a surface it keeps.
-            if (!Rays2D.RayShape(slot.World, _origin, _unit, Accumulator.Distance, out float t, out Vector2 normal)
+            if (!Rays2D.RayShape(slot.World, origin, unit, Accumulator.Distance, out float t, out Vector2 normal)
                 || (slot.OneWay && !(t > 0f && GridCollider2D.OneWayKeeps(normal, slot.SolidSides))))
             {
                 return maxFraction;
@@ -1272,12 +1241,11 @@ public sealed partial class CollisionWorld2D
                 ref Accumulator,
                 _hits,
                 ref Count,
-                !_hits.IsEmpty,
                 t,
-                CollisionTarget.ForCollider(_world.HandleAt(index), slot.Layer),
+                CollisionTarget.ForCollider(world.HandleAt(index), slot.Layer),
                 normal,
-                _origin,
-                _unit);
+                origin,
+                unit);
 
             return Accumulator.Distance;
         }
@@ -1351,25 +1319,16 @@ public sealed partial class CollisionWorld2D
         }
     }
 
-    private ref struct NearVisitor : ITreeVisitor2D
+    private ref struct NearVisitor(CollisionWorld2D world, ColliderHandle ignore, Span<ColliderHandle> found) : ITreeVisitor2D
     {
-        private readonly CollisionWorld2D _world;
-        private readonly ColliderHandle _ignore;
-        private readonly Span<ColliderHandle> _found;
+        private readonly Span<ColliderHandle> _found = found;
 
         // How many colliders the box met, span or no span.
         internal int Found;
 
-        internal NearVisitor(CollisionWorld2D world, ColliderHandle ignore, Span<ColliderHandle> found)
-        {
-            _world = world;
-            _ignore = ignore;
-            _found = found;
-        }
-
         public bool Visit(int proxyId)
         {
-            if (!_world.TryProxy(proxyId, CollisionFilter.Everything, _ignore, out int index))
+            if (!world.TryProxy(proxyId, CollisionFilter.Everything, ignore, out int index))
             {
                 return true;
             }
@@ -1395,59 +1354,41 @@ public sealed partial class CollisionWorld2D
                 position--;
             }
 
-            _found[position] = _world.HandleAt(index);
+            _found[position] = world.HandleAt(index);
 
             return true;
         }
     }
 
-    private ref struct TouchVisitor : ITreeVisitor2D
+    private ref struct TouchVisitor(
+        CollisionWorld2D world,
+        Shape2D shape,
+        CollisionFilter filter,
+        float tolerance,
+        ColliderHandle ignore,
+        Span<Contact2D> contacts,
+        int written,
+        int found) : ITreeVisitor2D
     {
-        private readonly CollisionWorld2D _world;
-        private readonly Shape2D _shape;
-        private readonly CollisionFilter _filter;
-        private readonly float _tolerance;
-        private readonly ColliderHandle _ignore;
-        private readonly Span<Contact2D> _contacts;
-        private readonly int _first;
+        private readonly Span<Contact2D> _contacts = contacts;
 
-        private int _written;
+        private readonly int _first = written;
+        private int _written = written;
 
         // How many overlaps there are, span or no span.
-        internal int Found;
-
-        internal TouchVisitor(
-            CollisionWorld2D world,
-            in Shape2D shape,
-            CollisionFilter filter,
-            float tolerance,
-            ColliderHandle ignore,
-            Span<Contact2D> contacts,
-            int written,
-            int found)
-        {
-            _world = world;
-            _shape = shape;
-            _filter = filter;
-            _tolerance = tolerance;
-            _ignore = ignore;
-            _contacts = contacts;
-            _first = written;
-            _written = written;
-            Found = found;
-        }
+        internal int Found = found;
 
         public bool Visit(int proxyId)
         {
-            if (!_world.TryProxy(proxyId, _filter, _ignore, out int index))
+            if (!world.TryProxy(proxyId, filter, ignore, out int index))
             {
                 return true;
             }
 
-            ref ColliderSlot slot = ref _world._slots[index];
+            ref ColliderSlot slot = ref world._slots[index];
 
-            float separation = Separation(_shape, slot.World, out Vector2 normal, out Vector2 point);
-            if (separation > _tolerance)
+            float separation = Separation(shape, slot.World, out Vector2 normal, out Vector2 point);
+            if (separation > tolerance)
             {
                 return true;
             }
@@ -1457,66 +1398,48 @@ public sealed partial class CollisionWorld2D
                 _contacts,
                 _first,
                 ref _written,
-                new Contact2D(CollisionTarget.ForCollider(_world.HandleAt(index), slot.Layer), point, normal, DepthOf(separation)));
+                new Contact2D(CollisionTarget.ForCollider(world.HandleAt(index), slot.Layer), point, normal, DepthOf(separation)));
 
             return true;
         }
     }
 
-    private ref struct CastVisitor : ITreeVisitor2D
+    private ref struct CastVisitor(
+        CollisionWorld2D world,
+        Shape2D moving,
+        Vector2 translation,
+        CollisionFilter filter,
+        ColliderHandle ignore,
+        bool throughOneWay,
+        Span<Contact2D> contacts,
+        CastAccumulator accumulator) : ITreeVisitor2D
     {
-        private readonly CollisionWorld2D _world;
-        private readonly Shape2D _moving;
-        private readonly Vector2 _translation;
-        private readonly CollisionFilter _filter;
-        private readonly ColliderHandle _ignore;
-        private readonly bool _throughOneWay;
-        private readonly Span<Contact2D> _contacts;
+        private readonly Span<Contact2D> _contacts = contacts;
 
-        internal CastAccumulator Accumulator;
-
-        internal CastVisitor(
-            CollisionWorld2D world,
-            in Shape2D moving,
-            Vector2 translation,
-            CollisionFilter filter,
-            ColliderHandle ignore,
-            bool throughOneWay,
-            Span<Contact2D> contacts,
-            CastAccumulator accumulator)
-        {
-            _world = world;
-            _moving = moving;
-            _translation = translation;
-            _filter = filter;
-            _ignore = ignore;
-            _throughOneWay = throughOneWay;
-            _contacts = contacts;
-            Accumulator = accumulator;
-        }
+        internal CastAccumulator Accumulator = accumulator;
 
         public bool Visit(int proxyId)
         {
-            if (!_world.TryProxy(proxyId, _filter, _ignore, out int index))
+            if (!world.TryProxy(proxyId, filter, ignore, out int index))
             {
                 return true;
             }
 
-            ref ColliderSlot slot = ref _world._slots[index];
+            ref ColliderSlot slot = ref world._slots[index];
 
-            if (!Sweep(_moving, _translation, slot.World, out float fraction, out Vector2 normal, out Vector2 point)
-                || (slot.OneWay && !OneWayBlocks(_moving, slot.World, normal, slot.SolidSides))
-                || (slot.OneWay && _throughOneWay && normal.Y < -GridCollider2D.UpFacing))
+            if (!Sweep(moving, translation, slot.World, out float fraction, out Vector2 normal, out Vector2 point)
+                || (slot.OneWay && !OneWayBlocks(moving, slot.World, normal, slot.SolidSides))
+                || (slot.OneWay && throughOneWay && normal.Y < -GridCollider2D.UpFacing))
             {
                 return true;
             }
 
-            _world.RecordCast(
+            world.RecordCast(
                 ref Accumulator,
                 _contacts,
-                _translation,
+                translation,
                 fraction,
-                CollisionTarget.ForCollider(_world.HandleAt(index), slot.Layer),
+                CollisionTarget.ForCollider(world.HandleAt(index), slot.Layer),
                 normal,
                 point);
 

@@ -8,8 +8,7 @@ namespace Capsule.Tests.Scenes;
 
 public sealed class EntityTransformTests
 {
-    // The child's world is the parent's world placing the child's locals, Transform2D's way —
-    // its arithmetic, mirror rule included, is Transform2DTests' to hold; this is the wiring.
+    // Transform2DTests hold the arithmetic. This is the wiring.
     [Fact]
     public void AChildsWorldTransform_IsTheParentsPlacingItsLocals()
     {
@@ -37,8 +36,6 @@ public sealed class EntityTransformTests
         Assert.Equal(new Vector2(1f, 1f), flat.Position);
     }
 
-    // One value for the three locals: set as one write, read back composed, and rolled back
-    // together where a collider beneath refuses the position.
     [Fact]
     public void SettingTransform_WritesTheThreeLocalsAsOneAndRollsBackTogether()
     {
@@ -58,9 +55,8 @@ public sealed class EntityTransformTests
         Assert.Throws<InvalidOperationException>(() => held.Transform = new Transform2D(Vector2.Zero, 0.5f));
     }
 
-    // A renderer on a child is placed by the composed transform at both ends: the previous world
-    // from every previous local, the current from every current one; a turn under a mirror runs
-    // the other way with the flip folded in; and a turn written between steps is both ends.
+    // A turn under a mirror runs the other way with the flip folded in. A turn written between steps is
+    // both ends.
     [Fact]
     public void RenderersBeneath_DrawByTheComposedTransformAtBothEnds()
     {
@@ -118,8 +114,6 @@ public sealed class EntityTransformTests
         Assert.Throws<InvalidOperationException>(() => plain.ScrollFactor = new Vector2(0.5f, 0.5f));
     }
 
-    // Relative bands: a child's ZIndex adds to its parent's, so a child at -1 under a parent at 5
-    // still draws over a root at 3, and a band written above re-sorts the subtree beneath it.
     [Fact]
     public void AChildsZIndex_IsRelativeToItsParents()
     {
@@ -147,9 +141,6 @@ public sealed class EntityTransformTests
         new(
             origin.X + (local.X * DeterministicMath.Cos(radians)) - (local.Y * DeterministicMath.Sin(radians)),
             origin.Y + (local.X * DeterministicMath.Sin(radians)) + (local.Y * DeterministicMath.Cos(radians)));
-
-    private static SpriteRenderer Tag(int tag) =>
-        new(SceneFixtures.Frame(1, 1)) { Offset = new Vector2(tag, 0f) };
 
     private sealed class Spinner(Vector2 position, float turnPerStep) : Entity(position)
     {

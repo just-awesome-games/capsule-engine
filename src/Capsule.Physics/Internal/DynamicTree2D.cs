@@ -34,18 +34,15 @@ internal sealed class DynamicTree2D
     private const float DisplacementLookahead = 8f;
     private const float MaxLookahead = 32f;
 
-    private Node[] _nodes;
+    private Node[] _nodes = new Node[16];
+
     // A walk holds at most one waiting sibling per level below the root plus the root itself, so the
     // tree's height bounds it. InsertLeaf grows it, and no walk does.
     private int[] _stack = new int[64];
     private int _root = NullNode;
     private int _freeList;
 
-    internal DynamicTree2D(int capacity = 16)
-    {
-        _nodes = new Node[Math.Max(capacity, 4)];
-        FreeFrom(0);
-    }
+    internal DynamicTree2D() => FreeFrom(0);
 
     internal int UserDataOf(int proxyId) => _nodes[proxyId].UserData;
 
@@ -57,7 +54,6 @@ internal sealed class DynamicTree2D
         _nodes[proxyId].Box = tight.Expanded(BoundsMargin);
         _nodes[proxyId].Mask = mask;
         _nodes[proxyId].UserData = userData;
-        _nodes[proxyId].Height = 0;
         InsertLeaf(proxyId);
 
         return proxyId;
@@ -201,7 +197,6 @@ internal sealed class DynamicTree2D
             Parent = NullNode,
             Child1 = NullNode,
             Child2 = NullNode,
-            Height = 0,
         };
 
         return nodeId;
@@ -270,23 +265,7 @@ internal sealed class DynamicTree2D
         _nodes[newParent].Box = _nodes[sibling].Box.Union(leafBox);
         _nodes[newParent].Mask = _nodes[sibling].Mask | _nodes[leaf].Mask;
         _nodes[newParent].Height = _nodes[sibling].Height + 1;
-
-        if (oldParent != NullNode)
-        {
-            if (_nodes[oldParent].Child1 == sibling)
-            {
-                _nodes[oldParent].Child1 = newParent;
-            }
-            else
-            {
-                _nodes[oldParent].Child2 = newParent;
-            }
-        }
-        else
-        {
-            _root = newParent;
-        }
-
+        ReplaceChild(oldParent, sibling, newParent);
         _nodes[newParent].Child1 = sibling;
         _nodes[newParent].Child2 = leaf;
         _nodes[sibling].Parent = newParent;
@@ -322,26 +301,26 @@ internal sealed class DynamicTree2D
         int grandParent = _nodes[parent].Parent;
         int sibling = _nodes[parent].Child1 == leaf ? _nodes[parent].Child2 : _nodes[parent].Child1;
 
-        if (grandParent != NullNode)
-        {
-            if (_nodes[grandParent].Child1 == parent)
-            {
-                _nodes[grandParent].Child1 = sibling;
-            }
-            else
-            {
-                _nodes[grandParent].Child2 = sibling;
-            }
+        ReplaceChild(grandParent, parent, sibling);
+        _nodes[sibling].Parent = grandParent;
+        FreeNode(parent);
+        Refit(grandParent);
+    }
 
-            _nodes[sibling].Parent = grandParent;
-            FreeNode(parent);
-            Refit(grandParent);
+    // Points parent, or the root when parent is null, at replacement where it pointed at child.
+    private void ReplaceChild(int parent, int child, int replacement)
+    {
+        if (parent == NullNode)
+        {
+            _root = replacement;
+        }
+        else if (_nodes[parent].Child1 == child)
+        {
+            _nodes[parent].Child1 = replacement;
         }
         else
         {
-            _root = sibling;
-            _nodes[sibling].Parent = NullNode;
-            FreeNode(parent);
+            _nodes[parent].Child2 = replacement;
         }
     }
 
@@ -398,22 +377,7 @@ internal sealed class DynamicTree2D
         _nodes[iPivot].Parent = _nodes[iA].Parent;
         _nodes[iA].Parent = iPivot;
 
-        int oldParent = _nodes[iPivot].Parent;
-        if (oldParent != NullNode)
-        {
-            if (_nodes[oldParent].Child1 == iA)
-            {
-                _nodes[oldParent].Child1 = iPivot;
-            }
-            else
-            {
-                _nodes[oldParent].Child2 = iPivot;
-            }
-        }
-        else
-        {
-            _root = iPivot;
-        }
+        ReplaceChild(_nodes[iPivot].Parent, iA, iPivot);
 
         // The taller grandchild rises with the pivot. The shorter takes the rotated node's free slot,
         // spending the height difference.

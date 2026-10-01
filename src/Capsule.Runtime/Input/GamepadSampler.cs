@@ -54,12 +54,13 @@ internal sealed class GamepadSampler
         float leftPull = filter.Trigger(pad.Triggers.Left);
         float rightPull = filter.Trigger(pad.Triggers.Right);
 
-        if (PadFilter.TriggerHeld(leftPull))
+        // The deadzone is the press threshold. Any pull the filter did not zero is a press.
+        if (leftPull > 0f)
         {
             sampled = sampled.With(PadButton.LeftTrigger);
         }
 
-        if (PadFilter.TriggerHeld(rightPull))
+        if (rightPull > 0f)
         {
             sampled = sampled.With(PadButton.RightTrigger);
         }

@@ -23,6 +23,21 @@ public sealed class SceneWorldTests
     }
 
     [Fact]
+    public void AddingOutsideAStepDuringAFindAllWalk_Throws()
+    {
+        Scene scene = new();
+        scene.Add(new TestEntity());
+
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            foreach (TestEntity entity in scene.FindAll<TestEntity>())
+            {
+                scene.Add(new TestEntity());
+            }
+        });
+    }
+
+    [Fact]
     public void DisposingASimulation_StopsOnceThenReleasesEveryEntity()
     {
         List<string> log = [];

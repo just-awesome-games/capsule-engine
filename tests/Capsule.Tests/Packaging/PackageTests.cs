@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Xml.Linq;
 using Capsule.Scenes;
+using Capsule.Tests.Build;
 
 namespace Capsule.Tests.Packaging;
 
@@ -75,7 +76,7 @@ public sealed class PackageTests
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        foreach (string argument in (string[])["pack", Path.Combine(CheckoutRoot(), "src", project, $"{project}.csproj"),
+        foreach (string argument in (string[])["pack", Path.Combine(ToolWorkspace.Metadata("CapsuleCheckout"), "src", project, $"{project}.csproj"),
             "--no-build", "--no-restore", "--configuration", configuration, "--output", output, "-nologo", "-nodeReuse:false"])
         {
             start.ArgumentList.Add(argument);
@@ -96,19 +97,5 @@ public sealed class PackageTests
         MemoryStream bytes = new(File.ReadAllBytes(Directory.EnumerateFiles(output, $"{id}.*.nupkg").Single()));
         Directory.Delete(output, recursive: true);
         return new ZipArchive(bytes, ZipArchiveMode.Read);
-    }
-
-    // Walks up from the test binaries to the checkout, which holds the solution.
-    private static string CheckoutRoot()
-    {
-        for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Capsule.slnx")))
-            {
-                return directory.FullName;
-            }
-        }
-
-        throw new DirectoryNotFoundException($"No directory above '{AppContext.BaseDirectory}' holds Capsule.slnx. Run the tests from inside the engine checkout.");
     }
 }

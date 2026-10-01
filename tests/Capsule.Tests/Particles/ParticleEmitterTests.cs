@@ -6,8 +6,6 @@ using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Particles;
 
-// The style of tests/Capsule.Tests/Runtime/HeadlessDeterminismTests.cs: a scene built in code, stepped
-// through a host, and read back from the frame it drew. Contracts, one canonical test each.
 public sealed class ParticleEmitterTests
 {
     private static readonly Sprite Tile = SceneFixtures.Frame(4, 4);
@@ -222,6 +220,54 @@ public sealed class ParticleEmitterTests
         Assert.True(emitter.Bounds.Contains(far) || far.X == emitter.Bounds.Right || far.Y == emitter.Bounds.Bottom);
     }
 
+    // A negative scale mirrors the frame. Its bounds once inflated by a negative reach and read empty,
+    // which culled the particle.
+    [Fact]
+    public void Bounds_InflateByTheScalesMagnitude()
+    {
+        (_, ParticleEmitter emitter, _) = Build(capacity: 8);
+        emitter.Scale = 2f;
+        emitter.Emit(1);
+        Rect upright = emitter.Bounds;
+
+        emitter.Scale = -2f;
+
+        Assert.Equal(upright, emitter.Bounds);
+    }
+
+    [Fact]
+    public void AOneTickParticleEmittedFromTheEntitysOwnStep_DrawsOnce()
+    {
+        SelfEmitter entity = new();
+        SimulationHost host = new(new SceneFixtures.HookScene(start: s => s.Add(entity)));
+
+        host.Step();
+        Assert.Single(host.Simulation.View.Sprites.ToArray());
+
+        host.Step();
+        Assert.Empty(host.Simulation.View.Sprites.ToArray());
+    }
+
+    [Theory]
+    [MemberData(nameof(BadSettings))]
+    public void ASetting_RejectsAValueOutsideItsRange(Action<ParticleEmitter> set)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => set(new ParticleEmitter(Tile, capacity: 1)));
+    }
+
+    public static IEnumerable<object[]> BadSettings()
+    {
+        yield return [new Action<ParticleEmitter>(e => e.Rate = -1f)];
+        yield return [new Action<ParticleEmitter>(e => e.RateOverDistance = float.NaN)];
+        yield return [new Action<ParticleEmitter>(e => e.Spread = 361f)];
+        yield return [new Action<ParticleEmitter>(e => e.Damping = -1f)];
+        yield return [new Action<ParticleEmitter>(e => e.PrewarmSeconds = float.PositiveInfinity)];
+        yield return [new Action<ParticleEmitter>(e => e.InheritVelocity = float.NaN)];
+        yield return [new Action<ParticleEmitter>(e => e.Shape = EmitShape.Circle(-1f))];
+        yield return [new Action<ParticleEmitter>(e => e.Shape = EmitShape.Ring(float.NaN))];
+        yield return [new Action<ParticleEmitter>(e => e.Shape = EmitShape.Rect(1f, -1f))];
+    }
+
     private static void AssertClose(float[] expected, float[] actual)
     {
         Assert.Equal(expected.Length, actual.Length);
@@ -289,6 +335,26 @@ public sealed class ParticleEmitterTests
         {
             pool.Emit(2, Position);
             Scene.Remove(this);
+        }
+    }
+
+    // Emits one particle that lives one step from its own OnStep, which runs before its emitter's step.
+    private sealed class SelfEmitter : Entity
+    {
+        private readonly ParticleEmitter _emitter = new(Tile, capacity: 1) { Lifetime = new FloatRange(0.001f, 0.001f) };
+        private bool _emitted;
+
+        internal SelfEmitter()
+            : base(Vector2.Zero) =>
+            Add(_emitter);
+
+        protected internal override void OnStep(in StepContext context)
+        {
+            if (!_emitted)
+            {
+                _emitted = true;
+                _emitter.Emit(1);
+            }
         }
     }
 

@@ -118,7 +118,7 @@ public partial class Camera
 
         set
         {
-            Guard.RequireSeconds(value, nameof(value));
+            Guard.NonNegative(value, nameof(value));
             field = value;
         }
     }

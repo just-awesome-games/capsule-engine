@@ -10,52 +10,6 @@ namespace Capsule.Tests.Physics;
 
 public sealed class ColliderContactReportTests
 {
-    [Fact]
-    public void TwoCollidersReachEachOtherAndTheEntityBehindTheContact()
-    {
-        Scene scene = new();
-        Body first = new(Vector2.Zero) { Position = Vector2.Zero };
-        Body second = new(new Vector2(4f, 0f));
-        first.Collider.Layer = "one";
-        second.Collider.Layer = "two";
-        first.Collider.Detects = new("two");
-        first.Collider.ReportsContacts = true;
-
-        Body? touched = null;
-        first.Collider.ContactEntered += contact => touched = contact.OtherCollider?.Entity as Body;
-
-        scene.Add(first);
-        scene.Add(second);
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
-
-        Assert.Same(second, touched);
-    }
-
-    // A contact carries the touched thing's layer as an index, and its name for a log line.
-    [Fact]
-    public void AContact_ReportsTheTouchedThingsLayerAndItsName()
-    {
-        Scene scene = new();
-        Body player = new(Vector2.Zero);
-        Body enemy = new(new Vector2(4f, 0f));
-        player.Collider.Detects = new("enemy");
-        player.Collider.ReportsContacts = true;
-        enemy.Collider.Layer = "enemy";
-
-        ColliderContact2D? seen = null;
-        player.Collider.ContactEntered += contact => seen = contact;
-
-        scene.Add(player);
-        scene.Add(enemy);
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
-
-        ColliderContact2D contact = Assert.NotNull(seen);
-        Assert.Equal(scene.Collision.Layer("enemy"), contact.Layer);
-        Assert.Equal("enemy", contact.LayerName);
-    }
-
     // Touching is exactly what the full overlap query finds, on every step and whatever the
     // broadphase did in between. One collider teleports in and out, escaping its fat bounds. One
     // drifts through at a crawl inside them. The reporter itself steps onto a still one.

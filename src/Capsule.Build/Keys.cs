@@ -101,7 +101,7 @@ internal static class Keys
     internal static string Below(string root, string path) =>
         path.Length > root.Length + 1 && path[root.Length] == '/' && path.StartsWith(root, StringComparison.Ordinal)
             ? path[(root.Length + 1)..]
-            : System.IO.Path.GetRelativePath(root, path).Replace('\\', '/');
+            : Path.GetRelativePath(root, path).Replace('\\', '/');
 
     /// <summary>Where the extension a sidecar names starts in <paramref name="stem"/>, or -1 when its name holds none.</summary>
     /// <param name="stem">A sidecar's path or key without its <c>.config.json</c>.</param>
@@ -116,7 +116,7 @@ internal static class Keys
     [
         .. requests.Sources
             .Where(static request => request.Root is null
-                && string.Equals(System.IO.Path.GetFileName(request.Path), DevelopmentOnlyMarker, PathComparison))
+                && string.Equals(Path.GetFileName(request.Path), DevelopmentOnlyMarker, PathComparison))
             .Select(request => Below(requests.AssetRoot, request.Path)[..^DevelopmentOnlyMarker.Length]),
     ];
 
@@ -149,21 +149,15 @@ internal static class Keys
 
         string admitted = type.Extension(below)!;
         string stem = below[..^admitted.Length];
+        int dot = type == AssetType.Configs ? SidecarExtension(stem) : -1;
 
-        if (type == AssetType.Configs)
-        {
-            // A folder's .config.json has no name of its own.
-            if (stem.Length == 0 || stem[^1] == '/')
-            {
-                return new Source(type, stem.Length == 0 ? string.Empty : Of(stem[..^1]) + "/", admitted.ToLowerInvariant(), path);
-            }
+        // A folder's .config.json has no name of its own.
+        string key = type != AssetType.Configs ? Of(stem)
+            : stem.Length == 0 ? string.Empty
+            : stem[^1] == '/' ? Of(stem[..^1]) + "/"
+            : dot < 0 ? Of(stem)
+            : Of(stem[..dot]) + stem[dot..].ToLowerInvariant();
 
-            int dot = SidecarExtension(stem);
-            return dot < 0
-                ? new Source(type, Of(stem), admitted.ToLowerInvariant(), path)
-                : new Source(type, Of(stem[..dot]) + stem[dot..].ToLowerInvariant(), admitted.ToLowerInvariant(), path);
-        }
-
-        return new Source(type, Of(stem), admitted.ToLowerInvariant(), path);
+        return new Source(type, key, admitted.ToLowerInvariant(), path);
     }
 }

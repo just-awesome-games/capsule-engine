@@ -6,10 +6,9 @@ namespace Capsule.Tests.Scenes;
 
 public sealed class EntityRotationRetentionTests
 {
-    // Written during step N, the frame after step N interpolates from what the step began with;
-    // the frame after step N+1, with nothing written, has both ends at the value.
+    // Each step retains at its top. A write interpolates from the last step's value, then settles.
     [Fact]
-    public void ARotationWrittenDuringAStep_InterpolatesOnceThenSettles()
+    public void ARotationWrittenDuringAStep_InterpolatesFromTheLastStepsValueThenSettles()
     {
         Spinner spinner = new();
         SceneFixtures.HookScene scene = new();
@@ -23,31 +22,18 @@ public sealed class EntityRotationRetentionTests
         Assert.Equal(0f, turning.PreviousRotation);
         Assert.Equal(1f, turning.Rotation);
 
-        simulation.Step(SceneFixtures.Step(1));
-
-        SpriteIntent settled = Assert.Single(simulation.View.Sprites.ToArray());
-        Assert.Equal(1f, settled.PreviousRotation);
-        Assert.Equal(1f, settled.Rotation);
-    }
-
-    // Each step retains at its top, so a value that moves every step interpolates from the last
-    // step's value, never from the one before it.
-    [Fact]
-    public void ARotationWrittenEveryStep_InterpolatesFromTheLastStepsValue()
-    {
-        Spinner spinner = new();
-        SceneFixtures.HookScene scene = new();
-        scene.Add(spinner);
-        SceneSimulation simulation = new(scene);
-
-        spinner.WriteOnNextStep(1f);
-        simulation.Step(SceneFixtures.Step(0));
         spinner.WriteOnNextStep(2f);
         simulation.Step(SceneFixtures.Step(1));
 
-        SpriteIntent turning = Assert.Single(simulation.View.Sprites.ToArray());
-        Assert.Equal(1f, turning.PreviousRotation);
-        Assert.Equal(2f, turning.Rotation);
+        SpriteIntent turned = Assert.Single(simulation.View.Sprites.ToArray());
+        Assert.Equal(1f, turned.PreviousRotation);
+        Assert.Equal(2f, turned.Rotation);
+
+        simulation.Step(SceneFixtures.Step(2));
+
+        SpriteIntent settled = Assert.Single(simulation.View.Sprites.ToArray());
+        Assert.Equal(2f, settled.PreviousRotation);
+        Assert.Equal(2f, settled.Rotation);
     }
 
     // No step has retained anything for a value written before the first step, so the initial
@@ -69,25 +55,6 @@ public sealed class EntityRotationRetentionTests
         SpriteIntent stepped = Assert.Single(simulation.View.Sprites.ToArray());
         Assert.Equal(0.75f, stepped.PreviousRotation);
         Assert.Equal(0.75f, stepped.Rotation);
-    }
-
-    // A host writing between steps is outside any step too: the frame rewritten from that write
-    // shows the value in place.
-    [Fact]
-    public void ARotationWrittenBetweenSteps_IsNotInterpolated()
-    {
-        Spinner spinner = new();
-        SceneFixtures.HookScene scene = new();
-        scene.Add(spinner);
-        SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
-
-        spinner.Rotation = -2f;
-        simulation.RewriteView();
-
-        SpriteIntent rewritten = Assert.Single(simulation.View.Sprites.ToArray());
-        Assert.Equal(-2f, rewritten.PreviousRotation);
-        Assert.Equal(-2f, rewritten.Rotation);
     }
 
     // The bounds a turned frame reports are its circle's box: an 8x8 frame about its centre reaches

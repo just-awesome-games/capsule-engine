@@ -12,8 +12,6 @@ namespace Capsule.Build.Atlases;
 /// </summary>
 internal static class AtlasStep
 {
-    private const string Step = "atlases";
-
     /// <summary>Texels of border duplicated outward on every side of a member.</summary>
     internal const int Extrude = 1;
 
@@ -26,41 +24,27 @@ internal static class AtlasStep
         TextureMapBuilder map = new();
         pass.TextureMap = map;
 
-        SortedDictionary<string, List<string>> packing = new(StringComparer.Ordinal);
-        foreach ((string key, ResolvedTexture texture) in pass.TextureSettings)
+        // A defective atlas file already failed the build.
+        List<Packing> atlases = [];
+        foreach ((string atlas, DeclaredAtlas declared) in pass.Atlases.OrderBy(static atlas => atlas.Key, StringComparer.Ordinal))
         {
-            if (texture.Atlas is { } atlas)
+            List<string> members = [.. pass.TextureSettings.Where(texture => texture.Value.Atlas == atlas).Select(static texture => texture.Key).Order(StringComparer.Ordinal)];
+            if (declared.Config is { } config && members.Count > 0)
             {
-                if (!packing.TryGetValue(atlas, out List<string>? members))
-                {
-                    packing.Add(atlas, members = []);
-                }
-
-                members.Add(key);
-            }
-        }
-
-        // An undeclared atlas or a defective atlas file already failed the build.
-        List<(string Name, AtlasConfigJson Config, string Path, List<string> Members)> atlases = [];
-        foreach ((string atlas, List<string> members) in packing)
-        {
-            if (pass.Atlases.TryGetValue(atlas, out DeclaredAtlas declared) && declared.Config is { } config)
-            {
-                members.Sort(StringComparer.Ordinal);
-                atlases.Add((atlas, config, declared.Path, members));
+                atlases.Add(new Packing(atlas, config.MaxSize ?? AtlasConfigJson.DefaultMaxSize, declared.Path, members));
             }
         }
 
         // An atlas derives from its own settings and every member's texels, format and sampling.
         foreach ((_, TextureMapJson packed) in pass.Each(
-            Step,
+            "atlases",
             atlases,
             atlas => new Derivation(
                 atlas.Path,
                 [.. atlas.Members.Select(key => pass.Textures[key].Path)],
-                Settings(atlas.Name, MaxSize(atlas.Config), atlas.Members, pass.TextureSettings),
+                Settings(atlas, pass.TextureSettings),
                 typeof(AtlasStep).Assembly),
-            (atlas, files) => Repack(pass, atlas.Name, MaxSize(atlas.Config), atlas.Path, atlas.Members, files),
+            (atlas, files) => Repack(pass, atlas, files),
             TextureMapJsonContext.Default.TextureMapJson))
         {
             foreach ((string key, TextureEntryJson entry) in packed.Textures!)
@@ -75,26 +59,19 @@ internal static class AtlasStep
         }
     }
 
-    private static int MaxSize(AtlasConfigJson config) => config.MaxSize ?? AtlasConfigJson.DefaultMaxSize;
-
     private static string PageName(string atlas, int page) =>
         $"{PageDirectory}{atlas}.{page.ToString(CultureInfo.InvariantCulture)}";
 
     // The atlas's name and page size, then each member's key, format and sampling in key order.
-    private static string Settings(string atlas, int maxSize, List<string> members, IReadOnlyDictionary<string, ResolvedTexture> settings) =>
-        $"name={atlas}; maxSize={maxSize.ToString(CultureInfo.InvariantCulture)}; members="
-            + string.Join(", ", members.Select(key => $"{key} {settings[key].Format} {settings[key].Sampling}"));
+    private static string Settings(Packing atlas, IReadOnlyDictionary<string, ResolvedTexture> settings) =>
+        $"name={atlas.Name}; maxSize={atlas.MaxSize.ToString(CultureInfo.InvariantCulture)}; members="
+            + string.Join(", ", atlas.Members.Select(key => $"{key} {settings[key].Format} {settings[key].Sampling}"));
 
     // Decodes, packs and writes every page of one atlas, one run of pages per format and sampling with
     // the defaults first. Reports every member that cannot be packed, which fails the atlas.
-    private static TextureMapJson Repack(
-        PipelinePass pass,
-        string atlas,
-        int maxSize,
-        string atlasPath,
-        List<string> members,
-        DerivedFiles files)
+    private static TextureMapJson Repack(PipelinePass pass, Packing packing, DerivedFiles files)
     {
+        (string atlas, int maxSize, string atlasPath, List<string> members) = packing;
         IReadOnlyDictionary<string, ResolvedTexture> settings = pass.TextureSettings;
         int failures = pass.Failures;
         Dictionary<string, Texels> images = pass.Each(
@@ -135,7 +112,14 @@ internal static class AtlasStep
                 int x = placement.X + Extrude;
                 int y = placement.Y + Extrude;
                 TexturePixels.Blit(pages[placement.Page], extents[placement.Page].Width, images[placement.Key], x, y, Extrude);
-                packed.Add(placement.Key, new TextureEntryJson { Page = PageName(atlas, first + placement.Page), X = x, Y = y });
+                packed.Add(placement.Key, new TextureEntryJson
+                {
+                    Page = PageName(atlas, first + placement.Page),
+                    X = x,
+                    Y = y,
+                    Width = images[placement.Key].Width,
+                    Height = images[placement.Key].Height,
+                });
             }
 
             for (int page = 0; page < pages.Length; page++)
@@ -151,7 +135,7 @@ internal static class AtlasStep
                 files.Write(name + ".png", path =>
                 {
                     using FileStream file = File.Create(path);
-                    TexturePixels.Encode(texels, width, height, file, channels);
+                    PngWriter.Write(texels, width, height, channels, file);
                 });
             }
 
@@ -160,4 +144,7 @@ internal static class AtlasStep
 
         return new TextureMapJson { Textures = packed, Pages = pageFacts };
     }
+
+    // One declared atlas and its members in key order.
+    private readonly record struct Packing(string Name, int MaxSize, string Path, List<string> Members);
 }

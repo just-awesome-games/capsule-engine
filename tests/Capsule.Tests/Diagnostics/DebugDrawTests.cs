@@ -7,7 +7,6 @@ using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Tests.Runtime;
-using static Capsule.Tests.Runtime.OverlayRig;
 
 namespace Capsule.Tests.Diagnostics;
 
@@ -15,38 +14,35 @@ namespace Capsule.Tests.Diagnostics;
 [Collection(LogSinkCollection.Name)]
 public sealed class DebugDrawTests
 {
-    private const double StepSeconds = 0.1;
     private const string Hitboxes = "hitboxes";
     private const string Labels = "labels";
 
     [Fact]
     public void AnEmittingStep_ListsItsChannelsOffAndATogglePutsTheDrawsOnTheWorldListWithoutAStep()
     {
-        using SceneHost host = CreateHost(new DrawingScene(emitOnTick: 0, steps: 1));
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
-        FrameView view = overlay.View;
+        using OverlayRig rig = new(CreateHost(new DrawingScene(emitOnTick: 0, steps: 1)));
+        FrameView view = rig.Overlay.View;
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.D);
+        rig.Open();
+        rig.Press(Key.D);
 
-        Assert.Equal(["<No channel has emitted yet>"], Rows(overlay));
-        Assert.Equal(2, overlay.Depth);
+        Assert.Equal(["<No channel has emitted yet>"], rig.Rows());
+        Assert.Equal(2, rig.Overlay.Depth);
 
-        Press(overlay, scheduler, host, Key.Right);
+        rig.Press(Key.Right);
 
-        Assert.Equal("Debug Draw", overlay.Title);
-        Assert.Equal(["[ ] hitboxes", "[ ] labels"], Rows(overlay));
-        Assert.Equal(1, scheduler.Tick);
+        Assert.Equal("Debug Draw", rig.Overlay.Title);
+        Assert.Equal(["[ ] hitboxes", "[ ] labels"], rig.Rows());
+        Assert.Equal(1, rig.Scheduler.Tick);
         Assert.True(view.Lines.IsEmpty);
         Assert.True(view.Sprites.IsEmpty);
 
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Press(Key.Enter);
 
-        Assert.Equal(["[x] hitboxes", "[ ] labels"], Rows(overlay));
-        Assert.Equal(2, overlay.Depth);
-        Assert.Equal(0, overlay.Focus);
-        Assert.Equal(1, scheduler.Tick);
+        Assert.Equal(["[x] hitboxes", "[ ] labels"], rig.Rows());
+        Assert.Equal(2, rig.Overlay.Depth);
+        Assert.Equal(0, rig.Overlay.Focus);
+        Assert.Equal(1, rig.Scheduler.Tick);
         Assert.Equal(1, view.Lines.Length);
         Assert.True(view.Sprites.IsEmpty);
         Assert.Equal(new Vector2(3f, 4f), view.Lines[0].B);
@@ -55,35 +51,35 @@ public sealed class DebugDrawTests
         // and follows a change on the overlay's next frame with no game step between.
         Assert.Equal(ColorRgba.White, view.Lines[0].Color);
         DebugDraw.SetColor(Hitboxes, ColorRgba.Orange);
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        rig.Frame();
         Assert.Equal(ColorRgba.Orange, view.Lines[0].Color);
-        Assert.Equal(1, scheduler.Tick);
+        Assert.Equal(1, rig.Scheduler.Tick);
         DebugDraw.SetColor(Hitboxes, ColorRgba.White);
 
-        Press(overlay, scheduler, host, Key.Down);
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Press(Key.Down);
+        rig.Press(Key.Enter);
 
-        Assert.Equal(["[x] hitboxes", "[x] labels"], Rows(overlay));
-        Assert.Equal(1, overlay.Focus);
+        Assert.Equal(["[x] hitboxes", "[x] labels"], rig.Rows());
+        Assert.Equal(1, rig.Overlay.Focus);
         Assert.Equal(1, view.Lines.Length);
         Assert.Equal("hi".Length, view.Sprites.Length);
 
-        Press(overlay, scheduler, host, Key.Up);
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Press(Key.Up);
+        rig.Press(Key.Enter);
 
-        Assert.Equal(["[ ] hitboxes", "[x] labels"], Rows(overlay));
+        Assert.Equal(["[ ] hitboxes", "[x] labels"], rig.Rows());
         Assert.True(view.Lines.IsEmpty);
 
         // Left and re-entered the page keeps every toggle, and a channel that first emits while it is
         // open, which this scene does on "extra" from its second step, gains a row of its own.
-        Press(overlay, scheduler, host, Key.Backspace);
-        Press(overlay, scheduler, host, Key.D);
-        Assert.Equal(["[ ] hitboxes", "[x] labels"], Rows(overlay));
+        rig.Press(Key.Backspace);
+        rig.Press(Key.D);
+        Assert.Equal(["[ ] hitboxes", "[x] labels"], rig.Rows());
 
-        Press(overlay, scheduler, host, Key.Right);
+        rig.Press(Key.Right);
 
-        Assert.Equal(["[ ] extra", "[ ] hitboxes", "[x] labels"], Rows(overlay));
-        Assert.Equal(2, overlay.Depth);
+        Assert.Equal(["[ ] extra", "[ ] hitboxes", "[x] labels"], rig.Rows());
+        Assert.Equal(2, rig.Overlay.Depth);
     }
 
     // A left click over a row of the Debug Draw menu, opened by its hotkey, toggles that row's
@@ -91,85 +87,77 @@ public sealed class DebugDrawTests
     [Fact]
     public void ALeftClickOverARow_TogglesItsChannelAndIsWithheldFromTheGame()
     {
-        using SceneHost host = CreateHost(new DrawingScene(emitOnTick: 0, steps: 1));
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+        using OverlayRig rig = new(CreateHost(new DrawingScene(emitOnTick: 0, steps: 1)));
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.Right);
-        Press(overlay, scheduler, host, Key.D);
+        rig.Open();
+        rig.Press(Key.Right);
+        rig.Press(Key.D);
 
-        Assert.Equal("Debug Draw", overlay.Title);
-        Assert.Equal(["[ ] hitboxes", "[ ] labels"], Rows(overlay));
-        Assert.False(overlay.IsChannelEnabled(Labels));
+        Assert.Equal("Debug Draw", rig.Overlay.Title);
+        Assert.Equal(["[ ] hitboxes", "[ ] labels"], rig.Rows());
+        Assert.False(rig.Overlay.IsChannelEnabled(Labels));
 
         // Readout, title, blank, then the rows: the second row is the fifth line.
         float lineHeight = BitmapFont.Default.LineHeight;
         Vector2 secondRow = new(6f, 4f + (4f * lineHeight) + (lineHeight / 2f));
-        DeviceSnapshot game = overlay.Observe(DeviceSnapshot.Empty.WithPointer(secondRow).With(MouseButton.Left));
-        scheduler.Advance(StepSeconds, game, host);
-        overlay.Step();
+        DeviceSnapshot game = rig.Frame(DeviceSnapshot.Empty.WithPointer(secondRow).With(MouseButton.Left));
 
         Assert.False(game.IsDown(MouseButton.Left));
-        Assert.True(overlay.IsChannelEnabled(Labels));
-        Assert.False(overlay.IsChannelEnabled(Hitboxes));
-        Assert.Equal(["[ ] hitboxes", "[x] labels"], Rows(overlay));
-        Assert.Equal(1, scheduler.Tick);
+        Assert.True(rig.Overlay.IsChannelEnabled(Labels));
+        Assert.False(rig.Overlay.IsChannelEnabled(Hitboxes));
+        Assert.Equal(["[ ] hitboxes", "[x] labels"], rig.Rows());
+        Assert.Equal(1, rig.Scheduler.Tick);
     }
 
     [Fact]
     public void ADraw_StaysForItsStepsCountedInTicksAndThenLeaves()
     {
-        using SceneHost host = CreateHost(new DrawingScene(emitOnTick: 0, steps: 2));
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
-        FrameView view = overlay.View;
+        using OverlayRig rig = new(CreateHost(new DrawingScene(emitOnTick: 0, steps: 2)));
+        FrameView view = rig.Overlay.View;
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.Right);
-        overlay.ToggleChannel(Hitboxes);
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        rig.Open();
+        rig.Press(Key.Right);
+        rig.Overlay.ToggleChannel(Hitboxes);
+        rig.Frame();
 
-        Assert.Equal(1, scheduler.Tick);
+        Assert.Equal(1, rig.Scheduler.Tick);
         Assert.Equal(1, view.Lines.Length);
 
         for (int frame = 0; frame < 3; frame++)
         {
-            Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+            rig.Frame();
         }
 
         Assert.Equal(1, view.Lines.Length);
 
-        Press(overlay, scheduler, host, Key.Right);
+        rig.Press(Key.Right);
 
-        Assert.Equal(2, scheduler.Tick);
+        Assert.Equal(2, rig.Scheduler.Tick);
         Assert.Equal(1, view.Lines.Length);
 
-        Press(overlay, scheduler, host, Key.Right);
+        rig.Press(Key.Right);
 
-        Assert.Equal(3, scheduler.Tick);
+        Assert.Equal(3, rig.Scheduler.Tick);
         Assert.True(view.Lines.IsEmpty);
     }
 
     [Fact]
     public void AClosedOverlay_KeepsDrawingAnEnabledChannelWithoutSteppingItsMenu()
     {
-        using SceneHost host = CreateHost(new DrawingScene(emitOnTick: null, steps: 1));
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
-        FrameView view = overlay.View;
+        using OverlayRig rig = new(CreateHost(new DrawingScene(emitOnTick: null, steps: 1)));
+        FrameView view = rig.Overlay.View;
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.Right);
-        overlay.ToggleChannel(Hitboxes);
-        Press(overlay, scheduler, host, Key.Grave);
+        rig.Open();
+        rig.Press(Key.Right);
+        rig.Overlay.ToggleChannel(Hitboxes);
+        rig.Press(Key.Grave);
 
-        Assert.False(overlay.IsOpen);
-        Assert.False(scheduler.Held);
+        Assert.False(rig.Overlay.IsOpen);
+        Assert.False(rig.Scheduler.Held);
 
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        rig.Frame();
 
-        Assert.Equal(4, scheduler.Tick);
+        Assert.Equal(4, rig.Scheduler.Tick);
         Assert.Equal(1, view.Lines.Length);
         Assert.Equal(new Vector2(3f, 2f), view.Lines[0].A);
     }
@@ -177,15 +165,13 @@ public sealed class DebugDrawTests
     [Fact]
     public void EachShape_DecomposesIntoItsSegmentsOnTheWorldList()
     {
-        using SceneHost host = CreateHost(new ShapesScene());
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
-        FrameView view = overlay.View;
+        using OverlayRig rig = new(CreateHost(new ShapesScene()));
+        FrameView view = rig.Overlay.View;
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.Right);
-        overlay.ToggleChannel(Hitboxes);
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+        rig.Open();
+        rig.Press(Key.Right);
+        rig.Overlay.ToggleChannel(Hitboxes);
+        rig.Frame();
 
         ReadOnlySpan<LineIntent> lines = view.Lines;
         Assert.Equal(4 + 24 + 26 + 3, lines.Length);
@@ -240,9 +226,9 @@ public sealed class DebugDrawTests
 
         Assert.Equal(before, after);
 
-        using OverlayHost overlay = new(Key.Grave, CreateScheduler(), new RecordingSimulation());
+        using OverlayRig rig = new();
 
-        Assert.Empty(overlay.Channels);
+        Assert.Empty(rig.Overlay.Channels);
     }
 
     private static SceneHost CreateHost(Scene scene) =>

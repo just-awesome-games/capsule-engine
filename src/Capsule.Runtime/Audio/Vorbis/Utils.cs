@@ -15,12 +15,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             return cnt;
         }
 
-        static internal uint BitReverse(uint n)
-        {
-            return BitReverse(n, 32);
-        }
-
-        static internal uint BitReverse(uint n, int bits)
+        static internal uint BitReverse(uint n, int bits = 32)
         {
             n = ((n & 0xAAAAAAAA) >> 1) | ((n & 0x55555555) << 1);
             n = ((n & 0xCCCCCCCC) >> 2) | ((n & 0x33333333) << 2);
@@ -29,16 +24,14 @@ namespace Capsule.Runtime.Audio.Vorbis
             return ((n >> 16) | (n << 16)) >> (32 - bits);
         }
 
-        static internal float ClipValue(float value, ref bool clipped)
+        static internal float ClipValue(float value)
         {
             if (value > .99999994f)
             {
-                clipped = true;
                 return 0.99999994f;
             }
             if (value < -.99999994f)
             {
-                clipped = true;
                 return -0.99999994f;
             }
             return value;

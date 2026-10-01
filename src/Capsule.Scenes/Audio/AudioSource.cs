@@ -63,14 +63,10 @@ public sealed class AudioSource(AudioClip clip) : Component
     /// <paramref name="volume"/> at once, the target, not the ramp.
     /// </summary>
     /// <remarks>Does nothing to the mixer when this source owns no voice.</remarks>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="volume"/> is outside [0, 1], <paramref name="seconds"/> is negative or not
-    /// finite, or <paramref name="ease"/> is not a declared curve.
-    /// </exception>
     public void FadeVolume(float volume, float seconds, Ease ease = Ease.Linear)
     {
         Guard.InUnit(volume, nameof(volume));
-        Guard.RequireSeconds(seconds, nameof(seconds));
+        Guard.NonNegative(seconds, nameof(seconds));
         Guard.RequireEase(ease, nameof(ease));
 
         _volume = volume;
@@ -165,13 +161,12 @@ public sealed class AudioSource(AudioClip clip) : Component
     /// The clip time to begin at, in seconds from the clip's start. It must be zero or greater, and below
     /// the clip's duration unless the duration is zero.
     /// </param>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="startSeconds"/> is negative, not finite, or at or past the clip's duration.</exception>
     /// <exception cref="InvalidOperationException">This source is on no entity in a started scene.</exception>
     public void Play(double startSeconds)
     {
         AudioMixer mixer = Mixer();
 
-        mixer.Stop(_voice);
+        _playing?.Stop(_voice);
         _playing = mixer;
         _voice = mixer.Play(new AudioPlayback(Clip)
         {
@@ -194,10 +189,6 @@ public sealed class AudioSource(AudioClip clip) : Component
     /// <param name="volumeScale">A factor on <see cref="Volume"/> for this play, itself in [0, 1].</param>
     /// <param name="pitchScale">A factor on <see cref="Pitch"/> for this play, positive and finite.</param>
     /// <returns>The voice started, or <see cref="Voice.None"/> when the mixer had none to give.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="volumeScale"/> is outside [0, 1] or is not a number, or
-    /// <paramref name="pitchScale"/> is not positive and finite.
-    /// </exception>
     /// <exception cref="InvalidOperationException">This source is on no entity in a started scene.</exception>
     public Voice PlayOneShot(AudioClip clip, float volumeScale = 1f, float pitchScale = 1f)
     {
@@ -226,10 +217,9 @@ public sealed class AudioSource(AudioClip clip) : Component
     /// Removing the source's entity from its scene during the fade stops the voice at once.
     /// </summary>
     /// <remarks><see cref="IsLive"/> follows the ramp. Poll it for the edge. Does nothing when this source owns no voice.</remarks>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="seconds"/> is negative or not finite.</exception>
     public void Stop(float seconds)
     {
-        Guard.RequireSeconds(seconds, nameof(seconds));
+        Guard.NonNegative(seconds, nameof(seconds));
 
         _playing?.Stop(_voice, seconds);
     }

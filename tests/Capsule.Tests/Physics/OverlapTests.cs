@@ -5,22 +5,6 @@ namespace Capsule.Tests.Physics;
 
 public sealed class OverlapTests
 {
-    [Fact]
-    public void Overlap_FindsEveryShapeTheQueryTouchesAndOrdersCollidersByHandle()
-    {
-        CollisionWorld2D world = new();
-        CollisionLayer item = world.Layer("item");
-        ColliderHandle first = world.Add(Shape2D.Circle(new Vector2(4f, 4f), 4f), Vector2.Zero, item);
-        ColliderHandle second = world.Add(Shape2D.Box(new Vector2(6f, 0f), new Vector2(8f, 8f)), Vector2.Zero, item);
-        world.Add(Shape2D.Circle(new Vector2(400f, 400f), 4f), Vector2.Zero, item);
-
-        Span<Contact2D> contacts = stackalloc Contact2D[8];
-        int count = world.OverlapAll(Shape2D.Box(Vector2.Zero, new Vector2(10f, 10f)), Vector2.Zero, CollisionFilter.Everything, contacts);
-
-        Assert.Equal(2, count);
-        Assert.Equal(first, contacts[0].Target.Collider);
-        Assert.Equal(second, contacts[1].Target.Collider);
-    }
 
     // The span is the destination, never the question: the count is what the world holds, and the
     // handle order decides which of them fit, so an unrelated move cannot change the answer.
@@ -131,13 +115,6 @@ public sealed class OverlapTests
 
         Assert.Equal(0.45f, hit.Fraction, 3);
         Assert.Equal(new Vector2(-1f, 0f), hit.Normal);
-    }
-
-    [Fact]
-    public void ShapeCast_MissesWhatTheTranslationDoesNotReach()
-    {
-        CollisionWorld2D world = new();
-        world.Add(Shape2D.Box(new Vector2(100f, 0f), new Vector2(16f, 16f)), Vector2.Zero, world.Layer("wall"));
 
         Assert.False(world.ShapeCast(
             Shape2D.Box(Vector2.Zero, new Vector2(10f, 10f)),
@@ -146,6 +123,7 @@ public sealed class OverlapTests
             CollisionFilter.Everything,
             out _));
     }
+
 
     // Depth is the way out: stepping the query by Normal * Depth leaves it touching and no deeper.
     // One box overlaps another by 3 across X and a lone solid cell by 2 down Y.

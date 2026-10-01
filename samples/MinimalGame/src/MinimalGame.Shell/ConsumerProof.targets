@@ -1,9 +1,7 @@
 <Project>
 
-  <!-- CI's proofs over the shipped package, run by this sample because it is the one consumer CI
-       builds in package mode: the backend never reaches a game's compile references, and the
-       packed buildTransitive/ layout embeds the window icon. None of this is part of a game's
-       wiring — a copy of this sample drops the import. -->
+  <!-- CI's proofs over the shipped package, run here because this is the one consumer CI builds in
+       package mode. A copy of this sample drops the import. -->
 
   <Target Name="CapsuleRejectBackendCompileAsset" AfterTargets="ResolveReferences">
     <ItemGroup>
@@ -14,11 +12,9 @@
            Text="Capsule package leaked MonoGame as a compile reference." />
   </Target>
 
-  <!-- The window icon's whole contract is one string in the built shell: the backend looks the
-       resource up by name, so a manifest name the compiler derived from this project's root
-       namespace would leave the window wearing the backend's icon with nothing to read. Asserted
-       against the assembly rather than the item, in every consumption mode, so the packaged
-       buildTransitive layout is what proves it as much as the source clone is. -->
+  <!-- The backend looks the window icon up by its exact manifest resource name. A name derived from
+       the root namespace would silently fall back to the backend's icon. The built assembly is
+       checked, in every consumption mode. -->
   <UsingTask TaskName="CapsuleAssertWindowIcon"
              TaskFactory="RoslynCodeTaskFactory"
              AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
@@ -29,16 +25,13 @@
       <Using Namespace="System.IO" />
       <Using Namespace="System.Reflection" />
       <Code Type="Fragment" Language="cs"><![CDATA[
-        // From bytes, so the build never holds the shell it just produced open. Reading the
-        // manifest names walks no reference, so nothing this assembly depends on has to be
-        // loadable inside MSBuild.
+        // From bytes, so the build never holds the shell open. Manifest names load no reference.
         string[] names = Assembly.Load(File.ReadAllBytes(AssemblyPath)).GetManifestResourceNames();
         if (Array.IndexOf(names, "Icon.bmp") < 0)
         {
             Log.LogError(
                 "'" + AssemblyPath + "' embeds no manifest resource named exactly 'Icon.bmp'; it has: "
                 + string.Join(", ", names) + ".");
-            // A fragment succeeds unless it returns false.
             return false;
         }
       ]]></Code>

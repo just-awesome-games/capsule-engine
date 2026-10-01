@@ -128,9 +128,6 @@ internal static class ShaderTemplate
     /// </summary>
     internal static string Compose(string fragment, string fragmentPath)
     {
-        ArgumentNullException.ThrowIfNull(fragment);
-        ArgumentNullException.ThrowIfNull(fragmentPath);
-
         // The compiler reads a directive's file name as a string literal.
         string quoted = fragmentPath.Replace('\\', '/').Replace("\"", "\\\"", StringComparison.Ordinal);
 

@@ -20,22 +20,7 @@ public sealed class CollisionFilterTests
     }
 
     [Fact]
-    public void Layer_RefusesToInternMoreThanTheWorldsCap()
-    {
-        CollisionWorld2D world = new();
-        for (int index = 1; index < CollisionWorld2D.MaxLayers; index++)
-        {
-            world.Layer(index.ToString(CultureInfo.InvariantCulture));
-        }
-
-        Assert.Equal(CollisionWorld2D.MaxLayers, world.LayerCount);
-
-        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => world.Layer("one too many"));
-        Assert.Contains($"its {CollisionWorld2D.MaxLayers} layers", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Layer_AtTheLastIndexStillMatchesItsOwnFilter()
+    public void Layer_FillsEveryIndexUpToTheWorldsCapAndRefusesOneMore()
     {
         CollisionWorld2D world = new();
         CollisionLayer last = default;
@@ -47,6 +32,9 @@ public sealed class CollisionFilterTests
         Assert.Equal(CollisionWorld2D.MaxLayers - 1, last.Index);
         Assert.True(CollisionFilter.Of(last).Matches(last));
         Assert.False(CollisionFilter.Of(last).Matches(world.Layer(CollisionWorld2D.DefaultLayerName)));
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => world.Layer("one too many"));
+        Assert.Contains($"its {CollisionWorld2D.MaxLayers} layers", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

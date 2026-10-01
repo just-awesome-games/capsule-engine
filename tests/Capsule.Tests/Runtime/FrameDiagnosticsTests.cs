@@ -11,35 +11,26 @@ public sealed class FrameDiagnosticsTests
     private static readonly string[] BootStages =
         ["builderEntered", "hostConstructed", "deviceReady", "sceneAssetsLoaded", "firstUpdate", "firstDraw"];
 
+    // Every stage is timestamped before the first draw, so each is a millisecond count that grew
+    // over the boot. A negative or unordered one means a stage went unmarked.
     [Fact]
-    public void TheBootTrace_PrecedesTheHeaderAndNamesEveryStageOnce()
+    public void TheBootTrace_PrecedesTheHeaderAndNamesEveryStageOnceInNonDecreasingMilliseconds()
     {
         using Capture capture = new();
-        capture.Frame();
+        Assert.False(capture.Frame());
 
         string[] lines = capture.ReadLines();
         int header = Array.IndexOf(lines, "intervalMs,updateMs,drawMs,steps,gen0");
 
         Assert.InRange(header, 1, lines.Length - 1);
         Assert.All(lines[..header], line => Assert.StartsWith("# ", line, StringComparison.Ordinal));
-        Assert.Equal(BootStages, lines[1..header].Select(line => line[2..line.IndexOf(',', StringComparison.Ordinal)]));
-    }
 
-    // Every stage is timestamped before the first draw, so each is a millisecond count that grew
-    // over the boot: a negative or unordered one means a stage went unmarked.
-    [Fact]
-    public void TheBootTrace_ReportsTheStagesAsNonDecreasingMillisecondsFromProcessStart()
-    {
-        using Capture capture = new();
-        capture.Frame();
+        string[][] stages = [.. lines[1..header].Select(line => line[2..].Split(','))];
+        double[] milliseconds = [.. stages.Select(stage => double.Parse(stage[1], CultureInfo.InvariantCulture))];
 
-        double[] stages = [.. capture.ReadLines()
-            .Where(line => line.StartsWith("# ", StringComparison.Ordinal) && line.Contains(',', StringComparison.Ordinal))
-            .Select(line => double.Parse(line[(line.IndexOf(',', StringComparison.Ordinal) + 1)..], CultureInfo.InvariantCulture))];
-
-        Assert.Equal(BootStages.Length, stages.Length);
-        Assert.Equal(stages.Order(), stages);
-        Assert.All(stages, stage => Assert.InRange(stage, 0d, TimeSpan.FromHours(1).TotalMilliseconds));
+        Assert.Equal(BootStages, stages.Select(stage => stage[0]));
+        Assert.Equal(milliseconds.Order(), milliseconds);
+        Assert.All(milliseconds, stage => Assert.InRange(stage, 0d, TimeSpan.FromHours(1).TotalMilliseconds));
     }
 
     // `--frames artifacts/run.csv` on a fresh clone names a directory nothing has made yet, as a
@@ -87,14 +78,6 @@ public sealed class FrameDiagnosticsTests
     }
 
     [Fact]
-    public void EndDraw_NeverReportsABudgetSpentWithoutOne()
-    {
-        using Capture capture = new(exitAfterSeconds: null);
-
-        Assert.All(Enumerable.Range(0, 10), _ => Assert.False(capture.Frame()));
-    }
-
-    [Fact]
     public void EndDraw_ReportsTheBudgetSpentOnceTheDurationHasElapsedSinceTheFirstFrame()
     {
         ManualClock clock = new();
@@ -104,6 +87,18 @@ public sealed class FrameDiagnosticsTests
         clock.Advance(0.049);
         Assert.False(capture.Frame());
         clock.Advance(0.001);
+        Assert.True(capture.Frame());
+    }
+
+    // Regression: a duration under one timer tick truncated to zero ticks, which read as no budget.
+    [Fact]
+    public void EndDraw_ReportsABudgetShorterThanOneTimerTickOnceATickHasPassed()
+    {
+        ManualClock clock = new();
+        using Capture capture = new(exitAfterSeconds: 1e-12, clock);
+
+        Assert.False(capture.Frame());
+        clock.Advance(2.0 / Stopwatch.Frequency);
         Assert.True(capture.Frame());
     }
 

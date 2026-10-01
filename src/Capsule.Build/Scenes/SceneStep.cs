@@ -34,25 +34,25 @@ internal static class SceneStep
             source => Derivation.Of(source, settings),
             (source, files) =>
             {
-                SceneDocument document = Import(source.Path, pass.Configuration.TileSize);
+                // An authored file need not be canonical, and the hash is over its bytes. An editor may
+                // add a byte order mark, which the JSON reader would find where it expects a brace.
+                byte[] bytes = File.ReadAllBytes(source.Path);
+                string json = Encoding.UTF8.GetString(bytes).TrimStart(ByteOrderMark);
+                SceneDocument document = Import(source.Path, bytes, json, pass.Configuration.TileSize);
                 files.Write(source.Key + ShippedSceneDocument.Extension, path => ShippedSceneDocument.Write(document, path, level));
 
-                return SceneMembers.Attributes(document, source.Key, source.Path, File.ReadAllText(source.Path)).ToArray();
+                return SceneMembers.Attributes(document, source.Key, source.Path, json);
             },
             DerivationCacheJsonContext.Default.StringArray))
         {
-            pass.Beside(GeneratedAttributes.SceneDocument);
+            pass.Assets.Beside(GeneratedAttributes.SceneDocument);
             pass.Declare(document, attributes, SceneMembers.Write);
         }
     }
 
-    internal static SceneDocument Import(string documentPath, int? tileSize = null)
+    private static SceneDocument Import(string documentPath, byte[] sourceBytes, string json, int? tileSize)
     {
-        // Read as bytes, since the hash is over the source bytes and an authored file need not be
-        // canonical. The format is written without a BOM, but an editor may add one and the JSON
-        // reader would find it where it expects a brace.
-        byte[] sourceBytes = File.ReadAllBytes(documentPath);
-        SceneDocument authored = SceneDocumentFile.Parse(Encoding.UTF8.GetString(sourceBytes).TrimStart(ByteOrderMark));
+        SceneDocument authored = SceneDocumentFile.Parse(json);
 
         if (tileSize is { } declared)
         {

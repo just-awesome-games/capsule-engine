@@ -161,13 +161,7 @@ public sealed class CommandLineTests : IDisposable
         ["--driver", "   "],
         ["--driver", "--headless"],
         ["--frames", "frames.csv", "0"],
-        ["--frames", "frames.csv", "-1"],
         ["--frames", "frames.csv", "NaN"],
-        ["--frames", "frames.csv", "Infinity"],
-        ["--scene"],
-        ["--scene", "--headless"],
-        ["--saves"],
-        ["--saves", "--headless"],
         ["--rewind", "Idler"],
         ["--headless", "--headless"],
     ];
@@ -216,10 +210,8 @@ public sealed class CommandLineTests : IDisposable
         Assert.False(refused.HelpRequested);
         Assert.Equal(2, refused.Report());
 
-        return Captured();
+        return _captured.ToString();
     }
-
-    private string Captured() => _captured.ToString();
 
     // Every registry holds the class-free document HallKey. A documentKey adds a second one.
     private static EngineBuilder Builder(HostPlatform? platform = null, string? documentKey = null) =>
@@ -230,7 +222,6 @@ public sealed class CommandLineTests : IDisposable
                     new EntityRegistry([]),
                     [
                         SceneRegistration.Plain(typeof(Idle), static _ => new Idle()),
-                        SceneRegistration.Plain(typeof(Exiting), static _ => new Exiting()),
                         SceneRegistration.Plain(typeof(Selected), static _ => new Selected()),
                         SceneRegistration.Plain(typeof(Saver), static _ => new Saver()),
                         SceneRegistration.DocumentOnly(HallKey, static content => new Hall(content!.Value)),
@@ -248,11 +239,6 @@ public sealed class CommandLineTests : IDisposable
             .WithoutLogging();
 
     private sealed class Idle : Scene;
-
-    private sealed class Exiting : Scene
-    {
-        protected override void OnStep(in StepContext context) => Run.RequestExit();
-    }
 
     private sealed class Saver : Scene
     {

@@ -31,11 +31,6 @@ internal static class AssetPipeline
     /// <summary>How long a run waits for another run over the same directory before failing.</summary>
     private static readonly TimeSpan LockWait = TimeSpan.FromMinutes(5);
 
-    /// <param name="assetRoot">The authoring tree the run walks.</param>
-    /// <param name="shaderTools">The shader tools the build restored.</param>
-    /// <param name="shipping">Whether the build is a publish.</param>
-    /// <param name="outputDirectory">Where everything is written.</param>
-    /// <param name="configuration">What the game's build project configured.</param>
     /// <param name="output">Progress, one line per derivation run and one count per step.</param>
     /// <param name="error">Defects, each anchored to the file that has it.</param>
     /// <returns>0 when the run reported no defect, 1 when it reported any.</returns>
@@ -55,18 +50,18 @@ internal static class AssetPipeline
         {
             Directory.CreateDirectory(outputDirectory);
             held = Hold(pass);
-            started = held is null ? default : Start(held);
+            if (held is null)
+            {
+                return 1;
+            }
+
+            started = Start(held);
         }
         catch (Exception ex) when (PipelinePass.IsReportable(ex))
         {
             held?.Dispose();
             pass.Fail(Path.Combine(outputDirectory, LockFile), $"cannot be opened: {ex.Message}");
 
-            return 1;
-        }
-
-        if (held is null)
-        {
             return 1;
         }
 

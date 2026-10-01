@@ -30,20 +30,7 @@ public sealed class SnapshotLatchTests
     }
 
     [Fact]
-    public void SeveralStepsDrainedInOneFrame_SeeTheSameSnapshot()
-    {
-        SnapshotLatch latch = new();
-        DeviceSnapshot down = DeviceSnapshot.Of(Key.Space);
-
-        latch.Observe(down);
-
-        Assert.Equal(down, latch.Consume());
-        Assert.Equal(down, latch.Consume());
-        Assert.Equal(down, latch.Consume());
-    }
-
-    [Fact]
-    public void SeveralStepsDrainedInOneFrame_SpendTheWheelOnTheFirst()
+    public void SeveralStepsDrainedInOneFrame_SeeTheSameButtonsAndSpendTheWheelOnTheFirst()
     {
         SnapshotLatch latch = new();
         DeviceSnapshot flick = DeviceSnapshot.Of(Key.Space).WithScroll(new Vector2(0f, 3f));
@@ -87,10 +74,12 @@ public sealed class SnapshotLatchTests
     {
         SnapshotLatch latch = new();
 
-        latch.Observe(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, 1f));
+        latch.Observe(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, 1f).WithAxis(PadAxis.LeftTrigger, 1f));
         latch.Observe(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, 0.25f));
         latch.Observe(DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickX, -0.5f));
 
-        Assert.Equal(-0.5f, latch.Consume().Axis(PadAxis.LeftStickX), 1e-6f);
+        DeviceSnapshot step = latch.Consume();
+        Assert.Equal(-0.5f, step.Axis(PadAxis.LeftStickX), 1e-6f);
+        Assert.Equal(0f, step.Axis(PadAxis.LeftTrigger));
     }
 }

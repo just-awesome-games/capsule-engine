@@ -18,8 +18,6 @@ public sealed class SceneDocument
     // The entry type the engine reserves for tile maps. A document may hold any number of them.
     internal const string TileMapType = "tile-map";
 
-    private const int Sha256HexLength = 64;
-
     private const string KeyForm =
         "A key is one or more '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name.";
 
@@ -35,7 +33,7 @@ public sealed class SceneDocument
     /// </param>
     /// <exception cref="ArgumentException">The document is malformed. The message names the defect.</exception>
     /// <example>
-    /// A test builds a document whose scene properties name the entry with id 3:
+    /// An importer for another editor's format builds a document whose scene properties name the entry with id 3:
     /// <code>
     /// SceneSettings settings = new() { Properties = JsonSerializer.SerializeToElement(new { startBounds = 3 }) };
     /// SceneDocument document = new(entries, nextEntityId: 4, source: null, settings);
@@ -287,23 +285,7 @@ public sealed class SceneDocument
         && !path.StartsWith('/')
         && (path.Length < 2 || path[1] != ':');
 
-    private static bool IsSha256Hex(string hash)
-    {
-        if (hash.Length != Sha256HexLength)
-        {
-            return false;
-        }
-
-        foreach (char character in hash)
-        {
-            if (!char.IsAsciiHexDigitLower(character))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
+    private static bool IsSha256Hex(string hash) => hash.Length == 64 && hash.All(char.IsAsciiHexDigitLower);
 
     private static ArgumentException Malformed(string message, string parameterName = "entries") =>
         new(message, parameterName);

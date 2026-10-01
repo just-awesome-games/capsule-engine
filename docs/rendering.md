@@ -13,8 +13,8 @@ Three spans decide what a player sees, and each is set in one place.
 | Canvas | `EngineBuilder.WithCanvas(width, height)`, or `Run.Canvas` during the run | The screen layer's extent in canvas pixels. Defaults to the render surface, then to the window size. |
 | Viewport | `Camera.ViewportSize` | World units the camera spans. Zero draws nothing. |
 
-A pixel-art game declares one render surface and lets the canvas follow it. The interface is then drawn
-in the same pixels as the world:
+A pixel-art game declares one render surface and point sampling, and lets the canvas follow the surface.
+The interface is then drawn in the same pixels as the world:
 
 ```csharp
 return CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
@@ -25,15 +25,14 @@ return CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
     .RunScene<MainMenu>();
 ```
 
-`Camera.Fit` decides what an output whose aspect ratio differs from the viewport shows. On a declared
-render surface the world is drawn at the declared pixels per unit under either sampling. Point sampling
-snaps each sprite to the surface's pixel grid and presents the surface at an integer scale when the
-output can hold it.
+`Camera.Fit` decides what an output whose aspect ratio differs from the viewport shows. Point sampling
+snaps each sprite to the surface's pixel grid and presents the surface at an integer scale when the output
+can hold it.
 
 ## A camera that follows
 
-A document's `camera` key installs a camera, or a scene's constructor sets one directly. A subclass
-sets its feel once and names its subject in `OnStart`:
+A document's `camera` key installs a camera, or a scene's constructor sets one directly. A subclass sets
+its feel once and names its subject in `OnStart`:
 
 ```csharp
 public sealed class GameCamera : Camera
@@ -57,8 +56,7 @@ public sealed class GameCamera : Camera
 }
 ```
 
-`Camera` documents how each framing lever composes with the follow. A subclass retargets, zooms or
-recoils in `OnLateStep`, which runs before the follow.
+`Camera` documents how each framing lever composes with the follow.
 
 ## Renderers
 
@@ -67,10 +65,14 @@ entity's position, a `Color`, and a `ZIndex` of its own within the entity's band
 
 | Renderer | Draws |
 | --- | --- |
-| `SpriteRenderer` | One `Sprite`, with `FlipX`, `FlipY` and `Tiling`. `Socket(name)` returns a child entity the drawn frame places. |
+| `SpriteRenderer` | One `Sprite`. `Socket(name)` returns a child entity the drawn frame places. |
 | `ColorRect` | A flat rect of `Size`. |
 | `Label` | A run of a `BitmapFont`, wrapped and aligned inside `Size`. |
 | `NineSlice` | A sprite stretched to `Size` with its `Insets` corners kept. |
+| `ParticleEmitter` | A fixed pool of sprite particles stepped on the fixed tick. |
+
+A `SpriteAnimator` plays a sheet's clips on a `SpriteRenderer`. A step may ask for the clip its state
+implies every step, because `Play` does not restart a clip already playing:
 
 ```csharp
 SpriteRenderer sprite = new(CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Idle0);
@@ -81,71 +83,32 @@ _animator = new SpriteAnimator(sprite);
 Add(_animator);
 ```
 
-A `SpriteAnimator` plays a clip on a `SpriteRenderer`. Clips are held in whole fixed steps.
-Animation is simulation state and means the same at any frame rate. `Play` does not restart a clip that
-is already playing, and a step may ask for the clip its state implies every step:
-
 ```csharp
 _animator.Play(velocity.X != 0f ? CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Walk : CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Idle);
 ```
 
-`Paused` holds a clip on its current frame while the entity keeps stepping. Clearing it resumes from
-that frame. `Play` leaves it set. Hit-stop holds the whole entity, and that is `Scene.Freeze` in
-[`entities.md`](entities.md#pausing).
+Animation, tweens and particles are simulation state counted in fixed steps. They mean the same at any
+frame rate, and a headless test can assert on them. A `Tween` is an eased value, and a `Countdown` is the
+same timer with no value to read.
 
-A `Tween` is an eased value that counts its duration in whole fixed steps. It drives a flash, a slide
-or any one-off eased value. A `Countdown` is the same timer with no value to read, for a cooldown, a
-delay or a lifetime.
-
-A game that needs geometry no renderer draws subclasses `Renderer` and writes into the `FrameView` it
-is handed. A frame is built on the first read of `SceneSimulation.View` after a step, and on the first
-read before any step. `Draw` runs at most once per step, never when nothing reads the view, and it
-changes no game state.
-
-A scene's first build happens on the first read of `View`, usually its first presented frame. A host
-that owns its `SceneSimulation` and wants that cost paid during a load reads `View` once at the end of
-it. A build reads state when the view is read, after the last step. A `Draw` that reads something
-outside the simulation, such as a clock or input polled at present, sees its value at present time.
-`Draw` reads simulation state only.
-
-The sheet format and where sprites come from are [`assets.md`](assets.md), and atlases are
-[`configuring-assets.md`](configuring-assets.md#atlases).
+A game that needs geometry no renderer draws subclasses `Renderer` and writes into the `FrameView` it is
+handed. When `Draw` runs is in [`architecture.md`](architecture.md#simulation-and-host).
 
 ## Hiding, fading and flashing
 
 `Entity.Visible` and `Entity.Tint` hide and colour an entity and everything beneath it.
-`Renderer.Visible` and a renderer's own `Color` do the same for one renderer. `Entity.Flash` mixes
-every sprite beneath the entity towards `Entity.FlashColor`, white by default, after the tint and after
-any material. At 1 a sprite is a silhouette of that colour. None of them stops the entity stepping:
+`Renderer.Visible` and a renderer's own `Color` do the same for one renderer. `Entity.Flash` mixes every
+sprite beneath the entity towards `Entity.FlashColor`. None of them stops the entity stepping:
 
 ```csharp
 Flash = grace > 0 ? 1f - Math.Min(sinceHit / (float)_tuning.HurtFlashTicks, 1f) : 0f;
-Tint = grace > 0 ? _tuning.HurtTint : ColorRgba.White;
 Visible = Flash > 0f || grace / _tuning.BlinkTicks % 2 == 0;
 ```
 
 ## Your own shader
 
-A shader is a fragment function authored as `<name>.fx` under `Assets/` in HLSL
-([`assets.md`](assets.md#shaders)). It declares its parameters and exactly one
-`float4 Fragment(SpritePixel pixel)`, and returns a premultiplied colour. `pixel.Texel` is the
-sprite's premultiplied texel, `pixel.Tint` its premultiplied tint and `pixel.UV` its texture
-coordinate, which on an atlas page is the page's. A parameter is a global `float`, `float2`,
-`float3`, `float4` or `Texture2D`, and reads zero until a material sets it. Names starting with
-`Capsule` are the engine's, and a parameter named so fails the build. `Sample(texture, uv)`
-reads a texture parameter with its own sampling or else the frame's, clamped at its edges, and
-`SampleSprite(uv)` reads the sprite's texture at another point. An `r8` texture's value is in `.r`.
-As the sprite's texture it reads `(v, v, v, v)`, so a plain draw is a coverage mask the tint colours.
-`TextureSize(texture)` is a texture parameter's size in texels, and `pixel.TextureSize` is the
-sprite's texture's, which for a packed sprite is its atlas page's. OpenGL 2.1 has no `Load`,
-`GetDimensions`, unsigned integer or `round`, and a shader using one fails the build. One texel is
-read with `Sample` at its centre:
-
-```hlsl
-float4 entry = Sample(Table, (float2(column, row) + 0.5) / TextureSize(Table));
-```
-
-A stone-statue look:
+A shader is a fragment function authored in HLSL as `<name>.fx` under `Assets/`. It declares its
+parameters and exactly one `float4 Fragment(SpritePixel pixel)`, which returns a premultiplied colour:
 
 ```hlsl
 float Amount;
@@ -159,56 +122,51 @@ float4 Fragment(SpritePixel pixel)
 }
 ```
 
-A `Material` binds it with its parameter values. `Renderer.Material` draws a renderer with it, and
-`TileMap.Material` draws a whole tile map with it:
+| Name | What it is |
+| --- | --- |
+| `pixel.Texel` | The sprite's premultiplied texel. An `r8` texture reads `(v, v, v, v)`, a coverage mask the tint colours. |
+| `pixel.Tint` | The sprite's premultiplied tint. |
+| `pixel.UV` | The texture coordinate, which on an atlas page is the page's. |
+| `pixel.TextureSize` | The sprite's texture size in texels, which for a packed sprite is its atlas page's. |
+| `Sample(texture, uv)` | Reads a texture parameter, clamped at its edges, with its own sampling or else the frame's. An `r8` texture's value is in `.r`. |
+| `SampleSprite(uv)` | Reads the sprite's texture at another point. |
+| `TextureSize(texture)` | A texture parameter's size in texels. |
 
-```csharp
-Material stone = new(CapsuleAssets.Shaders.DesaturateShader);
-stone.Set("Amount", 1f);
-sprite.Material = stone;
-```
+A parameter is a global `float`, `float2`, `float3`, `float4` or `Texture2D`. Names starting with
+`Capsule` are the engine's. A construct OpenGL 2.1 lacks, such as `Load` or `GetDimensions`, fails the
+build naming the fix.
 
-A renderer's material loads with the scene. An entity that assigns a material once it has started
-declares it from `CollectAssets`, which preloads its shader and every texture set on it:
-
-```csharp
-protected override void CollectAssets(AssetCollection assets) => assets.Add(_palette);
-```
-
-Draw order never changes for a material. Neighbouring sprites draw in one batch when they share a
-texture and a material instance, so renderers that look alike share one `Material`. Tint, blend mode
-and flash never split a batch. Lines, the light map and the development overlay draw with the engine's
-own shader.
+A `Material` binds a shader with its parameter values. `Renderer.Material` draws a renderer with it, and
+`TileMap.Material` draws a whole tile map with it. An entity that assigns a material after it has started
+declares it from `CollectAssets` ([`assets.md`](assets.md#loading-and-residency)). Draw order never
+changes for a material. Lines, the light map and the development overlay draw with the engine's own
+shader.
 
 ## Two layers, and draw order
 
 A frame carries two ordered lists. The world layer is placed by the camera and culled against it. The
-screen layer is in canvas pixels, culled against `Run.Canvas`, and draws over the world layer. An
-entity's type decides its layer: a `ScreenEntity` is on the screen layer, anything else is in the
-world, and every renderer it holds follows.
+screen layer is in canvas pixels, culled against `Run.Canvas`, and draws over the world layer. A
+`ScreenEntity` and every renderer it holds are on the screen layer, and anything else is in the world.
 
 Within a layer, what draws later has the higher sum of the entity's `ZIndex` up its ancestry and the
-renderer's own `ZIndex`. Ties break by file order in a document and then by attachment order.
+renderer's own `ZIndex`. Ties break by file order in a document and then by attachment order. A top-down
+scene sets `Scene.YSort` to order world renderers in one band by their root entity's Y.
 
-A top-down scene sets `Scene.YSort`, and world renderers in one band then draw in order of their root
-entity's Y, a root's children with it. A floor and a canopy take bands of their own, below and above.
-
-A `ScreenEntity` is placed by an `Anchor`, a fraction of the canvas on each axis, plus an offset in
-canvas pixels. An element keeps its distance from the edge it was anchored to whatever the canvas is:
+A `ScreenEntity` is placed by an `Anchor`, a fraction of the canvas on each axis, plus an offset in canvas
+pixels. It keeps its distance from the edge it was anchored to whatever the canvas is:
 
 ```csharp
 private readonly HealthBar _healthBar = new(Anchor.TopLeft, new Vector2(8f, 8f));
 ```
 
-Menus are `Focusable` components under one `FocusNavigator`. The navigator owns which item has focus
-and moves it from the game's own focus actions, pointer included.
+Menus are `Focusable` components under one `FocusNavigator`, which moves focus from the game's own focus
+actions and the pointer.
 
 ## Parallax
 
-An entity may carry a `ScrollFactor`, and the host draws it by a virtual camera whose centre is moved
-by that factor about `Camera.ScrollCenter`. Zero on both axes pins the entity to the screen, and one
-is the world. The scroll centre defaults to half the camera's `ViewportSize`, and a camera centred there
-draws every layer as authored. A layer holds its place at any output aspect or zoom. Draw order is the same `ZIndex` sum whatever the factor:
+An entity's `ScrollFactor` scales how far it moves with the camera about `Camera.ScrollCenter`. Zero on
+both axes pins the entity to the screen, and one is the world. A camera centred on its scroll centre
+draws every layer as authored. Draw order is the same `ZIndex` sum whatever the factor:
 
 ```csharp
 public Sky(EntitySpawn spawn)
@@ -220,17 +178,15 @@ public Sky(EntitySpawn spawn)
 }
 ```
 
-A document may author the factor instead, as `scrollFactor` on an entry ([`scenes.md`](scenes.md)). A
-`Tiling` of positive infinity on an axis repeats the frame without bound along it.
-
-## Particles
-
-A `ParticleEmitter` is a renderer that steps a fixed pool of sprite particles on the fixed tick. Its
-documented example is a complete burst effect. A continuous emitter sets `Rate` or `RateOverDistance`, and a burst
-calls `Emit`. Particles are simulation state. A headless run reproduces a burst exactly, and a test can
-assert on one. Local space, noise, sub-emission, collision and trails are not built.
+A document may author the factor instead, as `scrollFactor` on an entry. A `Tiling` of positive infinity
+on an axis repeats the frame without bound along it.
 
 ## Lighting
+
+A scene lowers the light with `Scene.Ambient`. A `PointLight` draws into the frame's light map, which the
+host multiplies over the world layer. A world sprite drawn with `BlendMode.Additive` in a lit frame lights
+the map too. A glow then stays bright in a dim room. The screen layer is never lit. A scene with white
+ambient and no light runs no pass.
 
 ```csharp
 Add(new PointLight { Radius = 56f, Color = HeadColor, Offset = new Vector2(0f, -PostSize.Y) });
@@ -238,19 +194,11 @@ Entity head = new(this, new Vector2(0f, -PostSize.Y - 2f)) { Scale = new Vector2
 head.Add(new SpriteRenderer(Glow) { Color = HeadColor, Blend = BlendMode.Additive });
 ```
 
-A scene lowers the light with `Scene.Ambient`, set in code or by the document's `ambient`. A
-`PointLight` draws into the frame's light map, and the host multiplies that map over the world layer in
-one pass. In a lit frame a world sprite drawn with `BlendMode.Additive` lights the map too, and a glow
-sprite never goes dark in a dim room. The screen layer is never lit. A scene with white ambient and no
-light runs no pass. Shadows, normal maps, bloom, a light-map scale and a per-renderer opt-out are not
-built.
-
 ## Text
 
-Capsule draws text from a bitmap font: a font baked to texture pages with a glyph rectangle per
-codepoint. Nothing is rasterized at run time and no outline font is opened. A run is laid out left to
-right, one glyph per codepoint, with the kerning the font declares. There is no shaping, no
-bidirectional layout and no distance field.
+Capsule draws text from a bitmap font baked to texture pages. A run is laid out left to right, one glyph
+per codepoint, with the kerning the font declares. There is no shaping, no bidirectional layout and no
+distance field.
 
 ```csharp
 Add(new Label(CapsuleAssets.Fonts.MenuFont, "Minimal Game")
@@ -260,13 +208,11 @@ Add(new Label(CapsuleAssets.Fonts.MenuFont, "Minimal Game")
 });
 ```
 
-`BitmapFont.Default` ships inside the runtime and needs no asset. Other fonts are authored under
-`Assets/` ([`assets.md`](assets.md#fonts)). `GlyphRun` is the layout pass every placement comes
-from. Code that emits its own per-glyph sprites enumerates it for the geometry the engine draws and
-measures.
+`BitmapFont.Default` ships inside the runtime and needs no asset. Other fonts are authored under `Assets/`
+([`assets.md`](assets.md#fonts)). `GlyphRun` is the layout every placement comes from, for code that
+emits its own per-glyph sprites.
 
 ## Visibility
 
-A `VisibleOnScreenNotifier2D` raises `ScreenEntered` and `ScreenExited` as a rect on its entity meets
-the camera's visible region, settled once a step against the region that step's frame drew. It is how
-a bullet despawns when it leaves the screen.
+A `VisibleOnScreenNotifier2D` raises `ScreenEntered` and `ScreenExited` as a rect on its entity meets the
+camera's visible region. It is how a bullet despawns when it leaves the screen.

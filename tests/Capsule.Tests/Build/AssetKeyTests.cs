@@ -14,10 +14,8 @@ public sealed class AssetKeyTests
     [Theory]
     [InlineData("Enemies/Bat", "enemies/bat")]
     [InlineData("enemies/Bat", "enemies/bat")]
-    [InlineData("enemies/bat", "enemies/bat")]
     [InlineData("Stage1/Room01", "stage-1/room-01")]
     [InlineData("stage1/room01", "stage-1/room-01")]
-    [InlineData("stage-1/room-01", "stage-1/room-01")]
     [InlineData("Foot_Step", "foot-step")]
     [InlineData("BodyText", "body-text")]
     public void EverySpellingOfAPath_KeysTheSame(string authored, string key)

@@ -42,8 +42,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Run = run ?? new Run();
         scene.Run = Run;
 
-        // The run boots here, whichever host built it. A scene's start hook already sees a booted run,
-        // so the debug-menu button is fixed before it can be reached.
+        // The run boots here, whichever host built it. A scene's start hook already sees a booted run.
         Run.Input.Started = true;
         try
         {
@@ -123,8 +122,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
 
     void ISimulation.Step(in StepContext context) => Step(in context, null);
 
-    // The host's before-step action runs after the mixer's step opens, so the sounds it plays and stops
-    // belong to this step, and before the scene's own step, so the step reads its changes.
+    // The host's before-step action runs after the mixer's step opens and before the scene's own step.
     void ISimulation.Step(in StepContext context, Action before) => Step(in context, before);
 
     private void Step(in StepContext context, Action? before)
@@ -141,16 +139,13 @@ public sealed class SceneSimulation : ISimulation, IDisposable
             _stepping = false;
         }
 
-        // Marked only once the step completes. A step that throws leaves a view already built
-        // showing the step before it.
+        // A step that throws leaves a view already built showing the step before it.
         _viewStale = true;
     }
 
     private void RunStep(in StepContext context, Action? before)
     {
-        // Runs before everything else in the step. A sound or a rumble pulse played during it expires
-        // against this step's tick, and the sound's commands belong to this step instead of the
-        // previous one.
+        // Opened first. A sound or rumble pulse played during the step then belongs to this step's tick.
         Run.Audio.BeginStep(in context);
         Run.Rumble.BeginStep(in context);
 
@@ -160,28 +155,21 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene.RunStep(in context);
         Scene.StepEntities(in context);
 
-        // Contacts settle after every position this step produces is final, so no enter or exit is raised
-        // against a position something is about to leave.
+        // Contacts settle once every position this step produces is final.
         Scene.SettleContacts();
 
-        // Then the late steps, in the order the step ran. The next frame shows whatever an entity
-        // reads here, such as a position a sweep came to rest at or health a contact just spent.
+        // Late steps run in step order and read the settled contacts.
         Scene.LateStepEntities(in context);
 
-        // Runs before EndStep, because EndStep clears the deferral flag and a late step after it would
-        // reach the entity list directly instead of queueing like everything else.
+        // The scene's late step runs before EndStep clears the deferral flag. Its changes then queue too.
         Scene.RunLateStep(in context);
         Scene.EndStep();
 
-        // Everything the step produced is settled here, and nothing this pass reads changes before the
-        // frame is drawn.
         EmitDebugDraws();
     }
 
-    // Runs the debug pass over the scene as it stands. Every step calls it once the step has settled, and
-    // a host calls it to redraw settled state while paused or after attaching a listener. The hooks are
-    // read-only by contract, and an out-of-step pass changes nothing and advances no tick. Skipped
-    // while nothing listens, and on a run a host owns for its own overlay.
+    // Runs the debug pass over the scene as it stands, after each step and when a host redraws settled
+    // state. Skipped while nothing listens and on a run a host owns for its own overlay.
     internal void EmitDebugDraws()
     {
         if (DebugDraw.IsAttached && Run.EmitsDebugDraw)
@@ -190,9 +178,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         }
     }
 
-    // Takes the run's pending frame capture request and clears it. Not tied to a step. The host calls
-    // it from the frame that will serve the request. Run.FrameCaptureRequested reads it without taking
-    // it.
+    // The host takes the request from the frame that will serve it.
     internal bool TryTakeFrameCapture(out string path) => Run.TryTakeFrameCapture(out path);
 
     /// <summary>Takes the deferred transition the last step requested, when there is one.</summary>
@@ -216,8 +202,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene.Stop();
     }
 
-    // Rebuilds View from the scene as it stands, without taking a step. A host calls it when its
-    // renderers read something that changed between steps, and a read of a stale View calls it.
+    // Rebuilds View from the scene as it stands, without taking a step.
     internal void RewriteView()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -253,10 +238,8 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         }
     }
 
-    // The world layer can have content and still draw nothing, because the camera has no positive
-    // span. A screen-only scene such as a boot menu never touches the camera and must not warn, so
-    // this reads what the frame just built rather than whether a camera was configured. Latched to
-    // the instance so a scene that never fixes it hears about it once, not every frame.
+    // Reads what the frame built, not whether a camera was configured. A screen-only scene never
+    // touches the camera and must not warn. The warning fires once per simulation.
     private void WarnOnUndrawnWorldLayer()
     {
         if (_warnedOnUndrawnWorldLayer)

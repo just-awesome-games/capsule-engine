@@ -20,10 +20,7 @@ internal sealed class SnapshotLatch
 
     // Drops samples waiting for a step but keeps the last live sample. The next observation after a host
     // hold replaces it, and a release during the hold cannot become a stale edge.
-    internal void DiscardPending()
-    {
-        _observedSinceStep = false;
-    }
+    internal void DiscardPending() => _observedSinceStep = false;
 
     // Consumes latched buttons and the latest axis values for one fixed step. A second step drained in
     // the same frame sees the same held state and positions, and no scroll. Notches are a delta one step

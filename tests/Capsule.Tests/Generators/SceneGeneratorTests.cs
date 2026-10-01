@@ -46,15 +46,11 @@ public sealed class SceneGeneratorTests
         Assert.DoesNotContain("opening-room", generated, StringComparison.Ordinal);
     }
 
+    // AssetKeyTests holds every spelling the key rule refuses. This holds which refusal names which defect.
     [Theory]
-    [InlineData("", "CAP021")]
-    [InlineData("../room", "CAP021")]
-    [InlineData("rooms//opening", "CAP021")]
-    [InlineData("/opening", "CAP021")]
-    [InlineData("opening room", "CAP021")]
-    [InlineData("rooms/opening.json", "CAP021")]
-    [InlineData("rooms/nul", "CAP006")]
-    public void AnUnsafeExplicitDocumentName_FailsTheBuild(string documentName, string diagnosticId)
+    [InlineData("01-intro/opening", "CAP021", "'01-intro'")]
+    [InlineData("rooms/nul", "CAP006", "'rooms/nul'")]
+    public void AnUnsafeExplicitDocumentName_FailsTheBuildNamingTheTypeAndTheKey(string documentName, string id, string named)
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
@@ -63,7 +59,10 @@ public sealed class SceneGeneratorTests
             public sealed class OpeningRoom(SceneContent content) : Scene(content);
             """).Diagnostics;
 
-        Assert.Equal(diagnosticId, Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+        Diagnostic rejected = Assert.Single(GeneratorHarness.Errors(diagnostics));
+        Assert.Equal(id, rejected.Id);
+        Assert.Contains("Game.OpeningRoom", rejected.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains(named, rejected.GetMessage(), StringComparison.Ordinal);
     }
 
     // A claim is authored prose, so it is keyed like the document's own path: whatever spelling the
@@ -84,66 +83,19 @@ public sealed class SceneGeneratorTests
         Assert.DoesNotContain("Stage1/Room01", generated, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void AnExplicitDocumentName_WithAnUnnameableSegment_NamesTheTypeAndTheSegment()
+    [Theory]
+    [InlineData("[SceneDocument(\"menu\")] public sealed class MainMenu : Scene;", "CAP007")]
+    [InlineData("public static class Scenes { private sealed class Room(SceneContent content) : Scene(content); }", "CAP008")]
+    [InlineData("public sealed class Room : Scene { public Room() { } public Room(SceneContent content) : base(content) { } }", "CAP009")]
+    public void ASceneOfAShapeTheRegistryCannotCompose_FailsTheBuild(string declaration, string id)
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
-            [SceneDocument("01-intro/opening")]
-            public sealed class OpeningRoom(SceneContent content) : Scene(content);
+            {{declaration}}
             """).Diagnostics;
 
-        Diagnostic rejected = Assert.Single(GeneratorHarness.Errors(diagnostics));
-        Assert.Equal("CAP021", rejected.Id);
-
-        string message = rejected.GetMessage(System.Globalization.CultureInfo.InvariantCulture);
-        Assert.Contains("Game.OpeningRoom", message, StringComparison.Ordinal);
-        Assert.Contains("'01-intro'", message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void SceneDocument_OnASceneWithoutAContentConstructor_FailsTheBuild()
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            [SceneDocument("menu")]
-            public sealed class MainMenu : Scene;
-            """).Diagnostics;
-
-        Assert.Equal("CAP007", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
-    }
-
-    [Fact]
-    public void ASceneWithBothRegistryConstructorShapes_FailsTheBuild()
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            public sealed class Room : Scene
-            {
-                public Room() { }
-                public Room(SceneContent content) : base(content) { }
-            }
-            """).Diagnostics;
-
-        Assert.Equal("CAP009", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
-    }
-
-    [Fact]
-    public void ARegisteredSceneNestedBehindPrivateAccess_FailsTheBuild()
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            public static class Scenes
-            {
-                private sealed class Room(SceneContent content) : Scene(content);
-            }
-            """).Diagnostics;
-
-        Assert.Equal("CAP008", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+        Assert.Equal(id, Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 
     [Fact]
@@ -314,10 +266,11 @@ public sealed class SceneGeneratorTests
         Assert.Contains("Game.Room01", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
-    // A baseScene naming a concrete class is not the template shape the format needs: the generator
-    // would have nowhere to hang the sealed class it emits.
-    [Fact]
-    public void ABaseSceneNamingAConcreteClass_FailsTheBuild()
+    // A concrete class cannot take the sealed subclass the generator emits. A key no class claims is another defect.
+    [Theory]
+    [InlineData("playable-room", "CAP028", "Game.PlayableRoom")]
+    [InlineData("missing-room", "CAP030", "missing-room")]
+    public void ABaseSceneNamingNoAbstractScene_FailsTheBuild(string baseScene, string id, string named)
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileAgainstSources(
             $$"""
@@ -326,30 +279,11 @@ public sealed class SceneGeneratorTests
             public sealed class PlayableRoom(SceneContent content) : Scene(content);
             """,
             logic: true,
-            ("scenes/halls/hall.scene.json", """{"formatVersion": 8, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}""")).Diagnostics;
+            ("scenes/halls/hall.scene.json", $$"""{"formatVersion": 8, "baseScene": "{{baseScene}}", "entities": [], "nextEntityId": 1}""")).Diagnostics;
 
         Diagnostic error = Assert.Single(GeneratorHarness.Errors(diagnostics));
-        Assert.Equal("CAP028", error.Id);
-        Assert.Contains("Game.PlayableRoom", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
-    }
-
-    // A baseScene naming a key no class claims at all is a different defect from one that claims it
-    // badly.
-    [Fact]
-    public void ABaseSceneNamingNoClass_FailsTheBuild()
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileAgainstSources(
-            $$"""
-            {{GeneratorHarness.Preamble}}
-
-            public sealed class Marker;
-            """,
-            logic: true,
-            ("scenes/halls/hall.scene.json", """{"formatVersion": 8, "baseScene": "missing-room", "entities": [], "nextEntityId": 1}""")).Diagnostics;
-
-        Diagnostic error = Assert.Single(GeneratorHarness.Errors(diagnostics));
-        Assert.Equal("CAP030", error.Id);
-        Assert.Contains("missing-room", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Equal(id, error.Id);
+        Assert.Contains(named, error.GetMessage(), StringComparison.Ordinal);
     }
 
     // The template a developer no longer writes: an abstract base with no document of its own, and

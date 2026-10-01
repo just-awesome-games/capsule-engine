@@ -1,28 +1,27 @@
 #nullable disable
 #pragma warning disable
-using Capsule.Runtime.Audio.Vorbis.Contracts;
 
 namespace Capsule.Runtime.Audio.Vorbis
 {
     // all channels in one pass, interleaved
-    class Residue2 : Residue0
+    sealed class Residue2 : Residue0
     {
         int _channels;
 
-        public override void Init(IPacket packet, int channels, ICodebook[] codebooks)
+        public override void Init(Ogg.Packet packet, int channels, Codebook[] codebooks)
         {
             _channels = channels;
             base.Init(packet, 1, codebooks);
         }
 
-        public override void Decode(IPacket packet, bool[] doNotDecodeChannel, int blockSize, float[][] buffer)
+        public override void Decode(Ogg.Packet packet, bool[] doNotDecodeChannel, int blockSize, float[][] buffer)
         {
             // since we're doing all channels in a single pass, the block size has to be multiplied.
             // otherwise this is just a pass-through call
             base.Decode(packet, doNotDecodeChannel, blockSize * _channels, buffer);
         }
 
-        protected override bool WriteVectors(ICodebook codebook, IPacket packet, float[][] residue, int channel, int offset, int partitionSize)
+        protected override bool WriteVectors(Codebook codebook, Ogg.Packet packet, float[][] residue, int channel, int offset, int partitionSize)
         {
             var chPtr = 0;
 

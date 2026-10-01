@@ -128,7 +128,6 @@ public abstract class Component
     /// </remarks>
     protected internal virtual void CollectAssets(AssetCollection assets)
     {
-        ArgumentNullException.ThrowIfNull(assets);
     }
 
     // Which parts of its entity's transform this component supports. Position alone means the component

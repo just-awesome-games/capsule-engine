@@ -6,6 +6,9 @@ namespace Capsule.Runtime.Rendering;
 // centres, where float error cannot drop a column and double its neighbour.
 internal static class PixelGrid
 {
+    // Below what a display can show, above what float error at any plausible world extent reaches.
+    private const double MidpointMargin = 1.0 / 32.0;
+
     // The whole-pixel offset of value from origin, in world units, where origin is the camera's corner
     // and scale is surface pixels per world unit. Two points a whole number of pixels apart snap a
     // whole number of pixels apart wherever the origin sits, and a point holding its distance from the
@@ -17,9 +20,6 @@ internal static class PixelGrid
     internal static Vector2 SnapOffset(Vector2 origin, Vector2 value, float scale) => new(
         SnapOffset(origin.X, value.X, scale),
         SnapOffset(origin.Y, value.Y, scale));
-
-    // Below what a display can show, above what float error at any plausible world extent reaches.
-    private const double MidpointMargin = 1.0 / 32.0;
 
     private static float SnapOffset(float origin, float value, float scale) =>
         (float)(Math.Floor((((double)value - origin) * scale) + 0.5 - MidpointMargin) / scale);

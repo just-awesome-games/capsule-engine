@@ -11,7 +11,7 @@ internal static class PngWriter
 
     private static readonly uint[] CrcTable = CreateCrcTable();
 
-    private static ReadOnlySpan<byte> Signature => [137, 80, 78, 71, 13, 10, 26, 10];
+    internal static ReadOnlySpan<byte> Signature => [137, 80, 78, 71, 13, 10, 26, 10];
 
     /// <param name="channels">1 for greyscale, 4 for straight-alpha RGBA.</param>
     internal static void Write(ReadOnlySpan<byte> texels, int width, int height, int channels, Stream destination)
@@ -50,9 +50,6 @@ internal static class PngWriter
         BinaryPrimitives.WriteInt32BigEndian(header[4..], height);
         header[8] = 8;
         header[9] = channels == 1 ? (byte)0 : (byte)6;
-        header[10] = 0;
-        header[11] = 0;
-        header[12] = 0;
 
         destination.Write(Signature);
         Chunk(destination, "IHDR"u8, header);
@@ -112,7 +109,7 @@ internal static class PngWriter
         return cost;
     }
 
-    private static void Chunk(Stream destination, ReadOnlySpan<byte> type, ReadOnlySpan<byte> data)
+    internal static void Chunk(Stream destination, ReadOnlySpan<byte> type, ReadOnlySpan<byte> data)
     {
         Span<byte> field = stackalloc byte[4];
         BinaryPrimitives.WriteInt32BigEndian(field, data.Length);

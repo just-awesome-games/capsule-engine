@@ -57,6 +57,17 @@ public sealed class SingleChannelPngTests
         Assert.Contains("Export it as 8-bit greyscale or indexed colour", error.Message, StringComparison.Ordinal);
     }
 
+    // A damaged header is a defect of the file, reported against it, and not a crash of the build.
+    [Fact]
+    public void ATruncatedHeader_IsRefusedAsAFormatDefect()
+    {
+        using MemoryStream png = new();
+        png.Write(PngWriter.Signature);
+        PngWriter.Chunk(png, "IHDR"u8, new byte[8]);
+
+        Assert.Throws<FormatException>(() => SingleChannelPng.Read(png.ToArray()));
+    }
+
     // The runtime reads the shipped file as one channel with no premultiply, so every value lands as
     // the author's index.
     [Fact]
@@ -108,7 +119,7 @@ public sealed class SingleChannelPngTests
                     1 => left,
                     2 => up,
                     3 => (left + up) / 2,
-                    4 => Paeth(left, up, corner),
+                    4 => SingleChannelPng.Paeth(left, up, corner),
                     _ => 0,
                 };
                 raw.WriteByte((byte)(row[i] - predicted));
@@ -131,53 +142,16 @@ public sealed class SingleChannelPngTests
         header[9] = colour;
 
         using MemoryStream png = new();
-        png.Write([137, 80, 78, 71, 13, 10, 26, 10]);
-        Chunk(png, "IHDR", header);
+        png.Write(PngWriter.Signature);
+        PngWriter.Chunk(png, "IHDR"u8, header);
         if (palette is not null)
         {
-            Chunk(png, "PLTE", palette);
+            PngWriter.Chunk(png, "PLTE"u8, palette);
         }
 
-        Chunk(png, "IDAT", compressed.ToArray());
-        Chunk(png, "IEND", []);
+        PngWriter.Chunk(png, "IDAT"u8, compressed.ToArray());
+        PngWriter.Chunk(png, "IEND"u8, []);
 
         return png.ToArray();
-    }
-
-    private static int Paeth(int left, int up, int corner)
-    {
-        int estimate = left + up - corner;
-        int toLeft = Math.Abs(estimate - left);
-        int toUp = Math.Abs(estimate - up);
-        int toCorner = Math.Abs(estimate - corner);
-
-        return toLeft <= toUp && toLeft <= toCorner ? left : toUp <= toCorner ? up : corner;
-    }
-
-    private static void Chunk(Stream png, string type, byte[] data)
-    {
-        byte[] length = new byte[4];
-        BinaryPrimitives.WriteInt32BigEndian(length, data.Length);
-        byte[] typed = [.. type.Select(static character => (byte)character), .. data];
-        byte[] crc = new byte[4];
-        BinaryPrimitives.WriteUInt32BigEndian(crc, Crc(typed));
-        png.Write(length);
-        png.Write(typed);
-        png.Write(crc);
-    }
-
-    private static uint Crc(byte[] bytes)
-    {
-        uint crc = uint.MaxValue;
-        foreach (byte value in bytes)
-        {
-            crc ^= value;
-            for (int bit = 0; bit < 8; bit++)
-            {
-                crc = (crc & 1) != 0 ? 0xEDB88320u ^ (crc >> 1) : crc >> 1;
-            }
-        }
-
-        return ~crc;
     }
 }

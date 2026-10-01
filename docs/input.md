@@ -33,10 +33,9 @@ public static class GameInput
 }
 ```
 
-The sample's shell passes `GameBoot.Start` to `EngineBuilder.WithRunStart`, which runs it once after
-saves are restored. It reads the settings and hands them to `Configure`. Declare each action once as a
-static field, as above. Constructing one interns its name. A game that tunes the sampled pad's
-deadzones calls `InputConfiguration.GamepadDeadzones` in the same place.
+The sample's `GameBoot.Start`, passed to `EngineBuilder.WithRunStart`, reads the saved settings and hands
+them to `Configure`. Declare each action once as a static field, as above. Pad deadzones are tuned in the
+same place with `InputConfiguration.GamepadDeadzones`.
 
 ## Read them in a step
 
@@ -175,11 +174,10 @@ parser of its own:
 dotnet run --project src/MyGame.Shell -- --scene Room --driver Walkthrough --headless
 ```
 
-`--driver`, `--headless`, `--scene`, `--frames`, `--uncapped`, `--saves`, `--help` are the flags, as `--help`
-prints and `EngineBuilder.WithCommandLine` documents. A shipping build keeps `--saves` and `--help`.
-A refused flag and `--help` both throw `CommandLineException`, which the shell catches around its
-configuration chain and reports as the process's exit code.
+`--driver`, `--headless`, `--scene`, `--frames`, `--uncapped`, `--saves` and `--help` are the flags, as
+`EngineBuilder.WithCommandLine` documents. A shipping build keeps `--saves` and `--help`. The shell reports
+`--help` and a refused flag through `CommandLineException`, as
+[`getting-started.md`](getting-started.md#the-shell) shows.
 
 From a test, the same driver plays under `SimulationHost.Play` or `CapsuleEngine.RunHeadless`
-([`testing.md`](testing.md)). How a driven run meets the development overlay is
-[`debugging.md`](debugging.md#development-builds).
+([`testing.md`](testing.md)).

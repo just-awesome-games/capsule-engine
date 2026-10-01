@@ -5,24 +5,24 @@ using MinimalGame.Game.UI;
 namespace MinimalGame.Game.Scenes;
 
 /// <summary>
-/// The boot scene, and the one backed by no <c>*.scene.json</c>: its public parameterless constructor
-/// is what marks it class-only. It shows the title menu and nothing else, and it instantiates it in
-/// its own constructor rather than in <see cref="OnStart"/>, which is what makes the menu's font part
-/// of the scene's asset preload.
+/// The boot scene, showing the title menu. A public parameterless constructor marks it class-only,
+/// with no <c>*.scene.json</c>.
 /// </summary>
 public sealed class MainMenu : Scene
 {
+    // Added in the constructor rather than in OnStart, which puts the menu's font in the scene's preload.
     public MainMenu() => Add(new TitleMenu());
 
-    // A track already playing is left alone, so a trip through Options and back does not restart it.
-    // Start is the item highlighted on arrival. The room it opens loads behind the menu.
     /// <inheritdoc/>
     protected override void OnStart()
     {
+        // A track already playing is left alone, so a trip through Options does not restart it.
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.TitleSound);
 
         // A room's crosshair does not follow the player out.
         Run.Cursor.Image = null;
+
+        // Start opens the room, which loads behind the menu.
         Run.PrefetchScene(CapsuleAssets.Scenes.RoomScene);
     }
 

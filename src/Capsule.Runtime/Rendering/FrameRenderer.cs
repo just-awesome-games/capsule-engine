@@ -15,6 +15,9 @@ internal sealed class FrameRenderer : IDisposable
 {
     private const string DefaultFontPageResource = "Capsule.Runtime.Assets.default-font.png";
 
+    // The light map's scale: a light of one is stored as half of full, so the map holds zero to two.
+    private const float MapScale = 0.5f;
+
     // Bars are presentation, not world intent, and stay black.
     private static readonly Color BarColor = Color.FromNonPremultiplied(
         ColorRgba.Black.R,
@@ -22,17 +25,24 @@ internal sealed class FrameRenderer : IDisposable
         ColorRgba.Black.B,
         ColorRgba.Black.A);
 
+    // Modulates the world's colour by twice the light map: source * destination + destination * source.
+    // The map is drawn at half scale (an ambient of white is stored as 128), so its 8 bits span a light of
+    // zero to two, and a light on a white ambient brightens the world towards white. Both factors stay
+    // inside [0, 1], where every desktop API blends exactly.
+    private static readonly BlendState Modulate2x = new()
+    {
+        ColorSourceBlend = Blend.DestinationColor,
+        ColorDestinationBlend = Blend.SourceColor,
+        AlphaSourceBlend = Blend.Zero,
+        AlphaDestinationBlend = Blend.One,
+    };
+
     private readonly GraphicsDevice _device;
     private readonly SpriteBatcher _batcher;
     private readonly TextureStore _textures;
 
     // One white texel, tinted and stretched across the camera to draw the clear colour.
     private readonly Texture2D _white;
-
-    // The engine's radial light falloff, computed once at startup. Registered under TextureHandle.Light.
-    private readonly Texture2D _light;
-
-    private readonly Texture2D _defaultFontPage;
 
     // Every engine-owned texture, so the draw path resolves a handle through a single table.
     private readonly Dictionary<TextureHandle, Texture2D> _engineTextures;
@@ -57,6 +67,10 @@ internal sealed class FrameRenderer : IDisposable
     // world-anchored draw over that frame. Null until a frame has drawn a world.
     private WorldPlacement? _world;
 
+    // Wall-clock milliseconds the last game frame's submission took, excluding the present and its
+    // vsync wait. Zero before the first.
+    internal double LastFrameMs { get; private set; }
+
     // renderResolution: A fixed render surface, or null to draw into the back buffer.
     //
     // textures: The scene texture cache, loading on first use. The caller owns it.
@@ -71,13 +85,11 @@ internal sealed class FrameRenderer : IDisposable
         effects.WholeTexture = WholeTexture;
         _white = new Texture2D(device, 1, 1);
         _white.SetData<Color>([Color.White]);
-        _light = BuildLightTexture(device);
-        _defaultFontPage = LoadDefaultFontPage(device);
         _engineTextures = new Dictionary<TextureHandle, Texture2D>
         {
             [TextureHandle.White] = _white,
-            [TextureHandle.Light] = _light,
-            [TextureHandle.DefaultFontPage] = _defaultFontPage,
+            [TextureHandle.Light] = BuildLightTexture(device),
+            [TextureHandle.DefaultFontPage] = LoadDefaultFontPage(device),
         };
         _canvas = renderResolution;
 
@@ -97,45 +109,16 @@ internal sealed class FrameRenderer : IDisposable
         }
     }
 
-    // The engine's radial light: full at the centre, falling to nothing at the edge on a squared
-    // falloff. Computed once, so the engine ships no PNG and no byte table for it.
-    private static Texture2D BuildLightTexture(GraphicsDevice device)
-    {
-        const int Size = 128;
-        const float Center = 64f;
+    // Where the screen layer lands in the window, from the last frame drawn or from
+    // ResolveScreenLayer before the first one.
+    internal ScreenPlacement ScreenLayer => _placement;
 
-        Texture2D texture = new(device, Size, Size);
-        Color[] texels = new Color[Size * Size];
+    // Back-buffer pixels per world unit on the last frame drawn, or zero before one has drawn a
+    // world. It sizes a screen-sized glyph placed at a world point.
+    internal float WorldPixelsPerUnit => _world is { } world ? world.PixelsPerUnit : 0f;
 
-        for (int y = 0; y < Size; y++)
-        {
-            for (int x = 0; x < Size; x++)
-            {
-                float dx = (x + 0.5f) - Center;
-                float dy = (y + 0.5f) - Center;
-                float d = MathF.Sqrt((dx * dx) + (dy * dy)) / Center;
-                float v = d >= 1f ? 0f : (1f - d) * (1f - d);
-                byte b = (byte)MathF.Round(v * 255f);
-
-                texels[(y * Size) + x] = new Color(b, b, b, b);
-            }
-        }
-
-        texture.SetData(texels);
-
-        return texture;
-    }
-
-    private static Texture2D LoadDefaultFontPage(GraphicsDevice device)
-    {
-        using Stream resource = typeof(FrameRenderer).Assembly.GetManifestResourceStream(DefaultFontPageResource)
-            ?? throw new InvalidOperationException($"The embedded default font page '{DefaultFontPageResource}' is missing.");
-
-        return Texture2D.FromStream(device, resource, DefaultColorProcessors.PremultiplyAlpha);
-    }
-
-    // The cost of the last game frame Draw submitted. Default before the first.
-    internal RenderStats LastFrame { get; private set; }
+    // Whether this frame drew. A capture request stands until one does.
+    internal bool CanCaptureFrame => FrameCapture.CanCapture(_device);
 
     // Draws one frame. Allocation-free at steady state.
     //
@@ -204,7 +187,7 @@ internal sealed class FrameRenderer : IDisposable
             _device.Viewport = new Viewport(0, 0, outputWidth, outputHeight);
         }
 
-        LastFrame = new RenderStats(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        LastFrameMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
     }
 
     // Draws a host-owned frame over the game frame already submitted to the back buffer. Its world
@@ -213,9 +196,6 @@ internal sealed class FrameRenderer : IDisposable
     // not used here, and the world list is culled against nothing and drawn at the settled step.
     internal void DrawOverlay(FrameView view, int scale)
     {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(scale);
-
         PresentationParameters backBuffer = _device.PresentationParameters;
         int width = backBuffer.BackBufferWidth;
         int height = backBuffer.BackBufferHeight;
@@ -234,16 +214,12 @@ internal sealed class FrameRenderer : IDisposable
         DrawScreen(
             view,
             alpha: 1f,
-            new ScreenPlacement(System.Numerics.Vector2.Zero, scale),
+            new ScreenPlacement(Vector2.Zero, scale),
             width,
             height,
             TextureSampling.Point,
             materials: default);
     }
-
-    // Back-buffer pixels per world unit on the last frame drawn, or zero before one has drawn a
-    // world. It sizes a screen-sized glyph placed at a world point.
-    internal float WorldPixelsPerUnit => _world is { } world ? world.PixelsPerUnit : 0f;
 
     // The world's region of the back buffer is the fit inside the surface carried through the
     // surface's placement, and the viewport is narrowed to that region so nothing lands on the bars.
@@ -265,11 +241,7 @@ internal sealed class FrameRenderer : IDisposable
         _device.Viewport = new Viewport(left, top, right - left, bottom - top);
 
         float pixelsPerUnit = world.PixelsPerUnit;
-        Matrix worldToBackBuffer =
-            Matrix.CreateTranslation(-world.TopLeft.X, -world.TopLeft.Y, 0f) *
-            Matrix.CreateScale(pixelsPerUnit, pixelsPerUnit, 1f);
-
-        _batcher.Begin(in worldToBackBuffer, SamplerState.PointClamp);
+        _batcher.Begin(WorldToSurface(world.TopLeft, pixelsPerUnit), SamplerState.PointClamp);
 
         Pass pass = new()
         {
@@ -286,10 +258,6 @@ internal sealed class FrameRenderer : IDisposable
         _batcher.End();
     }
 
-    // Where the screen layer lands in the window, from the last frame drawn or from
-    // ResolveScreenLayer before the first one.
-    internal ScreenPlacement ScreenLayer => _placement;
-
     // Settles ScreenLayer for view at the back buffer's current extent, drawing nothing. The host
     // samples the mouse before the first frame, and an unplaced layer would hand the simulation
     // window pixels as canvas pixels for that frame.
@@ -303,18 +271,6 @@ internal sealed class FrameRenderer : IDisposable
             _placement = layout.Layer;
         }
     }
-
-    // Modulates the world's colour by twice the light map: source * destination + destination * source.
-    // The map is drawn at half scale (an ambient of white is stored as 128), so its 8 bits span a light of
-    // zero to two, and a light on a white ambient brightens the world towards white. Both factors stay
-    // inside [0, 1], where every desktop API blends exactly.
-    private static readonly BlendState Modulate2x = new()
-    {
-        ColorSourceBlend = Blend.DestinationColor,
-        ColorDestinationBlend = Blend.SourceColor,
-        AlphaSourceBlend = Blend.Zero,
-        AlphaDestinationBlend = Blend.One,
-    };
 
     // Gets or (re)allocates the light map at width x height, disposing a stale one as Surface does.
     private RenderTarget2D LightMap(int width, int height)
@@ -357,10 +313,6 @@ internal sealed class FrameRenderer : IDisposable
         Vector2 topLeft = new(world.Left, world.Top);
         bool snap = view.Sampling == TextureSampling.Point;
 
-        Matrix worldToScreen =
-            Matrix.CreateTranslation(-topLeft.X, -topLeft.Y, 0f) *
-            Matrix.CreateScale(fit.Scale, fit.Scale, 1f);
-
         Pass pass = new()
         {
             Alpha = alpha,
@@ -375,7 +327,7 @@ internal sealed class FrameRenderer : IDisposable
         // The premultiplied state, not BlendState.Additive: that one scales the source by its alpha, and
         // an additive intent packs alpha zero (D-capsule-109), which under One/InverseSourceAlpha is
         // exactly One/One. Every quad here is additive.
-        _batcher.Begin(in worldToScreen, Sampler(view.Sampling), BlendState.AlphaBlend);
+        _batcher.Begin(WorldToSurface(topLeft, fit.Scale), Sampler(view.Sampling), BlendState.AlphaBlend);
 
         Vector2 parallax = ScrollLayout.Parallax(topLeft, span, view.Camera.ScrollCenter);
         DrawLights(view.Lights, view.ParallaxLayers, parallax, ref pass);
@@ -445,11 +397,8 @@ internal sealed class FrameRenderer : IDisposable
         pass.LayerCorner = frameCorner;
     }
 
-    // Scales a colour's RGB by fraction, for a light's fractional last quad. Additive accumulation
-    // saturates and is order-free, so this stays exact and deterministic.
-    // The light map's scale: a light of one is stored as half of full, so the map holds zero to two.
-    private const float MapScale = 0.5f;
-
+    // Scales a colour's RGB by fraction. Additive accumulation saturates and is order-free, so this
+    // stays exact and deterministic.
     private static ColorRgba Scaled(ColorRgba color, float fraction) => new(
         (byte)Math.Clamp(MathF.Round(color.R * fraction), 0f, 255f),
         (byte)Math.Clamp(MathF.Round(color.G * fraction), 0f, 255f),
@@ -473,9 +422,6 @@ internal sealed class FrameRenderer : IDisposable
 
         return _target;
     }
-
-    // Whether this frame drew. A capture request stands until one does.
-    internal bool CanCaptureFrame => FrameCapture.CanCapture(_device);
 
     // Saves the surface the world was drawn on as a PNG at path. See FrameCapture.
     internal void SaveSurface(string path) => FrameCapture.Save(_device, _target, path);
@@ -525,11 +471,7 @@ internal sealed class FrameRenderer : IDisposable
             _world = new WorldPlacement(topLeft, fit, present, snap);
         }
 
-        Matrix worldToScreen =
-            Matrix.CreateTranslation(-topLeft.X, -topLeft.Y, 0f) *
-            Matrix.CreateScale(fit.Scale, fit.Scale, 1f);
-
-        _batcher.Begin(in worldToScreen, Sampler(view.Sampling));
+        _batcher.Begin(WorldToSurface(topLeft, fit.Scale), Sampler(view.Sampling));
 
         // Drawn through the narrowed world viewport, so presentation bars stay black.
         _batcher.DrawWhole(_white, topLeft, Vector2.Zero, span, rotation: 0f, view.ClearColor);
@@ -737,7 +679,7 @@ internal sealed class FrameRenderer : IDisposable
             ? texture
             : throw new ArgumentException($"Unknown engine-owned texture handle '{handle.Name}'.", nameof(handle));
 
-    // Letterboxed a second time, into the back buffer, at the placement TargetPlacement resolved.
+    // Letterboxed a second time, into the back buffer, at the surface's present placement.
     private void Present(RenderTarget2D target, TextureSampling sampling, in ScreenPlacement placement)
     {
         // Unbinding the target restored the viewport to the whole back buffer.
@@ -758,6 +700,47 @@ internal sealed class FrameRenderer : IDisposable
         _batcher.DrawWhole(target, placement.Origin, Vector2.Zero, new Vector2(placement.Scale), rotation: 0f, ColorRgba.White);
         _batcher.End();
     }
+
+    // The engine's radial light: full at the centre, falling to nothing at the edge on a squared
+    // falloff. Computed once, so the engine ships no PNG and no byte table for it.
+    private static Texture2D BuildLightTexture(GraphicsDevice device)
+    {
+        const int Size = 128;
+        const float Center = 64f;
+
+        Texture2D texture = new(device, Size, Size);
+        Color[] texels = new Color[Size * Size];
+
+        for (int y = 0; y < Size; y++)
+        {
+            for (int x = 0; x < Size; x++)
+            {
+                float dx = (x + 0.5f) - Center;
+                float dy = (y + 0.5f) - Center;
+                float d = MathF.Sqrt((dx * dx) + (dy * dy)) / Center;
+                float v = d >= 1f ? 0f : (1f - d) * (1f - d);
+                byte b = (byte)MathF.Round(v * 255f);
+
+                texels[(y * Size) + x] = new Color(b, b, b, b);
+            }
+        }
+
+        texture.SetData(texels);
+
+        return texture;
+    }
+
+    private static Texture2D LoadDefaultFontPage(GraphicsDevice device)
+    {
+        using Stream resource = typeof(FrameRenderer).Assembly.GetManifestResourceStream(DefaultFontPageResource)
+            ?? throw new InvalidOperationException($"The embedded default font page '{DefaultFontPageResource}' is missing.");
+
+        return Texture2D.FromStream(device, resource, DefaultColorProcessors.PremultiplyAlpha);
+    }
+
+    // Maps world units from corner to surface pixels at scale per unit.
+    private static Matrix WorldToSurface(Vector2 corner, float scale) =>
+        Matrix.CreateTranslation(-corner.X, -corner.Y, 0f) * Matrix.CreateScale(scale, scale, 1f);
 
     private static SamplerState Sampler(TextureSampling sampling) => sampling switch
     {

@@ -11,31 +11,19 @@ using Microsoft.Xna.Framework;
 
 namespace Capsule.Runtime;
 
-// The MonoGame host. Owns the window, the device and the clock, and drives the simulation on its
-// own fixed-step accumulator, which makes a run reproduce frame for frame.
+// The MonoGame host. Owns the window, the device and the clock, and drives the scenes on its own
+// fixed-step accumulator, which makes a run reproduce frame for frame.
 internal sealed class CapsuleGame : Game
 {
     private readonly GraphicsDeviceManager _graphics;
     private readonly EngineBuilder _builder;
-    private readonly ISimulation _simulation;
-
-    // Null when the simulation is not a run of scenes, as in the specs.
-    private readonly SceneHost? _scenes;
-
-    private readonly InputConfiguration _configuration;
+    private readonly SceneHost _scenes;
     private readonly MouseSampler _mouse = new();
     private readonly GamepadSampler _pad = new();
     private readonly FixedStepScheduler _scheduler;
+    private readonly GamepadRumble _rumble = new(GamepadRumble.WriteToPad);
 
-    // Null when the simulation is not a run of scenes, which has no rumble to apply.
-    private readonly GamepadRumble? _rumble;
-
-    // Null until LoadContent, and null for a simulation that is not a run of scenes, which keeps the
-    // system arrow.
-    private CursorApplier? _cursor;
-
-    // Null unless the builder opted in, and owned by the builder. The frame path guards every use
-    // with a null check.
+    // Null unless the builder opted in. The builder owns it.
     private readonly FrameDiagnostics? _diagnostics;
 
     // The host reaches the overlay through delegates built in the guarded block, which lets a shipping
@@ -47,9 +35,11 @@ internal sealed class CapsuleGame : Game
     private readonly Func<bool>? _overlayOpen;
     private readonly IDisposable? _overlayHost;
 
+    // Null until LoadContent. Dispose can run without it after a failed construction.
     private TextureStore _textures = null!;
     private EffectStore _effects = null!;
     private FrameRenderer _renderer = null!;
+    private CursorApplier _cursor = null!;
 
     // All null when the sound device would not open, which makes every command and preload a no-op
     // instead of failing the run. The store disposes the device.
@@ -71,19 +61,16 @@ internal sealed class CapsuleGame : Game
     private bool _fullscreenChordHeld;
     private bool _fullscreenChordQuarantined;
 
-    internal CapsuleGame(EngineBuilder builder, ISimulation simulation, SceneHost? scenes, FrameDiagnostics? diagnostics)
+    internal CapsuleGame(EngineBuilder builder, SceneHost scenes, FrameDiagnostics? diagnostics)
     {
         _builder = builder;
         _diagnostics = diagnostics;
-        _simulation = simulation;
         _scenes = scenes;
-        _configuration = builder.Input;
         _scheduler = new FixedStepScheduler(builder.StepSeconds, builder.MaxStepsPerFrame, builder.Input.Bindings, builder.Driver, scenes);
-        _rumble = scenes is null ? null : new GamepadRumble(GamepadRumble.WriteToPad);
 
         if (Development.IsSupported)
         {
-            OverlayHost overlay = new(builder.Input.DebugMenuButton, _scheduler, simulation, scenes, builder.Scenes);
+            OverlayHost overlay = new(builder.Input.DebugMenuButton, _scheduler, scenes, scenes, builder.Scenes);
             _overlayHost = overlay;
             _observeOverlay = (snapshot, renderer) => overlay.Observe(
                 snapshot,
@@ -119,11 +106,6 @@ internal sealed class CapsuleGame : Game
         };
 
         IsFixedTimeStep = false;
-        if (scenes is null)
-        {
-            IsMouseVisible = true;
-        }
-
         Window.Title = builder.WindowTitle;
         Window.AllowUserResizing = builder.Resizable;
 
@@ -152,52 +134,45 @@ internal sealed class CapsuleGame : Game
             _audio = new AudioPlayer(_sounds);
         }
 
-        if (_scenes is { } scenes)
+        SceneHost scenes = _scenes;
+        scenes.PrepareAssets = PrepareAssets;
+        scenes.PrefetchAssets = PrefetchAssets;
+        scenes.PrepareInitialAssets();
+
+        if (_audio is { } audio)
         {
-            scenes.PrepareAssets = PrepareAssets;
-            scenes.PrefetchAssets = PrefetchAssets;
-            scenes.PrepareInitialAssets();
+            // The overlay's hold is a standstill, and the ear should hear it as one.
+            _followOverlayHold?.Invoke(audio);
 
-            if (_audio is { } audio)
+            // Per step, because the mixer rewrites its commands every step and a frame may run
+            // several. The flush after the step that requests exit persists that step's writes.
+            _scheduler.StepCompleted = () =>
             {
-                // The overlay's hold is a standstill, and the ear should hear it as one.
-                _followOverlayHold?.Invoke(audio);
-
-                // Per step, because the mixer rewrites its commands every step and a frame may run
-                // several. The flush after the step that requests exit persists that step's writes.
-                _scheduler.StepCompleted = () =>
-                {
-                    audio.Apply(scenes.Run.Audio.Commands);
-                    scenes.FlushSaves();
-                };
-
-                // The initial scene started before the device existed, so what its start raised is
-                // still on the mixer and the first BeginStep would clear it unheard. A later scene
-                // starts inside the step that asked for it and is delivered with that step's
-                // commands.
                 audio.Apply(scenes.Run.Audio.Commands);
-            }
-            else
-            {
-                _scheduler.StepCompleted = scenes.FlushSaves;
-            }
+                scenes.FlushSaves();
+            };
+
+            // The initial scene started before the device existed, so what its start raised is still
+            // on the mixer and the first BeginStep would clear it unheard. A later scene starts inside
+            // the step that asked for it and is delivered with that step's commands.
+            audio.Apply(scenes.Run.Audio.Commands);
+        }
+        else
+        {
+            _scheduler.StepCompleted = scenes.FlushSaves;
         }
 
         _diagnostics?.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
         _renderer = new FrameRenderer(GraphicsDevice, _builder.RenderResolution, _textures, _effects);
-
-        if (_scenes is not null)
-        {
-            _cursor = new CursorApplier(
-                GraphicsDevice,
-                _textures,
-                shown => IsMouseVisible = shown,
-                confined => _builder.Platform.ConfineCursor(new WindowHandle(Window.Handle), confined));
-        }
+        _cursor = new CursorApplier(
+            GraphicsDevice,
+            _textures,
+            shown => IsMouseVisible = shown,
+            confined => _builder.Platform.ConfineCursor(new WindowHandle(Window.Handle), confined));
 
         // Update samples the mouse before the first Draw places the layer, so the mapping is settled
         // here and the first step reads a canvas position.
-        _renderer.ResolveScreenLayer(_simulation.View);
+        _renderer.ResolveScreenLayer(scenes.View);
 
         // Installed once the renderer exists, since the watch can fire before the next frame does.
         _redrawWatch = _builder.Platform.WatchWindowRedraw(new WindowHandle(Window.Handle), RedrawWindow);
@@ -214,7 +189,7 @@ internal sealed class CapsuleGame : Game
         // placement, so it reaches the simulation as a canvas position. IsActive is unusable here
         // because it reads true before focus is granted.
         bool active = _builder.Platform.HasInputFocus(new WindowHandle(Window.Handle));
-        PadFilter padFilter = new(_configuration.StickDeadzone, _configuration.TriggerDeadzone);
+        PadFilter padFilter = new(_builder.Input.StickDeadzone, _builder.Input.TriggerDeadzone);
         DeviceSnapshot sampled = _mouse.SampleOnto(
             _pad.SampleOnto(KeyboardSampler.Sample(), padFilter),
             _renderer.ScreenLayer,
@@ -248,13 +223,9 @@ internal sealed class CapsuleGame : Game
 
         // The run owns the pace and the scheduler holds what is applied. Copied after the overlay's
         // observe, which may move it, and before the frame's elapsed time is spent.
-        if (_scenes is { } paced)
-        {
-            _scheduler.TimeScale = paced.Run.TimeScale;
-        }
-
+        _scheduler.TimeScale = _scenes.Run.TimeScale;
         _scheduler.Output = new System.Numerics.Vector2(GraphicsDevice.PresentationParameters.BackBufferWidth, GraphicsDevice.PresentationParameters.BackBufferHeight);
-        bool exiting = _scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _simulation);
+        bool exiting = _scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _scenes);
 
         _stepOverlay?.Invoke(_renderer);
 
@@ -270,34 +241,28 @@ internal sealed class CapsuleGame : Game
         // focus, the hold and the pad's slot are the host's. The applier rests the motors while the
         // window is inactive or the run is held, and rewrites the level when either ends. A driven
         // run's scripted window focus does not reach them.
-        if (_rumble is { } rumble && _scenes is { } rumbled)
-        {
-            rumble.Apply(
-                rumbled.Run.Rumble.Level,
-                active,
-                _pad.IsConnected,
-                _scheduler.ActiveDevice == InputDevice.Gamepad,
-                _scheduler.Held,
-                _pad.ConnectedPlayer,
-                gameTime.ElapsedGameTime.TotalSeconds);
-        }
+        _rumble.Apply(
+            _scenes.Run.Rumble.Level,
+            active,
+            _pad.IsConnected,
+            _scheduler.ActiveDevice == InputDevice.Gamepad,
+            _scheduler.Held,
+            _pad.ConnectedPlayer,
+            gameTime.ElapsedGameTime.TotalSeconds);
 
         // Every frame, after the steps, so the pointer follows the settled run and the overlay.
-        if (_cursor is { } cursor && _scenes is { } pointed)
-        {
-            cursor.Apply(
-                pointed.Run.Cursor,
-                _scheduler.ActiveDevice == InputDevice.Gamepad,
-                _overlayOpen?.Invoke() ?? false,
-                _renderer.ScreenLayer.Scale);
-        }
+        _cursor.Apply(
+            _scenes.Run.Cursor,
+            _scheduler.ActiveDevice == InputDevice.Gamepad,
+            _overlayOpen?.Invoke() ?? false,
+            _renderer.ScreenLayer.Scale);
 
         _audio?.Update();
 
         if (exiting)
         {
             // The motors are rested before the window goes, and Dispose repeats it harmlessly.
-            _rumble?.Silence();
+            _rumble.Silence();
             Exit();
         }
 
@@ -318,7 +283,7 @@ internal sealed class CapsuleGame : Game
 
         // The first read since the last step builds the view. It is read ahead of the timed section,
         // which then covers the submission alone.
-        Capsule.Rendering.FrameView view = _simulation.View;
+        Capsule.Rendering.FrameView view = _scenes.View;
 
         _diagnostics?.BeginDraw();
 
@@ -331,7 +296,7 @@ internal sealed class CapsuleGame : Game
 
         // Taken while the surface still holds the frame, ahead of the present. A request raised
         // while the window is minimised stands until a frame draws.
-        if (_scenes is { } scenes && _renderer.CanCaptureFrame && scenes.TryTakeFrameCapture(out string capturePath))
+        if (_renderer.CanCaptureFrame && _scenes.TryTakeFrameCapture(out string capturePath))
         {
             _renderer.SaveSurface(capturePath);
         }
@@ -342,7 +307,7 @@ internal sealed class CapsuleGame : Game
 
         if (budgetSpent)
         {
-            _rumble?.Silence();
+            _rumble.Silence();
             Exit();
         }
     }
@@ -353,11 +318,9 @@ internal sealed class CapsuleGame : Game
         {
             // First, and on every path out of the host: a crash disposes the host before the crash
             // log is written, and a pad left buzzing is what the player would notice.
-            _rumble?.Silence();
+            _rumble.Silence();
 
             _overlayHost?.Dispose();
-
-            // Null when construction failed before LoadContent ran.
             _cursor?.Dispose();
 
             // Disposed ahead of the renderer, which the watch draws through.
@@ -371,7 +334,6 @@ internal sealed class CapsuleGame : Game
             _audio?.Dispose();
             _sounds?.Dispose();
 
-            // Null when construction failed before LoadContent ran.
             _renderer?.Dispose();
             _effects?.Dispose();
             _textures?.Dispose();
@@ -426,7 +388,7 @@ internal sealed class CapsuleGame : Game
                 _graphics.ApplyChanges();
             }
 
-            _renderer.Draw(_simulation.View, _scheduler.InterpolationAlpha);
+            _renderer.Draw(_scenes.View, _scheduler.InterpolationAlpha);
 
             _drawOverlay?.Invoke(_renderer);
 

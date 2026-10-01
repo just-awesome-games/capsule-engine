@@ -20,8 +20,7 @@ public sealed class CameraViewTests
         Assert.Equal(expected, view.Resolve(1f, Taller));
     }
 
-    // The old renderer fitted Size around the interpolated centre and nothing else, so every frame
-    // a game already ships must resolve to exactly that rect.
+    // With no bounds a letterbox is the span around the interpolated centre and nothing else.
     [Theory]
     [InlineData(0f)]
     [InlineData(0.5f)]
@@ -111,8 +110,7 @@ public sealed class CameraViewTests
         Assert.Equal(new Rect(0f, 0f, 720f, 180f), view.Resolve(1f, Wider));
     }
 
-    // The reviewer's case: the raw sweep around an unclamped centre excludes world the confined
-    // view shows, which cost a shipped frame its top row and left column to culling.
+    // The raw sweep around an unclamped centre would exclude world the confined view shows.
     [Fact]
     public void SweptBounds_CoverTheConfinedViewRatherThanTheRawCentres()
     {
@@ -122,9 +120,8 @@ public sealed class CameraViewTests
         Assert.Equal(new Rect(0f, 410f, 320f, 590f), view.SweptBounds);
     }
 
-    // A camera whose centre the game clamped by hand and one confined by Bounds must cull
-    // identically, or the same room draws two different frames across the migration. The rows walk
-    // a view clamped on each edge, clamped on both at once, and one already inside the room.
+    // A camera whose centre the game clamped by hand and one confined by Bounds cull identically. The
+    // rows walk a view clamped on each edge, clamped on both at once, and one already inside the room.
     [Theory]
     [InlineData(20f, 500f)]
     [InlineData(980f, 500f)]

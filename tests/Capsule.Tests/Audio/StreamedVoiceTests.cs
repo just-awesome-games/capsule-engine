@@ -11,9 +11,8 @@ public sealed class StreamedVoiceTests
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
 
     // The allocation constraint a region loop is played under: after the first play, stopping and
-    // playing again reuses the ended voice whole — the same object, the same device queue and the
-    // same buffers handed to it — rather than building a queue, a scratch buffer and three device
-    // buffers per play.
+    // playing again reuses the ended voice whole: the same object, the same device queue and the
+    // same buffers handed to it.
     [Fact]
     public void AReplayedRegionLoop_SoundsOnTheRetiredVoicesOwnQueueAndBuffers()
     {
@@ -113,9 +112,8 @@ public sealed class StreamedVoiceTests
 
     // The allocation constraint a warm replay is under: with the voice, its queue, its buffers, its
     // loop reader and its cursor over the clip's samples all pooled, playing the clip again allocates
-    // nothing on the thread that plays it — the thread a game plays from is its frame's. The
-    // streaming worker decodes on its own thread, whose allocations this counter does not see, which
-    // is the split the design intends.
+    // nothing on the thread that plays it, which is the frame's. The streaming worker decodes on its
+    // own thread, whose allocations this counter does not see.
     [Fact]
     public void AWarmReplay_AllocatesNothingOnTheThreadThatPlaysIt()
     {

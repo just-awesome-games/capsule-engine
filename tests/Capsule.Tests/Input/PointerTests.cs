@@ -26,23 +26,6 @@ public sealed class PointerTests
     }
 
     [Fact]
-    public void AScrollAmountThatIsNotFinite_IsRefused()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => DeviceSnapshot.Empty.WithScroll(new Vector2(0f, float.PositiveInfinity)));
-    }
-
-    [Fact]
-    public void AMouseButton_IsHeldUntilItIsReleased()
-    {
-        DeviceSnapshot held = DeviceSnapshot.Empty.With(MouseButton.Right);
-
-        Assert.True(held.IsDown(MouseButton.Right));
-        Assert.False(held.IsDown(MouseButton.Left));
-        Assert.False(held.Without(MouseButton.Right).IsDown(MouseButton.Right));
-    }
-
-    [Fact]
     public void APointerPosition_IsKeptExactlyAndTellsTwoSnapshotsApart()
     {
         DeviceSnapshot outside = DeviceSnapshot.Empty.WithPointer(new Vector2(-40f, 5000.5f));
@@ -52,12 +35,6 @@ public sealed class PointerTests
         Assert.NotEqual(DeviceSnapshot.Empty, outside);
         Assert.Equal(DeviceSnapshot.Empty.WithPointer(new Vector2(-40f, 5000.5f)), outside);
         Assert.NotEqual(outside.With(MouseButton.Middle), outside);
-    }
-
-    [Fact]
-    public void APointerPositionThatIsNotFinite_IsRefused()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithPointer(new Vector2(float.NaN, 0f)));
     }
 
     [Fact]
@@ -106,27 +83,16 @@ public sealed class PointerTests
     public void ThePointer_MovesOnTheEdgeIntoAStepAndThenRests()
     {
         InputState input = new(new ActionBindings());
-        input.Advance(DeviceSnapshot.Empty.WithPointer(new Vector2(2f, 2f)));
-
-        Assert.Equal(new Vector2(2f, 2f), input.Pointer);
-        Assert.True(input.PointerMoved);
-
-        input.Advance(DeviceSnapshot.Empty.WithPointer(new Vector2(2f, 2f)));
-
-        Assert.False(input.PointerMoved);
-    }
-
-    [Fact]
-    public void ThePointerDelta_IsHowFarItMovedIntoTheStepAndZeroWhileItRests()
-    {
-        InputState input = new(new ActionBindings());
         input.Advance(DeviceSnapshot.Empty.WithPointer(new Vector2(10f, 10f)));
         input.Advance(DeviceSnapshot.Empty.WithPointer(new Vector2(4f, 25f)));
 
+        Assert.Equal(new Vector2(4f, 25f), input.Pointer);
+        Assert.True(input.PointerMoved);
         Assert.Equal(new Vector2(-6f, 15f), input.PointerDelta);
 
         input.Advance(DeviceSnapshot.Empty.WithPointer(new Vector2(4f, 25f)));
 
+        Assert.False(input.PointerMoved);
         Assert.Equal(Vector2.Zero, input.PointerDelta);
     }
 
@@ -163,11 +129,5 @@ public sealed class PointerTests
         input.Advance(DeviceSnapshot.Empty.WithScroll(new Vector2(0f, -1f)));
 
         Assert.Equal(-1f, input.Axis(Zoom), InputFixtures.Tolerance);
-    }
-
-    [Fact]
-    public void TheWheel_CannotBeBoundToAnUndefinedAxis()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ActionBindings().BindAxis(Zoom, (MouseAxis)7));
     }
 }

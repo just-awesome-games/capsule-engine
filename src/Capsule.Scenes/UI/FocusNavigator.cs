@@ -35,7 +35,6 @@ namespace Capsule.UI;
 /// <see cref="InvalidOperationException"/>.
 /// </para>
 /// </remarks>
-///
 public sealed class FocusNavigator : Component
 {
     private readonly List<Focusable> _items = [];
@@ -43,7 +42,6 @@ public sealed class FocusNavigator : Component
 
     private bool _started;
     private bool _raising;
-    private bool _interactable = true;
 
     // Set by the Interactable setter on a false-to-true transition, and cleared by the next OnStep,
     // whose read this navigator then skips.
@@ -52,36 +50,6 @@ public sealed class FocusNavigator : Component
     // How many steps a direction has been held since its press. Counts up while any direction is held
     // and none was pressed this step, and a press edge resets it to zero.
     private int _heldSteps;
-    private int _repeatDelay = 30;
-    private int _repeatInterval = 6;
-
-    /// <summary>
-    /// Navigates <paramref name="items"/>, and the first item takes the focus when this navigator
-    /// starts.
-    /// </summary>
-    /// <remarks>
-    /// Directions come from where the items sit, not from list order. One call serves a column, a
-    /// row or a grid. Named neighbours are checked once every item is held, and the items may
-    /// already name each other in a ring.
-    /// </remarks>
-    /// <param name="actions">The actions that drive this navigator for its whole life.</param>
-    /// <param name="items">The items the focus moves between. Each must be non-null and listed once.</param>
-    public FocusNavigator(FocusActions actions, params ReadOnlySpan<Focusable> items)
-    {
-        _actions = actions;
-
-        foreach (Focusable item in items)
-        {
-            Append(item);
-        }
-
-        foreach (Focusable item in items)
-        {
-            RequireNeighboursHeld(item);
-        }
-
-        Focused = First();
-    }
 
     /// <summary>
     /// Raised with the item the focus landed on, after that item's <see cref="Focusable.Focused"/>
@@ -109,17 +77,13 @@ public sealed class FocusNavigator : Component
     /// </remarks>
     public bool Interactable
     {
-        get => _interactable;
+        get;
         set
         {
-            if (value && !_interactable)
-            {
-                _justTurnedInteractable = true;
-            }
-
-            _interactable = value;
+            _justTurnedInteractable |= value && !field;
+            field = value;
         }
-    }
+    } = true;
 
     /// <summary>
     /// How many steps a direction must be held after its press before it first repeats. Defaults to
@@ -128,13 +92,13 @@ public sealed class FocusNavigator : Component
     /// <remarks>Read on each step, and a new value takes effect next step.</remarks>
     public int RepeatDelay
     {
-        get => _repeatDelay;
+        get;
         set
         {
             ArgumentOutOfRangeException.ThrowIfNegative(value);
-            _repeatDelay = value;
+            field = value;
         }
-    }
+    } = 30;
 
     /// <summary>
     /// How many steps pass between repeats of a held direction. Defaults to 6, a tenth of a second
@@ -146,12 +110,40 @@ public sealed class FocusNavigator : Component
     /// </remarks>
     public int RepeatInterval
     {
-        get => _repeatInterval;
+        get;
         set
         {
             ArgumentOutOfRangeException.ThrowIfNegative(value);
-            _repeatInterval = value;
+            field = value;
         }
+    } = 6;
+
+    /// <summary>
+    /// Navigates <paramref name="items"/>, and the first item takes the focus when this navigator
+    /// starts.
+    /// </summary>
+    /// <remarks>
+    /// Directions come from where the items sit, not from list order. One call serves a column, a
+    /// row or a grid. Named neighbours are checked once every item is held, and the items may
+    /// already name each other in a ring.
+    /// </remarks>
+    /// <param name="actions">The actions that drive this navigator for its whole life.</param>
+    /// <param name="items">The items the focus moves between. Each must be non-null and listed once.</param>
+    public FocusNavigator(FocusActions actions, params ReadOnlySpan<Focusable> items)
+    {
+        _actions = actions;
+
+        foreach (Focusable item in items)
+        {
+            Append(item);
+        }
+
+        foreach (Focusable item in items)
+        {
+            RequireNeighboursHeld(item);
+        }
+
+        Focused = First();
     }
 
     /// <summary>The items the focus moves between, in list order.</summary>
@@ -322,8 +314,8 @@ public sealed class FocusNavigator : Component
             target = under;
         }
 
-        bool repeat = _repeatInterval > 0 && _heldSteps >= _repeatDelay
-            && (_heldSteps - _repeatDelay) % _repeatInterval == 0;
+        bool repeat = RepeatInterval > 0 && _heldSteps >= RepeatDelay
+            && (_heldSteps - RepeatDelay) % RepeatInterval == 0;
         if ((pressedSide ?? (repeat ? heldSide : null)) is { } side && Reached(target, side) is { } moved)
         {
             target = moved;
@@ -500,18 +492,7 @@ public sealed class FocusNavigator : Component
         return null;
     }
 
-    private Focusable? FirstLive()
-    {
-        for (int i = 0; i < _items.Count; i++)
-        {
-            if (Live(_items[i]))
-            {
-                return _items[i];
-            }
-        }
-
-        return null;
-    }
+    private Focusable? FirstLive() => _items.Find(Live);
 
     private Focusable? First() => _items.Count > 0 ? _items[0] : null;
 

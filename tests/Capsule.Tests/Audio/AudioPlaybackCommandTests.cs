@@ -2,28 +2,28 @@ using Capsule.Audio;
 using Capsule.Input;
 using Capsule.Runtime;
 using Capsule.Runtime.Audio;
-using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
+using Capsule.Tests.Runtime;
 using Capsule.Tests.Scenes;
 using static Capsule.Tests.Audio.AudioPlaybackFixtures;
-using static Capsule.Tests.Runtime.OverlayRig;
 
 namespace Capsule.Tests.Audio;
 
 public sealed class AudioPlaybackCommandTests
 {
     [Fact]
-    public void Play_StartsOneVoiceCarryingTheCommandsGainPitchAndLoop()
+    public void Play_StartsOneVoiceCarryingTheCommandsGainPitchPanAndLoop()
     {
         using Fixture fixture = new();
 
-        fixture.Apply(Command(AudioCommandKind.Play, Slot(0, 1), Step, gain: 0.25f, pitch: 1.5f, loop: true));
+        fixture.Apply(Command(AudioCommandKind.Play, Slot(0, 1), Step, gain: 0.25f, pitch: 1.5f, pan: -1f, loop: true));
 
         FakeVoice voice = Assert.Single(fixture.Backend.Voices);
         Assert.Equal(Step, voice.Clip);
         Assert.Equal(0.25f, voice.Gain);
         Assert.Equal(1.5f, voice.Pitch);
+        Assert.Equal(-1f, voice.Pan);
         Assert.True(voice.Loop);
     }
 
@@ -38,12 +38,14 @@ public sealed class AudioPlaybackCommandTests
             Command(AudioCommandKind.Play, voice, Step),
             Command(AudioCommandKind.SetGain, voice, gain: 0.5f),
             Command(AudioCommandKind.SetPitch, voice, pitch: 2f),
+            Command(AudioCommandKind.SetPan, voice, pan: 0.5f),
             Command(AudioCommandKind.Pause, voice),
             Command(AudioCommandKind.Resume, voice));
 
         FakeVoice played = Assert.Single(fixture.Backend.Voices);
         Assert.Equal(0.5f, played.Gain);
         Assert.Equal(2f, played.Pitch);
+        Assert.Equal(0.5f, played.Pan);
         Assert.False(played.Paused);
         Assert.Equal(1, played.Resumes);
     }
@@ -122,55 +124,53 @@ public sealed class AudioPlaybackCommandTests
     public void APanelAudioCommand_ReachesThePlayerWithItsTickExactlyOnce()
     {
         using Fixture fixture = new();
-        using SceneHost host = new(
+        using OverlayRig rig = new(new SceneHost(
             SceneTransition.ToScene(typeof(StartupScene), null),
             static (in SceneTransition _) => new StartupScene(),
-            new Run());
-        FixedStepScheduler scheduler = CreateScheduler();
-        scheduler.StepCompleted = () => fixture.Player.Apply(host.Run.Audio.Commands);
+            new Run()));
+        SceneHost host = rig.Host;
+        rig.Scheduler.StepCompleted = () => fixture.Player.Apply(host.Run.Audio.Commands);
         fixture.Player.Apply(host.Run.Audio.Commands);
         FakeVoice voice = Assert.Single(fixture.Backend.Voices);
         Assert.True(voice.Loop);
         Assert.Equal(1, voice.Plays);
 
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
-        Frame(overlay, scheduler, host, DeviceSnapshot.Of(Key.Grave));
-        Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
-        Press(overlay, scheduler, host, Key.S);
-        Press(overlay, scheduler, host, Key.Enter);
-        Assert.Equal("Speaker", overlay.Title);
+        rig.Open();
+        rig.Press(Key.S);
+        rig.Press(Key.Enter);
+        Assert.Equal("Speaker", rig.Overlay.Title);
 
-        Choose(overlay, scheduler, host, "  Stop");
-        Assert.Equal(1, scheduler.Tick);
+        Choose(rig, "  Stop");
+        Assert.Equal(1, rig.Scheduler.Tick);
         Assert.True(voice.Disposed);
         Assert.Single(fixture.Backend.Voices);
 
-        Choose(overlay, scheduler, host, "  Play");
-        Assert.Equal(2, scheduler.Tick);
+        Choose(rig, "  Play");
+        Assert.Equal(2, rig.Scheduler.Tick);
         Assert.Same(voice, Assert.Single(fixture.Backend.Voices));
         Assert.False(voice.Disposed);
         Assert.Equal(2, voice.Plays);
 
-        Choose(overlay, scheduler, host, "  Pause");
+        Choose(rig, "  Pause");
         Assert.True(voice.Paused);
 
-        Choose(overlay, scheduler, host, "  Resume");
+        Choose(rig, "  Resume");
         Assert.False(voice.Paused);
         Assert.Equal(1, voice.Resumes);
-        Assert.Equal(4, scheduler.Tick);
+        Assert.Equal(4, rig.Scheduler.Tick);
     }
 
     // Moves the focus down to the row reading `label` and activates it.
-    private static void Choose(OverlayHost overlay, FixedStepScheduler scheduler, SceneHost host, string label)
+    private static void Choose(OverlayRig rig, string label)
     {
-        int guard = overlay.Rows.Count;
-        while (overlay.Rows[overlay.Focus].Label != label)
+        int guard = rig.Overlay.Rows.Count;
+        while (rig.Focused() != label)
         {
             Assert.True(guard-- > 0, $"No row reads '{label}'.");
-            Press(overlay, scheduler, host, Key.Down);
+            rig.Press(Key.Down);
         }
 
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Press(Key.Enter);
     }
 
     // A handle whose generation has moved on addresses a voice that was stolen, stopped or expired.
@@ -201,22 +201,6 @@ public sealed class AudioPlaybackCommandTests
         Assert.Equal(2, voice.Plays);
         Assert.False(voice.Disposed);
         Assert.Equal(1f, voice.Gain);
-    }
-
-    [Fact]
-    public void Play_CarriesTheCommandsPan_AndSetPanMovesTheVoiceAfterwards()
-    {
-        using Fixture fixture = new();
-        Voice voice = Slot(0, 1);
-
-        fixture.Apply(Command(AudioCommandKind.Play, voice, Step, pan: -1f));
-
-        FakeVoice played = Assert.Single(fixture.Backend.Voices);
-        Assert.Equal(-1f, played.Pan);
-
-        fixture.Apply(Command(AudioCommandKind.SetPan, voice, pan: 0.5f));
-
-        Assert.Equal(0.5f, played.Pan);
     }
 
     // An expired one-shot raises no Stop at all, so the table retires it on what the device says.

@@ -11,8 +11,6 @@ namespace Capsule.Tests.Scenes;
 
 public sealed class EntityAttachmentTests
 {
-    // A group under a screen root draws on the screen layer, in canvas pixels from the root's
-    // anchored point.
     [Fact]
     public void APlainEntityUnderAScreenRoot_DrawsOnTheScreenLayerFromTheAnchor()
     {
@@ -31,9 +29,8 @@ public sealed class EntityAttachmentTests
         Assert.Equal(canvas + new Vector2(-36f, -16f), drawn.Position);
     }
 
-    // Each of the three sites — the attach, the parent write and the transform write — and the
-    // message names the entity carrying the value, not the one holding the component. A collider,
-    // body and notifier follow position alone; a label, panel or hit box scales but cannot turn.
+    // The attach, the parent write and the transform write each refuse. The message names the entity
+    // carrying the value. A collider follows position alone, and a label or panel scales but cannot turn.
     [Fact]
     public void AComponentThatCannotTurnOrScale_IsRefusedAtEverySite()
     {
@@ -70,8 +67,8 @@ public sealed class EntityAttachmentTests
         Assert.Equal(new Vector2(32f, 32f), panelled.Get<NineSlice>().Bounds.Size);
     }
 
-    // A collider beneath follows the world position: an ancestor's move re-places it, a
-    // placement it refuses rolls the whole write back, and a detach or removal unregisters it.
+    // An ancestor's move re-places a collider beneath, a refused placement rolls the write back, and a
+    // detach or removal unregisters it.
     [Fact]
     public void CollidersBeneath_FollowTheWorldPositionAndLeaveNoRegistrationBehind()
     {

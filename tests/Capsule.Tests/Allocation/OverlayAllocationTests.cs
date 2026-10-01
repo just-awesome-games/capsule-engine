@@ -10,76 +10,67 @@ using static Capsule.Tests.Runtime.OverlayRig;
 
 namespace Capsule.Tests.Allocation;
 
-// The open overlay allocates nothing while idle: rows, readout and root hotkey rows rebuild only on
-// a host act, never on a frame nothing changed.
+// An idle overlay frame allocates nothing. The page is rebuilt only after a host act.
 [Collection(StageAllocationCollection.Name)]
 public sealed class OverlayAllocationTests
 {
-    [Fact]
-    public void OpenAtTheRootWithTheFramePaneOn_AnIdleStretchAllocatesNothing()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WithTheFramePaneOn_AnIdleStretchAllocatesNothing(bool open)
     {
         using OverlayRig rig = new();
-        rig.Open();
+        if (open)
+        {
+            rig.Open();
+        }
+
         rig.Overlay.ToggleFramePane();
-
-        for (int i = 0; i < 60; i++)
-        {
-            rig.Frame(16, 1, sampled: DeviceSnapshot.Empty);
-        }
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-
-        for (int i = 0; i < 300; i++)
-        {
-            rig.Frame(16, 1, sampled: DeviceSnapshot.Empty);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        AssertIdleStretchAllocatesNothing(rig);
+        Assert.Equal(62.5, rig.Overlay.Scene.Pane.Figures.Fps, 1);
     }
 
-    // Open on an entity panel whose OnDebugPanel writes a long, a float, a Vector2 and a command. The
-    // same idle stretch allocates nothing, and the one Step act afterwards is not stale. The readout
-    // and the field both show what the step just produced, in the same fact as the zero-allocation
-    // claim.
+    // The panel's hook writes a long, a float, a Vector2 and a command. The Step after the idle
+    // stretch still refreshes the readout and the field.
     [Fact]
     public void OpenOnAnEntityPanel_AnIdleStretchAllocatesNothingAndOneStepStaysFresh()
     {
-        Instrumented scene = new();
-        using SceneHost host = new(
+        using OverlayRig rig = new(new SceneHost(
             SceneTransition.ToScene(typeof(Instrumented), null),
-            (in SceneTransition _) => scene,
-            new Run());
-        FixedStepScheduler scheduler = CreateScheduler();
-        using OverlayHost overlay = new(Key.Grave, scheduler, host, host);
+            static (in SceneTransition _) => new Instrumented(),
+            new Run()));
 
-        Open(overlay, scheduler, host);
-        Press(overlay, scheduler, host, Key.S);
-        Press(overlay, scheduler, host, Key.Enter);
+        rig.Open();
+        rig.Press(Key.S);
+        rig.Press(Key.Enter);
 
-        Assert.Equal("Holder", overlay.Title);
-        Assert.Contains(overlay.Scene.ShownRows(), static row => row.StartsWith("Ticks", StringComparison.Ordinal));
+        Assert.Equal("Holder", rig.Overlay.Title);
+        Assert.Contains(rig.Overlay.Scene.ShownRows(), static row => row.StartsWith("Ticks", StringComparison.Ordinal));
 
-        for (int i = 0; i < 60; i++)
+        AssertIdleStretchAllocatesNothing(rig);
+        rig.Press(Key.Right);
+
+        Assert.Equal(1, rig.Scheduler.Tick);
+        Assert.Equal("Instrumented  tick 1", rig.Overlay.Readout);
+        Assert.Contains(
+            rig.Overlay.Scene.ShownRows(),
+            static row => row.StartsWith("Ticks", StringComparison.Ordinal) && row.EndsWith('1'));
+    }
+
+    private static void AssertIdleStretchAllocatesNothing(OverlayRig rig)
+    {
+        for (int frame = 0; frame < 60; frame++)
         {
-            Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+            rig.Frame();
         }
 
         long before = GC.GetAllocatedBytesForCurrentThread();
-
-        for (int i = 0; i < 300; i++)
+        for (int frame = 0; frame < 300; frame++)
         {
-            Frame(overlay, scheduler, host, DeviceSnapshot.Empty);
+            rig.Frame();
         }
 
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
-
-        Press(overlay, scheduler, host, Key.Right);
-
-        Assert.Equal(1, scheduler.Tick);
-        Assert.Equal("Instrumented  tick 1", overlay.Readout);
-        Assert.Contains(
-            overlay.Scene.ShownRows(),
-            static row => row.StartsWith("Ticks", StringComparison.Ordinal) && row.EndsWith('1'));
     }
 
     private sealed class Instrumented : Scene

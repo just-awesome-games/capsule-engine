@@ -2,7 +2,7 @@
 #pragma warning disable
 using System;
 
-namespace Capsule.Runtime.Audio.Vorbis.Contracts.Ogg
+namespace Capsule.Runtime.Audio.Vorbis.Ogg
 {
     [Flags]
     enum PageFlags

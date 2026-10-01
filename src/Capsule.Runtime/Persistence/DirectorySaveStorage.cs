@@ -39,7 +39,6 @@ public sealed class DirectorySaveStorage : ISaveStorage
     public string Directory { get; }
 
     /// <inheritdoc/>
-    /// <exception cref="ArgumentNullException">The callback is null.</exception>
     /// <exception cref="IOException">A file could not be read, moved or copied. The run does not boot.</exception>
     /// <exception cref="UnauthorizedAccessException">The directory or a file in it denies access.</exception>
     public void Restore(Action<string, string, SaveMetadata> restore)
@@ -55,15 +54,17 @@ public sealed class DirectorySaveStorage : ISaveStorage
         foreach (string primary in System.IO.Directory.GetFiles(Directory))
         {
             string file = Path.GetFileName(primary);
-
-            // A name no key can spell was never written by a game, so it is not a document.
-            if (!file.EndsWith(Extension, StringComparison.OrdinalIgnoreCase)
-                || !SafeName.IsOneSafeDirectoryName(file[..^Extension.Length]))
+            if (!file.EndsWith(Extension, StringComparison.Ordinal))
             {
                 continue;
             }
 
+            // A name no key can spell was never written by a game.
             string name = file[..^Extension.Length];
+            if (!SafeName.IsOneSafeDirectoryName(name))
+            {
+                continue;
+            }
 
             if (TryParse(primary, out string document, out SaveMetadata info))
             {
@@ -88,8 +89,6 @@ public sealed class DirectorySaveStorage : ISaveStorage
     }
 
     /// <inheritdoc/>
-    /// <exception cref="ArgumentException">The name is not one safe file name.</exception>
-    /// <exception cref="ArgumentNullException">The document is null.</exception>
     /// <exception cref="IOException">The staged file could not be written or swapped in.</exception>
     /// <exception cref="UnauthorizedAccessException">The directory or the file denies access.</exception>
     public void Persist(string name, string document, SaveMetadata metadata)
@@ -138,7 +137,6 @@ public sealed class DirectorySaveStorage : ISaveStorage
 
     /// <inheritdoc/>
     /// <remarks>Removes the file, its backup and any staged write. A set-aside corrupt file stays.</remarks>
-    /// <exception cref="ArgumentException">The name is not one safe file name.</exception>
     /// <exception cref="IOException">A file is in use.</exception>
     /// <exception cref="UnauthorizedAccessException">A file denies access.</exception>
     public void Delete(string name)

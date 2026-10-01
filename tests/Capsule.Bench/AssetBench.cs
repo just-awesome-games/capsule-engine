@@ -38,8 +38,6 @@ internal static partial class AssetBench
 
         label ??= "unlabelled";
 
-        // ==== The corpus ====
-
         DateTime started = DateTime.UtcNow;
         long startedAt = Stopwatch.GetTimestamp();
         AssetCorpus corpus = AssetCorpus.Ensure(Path.GetFullPath(Path.Combine(Records.SourceDirectory(), "..", "..")));
@@ -47,8 +45,6 @@ internal static partial class AssetBench
         Array.Sort(files, StringComparer.Ordinal);
         long bytes = files.Sum(static file => new FileInfo(file).Length);
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"bench: corpus {files.Length} files, {bytes / (1024d * 1024d):F0} MiB"));
-
-        // ==== The cases ====
 
         // Each case's change for its run's edit number, 1 upward. Edit 0 writes the canonical file.
         (string Name, Action<int> Change)[] cases =
@@ -114,8 +110,6 @@ internal static partial class AssetBench
             rows.Add(new AssetCaseRecord(name, Percentiles.Of([.. timings.Select(static t => t.WallMs)]).Median, Percentiles.Of([.. timings.Select(static t => t.ToolMs)]).Median, runs));
             Console.WriteLine(Summary(rows[^1]));
         }
-
-        // ==== The record ====
 
         AssetsRecord record = new(
             Records.Timestamp(started),

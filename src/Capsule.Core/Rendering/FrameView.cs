@@ -41,7 +41,6 @@ public sealed class FrameView
 
     // Whether a stored sprite takes the tint or the flash, so an unstyled store costs one flag test.
     private bool _styled;
-    private Material? _material;
 
     private Vector2 _canvas;
 
@@ -102,26 +101,9 @@ public sealed class FrameView
         }
     }
 
-    // The colour the running renderer's entity is tinted by, and white outside a renderer, with its
-    // composed flash, the colour in RGB and the amount in alpha, transparent outside a renderer. The
-    // scene sets both before each Draw. Only the leaves that store an intent apply them, so an
-    // expansion such as text is tinted once, and the flash applies to sprites only, since only a
-    // sprite draws through the shader that mixes it. White and transparent cost one flag test.
-    internal void SetStyle(ColorRgba tint, ColorRgba flash)
-    {
-        _tint = tint;
-        _tinted = tint != ColorRgba.White;
-        _flash = flash;
-        _flashing = flash.A != 0;
-        _styled = _tinted || _flashing;
-    }
-
     // The running renderer's material, and null for the engine's own shader outside a renderer. A
     // sprite stored under a material other than its layer's last opens a run in MaterialRuns.
-    internal Material? Material
-    {
-        set => _material = value;
-    }
+    internal Material? Material { get; set; }
 
     // The layer the Add overloads draw onto when none is named. The scene sets it to the running
     // renderer's entity's layer before each Draw, and to the world outside a renderer.
@@ -224,6 +206,20 @@ public sealed class FrameView
         _world.Sprites.Count + _screen.Sprites.Count + _world.Lines.Count + _screen.Lines.Count,
         _lights.Count);
 
+    // The colour the running renderer's entity is tinted by, and white outside a renderer, with its
+    // composed flash, the colour in RGB and the amount in alpha, transparent outside a renderer. The
+    // scene sets both before each Draw. Only the leaves that store an intent apply them, so an
+    // expansion such as text is tinted once, and the flash applies to sprites only, since only a
+    // sprite draws through the shader that mixes it. White and transparent cost one flag test.
+    internal void SetStyle(ColorRgba tint, ColorRgba flash)
+    {
+        _tint = tint;
+        _tinted = tint != ColorRgba.White;
+        _flash = flash;
+        _flashing = flash.A != 0;
+        _styled = _tinted || _flashing;
+    }
+
     // The region the running renderer's space culls against, and whether it culls at all. A
     // bulk-drawing renderer tests its own bounds against this once instead of paying an Add
     // overload's per-sprite test.
@@ -273,17 +269,9 @@ public sealed class FrameView
                 "A light is world-only: the screen layer is never lit. Attach the PointLight to a world entity.");
         }
 
-        if (!(light.Intensity > 0f) || !float.IsFinite(light.Intensity))
-        {
-            return;
-        }
-
-        if (!light.ToSprite(light.Color).TryGetSweptBounds(out Rect swept))
-        {
-            return;
-        }
-
-        if (_world.Culls && !swept.Intersects(_world.Bounds))
+        if (!(light.Intensity > 0f) || !float.IsFinite(light.Intensity) ||
+            !light.ToSprite(light.Color).TryGetSweptBounds(out Rect swept) ||
+            (_world.Culls && !swept.Intersects(_world.Bounds)))
         {
             return;
         }
@@ -544,10 +532,10 @@ public sealed class FrameView
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void Store(Layer layer, in SpriteIntent sprite)
     {
-        if (!ReferenceEquals(_material, layer.RunMaterial))
+        if (!ReferenceEquals(Material, layer.RunMaterial))
         {
-            layer.Runs.Add(new MaterialRun(layer.Sprites.Count, _material));
-            layer.RunMaterial = _material;
+            layer.Runs.Add(new MaterialRun(layer.Sprites.Count, Material));
+            layer.RunMaterial = Material;
         }
 
         layer.Sprites.Add(_styled ? Styled(in sprite) : sprite);
@@ -562,18 +550,14 @@ public sealed class FrameView
     // Drops the ordered intent and resets Metrics, retaining capacity.
     internal void Clear()
     {
-        _world.Sprites.Clear();
-        _world.Lines.Clear();
-        _screen.Sprites.Clear();
-        _screen.Lines.Clear();
-        _world.ClearRuns();
-        _screen.ClearRuns();
+        _world.Clear();
+        _screen.Clear();
         _parallax.Clear();
         _lights.Clear();
         _submitted = 0;
         Space = RenderSpace.World;
         SetStyle(ColorRgba.White, default);
-        _material = null;
+        Material = null;
         _scrollFactor = Vector2.One;
         LitWorld = false;
         _ambient = ColorRgba.White;
@@ -613,8 +597,10 @@ public sealed class FrameView
 
         internal bool Culls { get; set; }
 
-        internal void ClearRuns()
+        internal void Clear()
         {
+            Sprites.Clear();
+            Lines.Clear();
             Runs.Clear();
             RunMaterial = null;
         }

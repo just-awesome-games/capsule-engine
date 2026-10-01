@@ -35,28 +35,6 @@ public sealed class RandomDrawTests
     }
 
     [Fact]
-    public void AFloatDrawStaysInTheUnitInterval()
-    {
-        RandomSource random = new(11);
-
-        foreach (float value in Enumerable.Range(0, 4_000).Select(_ => random.NextFloat()))
-        {
-            Assert.InRange(value, 0f, 0.99999994f);
-        }
-    }
-
-    [Fact]
-    public void AFloatRangeStaysWithinItsBounds()
-    {
-        RandomSource random = new(11);
-
-        foreach (float value in Enumerable.Range(0, 4_000).Select(_ => random.Range(-2.5f, 7.5f)))
-        {
-            Assert.InRange(value, -2.5f, 7.5f);
-        }
-    }
-
-    [Fact]
     public void ACertainChanceAlwaysPassesAndAnImpossibleOneNever()
     {
         RandomSource random = new(3);

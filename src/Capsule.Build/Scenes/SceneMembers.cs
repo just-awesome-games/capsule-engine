@@ -30,7 +30,7 @@ internal static class SceneMembers
     /// palette entry naming a class or authoring properties, with where the entry starts in <paramref name="json"/>,
     /// the text of the file at <paramref name="path"/>.
     /// </summary>
-    internal static List<string> Attributes(SceneDocument scene, string key, string path, string json)
+    internal static string[] Attributes(SceneDocument scene, string key, string path, string json)
     {
         List<string> named = [$"Key = {Literal.Of(key)}", $"Path = {Literal.Of(path)}"];
         if (scene.Settings.BaseScene is { } baseScene)
@@ -76,7 +76,7 @@ internal static class SceneMembers
             }
         }
 
-        return attributes;
+        return [.. attributes];
     }
 
     // One entry's attribute: its head, each authored property's name and value, then where the entry starts.

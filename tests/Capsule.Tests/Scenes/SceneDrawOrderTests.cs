@@ -4,6 +4,7 @@ using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
 using Capsule.Tiles;
+using static Capsule.Tests.Scenes.EntityHierarchyFixtures;
 
 namespace Capsule.Tests.Scenes;
 
@@ -93,10 +94,11 @@ public sealed class SceneDrawOrderTests
         Assert.Equal([1, 2, 3], Order(simulation));
     }
 
-    // The sum is widened, not wrapped: an int would carry int.MaxValue + 1 round to int.MinValue
-    // and draw the nearer renderer under everything.
-    [Fact]
-    public void ASumPastAnInt_StillDrawsOverTheBandBelowIt()
+    // The sum is widened, not wrapped. Wrapped, int.MaxValue + 1 would draw under everything.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ASumPastAnInt_StillDrawsOverTheBandBelowIt(bool beyondFirst)
     {
         Layered ceiling = new() { ZIndex = int.MaxValue };
         ceiling.Add(Tag(1));
@@ -105,8 +107,8 @@ public sealed class SceneDrawOrderTests
         beyond.Add(Tag(2, zIndex: 1));
 
         SceneFixtures.HookScene scene = new();
-        scene.Add(ceiling);
-        scene.Add(beyond);
+        scene.Add(beyondFirst ? beyond : ceiling);
+        scene.Add(beyondFirst ? ceiling : beyond);
 
         using SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
@@ -114,28 +116,7 @@ public sealed class SceneDrawOrderTests
         Assert.Equal([1, 2], Order(simulation));
     }
 
-    // The same pair the other way round: the larger key draws last whatever order they arrived in.
-    [Fact]
-    public void ASumPastAnInt_SortsAboveItsBandFromEitherInsertionOrder()
-    {
-        Layered beyond = new() { ZIndex = int.MaxValue };
-        beyond.Add(Tag(2, zIndex: 1));
-
-        Layered ceiling = new() { ZIndex = int.MaxValue };
-        ceiling.Add(Tag(1));
-
-        SceneFixtures.HookScene scene = new();
-        scene.Add(beyond);
-        scene.Add(ceiling);
-
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.Equal([1, 2], Order(simulation));
-    }
-
-    // The draw bookkeeping is the scene's, not the renderer's: an entity that drew under one
-    // simulation must not be suppressed by the next one's first frame.
+    // The draw bookkeeping is the scene's, not the renderer's.
     [Fact]
     public void AnEntityMovedToAnotherSimulation_DrawsInThatSimulationsFirstFrame()
     {
@@ -157,8 +138,6 @@ public sealed class SceneDrawOrderTests
         Assert.Equal([1], Order(second));
     }
 
-    // The engine-built tile map takes its band as composed; a game entity takes it through its
-    // spawn.
     [Fact]
     public void AnAuthoredBand_LandsOnEveryComposedEntity()
     {
@@ -175,9 +154,7 @@ public sealed class SceneDrawOrderTests
         Assert.Equal(7, scene.Entities[1].ZIndex);
     }
 
-    // The document supplies a default and the class is the authority: a constructor that sets
-    // nothing takes the authored band — 0 like any other — and one that sets its own keeps it,
-    // whether or not the placement authors one.
+    // A constructor that sets no band takes the authored one, and one that sets its own keeps it.
     [Theory]
     [InlineData(null, 0, Banded.Band)]
     [InlineData(0, 0, Banded.Band)]
@@ -203,23 +180,6 @@ public sealed class SceneDrawOrderTests
 
         return marker;
     };
-
-    // The offset is the renderer's identity in the frame: it draws its entity at the origin, so
-    // the intent's X is the tag.
-    private static SpriteRenderer Tag(int tag, int zIndex = 0) =>
-        new(SceneFixtures.Frame(1, 1)) { Offset = new Vector2(tag, 0f), ZIndex = zIndex };
-
-    private static int[] Order(SceneSimulation simulation)
-    {
-        ReadOnlySpan<SpriteIntent> sprites = simulation.View.Sprites;
-        int[] tags = new int[sprites.Length];
-        for (int index = 0; index < tags.Length; index++)
-        {
-            tags[index] = (int)sprites[index].Position.X;
-        }
-
-        return tags;
-    }
 
     private sealed class Layered : Entity
     {

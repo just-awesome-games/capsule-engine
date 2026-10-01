@@ -23,18 +23,7 @@ public sealed class ActionBindings
     public ActionBindings Bind(InputAction action, params ReadOnlySpan<InputButton> buttons)
     {
         Require(action, buttons);
-
-        ref InputButton[]? bound = ref Row(ref _buttons, action.Index);
-        List<InputButton> merged = bound is { } existing ? [.. existing] : [];
-        for (int i = 0; i < buttons.Length; i++)
-        {
-            if (!merged.Contains(buttons[i]))
-            {
-                merged.Add(buttons[i]);
-            }
-        }
-
-        bound = [.. merged];
+        Union(ref Row(ref _buttons, action.Index), buttons);
 
         return this;
     }
@@ -227,16 +216,23 @@ public sealed class ActionBindings
         }
     }
 
-    private ActionBindings Accumulate(AxisAction action, AxisSource source)
+    private static void Union<T>(ref T[]? row, ReadOnlySpan<T> items)
     {
-        ref AxisSource[]? bound = ref Row(ref _sources, action.Index);
-        List<AxisSource> merged = bound is { } existing ? [.. existing] : [];
-        if (!merged.Contains(source))
+        List<T> merged = row is { } existing ? [.. existing] : [];
+        foreach (T item in items)
         {
-            merged.Add(source);
+            if (!merged.Contains(item))
+            {
+                merged.Add(item);
+            }
         }
 
-        bound = [.. merged];
+        row = [.. merged];
+    }
+
+    private ActionBindings Accumulate(AxisAction action, AxisSource source)
+    {
+        Union(ref Row(ref _sources, action.Index), [source]);
 
         return this;
     }

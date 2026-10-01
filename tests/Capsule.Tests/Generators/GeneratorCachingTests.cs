@@ -2,23 +2,38 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
 
-// A generator that re-reads its inputs whatever changed costs a game the whole edit loop, so the
-// pipeline is held to caching an unchanged compilation and not only to the source it emits.
+// A generator that re-reads its inputs whatever changed costs a game the whole edit loop. Every model the
+// pipeline carries compares by value, so an edit that changes nothing a model holds leaves each plan cached.
 public sealed class GeneratorCachingTests
 {
-    // The names the generator hands WithTrackingName: its walk over every referenced assembly's
-    // registry metadata, and each plan a generated file is rendered from. A plan holding a
-    // diagnostic is rebuilt on every run, so this input faults nothing.
+    private const string Before = $$"""
+        {{GeneratorHarness.Preamble}}
+
+        public sealed class Door(EntitySpawn spawn) : Entity(spawn)
+        {
+            [Authorable]
+            public int Lock { get; set; }
+
+            private static int Count() => 1;
+        }
+
+        public sealed class Hall(SceneContent content) : Scene(content);
+        """;
+
+    // The names the generator hands WithTrackingName. A plan holding a diagnostic is rebuilt on every run,
+    // so this input faults nothing.
     [Theory]
     [InlineData("BootModel")]
     [InlineData("EntityPlan")]
     [InlineData("ScenePlan")]
     [InlineData("InputDriverPlan")]
     [InlineData("BootPlan")]
-    public void ASecondRunOverAnUnchangedCompilation_RunsTheStepAgainForNothing(string step)
+    public void AnEditToAMethodBody_RunsNoPlanAgain(string step)
     {
         GeneratorDriverRunResult result = GeneratorHarness.RanTwice(
-            ("scenes/room.scene.json", """{"formatVersion": 8, "entities": [], "nextEntityId": 1}"""));
+            Before,
+            Before.Replace("=> 1;", "=> 2;", StringComparison.Ordinal),
+            ("hall.scene.json", """{"formatVersion": 8, "entities": [], "nextEntityId": 1}"""));
 
         List<IncrementalGeneratorRunStep> runs = [];
         foreach (GeneratorRunResult generator in result.Results)

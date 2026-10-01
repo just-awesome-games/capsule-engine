@@ -3,7 +3,7 @@ using Capsule.Rendering;
 
 namespace Capsule.Bench.Logic.Components;
 
-/// <summary>Two hundred sprites that never move — quarters of the tile, turned, flipped, tinted, a few stretched — so the still frame is submission alone.</summary>
+/// <summary>Two hundred quarters of the tile that never move, some turned, flipped, tinted or stretched, so the still frame is submission alone.</summary>
 public sealed class StillSprites : Renderer
 {
     private const int Columns = 20;

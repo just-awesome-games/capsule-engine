@@ -127,6 +127,7 @@ public partial class Entity
         _previousLocal = _local;
         Invalidate(previous: true);
     }
+
     // Called at the top of a step, parent before child as the scene walks. It saves the locals and
     // copies the world transform they compose as the previous world.
     internal void SavePrevious()
@@ -186,7 +187,10 @@ public partial class Entity
                 $"A {GetType().Name} is anchored at the world origin. Move its cells instead of the entity.");
         }
 
-        RequireFinite(position, rotation, scale);
+        // All three are checked before any write. A NaN would spread to everything this entity places.
+        Guard.Finite(position, nameof(position));
+        Guard.Finite(rotation, nameof(rotation));
+        Guard.Finite(scale, nameof(scale));
 
         Transform2D held = _local;
         Transform2D heldPrevious = _previousLocal;
@@ -273,15 +277,6 @@ public partial class Entity
 
             entity = children[^1];
         }
-    }
-
-    // A NaN or infinite value would spread to everything this entity places, so check all three before
-    // writing any of them.
-    private static void RequireFinite(Vector2 position, float rotation, Vector2 scale)
-    {
-        Guard.Finite(position, nameof(position));
-        Guard.Finite(rotation, nameof(rotation));
-        Guard.Finite(scale, nameof(scale));
     }
 
     private static InvalidOperationException Turned(Component component, Entity holder, Entity carrier, float rotation)

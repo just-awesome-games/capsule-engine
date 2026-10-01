@@ -1,9 +1,24 @@
+using System.Text;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
+
 namespace Capsule.Generators;
 
 // The text every generated registry file shares. Each renderer writes its own types into this frame.
 internal static class GeneratedFile
 {
     internal const string ExcludeFromCodeCoverage = "[global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]";
+
+    internal static void Add(SourceProductionContext context, string fileName, string text) =>
+        context.AddSource(fileName, SourceText.From(text, Encoding.UTF8));
+
+    internal static void Report(SourceProductionContext context, EquatableArray<Diagnostic> diagnostics)
+    {
+        foreach (Diagnostic diagnostic in diagnostics.Items)
+        {
+            context.ReportDiagnostic(diagnostic);
+        }
+    }
 
     /// <summary>A whole generated file: the header, the assembly attributes, then the types in <c>Capsule.Generated</c>.</summary>
     /// <param name="types">The namespace's body, indented one level, with no trailing newline.</param>

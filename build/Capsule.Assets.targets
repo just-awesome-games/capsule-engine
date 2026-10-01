@@ -1,30 +1,15 @@
 <Project>
 
-  <!-- The asset pipeline, on when CapsuleBuildAssets is true. The logic project owns the authoring
-       plane, everything under Assets/. MSBuild never walks it. Every build runs the game's build
-       project once, which walks the tree itself and turns it into what ships and what compiles, and
-       one target hands those outputs to MSBuild:
+  <!-- The asset pipeline, on when CapsuleBuildAssets is true. MSBuild never walks Assets/. Every
+       build runs the game's build project once (CapsuleRunBuildTool), which writes everything under
+       obj/capsule/, or obj/capsule-shipping/ for a publish: imported/, assets/, CapsuleAssets.g.cs and
+       derivation-cache.json. CapsuleAddBuildOutputs hands assets/ and CapsuleAssets.g.cs to MSBuild. -->
 
-         Assets/                    -> obj/capsule/imported/**           what the importers wrote
-                                       obj/capsule/assets/**             everything the game ships
-                                       obj/capsule/CapsuleAssets.g.cs    every asset, named in C#
-                                       obj/capsule/derivation-cache.json what the next run reuses
-                                                                         (CapsuleRunBuildTool)
-         obj/capsule/...            -> Content, Compile                  (CapsuleAddBuildOutputs)
-
-       The run decides what to derive again, under its own lock. A source whose content, settings and
-       deriving code are unchanged is reused. A shipping build writes all of it to
-       obj/capsule-shipping/ instead, and never shares a cache with an ordinary build.
-
-       The source generator reads only the game's C#, CapsuleAssets.g.cs included. -->
-
-  <!-- Paths known at evaluation. -->
+  <!-- Every path the run is handed starts from _CapsuleProjectDirectory, Capsule.Defaults.props's
+       spelling of the project directory. -->
   <PropertyGroup>
     <CapsuleAssetSourcesDeclared Condition="'$(CapsuleAssetSourcesDir)' != ''">true</CapsuleAssetSourcesDeclared>
     <CapsuleAssetSourcesDir Condition="'$(CapsuleAssetSourcesDir)' == ''">Assets</CapsuleAssetSourcesDir>
-    <!-- Every path the run is handed starts from here. Capsule.Defaults.props gives the project
-         directory one drive-letter case. -->
-    <_CapsuleProjectDirectory Condition="'$(_CapsuleProjectDirectory)' == ''">$(MSBuildProjectDirectory)</_CapsuleProjectDirectory>
     <CapsuleAssetSourcesDir>$([MSBuild]::NormalizePath('$(_CapsuleProjectDirectory)', '$(CapsuleAssetSourcesDir)'))</CapsuleAssetSourcesDir>
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">$(DOTNET_HOST_PATH)</CapsuleDotNetHost>
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>
@@ -38,9 +23,7 @@
 
   <!-- Every other target of the pipeline runs after this one. CapsuleObjDir is set here because
        IntermediateOutputPath is final only after the SDK's targets, and a project may import this
-       file from its own body, ahead of them. A value set on the command line wins, which lets a
-       test run the pipeline into a scratch directory. Only an explicitly declared asset root must
-       exist. -->
+       file from its own body, ahead of them. Only an explicitly declared asset root must exist. -->
   <Target Name="CapsuleAssetSourcesInit"
           Condition="'$(CapsuleBuildAssets)' == 'true'"
           BeforeTargets="AssignTargetPaths">
@@ -77,31 +60,29 @@
     </MSBuild>
   </Target>
 
-  <!-- ==== The run ==== -->
-
-  <!-- One process per build, on every build. It is handed only what MSBuild alone knows: the asset
-       root, the output directory, whether this is a publish, and the shader tools restore
-       downloaded. The process is short, and tiered PGO's instrumentation costs it more than the
-       code it would optimize saves. -->
+  <!-- One process per build, on every build. Tiered PGO's instrumentation costs the short process
+       more than it saves. A directory argument ending in a separator would escape its closing quote
+       on Windows, so each is trimmed. -->
   <Target Name="CapsuleRunBuildTool"
           Condition="'$(CapsuleBuildAssets)' == 'true'"
           DependsOnTargets="CapsuleAssetSourcesInit;CapsuleResolveBuildTool;ResolveProjectReferences">
     <PropertyGroup>
+      <_CapsuleAssetsArgument>$([System.IO.Path]::TrimEndingDirectorySeparator('$(CapsuleAssetSourcesDir)'))</_CapsuleAssetsArgument>
+      <_CapsuleOutArgument>$([System.IO.Path]::TrimEndingDirectorySeparator('$(CapsuleObjDir)'))</_CapsuleOutArgument>
       <_CapsuleShippingArgument Condition="'$(CapsuleShipping)' == 'true'"> --shipping</_CapsuleShippingArgument>
       <_CapsuleDxc>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.dxc', '$(CapsuleDxcVersion)'))</_CapsuleDxc>
       <_CapsuleSpirvCross>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.spirvcross', '$(CapsuleSpirvCrossVersion)'))</_CapsuleSpirvCross>
     </PropertyGroup>
 
     <MakeDir Directories="$(CapsuleObjDir)" />
-    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --assets &quot;$(CapsuleAssetSourcesDir)&quot; --out &quot;$(CapsuleObjDir)&quot;$(_CapsuleShippingArgument) --shader-tools &quot;$(_CapsuleDxc)&quot; &quot;$(_CapsuleSpirvCross)&quot;"
+    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --assets &quot;$(_CapsuleAssetsArgument)&quot; --out &quot;$(_CapsuleOutArgument)&quot;$(_CapsuleShippingArgument) --shader-tools &quot;$(_CapsuleDxc)&quot; &quot;$(_CapsuleSpirvCross)&quot;"
           WorkingDirectory="$(_CapsuleProjectDirectory)"
           EnvironmentVariables="DOTNET_TieredPGO=0"
           LogStandardErrorAsError="true"
           StandardOutputImportance="normal" />
   </Target>
 
-  <!-- ==== The outputs ====
-       Runs on up-to-date builds too, from what the last run left on disk. A design-time build enters
+  <!-- Runs on up-to-date builds too, from what the last run left on disk. A design-time build enters
        at Compile and never reaches AssignTargetPaths, so this also runs before BeforeCompile. -->
   <Target Name="CapsuleAddBuildOutputs"
           Condition="'$(CapsuleBuildAssets)' == 'true'"

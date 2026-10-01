@@ -41,7 +41,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         set
         {
             _sprite = value;
-            Rebind();
+            Place(frameChanged: true);
         }
     }
 
@@ -57,7 +57,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         set
         {
             _offset = value;
-            Place();
+            Place(frameChanged: false);
         }
     }
 
@@ -83,7 +83,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         set
         {
             _flipX = value;
-            Place();
+            Place(frameChanged: false);
         }
     }
 
@@ -95,7 +95,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         set
         {
             _flipY = value;
-            Place();
+            Place(frameChanged: false);
         }
     }
 
@@ -187,7 +187,8 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
 
         SocketBinding binding = new(name, new Entity(entity) { Name = name });
         _sockets.Add(binding);
-        Bind(binding);
+        Read(binding);
+        Place(binding);
 
         return binding.Child;
     }
@@ -197,11 +198,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     {
         ArgumentNullException.ThrowIfNull(assets);
 
-        TextureHandle texture = Sprite.Texture;
-        if (texture != default)
-        {
-            assets.Add(texture);
-        }
+        assets.Add(Sprite.Texture);
     }
 
     /// <inheritdoc/>
@@ -232,23 +229,9 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
             Blend);
     }
 
-    // Re-reads every binding's point from the new frame and places it. Called on a frame write.
-    private void Rebind()
-    {
-        if (_sockets is null)
-        {
-            return;
-        }
-
-        foreach (SocketBinding binding in _sockets)
-        {
-            Bind(binding);
-        }
-    }
-
     // Scans the frame's sockets once. Names are interned literals in a generated sheet, so the
     // comparison usually matches on reference without reading a character.
-    private void Bind(SocketBinding binding)
+    private void Read(SocketBinding binding)
     {
         ReadOnlySpan<SpriteSocket> carried = _sprite.Sockets.Span;
         binding.Carried = false;
@@ -264,12 +247,10 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
                 break;
             }
         }
-
-        Place(binding);
     }
 
-    // Re-places every binding from the point it already holds. Called on an offset or flip write.
-    private void Place()
+    // Re-places every binding, first re-reading its point when the frame changed.
+    private void Place(bool frameChanged)
     {
         if (_sockets is null)
         {
@@ -278,6 +259,11 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
 
         foreach (SocketBinding binding in _sockets)
         {
+            if (frameChanged)
+            {
+                Read(binding);
+            }
+
             Place(binding);
         }
     }

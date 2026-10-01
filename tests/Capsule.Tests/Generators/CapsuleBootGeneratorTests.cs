@@ -209,69 +209,27 @@ public sealed class CapsuleBootGeneratorTests
         GeneratorHarness.AssertPairs(generated, "Idler", "Shell.Idler");
     }
 
-    [Fact]
-    public void DuplicateSpawnClaimsAcrossLogicAssemblies_FailTheShellBuild()
+    // Each logic assembly refuses its own duplicates. Only the shell sees two assemblies claim one key.
+    [Theory]
+    [InlineData(
+        "namespace First; public sealed class Chest(Capsule.Scenes.Spawning.EntitySpawn spawn) : Capsule.Scenes.Entity(spawn);",
+        "namespace Second; [Capsule.Scenes.Spawning.SpawnType(\"chest\")] public sealed class IronChest(Capsule.Scenes.Spawning.EntitySpawn spawn) : Capsule.Scenes.Entity(spawn);",
+        "CAP003")]
+    [InlineData(
+        "namespace First; [Capsule.Scenes.SceneDocument(\"opening\")] public sealed class FirstOpening(Capsule.Scenes.SceneContent content) : Capsule.Scenes.Scene(content);",
+        "namespace Second; [Capsule.Scenes.SceneDocument(\"opening\")] public sealed class SecondOpening(Capsule.Scenes.SceneContent content) : Capsule.Scenes.Scene(content);",
+        "CAP005")]
+    [InlineData(
+        "namespace Game; public sealed class Brick : Capsule.Tiles.TileType;",
+        "namespace Game; public sealed class Brick : Capsule.Tiles.TileType;",
+        "CAP031")]
+    public void OneKeyClaimedByTwoLogicAssemblies_FailsTheShellBuild(string first, string second, string id)
     {
-        const string first = """
-            using Capsule.Scenes;
-            using Capsule.Scenes.Spawning;
-            namespace First;
-            public sealed class Chest(EntitySpawn spawn) : Entity(spawn);
-            """;
-        const string second = """
-            using Capsule.Scenes;
-            using Capsule.Scenes.Spawning;
-            namespace Second;
-            [SpawnType("chest")]
-            public sealed class IronChest(EntitySpawn spawn) : Entity(spawn);
-            """;
-
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileShellWithLogicAssemblies(
             ShellSource,
             ("Game.First", first),
             ("Game.Second", second)).Diagnostics;
 
-        Assert.Equal("CAP003", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
-    }
-
-    [Fact]
-    public void DuplicateDocumentClaimsAcrossLogicAssemblies_FailTheShellBuild()
-    {
-        const string first = """
-            using Capsule.Scenes;
-            namespace First;
-            [SceneDocument("opening")]
-            public sealed class FirstOpening(SceneContent content) : Scene(content);
-            """;
-        const string second = """
-            using Capsule.Scenes;
-            namespace Second;
-            [SceneDocument("opening")]
-            public sealed class SecondOpening(SceneContent content) : Scene(content);
-            """;
-
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileShellWithLogicAssemblies(
-            ShellSource,
-            ("Game.First", first),
-            ("Game.Second", second)).Diagnostics;
-
-        Assert.Equal("CAP005", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
-    }
-
-    [Fact]
-    public void DuplicateTileTypeClaimsAcrossLogicAssemblies_FailTheShellBuild()
-    {
-        const string brick = """
-            using Capsule.Tiles;
-            namespace Game;
-            public sealed class Brick : TileType;
-            """;
-
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileShellWithLogicAssemblies(
-            ShellSource,
-            ("Game.First", brick),
-            ("Game.Second", brick)).Diagnostics;
-
-        Assert.Equal("CAP031", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+        Assert.Equal(id, Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 }

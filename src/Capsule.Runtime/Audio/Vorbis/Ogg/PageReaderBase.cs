@@ -1,24 +1,20 @@
 #nullable disable
 #pragma warning disable
-using Capsule.Runtime.Audio.Vorbis.Contracts.Ogg;
 using System;
 using System.Collections.Generic;
 using System.IO;
 
 namespace Capsule.Runtime.Audio.Vorbis.Ogg
 {
-    abstract class PageReaderBase : IPageReader
+    abstract class PageReaderBase
     {
-        internal static Func<ICrc> CreateCrc { get; set; } = () => new Crc();
-
-        private readonly ICrc _crc = CreateCrc();
+        private readonly Crc _crc = new Crc();
         private readonly HashSet<int> _ignoredSerials = new HashSet<int>();
         private readonly byte[] _headerBuf = new byte[305]; // 27 - 4 + 27 + 255 (found sync at end of first buffer, and found page has full segment count)
         private byte[] _overflowBuf;
         private int _overflowBufIndex;
 
         private Stream _stream;
-        private bool _closeOnDispose;
 
         // Capsule: page bytes are rented from a small ring instead of `new byte[pageLength]` per
         // page. A packet continued across pages holds a slice into the first page it spans for as
@@ -44,10 +40,9 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
         // one slot that needs protecting.
         private int _pinnedSlot = -1;
 
-        protected PageReaderBase(Stream stream, bool closeOnDispose)
+        protected PageReaderBase(Stream stream)
         {
             _stream = stream;
-            _closeOnDispose = closeOnDispose;
 
             for (int i = 0; i < InitialPageRingSize; i++)
             {
@@ -74,12 +69,8 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
         // ring, and returns the pooled buffer. The caller must track the page's real length itself
         // rather than trust buffer.Length. A rented buffer can be larger than size. When the next
         // slot in rotation is the pinned one (see PinDiscoveredPage), a fresh slot is appended
-        // instead. A pinned page's bytes are never overwritten this way. This method is virtual.
-        // ForwardOnlyPageReader queues an unbounded run of pages ahead of the packet reader
-        // (Ogg/ForwardOnlyPacketProvider.cs's _pageQueue) rather than consuming one before the next
-        // is read. This ring cannot back that run at any fixed depth. ForwardOnlyPageReader
-        // overrides this method to keep its original per-page allocation instead.
-        protected virtual byte[] RentPageBuffer(int size)
+        // instead. A pinned page's bytes are never overwritten this way.
+        protected byte[] RentPageBuffer(int size)
         {
             int next = (_pageRingSlot + 1) % _pageBufferRing.Count;
             if (next == _pinnedSlot)
@@ -114,10 +105,6 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
         }
 
         protected long StreamPosition => _stream?.Position ?? throw new ObjectDisposedException(nameof(PageReaderBase));
-
-        public long ContainerBits { get; private set; }
-
-        public long WasteBits { get; private set; }
 
         private bool VerifyPage(byte[] headerBuf, int index, int cnt, out byte[] pageBuf, out int pageLength, out int bytesRead)
         {
@@ -169,7 +156,6 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             {
                 if (AddPage(streamSerial, pageBuf, pageLength, isResync))
                 {
-                    ContainerBits += 8 * (27 + pageBuf[26]);
                     return true;
                 }
                 _ignoredSerials.Add(streamSerial);
@@ -297,9 +283,6 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
         // <exception cref="InvalidOperationException">The stream is not seekable.</exception>
         protected long SeekStream(long offset)
         {
-            // make sure we're locked; seeking won't matter if we aren't
-            if (!CheckLock()) throw new InvalidOperationException("Must be locked prior to reading!");
-
             return _stream.Seek(offset, SeekOrigin.Begin);
         }
 
@@ -311,17 +294,8 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
 
         abstract protected void SetEndOfStreams();
 
-        virtual public void Lock() { }
-
-        virtual protected bool CheckLock() => true;
-
-        virtual public bool Release() => false;
-
         public bool ReadNextPage()
         {
-            // make sure we're locked; no sense reading if we aren't
-            if (!CheckLock()) throw new InvalidOperationException("Must be locked prior to reading!");
-
             var isResync = false;
 
             var ofs = 0;
@@ -350,9 +324,6 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
 
                             // otherwise, the whole page is useless...
 
-                            // save off that we've burned that many bits
-                            WasteBits += pageLength * 8;
-
                             // set up to load the next page, then loop
                             ofs = 0;
                             cnt = 0;
@@ -369,7 +340,6 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
                             EnqueueData(pageBuf.AsSpan(pageLength - bytesRead, bytesRead).ToArray(), bytesRead);
                         }
                     }
-                    WasteBits += 8;
                     isResync = true;
                 }
 
@@ -396,10 +366,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
         {
             SetEndOfStreams();
 
-            if (_closeOnDispose)
-            {
-                _stream?.Dispose();
-            }
+            _stream?.Dispose();
             _stream = null;
         }
     }

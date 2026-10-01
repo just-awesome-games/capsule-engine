@@ -42,44 +42,23 @@ public sealed class SceneVisibilityTests
         Assert.Equal(new Rect(-3f, -5f, 7f, 5f), simulation.Scene.Camera.VisibleRegion);
     }
 
-    [Fact]
-    public void WithNoOutputOnTheStep_EveryFitResolvesToTheDeclaredSpan()
+    // With no output on the step, every fit resolves to the declared span.
+    [Theory]
+    [InlineData(ViewportFit.Letterbox, false, 16f)]
+    [InlineData(ViewportFit.Expand, false, 16f)]
+    [InlineData(ViewportFit.Letterbox, true, 16f)]
+    [InlineData(ViewportFit.Expand, true, 18f)]
+    public void OnlyExpand_WidensTheRegionToTheStepsOutput(ViewportFit fit, bool output, float halfWidth)
     {
-        Rect letterboxed = Run(scene =>
-        {
-            SceneFixtures.Open(scene, Vector2.Zero, new Vector2(32f, 18f));
-            scene.Camera.Fit = ViewportFit.Letterbox;
-        }).Scene.Camera.VisibleRegion;
+        Rect region = Run(
+            scene =>
+            {
+                SceneFixtures.Open(scene, Vector2.Zero, new Vector2(32f, 18f));
+                scene.Camera.Fit = fit;
+            },
+            output ? new Vector2(1000f, 500f) : default).Scene.Camera.VisibleRegion;
 
-        Rect expanded = Run(scene =>
-        {
-            SceneFixtures.Open(scene, Vector2.Zero, new Vector2(32f, 18f));
-            scene.Camera.Fit = ViewportFit.Expand;
-        }).Scene.Camera.VisibleRegion;
-
-        Assert.Equal(new Rect(-16f, -9f, 16f, 9f), letterboxed);
-        Assert.Equal(letterboxed, expanded);
-    }
-
-    [Fact]
-    public void WithAnOutputOnTheStep_ExpandWidensToItWhileLetterboxHoldsTheDeclaredSpan()
-    {
-        Vector2 output = new(1000f, 500f);
-
-        Rect letterboxed = Run(scene =>
-        {
-            SceneFixtures.Open(scene, Vector2.Zero, new Vector2(32f, 18f));
-            scene.Camera.Fit = ViewportFit.Letterbox;
-        }, output).Scene.Camera.VisibleRegion;
-
-        Rect expanded = Run(scene =>
-        {
-            SceneFixtures.Open(scene, Vector2.Zero, new Vector2(32f, 18f));
-            scene.Camera.Fit = ViewportFit.Expand;
-        }, output).Scene.Camera.VisibleRegion;
-
-        Assert.Equal(new Rect(-16f, -9f, 16f, 9f), letterboxed);
-        Assert.Equal(new Rect(-18f, -9f, 18f, 9f), expanded);
+        Assert.Equal(new Rect(-halfWidth, -9f, halfWidth, 9f), region);
     }
 
     [Fact]
@@ -137,14 +116,15 @@ public sealed class SceneVisibilityTests
         Assert.Equal([false, false, true], seen);
     }
 
-    // The entity is drawn by the frame the step it landed in rewrote, so its first step must read
-    // that frame rather than the emptiness that preceded it.
-    [Fact]
-    public void ANotifierLandingWithTheStepsDeferredAdds_AnswersForTheFrameThatStepDrew()
+    // The entity is drawn by the frame the step it landed in drew. Its first step reads that frame.
+    [Theory]
+    [InlineData(0f, true)]
+    [InlineData(200f, false)]
+    public void ANotifierLandingWithTheStepsDeferredAdds_AnswersForTheFrameThatStepDrew(float x, bool onScreen)
     {
         List<string> log = [];
         List<bool> seen = [];
-        ArrivingWatcher marker = new(Vector2.Zero, log, seen);
+        ArrivingWatcher marker = new(new Vector2(x, 0f), log, seen);
 
         void Spawn(Scene host, in StepContext context)
         {
@@ -157,39 +137,16 @@ public sealed class SceneVisibilityTests
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn);
         SimulationHost run = new(scene);
 
-        // It attaches after the settle the step ran, so the arrival settle is what enters it.
+        string[] entered = onScreen ? ["entered"] : [];
+
+        // It attaches after the step's settle. The arrival settle is what enters it.
         run.Step();
-        Assert.Equal(["entered"], log);
+        Assert.Equal(entered, log);
         Assert.Empty(seen);
 
         run.Step();
-        Assert.Equal([true], seen);
-        Assert.Equal(["entered"], log);
-    }
-
-    [Fact]
-    public void ANotifierLandingOffScreen_ReadsFalseAndIsOwedNothing()
-    {
-        List<string> log = [];
-        List<bool> seen = [];
-        ArrivingWatcher marker = new(new Vector2(200f, 0f), log, seen);
-
-        void Spawn(Scene host, in StepContext context)
-        {
-            if (context.Tick == 0)
-            {
-                host.Add(marker);
-            }
-        }
-
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn);
-        SimulationHost run = new(scene);
-
-        run.Step();
-        run.Step();
-
-        Assert.Equal([false], seen);
-        Assert.Empty(log);
+        Assert.Equal([onScreen], seen);
+        Assert.Equal(entered, log);
     }
 
     [Fact]
@@ -361,11 +318,8 @@ public sealed class SceneVisibilityTests
     }
 
     /// <summary>Records what its own notifier reads on each of its steps.</summary>
-    private sealed class ArrivingWatcher(Vector2 position, List<string> log, List<bool> seen, Action<Scene>? onStart = null)
-        : Watched(position, log)
+    private sealed class ArrivingWatcher(Vector2 position, List<string> log, List<bool> seen) : Watched(position, log)
     {
-        protected internal override void OnStart() => onStart?.Invoke(Scene!);
-
         protected internal override void OnStep(in StepContext context) => seen.Add(Notifier.IsOnScreen);
     }
 

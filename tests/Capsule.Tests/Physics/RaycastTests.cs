@@ -19,6 +19,7 @@ public sealed class RaycastTests
         Assert.Equal(new Vector2(-1f, 0f), hit.Normal);
         Assert.Equal(new Vector2(40f, 0f), hit.Point);
         Assert.Equal(wall, hit.Target.Layer);
+        Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 39f, CollisionFilter.Everything, out _));
     }
 
     [Fact]
@@ -37,14 +38,6 @@ public sealed class RaycastTests
         Assert.Equal(40f, ignored.Distance, 3);
     }
 
-    [Fact]
-    public void Raycast_StopsShortOfSomethingBeyondItsDistance()
-    {
-        CollisionWorld2D world = new();
-        world.Add(Shape2D.Box(new Vector2(40f, -8f), new Vector2(8f, 16f)), Vector2.Zero, world.Layer("wall"));
-
-        Assert.False(world.Raycast(Vector2.Zero, Vector2.UnitX, 39f, CollisionFilter.Everything, out _));
-    }
 
     // A ray that begins inside a collider has crossed no face, and a hit promises a unit normal, so
     // the nearest side of what it started in is the surface it names.
@@ -61,7 +54,7 @@ public sealed class RaycastTests
     }
 
     [Fact]
-    public void RaycastAll_WritesEveryHitNearestFirstAndNeverPastTheSpan()
+    public void RaycastAll_WritesEveryHitNearestFirst()
     {
         CollisionWorld2D world = new();
         CollisionLayer wall = world.Layer("wall");
@@ -76,9 +69,6 @@ public sealed class RaycastTests
         Assert.Equal(40f, hits[0].Distance, 3);
         Assert.Equal(80f, hits[1].Distance, 3);
         Assert.Equal(114f, hits[2].Distance, 2);
-
-        Span<RayHit2D> narrow = stackalloc RayHit2D[2];
-        Assert.Equal(2, world.RaycastAll(Vector2.Zero, Vector2.UnitX, 200f, CollisionFilter.Everything, narrow));
     }
 
     // The span is a budget, not a race: the hits that survive are the nearest ones.

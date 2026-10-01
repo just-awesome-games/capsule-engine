@@ -23,26 +23,19 @@ namespace Capsule.Rendering;
 /// </example>
 public sealed class PointLight : Renderer
 {
-    private float _radius = 32f;
-    private float _intensity = 1f;
-
     /// <summary>
     /// World units from the light's point to its falloff edge, 32 by default. The larger axis of the
     /// entity's world scale multiplies it.
     /// </summary>
     public float Radius
     {
-        get => _radius;
+        get;
         set
         {
-            if (!(value >= 0f) || !float.IsFinite(value))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value), value, "A light's radius must be finite and non-negative. Set it to zero or above.");
-            }
-
-            _radius = value;
+            Guard.NonNegative(value, nameof(value));
+            field = value;
         }
-    }
+    } = 32f;
 
     /// <summary>The light's colour, added into the light map scaled by its alpha. White by default.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
@@ -56,17 +49,13 @@ public sealed class PointLight : Renderer
     /// </remarks>
     public float Intensity
     {
-        get => _intensity;
+        get;
         set
         {
-            if (!(value >= 0f) || !float.IsFinite(value))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value), value, "A light's intensity must be finite and non-negative. Set it to zero or above.");
-            }
-
-            _intensity = value;
+            Guard.NonNegative(value, nameof(value));
+            field = value;
         }
-    }
+    } = 1f;
 
     /// <summary>The frame the light is drawn as. <see cref="Rendering.Sprite.Light"/> by default, the engine's radial falloff.</summary>
     public Sprite Sprite { get; set; } = Sprite.Light;
@@ -81,7 +70,7 @@ public sealed class PointLight : Renderer
     /// when the light draws nothing.
     /// </summary>
     public override Rect Bounds =>
-        Entity is not null && Intent(PreviousRenderTransform, RenderTransform).ToSprite(Color).TryGetSweptBounds(out Rect box)
+        Entity is not null && Intensity > 0f && Intent(RenderTransform, RenderTransform).ToSprite(Color).TryGetSweptBounds(out Rect box)
             ? box
             : default;
 

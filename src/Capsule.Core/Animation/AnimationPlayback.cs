@@ -46,25 +46,7 @@ public struct AnimationPlayback
     {
         ArgumentOutOfRangeException.ThrowIfNegative(tick);
 
-        if (frameTicks.IsEmpty)
-        {
-            throw new ArgumentException("Run is empty. Pass at least one frame duration.", nameof(frameTicks));
-        }
-
-        // Widened because per-frame int durations can sum past int range.
-        long total = 0;
-        for (int i = 0; i < frameTicks.Length; i++)
-        {
-            if (frameTicks[i] <= 0)
-            {
-                throw new ArgumentException(
-                    $"Frame {i} is held for {frameTicks[i]} ticks. Hold every frame for at least one fixed step.",
-                    nameof(frameTicks));
-            }
-
-            total += frameTicks[i];
-        }
-
+        long total = ValidatedTotal(frameTicks);
         long remaining = loop ? tick % total : tick;
         for (int i = 0; i < frameTicks.Length; i++)
         {
@@ -110,7 +92,6 @@ public struct AnimationPlayback
                 nameof(frameTicks));
         }
 
-        // Widened because per-frame int durations can sum past int range.
         long tick = TicksElapsed;
         for (int i = 0; i < FrameIndex; i++)
         {
@@ -178,5 +159,29 @@ public struct AnimationPlayback
 
         // The last frame stays current with its ticks spent. A finished run keeps drawing it.
         IsFinished = true;
+    }
+
+    // Widened because per-frame int durations can sum past int range.
+    internal static long ValidatedTotal(ReadOnlySpan<int> frameTicks)
+    {
+        if (frameTicks.IsEmpty)
+        {
+            throw new ArgumentException("Run is empty. Pass at least one frame duration.", nameof(frameTicks));
+        }
+
+        long total = 0;
+        for (int i = 0; i < frameTicks.Length; i++)
+        {
+            if (frameTicks[i] <= 0)
+            {
+                throw new ArgumentException(
+                    $"Frame {i} is held for {frameTicks[i]} ticks. Hold every frame for at least one fixed step.",
+                    nameof(frameTicks));
+            }
+
+            total += frameTicks[i];
+        }
+
+        return total;
     }
 }

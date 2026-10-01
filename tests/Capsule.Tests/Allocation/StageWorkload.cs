@@ -238,10 +238,15 @@ internal static class StageWorkload
                     }
 
                     break;
-
-                default:
-                    break;
             }
         }
     }
+}
+
+internal enum StageChurn
+{
+    None,
+    DrawListOnly,
+    Spawning,
+    Pooled,
 }

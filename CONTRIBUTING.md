@@ -12,7 +12,7 @@ git config core.hooksPath .githooks
 
 Until this is set, Git ignores `.githooks/` and a commit passes with no report.
 
-A NativeAOT publish on Windows also needs the Visual Studio Installer directory (`%ProgramFiles(x86)%\Microsoft Visual Studio\Installer`) on `PATH`, or the ILC link step fails with `MSB3073`.
+A NativeAOT publish on Windows needs the native toolchain [`docs/build-and-publish.md`](docs/build-and-publish.md#publishing) names.
 
 ## The gate
 

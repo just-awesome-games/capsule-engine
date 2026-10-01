@@ -153,13 +153,8 @@ internal static class SceneResolver
         return null;
     }
 
-    // Every scene the assembly declares, keyed the way a document-backed scene class is. Concrete
-    // classes are modeled too, so a baseScene that names one resolves to a class CAP028 can name
-    // instead of falling through to CAP030. A class that could actually serve as a base always wins
-    // its key over a same-keyed one that never could, whichever declares first, so resolution never
-    // depends on declaration order: an eligible pass claims every key it can before an ineligible one
-    // is let fill what remains, purely so CAP028 still has a class to name. Two classes that could
-    // *both* serve as a baseScene claiming one key is CAP032.
+    // Every scene the assembly declares, by its baseScene key. Eligible classes claim keys first, and two of them
+    // on one key is CAP032. An ineligible class then fills a free key so a baseScene naming it gets CAP028, not CAP030.
     private static Dictionary<string, SceneModel> KeyedBaseScenes(
         List<Diagnostic> diagnostics, ImmutableArray<SceneModel> models, string rootNamespace)
     {
@@ -203,10 +198,8 @@ internal static class SceneResolver
         return keyed;
     }
 
-    // Every camera or tile type the assembly declares, by the key its namespace and name claim. The first
-    // class in declaration order keeps a key, and a second claiming it is CAP031, the failure a room quietly
-    // framed by the wrong camera or paved with the wrong tile would otherwise hide. A partial class's second
-    // declaration is the same class and claims nothing more.
+    // Every camera or tile type the assembly declares, by the key its namespace and name claim. The first class
+    // keeps a key and a second is CAP031. A partial class's second declaration is the same class.
     private static Dictionary<string, TModel> Keyed<TModel>(
         List<Diagnostic> diagnostics, ImmutableArray<TModel> models, string rootNamespace, string kind)
         where TModel : IClaimingClass

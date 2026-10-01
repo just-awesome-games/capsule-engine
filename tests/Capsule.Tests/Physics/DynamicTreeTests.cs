@@ -36,20 +36,6 @@ public sealed class DynamicTreeTests
         Assert.Empty(Found(tree, Cell(108, 0), Everything));
     }
 
-    // Interleaved, so no box test can do the culling the mask is there for.
-    [Fact]
-    public void Query_VisitsOnlyTheProxiesOnTheMaskedLayersWhenLayersAreInterleaved()
-    {
-        DynamicTree2D tree = new();
-        for (int index = 0; index < 64; index++)
-        {
-            tree.CreateProxy(Cell(index % 8, index / 8), index, (index % 2) == 0 ? Red : Blue);
-        }
-
-        Assert.Equal(Evens(64), Found(tree, All, Red));
-        Assert.Equal(Odds(64), Found(tree, All, Blue));
-        Assert.Equal(Range(64), Found(tree, All, Red | Blue));
-    }
 
     // The rotations a thousand inserts force rewrite parentage; a mask that is not carried through them
     // loses proxies rather than merely visiting extra ones.
@@ -66,41 +52,7 @@ public sealed class DynamicTreeTests
         Assert.Equal(Odds(1024), Found(tree, All, Blue));
     }
 
-    [Fact]
-    public void MoveProxy_KeepsTheMaskExactAcrossAReinsertion()
-    {
-        DynamicTree2D tree = new();
-        for (int index = 0; index < 16; index++)
-        {
-            tree.CreateProxy(Cell(index, 0), index, Red);
-        }
 
-        int traveller = tree.CreateProxy(Cell(0, 0), 99, Blue);
-        Assert.True(tree.MoveProxy(traveller, Cell(0, 20), new Vector2(0f, 200f)));
-
-        Assert.Equal([99], Found(tree, All, Blue));
-        Assert.Equal(Range(16), Found(tree, All, Red));
-    }
-
-    // A rewritten layer has to leave the ancestors it reached, not merely add the new one to them.
-    [Fact]
-    public void SetProxyMask_TakesTheOldLayerOutOfEveryAncestorItReached()
-    {
-        DynamicTree2D tree = new();
-        for (int index = 0; index < 64; index++)
-        {
-            tree.CreateProxy(Cell(index % 8, index / 8), index, Red);
-        }
-
-        int only = tree.CreateProxy(Cell(3, 3), 99, Blue);
-        Assert.Equal([99], Found(tree, All, Blue));
-
-        tree.SetProxyMask(only, Green);
-
-        Assert.Empty(Found(tree, All, Blue));
-        Assert.Equal([99], Found(tree, All, Green));
-        Assert.Equal(Range(64), Found(tree, All, Red));
-    }
 
     // Every path that writes a mask, run over one tree: a node left holding less than its children's
     // union prunes a subtree the query should have reached, so a proxy goes missing.

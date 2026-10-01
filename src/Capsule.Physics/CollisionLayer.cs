@@ -9,7 +9,7 @@ namespace Capsule.Physics;
 /// the same index, and a world rejects a layer it did not intern. The default value belongs to no
 /// world.
 /// </remarks>
-public readonly struct CollisionLayer : IEquatable<CollisionLayer>
+public readonly record struct CollisionLayer
 {
     internal CollisionLayer(int world, int index)
     {
@@ -21,19 +21,4 @@ public readonly struct CollisionLayer : IEquatable<CollisionLayer>
     public int Index { get; }
 
     internal int World { get; }
-
-    /// <summary>Whether two layers are the same entry of the same world's table.</summary>
-    public static bool operator ==(CollisionLayer left, CollisionLayer right) => left.Equals(right);
-
-    /// <summary>Whether two layers are different entries, or entries of different worlds.</summary>
-    public static bool operator !=(CollisionLayer left, CollisionLayer right) => !left.Equals(right);
-
-    /// <inheritdoc/>
-    public bool Equals(CollisionLayer other) => World == other.World && Index == other.Index;
-
-    /// <inheritdoc/>
-    public override bool Equals(object? obj) => obj is CollisionLayer other && Equals(other);
-
-    /// <inheritdoc/>
-    public override int GetHashCode() => HashCode.Combine(World, Index);
 }

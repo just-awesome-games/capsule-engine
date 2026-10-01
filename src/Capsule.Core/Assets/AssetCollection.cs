@@ -21,12 +21,12 @@ public sealed class AssetCollection
     internal bool IsProbe { get; init; }
 
     /// <summary>
-    /// Adds one texture unless it was already declared. The engine's own textures, the white texel and
-    /// the default font's page, belong to the host and are ignored here.
+    /// Adds one texture unless it was already declared. A default handle is ignored, and so are the
+    /// engine's own textures, the white texel and the default font's page, which belong to the host.
     /// </summary>
     public void Add(TextureHandle texture)
     {
-        if (texture.IsEngineOwned)
+        if (texture.Name is null || texture.IsEngineOwned)
         {
             return;
         }
@@ -110,7 +110,7 @@ public sealed class AssetCollection
 
         for (int i = 0; i < material.Shader.Parameters.Length; i++)
         {
-            if (material.TryGetTexture(i, out TextureHandle texture) && texture.Name is not null)
+            if (material.TryGetTexture(i, out TextureHandle texture))
             {
                 Add(texture);
             }

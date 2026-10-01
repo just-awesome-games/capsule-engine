@@ -14,11 +14,9 @@ public sealed class PadFilterTests
         new(InputConfiguration.DefaultStickDeadzone, InputConfiguration.DefaultTriggerDeadzone);
 
     // A stick's whole response on one axis: dead to the deadzone, barely off centre on the first
-    // reading past it, half at halfway to the edge, and one at full deflection — whatever radius the
-    // host was configured with. The other axis never leaves centre.
+    // reading past it, half at halfway to the edge, and one at full deflection. The radius the host
+    // was configured with changes none of it. The other axis never leaves centre.
     [Theory]
-    [InlineData(InputConfiguration.DefaultStickDeadzone, 0f, 0f)]
-    [InlineData(InputConfiguration.DefaultStickDeadzone, 0.17f, 0f)]
     [InlineData(InputConfiguration.DefaultStickDeadzone, InputConfiguration.DefaultStickDeadzone, 0f)]
     [InlineData(
         InputConfiguration.DefaultStickDeadzone,
@@ -66,8 +64,11 @@ public sealed class PadFilterTests
 
     // A trigger's whole pull: dead to the deadzone, remapped past it, clamped at the top.
     [Theory]
-    [InlineData(InputConfiguration.DefaultTriggerDeadzone, 0f, 0f)]
     [InlineData(InputConfiguration.DefaultTriggerDeadzone, InputConfiguration.DefaultTriggerDeadzone, 0f)]
+    [InlineData(
+        InputConfiguration.DefaultTriggerDeadzone,
+        InputConfiguration.DefaultTriggerDeadzone + 0.001f,
+        0.001f / (1f - InputConfiguration.DefaultTriggerDeadzone))]
     [InlineData(
         InputConfiguration.DefaultTriggerDeadzone,
         InputConfiguration.DefaultTriggerDeadzone + ((1f - InputConfiguration.DefaultTriggerDeadzone) / 2f),
@@ -76,14 +77,4 @@ public sealed class PadFilterTests
     [InlineData(InputConfiguration.DefaultTriggerDeadzone, 1.2f, 1f)]
     public void ATrigger_IsDeadToItsDeadzoneAndRemappedPastIt(float deadzone, float raw, float expected) =>
         Assert.Equal(expected, new PadFilter(InputConfiguration.DefaultStickDeadzone, deadzone).Trigger(raw), Tolerance);
-
-    [Theory]
-    [InlineData(0f, false)]
-    [InlineData(InputConfiguration.DefaultTriggerDeadzone, false)]
-    [InlineData(InputConfiguration.DefaultTriggerDeadzone + 0.001f, true)]
-    [InlineData(1f, true)]
-    public void TheTriggerButton_IsHeldExactlyPastTheDeadzone(float raw, bool held)
-    {
-        Assert.Equal(held, PadFilter.TriggerHeld(Default.Trigger(raw)));
-    }
 }

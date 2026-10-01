@@ -2,10 +2,8 @@ using Capsule.Input;
 
 namespace Capsule.Runtime.DevTools;
 
-// One row of the overlay's current page, built afresh every overlay frame. A row with no action is
-// drawn and never focused. An opener's hotkey fires only while the root page is current, and no page is
-// stacked from inside a submenu. Any other hotkey fires at any depth, which lets the run be stepped
-// while an entity panel is watched.
+// One row of the overlay's current page. A row with no action is drawn and never focused. A root row's
+// hotkey fires at any depth, except an opener's, which fires only at the root.
 internal readonly record struct OverlayRow(
     string Label,
     Action? Activate,

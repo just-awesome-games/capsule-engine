@@ -1,6 +1,5 @@
 #nullable disable
 #pragma warning disable
-using Capsule.Runtime.Audio.Vorbis.Contracts;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -8,10 +7,10 @@ using System.IO;
 
 namespace Capsule.Runtime.Audio.Vorbis
 {
-    class Codebook : ICodebook
+    sealed class Codebook
     {
         // FastRange is "borrowed" from GitHub: TechnologicalPizza/MonoGame.Capsule.Runtime.Audio.Vorbis
-        class FastRange : IReadOnlyList<int>
+        sealed class FastRange : IReadOnlyList<int>
         {
             [ThreadStatic]
             static FastRange _cachedRange;
@@ -58,7 +57,7 @@ namespace Capsule.Runtime.Audio.Vorbis
         int _prefixBitLength;
         int _maxBits;
 
-        public void Init(IPacket packet, IHuffman huffman)
+        public void Init(Ogg.Packet packet, Huffman huffman)
         {
             // first, check the sync pattern
             var chkVal = packet.ReadBits(24);
@@ -75,7 +74,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             InitLookupTable(packet);
         }
 
-        private void InitTree(IPacket packet, IHuffman huffman)
+        private void InitTree(Ogg.Packet packet, Huffman huffman)
         {
             bool sparse;
             int total = 0;
@@ -221,7 +220,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             }
         }
 
-        private void InitLookupTable(IPacket packet)
+        private void InitLookupTable(Ogg.Packet packet)
         {
             MapType = (int)packet.ReadBits(4);
             if (MapType == 0) return;
@@ -293,7 +292,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             return r;
         }
 
-        public int DecodeScalar(IPacket packet)
+        public int DecodeScalar(Ogg.Packet packet)
         {
             var data = (int)packet.TryPeekBits(_prefixBitLength, out var bitsRead);
             if (bitsRead == 0) return -1;

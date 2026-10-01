@@ -4,8 +4,8 @@ using System.Text.Json.Serialization;
 namespace Capsule.Assets;
 
 // The shipped texture map, holding only non-default run-time facts. The build writes it and the
-// runtime reads it once at boot. A packed texture maps to its page and the texel its (0, 0) landed
-// on. Any other texture and any page map to a non-default format or sampling. A game whose every
+// runtime reads it once at boot. A packed texture maps to its page, the texel its (0, 0) landed on
+// and its own size. Any other texture and any page map to a non-default format or sampling. A game whose every
 // texture is unpacked and default ships no map.
 internal sealed class TextureMapJson
 {
@@ -30,6 +30,12 @@ internal sealed class TextureEntryJson
 
     [JsonPropertyName("y")]
     public int? Y { get; set; }
+
+    [JsonPropertyName("width")]
+    public int? Width { get; set; }
+
+    [JsonPropertyName("height")]
+    public int? Height { get; set; }
 
     [JsonPropertyName("format")]
     public TextureFormatSetting? Format { get; set; }

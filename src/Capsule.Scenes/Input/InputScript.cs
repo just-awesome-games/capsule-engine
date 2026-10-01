@@ -5,64 +5,37 @@ namespace Capsule.Input;
 
 /// <summary>
 /// Builds an <see cref="IInputDriver"/> from a fixed snapshot sequence, the way a device produces
-/// one. It keeps a held state that <see cref="Down(Key)"/>, <see cref="Up(Key)"/>,
-/// <see cref="Axis"/> and <see cref="MoveTo"/> edit, and <see cref="Wait"/>, <see cref="Tap(Key)"/>
+/// one. It keeps a held state that <see cref="Down"/>, <see cref="Up"/>,
+/// <see cref="Axis"/> and <see cref="MoveTo"/> edit, and <see cref="Wait"/>, <see cref="Tap"/>
 /// and <see cref="Scroll"/> emit steps of that state.
 /// </summary>
 /// <remarks>
 /// Every duration counts fixed steps, never seconds.
 /// <para>
-/// Editing the held state emits no step. Press a chord with several <see cref="Down(Key)"/> calls
+/// Editing the held state emits no step. Press a chord with several <see cref="Down"/> calls
 /// followed by one <see cref="Wait"/>. The emitted sequence accumulates, and a script may be built
 /// more than once. Each build covers ticks 0 to n - 1 of everything scripted so far, including
 /// ticks an earlier driver already served. Write a driver that must react to the scene as a class
 /// instead.
 /// </para>
 /// </remarks>
-///
 public sealed class InputScript
 {
     private readonly List<DeviceSnapshot> _steps = [];
 
     private DeviceSnapshot _held;
 
-    /// <summary>Holds <paramref name="key"/> down from the next emitted step on.</summary>
-    public InputScript Down(Key key)
-    {
-        _held = _held.With(key);
-        return this;
-    }
-
     /// <summary>Holds <paramref name="button"/> down from the next emitted step on.</summary>
-    public InputScript Down(PadButton button)
+    /// <param name="button">The key, pad button, mouse button or stick direction to hold.</param>
+    public InputScript Down(InputButton button)
     {
         _held = _held.With(button);
         return this;
     }
 
-    /// <summary>Holds <paramref name="button"/> down from the next emitted step on.</summary>
-    public InputScript Down(MouseButton button)
-    {
-        _held = _held.With(button);
-        return this;
-    }
-
-    /// <summary>Releases <paramref name="key"/>. Releasing a key that is not held changes nothing.</summary>
-    public InputScript Up(Key key)
-    {
-        _held = _held.Without(key);
-        return this;
-    }
-
     /// <summary>Releases <paramref name="button"/>. Releasing a button that is not held changes nothing.</summary>
-    public InputScript Up(PadButton button)
-    {
-        _held = _held.Without(button);
-        return this;
-    }
-
-    /// <summary>Releases <paramref name="button"/>. Releasing a button that is not held changes nothing.</summary>
-    public InputScript Up(MouseButton button)
+    /// <param name="button">The key, pad button, mouse button or stick direction to release.</param>
+    public InputScript Up(InputButton button)
     {
         _held = _held.Without(button);
         return this;
@@ -95,41 +68,18 @@ public sealed class InputScript
         return this;
     }
 
-    /// <summary>Emits one step with <paramref name="key"/> held on top of the held state, then releases it.</summary>
-    /// <exception cref="InvalidOperationException">The key is already held. Release it with <see cref="Up(Key)"/> first.</exception>
-    public InputScript Tap(Key key)
-    {
-        RequireNotHeld(_held.IsDown(key), $"{nameof(Key)}.{key}");
-
-        _held = _held.With(key);
-        _steps.Add(_held);
-        _held = _held.Without(key);
-
-        return this;
-    }
-
     /// <summary>Emits one step with <paramref name="button"/> held on top of the held state, then releases it.</summary>
-    /// <exception cref="InvalidOperationException">The button is already held. Release it with <see cref="Up(PadButton)"/> first.</exception>
-    public InputScript Tap(PadButton button)
+    /// <param name="button">The key, pad button, mouse button or stick direction to tap.</param>
+    /// <exception cref="InvalidOperationException">The button is already held. Release it with <see cref="Up"/> first.</exception>
+    public InputScript Tap(InputButton button)
     {
-        RequireNotHeld(_held.IsDown(button), $"{nameof(PadButton)}.{button}");
+        if (button.IsDown(_held))
+        {
+            throw new InvalidOperationException(
+                $"{button} is already held, and a tap would read as a release. Release it with Up first, or drop the Down.");
+        }
 
-        _held = _held.With(button);
-        _steps.Add(_held);
-        _held = _held.Without(button);
-
-        return this;
-    }
-
-    /// <summary>Emits one step with <paramref name="button"/> held on top of the held state, then releases it.</summary>
-    /// <exception cref="InvalidOperationException">The button is already held. Release it with <see cref="Up(MouseButton)"/> first.</exception>
-    public InputScript Tap(MouseButton button)
-    {
-        RequireNotHeld(_held.IsDown(button), $"{nameof(MouseButton)}.{button}");
-
-        _held = _held.With(button);
-        _steps.Add(_held);
-        _held = _held.Without(button);
+        _steps.Add(_held.With(button));
 
         return this;
     }
@@ -174,17 +124,7 @@ public sealed class InputScript
     /// any run before its first step.
     /// </para>
     /// </remarks>
-    ///
     public IInputDriver Build() => new ScriptedInputDriver([.. _steps]);
-
-    private static void RequireNotHeld(bool held, string name)
-    {
-        if (held)
-        {
-            throw new InvalidOperationException(
-                $"{name} is already held, and a tap would read as a release. Release it with Up first, or drop the Down.");
-        }
-    }
 }
 
 // The driver InputScript builds: a fixed sequence that never reads the scene.

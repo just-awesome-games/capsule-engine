@@ -54,35 +54,12 @@ public sealed class FrameCaptureTests : IDisposable
         Assert.Equal("second.png", path);
     }
 
+    // A headless run draws nothing, so it takes and drops every request. One the final step raised
+    // is dropped too, and nothing stays pending on a scene no frame will draw.
     [Fact]
-    public void RunHeadless_CompletesWithARequestPendingAndWritesNoFile()
+    public void RunHeadless_DropsARequestRaisedOnTheFinalStepAndWritesNoFile()
     {
-        BoundPath = Path.Combine(_workspace.Root, "shots", "headless.png");
-        IInputDriver driver = new InputScript().Tap(Key.Space).Wait(3).Build();
-
-        HeadlessRunResult result = CapsuleEngine.Configure(
-                "Capture Game",
-                new DesktopPlatform(),
-                new SceneRegistry(
-                    new EntityRegistry([]),
-                    [SceneRegistration.Plain(typeof(BoundCaptureScene), static _ => new BoundCaptureScene())]))
-            .WithFixedStep(10)
-            .WithRunStart(static run => run.Input.Bindings.Bind(Shoot, Key.Space))
-            .WithoutCrashLog()
-            .WithoutLogging()
-            .RunHeadless<BoundCaptureScene>(driver);
-
-        Assert.Equal(DrivenSteps, result.Steps);
-        Assert.False(Directory.Exists(Path.GetDirectoryName(BoundPath)!));
-        Assert.False(File.Exists(BoundPath));
-    }
-
-    // A request the run's final step raised is taken by the loop the run drives, which is what
-    // leaves nothing pending on a scene no frame will ever draw.
-    [Fact]
-    public void RunHeadless_ClearsARequestRaisedOnTheFinalStep()
-    {
-        BoundPath = Path.Combine(_workspace.Root, "final.png");
+        BoundPath = Path.Combine(_workspace.Root, "shots", "final.png");
         IInputDriver driver = new InputScript().Wait(3).Tap(Key.Space).Build();
 
         BoundCaptureScene? scene = null;
@@ -101,7 +78,7 @@ public sealed class FrameCaptureTests : IDisposable
 
         Assert.Equal(DrivenSteps, result.Steps);
         Assert.Null(Assert.IsType<BoundCaptureScene>(scene).Run.FrameCaptureRequested);
-        Assert.False(File.Exists(BoundPath));
+        Assert.False(Directory.Exists(Path.GetDirectoryName(BoundPath)!));
     }
 
     // A capture stages beside its destination, so a write that cannot land leaves what is already

@@ -15,30 +15,21 @@ internal sealed record SuiteRecord(
     string EngineVersion,
     IReadOnlyList<WorkloadRecord> Workloads);
 
-// Headless rows carry steps, stepMs, viewMs, stepBytes and viewBytes; windowed rows frames, drawMs and
-// intervalMs; the rest is null. gen0Collections counts inside the measured steps or frames alone, and
-// stepBytes and viewBytes total the bytes the measured steps and the builds after them allocated.
+// One workload's row. The README's "Reading a record" lists which columns each lane fills.
 internal sealed record WorkloadRecord(
     string Name,
     string Mode,
     string Surface,
     int? Steps,
     int? Frames,
-    DrawTiming? DrawMs,
+    Percentiles? DrawMs,
     StepTiming? StepMs,
     StepTiming? ViewMs,
     long? StepBytes,
     long? ViewBytes,
-    IntervalTiming? IntervalMs,
+    Percentiles? IntervalMs,
     int Gen0Collections,
     string? CaptureSha256);
 
-// Milliseconds the host spent submitting the game frame: FrameRenderer.Draw alone.
-internal sealed record DrawTiming(double Median, double P95, double Max);
-
 // Milliseconds per fixed step, or per frame built after one, each timed on its own.
 internal sealed record StepTiming(double Median, double P95);
-
-// Milliseconds from one frame's start to the next: the display's rate when the host keeps up, and
-// in its tail the hitches the median hides. Uncapped, it is the host's true frame cost.
-internal sealed record IntervalTiming(double Median, double P95, double Max);

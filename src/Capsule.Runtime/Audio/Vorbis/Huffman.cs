@@ -1,12 +1,11 @@
 #nullable disable
 #pragma warning disable
-using Capsule.Runtime.Audio.Vorbis.Contracts;
 using System;
 using System.Collections.Generic;
 
 namespace Capsule.Runtime.Audio.Vorbis
 {
-    class Huffman : IHuffman, IComparer<HuffmanListNode>
+    sealed class Huffman : IComparer<HuffmanListNode>
     {
         const int MAX_TABLE_BITS = 10;
 

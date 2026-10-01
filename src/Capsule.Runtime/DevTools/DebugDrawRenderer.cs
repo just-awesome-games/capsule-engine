@@ -33,8 +33,6 @@ internal sealed class DebugDrawRenderer : Renderer
 
     protected internal override void Draw(FrameView view)
     {
-        ArgumentNullException.ThrowIfNull(view);
-
         float unsimulated = 1f - Alpha;
 
         foreach (ref readonly DebugDrawSegment segment in _buffer.Segments)

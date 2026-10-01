@@ -9,10 +9,6 @@ namespace Capsule.Build.Shaders;
 /// </summary>
 internal static class ShaderStep
 {
-    private const string Step = "shaders";
-
-    private const string CompiledExtension = ".mgfx";
-
     // Where each composed source is written for the compiler, and deleted once it has compiled.
     private const string ComposedDirectory = "shaders";
 
@@ -23,7 +19,7 @@ internal static class ShaderStep
         // Each tool's package folder is named for its version.
         string versions = $"dxc={Path.GetFileName(tools.Dxc)}; spirv-cross={Path.GetFileName(tools.SpirvCross)}";
         foreach ((Source shader, ShaderFacts compiled) in pass.Each(
-            Step,
+            "shaders",
             pass.Of(AssetType.Shaders),
             source => Derivation.Of(source, versions),
             (source, files) => Compile(pass, tools, source, files),
@@ -79,7 +75,7 @@ internal static class ShaderStep
             return new ShaderFacts([], []);
         }
 
-        files.Write(source.Key + CompiledExtension, path => File.WriteAllBytes(path, effect));
+        files.Write(source.Key + ".mgfx", path => File.WriteAllBytes(path, effect));
 
         return new ShaderFacts([.. result.Parameters], [.. result.Diagnostics.Where(static diagnostic => diagnostic.Warning)]);
     }

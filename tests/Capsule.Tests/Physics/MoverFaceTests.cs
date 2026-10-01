@@ -41,7 +41,7 @@ public sealed class MoverFaceTests
 
     // A face reports its own normal whatever the narrowphase measured. A rounded shape coming down
     // past the near end of an edge is nearest that endpoint, where GJK answers with the diagonal
-    // from the corner — a direction the surface does not have. Each shape is placed with its centre
+    // from the corner, a direction the surface does not have. Each shape is placed with its centre
     // off the end of the face, which is where the endpoint is the nearest feature.
     [Theory]
     [InlineData(ShapeKind2D.Circle)]
@@ -66,30 +66,6 @@ public sealed class MoverFaceTests
         Assert.Equal(new Vector2(0f, -1f), hit.Normal);
     }
 
-    // The same claim through the mover: every contact it writes for a directional face carries
-    // that face's normal.
-    [Theory]
-    [InlineData(ShapeKind2D.Circle)]
-    [InlineData(ShapeKind2D.Capsule)]
-    public void Move_PastTheEndOfAOneWayEdge_ReportsTheEdgesOwnNormal(ShapeKind2D kind)
-    {
-        CollisionWorld2D world = new();
-        CollisionFixtures.Paint(world, "..", ".-");
-
-        Contact2D[] contacts = new Contact2D[8];
-        MoveResult2D result = world.Move(
-            Landing(kind),
-            new Vector2(14f, 4f),
-            new Vector2(0f, 24f),
-            CollisionFilter.Everything,
-            contacts);
-
-        Assert.True(result.Blocked);
-        Assert.NotEqual(0, result.ContactCount);
-        Assert.All(
-            contacts[..result.ContactCount].ToArray(),
-            contact => Assert.Equal(new Vector2(0f, -1f), contact.Normal));
-    }
 
     // Centred on the origin, so the cast origin places the shape's middle. The box is the control:
     // it takes the closed-form sweep, the rounded pair take the GJK path this is about.

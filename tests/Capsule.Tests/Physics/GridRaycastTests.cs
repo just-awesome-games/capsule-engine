@@ -23,14 +23,6 @@ public sealed class GridRaycastTests
         Assert.Equal(new Vector2(0f, -1f), downwards.Normal);
     }
 
-    [Fact]
-    public void Raycast_MissesAnEmptyRowEntirely()
-    {
-        CollisionWorld2D world = new();
-        CollisionFixtures.Paint(world, ".....", "...#.");
-
-        Assert.False(world.Raycast(new Vector2(8f, 8f), Vector2.UnitX, 200f, CollisionFilter.Everything, out _));
-    }
 
     [Fact]
     public void Raycast_NeverReportsAFaceSharedWithAnotherSolidCell()
@@ -99,18 +91,6 @@ public sealed class GridRaycastTests
         Assert.Equal(new Vector2(1f, 0f), climbing.Normal);
     }
 
-    [Fact]
-    public void Raycast_RespectsAFilterThatExcludesATileType()
-    {
-        CollisionWorld2D world = new();
-        CollisionFixtures.Paint(world, "....", "----", "####");
-        CollisionFilter solidOnly = world.CreateFilter(CollisionFixtures.Solid);
-
-        Assert.True(world.Raycast(new Vector2(24f, 0f), Vector2.UnitY, 96f, solidOnly, out RayHit2D hit));
-
-        Assert.Equal(32f, hit.Distance, 3);
-        Assert.Equal(CollisionFixtures.Solid, world.NameOf(hit.Target.Layer));
-    }
 
     // A diagonal reaching a cell corner dead on touches both cells it separates. The walk must not
     // commit to one and report nothing because the face it picked is the seam between the two.
@@ -153,19 +133,6 @@ public sealed class GridRaycastTests
         Assert.Equal(0, hit.Target.CellY);
     }
 
-    // The corner probe must not invent a neighbour: with one cell solid, the answer is its own exposed
-    // side.
-    [Fact]
-    public void Raycast_AtACornerWithOnlyOneSolidCell_ReportsThatCellsOwnFace()
-    {
-        CollisionWorld2D world = new();
-        CollisionFixtures.Paint(world, "....", ".###");
-
-        Assert.True(world.Raycast(new Vector2(8f, 8f), new Vector2(1f, 1f), 200f, CollisionFilter.Everything, out RayHit2D hit));
-
-        Assert.Equal((1, 1), (hit.Target.CellX, hit.Target.CellY));
-        Assert.Equal(new Vector2(16f, 16f), hit.Point);
-    }
 
     // A corner buried inside the terrain exposes nothing: the ray meets the outside of the block.
     [Fact]

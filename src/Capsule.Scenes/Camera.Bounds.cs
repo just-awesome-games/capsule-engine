@@ -67,9 +67,6 @@ public partial class Camera
     /// A change takes the transition standing when it is made and keeps it until it lands or another
     /// change replaces it. Setting this during a change leaves that change as it runs.
     /// </remarks>
-    /// <example>
-    /// <code>BoundsTransition = BoundsTransition.Smooth(0.35f);</code>
-    /// </example>
     public BoundsTransition BoundsTransition { get; set; }
 
     /// <summary>

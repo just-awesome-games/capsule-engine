@@ -26,7 +26,7 @@ public sealed class AtlasToolTests
         workspace.Succeed();
 
         Assert.Equal(["atlases/game.0.png", "textures.json", "textures/loose.png"], workspace.Shipped);
-        Assert.Equal("""{"textures":{"textures/actors/hero":{"page":"atlases/game.0","x":1,"y":1}}}""", File.ReadAllText(Map));
+        Assert.Equal("""{"textures":{"textures/actors/hero":{"page":"atlases/game.0","x":1,"y":1,"width":4,"height":3}}}""", File.ReadAllText(Map));
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class AtlasToolTests
 
         Assert.Equal(["atlases/game.0.png", "atlases/game.1.png", "atlases/game.2.png", "textures.json"], workspace.Shipped);
         Assert.Equal(
-            """{"pages":{"atlases/game.1":{"sampling":"point"},"atlases/game.2":{"format":"r8"}},"textures":{"glow":{"page":"atlases/game.2","x":1,"y":1},"hero":{"page":"atlases/game.0","x":1,"y":1},"tiles":{"page":"atlases/game.1","x":1,"y":1}}}""",
+            """{"pages":{"atlases/game.1":{"sampling":"point"},"atlases/game.2":{"format":"r8"}},"textures":{"glow":{"page":"atlases/game.2","x":1,"y":1,"width":4,"height":3},"hero":{"page":"atlases/game.0","x":1,"y":1,"width":4,"height":3},"tiles":{"page":"atlases/game.1","x":1,"y":1,"width":4,"height":3}}}""",
             File.ReadAllText(Map));
     }
 

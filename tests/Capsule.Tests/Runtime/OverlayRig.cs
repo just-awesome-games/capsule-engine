@@ -9,37 +9,59 @@ using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Runtime;
 
-// The overlay specs' host: one frame is observe, advance the game, step the overlay, which is the
-// order CapsuleGame runs them in, and a press is the key's frame followed by its release. An instance
-// owns the clock too, so a spec that reads the frame pane can say how long each frame took and how
-// much of it the update bracket spent; a spec that does not reads the same frames through the static
-// helpers, which drive an overlay the spec built itself.
+// The overlay specs' host: one frame is observe, advance the game, step the overlay, the order
+// CapsuleGame runs them in, and a press is the key's frame followed by its release. The instance owns
+// the clock, so a frame pane spec can say how long each frame took.
 internal sealed class OverlayRig : IDisposable
 {
     internal const double StepSeconds = 0.1;
 
-    // What an unclocked frame costs: enough to be a frame, short enough that sixty of them are a
-    // second.
+    // An unclocked frame: sixty of them are a second.
     private const double DefaultIntervalMs = 16;
     private const double DefaultUpdateMs = 1;
 
     private long _ticks;
     private long _frameStart;
 
-    internal OverlayRig()
+    // A SceneHost simulation is also the overlay's run of scenes. The rig disposes it.
+    internal OverlayRig(
+        ISimulation? simulation = null,
+        SceneRegistry? registry = null,
+        InputButton? toggle = null,
+        FixedStepScheduler? scheduler = null)
     {
-        Scheduler = CreateScheduler();
-        Overlay = new OverlayHost(Key.Grave, Scheduler, Simulation, timestamp: () => _ticks);
+        Simulation = simulation ?? new RecordingSimulation();
+        Scheduler = scheduler ?? CreateScheduler();
+        Overlay = new OverlayHost(toggle ?? Key.Grave, Scheduler, Simulation, Simulation as SceneHost, registry, () => _ticks);
     }
 
     internal OverlayHost Overlay { get; }
 
     internal FixedStepScheduler Scheduler { get; }
 
-    internal RecordingSimulation Simulation { get; } = new();
+    internal ISimulation Simulation { get; }
+
+    internal SceneHost Host => (SceneHost)Simulation;
+
+    internal RecordingSimulation Recording => (RecordingSimulation)Simulation;
 
     // The game frame's cost the pane is told about, which a rig with no renderer has to supply.
     internal double DrawMs { get; set; }
+
+    // The labels of the page the overlay last built, in order.
+    internal string[] Rows()
+    {
+        IReadOnlyList<OverlayRow> rows = Overlay.Rows;
+        string[] labels = new string[rows.Count];
+        for (int index = 0; index < labels.Length; index++)
+        {
+            labels[index] = rows[index].Label;
+        }
+
+        return labels;
+    }
+
+    internal string Focused() => Overlay.Rows[Overlay.Focus].Label;
 
     internal string[] PaneLines() => Overlay.Scene.Pane.Text.Split('\n');
 
@@ -52,13 +74,16 @@ internal sealed class OverlayRig : IDisposable
 
     internal void Press(Key key)
     {
-        Frame(DefaultIntervalMs, DefaultUpdateMs, sampled: DeviceSnapshot.Of(key));
-        Frame(DefaultIntervalMs, DefaultUpdateMs, sampled: DeviceSnapshot.Empty);
+        Frame(DeviceSnapshot.Of(key));
+        Frame();
     }
 
-    // One frame that starts intervalMs after the last began and whose update bracket costs updateMs,
-    // of which elapsedSeconds is offered to the scheduler.
-    internal void Frame(
+    // One unclocked frame. Returns what the game saw.
+    internal DeviceSnapshot Frame(DeviceSnapshot sampled = default, double elapsedSeconds = StepSeconds) =>
+        Frame(DefaultIntervalMs, DefaultUpdateMs, elapsedSeconds, sampled);
+
+    // One frame that starts intervalMs after the last began and whose update bracket costs updateMs.
+    internal DeviceSnapshot Frame(
         double intervalMs,
         double updateMs,
         double elapsedSeconds = 0,
@@ -69,61 +94,19 @@ internal sealed class OverlayRig : IDisposable
         DeviceSnapshot stripped = Overlay.Observe(sampled);
         _ticks += Ticks(updateMs);
         Scheduler.Advance(elapsedSeconds, stripped, Simulation);
-        Overlay.Step(lastFrame: new RenderStats(DrawMs));
-    }
-
-    public void Dispose() => Overlay.Dispose();
-
-    internal static FixedStepScheduler CreateScheduler(ActionBindings? bindings = null) =>
-        new(StepSeconds, 5, bindings ?? new ActionBindings());
-
-    // The labels of the page the overlay last built, in order.
-    internal static string[] Rows(OverlayHost overlay)
-    {
-        IReadOnlyList<OverlayRow> rows = overlay.Rows;
-        string[] labels = new string[rows.Count];
-        for (int index = 0; index < labels.Length; index++)
-        {
-            labels[index] = rows[index].Label;
-        }
-
-        return labels;
-    }
-
-    // The label of the focused row.
-    internal static string Focused(OverlayHost overlay) => overlay.Rows[overlay.Focus].Label;
-
-    // Opens the overlay on the toggle's edge and releases it, so the next frame's keys are the
-    // overlay's.
-    internal static void Open(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation)
-    {
-        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(Key.Grave));
-        Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
-
-        Assert.True(overlay.IsOpen);
-    }
-
-    // One press: the key's frame and the release after it.
-    internal static void Press(OverlayHost overlay, FixedStepScheduler scheduler, ISimulation simulation, Key key)
-    {
-        Frame(overlay, scheduler, simulation, DeviceSnapshot.Of(key));
-        Frame(overlay, scheduler, simulation, DeviceSnapshot.Empty);
-    }
-
-    // One host frame; returns what the game saw.
-    internal static DeviceSnapshot Frame(
-        OverlayHost overlay,
-        FixedStepScheduler scheduler,
-        ISimulation simulation,
-        DeviceSnapshot sampled,
-        double elapsed = StepSeconds)
-    {
-        DeviceSnapshot stripped = overlay.Observe(sampled);
-        scheduler.Advance(elapsed, stripped, simulation);
-        overlay.Step();
+        Overlay.Step(lastFrameMs: DrawMs);
 
         return stripped;
     }
+
+    public void Dispose()
+    {
+        Overlay.Dispose();
+        (Simulation as IDisposable)?.Dispose();
+    }
+
+    internal static FixedStepScheduler CreateScheduler(ActionBindings? bindings = null) =>
+        new(StepSeconds, 5, bindings ?? new ActionBindings());
 
     private static long Ticks(double ms) => (long)Math.Round(ms * Stopwatch.Frequency / 1000.0);
 }
@@ -143,7 +126,7 @@ internal static class OverlayFixtures
 
                 return target.Kind switch
                 {
-                    SceneTransitionKind.Named when target.DocumentName == NamedDocument => new NamedScene(),
+                    SceneTransitionKind.Named => new NamedScene(),
                     SceneTransitionKind.Scene when target.SceneType == typeof(PlainScene) => new PlainScene(),
                     SceneTransitionKind.Scene when target.SceneType == typeof(PayloadScene) => new PayloadScene(),
                     SceneTransitionKind.Scene when target.SceneType == typeof(ReadoutScene) => new ReadoutScene(),
