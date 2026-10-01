@@ -100,7 +100,7 @@ internal sealed class Prober : Entity
         : base(position)
     {
         Collider = new BoxCollider2D(size);
-        Collider.SetFilter(detects);
+        Collider.Detects = new(detects);
         Add(Collider);
     }
 
@@ -114,7 +114,7 @@ internal sealed class RoundProber : Entity
         : base(position)
     {
         Collider = new CircleCollider2D(radius);
-        Collider.SetFilter(detects);
+        Collider.Detects = new(detects);
         Add(Collider);
     }
 

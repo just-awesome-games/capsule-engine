@@ -1,6 +1,5 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Capsule.Diagnostics;
 using Capsule.Scenes;
 
@@ -25,8 +24,7 @@ namespace Capsule.Physics;
 /// BoxCollider2D bodyCollider = new(new Vector2(8f, 8f));
 /// Add(bodyCollider);
 ///
-/// _body = new KinematicBody2D(bodyCollider);
-/// _body.BlocksOn(CollisionLayers.Blocking);
+/// _body = new KinematicBody2D(bodyCollider) { BlockedBy = CollisionLayers.Blocking };
 /// Add(_body);
 ///
 /// // Each step, from the entity's own OnStep:
@@ -118,13 +116,13 @@ public sealed class KinematicBody2D : Component
     public bool RestsOnCenter { get; set; }
 
     private readonly Collider2D _collider;
-    private readonly List<string> _blocksOn = [];
-    private readonly List<string> _movedBy = [];
+    private CollisionMask _blockedBy = CollisionMask.Empty;
+    private CollisionMask _movedBy = CollisionMask.Empty;
 
     private Scene? _scene;
 
-    // BlocksOn's names resolved in the current scene's world. Filter adds the MovedBy layers to it.
-    private CollisionFilter _blocksOnFilter;
+    // BlockedBy resolved in the current scene's world. Filter adds the MovedBy layers to it.
+    private CollisionFilter _blockedByFilter;
 
     // The collider this body rides, as found by its last Move. Only a Move changes it.
     private Collider2D? _floor;
@@ -238,12 +236,9 @@ public sealed class KinematicBody2D : Component
     /// </remarks>
     public Collider2D Collider => _collider;
 
-    /// <summary>
-    /// The layers that stop this body, its <see cref="BlocksOn"/> and <see cref="MovedBy"/> layers, built
-    /// for the current scene's collision world. Reads <see cref="CollisionFilter.None"/> while this
-    /// component is in no scene.
-    /// </summary>
-    public CollisionFilter Filter { get; private set; }
+    // The layers that stop this body, BlockedBy and MovedBy resolved in the current scene's world, or
+    // None in no scene.
+    internal CollisionFilter Filter { get; private set; }
 
     /// <summary>
     /// Raised when a collider on a <see cref="MovedBy"/> layer moves into this body and the body cannot
@@ -289,59 +284,58 @@ public sealed class KinematicBody2D : Component
     public Vector2 WallNormal { get; private set; }
 
     /// <summary>
-    /// Replaces the layers that stop this body. This filter is separate from
-    /// <see cref="Collider2D.SetFilter"/>, which lets a collider report an overlap that does not
-    /// change movement.
+    /// The layers that stop this body besides its <see cref="MovedBy"/> layers, where the empty default adds none.
     /// </summary>
-    /// <param name="names">The layer names that block movement. An empty list blocks on nothing.</param>
-    /// <exception cref="InvalidOperationException">The world has no room left to intern a name.</exception>
-    public void BlocksOn(params ReadOnlySpan<string> names)
+    /// <remarks>
+    /// Blocking is separate from what the body's collider <see cref="Collider2D.Detects"/>. A
+    /// collider can report an overlap that does not change movement.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
+    public CollisionMask BlockedBy
     {
-        // Resolve before touching the stored list. A bad name part way along leaves the old list
-        // intact.
-        CollisionFilter filter = Collider2D.ResolveFilter(Entity?.SceneOrNull?.Collision, names);
-
-        _blocksOn.Clear();
-        foreach (string name in names)
+        get => _blockedBy;
+        set
         {
-            _blocksOn.Add(name);
-        }
+            ArgumentNullException.ThrowIfNull(value);
 
-        if (InScene)
-        {
-            _blocksOnFilter = filter;
-            Filter = filter | MovedByFilter;
+            // Resolve before storing. A world with no layer slots left throws here, while the body
+            // still blocks on what it did.
+            CollisionFilter filter = Collider2D.ResolveFilter(Entity?.SceneOrNull?.Collision, value);
+            _blockedBy = value;
+            if (InScene)
+            {
+                _blockedByFilter = filter;
+                Filter = filter | MovedByFilter;
+            }
         }
     }
 
     /// <summary>
-    /// Replaces the layers whose moving colliders move this body. A body standing on one rides it, and
-    /// one moving into the body shoves it.
+    /// The layers whose moving colliders move this body, where the empty default means nothing carries or
+    /// shoves it.
     /// </summary>
     /// <remarks>
-    /// A layer that moves the body also blocks it. The body rides the floor its last
+    /// A body standing on such a collider rides it, and one moving into the body shoves it. A layer
+    /// that moves the body also blocks it. The body rides the floor its last
     /// <see cref="Move(Vector2)"/> stopped on, and is carried exactly whether that floor steps before
     /// or after it. A wall or ceiling stops a carry or a shove. A collider moving into several bodies
     /// shoves them one at a time, in the order of their colliders' handles.
     /// </remarks>
-    /// <param name="names">
-    /// The layer names that move this body. An empty list, the default, moves it by nothing.
-    /// </param>
-    /// <exception cref="InvalidOperationException">The world has no room left to intern a name.</exception>
-    public void MovedBy(params ReadOnlySpan<string> names)
+    /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
+    public CollisionMask MovedBy
     {
-        CollisionFilter filter = Collider2D.ResolveFilter(Entity?.SceneOrNull?.Collision, names);
-
-        _movedBy.Clear();
-        foreach (string name in names)
+        get => _movedBy;
+        set
         {
-            _movedBy.Add(name);
-        }
+            ArgumentNullException.ThrowIfNull(value);
 
-        if (InScene)
-        {
-            SetMovedBy(filter);
-            Filter = _blocksOnFilter | filter;
+            CollisionFilter filter = Collider2D.ResolveFilter(Entity?.SceneOrNull?.Collision, value);
+            _movedBy = value;
+            if (InScene)
+            {
+                SetMovedBy(filter);
+                Filter = _blockedByFilter | filter;
+            }
         }
     }
 
@@ -369,18 +363,17 @@ public sealed class KinematicBody2D : Component
 
     /// <summary>
     /// Attempts <paramref name="translation"/> against <paramref name="blocking"/> instead of
-    /// <see cref="Filter"/>, for this call only.
+    /// <see cref="BlockedBy"/> and <see cref="MovedBy"/>, for this call only.
     /// </summary>
     /// <remarks>
-    /// <see cref="CollisionFilter.None"/> stops on nothing. The stored <see cref="BlocksOn"/>
-    /// layers are unchanged, and the next plain <see cref="Move(Vector2)"/> uses them again.
+    /// <see cref="CollisionFilter.None"/> stops on nothing.
     /// </remarks>
     public MoveResult2D Move(Vector2 translation, CollisionFilter blocking) => MoveWith(translation, blocking);
 
     /// <summary>
     /// Reports whether <see cref="Move(Vector2)"/> of <paramref name="translation"/> would be
-    /// stopped short. It sweeps the body's own collider from its current place, using
-    /// <see cref="Filter"/> and never hitting itself.
+    /// stopped short. It sweeps the body's own collider from its current place, stopped by
+    /// <see cref="BlockedBy"/> and <see cref="MovedBy"/> and never hitting itself.
     /// </summary>
     /// <remarks>
     /// Nothing moves and nothing is written, including <see cref="IsOnFloor"/> and its peers. The
@@ -1186,9 +1179,9 @@ public sealed class KinematicBody2D : Component
         }
 
         _scene = Entity!.Scene;
-        _blocksOnFilter = Collider2D.ResolveFilter(_scene.Collision, CollectionsMarshal.AsSpan(_blocksOn));
-        MovedByFilter = Collider2D.ResolveFilter(_scene.Collision, CollectionsMarshal.AsSpan(_movedBy));
-        Filter = _blocksOnFilter | MovedByFilter;
+        _blockedByFilter = Collider2D.ResolveFilter(_scene.Collision, _blockedBy);
+        MovedByFilter = Collider2D.ResolveFilter(_scene.Collision, _movedBy);
+        Filter = _blockedByFilter | MovedByFilter;
         _scene.CountMovedBy(MovedByFilter, 1);
         _collider.Body = this;
     }
@@ -1206,7 +1199,7 @@ public sealed class KinematicBody2D : Component
 
         Filter = CollisionFilter.None;
         MovedByFilter = CollisionFilter.None;
-        _blocksOnFilter = CollisionFilter.None;
+        _blockedByFilter = CollisionFilter.None;
         _dropThrough = false;
         _sink = 0f;
         _restSide = 0f;

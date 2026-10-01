@@ -186,7 +186,7 @@ internal static class SceneFixtures
             Mover = new KinematicBody2D(Collider);
             if (blocksOn is not null)
             {
-                Mover.BlocksOn(blocksOn);
+                Mover.BlockedBy = new(blocksOn);
             }
 
             if (bodyFirst)

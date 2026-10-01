@@ -24,30 +24,38 @@ spinning hazard keeps its box on the root and spins a child.
 
 ## Layers and filters
 
-A collider's `Layer` names the layer it is on, and other queries' filters match that name. Its
-`SetFilter(names)` sets what its own contacts detect. Detection does not block movement.
-`KinematicBody2D.BlocksOn` sets what blocks a body.
+A collider's `Layer` names the one layer it is on. A `CollisionMask` names a set of layers, and three
+properties take one: a collider's `Detects` sets what its contacts and its own queries find, a body's
+`BlockedBy` sets what stops it, and its `MovedBy` sets what carries and shoves it. A `MovedBy` layer
+also stops the body. Each is empty by default, and detecting a layer does not block on it.
 
 ```csharp
 _hurtbox = new BoxCollider2D(new Vector2(hurtboxEdge, hurtboxEdge))
 {
     Offset = new Vector2(_tuning.HurtboxInset, _tuning.HurtboxInset),
     ReportsContacts = true,
+    Detects = CollisionLayers.Damaging,
 };
-_hurtbox.SetFilter(CollisionLayers.Damaging);
 ```
 
-A game declares its layer names in one place, as `const string` fields at its assembly root, and passes
-them by name. A world interns up to `CollisionWorld2D.MaxLayers` names.
+A game declares its layer names in one place, as `const string` fields at its assembly root, and its
+masks beside them as `static readonly` fields. A set used once can be written in place, as
+`Detects = new(CollisionLayers.Player)`. A world interns up to `CollisionWorld2D.MaxLayers` names, each
+the first time a mask naming it reaches the world.
 
-Every query takes the filter it matches by, and a collider's own filter does not decide what another
-query finds. `Collider2D.Overlaps(other)` consults no filter.
+```csharp
+public const string Solid = "solid";
+public const string Platform = "platform";
+
+public static readonly CollisionMask Blocking = new(Solid, Platform);
+```
+
+Every query takes the mask or filter it matches by, and what a collider detects does not decide what
+another query finds. `Collider2D.Overlaps(other)` consults no filter.
 `CollisionFilter.None` and `CollisionFilter.Everything` name no layer table and are accepted by any
-world.
-
-A query that needs its own layers takes a `CollisionMask`, built once from layer names and held in a
-`static readonly` field. Each world resolves a mask the first time it reaches that world, interning
-its names as `SetFilter` does, and reuses the result.
+world. A query keeps a slot in the world for each mask it is given, so a query's mask is a
+`static readonly` field and never built per call. A mask only `Detects`, `BlockedBy` and `MovedBy`
+use takes no slot.
 
 ## Contacts
 
@@ -84,8 +92,7 @@ keeps falling:
 BoxCollider2D bodyCollider = new(Body);
 Add(bodyCollider);
 
-_body = new KinematicBody2D(bodyCollider);
-_body.BlocksOn(CollisionLayers.Blocking);
+_body = new KinematicBody2D(bodyCollider) { BlockedBy = CollisionLayers.Blocking };
 Add(_body);
 ```
 
@@ -124,7 +131,7 @@ A body's `Mode` decides how it meets a slope. `BodyMode.Floating`, the default, 
 a body with no ground. A platformer's body is `BodyMode.Grounded`:
 
 ```csharp
-_body = new KinematicBody2D(bodyCollider) { Mode = BodyMode.Grounded };
+_body = new KinematicBody2D(bodyCollider) { BlockedBy = CollisionLayers.Blocking, Mode = BodyMode.Grounded };
 ```
 
 A grounded walk on a slope covers the move's whole X horizontally. The slope sets how far the body
@@ -139,7 +146,7 @@ A grounded body's `StepHeight` lets its walk climb a lip and keep to a floor bel
 default, which turns stepping off:
 
 ```csharp
-_body = new KinematicBody2D(bodyCollider) { Mode = BodyMode.Grounded, StepHeight = 4f };
+_body = new KinematicBody2D(bodyCollider) { BlockedBy = CollisionLayers.Blocking, Mode = BodyMode.Grounded, StepHeight = 4f };
 ```
 
 A body that stood on a floor and walks into a wall rises by up to `StepHeight`. It walks on with the
@@ -160,7 +167,7 @@ A box on a slope rests on its uphill corner, and its bottom center hangs above t
 body with `RestsOnCenter` stands with its bottom center on the floor instead:
 
 ```csharp
-_body = new KinematicBody2D(bodyCollider) { Mode = BodyMode.Grounded, RestsOnCenter = true };
+_body = new KinematicBody2D(bodyCollider) { BlockedBy = CollisionLayers.Blocking, Mode = BodyMode.Grounded, RestsOnCenter = true };
 ```
 
 It matters only on an uneven floor. On a flat floor the body stands where it would anyway. The body
@@ -209,15 +216,16 @@ if (wasOnFloor && context.Input.WasPressed(GameInput.Jump))
 
 ### Riding and shoving
 
-A body is moved by the colliders on the layers it names, and by nothing by default:
+A body is moved by the colliders on the layers its `MovedBy` names, and by nothing by default:
 
 ```csharp
-_body.MovedBy(CollisionLayers.Platform);
+_body.MovedBy = new(CollisionLayers.Platform);
 _body.Crushed += OnCrushed;
 ```
 
 A body rides such a collider when its last `Move` stopped on it, and such a collider moving into the
-body shoves it. A collider moving into several bodies shoves them one at a time, in the order of their
+body shoves it. A `MovedBy` layer also blocks the body, whether or not `BlockedBy` names it. A
+collider moving into several bodies shoves them one at a time, in the order of their
 handles. A shove that pins the body against something it cannot pass raises `Crushed`.
 
 ## Terrain

@@ -196,7 +196,7 @@ public sealed partial class CollisionWorld2D
     }
 
     // Resolves layer names to a filter of this world, interning each name as it goes. A name the
-    // world has no room for throws here. Masks, Collider2D.SetFilter and KinematicBody2D.BlocksOn all
+    // world has no room for throws here. Queries, Collider2D.Detects and KinematicBody2D's masks all
     // resolve names through this.
     internal CollisionFilter Intern(ReadOnlySpan<string> names)
     {

@@ -77,7 +77,7 @@ public sealed class GridColliderTests
         Assert.Same(grid, world.GridOf(handle));
         Assert.Equal(world.Layer(CollisionFixtures.Solid), grid.LayerAt(0, 1));
 
-        // And the refused SetFilter changed nothing a tile query reads.
+        // And the refused SetLayer changed nothing a tile query reads.
         Assert.True(world.Raycast(new Vector2(8f, 0f), Vector2.UnitY, 64f, world.CreateFilter(CollisionFixtures.Solid), out RayHit2D hit));
         Assert.Equal((0, 1), (hit.Target.CellX, hit.Target.CellY));
     }

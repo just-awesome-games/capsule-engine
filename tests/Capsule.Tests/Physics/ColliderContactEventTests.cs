@@ -14,8 +14,8 @@ public sealed class ColliderContactEventTests
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####");
         Body body = new(new Vector2(4f, 8f));
-        body.Collider.SetFilter("solid");
-        body.Mover.BlocksOn("solid");
+        body.Collider.Detects = new("solid");
+        body.Mover.BlockedBy = new("solid");
         body.Collider.ReportsContacts = true;
 
         List<string> log = [];
@@ -45,7 +45,7 @@ public sealed class ColliderContactEventTests
     public void ContactEvents_SettleBeforeEveryLateStepRuns()
     {
         Body body = new(new Vector2(4f, 8f));
-        body.Collider.SetFilter("solid");
+        body.Collider.Detects = new("solid");
         body.Collider.ReportsContacts = true;
 
         List<string> log = [];
@@ -73,7 +73,7 @@ public sealed class ColliderContactEventTests
     {
         Scene scene = SceneFixtures.Terrain("....", "####");
         Body body = new(new Vector2(4f, 8f));
-        body.Collider.SetFilter("solid");
+        body.Collider.Detects = new("solid");
 
         int entered = 0;
         body.Collider.ContactEntered += _ => entered++;
@@ -91,7 +91,7 @@ public sealed class ColliderContactEventTests
     {
         Scene scene = SceneFixtures.Terrain("....", "####");
         Body body = new(new Vector2(4f, 8f));
-        body.Collider.SetFilter("solid");
+        body.Collider.Detects = new("solid");
         body.Collider.ReportsContacts = true;
 
         List<string> log = [];
@@ -336,7 +336,7 @@ public sealed class ColliderContactEventTests
             : base(position)
         {
             Collider = new BoxCollider2D(new Vector2(width, 8f)) { ReportsContacts = true };
-            Collider.SetFilter("solid");
+            Collider.Detects = new("solid");
             Collider.ContactEntered += contact => Log.Add($"+({contact.Tile!.Value.X},{contact.Tile.Value.Y})");
             Collider.ContactExited += contact => Log.Add($"-({contact.Tile!.Value.X},{contact.Tile.Value.Y})");
             Add(Collider);
@@ -354,11 +354,11 @@ public sealed class ColliderContactEventTests
             : base(position)
         {
             Collider = new BoxCollider2D(new Vector2(45f * 16f, 8f)) { ReportsContacts = true };
-            Collider.SetFilter("solid");
+            Collider.Detects = new("solid");
             Collider.ContactEntered += _ => Entered++;
             Add(Collider);
             Mover = new KinematicBody2D(Collider);
-            Mover.BlocksOn("solid");
+            Mover.BlockedBy = new("solid");
             Add(Mover);
         }
 

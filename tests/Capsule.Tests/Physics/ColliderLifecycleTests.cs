@@ -80,7 +80,7 @@ public sealed class ColliderLifecycleTests
         Scene scene = new();
         Body first = new(Vector2.Zero);
         Body second = new(new Vector2(4f, 0f));
-        first.Collider.SetFilter("other");
+        first.Collider.Detects = new("other");
         first.Collider.ReportsContacts = true;
         second.Collider.Layer = "other";
 
@@ -119,7 +119,7 @@ public sealed class ColliderLifecycleTests
     {
         Scene first = SceneFixtures.Terrain("....", "####");
         Body body = new(new Vector2(4f, 8f));
-        body.Collider.SetFilter("solid");
+        body.Collider.Detects = new("solid");
         body.Collider.ReportsContacts = true;
         first.Add(body);
 

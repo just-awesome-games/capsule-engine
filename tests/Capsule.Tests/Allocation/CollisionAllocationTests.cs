@@ -345,7 +345,7 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
             : base(position)
         {
             Box = new BoxCollider2D(size) { ReportsContacts = true };
-            Box.SetFilter("solid");
+            Box.Detects = new("solid");
             Add(Box);
         }
     }

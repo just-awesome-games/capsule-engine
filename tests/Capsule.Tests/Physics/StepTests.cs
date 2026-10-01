@@ -170,7 +170,7 @@ public sealed class StepTests
         Block lip = new(new Vector2(48f, GroundTop - 4f), new Vector2(16f, 4f), "platform");
         scene.Add(lip);
         SceneFixtures.Body body = Grounded(scene, 36f, 4f);
-        body.Mover.MovedBy("platform");
+        body.Mover.MovedBy = new("platform");
 
         for (int step = 0; step < 8; step++)
         {
@@ -234,7 +234,7 @@ public sealed class StepTests
         SceneFixtures.Body body = new(new Vector2(4f, 32f), blocksOn: "solid");
         body.Mover.Mode = BodyMode.Grounded;
         body.Mover.StepHeight = 4f;
-        body.Mover.MovedBy("platform");
+        body.Mover.MovedBy = new("platform");
         scene.Add(body);
         body.Mover.Move(new Vector2(0f, 40f));
         Assert.True(body.Mover.IsOnFloor);

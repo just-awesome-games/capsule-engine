@@ -112,7 +112,7 @@ public sealed class ScenePauseTests
     public void AHeldCollider_RaisesNoContactEvents_AndSettlesTheEnterItIsOwedOnResume()
     {
         Body body = new(new Vector2(4f, -100f));
-        body.Collider.SetFilter("solid");
+        body.Collider.Detects = new("solid");
         body.Collider.ReportsContacts = true;
 
         List<string> log = [];

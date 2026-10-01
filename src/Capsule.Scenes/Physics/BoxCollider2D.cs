@@ -13,8 +13,8 @@ namespace Capsule.Physics;
 /// {
 ///     Offset = new Vector2(1f, 1f),
 ///     ReportsContacts = true,
+///     Detects = CollisionLayers.Damaging,
 /// };
-/// hurtbox.SetFilter(CollisionLayers.Damaging);
 /// hurtbox.ContactEntered += OnHurtboxEntered;
 /// Add(hurtbox);
 /// </code>

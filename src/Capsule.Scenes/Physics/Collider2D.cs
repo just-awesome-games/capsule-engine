@@ -1,6 +1,5 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -21,15 +20,13 @@ namespace Capsule.Physics;
 /// <para>
 /// A contact handler cannot reconfigure the collider it was raised for. <see cref="Enabled"/>,
 /// <see cref="Offset"/>, <see cref="Layer"/>, <see cref="ReportsContacts"/>,
-/// <see cref="SetFilter"/> and a subclass's shape all throw for the length of the dispatch. A
+/// <see cref="Detects"/> and a subclass's shape all throw for the length of the dispatch. A
 /// handler may detach the collider. Detaching removes it from the world, raises the exits it owes,
 /// and cancels the remaining enters for this step.
 /// </para>
 /// </remarks>
 public abstract class Collider2D : Component
 {
-    private readonly List<string> _detects = [];
-
     private Shape2D _shape;
 
     // The shape translated by the offset. This is the form the world holds.
@@ -40,6 +37,11 @@ public abstract class Collider2D : Component
     private bool _reportsContacts;
     private bool _oneWay;
     private bool _solidSides;
+    private CollisionMask _detects = CollisionMask.Empty;
+
+    // Whether the warning for reporting contacts with an empty Detects has fired since this
+    // registered collider entered that state.
+    private bool _warnedReportingNothing;
 
     private CollisionWorld2D? _world;
     private Scene? _scene;
@@ -198,6 +200,7 @@ public abstract class Collider2D : Component
             }
 
             SyncContactFilter();
+            WarnIfReportingNothing();
             if (value)
             {
                 _scene!.TrackContacts(this);
@@ -265,14 +268,37 @@ public abstract class Collider2D : Component
     public ColliderHandle Handle => _handle;
 
     /// <summary>
-    /// The layers this collider's contact queries may detect, resolved against its scene's
-    /// <see cref="Scene.Collision"/> world. The engine rebuilds it from the names given to
-    /// <see cref="SetFilter"/> each time the collider registers with a world.
+    /// The layers this collider's contacts and its own queries find, where the empty default finds nothing.
     /// </summary>
     /// <remarks>
-    /// Reads <see cref="CollisionFilter.None"/> while the collider is disabled or in no scene.
+    /// Detection is one-way. Other colliders and queries find this one by its <see cref="Layer"/>,
+    /// whatever it detects. Detecting a layer does not block on it. A body's
+    /// <see cref="KinematicBody2D.BlockedBy"/> decides what stops it.
     /// </remarks>
-    public CollisionFilter Filter { get; private set; }
+    /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
+    public CollisionMask Detects
+    {
+        get => _detects;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            RequireNotDispatching();
+
+            // Resolve before storing. A world with no layer slots left throws here, while the
+            // collider still detects what it did.
+            CollisionFilter filter = ResolveFilter(_scene?.Collision, value);
+            _detects = value;
+            if (_world is not null)
+            {
+                Filter = filter;
+                SyncContactFilter();
+                WarnIfReportingNothing();
+            }
+        }
+    }
+
+    // Detects resolved in the world this collider is registered with, or None outside one.
+    internal CollisionFilter Filter { get; private set; }
 
     /// <summary>The layer this collider is on.</summary>
     /// <remarks>
@@ -326,38 +352,10 @@ public abstract class Collider2D : Component
     /// </remarks>
     public ReadOnlySpan<ColliderContact2D> Touching => _touching.AsSpan(0, _touchingCount);
 
-    /// <summary>Replaces the layers this collider's contact queries detect.</summary>
-    /// <remarks>
-    /// Detection does not block movement. <see cref="KinematicBody2D.BlocksOn"/> holds a separate
-    /// filter for blocking.
-    /// </remarks>
-    /// <param name="names">The layer names to hit. An empty list hits nothing.</param>
-    /// <exception cref="InvalidOperationException">The world has no room left to intern a name.</exception>
-    public void SetFilter(params ReadOnlySpan<string> names)
-    {
-        RequireNotDispatching();
-
-        // Resolve before touching the stored list. A bad name part way along leaves the old list
-        // intact.
-        CollisionFilter filter = ResolveFilter(_scene?.Collision, names);
-
-        _detects.Clear();
-        foreach (string name in names)
-        {
-            _detects.Add(name);
-        }
-
-        if (_world is not null)
-        {
-            Filter = filter;
-            SyncContactFilter();
-        }
-    }
-
     /// <summary>
     /// Writes into <paramref name="contacts"/> everything within
-    /// <see cref="CollisionTolerance.ContactSkin"/> of this collider that matches
-    /// <see cref="Filter"/>. The collider never reports itself.
+    /// <see cref="CollisionTolerance.ContactSkin"/> of this collider that
+    /// <see cref="Detects"/> matches. The collider never reports itself.
     /// </summary>
     /// <returns>
     /// The total overlap count. A span shorter than that count is filled to capacity and the
@@ -369,10 +367,10 @@ public abstract class Collider2D : Component
     /// <summary>
     /// Writes into <paramref name="contacts"/> everything within
     /// <see cref="CollisionTolerance.ContactSkin"/> of this collider that <paramref name="mask"/>
-    /// matches, instead of <see cref="Filter"/>, for this call only.
+    /// matches, instead of <see cref="Detects"/>, for this call only.
     /// </summary>
     /// <remarks>
-    /// This does not change <see cref="SetFilter"/>. All other rules of
+    /// All other rules of
     /// <see cref="OverlapAll(Span{Contact2D})"/> apply.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
@@ -381,7 +379,7 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Reports whether this collider is within <see cref="CollisionTolerance.ContactSkin"/> of
-    /// <paramref name="other"/>, ignoring both colliders' <see cref="Filter"/>. A collider never
+    /// <paramref name="other"/>, ignoring what either collider <see cref="Detects"/>. A collider never
     /// touches itself.
     /// </summary>
     /// <remarks>
@@ -424,8 +422,8 @@ public abstract class Collider2D : Component
     }
 
     /// <summary>
-    /// Casts a ray from the centre of this collider's <see cref="Bounds"/>, using
-    /// <see cref="Filter"/> and never hitting this collider. Reports the nearest hit and breaks ties
+    /// Casts a ray from the centre of this collider's <see cref="Bounds"/>, matching
+    /// <see cref="Detects"/> and never hitting this collider. Reports the nearest hit and breaks ties
     /// the way
     /// <see cref="CollisionWorld2D.Raycast(Vector2, Vector2, float, CollisionFilter, out RayHit2D, ColliderHandle)"/>
     /// does.
@@ -438,12 +436,11 @@ public abstract class Collider2D : Component
         Raycast(direction, distance, Filter, out hit);
 
     /// <summary>
-    /// Casts a ray against <paramref name="filter"/> instead of <see cref="Filter"/>, for this call
+    /// Casts a ray against <paramref name="filter"/> instead of <see cref="Detects"/>, for this call
     /// only.
     /// </summary>
     /// <remarks>
-    /// <see cref="CollisionFilter.None"/> hits nothing, and this does not change
-    /// <see cref="SetFilter"/>. All other rules of
+    /// <see cref="CollisionFilter.None"/> hits nothing. All other rules of
     /// <see cref="Raycast(Vector2, float, out RayHit2D)"/> apply.
     /// </remarks>
     public bool Raycast(Vector2 direction, float distance, CollisionFilter filter, out RayHit2D hit)
@@ -455,11 +452,11 @@ public abstract class Collider2D : Component
     }
 
     /// <summary>
-    /// Casts a ray against <paramref name="mask"/> instead of <see cref="Filter"/>, for this call
+    /// Casts a ray against <paramref name="mask"/> instead of <see cref="Detects"/>, for this call
     /// only.
     /// </summary>
     /// <remarks>
-    /// This does not change <see cref="SetFilter"/>. All other rules of
+    /// All other rules of
     /// <see cref="Raycast(Vector2, float, out RayHit2D)"/> apply.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
@@ -472,7 +469,7 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Sweeps this collider's shape from its current place along <paramref name="translation"/> and
-    /// reports the first thing it hits, using <see cref="Filter"/> and never itself.
+    /// reports the first thing it hits, matching <see cref="Detects"/> and never itself.
     /// </summary>
     /// <remarks>
     /// Nothing moves. A surface the collider already touches reports at fraction 0 when the sweep
@@ -485,23 +482,21 @@ public abstract class Collider2D : Component
 
     /// <summary>
     /// Sweeps this collider's shape against <paramref name="filter"/> instead of
-    /// <see cref="Filter"/>, for this call only.
+    /// <see cref="Detects"/>, for this call only.
     /// </summary>
     /// <remarks>
-    /// <see cref="CollisionFilter.None"/> hits nothing, and this does not change
-    /// <see cref="SetFilter"/>. All other rules of <see cref="Cast(Vector2, out ShapeCastHit2D)"/>
-    /// apply.
+    /// <see cref="CollisionFilter.None"/> hits nothing. All other rules of
+    /// <see cref="Cast(Vector2, out ShapeCastHit2D)"/> apply.
     /// </remarks>
     public bool Cast(Vector2 translation, CollisionFilter filter, out ShapeCastHit2D hit) =>
         RequireWorld().ShapeCast(_local, Entity!.WorldPosition, translation, filter, out hit, _handle);
 
     /// <summary>
     /// Sweeps this collider's shape against <paramref name="mask"/> instead of
-    /// <see cref="Filter"/>, for this call only.
+    /// <see cref="Detects"/>, for this call only.
     /// </summary>
     /// <remarks>
-    /// This does not change <see cref="SetFilter"/>. All other rules of
-    /// <see cref="Cast(Vector2, out ShapeCastHit2D)"/> apply.
+    /// All other rules of <see cref="Cast(Vector2, out ShapeCastHit2D)"/> apply.
     /// </remarks>
     /// <example>
     /// A wall probe that sweeps the player's collider against climbable layers only:
@@ -586,7 +581,7 @@ public abstract class Collider2D : Component
     {
         Scene scene = _scene!;
         CollisionWorld2D world = scene.Collision;
-        CollisionFilter filter = ResolveFilter(world, CollectionsMarshal.AsSpan(_detects));
+        CollisionFilter filter = ResolveFilter(world, _detects);
         CollisionLayer layer = world.Layer(_layer);
         ColliderHandle handle = world.Add(_local, Entity!.WorldPosition, layer, this);
         world.SetOneWay(handle, _oneWay);
@@ -603,6 +598,8 @@ public abstract class Collider2D : Component
             SyncContactFilter();
             scene.TrackContacts(this);
         }
+
+        WarnIfReportingNothing();
     }
 
     private void Unregister()
@@ -620,6 +617,7 @@ public abstract class Collider2D : Component
         Filter = CollisionFilter.None;
         _world = null;
         _handle = ColliderHandle.None;
+        _warnedReportingNothing = false;
 
         EndAnnouncedContacts();
     }
@@ -1022,17 +1020,25 @@ public abstract class Collider2D : Component
             tile);
     }
 
-    // Resolves layer names to a filter in this world, interning each name as it goes, because a
-    // collider may name a layer no other collider has registered yet. Names are checked even with no
-    // world, and a null world resolves to None.
-    internal static CollisionFilter ResolveFilter(CollisionWorld2D? world, ReadOnlySpan<string> names)
+    // Resolves a mask to a filter in this world, interning each name as it goes, because a collider
+    // may name a layer no other collider has registered yet. A null world resolves to None. This
+    // skips the world's mask table, which a mask built per entity would grow without bound.
+    internal static CollisionFilter ResolveFilter(CollisionWorld2D? world, CollisionMask mask) =>
+        world?.Intern(mask.Names) ?? CollisionFilter.None;
+
+    // Warns once each time a registered collider starts reporting contacts while detecting no layer.
+    // Initializers run before registration, so setting ReportsContacts before Detects never warns.
+    private void WarnIfReportingNothing()
     {
-        foreach (string name in names)
+        bool reportsNothing = _reportsContacts && _detects.Names.IsEmpty;
+        if (reportsNothing && !_warnedReportingNothing)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(names));
+            Log.Warning(
+                $"A {GetType().Name} on a {Entity!.GetType().Name} reports contacts but its Detects is empty, "
+                + "and it will report none. Set Detects to the layers it should report");
         }
 
-        return world?.Intern(names) ?? CollisionFilter.None;
+        _warnedReportingNothing = reportsNothing;
     }
 
     // The world keeps candidates only for a collider that reports contacts.

@@ -121,13 +121,13 @@ internal static class CollisionWorkload
             : base(position)
         {
             _collider = new BoxCollider2D(new Vector2(12f, 24f));
-            _collider.SetFilter(Solid, Platform);
+            _collider.Detects = new(Solid, Platform);
             _collider.ReportsContacts = true;
             _collider.ContactEntered += _ => Contacts++;
             _collider.ContactExited += _ => Contacts--;
             Add(_collider);
             _mover = new KinematicBody2D(_collider) { Mode = BodyMode.Grounded, RestsOnCenter = restsOnCenter };
-            _mover.BlocksOn(Solid, Platform);
+            _mover.BlockedBy = new(Solid, Platform);
             Add(_mover);
         }
 
@@ -185,8 +185,8 @@ internal static class CollisionWorkload
             BoxCollider2D collider = new(new Vector2(12f, 12f));
             Add(collider);
             _mover = new KinematicBody2D(collider);
-            _mover.BlocksOn(Solid, Platform);
-            _mover.MovedBy(Platform);
+            _mover.BlockedBy = new(Solid, Platform);
+            _mover.MovedBy = new(Platform);
             _mover.Crushed += _ => Crushes++;
             Add(_mover);
         }

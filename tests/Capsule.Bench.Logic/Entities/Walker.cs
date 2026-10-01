@@ -21,11 +21,11 @@ public sealed class Walker : Entity
 
         BoxCollider2D collider = new(new Vector2(12f, 24f));
         collider.Layer = CollisionLayers.Actor;
-        collider.SetFilter(CollisionLayers.Solid, CollisionLayers.Platform);
+        collider.Detects = new(CollisionLayers.Solid, CollisionLayers.Platform);
         Add(collider);
 
         _body = new KinematicBody2D(collider) { Mode = BodyMode.Grounded, StepHeight = stepHeight, RestsOnCenter = restsOnCenter };
-        _body.BlocksOn(CollisionLayers.Solid, CollisionLayers.Platform);
+        _body.BlockedBy = new(CollisionLayers.Solid, CollisionLayers.Platform);
         Add(_body);
 
         SpriteRenderer renderer = new(CapsuleAssets.Sprites.WalkerSheet.Frames.Walk0);

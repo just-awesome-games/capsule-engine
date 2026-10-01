@@ -18,7 +18,7 @@ public sealed class ColliderContactReportTests
         Body second = new(new Vector2(4f, 0f));
         first.Collider.Layer = "one";
         second.Collider.Layer = "two";
-        first.Collider.SetFilter("two");
+        first.Collider.Detects = new("two");
         first.Collider.ReportsContacts = true;
 
         Body? touched = null;
@@ -39,7 +39,7 @@ public sealed class ColliderContactReportTests
         Scene scene = new();
         Body player = new(Vector2.Zero);
         Body enemy = new(new Vector2(4f, 0f));
-        player.Collider.SetFilter("enemy");
+        player.Collider.Detects = new("enemy");
         player.Collider.ReportsContacts = true;
         enemy.Collider.Layer = "enemy";
 
@@ -65,7 +65,7 @@ public sealed class ColliderContactReportTests
         Scene scene = new();
         Body sensor = new(Vector2.Zero);
         sensor.Collider.Size = new Vector2(32f, 32f);
-        sensor.Collider.SetFilter(CollisionWorld2D.DefaultLayerName);
+        sensor.Collider.Detects = new(CollisionWorld2D.DefaultLayerName);
         sensor.Collider.ReportsContacts = true;
         Body jumper = new(new Vector2(500f, 0f));
         Body drifter = new(new Vector2(-40f, 12f));
@@ -113,7 +113,7 @@ public sealed class ColliderContactReportTests
     {
         Scene scene = new();
         Body sensor = new(Vector2.Zero);
-        sensor.Collider.SetFilter(CollisionWorld2D.DefaultLayerName);
+        sensor.Collider.Detects = new(CollisionWorld2D.DefaultLayerName);
         sensor.Collider.ReportsContacts = true;
         Body old = new(new Vector2(4f, 0f));
         scene.Add(sensor);
@@ -146,9 +146,9 @@ public sealed class ColliderContactReportTests
     {
         Scene scene = Ledge();
         Body body = new(new Vector2(20f, 16f + (0.5f * CollisionTolerance.ContactSkin)));
-        body.Collider.SetFilter("platform");
+        body.Collider.Detects = new("platform");
         body.Collider.ReportsContacts = true;
-        body.Mover.BlocksOn("platform");
+        body.Mover.BlockedBy = new("platform");
 
         List<ColliderContact2D> entered = [];
         body.Collider.ContactEntered += entered.Add;

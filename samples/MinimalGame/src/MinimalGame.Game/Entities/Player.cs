@@ -84,9 +84,9 @@ public sealed class Player : Entity
             Mode = BodyMode.Grounded,
             StepHeight = _tuning.StepHeight,
             RestsOnCenter = true,
+            BlockedBy = CollisionLayers.Blocking,
+            MovedBy = new(CollisionLayers.Platform),
         };
-        _body.BlocksOn(CollisionLayers.Blocking);
-        _body.MovedBy(CollisionLayers.Platform);
         _body.Crushed += OnCrushed;
         Add(_body);
 
@@ -95,8 +95,8 @@ public sealed class Player : Entity
         {
             Offset = new Vector2(_tuning.HurtboxInset, _tuning.HurtboxInset),
             ReportsContacts = true,
+            Detects = CollisionLayers.Damaging,
         };
-        _hurtbox.SetFilter(CollisionLayers.Damaging);
         _hurtbox.ContactEntered += OnHurtboxEntered;
         _hurtbox.ContactExited += OnHurtboxExited;
         Add(_hurtbox);

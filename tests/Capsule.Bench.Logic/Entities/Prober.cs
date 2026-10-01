@@ -28,11 +28,11 @@ public sealed class Prober : Entity
         : base(spawn)
     {
         BoxCollider2D collider = new(new Vector2(12f, 24f));
-        collider.SetFilter(CollisionLayers.Solid, CollisionLayers.Platform);
+        collider.Detects = new(CollisionLayers.Solid, CollisionLayers.Platform);
         Add(collider);
 
         _mover = new KinematicBody2D(collider);
-        _mover.BlocksOn(CollisionLayers.Solid, CollisionLayers.Platform);
+        _mover.BlockedBy = new(CollisionLayers.Solid, CollisionLayers.Platform);
         Add(_mover);
     }
 

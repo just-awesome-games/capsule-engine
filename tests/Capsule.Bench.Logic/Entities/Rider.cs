@@ -23,8 +23,8 @@ public sealed class Rider : Entity
         Add(collider);
 
         _body = new KinematicBody2D(collider) { Mode = BodyMode.Grounded };
-        _body.BlocksOn(CollisionLayers.Solid, CollisionLayers.Platform);
-        _body.MovedBy(CollisionLayers.Platform);
+        _body.BlockedBy = new(CollisionLayers.Solid, CollisionLayers.Platform);
+        _body.MovedBy = new(CollisionLayers.Platform);
         Add(_body);
     }
 

@@ -26,7 +26,7 @@ public sealed class ColliderQueryTests
         Assert.Equal(FloorTop - prober.Collider.Bounds.Center.Y, named.Distance);
         Assert.Equal(new Vector2(0f, -1f), named.Normal);
 
-        prober.Collider.SetFilter("solid");
+        prober.Collider.Detects = new("solid");
 
         Assert.True(prober.Collider.Raycast(Vector2.UnitY, 40f, out RayHit2D own));
         Assert.Equal(named, own);

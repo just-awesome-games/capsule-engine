@@ -108,11 +108,11 @@ internal static class CrowdWorkload
 
             BoxCollider2D collider = new(new Vector2(12f, 24f));
             collider.Layer = Actor;
-            collider.SetFilter(Solid, Platform);
+            collider.Detects = new(Solid, Platform);
             Add(collider);
 
             _body = new KinematicBody2D(collider) { Mode = BodyMode.Grounded };
-            _body.BlocksOn(Solid, Platform);
+            _body.BlockedBy = new(Solid, Platform);
             Add(_body);
 
             SpriteRenderer renderer = new(Walk[0]);

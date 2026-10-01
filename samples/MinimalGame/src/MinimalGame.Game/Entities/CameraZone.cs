@@ -27,8 +27,7 @@ public sealed class CameraZone : Entity
     public CameraZone(EntitySpawn spawn)
         : base(spawn)
     {
-        BoxCollider2D area = new(Size) { ReportsContacts = true };
-        area.SetFilter(CollisionLayers.Player);
+        BoxCollider2D area = new(Size) { ReportsContacts = true, Detects = new(CollisionLayers.Player) };
         area.ContactEntered += OnPlayerEntered;
         area.ContactExited += OnPlayerExited;
         Add(area);

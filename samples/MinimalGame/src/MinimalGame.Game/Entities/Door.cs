@@ -31,8 +31,7 @@ public sealed class Door : Entity
         Add(new ColorRect(Size) { Color = ColorRgba.FromHex("#3a2a1c") });
 
         // Nothing blocks on the default layer the doorway sits on.
-        BoxCollider2D doorway = new(Size) { ReportsContacts = true };
-        doorway.SetFilter(CollisionLayers.Player);
+        BoxCollider2D doorway = new(Size) { ReportsContacts = true, Detects = new(CollisionLayers.Player) };
         doorway.ContactEntered += _ => exit.Leave();
         Add(doorway);
     }

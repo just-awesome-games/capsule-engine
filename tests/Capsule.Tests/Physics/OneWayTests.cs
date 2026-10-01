@@ -96,7 +96,7 @@ public sealed class OneWayTests
         Scene scene = new();
         Slab slab = new(new Vector2(0f, 32f));
         SceneFixtures.Body body = new(new Vector2(24f, 44f), blocksOn: "solid");
-        body.Mover.MovedBy("solid");
+        body.Mover.MovedBy = new("solid");
         bool crushed = false;
         body.Mover.Crushed += _ => crushed = true;
         scene.Add(slab);

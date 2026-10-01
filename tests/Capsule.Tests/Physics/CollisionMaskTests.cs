@@ -28,10 +28,10 @@ public sealed class CollisionMaskTests
         }
     }
 
-    // A mask interns its names as SetFilter does, so a layer named before any collider is on it is
+    // A mask interns its names as a collider's Detects does, so a layer named before any collider is on it is
     // still hit once one is. A world with no room left refuses the name the way Layer does.
     [Fact]
-    public void AMaskNamingAnUndeclaredLayer_InternsItOrThrowsAsSetFilterDoesWhenTheWorldIsFull()
+    public void AMaskNamingAnUndeclaredLayer_InternsItOrThrowsWhenTheWorldIsFull()
     {
         CollisionMask climbable = new(CollisionFixtures.Climb);
         CollisionWorld2D world = new();
@@ -100,6 +100,33 @@ public sealed class CollisionMaskTests
 
         Assert.Equal(CollisionWorld2D.MaxLayers, full.LayerCount);
         Assert.Equal(layers, scene.Collision.LayerCount);
+    }
+
+    // A mask built per entity for Detects, BlockedBy and MovedBy takes no query slot. A query mask
+    // built after heavy entity churn still fits a small table in a new world.
+    [Fact]
+    public void MasksOnlyEntitiesUse_TakeNoSlotInAWorldsQueryTable()
+    {
+        const int Churn = 1000;
+        CollisionWorld2D before = new();
+        before.Raycast(Vector2.Zero, Vector2.UnitX, 1f, new CollisionMask(CollisionFixtures.Solid), out _);
+
+        Scene scene = new();
+        for (int index = 0; index < Churn; index++)
+        {
+            Body body = new(Vector2.Zero);
+            body.Collider.Detects = new(CollisionFixtures.Climb);
+            body.Mover.BlockedBy = new(CollisionFixtures.Solid);
+            body.Mover.MovedBy = new(CollisionFixtures.Climb);
+            scene.Add(body);
+            scene.Remove(body);
+        }
+
+        CollisionWorld2D after = new();
+        after.Raycast(Vector2.Zero, Vector2.UnitX, 1f, new CollisionMask(CollisionFixtures.Solid), out _);
+
+        // Other tests may number query masks meanwhile, but nowhere near the churn.
+        Assert.InRange(after.MaskTableLength - before.MaskTableLength, 1, Churn / 10);
     }
 
     // A world declaring two layers in the given order, with a solid wall at x 10 and a climbable

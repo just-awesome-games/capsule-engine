@@ -81,25 +81,29 @@ public sealed class ColliderValidationTests
         Assert.Same(scene.Collision, collider.World);
     }
 
+    // Each setter resolves its mask before storing it. A mask the world has no room for leaves the
+    // old one in place, and the next scene rebuilds from that.
     [Fact]
-    public void ARejectedDetectsCall_LeavesTheColliderFilteringAsItDid()
+    public void AMaskTheWorldHasNoRoomFor_LeavesTheColliderAndBodyFilteringAsTheyDid()
     {
         Scene scene = SceneFixtures.Terrain("....", "####");
         Body body = new(new Vector2(4f, 8f));
-        body.Collider.SetFilter("solid");
-        body.Mover.BlocksOn("solid");
+        CollisionMask solid = new("solid");
+        body.Collider.Detects = solid;
+        body.Mover.BlockedBy = solid;
         scene.Add(body);
+        Saturate(scene.Collision);
 
         CollisionFilter before = body.Collider.Filter;
+        CollisionMask unseen = new("a name this world has never seen");
 
-        // The bad name is second, so a call that committed as it went would already have thrown the
-        // old list away and kept the first.
-        Assert.Throws<ArgumentException>(() => body.Collider.SetFilter("wall", " "));
+        Assert.Throws<InvalidOperationException>(() => body.Collider.Detects = unseen);
+        Assert.Throws<InvalidOperationException>(() => body.Mover.BlockedBy = unseen);
 
+        Assert.Same(solid, body.Collider.Detects);
+        Assert.Same(solid, body.Mover.BlockedBy);
         Assert.Equal(before, body.Collider.Filter);
 
-        // The stored names are what the next scene rebuilds the filter from, which is the only
-        // place a half-applied list would ever show itself.
         scene.Remove(body);
         Scene second = SceneFixtures.Terrain("....", "####");
         second.Add(body);
@@ -119,7 +123,7 @@ public sealed class ColliderValidationTests
         Saturate(scene.Collision);
 
         BoxCollider2D late = new(new Vector2(8f, 8f));
-        late.SetFilter("a name this world has never seen");
+        late.Detects = new("a name this world has never seen");
 
         InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() => host.Add(late));
 

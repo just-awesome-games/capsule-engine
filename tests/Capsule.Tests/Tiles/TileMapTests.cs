@@ -189,7 +189,7 @@ public sealed class TileMapTests
         TileGrid grid = SceneFixtures.TerrainGrid("....", "....", ".##.");
         TileMap map = new(grid);
         SceneFixtures.Body body = new(new Vector2(18f, 0f), blocksOn: "solid");
-        body.Collider.SetFilter("solid");
+        body.Collider.Detects = new("solid");
         body.Collider.ReportsContacts = true;
         int exits = 0;
         body.Collider.ContactExited += _ => exits++;

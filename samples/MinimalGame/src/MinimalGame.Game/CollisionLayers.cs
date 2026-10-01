@@ -1,3 +1,5 @@
+using Capsule.Physics;
+
 namespace MinimalGame.Game;
 
 public static class CollisionLayers
@@ -14,11 +16,7 @@ public static class CollisionLayers
 
     public const string Enemy = "enemy";
 
-    public static ReadOnlySpan<string> Blocking => BlockingLayers;
+    public static readonly CollisionMask Blocking = new(Solid, Platform);
 
-    public static ReadOnlySpan<string> Damaging => DamagingLayers;
-
-    private static readonly string[] BlockingLayers = [Solid, Platform];
-
-    private static readonly string[] DamagingLayers = [Hazard, Enemy];
+    public static readonly CollisionMask Damaging = new(Hazard, Enemy);
 }

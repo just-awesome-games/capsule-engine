@@ -85,8 +85,8 @@ public sealed class RidingTests
         Rider bystander = new(new Vector2(12f, 20f));
         Rider rider = new(new Vector2(2f, 20f), Platform);
         Rider shoved = new(new Vector2(24f, 34f), Platform);
-        rider.Mover.BlocksOn(CollisionFixtures.Solid);
-        shoved.Mover.BlocksOn(CollisionFixtures.Solid);
+        rider.Mover.BlockedBy = new(CollisionFixtures.Solid);
+        shoved.Mover.BlockedBy = new(CollisionFixtures.Solid);
         scene.Add(platform);
         scene.Add(bystander);
         scene.Add(rider);
@@ -115,11 +115,11 @@ public sealed class RidingTests
         scene.Add(rider);
         Land(rider);
 
-        rider.Mover.MovedBy();
+        rider.Mover.MovedBy = new();
         platform.Position += new Vector2(2f, 0f);
         Assert.Equal(12f, rider.Position.X);
 
-        rider.Mover.MovedBy(Platform);
+        rider.Mover.MovedBy = new(Platform);
         rider.Mover.Move(Gravity);
         platform.Position += new Vector2(2f, 0f);
         Assert.Equal(14f, rider.Position.X, CollisionFixtures.Tolerance);
@@ -251,8 +251,8 @@ public sealed class RidingTests
             Collider = new BoxCollider2D(new Vector2(Edge, Edge));
             Add(Collider);
             Mover = new KinematicBody2D(Collider);
-            Mover.BlocksOn(CollisionFixtures.Solid, Platform, Crate);
-            Mover.MovedBy(movedBy);
+            Mover.BlockedBy = new(CollisionFixtures.Solid, Platform, Crate);
+            Mover.MovedBy = new(movedBy);
             Add(Mover);
         }
 

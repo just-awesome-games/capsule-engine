@@ -258,7 +258,7 @@ public sealed class CenterRestTests
         SceneFixtures.Body body = new(new Vector2(36f, 0f), blocksOn: "platform");
         body.Mover.Mode = BodyMode.Grounded;
         body.Mover.RestsOnCenter = true;
-        body.Mover.MovedBy("platform");
+        body.Mover.MovedBy = new("platform");
         scene.Add(body);
         body.Mover.Move(new Vector2(0f, 40f));
 
@@ -285,7 +285,7 @@ public sealed class CenterRestTests
             Block pusher = new([new(31f, 28.5f), new(35f, 28.5f), new(35f, 29.5f), new(31f, 29.5f)], "pusher");
             scene.Add(pusher);
             SceneFixtures.Body body = Rest(scene, new Vector2(36f, 0f), restsOnCenter: mode == 1);
-            body.Mover.MovedBy("pusher");
+            body.Mover.MovedBy = new("pusher");
 
             for (int step = 0; step < 4; step++)
             {
@@ -337,7 +337,7 @@ public sealed class CenterRestTests
     private static SceneFixtures.Body Rest(Scene scene, Vector2 position, bool restsOnCenter = true)
     {
         SceneFixtures.Body body = new(position);
-        body.Mover.BlocksOn("solid", "wall");
+        body.Mover.BlockedBy = new("solid", "wall");
         body.Mover.Mode = BodyMode.Grounded;
         body.Mover.RestsOnCenter = restsOnCenter;
         scene.Add(body);

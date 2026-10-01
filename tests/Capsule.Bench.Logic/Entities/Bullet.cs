@@ -16,7 +16,7 @@ public sealed class Bullet : Entity
         : base(Vector2.Zero)
     {
         BoxCollider2D collider = new(new Vector2(4f, 4f)) { ReportsContacts = true };
-        collider.SetFilter(CollisionLayers.Solid);
+        collider.Detects = new(CollisionLayers.Solid);
         collider.ContactEntered += _ => Scene?.Remove(this);
         Add(collider);
     }

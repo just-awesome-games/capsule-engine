@@ -55,6 +55,9 @@ public sealed partial class CollisionWorld2D
     // right because interned layers never move.
     private ResolvedMask[] _masks = [];
 
+    // How many masks this world's table has room for.
+    internal int MaskTableLength => _masks.Length;
+
     // The slot a MovePast sweep passes through, or -1. Only one sweep runs at a time.
     private int _passThrough = -1;
 

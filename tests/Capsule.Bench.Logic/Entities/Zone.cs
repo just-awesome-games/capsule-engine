@@ -13,7 +13,7 @@ public sealed class Zone : Entity
         : base(position)
     {
         BoxCollider2D area = new(size) { ReportsContacts = true };
-        area.SetFilter(CollisionLayers.Actor, CollisionLayers.Solid);
+        area.Detects = new(CollisionLayers.Actor, CollisionLayers.Solid);
         area.ContactEntered += _ => Occupants++;
         area.ContactExited += _ => Occupants--;
         Add(area);

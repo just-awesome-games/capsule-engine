@@ -14,7 +14,7 @@ public sealed class ColliderCastTests
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####");
         Body body = new(new Vector2(8f, 8f));
-        body.Mover.BlocksOn("solid");
+        body.Mover.BlockedBy = new("solid");
         scene.Add(body);
 
         MoveResult2D result = body.Mover.Move(new Vector2(0f, 60f));
@@ -47,9 +47,9 @@ public sealed class ColliderCastTests
         Body player = new(Vector2.Zero);
         Body enemy = new(new Vector2(10f, 0f));
         player.Collider.Layer = "player";
-        player.Collider.SetFilter("enemy");
+        player.Collider.Detects = new("enemy");
         player.Collider.ReportsContacts = true;
-        player.Mover.BlocksOn("solid");
+        player.Mover.BlockedBy = new("solid");
         enemy.Collider.Layer = "enemy";
 
         List<ColliderContact2D> entered = [];
@@ -75,13 +75,13 @@ public sealed class ColliderCastTests
     }
 
     // The per-move filter is for the step, not for the mover: what it blocks on afterwards is
-    // whatever BlocksOn last said.
+    // whatever BlockedBy last said.
     [Fact]
-    public void Move_WithABlockingFilter_HonoursItOverBlocksOnAndLeavesTheStandingFilterAlone()
+    public void Move_WithABlockingFilter_HonoursItOverBlockedByAndLeavesTheStandingFilterAlone()
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####");
         Body body = new(new Vector2(8f, 8f));
-        body.Mover.BlocksOn("solid");
+        body.Mover.BlockedBy = new("solid");
         scene.Add(body);
 
         CollisionFilter standing = body.Mover.Filter;
