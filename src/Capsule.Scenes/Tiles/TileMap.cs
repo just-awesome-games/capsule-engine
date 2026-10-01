@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Animation;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Physics;
@@ -51,7 +52,17 @@ public sealed class TileMap : Entity
         _transforms = grid.Transforms.ToArray();
         Size = new Vector2(grid.Width * grid.TileSize, grid.Height * grid.TileSize);
 
-        _tiles = new VisibleTiles(grid, _cells, _transforms);
+        // A map with animated entries draws from its own copy of the table. Two maps may share a grid
+        // and step apart.
+        ReadOnlyMemory<Sprite?> sprites = grid.Sprites;
+        if (!grid.Animations.IsEmpty)
+        {
+            Sprite?[] own = grid.Sprites.ToArray();
+            sprites = own;
+            Add(new TileAnimator(grid.Animations, own));
+        }
+
+        _tiles = new VisibleTiles(grid, _cells, _transforms, sprites);
         Add(_tiles);
     }
 
@@ -286,7 +297,27 @@ public sealed class TileMap : Entity
             nameof(name));
     }
 
-    private sealed class VisibleTiles(TileGrid grid, int[] cells, TileTransform[] transforms) : Renderer
+    // Steps each animated entry's clip and writes its current frame into the map's table. It steps with
+    // the map, and a held map holds its frames.
+    private sealed class TileAnimator(ReadOnlyMemory<TileGrid.Animation> animations, Sprite?[] sprites) : Component
+    {
+        private readonly AnimationPlayback[] _cursors = new AnimationPlayback[animations.Length];
+
+        protected internal override void OnStep(in StepContext context)
+        {
+            ReadOnlySpan<TileGrid.Animation> entries = animations.Span;
+            for (int i = 0; i < entries.Length; i++)
+            {
+                SpriteClip clip = entries[i].Clip;
+                _cursors[i].Step(clip.FrameTicks, loop: true);
+                sprites[entries[i].Palette] = clip.Frames[_cursors[i].FrameIndex];
+            }
+        }
+    }
+
+    // The sprite table is indexed by palette.
+    private sealed class VisibleTiles(TileGrid grid, int[] cells, TileTransform[] transforms, ReadOnlyMemory<Sprite?> sprites)
+        : Renderer
     {
         internal override bool Steps => false;
 
@@ -297,7 +328,7 @@ public sealed class TileMap : Entity
             (int minX, int minY, int maxX, int maxY) = VisibleBounds(view.Camera);
             ReadOnlySpan<int> tiles = cells;
             ReadOnlySpan<TileTransform> facings = transforms;
-            ReadOnlySpan<Sprite?> sprites = grid.Sprites;
+            ReadOnlySpan<Sprite?> table = sprites.Span;
             Vector2 size = new(grid.TileSize, grid.TileSize);
             float half = grid.TileSize / 2f;
 
@@ -306,7 +337,7 @@ public sealed class TileMap : Entity
                 int row = y * grid.Width;
                 for (int x = minX; x < maxX; x++)
                 {
-                    if (sprites[tiles[row + x]] is not { } sprite)
+                    if (table[tiles[row + x]] is not { } sprite)
                     {
                         continue;
                     }

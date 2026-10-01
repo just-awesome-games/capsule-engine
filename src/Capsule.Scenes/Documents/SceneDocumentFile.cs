@@ -519,6 +519,7 @@ public static class SceneDocumentFile
                 Name = palette[i].Name,
                 Type = authored.Type,
                 Cell = palette[i].Cell,
+                Frames = FormatFrames(palette[i].Frames),
                 Layer = palette[i].Layer,
                 Shape = FormatShape(palette[i].Shape),
                 OneWay = palette[i].OneWay ? true : null,
@@ -585,6 +586,7 @@ public static class SceneDocumentFile
             {
                 Name = tileType.Name ?? string.Empty,
                 Cell = tileType.Cell,
+                Frames = ParseFrames(tileType.Frames, i),
                 Layer = tileType.Layer,
                 Shape = ParseShape(tileType.Shape, i),
                 OneWay = tileType.OneWay ?? false,
@@ -699,6 +701,45 @@ public static class SceneDocumentFile
         {
             throw new SceneDocumentFormatException($"tileTypes[{index}].shape is not a convex polygon. {ex.Message}", ex);
         }
+    }
+
+    // TileGrid checks each frame's cell and ticks. This checks only what the JSON shape can leave out.
+    private static TileFrame[]? ParseFrames(TileFrameJson?[]? frames, int index)
+    {
+        if (frames is null)
+        {
+            return null;
+        }
+
+        TileFrame[] parsed = new TileFrame[frames.Length];
+        for (int frame = 0; frame < parsed.Length; frame++)
+        {
+            if (frames[frame] is not { Cell: { } cell, Ticks: { } ticks })
+            {
+                throw new SceneDocumentFormatException(
+                    $"tileTypes[{index}].frames[{frame}] is not a frame. Write each frame as {{ \"cell\": 0, \"ticks\": 8 }}.");
+            }
+
+            parsed[frame] = new TileFrame(cell, ticks);
+        }
+
+        return parsed;
+    }
+
+    private static TileFrameJson[]? FormatFrames(IReadOnlyList<TileFrame>? frames)
+    {
+        if (frames is null)
+        {
+            return null;
+        }
+
+        TileFrameJson[] formatted = new TileFrameJson[frames.Count];
+        for (int frame = 0; frame < formatted.Length; frame++)
+        {
+            formatted[frame] = new TileFrameJson { Cell = frames[frame].Cell, Ticks = frames[frame].Ticks };
+        }
+
+        return formatted;
     }
 
     private static float[][]? FormatShape(Shape2D? shape)

@@ -194,6 +194,7 @@ internal static class SceneRenderer
                     {
                         Name = tile.Name,
                         Cell = tile.Cell,
+                        Frames = tile.Frames,
                         Layer = tile.Layer,
                         Shape = tile.Shape,
                         OneWay = tile.OneWay,

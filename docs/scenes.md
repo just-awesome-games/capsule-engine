@@ -138,7 +138,8 @@ Each other palette entry carries a `name`, unique in its palette, and may carry:
 | `texture` | The texture's key, extension included, of the texture every drawn tile is cut from, spelt any way ([`assets.md`](assets.md#named-assets)). Forward slashes, no empty, `.` or `..` segment. Absent on a grid that draws nothing. |
 | `columns` | How many cells wide that texture is. Required with `texture`, at least 1, absent without one. |
 | `type` | The key of the `TileType` subclass the entry composes, named the way an entity entry's `type` names its class. Absent is a plain `TileType`. |
-| `cell` | Which cell of the texture a tile of this type draws, counted across a row of `columns` then down from cell 0, square at `tileSize`. Absent is a semantic tile: queryable, may collide, draws nothing. |
+| `cell` | Which cell of the texture a tile of this type draws, counted across a row of `columns` then down from cell 0, square at `tileSize`. Absent with no `frames` is a semantic tile: queryable, may collide, draws nothing. |
+| `frames` | The cells a tile of this type draws in turn, looping, in place of `cell`: `[{ "cell": 4, "ticks": 8 }, { "cell": 5, "ticks": 8 }]`. Each frame is held for `ticks` fixed steps, at least 1. A `cell` beside it, or an empty list, fails the document. Absent is a still tile. |
 | `layer` | The collision layer every tile of this type is on, one name the game owns. A query or mover meets the tile when its own filter names that layer. Absent is decoration. Several entries may share a layer. |
 | `shape` | The convex polygon the tile collides as, three or four `[x, y]` points in pixels from the tile's top-left corner with Y down, each within `[0, tileSize]`. `[[0, 16], [16, 0], [16, 16]]` is a 16-pixel slope rising to the right. Absent is the whole tile. |
 | `oneWay` | `true` for a tile that blocks only a body coming down onto it from above ([`collision.md`](collision.md#one-way-surfaces)). Absent is `false`. |
@@ -152,7 +153,8 @@ whose palette collides with nothing registers no collider ([`collision.md`](coll
 `TileMap.TileAt` reads it, and `TileMap.CellAt` finds the cell a world position falls in.
 
 A palette entry is an instance of `TileType`, or of the subclass its `type` names. One instance serves every
-cell painted with it. State that belongs to one cell lives on an entity. `TileMap.TileAt` and
+cell painted with it. State that belongs to one cell lives on an entity. An entry's `frames` play from the map's
+own steps, and a pause, a freeze or the map's `StepMode` holds them. `TileMap.TileAt` and
 `TileContact2D.Type` return that instance, read as `map.TileAt(x, y).Name` or matched as
 `map.TileAt(x, y) is Ice ice`. `SetTile` paints by name.
 The build checks a palette entry's `type` and `properties` like an entity entry's. A tile type needs an

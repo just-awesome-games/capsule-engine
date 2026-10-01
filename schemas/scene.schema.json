@@ -194,9 +194,34 @@
                         "minLength": 1
                       },
                       "cell": {
-                        "description": "Which cell of the texture a tile of this type draws, counted across a row of columns then down from cell 0. Absent is a semantic tile: queryable, may collide, draws nothing.",
+                        "description": "Which cell of the texture a tile of this type draws, counted across a row of columns then down from cell 0. Absent with no frames is a semantic tile: queryable, may collide, draws nothing.",
                         "type": "integer",
                         "minimum": 0
+                      },
+                      "frames": {
+                        "description": "The cells a tile of this type draws in turn, looping, in place of cell. Absent with no cell draws nothing.",
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "cell": {
+                              "description": "Which cell of the texture the frame draws, counted as a palette entry's cell is.",
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "ticks": {
+                              "description": "The fixed steps the frame is held for, at least one. Not milliseconds.",
+                              "type": "integer",
+                              "minimum": 1
+                            }
+                          },
+                          "additionalProperties": false,
+                          "required": [
+                            "cell",
+                            "ticks"
+                          ]
+                        },
+                        "minItems": 1
                       },
                       "layer": {
                         "description": "The collision layer every tile of this type is on, one name the game owns. Absent is decoration.",

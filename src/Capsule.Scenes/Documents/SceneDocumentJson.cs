@@ -201,9 +201,13 @@ internal sealed class TileTypeJson
     [SchemaLength(1)]
     public string? Type { get; set; }
 
-    [Description("Which cell of the texture a tile of this type draws, counted across a row of columns then down from cell 0. Absent is a semantic tile: queryable, may collide, draws nothing.")]
+    [Description("Which cell of the texture a tile of this type draws, counted across a row of columns then down from cell 0. Absent with no frames is a semantic tile: queryable, may collide, draws nothing.")]
     [Range(0, int.MaxValue)]
     public int? Cell { get; set; }
+
+    [Description("The cells a tile of this type draws in turn, looping, in place of cell. Absent with no cell draws nothing.")]
+    [SchemaLength(1)]
+    public TileFrameJson?[]? Frames { get; set; }
 
     [Description("The collision layer every tile of this type is on, one name the game owns. Absent is decoration.")]
     [SchemaLength(1)]
@@ -224,6 +228,20 @@ internal sealed class TileTypeJson
     // Raw JSON, read key by key into the composing class's authorable members when the scene is composed.
     [Description("The entry's properties. Each key sets the member its TileType subclass marks [Authorable].")]
     public JsonElement? Properties { get; set; }
+}
+
+[Description("One frame of an animated tile: a cell and how long it is held.")]
+internal sealed class TileFrameJson
+{
+    [Description("Which cell of the texture the frame draws, counted as a palette entry's cell is.")]
+    [Required]
+    [Range(0, int.MaxValue)]
+    public int? Cell { get; set; }
+
+    [Description("The fixed steps the frame is held for, at least one. Not milliseconds.")]
+    [Required]
+    [Range(1, int.MaxValue)]
+    public int? Ticks { get; set; }
 }
 
 [Description("What a derived document came from: the tool, the source's path and the hash of its source closure.")]

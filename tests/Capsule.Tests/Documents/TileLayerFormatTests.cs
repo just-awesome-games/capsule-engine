@@ -13,9 +13,9 @@ public sealed class TileLayerFormatTests
     private static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
 
     [Fact]
-    public void ATileTypesLayerShapeAndOneWay_SurviveTheirOwnRoundTrip()
+    public void ATileTypesLayerShapeOneWayAndFrames_SurviveTheirOwnRoundTrip()
     {
-        string written = SceneDocumentFile.ToJson(Document("platform", CollisionFixtures.SlopeUp, oneWay: true));
+        string written = SceneDocumentFile.ToJson(Document("platform", CollisionFixtures.SlopeUp, oneWay: true, frames: [new(0, 8), new(1, 4)]));
 
         Assert.Contains("\"layer\": \"platform\"", written, StringComparison.Ordinal);
         Assert.Contains("\"shape\": [[0, 16], [16, 0], [16, 16]]", written, StringComparison.Ordinal);
@@ -26,6 +26,8 @@ public sealed class TileLayerFormatTests
         Assert.Equal("platform", read.Layer);
         Assert.Equal(CollisionFixtures.SlopeUp, read.Shape);
         Assert.True(read.OneWay);
+        Assert.Null(read.Cell);
+        Assert.Equal([new(0, 8), new(1, 4)], read.Frames!);
         Assert.Equal(written, SceneDocumentFile.ToJson(SceneDocumentFile.Parse(written)));
     }
 
@@ -142,19 +144,19 @@ public sealed class TileLayerFormatTests
             Atlas,
             4));
 
-        Assert.Contains("no cell, no layer", error.Message, StringComparison.Ordinal);
+        Assert.Contains("no cell, no frames, no layer", error.Message, StringComparison.Ordinal);
     }
 
     private static ReadOnlySpan<TileType> Palette(SceneDocument document) => Grid(document).TileTypes;
 
     private static TileGrid Grid(SceneDocument document) => document.Entries[0].TileMap!.Value.Grid;
 
-    private static SceneDocument Document(string? layer, Shape2D? shape = null, bool oneWay = false) =>
+    private static SceneDocument Document(string? layer, Shape2D? shape = null, bool oneWay = false, TileFrame[]? frames = null) =>
         new(
             [
                 new TileMapPlacement(
                     1,
-                    new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileType { Name = "ground", Cell = 0, Layer = layer, Shape = shape, OneWay = oneWay }], [0, 1], Atlas, 4)),
+                    new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileType { Name = "ground", Cell = frames is null ? 0 : null, Frames = frames, Layer = layer, Shape = shape, OneWay = oneWay }], [0, 1], Atlas, 4)),
             ],
             2);
 }

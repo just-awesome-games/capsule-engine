@@ -8,8 +8,8 @@ namespace Capsule.Tiles;
 /// </summary>
 /// <remarks>
 /// One instance is shared by every cell painted with it, and every map built from the same grid shares it
-/// too. State that belongs to one cell lives on an entity. A tile type with no cell draws nothing, and one
-/// does not collide until it names a layer.
+/// too. State that belongs to one cell lives on an entity. A tile type with no cell and no frames draws
+/// nothing, and one does not collide until it names a layer.
 /// </remarks>
 public class TileType
 {
@@ -18,9 +18,27 @@ public class TileType
 
     /// <summary>
     /// The cell of the grid's texture this tile type draws, counted from cell 0 left to right then top to
-    /// bottom, or null to draw nothing. The grid's <c>Columns</c> and tile size turn it into a source region.
+    /// bottom, or null for a tile type that animates through <see cref="Frames"/> or draws nothing. The
+    /// grid's <c>Columns</c> and tile size turn it into a source region.
     /// </summary>
     public int? Cell { get; init; }
+
+    /// <summary>
+    /// The cells this tile type draws in turn, looping, in place of <see cref="Cell"/>, or null for a tile type
+    /// that does not animate.
+    /// </summary>
+    /// <remarks>
+    /// A grid rejects a tile type that sets both <see cref="Cell"/> and frames. Frames play from the map's
+    /// own steps. A pause, a freeze or the map's <c>StepMode</c> holds them. A map starts at the first frame,
+    /// and every cell of this tile type on one map shows the same frame, including a cell painted with it
+    /// later. Collision and <c>TileAt</c> follow the tile type and never the frame.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// TileType falls = new() { Name = "falls", Frames = [new(4, 8), new(5, 8), new(6, 8), new(7, 8)] };
+    /// </code>
+    /// </example>
+    public IReadOnlyList<TileFrame>? Frames { get; init; }
 
     /// <summary>The collision layer this tile type is on. Null means it does not collide.</summary>
     public string? Layer { get; init; }

@@ -36,7 +36,7 @@ public sealed class TileGridTests
         Assert.Equal("hazard", grid.TileTypes[grid.Tiles[1]].Name);
         Assert.Null(grid.TileTypes[1].Cell);
         Assert.Null(grid.Texture);
-        Assert.Null(grid.Sprites[1]);
+        Assert.Null(grid.Sprites.Span[1]);
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public sealed class TileGridTests
 
         Assert.Equal<Sprite?>(
             new Sprite(Atlas, new TextureRegion(expectedX, expectedY, 16, 16), new Vector2(8, 8)),
-            grid.Sprites[1]);
+            grid.Sprites.Span[1]);
     }
 
     [Fact]
@@ -101,17 +101,26 @@ public sealed class TileGridTests
     // Whatever makes a cell undrawable — no texture to cut it from, a negative index, or a region
     // far enough down the atlas that its row alone multiplies past int, where the wrapped
     // coordinate would cut from somewhere else rather than fail — the refusal names the cell.
+    // Frames, flattened here as cell and ticks pairs, are refused the same way and for their own
+    // defects: beside a cell, empty, or held for no ticks.
     [Theory]
-    [InlineData(3, 0, false, "draws cell 3")]
-    [InlineData(-1, 4, true, "draws cell -1")]
-    [InlineData(int.MaxValue, 1, true, "draws cell 2147483647")]
-    public void Constructor_RejectsACellItCannotDraw(int cell, int columns, bool textured, string named)
+    [InlineData(3, null, 0, false, "draws cell 3")]
+    [InlineData(-1, null, 4, true, "draws cell -1")]
+    [InlineData(int.MaxValue, null, 1, true, "draws cell 2147483647")]
+    [InlineData(0, new[] { 1, 8 }, 4, true, "both cell and frames")]
+    [InlineData(null, new int[0], 4, true, "has no frames")]
+    [InlineData(null, new[] { 1, 0 }, 4, true, "frames[0] is held for 0 ticks")]
+    [InlineData(null, new[] { 1, 8, -1, 8 }, 4, true, "frames[1] draws cell -1")]
+    [InlineData(null, new[] { 1, 8 }, 0, false, "draws frames but the grid names no texture")]
+    public void Constructor_RejectsATileTypeItCannotDraw(int? cell, int[]? frames, int columns, bool textured, string named)
     {
+        TileFrame[]? parsed = frames?.Chunk(2).Select(static pair => new TileFrame(pair[0], pair[1])).ToArray();
+
         ArgumentException error = Assert.Throws<ArgumentException>(() => new TileGrid(
             16,
             1,
             1,
-            [TileGrid.EmptyTile, SceneFixtures.Tile("ground", cell)],
+            [TileGrid.EmptyTile, new TileType { Name = "ground", Cell = cell, Frames = parsed }],
             [1],
             textured ? Atlas : null,
             columns));
