@@ -187,7 +187,7 @@ public sealed class TileMapTests
     public void SetTile_ChangesTheMapsCollision_AndLeavesTheGridItWasBuiltFromAlone()
     {
         TileGrid grid = SceneFixtures.TerrainGrid("....", "....", ".##.");
-        TileMap map = new(grid);
+        TileMap map = SceneFixtures.Colliding(grid);
         SceneFixtures.Body body = new(new Vector2(18f, 0f), blocksOn: "solid");
         body.Collider.Detects = new("solid");
         body.Collider.ReportsContacts = true;
@@ -226,6 +226,94 @@ public sealed class TileMapTests
         ArgumentException unknown = Assert.Throws<ArgumentException>(() => map.SetTile(0, 0, "lava"));
         Assert.Contains("lava", unknown.Message, StringComparison.Ordinal);
         Assert.Contains("empty, solid", unknown.Message, StringComparison.Ordinal);
+    }
+
+    // A map without a collider is decoration, whatever its palette's layers. A collider answers at the
+    // authored cells, so it and a scroll factor refuse each other in either order.
+    [Fact]
+    public void ADecorativeMapScrolls_AndAColliderThenRefusesIt()
+    {
+        TileMap map = new(SceneFixtures.TerrainGrid("#")) { ScrollFactor = new Vector2(0.5f, 1f) };
+        Scene scene = new();
+        scene.Add(map);
+        TileMapCollider2D collider = new();
+
+        Assert.Empty(scene.Collision.Grids.ToArray());
+        Assert.Equal("solid", map.TileAt(0, 0).Layer);
+        InvalidOperationException added = Assert.Throws<InvalidOperationException>(() => map.Add(collider));
+        Assert.Contains("Remove the TileMapCollider2D, or set the scroll factor to one", added.Message, StringComparison.Ordinal);
+        Assert.Null(collider.Entity);
+
+        map.ScrollFactor = Vector2.One;
+        map.Add(collider);
+
+        Assert.Throws<InvalidOperationException>(() => map.ScrollFactor = new Vector2(0.5f, 1f));
+        Assert.Equal(Vector2.One, map.ScrollFactor);
+        Assert.Single(scene.Collision.Grids.ToArray());
+    }
+
+    // Disabling removes the grid at once and the body exits it on its next settle. Re-enabling builds a
+    // new grid from the cells as painted while it was off.
+    [Fact]
+    public void ADisabledCollider_GetsItsEditsWhenItIsEnabledAgain()
+    {
+        TileMap map = SceneFixtures.Colliding(SceneFixtures.TerrainGrid("....", "....", ".##."));
+        TileMapCollider2D collider = map.Get<TileMapCollider2D>();
+        SceneFixtures.Body body = new(new Vector2(18f, 0f), blocksOn: "solid");
+        body.Collider.Detects = new("solid");
+        body.Collider.ReportsContacts = true;
+        int exits = 0;
+        body.Collider.ContactExited += _ => exits++;
+
+        Scene scene = new();
+        scene.Add(map);
+        scene.Add(body);
+        using SceneSimulation simulation = new(scene);
+        body.Mover.Move(new Vector2(0f, 40f));
+        simulation.Step(SceneFixtures.Step(0));
+        Assert.True(body.Mover.IsOnFloor);
+
+        collider.Enabled = false;
+
+        Assert.Null(collider.Grid);
+        simulation.Step(SceneFixtures.Step(1));
+        Assert.Equal(1, exits);
+        body.Mover.Move(new Vector2(0f, 4f));
+        Assert.False(body.Mover.IsOnFloor);
+
+        map.RemoveTile(1, 2);
+        collider.Enabled = true;
+
+        Assert.NotNull(collider.Grid);
+        MoveResult2D swept = scene.Collision.MoveBox(
+            Aabb2D.FromCorner(new Vector2(16f, 36f), new Vector2(8f, 8f)),
+            new Vector2(20f, 0f),
+            scene.Collision.CreateFilter("solid"),
+            default);
+        Assert.True(swept.Blocked);
+        Assert.Equal(8f, swept.Translation.X, 0.01f);
+    }
+
+    // A refused collider is left unattached, so it can still be added where it belongs.
+    [Theory]
+    [InlineData("entity", "Add it to a TileMap")]
+    [InlineData("second", "Keep one per map")]
+    [InlineData("layerless", "Give a tile type a layer")]
+    public void AColliderRefusesAnythingButOneLayeredMap(string target, string fix)
+    {
+        Entity entity = target switch
+        {
+            "entity" => new SceneFixtures.Drifter(Vector2.Zero),
+            "second" => SceneFixtures.Colliding(SceneFixtures.TerrainGrid("#")),
+            _ => new TileMap(SceneFixtures.RoomGrid()),
+        };
+        TileMapCollider2D collider = new();
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => entity.Add(collider));
+
+        Assert.Contains(fix, error.Message, StringComparison.Ordinal);
+        Assert.Null(collider.Entity);
+        Assert.DoesNotContain(collider, entity.Components.ToArray());
     }
 
     // Floor, not truncation: a position a fraction left of the origin is in cell -1, and one exactly

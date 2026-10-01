@@ -119,7 +119,7 @@ public sealed class ScenePauseTests
         body.Collider.ContactEntered += _ => log.Add("enter");
 
         HookScene scene = new();
-        scene.Add(new TileMap(TerrainGrid("....", "####")));
+        scene.Add(Colliding(TerrainGrid("....", "####")));
         using SceneSimulation simulation = Simulation(scene, body);
 
         scene.Paused = true;

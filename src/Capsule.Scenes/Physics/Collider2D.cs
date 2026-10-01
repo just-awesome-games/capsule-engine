@@ -979,8 +979,8 @@ public abstract class Collider2D : Component
         object? owner = world.UserDataOf(contact.Target.Collider);
         Collider2D? otherCollider = contact.Target.IsGridCell ? null : owner as Collider2D;
 
-        // A grid no tile map owns reports no tile. The raw target still names its cell.
-        TileContact2D? tile = contact.Target.IsGridCell && owner is TileMap map
+        // A grid no tile-map collider owns reports no tile. The raw target still names its cell.
+        TileContact2D? tile = contact.Target.IsGridCell && owner is TileMapCollider2D { Entity: TileMap map }
             ? new TileContact2D(map, contact.Target.CellX, contact.Target.CellY)
             : null;
 

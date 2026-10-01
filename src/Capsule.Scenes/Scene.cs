@@ -133,6 +133,11 @@ public class Scene
             if (entry.TileMap is { } tileMap)
             {
                 TileMap tiles = new(Composed(tileMap, content.TileTypes, _authoredAssets));
+                if (tileMap.HasCollider)
+                {
+                    tiles.Add(new TileMapCollider2D());
+                }
+
                 if (tileMap.ZIndex is { } band)
                 {
                     tiles.ZIndex = band;
@@ -209,9 +214,8 @@ public class Scene
     }
 
     /// <summary>
-    /// Everything in this scene that can be collided with. A <see cref="Collider2D"/> registers
-    /// here when its entity joins the scene, and a <see cref="Tiles.TileMap"/> registers the grid
-    /// it draws.
+    /// Everything in this scene that can be collided with. A <see cref="Collider2D"/> or a
+    /// <see cref="TileMapCollider2D"/> registers here when its entity joins the scene.
     /// </summary>
     /// <remarks>Game code queries this world directly for rays, sweeps and overlaps.</remarks>
     public CollisionWorld2D Collision { get; } = new();

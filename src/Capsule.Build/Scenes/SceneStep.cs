@@ -85,7 +85,7 @@ internal static class SceneStep
         for (int i = 0; i < entries.Length; i++)
         {
             keyed[i] = entries[i].TileMap is { Grid: { Texture: { } texture } grid } map
-                ? new TileMapPlacement(map.Id, Regrid(grid, Keyed(texture)), map.ZIndex, map.ScrollFactor)
+                ? map with { Grid = Regrid(grid, Keyed(texture)) }
                 : entries[i];
         }
 

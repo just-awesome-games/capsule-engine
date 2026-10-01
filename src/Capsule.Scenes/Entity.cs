@@ -233,8 +233,9 @@ public partial class Entity
     /// anchors every layer.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    /// Non-one factors are forbidden on children, screen-layer entities, entities that collide, or
-    /// entities holding <see cref="Rendering.VisibleOnScreenNotifier2D"/> in the subtree.
+    /// Non-one factors are forbidden on children, screen-layer entities, and subtrees holding a component
+    /// that answers at the authored position: a collider, a body, a <see cref="Tiles.TileMapCollider2D"/>
+    /// or a <see cref="Rendering.VisibleOnScreenNotifier2D"/>.
     /// </exception>
     public Vector2 ScrollFactor
     {
@@ -311,9 +312,6 @@ public partial class Entity
     // Set by a subclass holding world coordinates, where position changes are errors.
     internal bool Anchored { get; init; }
 
-    // Whether this entity registers a shape: its own grid or a collider component.
-    internal virtual bool Collides => false;
-
     internal ReadOnlySpan<Component> Components => CollectionsMarshal.AsSpan(_components);
 
     // The entity's draw band: ancestry ZIndex summed before children read it.
@@ -326,10 +324,12 @@ public partial class Entity
     /// <summary>Attaches <paramref name="component"/>, which no entity may already own.</summary>
     /// <exception cref="InvalidOperationException">
     /// The component is already attached to an entity, or this entity refuses it. An entity refuses
-    /// a second <see cref="Physics.KinematicBody2D"/>, a collider, body or notifier when its
-    /// <see cref="ScrollFactor"/> is not one or anything in its ancestry is scaled, and a component
-    /// that cannot rotate when anything in its ancestry is rotated. It is also thrown inside a
-    /// <see cref="Rendering.Renderer.Draw"/>.
+    /// a second <see cref="Physics.KinematicBody2D"/>, a collider, body, tile-map collider or notifier
+    /// when its <see cref="ScrollFactor"/> is not one or anything in its ancestry is scaled, and a
+    /// component that cannot rotate when anything in its ancestry is rotated. Only a
+    /// <see cref="Tiles.TileMap"/> whose palette names a layer takes one
+    /// <see cref="Tiles.TileMapCollider2D"/>. A refused component stays unattached. It is also thrown
+    /// inside a <see cref="Rendering.Renderer.Draw"/>.
     /// </exception>
     public void Add(Component component)
     {
@@ -345,7 +345,7 @@ public partial class Entity
         TransformSupport supports = component.Supports;
         if ((supports & TransformSupport.Scale) == 0 && ScrollFactor != Vector2.One)
         {
-            throw Unscrollable($"a {component.GetType().Name}");
+            throw Unscrollable(component);
         }
 
         for (Entity? above = this; above is not null; above = above._parent)
@@ -367,7 +367,23 @@ public partial class Entity
         {
             _steppers++;
         }
-        component.OnAttachedTo(this);
+        try
+        {
+            component.OnAttachedTo(this);
+        }
+        catch
+        {
+            // A component refuses its entity before it registers anything, and leaves no trace.
+            _components.RemoveAt(_components.Count - 1);
+            if (component.Steps)
+            {
+                _steppers--;
+            }
+
+            component.Entity = null;
+            throw;
+        }
+
 
         // Attaching to an entity a scene already holds changes that scene's renderer set.
         SceneOrNull?.InvalidateRenderers();
@@ -755,14 +771,9 @@ public partial class Entity
     // Throws if anything in this subtree forbids a scroll factor other than one.
     private void RequireScrollable()
     {
-        if (Collides)
-        {
-            throw Unscrollable("its grid");
-        }
-
         if (FirstRefuser(TransformSupport.Scale) is var (component, _))
         {
-            throw Unscrollable($"a {component.GetType().Name}");
+            throw Unscrollable(component);
         }
     }
 
@@ -812,8 +823,8 @@ public partial class Entity
         return -1;
     }
 
-    private InvalidOperationException Unscrollable(string what) =>
-        new($"A {GetType().Name} carries {what}, which answers at the authored position while a scroll factor draws it elsewhere. Set the factor to one, or move {what} out of this subtree.");
+    private InvalidOperationException Unscrollable(Component component) =>
+        new($"A {component.GetType().Name} answers at its authored position while a scroll factor draws this {GetType().Name} elsewhere. Remove the {component.GetType().Name}, or set the scroll factor to one.");
 
     // Draws a cross at the entity's world position on the Origins channel, carrying this step's
     // motion. The driver calls it, and an override cannot lose it.

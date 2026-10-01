@@ -37,7 +37,7 @@ public sealed class RoomTests
         using SimulationHost room = RoomFixture.Simulate();
         Player player = RoomFixture.PlayerOf(room);
         KinematicBody2D body = player.Get<KinematicBody2D>();
-        TileMap map = room.Scene.FindSingle<TileMap>();
+        TileMap map = RoomFixture.TerrainOf(room);
         Assert.IsType<Brick>(map.TileAt(2, 8));
 
         // IsOnFloor is state as of the body's last move, so a jump on the very first step finds no
@@ -120,7 +120,7 @@ public sealed class RoomTests
     {
         using SimulationHost room = RoomFixture.Simulate();
         Player player = RoomFixture.PlayerOf(room);
-        TileMap map = room.Scene.FindSingle<TileMap>();
+        TileMap map = RoomFixture.TerrainOf(room);
         Assert.Equal(slides, map.TileAt((int)releaseX / 16, 11) is Ice);
 
         Assert.True(
@@ -210,7 +210,7 @@ public sealed class RoomTests
             Properties: JsonSerializer.SerializeToElement(new { size = new[] { area.Size.X, area.Size.Y } }));
 
         SceneDocument document = new(
-            [new TileMapPlacement(1, floor), new EntityPlacement(2, "player", 32f, RoomFixture.FloorTop - 8f), Zone(3, zoneA), Zone(4, zoneB)],
+            [new TileMapPlacement(1, floor, HasCollider: true), new EntityPlacement(2, "player", 32f, RoomFixture.FloorTop - 8f), Zone(3, zoneA), Zone(4, zoneB)],
             nextEntityId: 5,
             settings: new SceneSettings { Properties = JsonSerializer.SerializeToElement(new { music = "audio/music/room.ogg" }) });
 

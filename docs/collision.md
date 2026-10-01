@@ -138,14 +138,31 @@ shoves it. A `MovedBy` layer also blocks the body. A shove that pins the body ra
 
 ## Terrain
 
-A tile map's palette declares each tile type's layer, its shape and whether it is one-way. The map
-registers one `GridCollider2D` that is its own broadphase, and a map whose palette collides with nothing
-registers none. A contact from a tile carries the tile map, the cell and the tile's current type.
+A tile map collides only through a `TileMapCollider2D` added to it, and a map without one is decoration.
+The palette declares each tile type's layer, its shape and whether it is one-way, so one map holds solid,
+one-way and sloped tiles together. The collider registers the map's cells as one grid that is its own
+broadphase. A contact from a tile carries the tile map, the cell and the tile's current type.
+
+```csharp
+TileMap terrain = new(grid);
+terrain.Add(new TileMapCollider2D());
+```
+
+A tile-map entry authors `"collider": true` in its properties, beside the grid. The collider refuses a
+map whose palette names no layer, and a second collider on the same map.
 
 A tile is its whole cell by default, or a convex polygon such as a slope. A tile's edge that lies flush
 against a solid neighbour is no surface. A run of tiles then reads as one floor, and a slope joins the
 ground beside it without a bump. A one-way tile keeps only the edges that face up, and a run of
 `solidSides` tiles is walled only at its two ends.
+
+One palette can paint the solid terrain and a decorative or parallax copy of it. The copy has no
+collider, and its tiles keep their authored layers for `TileAt`. A map with a collider keeps a
+`ScrollFactor` of one, as every collider's entity does.
+
+`TileMapCollider2D.Enabled` adds or removes the grid at once in a running scene. A body touching the
+removed cells gets its exits on its next settle. `TileMap.SetTile` always paints the map, and a collider
+enabled again collides as the map now draws.
 
 ## Queries
 

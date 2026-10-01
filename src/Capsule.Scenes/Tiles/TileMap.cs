@@ -13,10 +13,10 @@ namespace Capsule.Tiles;
 /// Its cells sit at fixed world coordinates. Writing <see cref="Entity.Position"/>,
 /// <see cref="Entity.Rotation"/> or <see cref="Entity.Scale"/> throws, and the map takes no
 /// <see cref="Entity.Parent"/>. It may still place children of its own, whose local values are
-/// world values. It draws every palette entry that names a cell of the grid's texture, and
-/// registers one <see cref="GridCollider2D"/> with the scene's world when any tile type collides.
-/// Every tile draws in the map's own <see cref="Entity.ZIndex"/> band. Tiles follow the map's
-/// <see cref="Entity.ScrollFactor"/>, which must stay one when any tile type collides.
+/// world values. It draws every palette entry that names a cell of the grid's texture. Every tile
+/// draws in the map's own <see cref="Entity.ZIndex"/> band and follows its
+/// <see cref="Entity.ScrollFactor"/>. The map collides only through a <see cref="TileMapCollider2D"/>
+/// added to it, and a palette entry's layer still reaches <see cref="TileAt"/> on a map without one.
 /// <para>
 /// The map copies the grid's cells when it is built, and <see cref="SetTile"/> changes that copy.
 /// The <see cref="TileGrid"/> handed in is never written. A scene rebuilt from it starts as
@@ -34,11 +34,8 @@ public sealed class TileMap : Entity
 
     private readonly VisibleTiles _tiles;
 
-    private CollisionWorld2D? _world;
-
-    // The collider's profile index for each palette entry and transform, at (palette * Count) +
-    // transform. Only a shaped entry has a profile per transform. Null while the map has no collider.
-    private int[]? _profiles;
+    // The map's collider, set while one is attached.
+    internal TileMapCollider2D? Collider { get; set; }
 
     /// <param name="grid">The grid to hold and draw. Its palette decides what each tile looks like.</param>
     public TileMap(TileGrid grid)
@@ -90,15 +87,11 @@ public sealed class TileMap : Entity
         set => _tiles.Material = value;
     }
 
-    internal override bool Collides => _grid.Collides;
+    internal TileGrid Grid => _grid;
 
-    /// <summary>
-    /// This grid's collider in the scene's world, or null when the map is in no scene or no tile
-    /// type in its palette collides. Each cell carries the collision layer its tile type was
-    /// authored on.
-    /// </summary>
-    /// <remarks>A tile type name identifies the tile and does not name a layer.</remarks>
-    public GridCollider2D? Collision { get; private set; }
+    internal ReadOnlySpan<int> Cells => _cells;
+
+    internal ReadOnlySpan<TileTransform> Transforms => _transforms;
 
     /// <summary>
     /// Returns the palette entry at a tile coordinate, and the entry named <see cref="TileGrid.EmptyTileName"/>
@@ -129,7 +122,7 @@ public sealed class TileMap : Entity
     {
         Guard.Finite(position, nameof(position));
 
-        return (GridCollider2D.FloorDiv(position.X, TileSize), GridCollider2D.FloorDiv(position.Y, TileSize));
+        return (CollisionGrid2D.FloorDiv(position.X, TileSize), CollisionGrid2D.FloorDiv(position.Y, TileSize));
     }
 
     /// <summary>
@@ -177,10 +170,7 @@ public sealed class TileMap : Entity
 
         _cells[index] = palette;
         _transforms[index] = transform;
-        if (Collision is { } collider)
-        {
-            collider.SetCell(x, y, _profiles![(palette * TileTransforms.Count) + (int)transform]);
-        }
+        Collider?.SetCell(x, y, palette, transform);
     }
 
     /// <inheritdoc/>
@@ -192,77 +182,6 @@ public sealed class TileMap : Entity
         {
             assets.Add(texture);
         }
-    }
-
-    /// <inheritdoc/>
-    protected internal override void OnAddedToScene()
-    {
-        if (!_grid.Collides)
-        {
-            return;
-        }
-
-        _world = Scene.Collision;
-
-        ReadOnlySpan<TileType> palette = _grid.TileTypes;
-        int shaped = 0;
-        foreach (TileType tileType in palette)
-        {
-            shaped += tileType.Shape is null ? 0 : 1;
-        }
-
-        // The palette's own profiles come first, so an untransformed cell's profile index is its palette
-        // index. Each shaped entry then appends one profile per other transform. Only the shape turns,
-        // and a one-way tile still passes bodies from below.
-        CellProfile2D[] profiles = new CellProfile2D[palette.Length + (shaped * (TileTransforms.Count - 1))];
-        int[] lookup = new int[palette.Length * TileTransforms.Count];
-        int next = palette.Length;
-        for (int index = 0; index < palette.Length; index++)
-        {
-            TileType tileType = palette[index];
-            CellProfile2D profile = new(
-                tileType.Layer is { } layer ? _world.Layer(layer) : null,
-                tileType.Shape,
-                tileType.OneWay,
-                tileType.SolidSides);
-            profiles[index] = profile;
-
-            for (int transform = 0; transform < TileTransforms.Count; transform++)
-            {
-                int slot = (index * TileTransforms.Count) + transform;
-                if (transform == 0 || tileType.Shape is not { } shape)
-                {
-                    lookup[slot] = index;
-                    continue;
-                }
-
-                profiles[next] = profile with { Shape = TileTransforms.Apply(shape, _grid.TileSize, (TileTransform)transform) };
-                lookup[slot] = next++;
-            }
-        }
-
-        // The collider keeps its own profile indices. The map's cells stay palette indices.
-        int[] cells = new int[_cells.Length];
-        for (int index = 0; index < cells.Length; index++)
-        {
-            cells[index] = lookup[(_cells[index] * TileTransforms.Count) + (int)_transforms[index]];
-        }
-
-        _profiles = lookup;
-        Collision = _world.AddGrid(_grid.TileSize, _grid.Width, _grid.Height, cells, profiles, this);
-    }
-
-    /// <inheritdoc/>
-    protected internal override void OnRemovedFromScene()
-    {
-        if (Collision is { } collider)
-        {
-            _world!.Remove(collider);
-        }
-
-        Collision = null;
-        _world = null;
-        _profiles = null;
     }
 
     private int IndexOf(int x, int y)
@@ -374,78 +293,5 @@ public sealed class TileMap : Entity
 
         // A world coordinate in tiles, clamped to the grid's extent on that axis.
         private float Cells(float boundary, int limit) => Math.Clamp(boundary / grid.TileSize, 0f, limit);
-    }
-
-    // Draws the grid's live edges on the Colliders channel, only for the cells the camera's view reaches
-    // plus one cell of margin, which keeps a large grid cheap to draw. The derived state culls the shared
-    // sides inside a solid run, and a wall shows as its outline. The map is anchored, so its edges carry
-    // no motion.
-    /// <inheritdoc/>
-    protected internal override void OnDebugDraw()
-    {
-        if (Collision is not { } grid || Scene is not { } scene)
-        {
-            return;
-        }
-
-        Rect view = scene.Camera.VisibleRegion;
-        if (view.IsEmpty)
-        {
-            return;
-        }
-
-        int minX = Math.Max(GridCollider2D.FloorDiv(view.Left, grid.CellSize) - 1, 0);
-        int minY = Math.Max(GridCollider2D.FloorDiv(view.Top, grid.CellSize) - 1, 0);
-        int maxX = Math.Min(LastCell(view.Right, grid.CellSize) + 1, grid.Width - 1);
-        int maxY = Math.Min(LastCell(view.Bottom, grid.CellSize) + 1, grid.Height - 1);
-
-        for (int y = minY; y <= maxY; y++)
-        {
-            for (int x = minX; x <= maxX; x++)
-            {
-                CellState2D state = grid.StateAt(x, y);
-                if ((state & CellState2D.Edges) != 0)
-                {
-                    DrawEdges(grid, x, y, state);
-                    continue;
-                }
-
-                DrawFace(grid, x, y, state, CellState2D.FaceMinX);
-                DrawFace(grid, x, y, state, CellState2D.FaceMaxX);
-                DrawFace(grid, x, y, state, CellState2D.FaceMinY);
-                DrawFace(grid, x, y, state, CellState2D.FaceMaxY);
-            }
-        }
-    }
-
-    // Returns the last cell a half-open rect's high edge reaches. That is the cell the edge lies in, or
-    // the cell before it when the edge sits exactly on a boundary and so falls outside the rect.
-    private static int LastCell(float edge, int cellSize)
-    {
-        int cell = GridCollider2D.FloorDiv(edge, cellSize);
-
-        return cell * cellSize == edge ? cell - 1 : cell;
-    }
-
-    private static void DrawEdges(GridCollider2D grid, int x, int y, CellState2D state)
-    {
-        ReadOnlySpan<CellEdge2D> edges = grid.EdgesAt(x, y);
-        Vector2 corner = grid.CellCorner(x, y);
-        for (int index = 0; index < edges.Length; index++)
-        {
-            if ((state & GridCollider2D.EdgeBit(index)) != 0)
-            {
-                DebugDraw.Line(DebugDraw.Colliders, corner + edges[index].Start, corner + edges[index].End);
-            }
-        }
-    }
-
-    private static void DrawFace(GridCollider2D grid, int x, int y, CellState2D state, CellState2D face)
-    {
-        if ((state & face) != 0)
-        {
-            Aabb2D edge = grid.FaceEdge(x, y, face);
-            DebugDraw.Line(DebugDraw.Colliders, edge.Min, edge.Max);
-        }
     }
 }

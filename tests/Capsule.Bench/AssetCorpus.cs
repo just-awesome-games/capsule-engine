@@ -268,7 +268,7 @@ internal sealed class AssetCorpus
 
         scene.Append("\n        ],\n        \"tiles\": [\n");
         AppendGrid(scene, map, "          ");
-        scene.Append("        ]\n      }\n    }");
+        scene.Append(layer is null ? "        ]\n      }\n    }" : "        ],\n        \"collider\": true\n      }\n    }");
     }
 
     // Ground along the bottom and scattered tiles above it, one comma-separated row per line.

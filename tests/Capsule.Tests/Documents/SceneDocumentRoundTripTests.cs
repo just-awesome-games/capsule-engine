@@ -181,6 +181,25 @@ public sealed class SceneDocumentRoundTripTests
         Assert.Equal([0, 0, 1, 1, 1, 1], SceneDocumentFile.Parse(json).Entries[0].TileMap!.Value.Grid.Tiles.ToArray());
     }
 
+    // The canonical form writes collider only when it is true, and the composed map collides only then.
+    [Fact]
+    public void ATileMapsCollider_RoundTripsAndComposesOntoTheMap()
+    {
+        SceneDocument document = new([new TileMapPlacement(1, SceneFixtures.TerrainGrid("#"), HasCollider: true)], 2);
+
+        string json = SceneDocumentFile.ToJson(document);
+        SceneDocument read = SceneDocumentFile.Parse(json);
+
+        Assert.Contains("\"collider\": true", json, StringComparison.Ordinal);
+        Assert.Equal(json, SceneDocumentFile.ToJson(read));
+        Assert.DoesNotContain(
+            "collider",
+            SceneDocumentFile.ToJson(new SceneDocument([new TileMapPlacement(1, SceneFixtures.TerrainGrid("#"))], 2)),
+            StringComparison.Ordinal);
+        Assert.NotNull(SceneFixtures.TerrainOf(SceneFixtures.RoomScene(read, SceneFixtures.Registry())).Get<TileMapCollider2D>().Grid);
+        Assert.False(SceneFixtures.TerrainOf(SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry())).TryGet<TileMapCollider2D>(out _));
+    }
+
     [Fact]
     public void ToJson_RoundTripsADocumentWithASourceBlock()
     {

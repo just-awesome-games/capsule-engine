@@ -162,11 +162,17 @@ public sealed class SceneDocument
                     $"entity id {entry.Id} has scroll factor ({factor.X}, {factor.Y}), which is not a scroll factor. Make both components finite."));
             }
 
-            // A grid answers queries at its authored cells, but a scrolled grid draws somewhere else.
-            if (tileMap is { Grid.Collides: true, ScrollFactor: not null })
+            if (tileMap is { HasCollider: true, Grid.Collides: false })
             {
                 throw Malformed(
-                    $"the '{TileMapType}' entry with id {entry.Id} authors a scrollFactor on a palette that collides. Drop the scrollFactor, or remove the layers from the palette.");
+                    $"the '{TileMapType}' entry with id {entry.Id} sets collider on a palette that names no layer. Give a tile type a layer, or drop collider from its properties.");
+            }
+
+            // A grid answers queries at its authored cells, but a scrolled grid draws somewhere else.
+            if (tileMap is { HasCollider: true, ScrollFactor: not null })
+            {
+                throw Malformed(
+                    $"the '{TileMapType}' entry with id {entry.Id} authors a scrollFactor on a map with a collider. Drop the scrollFactor, or drop collider from its properties.");
             }
 
             if (entry.Id >= NextEntityId)

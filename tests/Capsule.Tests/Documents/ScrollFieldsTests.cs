@@ -102,19 +102,22 @@ public sealed class ScrollFieldsTests
         Assert.Contains("scrollCenter", center.Message, StringComparison.Ordinal);
     }
 
-    // A grid answers queries at its authored cells, so one that scrolls collides as nothing.
+    // A grid answers queries at its authored cells, so a map with a collider refuses a scroll factor. A
+    // collider on a palette naming no layer could never collide. A layered palette without one scrolls.
     [Fact]
-    public void ACollidingTileMap_RefusesAScrollFactor()
+    public void ATileMapWithACollider_RefusesAScrollFactorAndALayerlessPalette()
     {
-        ArgumentException error = Assert.Throws<ArgumentException>(
+        ArgumentException scrolled = Assert.Throws<ArgumentException>(
             () => new SceneDocument(
-                [new TileMapPlacement(1, SceneFixtures.TerrainGrid("#"), ScrollFactor: new Vector2(0.5f, 1f))],
+                [new TileMapPlacement(1, SceneFixtures.TerrainGrid("#"), ScrollFactor: new Vector2(0.5f, 1f), HasCollider: true)],
                 2));
+        ArgumentException layerless = Assert.Throws<ArgumentException>(
+            () => new SceneDocument([new TileMapPlacement(1, SceneFixtures.RoomGrid(), HasCollider: true)], 2));
 
-        Assert.Contains("palette that collides", error.Message, StringComparison.Ordinal);
+        Assert.Contains("drop collider from its properties", scrolled.Message, StringComparison.Ordinal);
+        Assert.Contains("names no layer", layerless.Message, StringComparison.Ordinal);
 
-        SceneDocument decorative = new([new TileMapPlacement(1, SceneFixtures.RoomGrid(), ScrollFactor: new Vector2(0.5f, 1f))], 2);
+        SceneDocument decorative = new([new TileMapPlacement(1, SceneFixtures.TerrainGrid("#"), ScrollFactor: new Vector2(0.5f, 1f))], 2);
         Assert.Equal(new Vector2(0.5f, 1f), decorative.Entries[0].ScrollFactor);
-        Assert.False(decorative.Entries[0].TileMap!.Value.Grid.Collides);
     }
 }

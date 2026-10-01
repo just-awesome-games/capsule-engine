@@ -27,7 +27,7 @@ public sealed class TileTransformTests
             points[index] = new Vector2(expected[index * 2], expected[(index * 2) + 1]);
         }
 
-        TileMap map = new(new TileGrid(
+        TileMap map = SceneFixtures.Colliding(new TileGrid(
             Size,
             2,
             1,
@@ -43,7 +43,7 @@ public sealed class TileTransformTests
 
         map.SetTile(0, 0, "slope", transform);
 
-        GridCollider2D grid = map.Collision!;
+        CollisionGrid2D grid = map.Get<TileMapCollider2D>().Grid!;
         Assert.Equal(Sorted(grid.EdgesAt(1, 0)), Sorted(grid.EdgesAt(0, 0)));
         Assert.Equal(transform, map.TransformAt(0, 0));
         Assert.Equal("slope", map.TileAt(0, 0).Name);

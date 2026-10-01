@@ -132,7 +132,7 @@ public sealed class ColliderContactReportTests
     private static Scene Ledge()
     {
         Scene scene = new();
-        scene.Add(new TileMap(new TileGrid(
+        scene.Add(SceneFixtures.Colliding(new TileGrid(
             16,
             3,
             3,
@@ -143,34 +143,18 @@ public sealed class ColliderContactReportTests
     }
 
     [Fact]
-    public void ATileMapRegistersOneColliderWhoseCellsCarryTheAuthoredLayer()
+    public void ATileMapColliderRegistersOneGridWhoseCellsCarryTheAuthoredLayer()
     {
         Scene scene = SceneFixtures.Terrain("....", "####");
-        TileMap map = scene.FindSingle<TileMap>();
+        TileMapCollider2D collider = scene.FindSingle<TileMap>().Get<TileMapCollider2D>();
 
-        Assert.NotNull(map.Collision);
-        Assert.Equal(4, map.Collision.Width);
-        Assert.Equal("solid", scene.Collision.NameOf(map.Collision.LayerAt(0, 1)!.Value));
+        Assert.NotNull(collider.Grid);
+        Assert.Equal(4, collider.Grid.Width);
+        Assert.Equal("solid", scene.Collision.NameOf(collider.Grid.LayerAt(0, 1)!.Value));
 
-        scene.Remove(map);
+        scene.Remove(collider.Entity!);
 
-        Assert.Null(map.Collision);
-        Assert.Empty(scene.Collision.Grids.ToArray());
-    }
-
-    [Fact]
-    public void ATileMapWhosePaletteCollidesWithNothing_RegistersNoCollider()
-    {
-        Scene scene = new();
-        TileMap map = new(new TileGrid(
-            16,
-            2,
-            1,
-            [TileGrid.EmptyTile, new TileType { Name = "decor" }],
-            [0, 1]));
-        scene.Add(map);
-
-        Assert.Null(map.Collision);
+        Assert.Null(collider.Grid);
         Assert.Empty(scene.Collision.Grids.ToArray());
     }
 }

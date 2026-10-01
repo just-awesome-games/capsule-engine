@@ -108,7 +108,7 @@
             "type": "integer"
           },
           "scrollFactor": {
-            "description": "How far the entry moves with the camera, as [x, y], both finite. On a tile-map entry it applies to the composed map. A tile-map entry whose palette names a collision layer refuses it.",
+            "description": "How far the entry moves with the camera, as [x, y], both finite. On a tile-map entry it applies to the composed map. A tile-map entry whose properties set collider refuses it.",
             "type": "array",
             "items": {
               "type": "number"
@@ -117,7 +117,7 @@
             "maxItems": 2
           },
           "properties": {
-            "description": "The entry's properties. A tile-map entry holds its grid here. A game entity's keys set the members its class marks [Authorable].",
+            "description": "The entry's properties. A tile-map entry holds its grid and collider here. A game entity's keys set the members its class marks [Authorable].",
             "type": "object"
           }
         },
@@ -149,7 +149,7 @@
             "rotation": false,
             "scale": false,
             "properties": {
-              "description": "A tile map's grid: its tile size, its extent in tiles, the texture it draws from, its palette and its tiles.",
+              "description": "A tile map's grid: its tile size, its extent in tiles, the texture it draws from, its palette, its tiles and whether it collides.",
               "type": "object",
               "properties": {
                 "tileSize": {
@@ -277,6 +277,11 @@
                     "minimum": 0,
                     "maximum": 7
                   }
+                },
+                "collider": {
+                  "description": "True to give the map a collider, whose cells collide on their tile types' layers. The palette must then name a layer, and the entry may author no scrollFactor. Absent is false.",
+                  "default": false,
+                  "type": "boolean"
                 }
               },
               "additionalProperties": false,

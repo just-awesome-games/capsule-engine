@@ -156,7 +156,7 @@ public sealed class OverlapTests
     public void OverlapPointAll_FindsWhatHoldsThePointOrHasItOnAnEdge_CellsFirst()
     {
         CollisionWorld2D world = new();
-        GridCollider2D grid = CollisionFixtures.Paint(world, "#.");
+        CollisionGrid2D grid = CollisionFixtures.Paint(world, "#.");
         CollisionLayer item = world.Layer("item");
         CollisionLayer other = world.Layer("other");
         Vector2 point = new(12f, 8f);

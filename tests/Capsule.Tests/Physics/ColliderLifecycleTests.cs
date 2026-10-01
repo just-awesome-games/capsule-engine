@@ -134,7 +134,7 @@ public sealed class ColliderLifecycleTests
         second.Collision.Layer("hazard");
         second.Collision.Layer("water");
         second.Collision.Layer("ladder");
-        second.Add(new TileMap(SceneFixtures.TerrainGrid("....", "####")));
+        second.Add(SceneFixtures.Colliding(SceneFixtures.TerrainGrid("....", "####")));
         second.Add(body);
 
         Assert.NotEqual(first.Collision.Layer("solid").Index, second.Collision.Layer("solid").Index);

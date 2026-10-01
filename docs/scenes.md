@@ -55,7 +55,8 @@ with LF endings and one trailing newline. A document is one uniform list of entr
         "tiles": [
           0, 0, 2, 0,
           1, 1, 1, 1
-        ]
+        ],
+        "collider": true
       },
       "zIndex": -10
     },
@@ -85,7 +86,9 @@ row per line.
 Each palette entry composes a `TileType`, or the subclass its `type` names. A palette entry's `properties`
 set that class's `[Authorable]` members, as an entity entry's do. `TileMap.TileAt` and `TileContact2D.Type`
 return the entry's instance, read as `map.TileAt(x, y).Name` or matched as `map.TileAt(x, y) is Ice ice`.
-`TileMap.SetTile` paints by name. How tiles collide is [`collision.md`](collision.md#terrain).
+`TileMap.SetTile` paints by name. `"collider": true` in the properties gives the map a
+`TileMapCollider2D`, and a map without it only draws. How tiles collide is
+[`collision.md`](collision.md#terrain).
 
 ### Entries and composition
 

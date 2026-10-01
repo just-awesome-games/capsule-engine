@@ -11,7 +11,7 @@ public sealed class CollisionGuardTests
     {
         CollisionWorld2D first = new();
         CollisionWorld2D second = new();
-        GridCollider2D terrain = CollisionFixtures.Paint(first, "##");
+        CollisionGrid2D terrain = CollisionFixtures.Paint(first, "##");
         ColliderHandle foreign = first.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, first.Layer("item"));
         ColliderHandle own = second.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, second.Layer("item"));
 

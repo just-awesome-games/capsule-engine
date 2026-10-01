@@ -163,7 +163,7 @@ public static class SceneDocumentFile
                     ZIndex = tileMap.ZIndex,
                     ScrollFactor = Pair(tileMap.ScrollFactor),
                     Properties = JsonSerializer.SerializeToElement(
-                        ToJson(tileMap.Grid),
+                        ToJson(tileMap.Grid, tileMap.HasCollider),
                         SceneDocumentJsonContext.Default.TileGridJson),
                 };
             }
@@ -414,11 +414,14 @@ public static class SceneDocumentFile
                 $"the '{SceneDocument.TileMapType}' entry declares no properties. Write its grid there as tileSize, width, height, tileTypes and tiles, plus texture and columns for a drawn grid.");
         }
 
+        TileGridJson grid = DeserializeGrid(properties);
+
         return new TileMapPlacement(
             entry.Id ?? 0,
-            Grid(DeserializeGrid(properties)),
+            Grid(grid),
             entry.ZIndex,
-            Pair(entry.ScrollFactor, $"entities[{index}]", "scrollFactor"));
+            Pair(entry.ScrollFactor, $"entities[{index}]", "scrollFactor"),
+            grid.Collider ?? false);
     }
 
     private static TileGridJson DeserializeGrid(JsonElement properties)
@@ -438,7 +441,8 @@ public static class SceneDocumentFile
             $"the '{SceneDocument.TileMapType}' entry's properties are empty.");
     }
 
-    private static TileGridJson ToJson(TileGrid grid)
+    // The canonical form omits collider on a map without one.
+    private static TileGridJson ToJson(TileGrid grid, bool collider)
     {
         ReadOnlySpan<TileType> palette = grid.TileTypes;
         TileTypeJson[] tileTypes = new TileTypeJson[palette.Length];
@@ -469,6 +473,7 @@ public static class SceneDocumentFile
             TileTypes = tileTypes,
             Tiles = [.. grid.Tiles],
             Transforms = Transformed(grid),
+            Collider = collider ? true : null,
         };
     }
 

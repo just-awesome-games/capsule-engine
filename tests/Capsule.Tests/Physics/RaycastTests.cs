@@ -105,7 +105,7 @@ public sealed class RaycastTests
     public void RaycastAll_WritesTheGridCellBeforeCollidersAtTheSameDistance()
     {
         CollisionWorld2D world = new();
-        GridCollider2D terrain = CollisionFixtures.Paint(world, "#");
+        CollisionGrid2D terrain = CollisionFixtures.Paint(world, "#");
         CollisionLayer item = world.Layer("item");
 
         // Both start on the grid's own left face at x = 0, so all three hits are at distance 4.

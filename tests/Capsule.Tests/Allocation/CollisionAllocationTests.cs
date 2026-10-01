@@ -174,7 +174,7 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         Aabb2D box = Aabb2D.FromCorner(new Vector2(0f, -4f), new Vector2(80f * CollisionFixtures.TileSize, 8f));
         _ = LandingWorld(out _).MoveBox(box, new Vector2(0f, 24f), CollisionFilter.Everything, contacts);
 
-        CollisionWorld2D world = LandingWorld(out GridCollider2D floor);
+        CollisionWorld2D world = LandingWorld(out CollisionGrid2D floor);
         long before = GC.GetAllocatedBytesForCurrentThread();
         MoveResult2D result = world.MoveBox(box, new Vector2(0f, 24f), CollisionFilter.Everything, contacts);
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -292,7 +292,7 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
     }
 
     // Forty floor tiles with their tops at y = 16, and forty crates beside them level with the tiles.
-    private static CollisionWorld2D LandingWorld(out GridCollider2D floor)
+    private static CollisionWorld2D LandingWorld(out CollisionGrid2D floor)
     {
         CollisionWorld2D world = new();
         floor = CollisionFixtures.Paint(world, new string('.', 40), new string('#', 40));

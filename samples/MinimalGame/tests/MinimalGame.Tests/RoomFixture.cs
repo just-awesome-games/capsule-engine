@@ -3,6 +3,7 @@ using Capsule;
 using Capsule.Generated;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
+using Capsule.Tiles;
 using MinimalGame.Game;
 using MinimalGame.Game.Entities;
 using MinimalGame.Game.Scenes;
@@ -51,5 +52,13 @@ public static class RoomFixture
         ArgumentNullException.ThrowIfNull(room);
 
         return room.Scene.FindSingle<Player>();
+    }
+
+    // The room also paints a backdrop from the terrain's palette, and only the terrain has a collider.
+    public static TileMap TerrainOf(SimulationHost room)
+    {
+        ArgumentNullException.ThrowIfNull(room);
+
+        return room.Scene.FindFirst<TileMap>(static map => map.TryGet<TileMapCollider2D>(out _))!;
     }
 }

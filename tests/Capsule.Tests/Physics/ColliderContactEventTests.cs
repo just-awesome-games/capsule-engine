@@ -54,7 +54,7 @@ public sealed class ColliderContactEventTests
         SceneFixtures.HookScene scene = new(
             step: (Scene _, in StepContext _) => log.Add("step"),
             lateStep: (Scene _, in StepContext _) => log.Add("late"));
-        scene.Add(new TileMap(SceneFixtures.TerrainGrid("....", "####")));
+        scene.Add(SceneFixtures.Colliding(SceneFixtures.TerrainGrid("....", "####")));
         scene.Add(body);
 
         // An entity's own late step is between the two: what it reads there is the health a contact

@@ -247,7 +247,7 @@ public sealed partial class CollisionWorld2D
     // solid neighbour, and a filter that excludes that neighbour's layer turns it into empty space,
     // which makes the culled face real again. A partly admitted grid re-decides the culling here.
     private static bool IsActiveFace(
-        GridCollider2D grid,
+        CollisionGrid2D grid,
         int x,
         int y,
         CellState2D state,
@@ -255,7 +255,7 @@ public sealed partial class CollisionWorld2D
         CollisionFilter filter,
         bool admitsEvery)
     {
-        CellState2D face = GridCollider2D.FaceOf(normal);
+        CellState2D face = CollisionGrid2D.FaceOf(normal);
 
         return (state & face) != 0 || (!admitsEvery && !grid.NeighbourAdmits(x, y, face, filter));
     }
@@ -301,7 +301,7 @@ public sealed partial class CollisionWorld2D
     // Whether a one-way collider stops a mover meeting it with this normal. It blocks only on a surface
     // it keeps, and only a mover that started clear of it.
     private static bool OneWayBlocks(in Shape2D moving, in Shape2D target, Vector2 normal, bool solidSides) =>
-        GridCollider2D.OneWayKeeps(normal, solidSides) && DepthPast(moving, target, normal) <= CollisionTolerance.LinearSlop;
+        CollisionGrid2D.OneWayKeeps(normal, solidSides) && DepthPast(moving, target, normal) <= CollisionTolerance.LinearSlop;
 
     // A box and an axis-aligned segment take the closed form against a box mover. A slanted segment
     // has no box to stand for it.
@@ -473,7 +473,7 @@ public sealed partial class CollisionWorld2D
     // The preamble every grid walk shares. Reports whether this query collides with the cell at (x, y),
     // and what it collides as.
     private bool TryCell(
-        GridCollider2D grid,
+        CollisionGrid2D grid,
         int x,
         int y,
         CollisionFilter filter,
@@ -522,7 +522,7 @@ public sealed partial class CollisionWorld2D
         RayAccumulator accumulator = new() { Distance = distance };
         count = 0;
 
-        foreach (GridCollider2D grid in Grids)
+        foreach (CollisionGrid2D grid in Grids)
         {
             if (grid.Handle == ignore || (filter & grid.Layers).IsEmpty)
             {
@@ -546,7 +546,7 @@ public sealed partial class CollisionWorld2D
 
     // Amanatides and Woo. A ray touches only the cells it crosses, in the order it crosses them.
     private void WalkGrid(
-        GridCollider2D grid,
+        CollisionGrid2D grid,
         Vector2 origin,
         Vector2 unit,
         float enter,
@@ -560,8 +560,8 @@ public sealed partial class CollisionWorld2D
         bool all = !hits.IsEmpty;
         int size = grid.CellSize;
         Vector2 start = origin + (unit * enter);
-        int x = Math.Clamp(GridCollider2D.FloorDiv(start.X, size), 0, grid.Width - 1);
-        int y = Math.Clamp(GridCollider2D.FloorDiv(start.Y, size), 0, grid.Height - 1);
+        int x = Math.Clamp(CollisionGrid2D.FloorDiv(start.X, size), 0, grid.Width - 1);
+        int y = Math.Clamp(CollisionGrid2D.FloorDiv(start.Y, size), 0, grid.Height - 1);
 
         int stepX = unit.X > 0f ? 1 : (unit.X < 0f ? -1 : 0);
         int stepY = unit.Y > 0f ? 1 : (unit.Y < 0f ? -1 : 0);
@@ -619,7 +619,7 @@ public sealed partial class CollisionWorld2D
     }
 
     private bool TestCell(
-        GridCollider2D grid,
+        CollisionGrid2D grid,
         int x,
         int y,
         Vector2 origin,
@@ -680,7 +680,7 @@ public sealed partial class CollisionWorld2D
     // from it cannot cross it, which makes an edge one-sided. A ray starting inside a solid polygon hits
     // at 0 on its nearest edge, as a ray starting inside a box does.
     private static bool FirstEdgeCrossed(
-        GridCollider2D grid,
+        CollisionGrid2D grid,
         int x,
         int y,
         CellState2D state,
@@ -782,7 +782,7 @@ public sealed partial class CollisionWorld2D
         int written = 0;
         Aabb2D probe = world.Bounds.Expanded(tolerance);
 
-        foreach (GridCollider2D grid in Grids)
+        foreach (CollisionGrid2D grid in Grids)
         {
             if (grid.Handle == ignore || (filter & grid.Layers).IsEmpty || !grid.Bounds.Overlaps(probe))
             {
@@ -791,10 +791,10 @@ public sealed partial class CollisionWorld2D
 
             bool admitsEvery = grid.AdmitsEveryLayer(filter);
             int size = grid.CellSize;
-            int minX = Math.Max(0, GridCollider2D.FloorDiv(probe.Min.X, size));
-            int maxX = Math.Min(grid.Width - 1, GridCollider2D.FloorDiv(probe.Max.X, size));
-            int minY = Math.Max(0, GridCollider2D.FloorDiv(probe.Min.Y, size));
-            int maxY = Math.Min(grid.Height - 1, GridCollider2D.FloorDiv(probe.Max.Y, size));
+            int minX = Math.Max(0, CollisionGrid2D.FloorDiv(probe.Min.X, size));
+            int maxX = Math.Min(grid.Width - 1, CollisionGrid2D.FloorDiv(probe.Max.X, size));
+            int minY = Math.Max(0, CollisionGrid2D.FloorDiv(probe.Min.Y, size));
+            int maxY = Math.Min(grid.Height - 1, CollisionGrid2D.FloorDiv(probe.Max.Y, size));
 
             for (int y = minY; y <= maxY; y++)
             {
@@ -826,7 +826,7 @@ public sealed partial class CollisionWorld2D
     // however many edges it carries. A solid cell is measured as its whole shape, and a one-way cell
     // edge by edge.
     private static bool CellContact(
-        GridCollider2D grid,
+        CollisionGrid2D grid,
         int x,
         int y,
         CellState2D state,
@@ -850,7 +850,7 @@ public sealed partial class CollisionWorld2D
 
     // The same for a polygon or one-way cell, kept apart from CellContact, whose box path is the hot one.
     private static bool EdgeContact(
-        GridCollider2D grid,
+        CollisionGrid2D grid,
         int x,
         int y,
         CellState2D state,
@@ -942,7 +942,7 @@ public sealed partial class CollisionWorld2D
         Aabb2D start = moving.Bounds.Expanded(CollisionTolerance.LinearSlop);
         Aabb2D swept = start.Swept(translation);
 
-        foreach (GridCollider2D grid in Grids)
+        foreach (CollisionGrid2D grid in Grids)
         {
             if (grid.Handle == ignore || (filter & grid.Layers).IsEmpty || !grid.Bounds.Overlaps(swept))
             {
@@ -952,8 +952,8 @@ public sealed partial class CollisionWorld2D
             bool admitsEvery = grid.AdmitsEveryLayer(filter);
             int size = grid.CellSize;
             int width = grid.Width;
-            int minX = Math.Max(0, GridCollider2D.FloorDiv(swept.Min.X, size));
-            int maxX = Math.Min(width - 1, GridCollider2D.FloorDiv(swept.Max.X, size));
+            int minX = Math.Max(0, CollisionGrid2D.FloorDiv(swept.Min.X, size));
+            int maxX = Math.Min(width - 1, CollisionGrid2D.FloorDiv(swept.Max.X, size));
             ReadOnlySpan<CellState2D> states = grid.States;
 
             // Column by column, and within each only the rows the sweep passes through. That band is
@@ -1027,15 +1027,15 @@ public sealed partial class CollisionWorld2D
         float top = start.Min.Y + (translation.Y * (downwards ? enter : exit));
         float bottom = start.Max.Y + (translation.Y * (downwards ? exit : enter));
 
-        minY = Math.Max(0, GridCollider2D.FloorDiv(top, size));
-        maxY = Math.Min(height - 1, GridCollider2D.FloorDiv(bottom, size));
+        minY = Math.Max(0, CollisionGrid2D.FloorDiv(top, size));
+        maxY = Math.Min(height - 1, CollisionGrid2D.FloorDiv(bottom, size));
 
         return minY <= maxY;
     }
 
     // Casts against one colliding cell of the grid, which the caller has already counted as tested.
     private void CastCell(
-        GridCollider2D grid,
+        CollisionGrid2D grid,
         int x,
         int y,
         CellState2D state,
@@ -1083,7 +1083,7 @@ public sealed partial class CollisionWorld2D
     // The edges of a polygon or one-way cell, each cast as a segment, less the up-facing ones while
     // dropping. Kept apart from CastCell, whose box path is the hot one.
     private void CastEdges(
-        GridCollider2D grid,
+        CollisionGrid2D grid,
         int x,
         int y,
         CellState2D state,
@@ -1112,7 +1112,7 @@ public sealed partial class CollisionWorld2D
             // running along it never tests it, so a slide carries over the join of two slopes.
             Vector2 end = corner + edge.End;
             if (Vector2.Dot(translation, outward) >= accumulator.Lean
-                || (dropping && outward.Y < -GridCollider2D.UpFacing)
+                || (dropping && outward.Y < -CollisionGrid2D.UpFacing)
                 || !grid.EdgeLive(x, y, state, index, edge, filter, admitsEvery)
                 || (topOnly
                     ? DepthPast(moving, start, outward) > CollisionTolerance.LinearSlop
@@ -1232,7 +1232,7 @@ public sealed partial class CollisionWorld2D
 
             // A one-way collider meets only a ray arriving from outside on a surface it keeps.
             if (!Rays2D.RayShape(slot.World, origin, unit, Accumulator.Distance, out float t, out Vector2 normal)
-                || (slot.OneWay && !(t > 0f && GridCollider2D.OneWayKeeps(normal, slot.SolidSides))))
+                || (slot.OneWay && !(t > 0f && CollisionGrid2D.OneWayKeeps(normal, slot.SolidSides))))
             {
                 return maxFraction;
             }
@@ -1429,7 +1429,7 @@ public sealed partial class CollisionWorld2D
 
             if (!Sweep(moving, translation, slot.World, out float fraction, out Vector2 normal, out Vector2 point)
                 || (slot.OneWay && !OneWayBlocks(moving, slot.World, normal, slot.SolidSides))
-                || (slot.OneWay && throughOneWay && normal.Y < -GridCollider2D.UpFacing))
+                || (slot.OneWay && throughOneWay && normal.Y < -CollisionGrid2D.UpFacing))
             {
                 return true;
             }

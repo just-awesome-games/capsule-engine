@@ -285,7 +285,7 @@ public sealed class StepTests
             1);
 
         return new Scene(SceneFixtures.Content(
-            new SceneDocument([new TileMapPlacement(SceneFixtures.TerrainId, grid)], SceneFixtures.TerrainId + 1),
+            new SceneDocument([new TileMapPlacement(SceneFixtures.TerrainId, grid, HasCollider: true)], SceneFixtures.TerrainId + 1),
             SceneFixtures.Registry()));
     }
 

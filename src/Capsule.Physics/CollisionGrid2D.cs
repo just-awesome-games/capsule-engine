@@ -2,16 +2,11 @@ using System.Numerics;
 
 namespace Capsule.Physics;
 
-/// <summary>
-/// A grid of layered cells with cell (0, 0) at the world origin. Each cell sits on the layer its
-/// palette entry names and collides as that entry's shape.
-/// </summary>
-/// <remarks>
-/// A query visits only the cells it crosses. A scene's tile map builds one, and
-/// <see cref="CollisionWorld2D.GridOf"/> finds it from a query's
-/// <see cref="CollisionTarget.Collider"/>.
-/// </remarks>
-public sealed class GridCollider2D
+// A grid of layered cells with cell (0, 0) at the world origin. Each cell sits on the layer its
+// palette entry names and collides as that entry's shape. A query visits only the cells it crosses. A
+// tile map's collider builds one, and CollisionWorld2D.GridOf finds it from a query's
+// CollisionTarget.Collider.
+internal sealed class CollisionGrid2D
 {
     // The most edges one palette entry derives. A polygon holds at most Shape2D.MaxPoints corners.
     internal const int MaxEdges = Shape2D.MaxPoints;
@@ -53,7 +48,7 @@ public sealed class GridCollider2D
     // Entries for cells that collide as nothing are never read.
     private readonly CollisionLayer[] _cellLayers;
 
-    internal GridCollider2D(
+    internal CollisionGrid2D(
         ColliderHandle handle,
         int cellSize,
         int width,
@@ -92,29 +87,26 @@ public sealed class GridCollider2D
         DeriveCells();
     }
 
-    /// <summary>This collider's identity in its world.</summary>
+    // This grid's identity in its world.
     public ColliderHandle Handle { get; }
 
-    /// <summary>World units a cell spans on each axis.</summary>
+    // World units a cell spans on each axis.
     public int CellSize { get; }
 
-    /// <summary>Cells across.</summary>
+    // Cells across.
     public int Width { get; }
 
-    /// <summary>Cells down.</summary>
+    // Cells down.
     public int Height { get; }
 
-    /// <summary>The world region the grid covers, from the origin.</summary>
+    // The world region the grid covers, from the origin.
     public Aabb2D Bounds { get; }
 
     // The union of the layers of cells that collide, or of cells that once did. A query whose filter
     // names none of them skips the grid without walking a cell.
     internal CollisionFilter Layers { get; private set; }
 
-    /// <summary>
-    /// The layer the cell at (<paramref name="x"/>, <paramref name="y"/>) is on, or null where it
-    /// collides as nothing.
-    /// </summary>
+    // The layer the cell at (x, y) is on, or null where it collides as nothing.
     public CollisionLayer? LayerAt(int x, int y)
     {
         RequireOnGrid(x, y);
@@ -122,7 +114,7 @@ public sealed class GridCollider2D
         return _layers[_cells[(y * Width) + x]];
     }
 
-    /// <summary>The world-space box of the cell at (<paramref name="x"/>, <paramref name="y"/>).</summary>
+    // The world-space box of the cell at (x, y).
     public Aabb2D CellBounds(int x, int y)
     {
         RequireOnGrid(x, y);

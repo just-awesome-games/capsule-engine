@@ -62,7 +62,9 @@ internal static class CrowdWorkload
         }
 
         Scene scene = new();
-        scene.Add(new TileMap(new TileGrid(TileSize, TilesWide, TilesHigh, Palette, cells, Atlas, 2)));
+        TileMap terrain = new(new TileGrid(TileSize, TilesWide, TilesHigh, Palette, cells, Atlas, 2));
+        terrain.Add(new TileMapCollider2D());
+        scene.Add(terrain);
         scene.Add(new Lift(new Vector2(8 * TileSize, 4 * TileSize)));
 
         for (int index = 0; index < Players; index++)

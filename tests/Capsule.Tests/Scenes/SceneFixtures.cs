@@ -51,8 +51,17 @@ internal static class SceneFixtures
     /// <summary>A scene of one tile map drawn as rows of '#' for solid terrain and '.' for empty.</summary>
     internal static Scene Terrain(params string[] rows) =>
         new(Content(
-            new SceneDocument([new TileMapPlacement(TerrainId, TerrainGrid(rows))], TerrainId + 1),
+            new SceneDocument([new TileMapPlacement(TerrainId, TerrainGrid(rows), HasCollider: true)], TerrainId + 1),
             Registry()));
+
+    /// <summary>A map of <paramref name="grid"/> that collides through a <see cref="TileMapCollider2D"/>.</summary>
+    internal static TileMap Colliding(TileGrid grid)
+    {
+        TileMap map = new(grid);
+        map.Add(new TileMapCollider2D());
+
+        return map;
+    }
 
     /// <summary>
     /// The grid behind <see cref="Terrain"/>. Every '#' is a solid tile on the layer "solid", '-' a one-way

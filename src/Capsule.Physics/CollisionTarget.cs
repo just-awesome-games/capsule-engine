@@ -1,7 +1,7 @@
 namespace Capsule.Physics;
 
 /// <summary>
-/// What a query found, either a collider or one cell of a grid collider with its coordinates and
+/// What a query found, either a collider or one cell of a grid with its coordinates and
 /// layer.
 /// </summary>
 public readonly record struct CollisionTarget
@@ -15,10 +15,10 @@ public readonly record struct CollisionTarget
         Layer = layer;
     }
 
-    /// <summary>The collider found, or for a grid cell the grid collider it belongs to.</summary>
+    /// <summary>The collider found, or for a grid cell the grid it belongs to.</summary>
     public ColliderHandle Collider { get; }
 
-    /// <summary>Whether this is a cell of a grid collider.</summary>
+    /// <summary>Whether this is a cell of a grid.</summary>
     public bool IsGridCell { get; }
 
     /// <summary>The cell's column when <see cref="IsGridCell"/>, zero otherwise.</summary>

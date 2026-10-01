@@ -27,7 +27,7 @@ internal static class CollisionFixtures
     /// A grid painted from rows of characters: '.' empty, '#' solid, '-' one-way, '=' climbable, '/' a
     /// solid slope rising to the right and '\' one falling to the right, both at 45 degrees.
     /// </summary>
-    internal static GridCollider2D Paint(CollisionWorld2D world, params string[] rows)
+    internal static CollisionGrid2D Paint(CollisionWorld2D world, params string[] rows)
     {
         int width = rows[0].Length;
         int[] cells = new int[width * rows.Length];

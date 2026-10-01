@@ -179,7 +179,9 @@ public Sky(EntitySpawn spawn)
 ```
 
 A document may author the factor instead, as `scrollFactor` on an entry. A `Tiling` of positive infinity
-on an axis repeats the frame without bound along it.
+on an axis repeats the frame without bound along it. A component that answers at the authored position,
+such as a collider, a `TileMapCollider2D` or a `VisibleOnScreenNotifier2D`, refuses a factor other than
+one. A tile map without a collider scrolls like any other entity.
 
 ## Lighting
 

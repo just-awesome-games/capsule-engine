@@ -3,8 +3,8 @@ using Capsule.Physics;
 
 namespace Capsule.Tests.Physics;
 
-// What a grid collider accepts at construction, and how it answers as one collider of a world.
-public sealed class GridColliderTests
+// What a collision grid accepts at construction, and how it answers as one collider of a world.
+public sealed class CollisionGridTests
 {
     [Fact]
     public void AddGrid_RejectsAGridThatDoesNotAddUp()
@@ -23,7 +23,7 @@ public sealed class GridColliderTests
         CollisionWorld2D world = new();
         int[] cells = [0, 1];
 
-        GridCollider2D grid = world.AddGrid(16, 2, 1, cells, CollisionFixtures.Profiles(world));
+        CollisionGrid2D grid = world.AddGrid(16, 2, 1, cells, CollisionFixtures.Profiles(world));
         cells[0] = 1;
         cells[1] = 0;
 
@@ -63,7 +63,7 @@ public sealed class GridColliderTests
     public void ThePerColliderAccessors_RefuseAGridHandleRatherThanDescribingItsSlot()
     {
         CollisionWorld2D world = new();
-        GridCollider2D grid = CollisionFixtures.Paint(world, "....", "####");
+        CollisionGrid2D grid = CollisionFixtures.Paint(world, "....", "####");
         ColliderHandle handle = grid.Handle;
 
         Assert.Throws<ArgumentException>(() => world.SetLayer(handle, world.Layer("wall")));
@@ -86,7 +86,7 @@ public sealed class GridColliderTests
     public void ThePerCellAccessors_RejectACoordinateOffTheGrid()
     {
         CollisionWorld2D world = new();
-        GridCollider2D grid = CollisionFixtures.Paint(world, "##", "##");
+        CollisionGrid2D grid = CollisionFixtures.Paint(world, "##", "##");
 
         Assert.Throws<ArgumentOutOfRangeException>(() => grid.LayerAt(2, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => grid.LayerAt(0, -1));
@@ -99,8 +99,8 @@ public sealed class GridColliderTests
     public void EveryVerb_PassesThroughAGridGivenAsTheIgnoredCollider()
     {
         CollisionWorld2D world = new();
-        GridCollider2D floor = CollisionFixtures.Paint(world, "....", "####");
-        GridCollider2D ceiling = CollisionFixtures.Paint(world, "####", "....");
+        CollisionGrid2D floor = CollisionFixtures.Paint(world, "....", "####");
+        CollisionGrid2D ceiling = CollisionFixtures.Paint(world, "####", "....");
         ColliderHandle body = world.Add(
             Shape2D.Box(new Vector2(20f, 20f), new Vector2(8f, 8f)),
             Vector2.Zero,

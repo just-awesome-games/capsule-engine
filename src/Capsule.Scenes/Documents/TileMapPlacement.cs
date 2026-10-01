@@ -13,6 +13,15 @@ namespace Capsule.Scenes.Documents;
 /// </param>
 /// <param name="ScrollFactor">
 /// The authored scroll factor, or null when the placement authors none. A value overwrites the composed map's
-/// <see cref="Entity.ScrollFactor"/>, which a grid with a colliding palette rejects.
+/// <see cref="Entity.ScrollFactor"/>, which a map with a collider rejects.
 /// </param>
-public readonly record struct TileMapPlacement(int Id, TileGrid Grid, int? ZIndex = null, Vector2? ScrollFactor = null);
+/// <param name="HasCollider">
+/// Whether the composed map gets a <see cref="TileMapCollider2D"/>, false by default. The grid's palette must
+/// then name a layer.
+/// </param>
+public readonly record struct TileMapPlacement(
+    int Id,
+    TileGrid Grid,
+    int? ZIndex = null,
+    Vector2? ScrollFactor = null,
+    bool HasCollider = false);

@@ -63,7 +63,7 @@ public sealed class EngineDebugDrawTests
         Assert.Equal(new ColorRgba(0, 255, 0), lines[0].Color);
 
         // Cell 0 owes three faces and cells 1 and 2 two each. Shared faces are not drawn.
-        GridCollider2D grid = scene.Map.Collision!;
+        CollisionGrid2D grid = scene.Map.Get<TileMapCollider2D>().Grid!;
         Aabb2D first = grid.CellBounds(0, 0);
         Assert.Equal((first.Min, new Vector2(first.Min.X, first.Max.Y)), (lines[61].A, lines[61].B));
         Assert.Equal((first.Min, new Vector2(first.Max.X, first.Min.Y)), (lines[62].A, lines[62].B));
@@ -222,7 +222,7 @@ public sealed class EngineDebugDrawTests
             {
                 Collider = { Enabled = false },
             };
-            Map = new TileMap(SceneFixtures.TerrainGrid("########"));
+            Map = SceneFixtures.Colliding(SceneFixtures.TerrainGrid("########"));
 
             Add(Box);
             Add(Circle);

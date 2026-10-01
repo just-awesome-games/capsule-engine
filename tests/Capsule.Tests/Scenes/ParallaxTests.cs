@@ -249,16 +249,6 @@ public sealed class ParallaxTests
     }
 
     [Fact]
-    public void ACollidingTileMap_RefusesAFactorAndADecorativeOneTakesIt()
-    {
-        TileMap colliding = new(SceneFixtures.TerrainGrid("#"));
-        Assert.Throws<InvalidOperationException>(() => colliding.ScrollFactor = Half);
-
-        TileMap decorative = new(SceneFixtures.RoomGrid()) { ScrollFactor = Half };
-        Assert.Equal(Half, decorative.ScrollFactor);
-    }
-
-    [Fact]
     public void AScreenEntity_RefusesAFactor()
     {
         ScreenEntity element = new(Anchor.TopLeft, Vector2.Zero);

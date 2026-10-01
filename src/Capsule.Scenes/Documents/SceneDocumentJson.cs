@@ -132,18 +132,18 @@ internal sealed class SceneEntryJson
     [Description("The entry's draw band. On a tile-map entry it applies to the composed map.")]
     public int? ZIndex { get; set; }
 
-    [Description("How far the entry moves with the camera, as [x, y], both finite. On a tile-map entry it applies to the composed map. A tile-map entry whose palette names a collision layer refuses it.")]
+    [Description("How far the entry moves with the camera, as [x, y], both finite. On a tile-map entry it applies to the composed map. A tile-map entry whose properties set collider refuses it.")]
     [SchemaLength(2, 2)]
     public float[]? ScrollFactor { get; set; }
 
     // Raw JSON, because each entry type defines its own properties contract. The reader deserializes the
     // tile map's against TileGridJson. A game entry's are read key by key into its class's authorable
     // members when it spawns.
-    [Description("The entry's properties. A tile-map entry holds its grid here. A game entity's keys set the members its class marks [Authorable].")]
+    [Description("The entry's properties. A tile-map entry holds its grid and collider here. A game entity's keys set the members its class marks [Authorable].")]
     public JsonElement? Properties { get; set; }
 }
 
-[Description("A tile map's grid: its tile size, its extent in tiles, the texture it draws from, its palette and its tiles.")]
+[Description("A tile map's grid: its tile size, its extent in tiles, the texture it draws from, its palette, its tiles and whether it collides.")]
 internal sealed class TileGridJson
 {
     [Description("The side of one square tile in pixels.")]
@@ -181,6 +181,10 @@ internal sealed class TileGridJson
     [Description("How each tile's drawing and collision shape is mirrored or turned, in the shape of tiles. 1 mirrors it left to right, 2 top to bottom and 4 swaps its axes before either, and the sum combines them. Absent is all 0.")]
     [Range(0, TileTransforms.Count - 1)]
     public int[]? Transforms { get; set; }
+
+    [Description("True to give the map a collider, whose cells collide on their tile types' layers. The palette must then name a layer, and the entry may author no scrollFactor. Absent is false.")]
+    [DefaultValue(false)]
+    public bool? Collider { get; set; }
 }
 
 [Description("One palette entry: a named tile type, the class it composes, and how its tiles draw and collide.")]

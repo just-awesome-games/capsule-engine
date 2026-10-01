@@ -106,7 +106,7 @@ internal static class CollisionWorkload
         TileGrid grid = new(TileSize, TilesWide, TilesHigh, Palette, Cells(), Atlas, 2);
 
         return new Scene(new SceneContent(
-            new SceneDocument([new TileMapPlacement(1, grid)], 2),
+            new SceneDocument([new TileMapPlacement(1, grid, HasCollider: true)], 2),
             new EntityRegistry([])));
     }
 

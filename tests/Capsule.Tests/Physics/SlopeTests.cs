@@ -60,9 +60,9 @@ public sealed class SlopeTests
     public void ASlopeBesideASolidBox_SharesNoLiveEdgeWithIt()
     {
         CollisionWorld2D world = new();
-        GridCollider2D grid = CollisionFixtures.Paint(world, "/=", "##");
+        CollisionGrid2D grid = CollisionFixtures.Paint(world, "/=", "##");
 
-        Assert.Equal(CellState2D.Edges | GridCollider2D.EdgeBit(0), grid.StateAt(0, 0));
+        Assert.Equal(CellState2D.Edges | CollisionGrid2D.EdgeBit(0), grid.StateAt(0, 0));
         Assert.Equal(CellState2D.None, grid.StateAt(1, 0) & CellState2D.FaceMinX);
 
         Assert.True(world.Raycast(
@@ -158,7 +158,7 @@ public sealed class SlopeTests
     public void AGroundedBox_WalkingDownOntoAStepsCorner_StaysOnTopOfIt(float way)
     {
         Scene scene = new(SceneFixtures.Content(
-            new SceneDocument([new TileMapPlacement(SceneFixtures.TerrainId, StepGrid(way < 0f))], SceneFixtures.TerrainId + 1),
+            new SceneDocument([new TileMapPlacement(SceneFixtures.TerrainId, StepGrid(way < 0f), HasCollider: true)], SceneFixtures.TerrainId + 1),
             SceneFixtures.Registry()));
         SceneFixtures.Body body = new(new Vector2(way > 0f ? 8f : 120f, -1f), blocksOn: "solid");
         body.Collider.Size = new Vector2(16f, 32f);

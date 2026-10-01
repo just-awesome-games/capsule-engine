@@ -8,10 +8,11 @@ namespace Capsule.Physics;
 /// Every collider a game can hit, and the queries and sweeps that ask about them.
 /// </summary>
 /// <remarks>
-/// A scene's colliders and tile maps register themselves in its world. A world detects collision
-/// only. It has no dynamics and no solver. Shape colliders sit in a bounding-volume tree, and
-/// terrain sits in <see cref="GridCollider2D"/> grids. A world is single-threaded, and no query
-/// allocates once its colliders exist.
+/// A scene's collider components register its collision in its world. A tile map's collider
+/// component is <c>TileMapCollider2D</c>. A world detects collision only. It has no dynamics and
+/// no solver. Shape colliders sit in a bounding-volume tree, and terrain sits in grids of layered
+/// cells. A world is single-threaded, and no query allocates once
+/// its colliders exist.
 /// <para>
 /// A world accepts only the handles, layers and filters it issued. Every query takes the filter it
 /// matches by. A collider's stored filter does not decide what a query finds.
@@ -36,7 +37,7 @@ public sealed partial class CollisionWorld2D
     private readonly int _id = Interlocked.Increment(ref WorldsCreated);
     private readonly Dictionary<string, int> _layerIndices = new(StringComparer.Ordinal);
     private readonly List<string> _layerNames = [];
-    private readonly List<GridCollider2D> _grids = [];
+    private readonly List<CollisionGrid2D> _grids = [];
     private readonly List<int> _freeSlots = [];
     private readonly DynamicTree2D _tree = new();
 
@@ -69,14 +70,14 @@ public sealed partial class CollisionWorld2D
     // A world holding nothing, with only DefaultLayerName interned.
     internal CollisionWorld2D() => Layer(DefaultLayerName);
 
-    // How many colliders and grid colliders the world holds.
+    // How many colliders and collision grids the world holds.
     internal int ColliderCount { get; private set; }
 
     // How many distinct layers have been interned, DefaultLayerName included.
     internal int LayerCount => _layerIndices.Count;
 
-    // The grid colliders the world holds, in the order they were added.
-    internal ReadOnlySpan<GridCollider2D> Grids => CollectionsMarshal.AsSpan(_grids);
+    // The collision grids the world holds, in the order they were added.
+    internal ReadOnlySpan<CollisionGrid2D> Grids => CollectionsMarshal.AsSpan(_grids);
 
     // How many grid cells this world's queries have reached since the last ResetDiagnostics, empty
     // ones included. No query result depends on it.
@@ -213,7 +214,7 @@ public sealed partial class CollisionWorld2D
         ColliderCount--;
     }
 
-    internal void Remove(GridCollider2D grid)
+    internal void Remove(CollisionGrid2D grid)
     {
         ArgumentNullException.ThrowIfNull(grid);
 
@@ -322,7 +323,7 @@ public sealed partial class CollisionWorld2D
 
     /// <summary>
     /// The layer a collider is on. A grid's cells carry the layers of the profiles they were painted
-    /// from, which <see cref="GridCollider2D.LayerAt"/> reads.
+    /// from, and a query reports a cell's layer in its <see cref="CollisionTarget"/>.
     /// </summary>
     /// <exception cref="ArgumentException">The handle names no live collider, or names a grid.</exception>
     public CollisionLayer LayerOf(ColliderHandle handle) => _slots[RequireShapeSlot(handle)].Layer;
@@ -331,11 +332,9 @@ public sealed partial class CollisionWorld2D
     // names nothing live.
     internal object? UserDataOf(ColliderHandle handle) => _slots[RequireSlot(handle)].UserData;
 
-    /// <summary>
-    /// The grid collider a handle names, or null when it names a shape collider or nothing live. The
-    /// per-collider accessors describe a single shape and refuse a grid's handle.
-    /// </summary>
-    public GridCollider2D? GridOf(ColliderHandle handle)
+    // The collision grid a handle names, or null when it names a shape collider or nothing live. The
+    // per-collider accessors describe a single shape and refuse a grid's handle.
+    internal CollisionGrid2D? GridOf(ColliderHandle handle)
     {
         RequireOwn(handle, nameof(handle));
 
@@ -351,7 +350,7 @@ public sealed partial class CollisionWorld2D
     }
 
     // Adds a grid of collidable cells anchored at the world origin. The cell array is copied.
-    internal GridCollider2D AddGrid(
+    internal CollisionGrid2D AddGrid(
         int cellSize,
         int width,
         int height,
@@ -424,7 +423,7 @@ public sealed partial class CollisionWorld2D
         slot.Layer = Layer(DefaultLayerName);
         slot.UserData = userData;
 
-        GridCollider2D grid = new(
+        CollisionGrid2D grid = new(
             HandleAt(slotIndex),
             cellSize,
             width,
@@ -1018,7 +1017,7 @@ public sealed partial class CollisionWorld2D
 
         return _slots[index].Grid is null
             ? index
-            : throw new ArgumentException("Handle names a grid collider, which has no single shape or position.", nameof(handle));
+            : throw new ArgumentException("Handle names a grid, which has no single shape or position.", nameof(handle));
     }
 
     private struct ColliderSlot
@@ -1028,7 +1027,7 @@ public sealed partial class CollisionWorld2D
         internal Vector2 Position;
         internal CollisionLayer Layer;
         internal object? UserData;
-        internal GridCollider2D? Grid;
+        internal CollisionGrid2D? Grid;
         internal int ProxyId;
         internal int Generation;
         internal bool InUse;
