@@ -201,6 +201,40 @@ internal sealed class SpriteBatcher : IDisposable
         Stage(in quad, color, blend, flash);
     }
 
+    // A region drawn from its top-left corner at position, turned clockwise by a whole number of
+    // quarter turns. The remaining parameters are SpriteQuad.PlaceQuarterTurned's.
+    internal void DrawQuarterTurned(
+        Texture2D texture,
+        Vector2 position,
+        Vector2 scale,
+        in TextureRegion region,
+        int sliceOffsetX,
+        int sliceOffsetY,
+        int turns,
+        bool flipX,
+        bool flipY,
+        ColorRgba color,
+        BlendMode blend,
+        ColorRgba flash)
+    {
+        OpenRun(texture);
+
+        SpriteQuad quad = SpriteQuad.PlaceQuarterTurned(
+            position,
+            scale,
+            region.X + sliceOffsetX,
+            region.Y + sliceOffsetY,
+            region.Width,
+            region.Height,
+            _texelWidth,
+            _texelHeight,
+            turns,
+            flipX,
+            flipY);
+
+        Stage(in quad, color, blend, flash);
+    }
+
     // The entire texture, as SpriteBatch draws a null source rectangle. Always alpha: nothing here draws
     // from a SpriteIntent, so nothing here carries a blend of its own.
     internal void DrawWhole(Texture2D texture, Vector2 position, Vector2 origin, Vector2 scale, float rotation, ColorRgba color)

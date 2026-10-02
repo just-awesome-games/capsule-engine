@@ -14,15 +14,12 @@ internal static class PanelFixtures
     internal static readonly string[] Head =
     [
         "[Scene]",
+        "Camera",
         "Seed",
         "Size",
         "ClearColor",
         "Ambient",
         "Sampling",
-        "Camera",
-        "Camera Type",
-        "Camera Viewport",
-        "Camera Zoom",
         "Paused",
         "",
         "[Entities]",

@@ -26,10 +26,11 @@ return CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
 ```
 
 `Camera.Fit` decides what an output whose aspect ratio differs from the viewport shows. Point sampling
-snaps each sprite to the surface's pixel grid. A declared render surface fills the output edge to edge
-on its binding axis, at whatever fractional scale keeps its aspect, with bars on the other axis. A
-point-sampled surface enlarged past a whole scale is first enlarged to the next whole scale with the
-nearest texel and then filtered down to fit. Its texels stay crisp and even in width. A window smaller
+snaps each sprite to the surface's pixel grid. An unturned sprite, or one turned by whole quarter turns,
+snaps all four edges. Abutting tiles then share their edges at any zoom. A declared render surface
+fills the output edge to edge on its binding axis, at whatever fractional scale keeps its aspect, with
+bars on the other axis. A point-sampled surface enlarged past a whole scale is first enlarged to the
+next whole scale with the nearest texel and then filtered down to fit. Its texels stay crisp and even in width. A window smaller
 than the surface filters it straight down.
 
 ## A camera that follows

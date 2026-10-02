@@ -1,5 +1,7 @@
+using System.Numerics;
 using Capsule.Diagnostics;
 using Capsule.Input;
+using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Scenes;
@@ -24,9 +26,11 @@ public sealed class OverlayPanelTests
 
         Assert.Equal("Populated", rig.Overlay.Title);
         Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], rig.Rows());
-        Assert.Equal(FirstEntity, rig.Overlay.Focus);
+        Assert.Equal("Camera", rig.Focused());
         Assert.Equal(2, rig.Overlay.Depth);
 
+        rig.Press(Key.Down);
+        Assert.Equal(FirstEntity, rig.Overlay.Focus);
         rig.Press(Key.Enter);
 
         Assert.Equal("Lone", rig.Overlay.Title);
@@ -39,6 +43,7 @@ public sealed class OverlayPanelTests
         Assert.Equal(10, rig.Overlay.Focus);
 
         rig.Press(Key.Backspace);
+        rig.Press(Key.Up);
         rig.Press(Key.Up);
         rig.Press(Key.Enter);
 
@@ -55,6 +60,7 @@ public sealed class OverlayPanelTests
 
         rig.Open();
         rig.Press(Key.S);
+        rig.Press(Key.Down);
         rig.Press(Key.Down);
         rig.Press(Key.Down);
         rig.Press(Key.Enter);
@@ -146,6 +152,7 @@ public sealed class OverlayPanelTests
         rig.Open();
         rig.Press(Key.S);
         rig.Press(Key.Down);
+        rig.Press(Key.Down);
         rig.Press(Key.Enter);
         Assert.Equal("Transform     (10, 0) r 0 s (1, 1)", Drawn(rig, 1));
 
@@ -172,6 +179,38 @@ public sealed class OverlayPanelTests
         rig.Press(Key.S);
 
         Assert.Contains(rig.Overlay.Scene.ShownRows(), static row => row.EndsWith(LongField.Value, StringComparison.Ordinal));
+    }
+
+    // The scene page's Camera row opens the camera's panel without a tick: the engine's rows, then the
+    // subclass's own.
+    [Fact]
+    public void TheCameraRow_OpensTheCamerasPanelWithTheEngineRowsThenTheSubclasses()
+    {
+        using OverlayRig rig = new(CreateHost(new Tracked()));
+
+        rig.Open();
+        rig.Press(Key.S);
+        Assert.Equal("Camera      TrackingCamera", Drawn(rig, 1));
+
+        rig.Press(Key.Enter);
+
+        Assert.Equal("TrackingCamera", rig.Overlay.Title);
+        Assert.Equal(
+            ["[Camera]", "Center", "Zoom", "ViewportSize", "Fit", "Offset", "Bounds", "VisibleRegion", "Lead"],
+            rig.Rows());
+        Assert.EndsWith("(0, 0) to (64, 32)", Drawn(rig, 6), StringComparison.Ordinal);
+        Assert.Equal(0, rig.Scheduler.Tick);
+    }
+
+    internal sealed class Tracked : Scene
+    {
+        internal Tracked() =>
+            Camera = new TrackingCamera { ViewportSize = new Vector2(32f, 16f), Bounds = new Rect(0f, 0f, 64f, 32f) };
+    }
+
+    internal sealed class TrackingCamera : Camera
+    {
+        protected internal override void OnDebugPanel(DebugPanel panel) => panel.Field("Lead", 3f);
     }
 
     internal sealed class LongField : Scene

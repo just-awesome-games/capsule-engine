@@ -34,9 +34,9 @@ internal ref struct NumberText
         Pad(digits[..written], width);
     }
 
-    internal void Add(int value, int width = 0)
+    internal void Add(long value, int width = 0)
     {
-        Span<char> digits = stackalloc char[16];
+        Span<char> digits = stackalloc char[24];
         value.TryFormat(digits, out int written, default, CultureInfo.InvariantCulture);
         Pad(digits[..written], width);
     }

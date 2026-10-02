@@ -14,19 +14,19 @@ namespace Capsule.Tests.Runtime;
 public sealed class OverlayRunTests
 {
     private static readonly InputAction SharedAction = new("shared");
-    private static readonly InputAction SpaceAction = new("space");
+    private static readonly InputAction LetterAction = new("letter");
     private static readonly InputAction RightAction = new("right");
 
     [Fact]
     public void Step_RunsOneTickThroughTheInputPathWithoutTheOverlaysKeysAndRepeatsOnAHeldKey()
     {
         using OverlayRig rig = new(
-            RecordingHost(SharedAction, SpaceAction, RightAction),
-            scheduler: CreateScheduler(new ActionBindings().Bind(SpaceAction, Key.Space).Bind(RightAction, Key.Right)));
+            RecordingHost(SharedAction, LetterAction, RightAction),
+            scheduler: CreateScheduler(new ActionBindings().Bind(LetterAction, Key.Z).Bind(RightAction, Key.Right)));
         List<RecordedStep> recorded = rig.Recording.Recorded;
 
         rig.Open();
-        rig.Frame(DeviceSnapshot.Of(Key.Right, Key.Space));
+        rig.Frame(DeviceSnapshot.Of(Key.Right, Key.Z));
 
         RecordedStep step = Assert.Single(recorded);
         Assert.True(step.First.Held || step.Second.Held);
@@ -92,7 +92,7 @@ public sealed class OverlayRunTests
         Assert.IsType<ReadoutScene>(rig.Host.Scene);
         Assert.Equal(1, rig.Scheduler.Tick);
         Assert.True(rig.Scheduler.Held);
-        Assert.Equal("ReadoutScene  tick 1", rig.Overlay.Scene.Readout);
+        Assert.Equal(["ReadoutScene", "tick 1", ""], rig.Overlay.Scene.Readout());
     }
 
     [Fact]

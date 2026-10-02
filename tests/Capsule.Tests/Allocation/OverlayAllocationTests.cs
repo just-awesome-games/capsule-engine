@@ -42,6 +42,7 @@ public sealed class OverlayAllocationTests
 
         rig.Open();
         rig.Press(Key.S);
+        rig.Press(Key.Down);
         rig.Press(Key.Enter);
 
         Assert.Equal("Holder", rig.Overlay.Title);
@@ -51,10 +52,39 @@ public sealed class OverlayAllocationTests
         rig.Press(Key.Right);
 
         Assert.Equal(1, rig.Scheduler.Tick);
-        Assert.Equal("Instrumented  tick 1", rig.Overlay.Scene.Readout);
+        Assert.Equal(["Instrumented", "tick 1", ""], rig.Overlay.Scene.Readout());
         Assert.Contains(
             rig.Overlay.Scene.ShownRows(),
             static row => row.StartsWith("Ticks", StringComparison.Ordinal) && row.EndsWith('1'));
+    }
+
+    // A middle-drag pans every frame, Ctrl+wheel zooms in and back out, and the pointer's moving world
+    // point is rewritten into the readout. The host reads the game's frame each frame, as it draws.
+    [Fact]
+    public void HeldFramesThatPanZoomAndMoveTheReadout_AllocateNothing()
+    {
+        using OverlayRig rig = OverlayFixtures.Framing(new OverlayFixtures.FramedScene());
+        rig.Open();
+        rig.PlaceWorld();
+
+        Gesture(rig, 60);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        Gesture(rig, 300);
+
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.True(rig.Overlay.FreeCamera.Detached);
+        Assert.NotEmpty(rig.Overlay.Scene.Readout()[2]);
+    }
+
+    private static void Gesture(OverlayRig rig, int frames)
+    {
+        for (int frame = 0; frame < frames; frame++)
+        {
+            Vector2 pointer = new(500f + (frame % 50), 250f);
+            float notches = frame % 20 == 0 ? 1f : frame % 20 == 10 ? -1f : 0f;
+            rig.Frame(DeviceSnapshot.Empty.With(Key.LeftControl).WithPointer(pointer).With(MouseButton.Middle).WithScroll(new Vector2(0f, notches)));
+            _ = rig.Host.View;
+        }
     }
 
     private static void AssertIdleStretchAllocatesNothing(OverlayRig rig)

@@ -75,6 +75,11 @@ internal sealed class FrameRenderer : IDisposable
     // vsync wait. Zero before the first.
     internal double LastFrameMs { get; private set; }
 
+    // How many times wider than the game's view the host's view of the world spans, defaulting to 1.
+    // Past 1, a render surface is drawn larger by a whole factor that keeps its present whole. The world
+    // and the screen layer land on the same back-buffer pixels at any factor.
+    internal float WorldZoomOut { get; set; } = 1f;
+
     // renderResolution: A fixed render surface, or null to draw into the back buffer.
     //
     // textures: The scene texture cache, loading on first use. The caller owns it.
@@ -121,6 +126,9 @@ internal sealed class FrameRenderer : IDisposable
     // world. It sizes a screen-sized glyph placed at a world point.
     internal float WorldPixelsPerUnit => _world is { } world ? world.PixelsPerUnit : 0f;
 
+    // Where the last frame's world landed in the back buffer, or null before one has drawn a world.
+    internal WorldPlacement? WorldPlacement => _world;
+
     // Whether this frame drew. A capture request stands until one does.
     internal bool CanCaptureFrame => FrameCapture.CanCapture(_device);
 
@@ -151,33 +159,36 @@ internal sealed class FrameRenderer : IDisposable
             }
 
             DrawWorld(view, alpha, world, layout.Span, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity);
-            DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns);
+            DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns, surfaceFactor: 1);
         }
         else
         {
-            RenderTarget2D target = Surface(layout.Surface);
+            int limit = FrameLayout.SurfaceFactorLimit(view.Sampling, layout.Present.Scale);
+            int factor = FrameLayout.SurfaceFactor(WorldZoomOut, limit);
+            ScreenLayout drawn = FrameLayout.Enlarge(layout, factor);
+            RenderTarget2D target = Surface(drawn.Surface);
 
             if (view.LitWorld)
             {
-                DrawLightMap(view, alpha, world, layout.Span, layout.World, target.Width, target.Height);
+                DrawLightMap(view, alpha, world, layout.Span, drawn.World, target.Width, target.Height);
             }
 
             _device.SetRenderTarget(target);
-            DrawWorld(view, alpha, world, layout.Span, layout.World, target.Width, target.Height, layout.Present);
+            DrawWorld(view, alpha, world, layout.Span, drawn.World, target.Width, target.Height, drawn.Present);
 
             // Drawn over the world's bars. The viewport is the full surface again and the canvas sits
             // centred in it on whole pixels, so nothing lands on a grid the world did not use.
             if (layout.ScreenOnSurface)
             {
-                DrawScreen(view, alpha, layout.OnSurface, target.Width, target.Height, view.Sampling, view.ScreenMaterialRuns);
+                DrawScreen(view, alpha, drawn.OnSurface, target.Width, target.Height, view.Sampling, view.ScreenMaterialRuns, factor);
             }
 
             _device.SetRenderTarget(null);
-            Present(target, view.Sampling, layout.Present);
+            Present(target, view.Sampling, layout.Present, factor);
 
             if (!layout.ScreenOnSurface)
             {
-                DrawScreen(view, alpha, layout.Layer, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns);
+                DrawScreen(view, alpha, layout.Layer, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns, surfaceFactor: 1);
             }
         }
 
@@ -222,7 +233,8 @@ internal sealed class FrameRenderer : IDisposable
             width,
             height,
             TextureSampling.Point,
-            materials: default);
+            materials: default,
+            surfaceFactor: 1);
     }
 
     // The world's region of the back buffer is the fit inside the surface carried through the
@@ -519,7 +531,8 @@ internal sealed class FrameRenderer : IDisposable
     }
 
     // The screen layer, in canvas pixels placed by placement. Drawn after the world and across the
-    // full surface, so it covers the bars the world's fit left.
+    // full surface, so it covers the bars the world's fit left. On a surface drawn surfaceFactor times
+    // larger it snaps to the grid it had at a factor of 1, and its pixels are those pixels enlarged.
     private void DrawScreen(
         FrameView view,
         float alpha,
@@ -527,7 +540,8 @@ internal sealed class FrameRenderer : IDisposable
         int surfaceWidth,
         int surfaceHeight,
         TextureSampling sampling,
-        ReadOnlySpan<MaterialRun> materials)
+        ReadOnlySpan<MaterialRun> materials,
+        int surfaceFactor)
     {
         ReadOnlySpan<SpriteIntent> sprites = view.ScreenSprites;
         ReadOnlySpan<LineIntent> lines = view.ScreenLines;
@@ -545,13 +559,14 @@ internal sealed class FrameRenderer : IDisposable
         _batcher.Begin(in canvasToSurface, Sampler(sampling));
 
         bool snap = sampling == TextureSampling.Point;
+        float grid = placement.Scale / surfaceFactor;
         Pass pass = new()
         {
             Alpha = alpha,
             Snap = snap,
-            Scale = placement.Scale,
+            Scale = grid,
             SnapLines = snap,
-            LineScale = placement.Scale,
+            LineScale = grid,
         };
 
         DrawIntents(sprites, lines, default, default, materials, ref pass);
@@ -662,32 +677,71 @@ internal sealed class FrameRenderer : IDisposable
         }
 
         TextureSlice slice = pass.Slice;
-        Vector2 position = ScrollLayout.Place(
-            StepInterpolation.Interpolate(sprite.PreviousPosition, sprite.Position, pass.Alpha),
-            pass.LayerCorner,
-            pass.FrameCorner,
-            pass.Snap,
-            pass.Scale);
-
         TextureRegion region = sprite.Sprite.Region;
+        Vector2 position = StepInterpolation.Interpolate(sprite.PreviousPosition, sprite.Position, pass.Alpha);
+        float rotation = StepInterpolation.Interpolate(sprite.PreviousRotation, sprite.Rotation, pass.Alpha);
+        Vector2 origin = sprite.DrawOrigin;
+        Vector2 texels = new(region.Width, region.Height);
+        Vector2 scale;
+
+        // A snapped quad puts both edges on the grid, or abutting tiles leave a gap at a fractional
+        // scale. It draws at its exact quarter turn, through the unturned path when that is none. Any
+        // other turn snaps its pivot alone.
+        if (pass.Snap && ScrollLayout.TryPlaceSnapped(position, origin * (sprite.Size / texels), sprite.Size, rotation, pass.LayerCorner, pass.FrameCorner, pass.Scale, out Vector2 corner, out Vector2 pixels, out int turns))
+        {
+            if (turns == 0)
+            {
+                origin = Vector2.Zero;
+                rotation = 0f;
+                position = corner;
+                scale = pixels / (texels * pass.Scale);
+            }
+            else
+            {
+                DrawQuarterTurned(in sprite, slice, in region, corner, pixels / (texels * pass.Scale), turns);
+
+                return;
+            }
+        }
+        else
+        {
+            position = ScrollLayout.Place(position, pass.LayerCorner, pass.FrameCorner, pass.Snap, pass.Scale);
+            scale = sprite.Size / texels;
+        }
 
         // The drawn rect is already placed by the mirrored origin. The flips swap the texture
         // coordinates that fill it.
         _batcher.Draw(
             slice.Texture,
             position,
-            sprite.DrawOrigin,
-            new Vector2(sprite.Size.X / region.Width, sprite.Size.Y / region.Height),
+            origin,
+            scale,
             in region,
             slice.OffsetX,
             slice.OffsetY,
-            StepInterpolation.Interpolate(sprite.PreviousRotation, sprite.Rotation, pass.Alpha),
+            rotation,
             sprite.FlipX,
             sprite.FlipY,
             sprite.Color,
             sprite.Blend,
             sprite.Flash);
     }
+
+    // A sprite placed on whole quarter turns, at its exact turn.
+    private void DrawQuarterTurned(in SpriteIntent sprite, TextureSlice slice, in TextureRegion region, Vector2 corner, Vector2 scale, int turns) =>
+        _batcher.DrawQuarterTurned(
+            slice.Texture,
+            corner,
+            scale,
+            in region,
+            slice.OffsetX,
+            slice.OffsetY,
+            turns,
+            sprite.FlipX,
+            sprite.FlipY,
+            sprite.Color,
+            sprite.Blend,
+            sprite.Flash);
 
     // A texture a material binds, whole and never through an atlas page.
     private Texture2D WholeTexture(TextureHandle handle) =>
@@ -699,8 +753,9 @@ internal sealed class FrameRenderer : IDisposable
             : throw new ArgumentException($"Unknown engine-owned texture handle '{handle.Name}'.", nameof(handle));
 
     // Letterboxed a second time, into the back buffer, at the surface's present placement. See
-    // FrameLayout.PresentPass for how a point-sampled surface reaches a fractional scale.
-    private void Present(RenderTarget2D target, TextureSampling sampling, in ScreenPlacement placement)
+    // FrameLayout.PresentPass for how a point-sampled surface reaches a fractional scale. placement is
+    // the layout's own, and factor how many times larger than it the surface was drawn.
+    private void Present(RenderTarget2D target, TextureSampling sampling, in ScreenPlacement placement, int factor)
     {
         PresentationParameters backBuffer = _device.PresentationParameters;
         if (backBuffer.BackBufferWidth <= 0 || backBuffer.BackBufferHeight <= 0)
@@ -709,8 +764,7 @@ internal sealed class FrameRenderer : IDisposable
         }
 
         Texture2D source = target;
-        float scale = placement.Scale;
-        (int prescale, TextureSampling final) = FrameLayout.PresentPass(sampling, scale);
+        (int prescale, TextureSampling final, float scale) = FrameLayout.PresentPass(sampling, placement.Scale, factor);
 
         // Drawn before the back buffer is cleared. Rebinding a target can discard what the back
         // buffer already holds.
@@ -724,7 +778,6 @@ internal sealed class FrameRenderer : IDisposable
             _device.SetRenderTarget(null);
 
             source = prescaled;
-            scale /= prescale;
         }
 
         // Unbinding the target restored the viewport to the whole back buffer.
@@ -787,14 +840,6 @@ internal sealed class FrameRenderer : IDisposable
         TextureSampling.Point => SamplerState.PointClamp,
         _ => throw new ArgumentOutOfRangeException(nameof(sampling), sampling, "Unknown texture sampling mode."),
     };
-
-    // TopLeft is the world rect's corner, where the frame's pixel grid is anchored. Fit is where that
-    // rect landed on the surface, Present where the surface landed in the back buffer, and Snap
-    // whether the frame quantised to the surface's pixel grid.
-    private readonly record struct WorldPlacement(Vector2 TopLeft, Letterbox Fit, ScreenPlacement Present, bool Snap)
-    {
-        internal float PixelsPerUnit => Fit.Scale * Present.Scale;
-    }
 
     public void Dispose()
     {

@@ -17,20 +17,20 @@ public sealed class OverlayToggleTests
         using OverlayRig rig = new();
         DebugOverlay overlay = rig.Overlay;
 
-        DeviceSnapshot snapshot = overlay.Intercept(DeviceSnapshot.Of(Key.Grave, Key.Space));
+        DeviceSnapshot snapshot = overlay.Intercept(DeviceSnapshot.Of(Key.Grave, Key.Z));
 
         Assert.True(overlay.IsOpen);
         Assert.True(rig.Scheduler.Held);
         Assert.False(snapshot.IsDown(Key.Grave));
-        Assert.True(snapshot.IsDown(Key.Space));
+        Assert.True(snapshot.IsDown(Key.Z));
 
-        snapshot = overlay.Intercept(DeviceSnapshot.Of(Key.Grave, Key.Space));
+        snapshot = overlay.Intercept(DeviceSnapshot.Of(Key.Grave, Key.Z));
         Assert.True(overlay.IsOpen);
         Assert.False(snapshot.IsDown(Key.Grave));
 
-        snapshot = overlay.Intercept(DeviceSnapshot.Of(Key.Space));
+        snapshot = overlay.Intercept(DeviceSnapshot.Of(Key.Z));
         Assert.True(overlay.IsOpen);
-        Assert.True(snapshot.IsDown(Key.Space));
+        Assert.True(snapshot.IsDown(Key.Z));
 
         snapshot = overlay.Intercept(DeviceSnapshot.Of(Key.Grave));
 
@@ -58,11 +58,11 @@ public sealed class OverlayToggleTests
     {
         using OverlayRig rig = new(toggle: PadButton.South);
 
-        DeviceSnapshot snapshot = rig.Overlay.Intercept(DeviceSnapshot.Empty.With(PadButton.South).With(Key.Space));
+        DeviceSnapshot snapshot = rig.Overlay.Intercept(DeviceSnapshot.Empty.With(PadButton.South).With(Key.Z));
 
         Assert.True(rig.Overlay.IsOpen);
         Assert.False(snapshot.IsDown(PadButton.South));
-        Assert.True(snapshot.IsDown(Key.Space));
+        Assert.True(snapshot.IsDown(Key.Z));
     }
 
     [Fact]
@@ -135,10 +135,10 @@ public sealed class OverlayToggleTests
 
         // Hidden rows read no input, and the game sees its own keys again.
         int focus = rig.Overlay.Focus;
-        DeviceSnapshot passed = rig.Frame(DeviceSnapshot.Of(Key.Space, Key.Down));
+        DeviceSnapshot passed = rig.Frame(DeviceSnapshot.Of(Key.Z, Key.Down));
 
         Assert.Equal(focus, rig.Overlay.Focus);
-        Assert.True(passed.IsDown(Key.Space));
+        Assert.True(passed.IsDown(Key.Z));
         Assert.Equal(0, rig.Scheduler.Tick);
 
         rig.Frame(DeviceSnapshot.Of(Key.Grave));
@@ -245,7 +245,7 @@ public sealed class OverlayToggleTests
         rig.Open();
         rig.Press(Key.Grave);
         long tick = rig.Scheduler.Tick;
-        Vector2 stepRow = new(OverlayScene.Padding + 1, OverlayScene.Padding + (3.5f * OverlayScene.Font.LineHeight));
+        Vector2 stepRow = new(OverlayScene.Padding + 1, OverlayScene.Padding + (5.5f * OverlayScene.Font.LineHeight));
 
         rig.Frame(DeviceSnapshot.Of(Key.Grave).WithPointer(stepRow).With(MouseButton.Left));
 

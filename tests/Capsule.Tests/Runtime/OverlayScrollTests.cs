@@ -122,12 +122,12 @@ public sealed class OverlayScrollTests
         Assert.True(fitting.Thumb.IsEmpty);
     }
 
-    // The middle of a root row on the overlay's canvas, under the readout and the blank row.
+    // The middle of a root row on the overlay's canvas, under the readout's three lines and the blank row.
     private static Vector2 RowPoint(int row)
     {
         float lineHeight = BitmapFont.Default.LineHeight;
 
-        return new Vector2(6f, 4f + ((2f + row) * lineHeight) + (lineHeight / 2f));
+        return new Vector2(6f, 4f + ((4f + row) * lineHeight) + (lineHeight / 2f));
     }
 
     private static string FirstShown(OverlayRig rig) => rig.Overlay.Scene.ShownRows()[0];

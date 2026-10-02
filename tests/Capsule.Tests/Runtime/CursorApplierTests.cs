@@ -17,12 +17,12 @@ public sealed class CursorApplierTests
     {
         Cursor cursor = new() { Image = Crosshair, Confined = true };
 
-        Assert.Equal(new CursorLook(false, Crosshair, true, 2), CursorApplier.Resolve(cursor, padActive: true, overlayOpen: false, layerScale: 2f));
-        Assert.Equal(new CursorLook(true, null, false, 0), CursorApplier.Resolve(cursor, padActive: true, overlayOpen: true, layerScale: 2f));
+        Assert.Equal(new CursorLook(false, Crosshair, true, 2), CursorApplier.Resolve(cursor, padActive: true, overlayHeld: false, layerScale: 2f));
+        Assert.Equal(new CursorLook(true, null, false, 0), CursorApplier.Resolve(cursor, padActive: true, overlayHeld: true, layerScale: 2f));
 
         cursor.Visible = false;
 
-        Assert.Equal(new CursorLook(false, Crosshair, true, 2), CursorApplier.Resolve(cursor, padActive: false, overlayOpen: false, layerScale: 2f));
+        Assert.Equal(new CursorLook(false, Crosshair, true, 2), CursorApplier.Resolve(cursor, padActive: false, overlayHeld: false, layerScale: 2f));
     }
 
     [Theory]

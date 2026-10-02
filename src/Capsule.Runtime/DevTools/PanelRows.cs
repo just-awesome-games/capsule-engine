@@ -16,25 +16,30 @@ internal sealed class PanelRows
     private readonly SceneHost _scenes;
     private readonly Action<Action> _tick;
     private readonly Action<Entity> _open;
+    private readonly Action _openCamera;
     private readonly DebugPanel _panel = new();
 
-    // tick steps one tick with an act inside it. open pushes an entity's panel and steps nothing.
-    internal PanelRows(SceneHost scenes, Action<Action> tick, Action<Entity> open)
+    // tick steps one tick with an act inside it. open pushes an entity's panel and openCamera the
+    // scene camera's, and neither steps.
+    internal PanelRows(SceneHost scenes, Action<Action> tick, Action<Entity> open, Action openCamera)
     {
         _scenes = scenes;
         _tick = tick;
         _open = open;
+        _openCamera = openCamera;
     }
 
     internal bool Holds(Entity entity) => ReferenceEquals(entity.SceneOrNull, _scenes.Scene);
 
-    // Entity rows are indented by depth to read as a tree. Returns the page's title.
+    // Entity rows are indented by depth to read as a tree. The Camera row opens the camera's panel.
+    // Returns the page's title.
     internal string ScenePage(List<OverlayRow> rows)
     {
         Scene scene = _scenes.Scene;
         _panel.Clear();
         scene.RunDebugPanel(_panel);
         AddRows(rows);
+        rows.Insert(1, new OverlayRow("Camera", _openCamera, scene.Camera.GetType().Name));
 
         rows.Add(new OverlayRow(string.Empty, null));
         rows.Add(new OverlayRow("[Entities]", null));
@@ -73,6 +78,17 @@ internal sealed class PanelRows
         }
 
         return DisplayName(entity);
+    }
+
+    // The held scene's camera, titled by its type.
+    internal string CameraPanel(List<OverlayRow> rows)
+    {
+        Camera camera = _scenes.Scene.Camera;
+        _panel.Clear();
+        camera.RunDebugPanel(_panel);
+        AddRows(rows);
+
+        return camera.GetType().Name;
     }
 
     // Name or type name, numbered among same-named siblings: Enemy, Enemy (1), Enemy (2).

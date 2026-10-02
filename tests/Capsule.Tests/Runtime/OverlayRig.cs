@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Numerics;
 using Capsule.Input;
+using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Rendering;
@@ -43,6 +45,10 @@ internal sealed class OverlayRig : IDisposable
 
     // The game frame's cost the pane is told about, which a rig with no renderer has to supply.
     internal double DrawMs { get; set; }
+
+    // Where the last game frame's world landed, which a rig with no renderer has to supply. A pointer
+    // is in window pixels while the game layer is unplaced.
+    internal WorldPlacement? World { get; set; }
 
     internal RecordingSimulation Recording => ((RecordingScene)Host.Scene).Recorder;
 
@@ -89,12 +95,22 @@ internal sealed class OverlayRig : IDisposable
     {
         _frameStart += Ticks(intervalMs);
         _ticks = _frameStart;
-        DeviceSnapshot stripped = Overlay.Intercept(sampled);
+        DeviceSnapshot stripped = Overlay.Intercept(sampled, world: World);
         _ticks += Ticks(updateMs);
         Scheduler.Advance(elapsedSeconds, stripped, Host);
         Overlay.Update(lastFrameMs: DrawMs);
 
         return stripped;
+    }
+
+    // Places the world as the renderer would draw the game's frame now, on the scheduler's output.
+    internal void PlaceWorld()
+    {
+        FrameView view = Host.View;
+        CameraView camera = view.Camera.At(1f);
+        ScreenLayout layout = FrameLayout.Layout(null, camera, view.Canvas, (int)Scheduler.Output.X, (int)Scheduler.Output.Y);
+        Rect world = camera.Place(1f, layout.Span);
+        World = new WorldPlacement(new Vector2(world.Left, world.Top), layout.World, ScreenPlacement.Identity, Snap: false);
     }
 
     public void Dispose()
@@ -122,6 +138,18 @@ internal sealed class OverlayRig : IDisposable
 internal static class OverlayFixtures
 {
     internal const string NamedDocument = "levels/named";
+
+    // A held run's back buffer, wider than the 16:9 viewport so a fit other than Letterbox grows it.
+    internal static readonly Vector2 Output = new(1000f, 500f);
+
+    // A run of one scene whose frame the scheduler places on Output.
+    internal static OverlayRig Framing(Scene scene, SceneRegistry? registry = null)
+    {
+        OverlayRig rig = new(new SceneHost(SceneTransition.ToScene(scene.GetType(), null), (in SceneTransition _) => scene, new Run()), registry);
+        rig.Scheduler.Output = Output;
+
+        return rig;
+    }
 
     internal static SceneHost CreateHost(Run? run = null, List<SceneTransition>? resolved = null) =>
         new(
@@ -162,6 +190,38 @@ internal static class OverlayFixtures
     }
 
     internal sealed class PlainScene : Scene;
+
+    // A camera following a walker inside bounds, moved by a standing offset. Before its first step the
+    // frame carries the camera's unconfined centre, which the bounds confine.
+    internal sealed class FramedScene : Scene
+    {
+        internal FramedScene()
+            : this(ViewportFit.Letterbox)
+        {
+        }
+
+        internal FramedScene(ViewportFit fit)
+        {
+            Camera.ViewportSize = new Vector2(320f, 180f);
+            Camera.Fit = fit;
+            Camera.Bounds = new Rect(0f, 0f, 400f, 300f);
+            Camera.Center = new Vector2(-100f, 500f);
+            Camera.Offset = new Vector2(3f, -2f);
+            Add(Walker);
+        }
+
+        internal Entity Walker { get; } = new Striding();
+
+        protected override void OnStart() => Camera.Follow(Walker);
+
+        private sealed class Striding : Entity
+        {
+            internal Striding()
+                : base(new Vector2(100f, 100f)) => Add(new ColorRect(new Vector2(8f, 8f)));
+
+            protected internal override void OnStep(in StepContext context) => Position += new Vector2(7f, 3f);
+        }
+    }
 
     internal sealed class NamedScene : Scene;
 

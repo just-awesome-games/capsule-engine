@@ -27,29 +27,30 @@ public sealed class OverlayCommandTests
 
         Assert.Equal("Seamed", rig.Overlay.Title);
         Assert.Equal(
-            [.. Head[..11], "Spawned", "  (Commands)", "  Spawn", "  [ ] Slow", "", "[Entities]", "Nudger"],
+            [.. Head[..8], "Spawned", "  (Commands)", "  Spawn", "  [ ] Slow", "", "[Entities]", "Nudger"],
             rig.Rows());
-        Assert.Equal(13, rig.Overlay.Focus);
+        Assert.Equal("Camera", rig.Focused());
 
+        rig.Press(Key.Down);
         rig.Press(Key.Enter);
 
         Assert.Equal(1, seamed.Spawned);
         Assert.Equal(1, rig.Scheduler.Tick);
-        Assert.Equal("Spawned          1", Drawn(rig, 11));
-        Assert.Equal(13, rig.Overlay.Focus);
+        Assert.Equal("Spawned     1", Drawn(rig, 8));
+        Assert.Equal(10, rig.Overlay.Focus);
 
         rig.Press(Key.Down);
         rig.Press(Key.Enter);
 
         Assert.True(seamed.Slow);
         Assert.Equal(2, rig.Scheduler.Tick);
-        Assert.Equal("  [x] Slow", Drawn(rig, 14));
-        Assert.Equal(14, rig.Overlay.Focus);
+        Assert.Equal("  [x] Slow", Drawn(rig, 11));
+        Assert.Equal(11, rig.Overlay.Focus);
 
         rig.Press(Key.Enter);
 
         Assert.False(seamed.Slow);
-        Assert.Equal("  [ ] Slow", Drawn(rig, 14));
+        Assert.Equal("  [ ] Slow", Drawn(rig, 11));
 
         rig.Press(Key.Down);
         rig.Press(Key.Enter);
@@ -73,8 +74,8 @@ public sealed class OverlayCommandTests
         rig.Press(Key.Backspace);
 
         Assert.Equal("Seamed", rig.Overlay.Title);
-        Assert.Equal("Spawned          5", Drawn(rig, 11));
-        Assert.Equal(17, rig.Overlay.Focus);
+        Assert.Equal("Spawned     5", Drawn(rig, 8));
+        Assert.Equal(14, rig.Overlay.Focus);
     }
 
     // A Back and a reopen each rebuild the page once, and a frame without an act rebuilds nothing.
@@ -123,9 +124,10 @@ public sealed class OverlayCommandTests
 
         rig.Open();
         rig.Press(Key.S);
-        Assert.Equal([.. Head[..11], "  (Commands)", "  Break", "  Next", "", "[Entities]", "Lone"], rig.Rows());
-        Assert.Equal(12, rig.Overlay.Focus);
+        Assert.Equal([.. Head[..8], "  (Commands)", "  Break", "  Next", "", "[Entities]", "Lone"], rig.Rows());
 
+        rig.Press(Key.Down);
+        Assert.Equal(9, rig.Overlay.Focus);
         rig.Press(Key.Enter);
 
         Assert.StartsWith("Command failed", rig.Overlay.Scene.Status, StringComparison.Ordinal);
@@ -177,6 +179,7 @@ public sealed class OverlayCommandTests
         rig.Press(Key.S);
         rig.Press(Key.Down);
         rig.Press(Key.Down);
+        rig.Press(Key.Down);
         rig.Press(Key.Enter);
         Assert.Equal("Vanisher", rig.Overlay.Title);
 
@@ -202,6 +205,7 @@ public sealed class OverlayCommandTests
         rig.Open();
         rig.Press(Key.S);
         rig.Press(Key.Down);
+        rig.Press(Key.Down);
         rig.Press(Key.Enter);
         Assert.Equal("Walker", rig.Overlay.Title);
         rig.Press(Key.Down);
@@ -225,7 +229,8 @@ public sealed class OverlayCommandTests
 
         rig.Open();
         rig.Press(Key.S);
-        Assert.Equal([.. Head[..11], "  (Commands)", "  Arm", "", "[Entities]", "<Nothing to show>"], rig.Rows());
+        Assert.Equal([.. Head[..8], "  (Commands)", "  Arm", "", "[Entities]", "<Nothing to show>"], rig.Rows());
+        rig.Press(Key.Down);
 
         InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(
             () => rig.Frame(DeviceSnapshot.Of(Key.Enter)));
@@ -277,6 +282,7 @@ public sealed class OverlayCommandTests
 
         rig.Open();
         rig.Press(Key.S);
+        rig.Press(Key.Down);
         rig.Press(Key.Enter);
         Assert.Equal("Lone", rig.Overlay.Title);
 

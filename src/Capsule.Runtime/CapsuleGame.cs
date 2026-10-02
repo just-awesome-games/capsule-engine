@@ -32,7 +32,7 @@ internal sealed class CapsuleGame : Game
     private readonly Action<FrameRenderer>? _updateOverlay;
     private readonly Action<FrameRenderer>? _drawOverlay;
     private readonly Action<AudioPlayer>? _followOverlayHold;
-    private readonly Func<bool>? _overlayOpen;
+    private readonly Func<bool>? _overlayHeld;
     private readonly IDisposable? _overlayHost;
 
     // Null until LoadContent. Dispose can run without it after a failed construction.
@@ -75,10 +75,11 @@ internal sealed class CapsuleGame : Game
             _interceptOverlay = (snapshot, renderer) => overlay.Intercept(
                 snapshot,
                 renderer.ScreenLayer,
-                DebugOverlay.ScaleFor(renderer.BackBufferSize.Height));
+                DebugOverlay.ScaleFor(renderer.BackBufferSize.Height),
+                renderer.WorldPlacement);
             _updateOverlay = renderer => overlay.Update(renderer);
             _drawOverlay = overlay.Draw;
-            _overlayOpen = () => overlay.IsOpen;
+            _overlayHeld = () => overlay.IsOpen || overlay.IsHidden;
             // The subscription is built here so the audio player's suspension is reachable only
             // through this block, and a shipping publish trims it with the overlay.
             _followOverlayHold = audio => overlay.HoldChanged = held =>
@@ -254,7 +255,7 @@ internal sealed class CapsuleGame : Game
         _cursor.Apply(
             _scenes.Run.Cursor,
             _scheduler.ActiveDevice == InputDevice.Gamepad,
-            _overlayOpen?.Invoke() ?? false,
+            _overlayHeld?.Invoke() ?? false,
             _renderer.ScreenLayer.Scale);
 
         _audio?.Update();
@@ -295,8 +296,9 @@ internal sealed class CapsuleGame : Game
         bool budgetSpent = _diagnostics?.EndDraw() ?? false;
 
         // Taken while the surface still holds the frame, ahead of the present. A request raised
-        // while the window is minimised stands until a frame draws.
-        if (_renderer.CanCaptureFrame && _scenes.TryTakeFrameCapture(out string capturePath))
+        // while the window is minimised, or while a stand-in camera frames the view, stands until the
+        // game's own frame draws.
+        if (_renderer.CanCaptureFrame && _scenes.ViewCamera is null && _scenes.TryTakeFrameCapture(out string capturePath))
         {
             _renderer.SaveSurface(capturePath);
         }

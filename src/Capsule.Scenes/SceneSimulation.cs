@@ -23,6 +23,8 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     // left it stale.
     private bool _viewBuilt;
 
+    private CameraView? _viewCamera;
+
     /// <summary>Starts <paramref name="scene"/> under <paramref name="run"/>.</summary>
     /// <param name="scene">The scene to run.</param>
     /// <param name="entryPayload">State supplied by the transition that opened the scene.</param>
@@ -63,6 +65,20 @@ public sealed class SceneSimulation : ISimulation, IDisposable
             }
 
             throw;
+        }
+    }
+
+    // A host's stand-in for the scene camera's view, drawn in its place while set. The scene's Camera is
+    // never written, and what the simulation reads of it answers for the scene's own framing. Setting or
+    // clearing it marks View stale. A new simulation starts with none.
+    internal CameraView? ViewCamera
+    {
+        get => _viewCamera;
+
+        set
+        {
+            _viewCamera = value;
+            _viewStale = true;
         }
     }
 
@@ -211,7 +227,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         _building = true;
         try
         {
-            Scene.DrawFrame(_view);
+            Scene.DrawFrame(_view, _viewCamera);
         }
         finally
         {

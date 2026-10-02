@@ -19,7 +19,7 @@ public sealed class OverlayPageTests
         rig.Open();
 
         Assert.Equal(
-            ["Scene", "Step", "Debug Draw", "Time Scale", "Restart", "Load Scene", "Frame Pane", "Hide", "Exit"],
+            ["Scene", "Step", "Debug Draw", "Time Scale", "Restart", "Load Scene", "Game Camera", "Frame Pane", "Hide", "Exit"],
             rig.Rows());
         Assert.Equal(0, rig.Overlay.Focus);
         Assert.Null(rig.Overlay.Title);
@@ -34,8 +34,8 @@ public sealed class OverlayPageTests
         string[] shown = rig.Overlay.Scene.ShownRows();
 
         Assert.Equal(rig.Overlay.Rows.Count, shown.Length);
-        Assert.Equal("Scene       S", shown[0]);
-        Assert.Equal("Debug Draw  D", shown[2]);
+        Assert.Equal("Scene        S", shown[0]);
+        Assert.Equal("Debug Draw   D", shown[2]);
     }
 
     // Inside a submenu an opener's hotkey changes nothing, not even the status line. Exit acts on the
@@ -133,7 +133,7 @@ public sealed class OverlayPageTests
         rig.Frame();
 
         Assert.Equal(2, rig.Overlay.Depth);
-        Assert.Equal("NamedScene  tick 1", rig.Overlay.Scene.Readout);
+        Assert.Equal(["NamedScene", "tick 1", ""], rig.Overlay.Scene.Readout());
 
         rig.Press(Key.Up);
         rig.Press(Key.Enter);

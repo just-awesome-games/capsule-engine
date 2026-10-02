@@ -97,9 +97,9 @@ public sealed class DebugDrawTests
         Assert.Equal(["[ ] hitboxes", "[ ] labels"], rig.Rows());
         Assert.False(rig.Overlay.Draws.IsEnabled(Labels));
 
-        // Readout, title, blank, then the rows: the second row is the fifth line.
+        // Three readout lines, title, blank, then the rows: the second row is the seventh line.
         float lineHeight = BitmapFont.Default.LineHeight;
-        Vector2 secondRow = new(6f, 4f + (4f * lineHeight) + (lineHeight / 2f));
+        Vector2 secondRow = new(6f, 4f + (6f * lineHeight) + (lineHeight / 2f));
         DeviceSnapshot game = rig.Frame(DeviceSnapshot.Empty.WithPointer(secondRow).With(MouseButton.Left));
 
         Assert.False(game.IsDown(MouseButton.Left));

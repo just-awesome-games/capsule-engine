@@ -137,6 +137,7 @@ public sealed class AudioPlaybackCommandTests
 
         rig.Open();
         rig.Press(Key.S);
+        rig.Press(Key.Down);
         rig.Press(Key.Enter);
         Assert.Equal("Speaker", rig.Overlay.Title);
 

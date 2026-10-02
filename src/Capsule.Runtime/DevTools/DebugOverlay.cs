@@ -28,9 +28,12 @@ internal sealed class DebugOverlay : IDisposable
     // The overlay's own scene is never stepped. Its rows are written straight onto it.
     private readonly SceneSimulation _sceneSimulation;
     private readonly Run _sceneRun;
+
+    // Advanced every frame. Rows act on it only while open.
     private readonly InputState _input = new(OverlayActions.Bindings);
     private readonly DebugDrawRenderer _draws;
     private readonly PanelRows _panelRows;
+    private readonly FreeCamera _freeCamera;
 
     private readonly List<Page> _pages = [new Page(PageKind.Root, null, 0, null)];
 
@@ -46,13 +49,12 @@ internal sealed class DebugOverlay : IDisposable
     // The toggle never reaches the game. A press that closes the overlay is held until released.
     private readonly InputButton _toggle;
 
-    // Stripped from the game while open, and after closing until released.
+    // Stripped from the game while open or hidden, and after closing until released.
     private readonly InputButton[] _overlayButtons;
     private readonly bool[] _withheld;
 
     private OverlayState _state;
     private bool _toggleDown;
-    private bool _hideDown;
     private bool _framePaneOn;
     private string? _title;
     private HoldRepeat _repeat;
@@ -70,11 +72,20 @@ internal sealed class DebugOverlay : IDisposable
     private long _frameStart = -1;
     private long _previousFrameStart = -1;
 
-    // Withheld from the rows until released, or the Hide row reads the showing press again.
-    private bool _hidePressConsumed;
+    // Set on the frame a Hide press shows the menu again. The Hide row skips that press.
+    private bool _shownByHide;
+
+    // Whether the pointer stood on the menu as the frame's input was read. The wheel scrolls the rows
+    // only there.
+    private bool _overMenu;
 
     // The game's snapshot this frame, for a tick stepped by hand.
     private DeviceSnapshot _gameInput;
+
+    // The last world point the pointer stood over, outside the menu, while held. It belongs
+    // to the scene it was read in, and closing or a change of scene drops it.
+    private Vector2? _pointerWorld;
+    private Scene? _pointerScene;
 
     private double _lastFrameMs;
     private bool _exited;
@@ -101,7 +112,8 @@ internal sealed class DebugOverlay : IDisposable
         Scene = new OverlayScene(OverlayActions.KeyName(button));
         _draws = new DebugDrawRenderer(scheduler, scenes);
         Scene.Add(new DebugDrawEntity(_draws));
-        _panelRows = new PanelRows(scenes, activate => StepGameReporting("Command", activate), Open);
+        _panelRows = new PanelRows(scenes, activate => StepGameReporting("Command", activate), Open, () => Open(PageKind.Camera));
+        _freeCamera = new FreeCamera(scenes, scheduler);
         BuildRoot(registry?.Registrations ?? []);
 
         _sceneRun = new Run
@@ -139,6 +151,7 @@ internal sealed class DebugOverlay : IDisposable
         Root,
         Scene,
         Entity,
+        Camera,
         DebugDraw,
         TimeScale,
         LoadScene,
@@ -162,16 +175,25 @@ internal sealed class DebugOverlay : IDisposable
 
     internal DebugDrawRenderer Draws => _draws;
 
+    internal FreeCamera FreeCamera => _freeCamera;
+
     internal static int ScaleFor(int height) => height < 1080 ? 1 : height < 2160 ? 2 : 3;
 
     // Runs before the game's scheduler and returns the snapshot the game sees.
-    // gameLayer and overlayScale map the pointer onto the overlay's canvas.
-    internal DeviceSnapshot Intercept(DeviceSnapshot snapshot, in ScreenPlacement gameLayer = default, int overlayScale = 1)
+    // gameLayer and overlayScale map the pointer onto the overlay's canvas. world is where the last
+    // frame's world landed, or null before one has.
+    internal DeviceSnapshot Intercept(
+        DeviceSnapshot snapshot,
+        in ScreenPlacement gameLayer = default,
+        int overlayScale = 1,
+        WorldPlacement? world = null)
     {
         _frameStart = _timestamp();
 
-        // The toggle's leading edge takes closed to open, open to closed and hidden to open.
+        // The toggle's leading edge takes closed to open, open to closed and hidden to open. It is read raw
+        // because the game configures it and it acts before the overlay holds anything.
         bool wasOpen = _state == OverlayState.Open;
+        bool wasHeld = _state != OverlayState.Closed;
         bool toggleDown = _toggle.IsDown(snapshot);
         if (toggleDown && !_toggleDown)
         {
@@ -188,43 +210,51 @@ internal sealed class DebugOverlay : IDisposable
 
         _toggleDown = toggleDown;
         DeviceSnapshot game = _toggle.IsNone ? snapshot : snapshot.Without(_toggle);
+
+        Vector2 window = game.Pointer;
         DeviceSnapshot overlayInput = game;
-
-        // Hidden rows read no input, so the edge that shows the overlay again is read here.
-        bool hideDown = OverlayActions.Bindings.IsAnyDown(OverlayActions.Hide, snapshot);
-        if (hideDown && !_hideDown && _state == OverlayState.Hidden)
-        {
-            _state = OverlayState.Open;
-            _hidePressConsumed = true;
-        }
-
-        _hideDown = hideDown;
-        _hidePressConsumed &= hideDown;
-        if (_hidePressConsumed)
-        {
-            foreach (InputButton hide in OverlayActions.Bindings.ButtonsFor(OverlayActions.Hide))
-            {
-                overlayInput = overlayInput.Without(hide);
-            }
-        }
-
         if (gameLayer.Scale > 0f && overlayScale > 0)
         {
-            Vector2 window = (overlayInput.Pointer * gameLayer.Scale) + gameLayer.Origin;
-            overlayInput = overlayInput.WithPointer(window / overlayScale);
+            window = (game.Pointer * gameLayer.Scale) + gameLayer.Origin;
+            overlayInput = game.WithPointer(window / overlayScale);
         }
 
-        // The rows read input only while open, and the pointer moves from where it last stood then.
-        if (_state == OverlayState.Open)
+        // Advanced while closed too, so a press made before the overlay opens is no edge once it has.
+        _input.Advance(in overlayInput);
+
+        // The menu is withdrawn while hidden, so the keys that act then are read here.
+        _shownByHide = _state == OverlayState.Hidden && _input.WasPressed(OverlayActions.Hide);
+        if (_shownByHide)
         {
-            _input.Advance(in overlayInput);
+            _state = OverlayState.Open;
         }
+        else if (_state == OverlayState.Hidden && _input.WasPressed(OverlayActions.GameCamera))
+        {
+            _freeCamera.Attach();
+        }
+
+        // The wheel scrolls the rows over the menu and moves the free camera over the world.
+        _overMenu = Scene.CoversMenu(overlayInput.Pointer);
+        bool holding = _state != OverlayState.Closed;
+        if (!holding)
+        {
+            _pointerWorld = null;
+        }
+
+        bool overWorld = false;
+        if (holding && world is { } placement && placement.Contains(window) && !_overMenu)
+        {
+            overWorld = true;
+            _pointerWorld = placement.ToWorld(window);
+        }
+
+        _freeCamera.Read(_input, window, overWorld, world, holding);
 
         // A press that served the overlay cannot land on the resumed step.
-        bool open = wasOpen || _state == OverlayState.Open;
+        holding |= wasHeld;
         for (int index = 0; index < _overlayButtons.Length; index++)
         {
-            if (open || _withheld[index])
+            if (holding || _withheld[index])
             {
                 InputButton button = _overlayButtons[index];
                 _withheld[index] = button.IsDown(snapshot);
@@ -232,7 +262,7 @@ internal sealed class DebugOverlay : IDisposable
             }
         }
 
-        if (open)
+        if (holding)
         {
             game = game.WithScroll(Vector2.Zero);
         }
@@ -268,6 +298,7 @@ internal sealed class DebugOverlay : IDisposable
             float pixelsPerUnit = renderer.WorldPixelsPerUnit;
             _draws.TextScale = pixelsPerUnit > 0f ? scale / pixelsPerUnit : 1f;
             _lastFrameMs = renderer.LastFrameMs;
+            renderer.WorldZoomOut = _freeCamera.ZoomOut;
         }
 
         SampleFrame(gameEnd);
@@ -289,6 +320,8 @@ internal sealed class DebugOverlay : IDisposable
             // An act may have hidden the overlay from inside its own frame.
             if (_state == OverlayState.Open)
             {
+                ForgetPointerOnSceneChange();
+                Scene.SetPointer(_pointerWorld);
                 BuildRows();
                 if (!_pageShown)
                 {
@@ -375,6 +408,7 @@ internal sealed class DebugOverlay : IDisposable
             Add("Load Scene", () => Open(PageKind.LoadScene), OverlayActions.LoadScene, opensPage: true);
         }
 
+        Add("Game Camera", _freeCamera.Attach, OverlayActions.GameCamera);
         Add("Frame Pane", ToggleFramePane, OverlayActions.FramePane);
         Add("Hide", () => _state = OverlayState.Hidden, OverlayActions.Hide);
         Add("Exit", Exit, OverlayActions.Exit);
@@ -416,7 +450,7 @@ internal sealed class DebugOverlay : IDisposable
             _cursor.Move(-1);
         }
 
-        _cursor.Scroll(_input.Axis(OverlayActions.Scroll));
+        _cursor.Scroll(_overMenu ? _input.Axis(OverlayActions.Scroll) : 0f);
 
         if (_cursor.Point(Scene.RowAt(_input.Pointer), _input.PointerMoved, _input.WasPressed(OverlayActions.Click)))
         {
@@ -431,7 +465,8 @@ internal sealed class DebugOverlay : IDisposable
         bool atRoot = _pages.Count == 1;
         foreach (OverlayRow row in _rootRows)
         {
-            if (row.Hotkey is { } hotkey && (atRoot || !row.OpensPage) && Pressed(hotkey, row.Repeats && repeat))
+            if (row.Hotkey is { } hotkey && (atRoot || !row.OpensPage) && !(_shownByHide && hotkey == OverlayActions.Hide)
+                && Pressed(hotkey, row.Repeats && repeat))
             {
                 Activate(row);
             }
@@ -474,6 +509,7 @@ internal sealed class DebugOverlay : IDisposable
             PageKind.Root => Copy(_rootRows, null),
             PageKind.Scene => _panelRows.ScenePage(_rows),
             PageKind.Entity => _panelRows.EntityPanel(page.Subject!, _rows),
+            PageKind.Camera => _panelRows.CameraPanel(_rows),
             PageKind.DebugDraw => BuildDebugDraw(),
             PageKind.TimeScale => BuildTimeScale(),
             _ => Copy(_loadRows, "Load Scene"),
@@ -481,6 +517,16 @@ internal sealed class DebugOverlay : IDisposable
 
         _cursor.Fit();
         Scene.SetReadout(_scenes.Scene.GetType().Name, _scheduler.Tick);
+    }
+
+    // A row's act may have moved the run to another scene since the point was read.
+    private void ForgetPointerOnSceneChange()
+    {
+        if (!ReferenceEquals(_pointerScene, _scenes.Scene))
+        {
+            _pointerScene = _scenes.Scene;
+            _pointerWorld = null;
+        }
     }
 
     private string? Copy(List<OverlayRow> rows, string? title)

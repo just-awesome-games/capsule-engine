@@ -556,8 +556,8 @@ public class Scene
     /// </summary>
     /// <remarks>
     /// The run's seed, <see cref="Size"/>, <see cref="ClearColor"/>, <see cref="Ambient"/>,
-    /// <see cref="Sampling"/>, the camera and <see cref="Paused"/> are written before this call,
-    /// and the scene's entities are listed after it.
+    /// <see cref="Sampling"/> and <see cref="Paused"/> are written before this call, and the scene's
+    /// entities are listed after it. A Camera row opens <see cref="Camera.OnDebugPanel"/>.
     /// </remarks>
     protected virtual void OnDebugPanel(DebugPanel panel)
     {
@@ -722,10 +722,11 @@ public class Scene
 
     // Rewrites view from the scene as it stands, calling every visible renderer's Draw in draw order.
     // A change to the scene from inside Draw throws. A frame is then the same however often it is built.
-    internal void DrawFrame(FrameView view)
+    // A host's camera, when one is passed, frames it in place of the scene's.
+    internal void DrawFrame(FrameView view, CameraView? camera = null)
     {
         view.Clear();
-        view.Camera = Camera.ToView();
+        view.Camera = camera ?? Camera.ToView();
         view.Canvas = Run.Canvas;
         view.ClearColor = ClearColor;
         view.Ambient = Ambient;
@@ -911,10 +912,6 @@ public class Scene
         panel.Field("ClearColor", ClearColor);
         panel.Field("Ambient", Ambient);
         panel.Field("Sampling", Sampling);
-        panel.Field("Camera", Camera.Center);
-        panel.Field("Camera Type", Camera.GetType().Name);
-        panel.Field("Camera Viewport", Camera.ViewportSize);
-        panel.Field("Camera Zoom", Camera.Zoom);
         panel.Field("Paused", Paused);
 
         if (_started)

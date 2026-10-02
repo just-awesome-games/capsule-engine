@@ -76,6 +76,13 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
     internal Scene Scene => _current.Scene;
 
+    // The current simulation's stand-in camera. A scene the run moves to starts with none.
+    internal CameraView? ViewCamera
+    {
+        get => _current.ViewCamera;
+        set => _current.ViewCamera = value;
+    }
+
     public void Step(in StepContext context)
     {
         if (!CanStep())

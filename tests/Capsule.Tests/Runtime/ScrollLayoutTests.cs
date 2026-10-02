@@ -89,6 +89,47 @@ public sealed class ScrollLayoutTests
         }
     }
 
+    // At a fractional scale a row of abutting tiles, centre-pivoted and in every quarter turn a tile
+    // map draws, covers each surface pixel exactly once. A quad drawn as the renderer draws it starts
+    // where the last one ended, on a whole pixel. Every other tile's turn is a hair off its quarter
+    // turn, as an interpolated spin settles, and it still draws exactly its snapped rect.
+    [Fact]
+    public void AbuttingQuarterTurnedQuads_ShareEveryEdgeAtAFractionalScale()
+    {
+        const float scale = 1.3f;
+        const float tile = 16f;
+        Vector2 layerCorner = new(1203.37f, 88.61f);
+        Vector2 half = new(tile / 2f);
+        float previousRight = float.NaN;
+
+        for (int index = 0; index < 24; index++)
+        {
+            float rotation = ((index % 4) * (MathF.PI / 2f)) + (index % 2 == 0 ? 0f : 1e-4f);
+            Vector2 centre = layerCorner + new Vector2(5.5f + (index * tile), 3.25f);
+
+            Assert.True(ScrollLayout.TryPlaceSnapped(centre, half, new Vector2(tile), rotation, layerCorner, Vector2.Zero, scale, out Vector2 corner, out Vector2 pixels, out int turns));
+
+            SpriteQuad quad = SpriteQuad.PlaceQuarterTurned(corner, pixels / (tile * scale), 0, 0, 16, 16, 1f / 16f, 1f / 16f, turns, flipX: false, flipY: false);
+            float[] xs = [quad.TopLeft.X, quad.TopRight.X, quad.BottomLeft.X, quad.BottomRight.X];
+            float[] ys = [quad.TopLeft.Y, quad.TopRight.Y, quad.BottomLeft.Y, quad.BottomRight.Y];
+            Assert.Equal(2, xs.Distinct().Count());
+            Assert.Equal(2, ys.Distinct().Count());
+
+            float left = xs.Min() * scale;
+            float right = xs.Max() * scale;
+            Assert.Equal(MathF.Round(left), left, 2);
+            Assert.Equal(MathF.Round(right), right, 2);
+            Assert.InRange(right - left, 19.99f, 21.01f);
+            Assert.InRange((ys.Max() - ys.Min()) * scale, 19.99f, 21.01f);
+            if (index > 0)
+            {
+                Assert.Equal(previousRight, left, 2);
+            }
+
+            previousRight = right;
+        }
+    }
+
     private static Vector2 Layer(in CameraView camera, float alpha, float factor)
     {
         Rect frame = camera.Place(alpha, Span);

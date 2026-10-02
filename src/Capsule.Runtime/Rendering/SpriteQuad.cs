@@ -62,6 +62,35 @@ internal readonly struct SpriteQuad
         return Place(position, origin, scale, regionWidth, regionHeight, texTopLeft, texBottomRight, rotation, flipX, flipY);
     }
 
+    // Place for a region turned clockwise by a whole number of quarter turns about its top-left
+    // corner, with the turn's exact sine and cosine. A float quarter turn's cosine is not zero, and it
+    // would tilt the corners off the edges the caller snapped.
+    internal static SpriteQuad PlaceQuarterTurned(
+        Vector2 position,
+        Vector2 scale,
+        int regionX,
+        int regionY,
+        int regionWidth,
+        int regionHeight,
+        float texelWidth,
+        float texelHeight,
+        int turns,
+        bool flipX,
+        bool flipY)
+    {
+        Vector2 texTopLeft = new(regionX * texelWidth, regionY * texelHeight);
+        Vector2 texBottomRight = new((regionX + regionWidth) * texelWidth, (regionY + regionHeight) * texelHeight);
+        (float sin, float cos) = turns switch
+        {
+            1 => (1f, 0f),
+            2 => (0f, -1f),
+            3 => (-1f, 0f),
+            _ => (0f, 1f),
+        };
+
+        return Place(position, Vector2.Zero, scale, regionWidth, regionHeight, texTopLeft, texBottomRight, turns != 0, sin, cos, flipX, flipY);
+    }
+
     // A full texture of width by height texels. Its texture coordinates are the literal corners, not
     // width times one over width, which is not always one.
     internal static SpriteQuad PlaceWhole(Vector2 position, Vector2 origin, Vector2 scale, int width, int height, float rotation) =>
@@ -76,6 +105,23 @@ internal readonly struct SpriteQuad
         Vector2 texTopLeft,
         Vector2 texBottomRight,
         float rotation,
+        bool flipX,
+        bool flipY) =>
+        rotation == 0f
+            ? Place(position, origin, scale, regionWidth, regionHeight, texTopLeft, texBottomRight, turned: false, 0f, 1f, flipX, flipY)
+            : Place(position, origin, scale, regionWidth, regionHeight, texTopLeft, texBottomRight, turned: true, MathF.Sin(rotation), MathF.Cos(rotation), flipX, flipY);
+
+    private static SpriteQuad Place(
+        Vector2 position,
+        Vector2 origin,
+        Vector2 scale,
+        int regionWidth,
+        int regionHeight,
+        Vector2 texTopLeft,
+        Vector2 texBottomRight,
+        bool turned,
+        float sin,
+        float cos,
         bool flipX,
         bool flipY)
     {
@@ -93,7 +139,7 @@ internal readonly struct SpriteQuad
             (texTopLeft.X, texBottomRight.X) = (texBottomRight.X, texTopLeft.X);
         }
 
-        if (rotation == 0f)
+        if (!turned)
         {
             float x = position.X - origin.X;
             float y = position.Y - origin.Y;
@@ -109,8 +155,6 @@ internal readonly struct SpriteQuad
 
         float dx = 0f - origin.X;
         float dy = 0f - origin.Y;
-        float sin = MathF.Sin(rotation);
-        float cos = MathF.Cos(rotation);
         float px = position.X;
         float py = position.Y;
 

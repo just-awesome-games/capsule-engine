@@ -27,11 +27,11 @@ internal sealed class CursorApplier(GraphicsDevice device, TextureStore textures
     // the first frame set the cursor.
     private CursorLook _applied = new(Shown: false, Image: null, Confined: false, Factor: -1);
 
-    // The cursor the window shows on this frame. The overlay points with the system arrow, and the
+    // The cursor the window shows on this frame. The held overlay points with the system arrow, and the
     // pad hides the pointer whatever the game asked for.
-    internal static CursorLook Resolve(Cursor cursor, bool padActive, bool overlayOpen, float layerScale)
+    internal static CursorLook Resolve(Cursor cursor, bool padActive, bool overlayHeld, float layerScale)
     {
-        if (overlayOpen)
+        if (overlayHeld)
         {
             return new CursorLook(Shown: true, Image: null, Confined: false, Factor: 0);
         }
@@ -54,9 +54,9 @@ internal sealed class CursorApplier(GraphicsDevice device, TextureStore textures
     }
 
     // Called once per frame after the steps. Only what changed since the last frame reaches the window.
-    internal void Apply(Cursor cursor, bool padActive, bool overlayOpen, float layerScale)
+    internal void Apply(Cursor cursor, bool padActive, bool overlayHeld, float layerScale)
     {
-        CursorLook look = Resolve(cursor, padActive, overlayOpen, layerScale);
+        CursorLook look = Resolve(cursor, padActive, overlayHeld, layerScale);
         if (look == _applied)
         {
             return;

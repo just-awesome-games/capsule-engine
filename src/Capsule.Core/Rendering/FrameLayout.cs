@@ -284,6 +284,57 @@ internal static class FrameLayout
         return whole == scale ? (1, TextureSampling.Point) : ((int)whole, TextureSampling.Linear);
     }
 
+    // The present pass for a surface drawn factor times larger than a layout at scale declares. The
+    // prescale shrinks by the factor and Scale is the final blit's. The blit's source extent and scale
+    // are the factor of 1's, so the world lands on the same back-buffer pixels.
+    internal static (int Prescale, TextureSampling Final, float Scale) PresentPass(TextureSampling sampling, float scale, int factor)
+    {
+        (int prescale, TextureSampling final) = PresentPass(sampling, scale);
+        int remaining = Math.Max(prescale / factor, 1);
+
+        return (remaining, final, scale / (remaining * factor));
+    }
+
+    // The largest factor a surface presented at scale may be drawn larger by: the whole scale a
+    // point-sampled surface is presented at or prescaled to. 1 for a linear surface or one shrunk to
+    // fit. A factor dividing it keeps the present whole.
+    internal static int SurfaceFactorLimit(TextureSampling sampling, float scale) =>
+        sampling == TextureSampling.Point && scale >= 1f ? (int)MathF.Ceiling(scale) : 1;
+
+    // The smallest factor dividing limit that is at least ratio, or limit itself past it.
+    internal static int SurfaceFactor(float ratio, int limit)
+    {
+        for (int factor = 1; factor < limit; factor++)
+        {
+            if (limit % factor == 0 && factor >= ratio)
+            {
+                return factor;
+            }
+        }
+
+        return Math.Max(limit, 1);
+    }
+
+    // layout on a surface factor times larger. The world and an on-surface screen layer grow with it,
+    // and the present scale shrinks by it. Span and Layer are unchanged.
+    internal static ScreenLayout Enlarge(in ScreenLayout layout, int factor)
+    {
+        if (factor == 1)
+        {
+            return layout;
+        }
+
+        Letterbox world = layout.World;
+
+        return layout with
+        {
+            Surface = (layout.Surface.Width * factor, layout.Surface.Height * factor),
+            World = new Letterbox(world.X * factor, world.Y * factor, world.Width * factor, world.Height * factor, world.Scale * factor),
+            OnSurface = new ScreenPlacement(layout.OnSurface.Origin * factor, layout.OnSurface.Scale * factor),
+            Present = new ScreenPlacement(layout.Present.Origin, layout.Present.Scale / factor),
+        };
+    }
+
     // GrownPixels' count on an axis the fit grew, so the surface matches the quantised span there and
     // no extra pixel shows as a one-pixel bar. The clamp's floor absorbs a binding axis whose float
     // product lands under the canvas it equals.

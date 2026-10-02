@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -14,8 +13,17 @@ internal sealed class OverlayScene : Scene
     // Between a backdrop's edge and its text, on every side.
     internal const int Padding = 4;
 
+    // Scene, tick and pointer.
+    private const int ReadoutLines = 3;
+
     // Blank, status, legend.
     private const int RowsBelowItems = 3;
+
+    // Columns for each of the pointer's world figures. A figure past ten million overruns them.
+    private const int PointerFigureWidth = 9;
+
+    // Two figures and the separator between them.
+    private const int PointerLength = (PointerFigureWidth * 2) + 2;
 
     // In menu pixels, inside the right padding.
     private const int ScrollbarWidth = 2;
@@ -25,10 +33,15 @@ internal sealed class OverlayScene : Scene
     private static readonly ColorRgba TrackColor = ColorRgba.White with { A = 48 };
     private static readonly ColorRgba ThumbColor = ColorRgba.White with { A = 160 };
 
+    // The pointer line is measured at its full width, blank or not, so a first point never widens the menu.
+    private static readonly float PointerWidth = Font.Measure(new string('0', PointerLength)).X;
+
     private readonly ScreenEntity _menu;
     private readonly ColorRect _backdrop;
     private readonly ColorRect _highlight;
-    private readonly Label _readout;
+    private readonly Label _sceneName;
+    private readonly Label _tick;
+    private readonly Label _pointer;
     private readonly Label _title;
     private readonly Label _status;
     private readonly Label _legend;
@@ -38,6 +51,11 @@ internal sealed class OverlayScene : Scene
 
     // A value row's text as drawn. ShowPage grows it to the page's longest value row.
     private char[] _text = [];
+
+    // The tick and pointer lines are written into these. Each holds its widest figures.
+    private readonly char[] _tickText = new char[32];
+    private readonly char[] _pointerText = new char[64];
+    private Vector2? _pointerWorld;
 
     // The last ShowPage and Place. RowAt reads them to turn a pointer into a row.
     private IReadOnlyList<OverlayRow> _page = [];
@@ -59,7 +77,9 @@ internal sealed class OverlayScene : Scene
         _menu = new ScreenEntity(Anchor.TopLeft, Vector2.Zero);
         _backdrop = new ColorRect(Vector2.Zero) { Color = BackdropColor };
         _highlight = new ColorRect(Vector2.Zero) { Color = ColorRgba.White with { A = 64 } };
-        _readout = new Label(Font);
+        _sceneName = new Label(Font);
+        _tick = new Label(Font);
+        _pointer = new Label(Font);
         _title = new Label(Font);
         _status = new Label(Font);
         _legend = new Label(Font, $"[{toggleName}] close   [Up/Dn] move   [Enter] select   [Bksp/Left] back");
@@ -68,7 +88,9 @@ internal sealed class OverlayScene : Scene
 
         _menu.Add(_backdrop);
         _menu.Add(_highlight);
-        _menu.Add(_readout);
+        _menu.Add(_sceneName);
+        _menu.Add(_tick);
+        _menu.Add(_pointer);
         _menu.Add(_title);
 
         // Added before the first frame. A later label would not show until a step settles it.
@@ -85,7 +107,7 @@ internal sealed class OverlayScene : Scene
         Add(_menu);
     }
 
-    internal string Readout => _readout.Text;
+    internal string[] Readout() => [_sceneName.Text, _tick.Text, _pointer.Text];
 
     internal string Status => _status.Text;
 
@@ -120,8 +142,41 @@ internal sealed class OverlayScene : Scene
     // The menu's own switch does not touch the pane.
     internal void ShowFramePane(bool shown) => Show(Pane, ref _paneShown, shown);
 
-    internal void SetReadout(string sceneName, long tick) =>
-        _readout.Text = string.Create(CultureInfo.InvariantCulture, $"{sceneName}  tick {tick}");
+    internal void SetReadout(string sceneName, long tick)
+    {
+        _sceneName.Text = sceneName;
+        NumberText line = new(_tickText);
+        line.Add("tick ");
+        line.Add(tick);
+        _tick.SetText(line.Written);
+    }
+
+    // The world point the pointer line shows, or null for a blank line before the pointer has stood over
+    // the world. The figures are fixed-width, which keeps the line's width while the pointer moves.
+    internal void SetPointer(Vector2? world)
+    {
+        if (world == _pointerWorld)
+        {
+            return;
+        }
+
+        _pointerWorld = world;
+        NumberText line = new(_pointerText);
+        if (world is { } point)
+        {
+            line.Add(point.X, "F1", PointerFigureWidth);
+            line.Add(", ");
+            line.Add(point.Y, "F1", PointerFigureWidth);
+        }
+
+        _pointer.SetText(line.Written);
+    }
+
+    // Whether a point on the overlay's canvas lies on the menu's backdrop.
+    internal bool CoversMenu(Vector2 pointer) =>
+        _menuShown
+        && pointer.X >= 0f && pointer.X <= _backdrop.Size.X
+        && pointer.Y >= 0f && pointer.Y <= _backdrop.Size.Y;
 
     // The status row is one line, so it shows the first line of text.
     internal void SetStatus(string text)
@@ -134,7 +189,7 @@ internal sealed class OverlayScene : Scene
     {
         _page = rows;
         _title.Text = title ?? string.Empty;
-        _rowsAbove = title is null ? 2 : 3;
+        _rowsAbove = ReadoutLines + (title is null ? 1 : 2);
         _shown = Math.Min(rows.Count, MaxRows);
 
         // Two spaces past the widest valued label. Spaces align it because the font is monospace.
@@ -156,8 +211,9 @@ internal sealed class OverlayScene : Scene
 
         // Every row is measured, shown or not, so the menu keeps one width as the window moves.
         float width = MathF.Max(
-            MathF.Max(Font.Measure(_readout.Text).X, Font.Measure(_title.Text).X),
-            MathF.Max(Font.Measure(_status.Text).X, Font.Measure(_legend.Text).X));
+            MathF.Max(Font.Measure(_sceneName.Text).X, Font.Measure(_tick.Text).X),
+            MathF.Max(PointerWidth, Font.Measure(_title.Text).X));
+        width = MathF.Max(width, MathF.Max(Font.Measure(_status.Text).X, Font.Measure(_legend.Text).X));
         foreach (OverlayRow row in rows)
         {
             width = MathF.Max(width, Font.Measure(RowText(row)).X);
@@ -166,8 +222,10 @@ internal sealed class OverlayScene : Scene
         _width = (int)width + (Padding * 2);
         int lines = _rowsAbove + _shown + RowsBelowItems;
         _backdrop.Size = new Vector2(_width, (lines * Font.LineHeight) + (Padding * 2));
-        _readout.Offset = new Vector2(Padding, RowTop(0));
-        _title.Offset = new Vector2(Padding, RowTop(1));
+        _sceneName.Offset = new Vector2(Padding, RowTop(0));
+        _tick.Offset = new Vector2(Padding, RowTop(1));
+        _pointer.Offset = new Vector2(Padding, RowTop(2));
+        _title.Offset = new Vector2(Padding, RowTop(ReadoutLines));
         _status.Offset = new Vector2(Padding, RowTop(lines - 2));
         _legend.Offset = new Vector2(Padding, RowTop(lines - 1));
 

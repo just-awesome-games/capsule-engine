@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
@@ -267,12 +268,50 @@ public partial class Camera
     {
     }
 
+    /// <summary>
+    /// Fills this camera's panel in the debug overlay, as <see cref="Component.OnDebugPanel"/> describes.
+    /// The engine writes <see cref="Center"/>, <see cref="Zoom"/>, <see cref="ViewportSize"/>,
+    /// <see cref="Fit"/>, <see cref="Offset"/>, <see cref="Bounds"/> and <see cref="VisibleRegion"/> before
+    /// this call.
+    /// </summary>
+    /// <remarks>The overlay opens the panel from the Camera row of its scene page.</remarks>
+    /// <example>
+    /// <code>
+    /// protected override void OnDebugPanel(DebugPanel panel)
+    /// {
+    ///     panel.Field("Subject", _subject?.Name);
+    ///     panel.Command("Shake", () =&gt; Shake(1f));
+    /// }
+    /// </code>
+    /// </example>
+    protected internal virtual void OnDebugPanel(DebugPanel panel)
+    {
+    }
+
     // Draws the bounds confining the view and the deadzone on the Camera channel. The visible region is
     // the frame's own edges and says nothing.
     internal void OnDebugDraw()
     {
         DrawBounds();
         DrawDeadzone();
+    }
+
+    // The engine writes its own rows before the hook, which runs only once this camera has started.
+    internal void RunDebugPanel(DebugPanel panel)
+    {
+        panel.Section("Camera");
+        panel.Field("Center", Center);
+        panel.Field("Zoom", Zoom);
+        panel.Field("ViewportSize", ViewportSize);
+        panel.Field("Fit", Fit);
+        panel.Field("Offset", Offset);
+        panel.Field("Bounds", Bounds is { } bounds ? Format(bounds) : null);
+        panel.Field("VisibleRegion", Format(VisibleRegion));
+
+        if (_started)
+        {
+            OnDebugPanel(panel);
+        }
     }
 
     internal void SavePrevious()
@@ -380,6 +419,9 @@ public partial class Camera
     private Vector2 Canvas => _scene?.RunOrNull?.Canvas ?? Run.StandardCanvas;
 
     private static int Pixels(float extent) => Math.Max(1, (int)MathF.Round(extent));
+
+    private static string Format(in Rect rect) =>
+        string.Create(CultureInfo.InvariantCulture, $"({rect.Left}, {rect.Top}) to ({rect.Right}, {rect.Bottom})");
 
     // A canvas point c lands on the world at Origin + c * Scale. Origin is the world point under the
     // canvas's top-left corner, Scale the world units one canvas pixel spans, and Parallax the settled

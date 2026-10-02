@@ -194,6 +194,49 @@ public sealed class ScreenPlacementTests
         Assert.Equal(Vector2.Zero, layout.Layer.ToCanvas(new Vector2(80f, 0f)));
     }
 
+    // A surface drawn a whole factor larger puts the world and the screen layer on the same
+    // back-buffer pixels at every factor its limit allows, whether the present is whole (4 on 1024 by
+    // 896) or fractional (1080 / 224, prescaled to 5). The factor chosen for a zoom-out is the smallest
+    // allowed that reaches it, and the limit past it.
+    [Theory]
+    [InlineData(1024, 896, 1f, 1)]
+    [InlineData(1024, 896, 1.5f, 2)]
+    [InlineData(1024, 896, 3f, 4)]
+    [InlineData(1024, 896, 8f, 4)]
+    [InlineData(1920, 1080, 1.5f, 5)]
+    public void AnEnlargedSurface_PresentsOnTheSamePixels(int outputWidth, int outputHeight, float zoomOut, int factor)
+    {
+        Vector2 resolution = new(256f, 224f);
+        ScreenLayout layout = Layout((256, 224), View(resolution, resolution * zoomOut), outputWidth, outputHeight);
+        int limit = FrameLayout.SurfaceFactorLimit(TextureSampling.Point, layout.Present.Scale);
+
+        Assert.Equal(factor, FrameLayout.SurfaceFactor(zoomOut, limit));
+        for (int allowed = 2; allowed <= limit; allowed++)
+        {
+            if (limit % allowed == 0)
+            {
+                Assert.Equal(Presented(layout, 1), Presented(layout, allowed));
+            }
+        }
+    }
+
+    // Where the world's corners and the screen layer's corner land in the back buffer, as the present
+    // blits them.
+    private static (float Left, float Top, float Right, float Bottom, Vector2 Screen) Presented(in ScreenLayout layout, int factor)
+    {
+        ScreenLayout drawn = FrameLayout.Enlarge(layout, factor);
+        (int prescale, TextureSampling _, float scale) = FrameLayout.PresentPass(TextureSampling.Point, layout.Present.Scale, factor);
+        Letterbox world = drawn.World;
+        Vector2 origin = drawn.Present.Origin;
+
+        return (
+            origin.X + (world.X * prescale * scale),
+            origin.Y + (world.Y * prescale * scale),
+            origin.X + ((world.X + world.Width) * prescale * scale),
+            origin.Y + ((world.Y + world.Height) * prescale * scale),
+            origin + (drawn.OnSurface.Origin * prescale * scale));
+    }
+
     private static FrameView View(Vector2 canvas, Vector2? cameraSize = null, ViewportFit fit = ViewportFit.Letterbox)
     {
         return new FrameView
