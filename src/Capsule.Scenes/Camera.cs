@@ -359,7 +359,7 @@ public partial class Camera
 
         Run? run = _scene?.RunOrNull;
 
-        return FrameLayout.Layout(run?.RenderResolution, view, Canvas, Sampling, width, height);
+        return FrameLayout.Layout(run?.RenderResolution, view, Canvas, width, height);
     }
 
     // The declared span, with the canvas letterboxed over it.
@@ -370,7 +370,6 @@ public partial class Camera
             null,
             view with { Fit = ViewportFit.Letterbox },
             canvas,
-            Sampling,
             Pixels(canvas.X),
             Pixels(canvas.Y));
         Rect region = view.Place(1f, fitted.Span);
@@ -379,8 +378,6 @@ public partial class Camera
     }
 
     private Vector2 Canvas => _scene?.RunOrNull?.Canvas ?? Run.StandardCanvas;
-
-    private TextureSampling Sampling => _scene?.Sampling ?? TextureSampling.Linear;
 
     private static int Pixels(float extent) => Math.Max(1, (int)MathF.Round(extent));
 

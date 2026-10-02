@@ -351,5 +351,5 @@ public sealed class ViewportFitTests
     };
 
     private static ScreenLayout Layout((int Width, int Height)? resolution, FrameView view, int outputWidth, int outputHeight) =>
-        FrameLayout.Layout(resolution, view.Camera, view.Canvas, view.Sampling, outputWidth, outputHeight);
+        FrameLayout.Layout(resolution, view.Camera, view.Canvas, outputWidth, outputHeight);
 }

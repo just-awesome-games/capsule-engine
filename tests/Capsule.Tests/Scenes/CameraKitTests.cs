@@ -289,7 +289,7 @@ public sealed class CameraKitTests
         simulation.Step(SceneFixtures.Step(0));
         Assert.Equal(new Vector2(160f, 90f), scene.Camera.VisibleRegion.Size);
 
-        ScreenLayout layout = FrameLayout.Layout((320, 180), simulation.View.Camera, new Vector2(320f, 180f), TextureSampling.Point, 1280, 720);
+        ScreenLayout layout = FrameLayout.Layout((320, 180), simulation.View.Camera, new Vector2(320f, 180f), 1280, 720);
         Assert.Equal(new Vector2(160f, 90f), layout.Span);
         Assert.Equal(2f, layout.World.Scale);
 

@@ -18,7 +18,6 @@ internal static class FrameLayout
         (int Width, int Height)? renderResolution,
         in CameraView camera,
         Vector2 canvas,
-        TextureSampling sampling,
         int outputWidth,
         int outputHeight)
     {
@@ -45,7 +44,7 @@ internal static class FrameLayout
         float pixelsPerUnit = PixelsPerUnit(resolution, camera);
         span = QuantisedSpan(camera, resolution, span, pixelsPerUnit, surface, outputWidth, outputHeight);
         Letterbox world = WorldFit(camera, span, pixelsPerUnit, surface);
-        ScreenPlacement presented = TargetPlacement(sampling, surface.Width, surface.Height, outputWidth, outputHeight);
+        ScreenPlacement presented = TargetPlacement(surface.Width, surface.Height, outputWidth, outputHeight);
 
         // A canvas declared apart from the resolution is not in the surface's pixels. Drawn on the
         // surface it would be cropped or left unscaled, so it takes its own centred fit of the
@@ -199,25 +198,20 @@ internal static class FrameLayout
         return fit.IsEmpty ? default : new ScreenPlacement(new Vector2(fit.X, fit.Y), fit.Scale);
     }
 
-    // Where the render surface's own top-left corner lands in the back buffer, on the fit its
-    // sampling mode calls for. A scale of 0 is a surface or a back buffer with no area.
-    internal static ScreenPlacement TargetPlacement(
-        TextureSampling sampling,
-        int targetWidth,
-        int targetHeight,
-        int containerWidth,
-        int containerHeight)
+    // Where the render surface's own top-left corner lands in the back buffer. The surface fills the
+    // back buffer on its binding axis at the fractional scale that keeps its aspect, with bars on the
+    // other axis. A scale of 0 is a surface or a back buffer with no area.
+    internal static ScreenPlacement TargetPlacement(int targetWidth, int targetHeight, int containerWidth, int containerHeight)
     {
-        Letterbox fit = PresentFit(sampling, targetWidth, targetHeight, containerWidth, containerHeight);
+        Letterbox fit = Letterbox.Fit(targetWidth, targetHeight, containerWidth, containerHeight);
         if (fit.IsEmpty)
         {
             return default;
         }
 
         // The fit's whole-pixel corner, not the exact centre. A bar of an odd number of pixels
-        // centres on a half pixel, which under point sampling puts every texel boundary on a pixel
-        // centre and leaves the fill rule to break a tie per row. Linear sampling answers to no
-        // pixel grid, so the half pixel is invisible there.
+        // centres on a half pixel, which puts every texel boundary of a point-sampled blit on a pixel
+        // centre and leaves the fill rule to break a tie per row.
         //
         // The scale travels as one scalar. A destination rectangle would round its two extents
         // independently and skew the blit.
@@ -267,18 +261,28 @@ internal static class FrameLayout
             : MathF.Min(canvas.Width / size.X, canvas.Height / size.Y);
     }
 
-    // Which fit the render surface takes into the back buffer. Point sampling gives each source pixel
-    // a square block, so it takes the whole scale and lets the bars absorb the remainder. Linear
-    // sampling answers to no pixel grid and fills the window.
-    internal static Letterbox PresentFit(
-        TextureSampling sampling,
-        int targetWidth,
-        int targetHeight,
-        int containerWidth,
-        int containerHeight) =>
-        sampling == TextureSampling.Point
-            ? Letterbox.FitPixels(targetWidth, targetHeight, containerWidth, containerHeight)
-            : Letterbox.Fit(targetWidth, targetHeight, containerWidth, containerHeight);
+    // How a surface reaches the back buffer at a present scale. Prescale is the whole factor the
+    // surface is first blown up by with point sampling, 1 for none, and Final the sampling of the blit
+    // into the back buffer. A point-sampled surface at a fractional scale of 1 or more is prescaled to
+    // the next whole scale and filtered down from there. Every texel then keeps an even, crisp block,
+    // where a direct point blit would give texels of uneven width and a direct linear blit would blur.
+    // Below a scale of 1 there is no block to keep, and the surface is filtered straight down.
+    internal static (int Prescale, TextureSampling Final) PresentPass(TextureSampling sampling, float scale)
+    {
+        if (sampling != TextureSampling.Point)
+        {
+            return (1, sampling);
+        }
+
+        if (scale < 1f)
+        {
+            return (1, TextureSampling.Linear);
+        }
+
+        float whole = MathF.Ceiling(scale);
+
+        return whole == scale ? (1, TextureSampling.Point) : ((int)whole, TextureSampling.Linear);
+    }
 
     // GrownPixels' count on an axis the fit grew, so the surface matches the quantised span there and
     // no extra pixel shows as a one-pixel bar. The clamp's floor absorbs a binding axis whose float

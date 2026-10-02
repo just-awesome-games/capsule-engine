@@ -29,40 +29,45 @@ public sealed class ScreenPlacementTests
         Assert.Equal(0f, FrameLayout.WindowPlacement(Vector2.Zero, 640, 540).Scale);
     }
 
-    // Point sampling owes its source pixels a square block each, so it takes the whole scale and
-    // lets the bars absorb the remainder, the odd pixel going below the surface; linear sampling
-    // answers to no pixel grid and fills the window it fits. 700 by 400 holds 320 by 180 twice over
-    // and 1904 by 1041 five times, leaving bars of 304 and 141 pixels.
-    [Theory]
-    [InlineData(TextureSampling.Point, 700, 400, 2f, 30f, 20f)]
-    [InlineData(TextureSampling.Point, 1904, 1041, 5f, 152f, 70f)]
-    [InlineData(TextureSampling.Linear, 700, 400, 700f / 320f, 0f, 3f)]
-    public void TheRenderSurface_IsPlacedOnTheFitItsSamplingCallsFor(
-        TextureSampling sampling,
-        int windowWidth,
-        int windowHeight,
-        float scale,
-        float originX,
-        float originY)
+    // A declared surface fills the window edge to edge on its binding axis at the fractional scale,
+    // whatever its sampling, with bars only on the other axis. 256 by 224 binds on the height of a
+    // 1280 by 720 window, at 720 / 224 rather than the 3 a whole scale would leave it at.
+    [Fact]
+    public void TheRenderSurface_FillsTheBindingAxisEdgeToEdge()
     {
-        ScreenPlacement placement = FrameLayout.TargetPlacement(sampling, 320, 180, windowWidth, windowHeight);
+        ScreenPlacement placement = FrameLayout.TargetPlacement(256, 224, 1280, 720);
 
-        Assert.Equal(scale, placement.Scale);
-        Assert.Equal(new Vector2(originX, originY), placement.Origin);
+        Assert.Equal(720f, MathF.Round(224 * placement.Scale));
+        Assert.Equal(new Vector2(228f, 0f), placement.Origin);
     }
 
     // A bar of an odd number of pixels has no whole-pixel centre, and a present origin on a half pixel
-    // puts every texel boundary of a point-sampled surface on a pixel centre.
-    [Theory]
-    [InlineData(TextureSampling.Point)]
-    [InlineData(TextureSampling.Linear)]
-    public void TheRenderSurface_IsPresentedOnWholePixelsWhateverTheBarsArePlacedOn(TextureSampling sampling)
+    // puts every texel boundary of a point-sampled blit on a pixel centre. 1904 by 1041 fits 320 by
+    // 180 at 1041 / 180, leaving a pillar total of 53 pixels.
+    [Fact]
+    public void TheRenderSurface_IsPresentedOnWholePixelsWhateverTheBarsArePlacedOn()
     {
-        // 1904 by 1041 holds 320 by 180 five times over, leaving bars of 304 and 141 pixels.
-        ScreenPlacement placement = FrameLayout.TargetPlacement(sampling, 320, 180, 1904, 1041);
+        ScreenPlacement placement = FrameLayout.TargetPlacement(320, 180, 1904, 1041);
 
         Assert.Equal(MathF.Truncate(placement.Origin.X), placement.Origin.X);
         Assert.Equal(MathF.Truncate(placement.Origin.Y), placement.Origin.Y);
+    }
+
+    // A point-sampled surface keeps one point blit at a whole scale and filters straight down below
+    // 1. At a fractional scale above 1 it is point-prescaled to the next whole scale and filtered down
+    // from there. A linear-sampled surface always takes one linear blit.
+    [Theory]
+    [InlineData(TextureSampling.Point, 1f, 1, TextureSampling.Point)]
+    [InlineData(TextureSampling.Point, 0.75f, 1, TextureSampling.Linear)]
+    [InlineData(TextureSampling.Point, 720f / 224f, 4, TextureSampling.Linear)]
+    [InlineData(TextureSampling.Linear, 720f / 224f, 1, TextureSampling.Linear)]
+    public void ThePresentPass_PrescalesAPointSurfaceOnlyAtAFractionalScaleAboveOne(
+        TextureSampling sampling,
+        float scale,
+        int prescale,
+        TextureSampling final)
+    {
+        Assert.Equal((prescale, final), FrameLayout.PresentPass(sampling, scale));
     }
 
     [Fact]
@@ -86,7 +91,7 @@ public sealed class ScreenPlacementTests
         // The layer sits at the slack inside the surface, and the surface is presented at its own
         // placement: a window pixel unwinds both at once.
         Vector2 slack = FrameLayout.ScreenSlack(400, 180, Canvas);
-        ScreenPlacement presented = FrameLayout.TargetPlacement(TextureSampling.Point, 400, 180, 800, 360);
+        ScreenPlacement presented = FrameLayout.TargetPlacement(400, 180, 800, 360);
         ScreenPlacement layer = new(presented.Origin + (slack * presented.Scale), presented.Scale);
 
         Assert.Equal(2f, layer.Scale);
@@ -146,8 +151,7 @@ public sealed class ScreenPlacementTests
         float originY)
     {
         // 960 by 542 is a hair narrower than the canvas: the two thirds of a row Expand would reveal
-        // round down to none, so the surface stays the canvas and the present keeps its whole scale
-        // with a one-pixel bar, rather than growing by a row that would cost the present a scale.
+        // round down to none, so the surface stays the canvas with a one-pixel bar.
         ScreenLayout layout = Layout((320, 180), View(Canvas, Canvas, fit), 960, 542);
 
         Assert.Equal((surfaceWidth, surfaceHeight), layout.Surface);
@@ -201,5 +205,5 @@ public sealed class ScreenPlacementTests
     }
 
     private static ScreenLayout Layout((int Width, int Height)? resolution, FrameView view, int outputWidth, int outputHeight) =>
-        FrameLayout.Layout(resolution, view.Camera, view.Canvas, view.Sampling, outputWidth, outputHeight);
+        FrameLayout.Layout(resolution, view.Camera, view.Canvas, outputWidth, outputHeight);
 }

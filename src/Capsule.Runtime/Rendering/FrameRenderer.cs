@@ -59,6 +59,10 @@ internal sealed class FrameRenderer : IDisposable
     // reallocated when that size changes. Null while no frame has lit.
     private RenderTarget2D? _lightMap;
 
+    // A point-sampled surface blown up to the whole scale above a fractional present, allocated on the
+    // first such present and reallocated when its size changes. Null until then.
+    private RenderTarget2D? _prescaled;
+
     // Where the screen layer landed on the last frame drawn. It turns a sampled mouse position back
     // into a canvas position, and ResolveScreenLayer seeds it before the first frame.
     private ScreenPlacement _placement = ScreenPlacement.Identity;
@@ -136,7 +140,7 @@ internal sealed class FrameRenderer : IDisposable
         int outputHeight = backBuffer.BackBufferHeight;
 
         CameraView camera = view.Camera.At(alpha);
-        ScreenLayout layout = FrameLayout.Layout(_canvas, camera, view.Canvas, view.Sampling, outputWidth, outputHeight);
+        ScreenLayout layout = FrameLayout.Layout(_canvas, camera, view.Canvas, outputWidth, outputHeight);
         Rect world = camera.Place(1f, layout.Span);
 
         if (_canvas is null)
@@ -264,7 +268,7 @@ internal sealed class FrameRenderer : IDisposable
     internal void ResolveScreenLayer(FrameView view)
     {
         PresentationParameters backBuffer = _device.PresentationParameters;
-        ScreenLayout layout = FrameLayout.Layout(_canvas, view.Camera, view.Canvas, view.Sampling, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
+        ScreenLayout layout = FrameLayout.Layout(_canvas, view.Camera, view.Canvas, backBuffer.BackBufferWidth, backBuffer.BackBufferHeight);
 
         if (layout.Layer.Scale > 0f)
         {
@@ -285,6 +289,21 @@ internal sealed class FrameRenderer : IDisposable
         _lightMap = new RenderTarget2D(_device, width, height, false, SurfaceFormat.Color, DepthFormat.None);
 
         return _lightMap;
+    }
+
+    // Gets or (re)allocates the prescale target at width x height, disposing a stale one as Surface does.
+    private RenderTarget2D Prescaled(int width, int height)
+    {
+        if (_prescaled is { } prescaled && prescaled.Width == width && prescaled.Height == height)
+        {
+            return prescaled;
+        }
+
+        _device.SetRenderTarget(null);
+        _prescaled?.Dispose();
+        _prescaled = new RenderTarget2D(_device, width, height, false, SurfaceFormat.Color, DepthFormat.None);
+
+        return _prescaled;
     }
 
     // Draws every light and every additive world sprite into the light map, cleared to the scene's
@@ -679,25 +698,45 @@ internal sealed class FrameRenderer : IDisposable
             ? texture
             : throw new ArgumentException($"Unknown engine-owned texture handle '{handle.Name}'.", nameof(handle));
 
-    // Letterboxed a second time, into the back buffer, at the surface's present placement.
+    // Letterboxed a second time, into the back buffer, at the surface's present placement. See
+    // FrameLayout.PresentPass for how a point-sampled surface reaches a fractional scale.
     private void Present(RenderTarget2D target, TextureSampling sampling, in ScreenPlacement placement)
     {
-        // Unbinding the target restored the viewport to the whole back buffer.
         PresentationParameters backBuffer = _device.PresentationParameters;
         if (backBuffer.BackBufferWidth <= 0 || backBuffer.BackBufferHeight <= 0)
         {
             return;
         }
 
+        Texture2D source = target;
+        float scale = placement.Scale;
+        (int prescale, TextureSampling final) = FrameLayout.PresentPass(sampling, scale);
+
+        // Drawn before the back buffer is cleared. Rebinding a target can discard what the back
+        // buffer already holds.
+        if (prescale > 1)
+        {
+            RenderTarget2D prescaled = Prescaled(target.Width * prescale, target.Height * prescale);
+            _device.SetRenderTarget(prescaled);
+            _batcher.Begin(Matrix.Identity, SamplerState.PointClamp);
+            _batcher.DrawWhole(target, Vector2.Zero, Vector2.Zero, new Vector2(prescale), rotation: 0f, ColorRgba.White);
+            _batcher.End();
+            _device.SetRenderTarget(null);
+
+            source = prescaled;
+            scale /= prescale;
+        }
+
+        // Unbinding the target restored the viewport to the whole back buffer.
         _device.Clear(BarColor);
 
-        if (!(placement.Scale > 0f))
+        if (!(scale > 0f))
         {
             return;
         }
 
-        _batcher.Begin(Matrix.Identity, Sampler(sampling));
-        _batcher.DrawWhole(target, placement.Origin, Vector2.Zero, new Vector2(placement.Scale), rotation: 0f, ColorRgba.White);
+        _batcher.Begin(Matrix.Identity, Sampler(final));
+        _batcher.DrawWhole(source, placement.Origin, Vector2.Zero, new Vector2(scale), rotation: 0f, ColorRgba.White);
         _batcher.End();
     }
 
@@ -767,5 +806,6 @@ internal sealed class FrameRenderer : IDisposable
 
         _target?.Dispose();
         _lightMap?.Dispose();
+        _prescaled?.Dispose();
     }
 }

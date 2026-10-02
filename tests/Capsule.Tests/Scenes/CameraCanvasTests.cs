@@ -39,7 +39,7 @@ public sealed class CameraCanvasTests
         Camera camera = Settle(fit, resolution, canvas, scrollCenter: null);
 
         CameraView view = camera.ToView();
-        ScreenLayout layout = FrameLayout.Layout(resolution, view, canvas, TextureSampling.Point, OutputWidth, OutputHeight);
+        ScreenLayout layout = FrameLayout.Layout(resolution, view, canvas, OutputWidth, OutputHeight);
         Rect drawn = view.Place(1f, layout.Span);
 
         Assert.Equal(drawn, camera.VisibleRegion);
