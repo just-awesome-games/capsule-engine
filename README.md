@@ -21,7 +21,7 @@ dotnet restore --locked-mode
 dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 ```
 
-[`docs/getting-started.md`](docs/getting-started.md) takes it from there: three projects, a scene, and one entity on screen. Press `` ` `` in any windowed run for the development overlay ([`docs/debugging.md`](docs/debugging.md)).
+[`docs/getting-started.md`](docs/getting-started.md) takes it from there: three projects, a scene, and one entity on screen. Press `` ` `` in any windowed run for the debug overlay ([`docs/debugging.md`](docs/debugging.md)).
 
 ## Documentation
 
@@ -40,7 +40,7 @@ Four packages ship, and [`PACKAGE.md`](PACKAGE.md) says what each holds. Every p
 - [`docs/build-and-publish.md`](docs/build-and-publish.md): project wiring, build properties, publishing, platform modules.
 - [`docs/packages.md`](docs/packages.md): writing a package, its naming, and taking part in the build.
 - [`docs/testing.md`](docs/testing.md): which boundary to test a game at.
-- [`docs/debugging.md`](docs/debugging.md): the development overlay, debug draw, panels, logging.
+- [`docs/debugging.md`](docs/debugging.md): the debug overlay, debug draw, panels, logging.
 - [`docs/architecture.md`](docs/architecture.md): module boundaries, the logic boundary, the determinism contract, the NativeAOT floor.
 
 ## Contributing

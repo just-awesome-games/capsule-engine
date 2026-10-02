@@ -28,7 +28,7 @@ public sealed class EngineDebugDrawTests
         rig.Open();
         rig.Press(Key.Right);
 
-        Assert.Equal(["Camera", "Colliders", "Origins"], rig.Overlay.Channels);
+        Assert.Equal(["Camera", "Colliders", "Origins"], rig.Overlay.Draws.Channels);
         Assert.Equal(1, rig.Scheduler.Tick);
 
         rig.Overlay.ToggleChannel("Colliders");
@@ -107,7 +107,7 @@ public sealed class EngineDebugDrawTests
 
         // Ordinal would sort every capitalized channel above "extra". The overlay reads channel
         // names the way a person does.
-        Assert.Equal(["Camera", "Colliders", "extra", "Origins"], rig.Overlay.Channels);
+        Assert.Equal(["Camera", "Colliders", "extra", "Origins"], rig.Overlay.Draws.Channels);
         Assert.Equal(0, rig.Scheduler.Tick);
 
         rig.Overlay.ToggleChannel("Colliders");

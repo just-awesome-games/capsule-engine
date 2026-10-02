@@ -6,31 +6,26 @@ using Capsule.UI;
 
 namespace Capsule.Runtime.DevTools;
 
-// The scene that draws the overlay: a panel of row labels with a highlight on the focused row, a
-// readout, a status line, a legend and the frame pane. It is told what to show once per overlay frame
-// and keeps only the pixels between frames.
+// Draws the overlay. It is told what to show only on the frames that change it.
 internal sealed class OverlayScene : Scene
 {
-    // Rows shown at once. A longer page is windowed to the rows around the focus.
     internal const int MaxRows = 24;
 
-    // Panel pixels between the backdrop's edge and the text inside it, on every side.
-    private const int Padding = 4;
+    // Between a backdrop's edge and its text, on every side.
+    internal const int Padding = 4;
 
-    // Spaces between the widest label of a page and its hotkey column.
-    private const int HotkeyGap = 2;
-
-    // Rows under the last one: blank, status, legend.
+    // Blank, status, legend.
     private const int RowsBelowItems = 3;
 
-    // The scrollbar's width in panel pixels, set inside the right padding.
+    // In menu pixels, inside the right padding.
     private const int ScrollbarWidth = 2;
 
-    private static readonly BitmapFont Font = BitmapFont.Default;
+    internal static readonly BitmapFont Font = BitmapFont.Default;
+    internal static readonly ColorRgba BackdropColor = ColorRgba.Black with { A = 160 };
     private static readonly ColorRgba TrackColor = ColorRgba.White with { A = 48 };
     private static readonly ColorRgba ThumbColor = ColorRgba.White with { A = 160 };
 
-    private readonly ScreenEntity _panel;
+    private readonly ScreenEntity _menu;
     private readonly ColorRect _backdrop;
     private readonly ColorRect _highlight;
     private readonly Label _readout;
@@ -41,12 +36,13 @@ internal sealed class OverlayScene : Scene
     private readonly ColorRect _thumb;
     private readonly Label[] _rows = new Label[MaxRows];
 
-    // One row's text as drawn: its label padded to the hotkey column, then the key's name.
-    private readonly char[] _text = new char[256];
+    // A value row's text as drawn. ShowPage grows it to the page's longest value row.
+    private char[] _text = [];
 
-    // The window's first row and how many are shown, as the last Show laid them out. These turn a
-    // pointer position into a row index.
-    private int _first;
+    // The last ShowPage and Place. RowAt reads them to turn a pointer into a row.
+    private IReadOnlyList<OverlayRow> _page = [];
+    private int _column;
+    private int _top;
     private int _shown;
     private int _rowsAbove;
     private int _width;
@@ -54,12 +50,14 @@ internal sealed class OverlayScene : Scene
     private bool _menuShown = true;
     private bool _paneShown;
 
+    internal FramePane Pane { get; } = new();
+
     internal OverlayScene(string toggleName)
     {
         Sampling = TextureSampling.Point;
 
-        _panel = new ScreenEntity(Anchor.TopLeft, Vector2.Zero);
-        _backdrop = new ColorRect(Vector2.Zero) { Color = ColorRgba.Black with { A = 160 } };
+        _menu = new ScreenEntity(Anchor.TopLeft, Vector2.Zero);
+        _backdrop = new ColorRect(Vector2.Zero) { Color = BackdropColor };
         _highlight = new ColorRect(Vector2.Zero) { Color = ColorRgba.White with { A = 64 } };
         _readout = new Label(Font);
         _title = new Label(Font);
@@ -68,38 +66,34 @@ internal sealed class OverlayScene : Scene
         _track = new ColorRect(Vector2.Zero) { Color = TrackColor };
         _thumb = new ColorRect(Vector2.Zero) { Color = ThumbColor };
 
-        _panel.Add(_backdrop);
-        _panel.Add(_highlight);
-        _panel.Add(_readout);
-        _panel.Add(_title);
+        _menu.Add(_backdrop);
+        _menu.Add(_highlight);
+        _menu.Add(_readout);
+        _menu.Add(_title);
 
-        // The pool is added once, before the first frame. A label added later would wait for the step
-        // that settles it, and the overlay draws rows on frames that run no step.
+        // Added before the first frame. A later label would not show until a step settles it.
         for (int index = 0; index < _rows.Length; index++)
         {
             _rows[index] = new Label(Font);
-            _panel.Add(_rows[index]);
+            _menu.Add(_rows[index]);
         }
 
-        _panel.Add(_status);
-        _panel.Add(_legend);
-        _panel.Add(_track);
-        _panel.Add(_thumb);
-        Add(_panel);
+        _menu.Add(_status);
+        _menu.Add(_legend);
+        _menu.Add(_track);
+        _menu.Add(_thumb);
+        Add(_menu);
     }
-
-    internal FramePane Pane { get; } = new();
 
     internal string Readout => _readout.Text;
 
     internal string Status => _status.Text;
 
-    // The scrollbar's track and thumb as drawn. Both are empty while the page fits its window.
+    // Both are empty while the page fits its window.
     internal Rect ScrollTrack => _track.Bounds;
 
     internal Rect ScrollThumb => _thumb.Bounds;
 
-    // The rows as drawn, top to bottom, hotkey column and all.
     internal string[] ShownRows()
     {
         string[] shown = new string[_shown];
@@ -111,53 +105,23 @@ internal sealed class OverlayScene : Scene
         return shown;
     }
 
-    // Withdraws the panel from the scene, or brings it back. Returns whether anything changed.
+    // A withdrawn menu shows no rows. The pointer finds none until the page is laid out again.
     internal bool ShowMenu(bool shown)
     {
-        if (_menuShown == shown)
+        bool changed = Show(_menu, ref _menuShown, shown);
+        if (changed && !shown)
         {
-            return false;
-        }
-
-        _menuShown = shown;
-        if (shown)
-        {
-            Add(_panel);
-        }
-        else
-        {
-            Remove(_panel);
             _shown = 0;
         }
 
-        return true;
+        return changed;
     }
 
-    // Puts the pane in the scene or takes it out. The menu's own switch does not touch it.
-    internal void ShowFramePane(bool shown)
-    {
-        if (_paneShown == shown)
-        {
-            return;
-        }
+    // The menu's own switch does not touch the pane.
+    internal void ShowFramePane(bool shown) => Show(Pane, ref _paneShown, shown);
 
-        _paneShown = shown;
-        if (shown)
-        {
-            Add(Pane);
-        }
-        else
-        {
-            Remove(Pane);
-        }
-    }
-
-    internal void SetReadout(string sceneName, long tick)
-    {
-        _readout.Text = sceneName.Length == 0
-            ? string.Create(CultureInfo.InvariantCulture, $"tick {tick}")
-            : string.Create(CultureInfo.InvariantCulture, $"{sceneName}  tick {tick}");
-    }
+    internal void SetReadout(string sceneName, long tick) =>
+        _readout.Text = string.Create(CultureInfo.InvariantCulture, $"{sceneName}  tick {tick}");
 
     // The status row is one line, so it shows the first line of text.
     internal void SetStatus(string text)
@@ -166,46 +130,37 @@ internal sealed class OverlayScene : Scene
         _status.Text = end < 0 ? text : text[..end];
     }
 
-    // Lays the page out: the rows of the window around focus, the highlight on the focused one, and the
-    // backdrop sized to the widest line. Does nothing while the panel is withdrawn.
-    internal void Show(string? title, IReadOnlyList<OverlayRow> rows, int focus, int first)
+    internal void ShowPage(string? title, IReadOnlyList<OverlayRow> rows)
     {
-        if (!_menuShown)
-        {
-            return;
-        }
-
+        _page = rows;
         _title.Text = title ?? string.Empty;
         _rowsAbove = title is null ? 2 : 3;
-        _first = Math.Clamp(first, 0, Math.Max(0, rows.Count - MaxRows));
         _shown = Math.Min(rows.Count, MaxRows);
 
-        int column = 0;
+        // Two spaces past the widest valued label. Spaces align it because the font is monospace.
+        _column = 0;
+        int longestValue = 0;
         foreach (OverlayRow row in rows)
         {
-            column = Math.Max(column, row.Label.Length);
-        }
-
-        column += HotkeyGap;
-
-        // Every row of the page is measured, shown or not, so the panel keeps one width as the window
-        // moves.
-        float width = Widest(_readout.Text, _title.Text, _status.Text, _legend.Text);
-        for (int index = 0; index < rows.Count; index++)
-        {
-            ReadOnlySpan<char> text = RowText(rows[index], column);
-            width = MathF.Max(width, Font.Measure(text).X);
-            int shown = index - _first;
-            if (shown >= 0 && shown < _shown)
+            if (row.Value is { } value)
             {
-                _rows[shown].SetText(text);
-                _rows[shown].Offset = new Vector2(Padding, RowTop(_rowsAbove + shown));
+                _column = Math.Max(_column, row.Label.Length + 2);
+                longestValue = Math.Max(longestValue, value.Length);
             }
         }
 
-        for (int index = _shown; index < _rows.Length; index++)
+        if (_column + longestValue > _text.Length)
         {
-            _rows[index].SetText(default);
+            _text = new char[_column + longestValue];
+        }
+
+        // Every row is measured, shown or not, so the menu keeps one width as the window moves.
+        float width = MathF.Max(
+            MathF.Max(Font.Measure(_readout.Text).X, Font.Measure(_title.Text).X),
+            MathF.Max(Font.Measure(_status.Text).X, Font.Measure(_legend.Text).X));
+        foreach (OverlayRow row in rows)
+        {
+            width = MathF.Max(width, Font.Measure(RowText(row)).X);
         }
 
         _width = (int)width + (Padding * 2);
@@ -213,37 +168,54 @@ internal sealed class OverlayScene : Scene
         _backdrop.Size = new Vector2(_width, (lines * Font.LineHeight) + (Padding * 2));
         _readout.Offset = new Vector2(Padding, RowTop(0));
         _title.Offset = new Vector2(Padding, RowTop(1));
+        _status.Offset = new Vector2(Padding, RowTop(lines - 2));
+        _legend.Offset = new Vector2(Padding, RowTop(lines - 1));
 
-        int focusedRow = focus - _first;
-        bool focused = focusedRow >= 0 && focusedRow < _shown && rows[focus].Activate is not null;
+        for (int index = 0; index < _rows.Length; index++)
+        {
+            _rows[index].Offset = new Vector2(Padding, RowTop(_rowsAbove + index));
+            if (index >= _shown)
+            {
+                _rows[index].SetText(default);
+            }
+        }
+
+        // Shown only past the window. The thumb is the window's share of the page.
+        bool scrolls = rows.Count > MaxRows;
+        float height = MaxRows * Font.LineHeight;
+        _track.Offset = new Vector2(_width - Padding + ((Padding - ScrollbarWidth) / 2f), RowTop(_rowsAbove));
+        _track.Size = scrolls ? new Vector2(ScrollbarWidth, height) : Vector2.Zero;
+        _thumb.Size = scrolls ? new Vector2(ScrollbarWidth, height * _shown / rows.Count) : Vector2.Zero;
+
+        // No window is shown yet.
+        _top = -1;
+    }
+
+    // Rewrites the rows only when the window moved.
+    internal void Place(int focus, int top)
+    {
+        if (top != _top)
+        {
+            _top = top;
+            for (int index = 0; index < _shown; index++)
+            {
+                _rows[index].SetText(RowText(_page[top + index]));
+            }
+        }
+
+        int focusedRow = focus - top;
+        bool focused = focusedRow >= 0 && focusedRow < _shown && _page[focus].Activate is not null;
         _highlight.Offset = new Vector2(0f, RowTop(_rowsAbove + Math.Max(focusedRow, 0)));
         _highlight.Size = focused ? new Vector2(_width, Font.LineHeight) : Vector2.Zero;
 
-        int statusRow = _rowsAbove + _shown + 1;
-        _status.Offset = new Vector2(Padding, RowTop(statusRow));
-        _legend.Offset = new Vector2(Padding, RowTop(statusRow + 1));
-
-        // The scrollbar spans the row window, shown only past it: the thumb is the window's share of
-        // the page, and sits where First is along it.
-        if (rows.Count > MaxRows)
+        if (_page.Count > MaxRows)
         {
-            float top = RowTop(_rowsAbove);
             float height = MaxRows * Font.LineHeight;
-            float left = _width - Padding + ((Padding - ScrollbarWidth) / 2f);
-            _track.Offset = new Vector2(left, top);
-            _track.Size = new Vector2(ScrollbarWidth, height);
-            _thumb.Offset = new Vector2(left, top + (height * _first / rows.Count));
-            _thumb.Size = new Vector2(ScrollbarWidth, height * _shown / rows.Count);
-        }
-        else
-        {
-            _track.Size = Vector2.Zero;
-            _thumb.Size = Vector2.Zero;
+            _thumb.Offset = _track.Offset + new Vector2(0f, height * top / _page.Count);
         }
     }
 
-    // The page row a canvas position is over, or -1 for a position off the rows. The panel hangs from
-    // the canvas's top-left corner, and a canvas position is also a panel position.
+    // Returns -1 off the rows. The menu hangs top-left, which makes a canvas position a menu one.
     internal int RowAt(Vector2 pointer)
     {
         if (!_menuShown || pointer.X < 0f || pointer.X > _width)
@@ -254,34 +226,43 @@ internal sealed class OverlayScene : Scene
         float top = RowTop(_rowsAbove);
         int row = (int)MathF.Floor((pointer.Y - top) / Font.LineHeight);
 
-        return pointer.Y >= top && row < _shown ? _first + row : -1;
+        return pointer.Y >= top && row < _shown ? _top + row : -1;
     }
 
-    private ReadOnlySpan<char> RowText(in OverlayRow row, int column)
+    private bool Show(ScreenEntity entity, ref bool isShown, bool shown)
     {
-        if (row.Hotkey is not { } hotkey)
+        if (isShown == shown)
+        {
+            return false;
+        }
+
+        isShown = shown;
+        if (shown)
+        {
+            Add(entity);
+        }
+        else
+        {
+            Remove(entity);
+        }
+
+        return true;
+    }
+
+    private static float RowTop(int row) => Padding + (row * Font.LineHeight);
+
+    private ReadOnlySpan<char> RowText(in OverlayRow row)
+    {
+        if (row.Value is not { } value)
         {
             return row.Label;
         }
 
         Span<char> text = _text;
-        int length = Math.Min(row.Label.Length, text.Length);
-        row.Label.AsSpan(0, length).CopyTo(text);
-        for (; length < column && length < text.Length; length++)
-        {
-            text[length] = ' ';
-        }
+        row.Label.CopyTo(text);
+        text[row.Label.Length.._column].Fill(' ');
+        value.CopyTo(text[_column..]);
 
-        string name = OverlayActions.KeyName(hotkey);
-        int written = Math.Min(name.Length, text.Length - length);
-        name.AsSpan(0, written).CopyTo(text[length..]);
-
-        return text[..(length + written)];
+        return text[..(_column + value.Length)];
     }
-
-    private static float Widest(string a, string b, string c, string d) => MathF.Max(
-        MathF.Max(Font.Measure(a).X, Font.Measure(b).X),
-        MathF.Max(Font.Measure(c).X, Font.Measure(d).X));
-
-    private static float RowTop(int row) => Padding + (row * Font.LineHeight);
 }

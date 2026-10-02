@@ -183,6 +183,11 @@ int found = Scene.Collision.OverlapAll(Shape2D.Circle(Vector2.Zero, 24f), Positi
 | `OverlapColliderAll`, `Collider2D.OverlapAll` | Everything a registered collider is touching right now. |
 | `Move`, `MoveBox` | The swept move that slides along what stops it, as a floating body moves. |
 
+A `ShapeCast` that starts more than `CollisionTolerance.ContactSkin` inside something reports it at
+fraction 0 whichever way it sweeps. A projectile spawned inside a wall hits the wall. A shape that merely
+touches something reports it only when the sweep drives into it, and a one-way surface never reports a
+shape that starts inside it.
+
 Results never depend on how the broadphase happens to be arranged. The same colliders under the same
 handles give the same results in the same order. `Scene.ColliderOf(hit.Target.Collider)` turns a hit back
 into its `Collider2D`, or null for a tile map's cell.

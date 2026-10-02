@@ -2,30 +2,29 @@ using Capsule.Input;
 
 namespace Capsule.Runtime.DevTools;
 
-// The overlay's input actions and their bindings, the only place its devices are named. No behaviour.
+// The only place the overlay's devices are named.
 internal static class OverlayActions
 {
-    internal static readonly InputAction MenuUp = new("debug-menu.up");
-    internal static readonly InputAction MenuDown = new("debug-menu.down");
-    internal static readonly InputAction Confirm = new("debug-menu.confirm");
-    internal static readonly InputAction Back = new("debug-menu.back");
-    internal static readonly InputAction Step = new("debug-menu.step");
-    internal static readonly InputAction Hide = new("debug-menu.hide");
-    internal static readonly InputAction Restart = new("debug-menu.restart");
-    internal static readonly InputAction LoadScene = new("debug-menu.load-scene");
-    internal static readonly InputAction DebugDraw = new("debug-menu.debug-draw");
-    internal static readonly InputAction TimeScale = new("debug-menu.time-scale");
-    internal static readonly InputAction FramePane = new("debug-menu.frame-pane");
-    internal static readonly InputAction ScenePage = new("debug-menu.scene");
-    internal static readonly InputAction Exit = new("debug-menu.exit");
-    internal static readonly InputAction Click = new("debug-menu.click");
-    internal static readonly AxisAction Scroll = new("debug-menu.scroll");
+    internal static readonly InputAction MenuUp = new("debug-overlay.up");
+    internal static readonly InputAction MenuDown = new("debug-overlay.down");
+    internal static readonly InputAction Confirm = new("debug-overlay.confirm");
+    internal static readonly InputAction Back = new("debug-overlay.back");
+    internal static readonly InputAction Step = new("debug-overlay.step");
+    internal static readonly InputAction Hide = new("debug-overlay.hide");
+    internal static readonly InputAction Restart = new("debug-overlay.restart");
+    internal static readonly InputAction LoadScene = new("debug-overlay.load-scene");
+    internal static readonly InputAction DebugDraw = new("debug-overlay.debug-draw");
+    internal static readonly InputAction TimeScale = new("debug-overlay.time-scale");
+    internal static readonly InputAction FramePane = new("debug-overlay.frame-pane");
+    internal static readonly InputAction ScenePage = new("debug-overlay.scene");
+    internal static readonly InputAction Exit = new("debug-overlay.exit");
+    internal static readonly InputAction Click = new("debug-overlay.click");
+    internal static readonly AxisAction Scroll = new("debug-overlay.scroll");
 
     internal static readonly InputAction[] Actions =
         [MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, TimeScale, FramePane, ScenePage, Exit, Click];
 
-    // Read-only once built, and a single instance serves every overlay. The keyboard key is bound first
-    // on every action, because KeyName reads an action's first button as its keyboard name.
+    // Shared by every overlay. The key is bound first because KeyName reads the first button.
     internal static readonly ActionBindings Bindings =
         new ActionBindings()
             .Bind(MenuUp, Key.Up, PadButton.DPadUp)

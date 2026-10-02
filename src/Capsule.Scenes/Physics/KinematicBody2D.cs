@@ -734,7 +734,7 @@ public sealed class KinematicBody2D : Component
             ? new Aabb2D(new Vector2(center + CollisionTolerance.LinearSlop, top), new Vector2(origin.X + bounds.Max.X, bottom))
             : new Aabb2D(new Vector2(origin.X + bounds.Min.X, top), new Vector2(center - CollisionTolerance.LinearSlop, bottom));
 
-        if (!world.ShapeCast(Shape2D.Box(strip), Vector2.Zero, result.Translation, blocking, out ShapeCastHit2D wall, _collider.Handle)
+        if (!world.Probe(Shape2D.Box(strip), result.Translation, blocking, out ShapeCastHit2D wall, _collider.Handle)
             || IsFloor(wall.Normal))
         {
             return result;
@@ -859,7 +859,7 @@ public sealed class KinematicBody2D : Component
         Aabb2D sliver = new(new Vector2(center - CollisionTolerance.LinearSlop, bottom), new Vector2(center + CollisionTolerance.LinearSlop, bottom + sink));
         Vector2 across = new(-_restSide * (half - (2f * CollisionTolerance.LinearSlop)), 0f);
 
-        return world.ShapeCast(Shape2D.Box(sliver), Vector2.Zero, across, blocking, out ShapeCastHit2D wall, _collider.Handle)
+        return world.Probe(Shape2D.Box(sliver), across, blocking, out ShapeCastHit2D wall, _collider.Handle)
             && !IsFloor(wall.Normal);
     }
 

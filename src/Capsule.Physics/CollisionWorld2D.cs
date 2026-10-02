@@ -507,9 +507,16 @@ public sealed partial class CollisionWorld2D
     /// <summary>
     /// Where <paramref name="shape"/>, held in its own space and starting at <paramref name="origin"/>,
     /// first meets something when swept <paramref name="translation"/> world units, passing through
-    /// <paramref name="ignore"/>. A shape already touching something reports it at fraction 0 when the
-    /// sweep drives into it, and passes it by when the sweep moves away.
+    /// <paramref name="ignore"/>.
     /// </summary>
+    /// <remarks>
+    /// A shape that starts more than <see cref="CollisionTolerance.ContactSkin"/> inside something
+    /// reports it at fraction 0 whichever way it sweeps, a zero translation included. That hit's normal
+    /// is the shortest way out, and its point is the shape's centre clamped to the bounds of what it
+    /// is inside. A shape merely touching something reports it at fraction 0 when the sweep drives into
+    /// it, and passes it by when the sweep moves away. A one-way surface never reports a shape that
+    /// starts inside it.
+    /// </remarks>
     /// <returns>Whether the sweep met anything. <paramref name="hit"/> is the nearest when it did.</returns>
     /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or <paramref name="ignore"/> names no live collider of this world, or the filter belongs to another one.</exception>
     public bool ShapeCast(
@@ -526,15 +533,27 @@ public sealed partial class CollisionWorld2D
         RequireOwn(filter, nameof(filter));
         RequireIgnorable(ignore);
 
-        return ShapeCastSweep(shape, origin, translation, filter, ignore, out hit);
+        return ShapeCastSweep(shape, origin, translation, filter, ignore, true, out hit);
     }
 
+    // A body's probe, which sweeps a shape placed in world space and passes what it starts inside as
+    // the body's own moves do.
+    internal bool Probe(in Shape2D shape, Vector2 translation, CollisionFilter filter, out ShapeCastHit2D hit, ColliderHandle ignore) =>
+        ShapeCastSweep(shape, Vector2.Zero, translation, filter, ignore, false, out hit);
+
     // The sweep, for a caller that has validated every argument.
-    private bool ShapeCastSweep(in Shape2D shape, Vector2 origin, Vector2 translation, CollisionFilter filter, ColliderHandle ignore, out ShapeCastHit2D hit)
+    private bool ShapeCastSweep(
+        in Shape2D shape,
+        Vector2 origin,
+        Vector2 translation,
+        CollisionFilter filter,
+        ColliderHandle ignore,
+        bool reportsInside,
+        out ShapeCastHit2D hit)
     {
         hit = default;
         Shape2D moving = shape.Translated(origin);
-        CastAccumulator accumulator = default;
+        CastAccumulator accumulator = new() { ReportsInside = reportsInside };
         Cast(moving, translation, filter, ignore, default, false, ref accumulator);
 
         if (!accumulator.Hit)
@@ -1070,6 +1089,10 @@ public sealed partial class CollisionWorld2D
         // reach for the sweep to drive into it. Both are set once per cast.
         internal float Length;
         internal float Lean;
+
+        // Whether a target the shape starts more than a skin inside reports at fraction 0. Only the
+        // public cast sets it. A body's moves and probes pass such a target as they always have.
+        internal bool ReportsInside;
 
         // The nearest hit, which is the band's primary.
         internal float Fraction;

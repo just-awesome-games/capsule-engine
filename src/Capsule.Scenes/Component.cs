@@ -59,7 +59,7 @@ public abstract class Component
     /// <summary>
     /// Draws this component's debug geometry through <see cref="Diagnostics.DebugDraw"/>. Called
     /// once per fixed step after the step has fully settled, with every position, contact and the
-    /// camera's framing final, and only while a development overlay is attached.
+    /// camera's framing final, and only while a debug overlay is attached.
     /// </summary>
     /// <remarks>
     /// Draw here and change nothing. A run with the overlay must behave as one without it.
@@ -69,7 +69,7 @@ public abstract class Component
     }
 
     /// <summary>
-    /// Fills this component's section of the development overlay's panel. Write one
+    /// Fills this component's section of the debug overlay's panel. Write one
     /// <see cref="DebugPanel.Field(string, string?)"/> per value worth reading, and one
     /// <see cref="DebugPanel.Command"/> or <see cref="DebugPanel.Toggle"/> per action worth
     /// offering.

@@ -153,6 +153,29 @@ public sealed partial class CollisionWorld2D
             return;
         }
 
+        RecordBand(ref accumulator, contacts, fraction, target, normal, point);
+    }
+
+    // Records a target the shape starts inside, at fraction 0 whichever way the sweep moves. The point
+    // is the shape's centre held within the target's bounds.
+    private void RecordInside(
+        ref CastAccumulator accumulator,
+        Span<Contact2D> contacts,
+        in Shape2D moving,
+        in Aabb2D bounds,
+        in CollisionTarget target,
+        Vector2 normal) =>
+        RecordBand(ref accumulator, contacts, 0f, target, normal, Vector2.Clamp(moving.Bounds.Center, bounds.Min, bounds.Max));
+
+    // Takes a hit the sweep has already admitted into the band.
+    private void RecordBand(
+        ref CastAccumulator accumulator,
+        Span<Contact2D> contacts,
+        float fraction,
+        in CollisionTarget target,
+        Vector2 normal,
+        Vector2 point)
+    {
         // The second walk of an overflowing band knows its primary, and writes each band hit as it
         // arrives.
         if (accumulator.Anchored)
@@ -329,6 +352,77 @@ public sealed partial class CollisionWorld2D
         }
 
         return separation;
+    }
+
+    // Whether a shape starts more than a skin inside another, with the shortest way out pointing from
+    // the target towards the shape. GJK measures no depth once the hulls overlap, and the least overlap
+    // across the faces of both hulls measures it there. Two circles' cores have no face, and their
+    // radii are the depth.
+    private static bool StartsInside(in Shape2D moving, in Shape2D target, out Vector2 normal)
+    {
+        normal = Vector2.Zero;
+        if (!moving.Bounds.Overlaps(target.Bounds))
+        {
+            return false;
+        }
+
+        if (moving.Kind == ShapeKind2D.Box && IsBoxLike(target))
+        {
+            return -Boxes2D.Separation(moving.Bounds, target.Bounds, out normal, out _) > CollisionTolerance.ContactSkin;
+        }
+
+        float separation = Gjk2D.Separation(moving, target, out normal, out _);
+        if (normal != Vector2.Zero)
+        {
+            return -separation > CollisionTolerance.ContactSkin;
+        }
+
+        float depth = float.PositiveInfinity;
+        LeastOverlap(moving, moving, target, ref depth, ref normal);
+        LeastOverlap(target, moving, target, ref depth, ref normal);
+        if (float.IsPositiveInfinity(depth))
+        {
+            depth = -separation;
+            Boxes2D.Separation(moving.Bounds, target.Bounds, out normal, out _);
+        }
+
+        return depth > CollisionTolerance.ContactSkin;
+    }
+
+    // The same against a grid cell, which stays an Aabb2D for a box mover. Most cells a sweep passes lie
+    // clear of where it starts, and their bounds turn them away before any shape is built.
+    private static bool StartsInside(in Shape2D moving, in Aabb2D cell, out Vector2 normal)
+    {
+        normal = Vector2.Zero;
+        if (!moving.Bounds.Overlaps(cell))
+        {
+            return false;
+        }
+
+        return moving.Kind == ShapeKind2D.Box
+            ? -Boxes2D.Separation(moving.Bounds, cell, out normal, out _) > CollisionTolerance.ContactSkin
+            : StartsInside(moving, Shape2D.OfCell(cell), out normal);
+    }
+
+    // Keeps the least overlap of two shapes along the face normals of `hull`, radii included, with the
+    // way out along it. A capsule's core is a segment with one axis, and a circle's has none.
+    private static void LeastOverlap(in Shape2D hull, in Shape2D moving, in Shape2D target, ref float depth, ref Vector2 normal)
+    {
+        int axes = hull.PointCount < 3 ? hull.PointCount - 1 : hull.PointCount;
+        for (int index = 0; index < axes; index++)
+        {
+            Vector2 axis = hull.EdgeNormal(index);
+            float forward = Vector2.Dot(target.Support(axis), axis) + target.Radius
+                - (Vector2.Dot(moving.Support(-axis), axis) - moving.Radius);
+            float backward = Vector2.Dot(moving.Support(axis), axis) + moving.Radius
+                - (Vector2.Dot(target.Support(-axis), axis) - target.Radius);
+            float overlap = MathF.Min(forward, backward);
+            if (overlap < depth)
+            {
+                depth = overlap;
+                normal = forward <= backward ? axis : -axis;
+            }
+        }
     }
 
     // How far a pair overlaps, from its signed separation. A pair within the skin but apart overlaps by nothing.
@@ -1057,7 +1151,14 @@ public sealed partial class CollisionWorld2D
 
         if ((state & CellState2D.Solid) != 0)
         {
-            if (!Sweep(moving, translation, grid.CellBox(x, y), out float fraction, out Vector2 normal, out Vector2 point))
+            Aabb2D box = grid.CellBox(x, y);
+            if (accumulator.ReportsInside && StartsInside(moving, box, out Vector2 inward))
+            {
+                RecordInside(ref accumulator, contacts, moving, box, target, inward);
+                return;
+            }
+
+            if (!Sweep(moving, translation, box, out float fraction, out Vector2 normal, out Vector2 point))
             {
                 return;
             }
@@ -1070,6 +1171,17 @@ public sealed partial class CollisionWorld2D
             RecordCast(ref accumulator, contacts, translation, fraction, target, normal, point);
 
             return;
+        }
+
+        // A one-way cell is never a surface the shape starts inside.
+        if (accumulator.ReportsInside && (state & CellState2D.OneWay) == 0 && moving.Bounds.Overlaps(grid.CellBox(x, y)))
+        {
+            Shape2D polygon = grid.PolygonAt(x, y).Translated(grid.CellCorner(x, y));
+            if (StartsInside(moving, polygon, out Vector2 inward))
+            {
+                RecordInside(ref accumulator, contacts, moving, polygon.Bounds, target, inward);
+                return;
+            }
         }
 
         // A drop passes the top of a one-way cell. The walls of a solid-sided one still stand.
@@ -1426,6 +1538,14 @@ public sealed partial class CollisionWorld2D
             }
 
             ref ColliderSlot slot = ref world._slots[index];
+            CollisionTarget target = CollisionTarget.ForCollider(world.HandleAt(index), slot.Layer);
+
+            // A one-way collider is never a surface the shape starts inside.
+            if (Accumulator.ReportsInside && !slot.OneWay && StartsInside(moving, slot.World, out Vector2 inward))
+            {
+                world.RecordInside(ref Accumulator, _contacts, moving, slot.World.Bounds, target, inward);
+                return true;
+            }
 
             if (!Sweep(moving, translation, slot.World, out float fraction, out Vector2 normal, out Vector2 point)
                 || (slot.OneWay && !OneWayBlocks(moving, slot.World, normal, slot.SolidSides))
@@ -1439,7 +1559,7 @@ public sealed partial class CollisionWorld2D
                 _contacts,
                 translation,
                 fraction,
-                CollisionTarget.ForCollider(world.HandleAt(index), slot.Layer),
+                target,
                 normal,
                 point);
 

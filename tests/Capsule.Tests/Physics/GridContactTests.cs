@@ -125,6 +125,29 @@ public sealed class GridContactTests
         Assert.Equal(0.5f, hit.Fraction, 3);
     }
 
+    // Every edge of the middle cell lies flush against a solid neighbour, so a sweep out of it crosses no
+    // face. The box starts inside it and reports it at fraction 0 whichever way it sweeps.
+    [Theory]
+    [InlineData(0f, 0f)]
+    [InlineData(20f, 0f)]
+    [InlineData(0f, -20f)]
+    public void ShapeCast_StartingInsideASolidRun_ReportsTheCellItStartsInAtFractionZero(float x, float y)
+    {
+        CollisionWorld2D world = new();
+        CollisionFixtures.Paint(world, "###", "###", "###");
+
+        Assert.True(world.ShapeCast(
+            Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)),
+            new Vector2(20f, 20f),
+            new Vector2(x, y),
+            CollisionFilter.Everything,
+            out ShapeCastHit2D hit));
+
+        Assert.Equal((1, 1), (hit.Target.CellX, hit.Target.CellY));
+        Assert.Equal(0f, hit.Fraction);
+        Assert.Equal(new Vector2(24f, 24f), hit.Point);
+    }
+
     // The normal is the face's own, not the narrowphase's: a rounded shape resting past the end of a
     // face is nearest its endpoint, where GJK answers with the diagonal from that corner.
     [Fact]

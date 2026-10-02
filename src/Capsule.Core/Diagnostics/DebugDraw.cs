@@ -14,7 +14,7 @@ namespace Capsule.Diagnostics;
 /// <para>
 /// Positions are world units at the settled step. A draw stays for <c>steps</c> fixed steps counted
 /// by the scheduler's tick, and a <c>steps</c> below one counts as one. Draws are dropped until the
-/// host attaches a buffer, which the development overlay does. A headless run draws nothing. A draw
+/// host attaches a buffer, which the debug overlay does. A headless run draws nothing. A draw
 /// is shown while its channel is switched on in the overlay, in the colour <see cref="SetColor"/>
 /// gave it.
 /// </para>

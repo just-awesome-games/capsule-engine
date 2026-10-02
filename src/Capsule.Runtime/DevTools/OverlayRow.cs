@@ -2,11 +2,24 @@ using Capsule.Input;
 
 namespace Capsule.Runtime.DevTools;
 
-// One row of the overlay's current page. A row with no action is drawn and never focused. A root row's
-// hotkey fires at any depth, except an opener's, which fires only at the root.
+// A row with no action is never focused. An opener's hotkey fires only at the root.
 internal readonly record struct OverlayRow(
     string Label,
     Action? Activate,
+    string? Value = null,
     InputAction? Hotkey = null,
     bool Repeats = false,
-    bool OpensMenu = false);
+    bool OpensPage = false)
+{
+    // (x) for one choice among several, [x] for a toggle.
+    internal static string Marked(bool on, string label, bool choice = false) =>
+        (choice ? (on ? "(x) " : "( ) ") : (on ? "[x] " : "[ ] ")) + label;
+
+    // Ordinal tiebreak: "Room" and "room" differ only by case, and List<T>.Sort is unstable.
+    internal static int CompareLabels(string a, string b)
+    {
+        int result = string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+
+        return result != 0 ? result : string.CompareOrdinal(a, b);
+    }
+}

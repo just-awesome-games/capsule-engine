@@ -64,6 +64,8 @@ if (context.Input.WindowFocusLost && !Paused)
 }
 ```
 
+An unfocused window reads no key, button or stick from any device.
+
 One keyboard, one mouse and one gamepad are sampled. There is no device index and no second pad.
 
 ## Rebind at a settings screen

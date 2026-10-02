@@ -15,7 +15,7 @@ namespace Capsule;
 /// <remarks>
 /// Bus volumes, the random sequence, the save documents and a pending frame capture survive
 /// transitions. Every member is fixed before the run starts or set by game code. The host writes only
-/// the save stamps it restores and sets, and the development overlay raises scene-flow requests
+/// the save stamps it restores and sets, and the debug overlay raises scene-flow requests
 /// through these same members.
 /// <para>
 /// At most one transition is pending at a time. Within a step the first transition request wins, and
@@ -104,7 +104,7 @@ public sealed class Run
     /// stops it. A settings screen writes <see cref="Capsule.Input.Rumble.Volume"/>, and a pause menu
     /// calls <see cref="Capsule.Input.Rumble.Stop()"/> when it opens. The host reads the level after each
     /// step and writes it to the pad. The host rests the motors on focus loss, disconnect, exit and crash,
-    /// while the keyboard or mouse is the active device, and while the development overlay holds the run.
+    /// while the keyboard or mouse is the active device, and while the debug overlay holds the run.
     /// A headless run reaches the same level with no pad.
     /// </remarks>
     public Rumble Rumble { get; }
@@ -330,7 +330,7 @@ public sealed class Run
         return path.Length > 0;
     }
 
-    // The non-generic entry point the public request methods share. The host's development overlay uses
+    // The non-generic entry point the public request methods share. The host's debug overlay uses
     // it to request a registered scene in whichever form the registry composes it from.
     internal bool TryRequest(in SceneTransition transition)
     {

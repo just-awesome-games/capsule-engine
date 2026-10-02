@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Input;
 using Capsule.Runtime.DevTools;
 using static Capsule.Tests.Runtime.OverlayFixtures;
@@ -14,24 +15,24 @@ public sealed class OverlayToggleTests
     public void LeadingEdgeTogglesAndQuarantinesTheBoundButtonUntilRelease()
     {
         using OverlayRig rig = new();
-        OverlayHost overlay = rig.Overlay;
+        DebugOverlay overlay = rig.Overlay;
 
-        DeviceSnapshot snapshot = overlay.Observe(DeviceSnapshot.Of(Key.Grave, Key.Space));
+        DeviceSnapshot snapshot = overlay.Intercept(DeviceSnapshot.Of(Key.Grave, Key.Space));
 
         Assert.True(overlay.IsOpen);
         Assert.True(rig.Scheduler.Held);
         Assert.False(snapshot.IsDown(Key.Grave));
         Assert.True(snapshot.IsDown(Key.Space));
 
-        snapshot = overlay.Observe(DeviceSnapshot.Of(Key.Grave, Key.Space));
+        snapshot = overlay.Intercept(DeviceSnapshot.Of(Key.Grave, Key.Space));
         Assert.True(overlay.IsOpen);
         Assert.False(snapshot.IsDown(Key.Grave));
 
-        snapshot = overlay.Observe(DeviceSnapshot.Of(Key.Space));
+        snapshot = overlay.Intercept(DeviceSnapshot.Of(Key.Space));
         Assert.True(overlay.IsOpen);
         Assert.True(snapshot.IsDown(Key.Space));
 
-        snapshot = overlay.Observe(DeviceSnapshot.Of(Key.Grave));
+        snapshot = overlay.Intercept(DeviceSnapshot.Of(Key.Grave));
 
         Assert.False(overlay.IsOpen);
         Assert.False(rig.Scheduler.Held);
@@ -57,7 +58,7 @@ public sealed class OverlayToggleTests
     {
         using OverlayRig rig = new(toggle: PadButton.South);
 
-        DeviceSnapshot snapshot = rig.Overlay.Observe(DeviceSnapshot.Empty.With(PadButton.South).With(Key.Space));
+        DeviceSnapshot snapshot = rig.Overlay.Intercept(DeviceSnapshot.Empty.With(PadButton.South).With(Key.Space));
 
         Assert.True(rig.Overlay.IsOpen);
         Assert.False(snapshot.IsDown(PadButton.South));
@@ -69,7 +70,7 @@ public sealed class OverlayToggleTests
     {
         using OverlayRig rig = new(toggle: InputButton.None);
 
-        DeviceSnapshot snapshot = rig.Overlay.Observe(DeviceSnapshot.Of(Key.Grave));
+        DeviceSnapshot snapshot = rig.Overlay.Intercept(DeviceSnapshot.Of(Key.Grave));
 
         Assert.False(rig.Overlay.IsOpen);
         Assert.False(rig.Scheduler.Held);
@@ -193,6 +194,7 @@ public sealed class OverlayToggleTests
             enter.Frame(DeviceSnapshot.Of(Key.Enter));
 
             Assert.True(enter.Overlay.IsOpen);
+            Assert.Equal(1, enter.Overlay.Depth);
             Assert.Equal(0, enter.Scheduler.Tick);
         }
 
@@ -214,6 +216,7 @@ public sealed class OverlayToggleTests
         List<RecordedStep> recorded = rig.Recording.Recorded;
 
         rig.Open();
+        rig.Press(Key.Down);
         Assert.Equal("Step", rig.Focused());
 
         rig.Frame(DeviceSnapshot.Of(Key.Enter));
@@ -233,7 +236,24 @@ public sealed class OverlayToggleTests
         Assert.True(recorded[^1].First.Pressed);
     }
 
+    // The reopening frame reads input before the page is laid out again. The withdrawn menu's rows are
+    // gone, so a click where the Step row stood steps nothing.
+    [Fact]
+    public void AClickOnTheReopeningFrame_FindsNoRow()
+    {
+        using OverlayRig rig = new();
+        rig.Open();
+        rig.Press(Key.Grave);
+        long tick = rig.Scheduler.Tick;
+        Vector2 stepRow = new(OverlayScene.Padding + 1, OverlayScene.Padding + (3.5f * OverlayScene.Font.LineHeight));
+
+        rig.Frame(DeviceSnapshot.Of(Key.Grave).WithPointer(stepRow).With(MouseButton.Left));
+
+        Assert.True(rig.Overlay.IsOpen);
+        Assert.Equal(tick, rig.Scheduler.Tick);
+    }
+
     // A game binding SharedAction to key, recording what each step read of it.
     private static OverlayRig Recorded(Key key) =>
-        new(new RecordingSimulation(SharedAction), scheduler: CreateScheduler(new ActionBindings().Bind(SharedAction, key)));
+        new(RecordingHost(SharedAction), scheduler: CreateScheduler(new ActionBindings().Bind(SharedAction, key)));
 }

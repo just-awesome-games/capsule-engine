@@ -28,8 +28,8 @@ internal sealed class CapsuleGame : Game
 
     // The host reaches the overlay through delegates built in the guarded block, which lets a shipping
     // publish trim the overlay's methods away.
-    private readonly Func<DeviceSnapshot, FrameRenderer, DeviceSnapshot>? _observeOverlay;
-    private readonly Action<FrameRenderer>? _stepOverlay;
+    private readonly Func<DeviceSnapshot, FrameRenderer, DeviceSnapshot>? _interceptOverlay;
+    private readonly Action<FrameRenderer>? _updateOverlay;
     private readonly Action<FrameRenderer>? _drawOverlay;
     private readonly Action<AudioPlayer>? _followOverlayHold;
     private readonly Func<bool>? _overlayOpen;
@@ -70,13 +70,13 @@ internal sealed class CapsuleGame : Game
 
         if (Development.IsSupported)
         {
-            OverlayHost overlay = new(builder.Input.DebugMenuButton, _scheduler, scenes, scenes, builder.Scenes);
+            DebugOverlay overlay = new(builder.Input.DebugOverlayButton, _scheduler, scenes, builder.Scenes);
             _overlayHost = overlay;
-            _observeOverlay = (snapshot, renderer) => overlay.Observe(
+            _interceptOverlay = (snapshot, renderer) => overlay.Intercept(
                 snapshot,
                 renderer.ScreenLayer,
-                OverlayHost.ScaleFor(renderer.BackBufferSize.Height));
-            _stepOverlay = renderer => overlay.Step(renderer);
+                DebugOverlay.ScaleFor(renderer.BackBufferSize.Height));
+            _updateOverlay = renderer => overlay.Update(renderer);
             _drawOverlay = overlay.Draw;
             _overlayOpen = () => overlay.IsOpen;
             // The subscription is built here so the audio player's suspension is reachable only
@@ -187,11 +187,11 @@ internal sealed class CapsuleGame : Game
         // Sampled every frame, including one that drains no step, and the latch carries that frame's
         // input to the step that eventually runs. The pointer is mapped through the screen layer's
         // placement, so it reaches the simulation as a canvas position. IsActive is unusable here
-        // because it reads true before focus is granted.
+        // because it reads true before focus is granted. An inactive window reads no device.
         bool active = _builder.Platform.HasInputFocus(new WindowHandle(Window.Handle));
         PadFilter padFilter = new(_builder.Input.StickDeadzone, _builder.Input.TriggerDeadzone);
         DeviceSnapshot sampled = _mouse.SampleOnto(
-            _pad.SampleOnto(KeyboardSampler.Sample(), padFilter),
+            _pad.SampleOnto(active ? KeyboardSampler.Sample() : DeviceSnapshot.Empty, padFilter, active),
             _renderer.ScreenLayer,
             active);
 
@@ -216,18 +216,18 @@ internal sealed class CapsuleGame : Game
             sampled = sampled.Without(Key.Enter).Without(Key.LeftAlt).Without(Key.RightAlt);
         }
 
-        if (_observeOverlay is { } observe)
+        if (_interceptOverlay is { } intercept)
         {
-            sampled = observe(sampled, _renderer);
+            sampled = intercept(sampled, _renderer);
         }
 
         // The run owns the pace and the scheduler holds what is applied. Copied after the overlay's
-        // observe, which may move it, and before the frame's elapsed time is spent.
+        // intercept, which may move it, and before the frame's elapsed time is spent.
         _scheduler.TimeScale = _scenes.Run.TimeScale;
         _scheduler.Output = new System.Numerics.Vector2(GraphicsDevice.PresentationParameters.BackBufferWidth, GraphicsDevice.PresentationParameters.BackBufferHeight);
         bool exiting = _scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _scenes);
 
-        _stepOverlay?.Invoke(_renderer);
+        _updateOverlay?.Invoke(_renderer);
 
         // After the steps that may have asked for a prefetch.
         _textures.Pump();

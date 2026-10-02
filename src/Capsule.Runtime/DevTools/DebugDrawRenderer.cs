@@ -1,35 +1,80 @@
 using System.Numerics;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
+using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 
 namespace Capsule.Runtime.DevTools;
 
-// Reads the attached debug draw buffer onto the overlay's world list: every live segment and label
-// whose channel is switched on, each drawn where the frame draws what it follows and in its own colour
-// or its channel's. The overlay's single world entity holds it, so it draws under the menu and over the
-// game. Allocation-free once the frame's lists have grown.
+// Draws the enabled debug-draw channels under the menu and over the game. Allocation-free once warm.
 internal sealed class DebugDrawRenderer : Renderer
 {
-    private readonly DebugDrawBuffer _buffer;
-    private readonly IReadOnlySet<string> _enabled;
+    private readonly DebugDrawBuffer _buffer = new();
+    private readonly HashSet<string> _enabled = new(StringComparer.Ordinal);
+    private readonly FixedStepScheduler _scheduler;
+    private readonly SceneHost _scenes;
 
-    internal DebugDrawRenderer(DebugDrawBuffer buffer, IReadOnlySet<string> enabled)
-    {
-        _buffer = buffer;
-        _enabled = enabled;
-    }
-
-    // World units per font pixel, which keeps a label's glyphs screen-sized. It is the overlay's
-    // integer scale over the back buffer's pixels per world unit. One until a frame has been drawn.
+    // World units per font pixel, which keeps label glyphs screen-sized. One until a frame has drawn.
     internal float TextScale { get; set; } = 1f;
 
-    // The fraction of a step the frame is drawn at, matching the game frame. A draw that follows
-    // something interpolating is moved back along its motion by what is not yet simulated, so a
-    // collider stays on its sprite. One for a settled frame, as a held run always is.
+    // The frame's interpolation alpha. A draw moves back by its unsimulated motion onto its sprite.
     internal float Alpha { get; set; } = 1f;
 
+    internal DebugDrawRenderer(FixedStepScheduler scheduler, SceneHost scenes)
+    {
+        _scheduler = scheduler;
+        _scenes = scenes;
+    }
+
     internal override bool Steps => false;
+
+    internal bool AnyEnabled => _enabled.Count > 0;
+
+    // Channels named since the buffer was attached, in reading order.
+    internal string[] Channels
+    {
+        get
+        {
+            string[] channels = [.. _buffer.Channels];
+            Array.Sort(channels, OverlayRow.CompareLabels);
+
+            return channels;
+        }
+    }
+
+    internal bool IsEnabled(string channel) => _enabled.Contains(channel);
+
+    // The held scene emits at once. The toggle then shows without a step.
+    internal void Toggle(string channel)
+    {
+        if (!_enabled.Remove(channel))
+        {
+            _enabled.Add(channel);
+        }
+
+        Attach();
+        Emit();
+    }
+
+    // Attached only while the run is held or a channel is on. Only the overlay sets the hold.
+    internal void Attach() => DebugDraw.UseBuffer(_scheduler.Held || AnyEnabled ? _buffer : null);
+
+    // Settles once at the frame's last tick. A multi-step frame's later draws leave early.
+    internal void Settle() => _buffer.Settle(_scheduler.Tick);
+
+    // Runs the held scene's debug pass unless the settled step drew. Its draws expire next step.
+    internal void Emit()
+    {
+        long tick = _scheduler.Tick;
+        if (!DebugDraw.IsAttached || _buffer.EmittedTick >= tick - 1)
+        {
+            return;
+        }
+
+        _buffer.Settle(tick - 1);
+        _scenes.EmitDebugDraws();
+        Settle();
+    }
 
     protected internal override void Draw(FrameView view)
     {
@@ -50,7 +95,7 @@ internal sealed class DebugDrawRenderer : Renderer
             {
                 Vector2 position = label.Position - (label.Motion * unsimulated);
                 view.Add(new TextIntent(
-                    BitmapFont.Default,
+                    OverlayScene.Font,
                     label.Text,
                     position,
                     position,
@@ -61,7 +106,7 @@ internal sealed class DebugDrawRenderer : Renderer
     }
 }
 
-// The overlay's world entity, at the origin so the reader's positions are the buffer's own.
+// At the origin, which makes the buffer's positions world positions.
 internal sealed class DebugDrawEntity : Entity
 {
     internal DebugDrawEntity(DebugDrawRenderer renderer)

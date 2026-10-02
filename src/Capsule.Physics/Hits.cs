@@ -12,10 +12,13 @@ public readonly record struct RayHit2D(CollisionTarget Target, Vector2 Point, Ve
 /// <summary>Where a swept shape first met something.</summary>
 /// <param name="Target">What it met.</param>
 /// <param name="Point">The world-space point of first contact.</param>
-/// <param name="Normal">The unit surface normal at that point, pointing back against the sweep.</param>
+/// <param name="Normal">
+/// The unit surface normal at that point, pointing back against the sweep. For a shape that started
+/// inside what it met, the shortest way out.
+/// </param>
 /// <param name="Fraction">
 /// How far along the translation the sweep reached, in [0, 1]. Zero means the shape was already
-/// touching before it moved.
+/// touching or inside what it met before it moved.
 /// </param>
 public readonly record struct ShapeCastHit2D(CollisionTarget Target, Vector2 Point, Vector2 Normal, float Fraction);
 

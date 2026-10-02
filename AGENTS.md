@@ -12,7 +12,7 @@ is repeated here. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change 
 - Authoring formats are plain data that people and agents write by hand. A new format needs no tool.
 - [`samples/MinimalGame/`](samples/MinimalGame/) is the review surface. An engine change lands with the sample call site that lets it be played, and migrates any break it causes there. The sample stays a small game, not a feature gallery. The sample's README says what it is, how to run it and how to play it, and the code says the rest.
 - A run is driven by an input driver, not by asking a person to play it. The standard command line is the engine's: a game opts in with `WithCommandLine(args)` and re-implements no flag.
-- The development overlay is `src/Capsule.Runtime/DevTools/` plus the guarded block in `CapsuleGame`. Deleting both leaves the engine compiling and every other test passing, so a host seam the overlay needs is generic host machinery. Parsers for other editors' formats are external modules that feed the build, and none lives here.
+- The debug overlay is `src/Capsule.Runtime/DevTools/` plus the guarded block in `CapsuleGame`. Deleting both leaves the engine compiling and every other test passing, so a host seam the overlay needs is generic host machinery. Parsers for other editors' formats are external modules that feed the build, and none lives here.
 - MSBuild wildcards fold case on every platform. Separate two directories differing only by case with `DefaultItemExcludes` and ordinal `%(FullPath)` comparisons, not `Include`, `Remove` or `Exclude`.
 
 ## Public surface

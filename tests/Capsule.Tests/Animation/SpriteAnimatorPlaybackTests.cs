@@ -14,6 +14,7 @@ public sealed class SpriteAnimatorPlaybackTests
         EntityStart,
         EntityStep,
         ComponentAfterTheAnimator,
+        BeforeJoiningMidStep,
     }
 
     [Fact]
@@ -43,11 +44,13 @@ public sealed class SpriteAnimatorPlaybackTests
     }
 
     // An animator that advanced on the step its clip started would retire this one-tick first frame
-    // before a frame view held it. Wherever the Play came from, the hold counts from its tick.
+    // before a frame view held it. Wherever the Play came from, the hold counts from its tick. A pooled
+    // entity played by another's step before it joins the scene counts from the tick it joins.
     [Theory]
     [InlineData(PlaySite.EntityStart)]
     [InlineData(PlaySite.EntityStep)]
     [InlineData(PlaySite.ComponentAfterTheAnimator)]
+    [InlineData(PlaySite.BeforeJoiningMidStep)]
     public void AClipPlayedFromAnywhereDrawsItsFirstFrameForItsOwnTicks(PlaySite site)
     {
         Animated entity = site switch
@@ -62,7 +65,7 @@ public sealed class SpriteAnimatorPlaybackTests
             entity.Add(new Driver(entity.Animator, Blink));
         }
 
-        SimulationHost run = Simulate(entity);
+        SimulationHost run = site == PlaySite.BeforeJoiningMidStep ? Spawn(entity) : Simulate(entity);
 
         Assert.Equal([Frame(5), Frame(6), Frame(6), Frame(6), Frame(6)], DrawnOver(run, 5));
     }
@@ -125,5 +128,31 @@ public sealed class SpriteAnimatorPlaybackTests
         Assert.Equal(
             [Frame(0), Frame(0), Frame(11), Frame(11), Frame(12)],
             DrawnOver(run, 5));
+    }
+
+    private static SimulationHost Spawn(Animated entity)
+    {
+        SceneFixtures.HookScene scene = new();
+        scene.Add(new Spawner(entity));
+
+        return new SimulationHost(scene);
+    }
+
+    // Plays Blink on an entity out of the scene and adds it, on its own first step.
+    private sealed class Spawner(Animated spawned) : Entity(System.Numerics.Vector2.Zero)
+    {
+        private bool _spawned;
+
+        protected internal override void OnStep(in StepContext context)
+        {
+            if (_spawned)
+            {
+                return;
+            }
+
+            _spawned = true;
+            spawned.Animator.Play(Blink);
+            Scene.Add(spawned);
+        }
     }
 }

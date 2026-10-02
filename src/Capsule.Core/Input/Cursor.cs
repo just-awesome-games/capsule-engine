@@ -8,7 +8,7 @@ namespace Capsule.Input;
 /// </summary>
 /// <remarks>
 /// The host applies the cursor each frame, after that frame's steps, and it moves at display rate. Nothing about it feeds
-/// back into the simulation. State set once holds across scene transitions. The development overlay
+/// back into the simulation. State set once holds across scene transitions. The debug overlay
 /// shows the system arrow, unconfined, while it is open. A headless run shows nothing.
 /// </remarks>
 public sealed class Cursor

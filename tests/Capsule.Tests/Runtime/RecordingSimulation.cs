@@ -67,3 +67,11 @@ internal sealed class RecordingSimulation(params InputAction[] actions) : ISimul
                 context.Input.IsHeld(actions[index]))
             : default;
 }
+
+// The overlay specs' scene, which records its steps as RecordingSimulation does.
+internal sealed class RecordingScene(params InputAction[] actions) : Scene
+{
+    internal RecordingSimulation Recorder { get; } = new(actions);
+
+    protected override void OnStep(in StepContext context) => Recorder.Step(in context);
+}

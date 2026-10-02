@@ -140,9 +140,10 @@ public sealed class CollisionGridTests
             CollisionFilter.Everything,
             default).Blocked);
 
+        // A cast starting inside the ignored floor's row and clear of the ceiling meets nothing.
         Assert.False(world.ShapeCast(
             Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)),
-            new Vector2(52f, 4f),
+            new Vector2(52f, 18f),
             new Vector2(0f, 20f),
             CollisionFilter.Everything,
             out _,

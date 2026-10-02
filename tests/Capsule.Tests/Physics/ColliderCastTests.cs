@@ -146,6 +146,33 @@ public sealed class ColliderCastTests
         Assert.False(prober.Collider.Cast(new Vector2(-40f, 0f), out _));
     }
 
+    // The wall's right face lies along x = 32. Each shape starts centred 2 inside it and reaches 6 in,
+    // then starts touching it from outside. The box takes the closed form. The triangle overlaps the
+    // wall hull to hull, where the narrowphase measures no depth, and the circle by its radius.
+    [Theory]
+    [InlineData("box")]
+    [InlineData("triangle")]
+    [InlineData("circle")]
+    public void ShapeCast_StartingInsideAColliderReportsItSweepingAway_AndStartingTouchingPassesIt(string kind)
+    {
+        CollisionWorld2D world = new();
+        ColliderHandle wall = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(32f, 64f)), Vector2.Zero, world.Layer("solid"));
+        Shape2D shape = kind switch
+        {
+            "box" => Shape2D.Box(new Vector2(-4f, -4f), new Vector2(8f, 8f)),
+            "triangle" => Shape2D.Polygon([new(-4f, 4f), new(4f, 4f), new(0f, -4f)]),
+            _ => Shape2D.Circle(Vector2.Zero, 4f),
+        };
+        Vector2 away = new(40f, 0f);
+
+        Assert.True(world.ShapeCast(shape, new Vector2(30f, 32f), away, CollisionFilter.Everything, out ShapeCastHit2D hit));
+        Assert.Equal(wall, hit.Target.Collider);
+        Assert.Equal(0f, hit.Fraction);
+        Assert.Equal(new Vector2(1f, 0f), hit.Normal);
+
+        Assert.False(world.ShapeCast(shape, new Vector2(36f, 32f), away, CollisionFilter.Everything, out _));
+    }
+
     // Detects is the default filter, so a collider that detects nothing sweeps through everything;
     // the overload is how a caller asks a different question without changing the collider.
     [Fact]

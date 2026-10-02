@@ -6,11 +6,11 @@ namespace Capsule.Tests.Input;
 public sealed class InputConfigurationTests
 {
     [Fact]
-    public void DebugMenu_AfterTheRunHasBooted_Throws()
+    public void DebugOverlay_AfterTheRunHasBooted_Throws()
     {
         using SimulationHost host = new(new Scene());
 
-        Assert.Throws<InvalidOperationException>(() => host.Run.Input.DebugMenu(Key.F1));
+        Assert.Throws<InvalidOperationException>(() => host.Run.Input.DebugOverlay(Key.F1));
     }
 
     [Theory]

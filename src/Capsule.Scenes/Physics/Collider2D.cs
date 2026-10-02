@@ -461,8 +461,12 @@ public abstract class Collider2D : Component
     /// reports the first thing it hits, matching <see cref="Detects"/> and never itself.
     /// </summary>
     /// <remarks>
-    /// Nothing moves. A surface the collider already touches reports at fraction 0 when the sweep
-    /// drives into it, and is ignored when the sweep runs along it or away from it.
+    /// Nothing moves. Something the collider starts more than
+    /// <see cref="CollisionTolerance.ContactSkin"/> inside reports at fraction 0 whichever way the
+    /// sweep moves, unless it is one-way. A surface the collider merely touches reports at fraction 0
+    /// when the sweep drives into it, and is ignored when the sweep runs along it or away from it.
+    /// <see cref="CollisionWorld2D.ShapeCast(in Shape2D, Vector2, Vector2, CollisionFilter, out ShapeCastHit2D, ColliderHandle)"/>
+    /// gives the point and normal of each.
     /// </remarks>
     /// <param name="translation">How far and which way to sweep, in world units.</param>
     /// <param name="hit">The nearest hit, when there is one.</param>

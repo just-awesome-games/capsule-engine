@@ -104,7 +104,9 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// </summary>
     /// <remarks>
     /// The first frame holds for exactly its own ticks, counted from the tick of this call wherever
-    /// in the step it came from. Called outside a step, it holds from the next step.
+    /// in the step it came from. Called outside a step, it holds from the next step. Called on an
+    /// animator in no scene, it counts from the tick its entity joins one, as a pooled entity played
+    /// and then added mid-step needs.
     /// <para>
     /// Playing the clip already playing does nothing unless <paramref name="restart"/> is true. A
     /// finished non-looping clip still counts as playing.
@@ -206,6 +208,16 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         _pendingStart = true;
         _startedOnTick = Entity?.SceneOrNull?.SteppingTick;
         _renderer.Sprite = clip.Frames[_playback.FrameIndex];
+    }
+
+    /// <summary>Counts a clip played or rewound out of a scene from the tick the entity joins this one.</summary>
+    /// <inheritdoc/>
+    protected internal override void OnAddedToScene()
+    {
+        if (_pendingStart && _startedOnTick is null)
+        {
+            _startedOnTick = Entity!.SceneOrNull!.SteppingTick;
+        }
     }
 
     /// <summary>Rewinds to <see cref="Clip"/>'s first frame, keeps the clip and clears <see cref="Paused"/>. A reused entity replays it as a new one would.</summary>

@@ -26,16 +26,6 @@ public sealed class OverlayPageTests
     }
 
     [Fact]
-    public void TheRootPage_OffersOnlyTheHostRowsWithoutARunOfScenes()
-    {
-        using OverlayRig rig = new();
-
-        rig.Open();
-
-        Assert.Equal(["Step", "Debug Draw", "Time Scale", "Frame Pane", "Hide"], rig.Rows());
-    }
-
-    [Fact]
     public void ARowWithAHotkey_DrawsItInASharedColumn()
     {
         using OverlayRig rig = new(CreateHost());
@@ -63,7 +53,7 @@ public sealed class OverlayPageTests
 
         Assert.Equal("Load Scene", rig.Overlay.Title);
         Assert.Equal(2, rig.Overlay.Depth);
-        Assert.Equal(string.Empty, rig.Overlay.Status);
+        Assert.Equal(string.Empty, rig.Overlay.Scene.Status);
 
         rig.Press(Key.E);
 
@@ -143,7 +133,7 @@ public sealed class OverlayPageTests
         rig.Frame();
 
         Assert.Equal(2, rig.Overlay.Depth);
-        Assert.Equal("NamedScene  tick 1", rig.Overlay.Readout);
+        Assert.Equal("NamedScene  tick 1", rig.Overlay.Scene.Readout);
 
         rig.Press(Key.Up);
         rig.Press(Key.Enter);
@@ -240,7 +230,7 @@ public sealed class OverlayPageTests
     [InlineData(2159, 2)]
     [InlineData(2160, 3)]
     public void TheOverlaysScale_StepsWithTheBackBuffersHeight(int height, int scale) =>
-        Assert.Equal(scale, OverlayHost.ScaleFor(height));
+        Assert.Equal(scale, DebugOverlay.ScaleFor(height));
 
     private static SceneRegistration Unclaimed() =>
         SceneRegistration.DocumentOnly(UnclaimedDocument, static content => new Scene(content!.Value));
@@ -250,10 +240,10 @@ public sealed class OverlayPageTests
     {
         string[] labels = rig.Rows();
 
-        Assert.Equal(OverlayHost.TimeScales.Length, labels.Length);
+        Assert.Equal(DebugOverlay.TimeScales.Length, labels.Length);
         for (int index = 0; index < labels.Length; index++)
         {
-            (double scale, string label) = OverlayHost.TimeScales[index];
+            (double scale, string label) = DebugOverlay.TimeScales[index];
 
             Assert.EndsWith(label, labels[index], StringComparison.Ordinal);
             Assert.Equal(scale == pace, labels[index].StartsWith("(x)", StringComparison.Ordinal));

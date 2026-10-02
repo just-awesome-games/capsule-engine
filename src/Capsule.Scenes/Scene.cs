@@ -551,7 +551,7 @@ public class Scene
     }
 
     /// <summary>
-    /// Fills the scene's section of the development overlay's scene page, as
+    /// Fills the scene's section of the debug overlay's scene page, as
     /// <see cref="Component.OnDebugPanel"/> describes. Writes nothing by default.
     /// </summary>
     /// <remarks>

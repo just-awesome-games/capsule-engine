@@ -95,7 +95,7 @@ public sealed class DebugDrawTests
 
         Assert.Equal("Debug Draw", rig.Overlay.Title);
         Assert.Equal(["[ ] hitboxes", "[ ] labels"], rig.Rows());
-        Assert.False(rig.Overlay.IsChannelEnabled(Labels));
+        Assert.False(rig.Overlay.Draws.IsEnabled(Labels));
 
         // Readout, title, blank, then the rows: the second row is the fifth line.
         float lineHeight = BitmapFont.Default.LineHeight;
@@ -103,8 +103,8 @@ public sealed class DebugDrawTests
         DeviceSnapshot game = rig.Frame(DeviceSnapshot.Empty.WithPointer(secondRow).With(MouseButton.Left));
 
         Assert.False(game.IsDown(MouseButton.Left));
-        Assert.True(rig.Overlay.IsChannelEnabled(Labels));
-        Assert.False(rig.Overlay.IsChannelEnabled(Hitboxes));
+        Assert.True(rig.Overlay.Draws.IsEnabled(Labels));
+        Assert.False(rig.Overlay.Draws.IsEnabled(Hitboxes));
         Assert.Equal(["[ ] hitboxes", "[x] labels"], rig.Rows());
         Assert.Equal(1, rig.Scheduler.Tick);
     }
@@ -228,7 +228,7 @@ public sealed class DebugDrawTests
 
         using OverlayRig rig = new();
 
-        Assert.Empty(rig.Overlay.Channels);
+        Assert.Empty(rig.Overlay.Draws.Channels);
     }
 
     private static SceneHost CreateHost(Scene scene) =>

@@ -1,6 +1,6 @@
 # Debugging
 
-After this page you can open the development overlay, add your own rows and geometry to it, and know what
+After this page you can open the debug overlay, add your own rows and geometry to it, and know what
 a shipping publish drops.
 
 ## The overlay
@@ -33,7 +33,7 @@ that took one is not reproducible from its driver alone. A time-scale change lea
   test installs `CollectingLogSink`.
 
 A debug draw, a panel field or a log line changes nothing about the run.
-`InputConfiguration.DebugMenu(button)` moves the key that opens the overlay, and `InputButton.None`
+`InputConfiguration.DebugOverlay(button)` moves the key that opens the overlay, and `InputButton.None`
 removes it.
 
 ## Development builds

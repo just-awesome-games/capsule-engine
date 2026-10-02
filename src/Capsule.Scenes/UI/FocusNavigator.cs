@@ -47,9 +47,9 @@ public sealed class FocusNavigator : Component
     // whose read this navigator then skips.
     private bool _justTurnedInteractable;
 
-    // How many steps a direction has been held since its press. Counts up while any direction is held
-    // and none was pressed this step, and a press edge resets it to zero.
-    private int _heldSteps;
+    // The repeat of a held direction. It counts while any direction is held and none was pressed
+    // this step.
+    private HoldRepeat _repeat;
 
     /// <summary>
     /// Raised with the item the focus landed on, after that item's <see cref="Focusable.Focused"/>
@@ -283,7 +283,7 @@ public sealed class FocusNavigator : Component
 
         if (!Interactable || justTurnedInteractable)
         {
-            _heldSteps = 0;
+            _repeat = default;
 
             return;
         }
@@ -292,7 +292,7 @@ public sealed class FocusNavigator : Component
 
         Side? pressedSide = Direction(input, pressed: true);
         Side? heldSide = Direction(input, pressed: false);
-        _heldSteps = heldSide is not null && pressedSide is null ? _heldSteps + 1 : 0;
+        bool repeat = _repeat.Next(heldSide is not null, pressedSide is not null, RepeatDelay, RepeatInterval);
 
         if (Focused is not { } focused || !Live(focused))
         {
@@ -314,8 +314,6 @@ public sealed class FocusNavigator : Component
             target = under;
         }
 
-        bool repeat = RepeatInterval > 0 && _heldSteps >= RepeatDelay
-            && (_heldSteps - RepeatDelay) % RepeatInterval == 0;
         if ((pressedSide ?? (repeat ? heldSide : null)) is { } side && Reached(target, side) is { } moved)
         {
             target = moved;

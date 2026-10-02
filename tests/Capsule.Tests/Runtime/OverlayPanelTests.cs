@@ -1,7 +1,9 @@
+using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Runtime;
 using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Scenes;
+using Capsule.Scenes;
 using static Capsule.Tests.Runtime.OverlayRig;
 using static Capsule.Tests.Runtime.PanelFixtures;
 
@@ -21,7 +23,7 @@ public sealed class OverlayPanelTests
         rig.Press(Key.S);
 
         Assert.Equal("Populated", rig.Overlay.Title);
-        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Named(rig));
+        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], rig.Rows());
         Assert.Equal(FirstEntity, rig.Overlay.Focus);
         Assert.Equal(2, rig.Overlay.Depth);
 
@@ -31,7 +33,7 @@ public sealed class OverlayPanelTests
         Assert.Equal(3, rig.Overlay.Depth);
         Assert.Equal(
             ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "Name", "  (Commands)", "  [x] Visible", "  Remove", "", "[Tag]", "Label"],
-            Named(rig));
+            rig.Rows());
 
         rig.Press(Key.Down);
         Assert.Equal(10, rig.Overlay.Focus);
@@ -60,7 +62,7 @@ public sealed class OverlayPanelTests
         Assert.Equal("Vanisher", rig.Overlay.Title);
         Assert.Equal(
             ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [x] Visible", "  Remove", "", "[Tag]", "Label", "", "[Mute]", "<Nothing to show>"],
-            Named(rig));
+            rig.Rows());
     }
 
     // The page lists in tree order, indented by depth, each entity suffixed among its siblings alone.
@@ -74,7 +76,7 @@ public sealed class OverlayPanelTests
         rig.Press(Key.S);
         Assert.Equal(
             [.. Head, "Lone", "Walker", "  Spark", "    Entity", "    Entity (1)", "  Entity", "  Spark (1)"],
-            Named(rig));
+            rig.Rows());
 
         rig.Press(Key.Up);
         rig.Press(Key.Enter);
@@ -82,7 +84,7 @@ public sealed class OverlayPanelTests
         Assert.Equal("Spark (1)", rig.Overlay.Title);
         Assert.Equal(
             ["[Entity]", "Parent", "Name", "Transform", "World Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [x] Visible", "  Remove"],
-            Named(rig));
+            rig.Rows());
         Assert.Equal("Parent           Walker", Drawn(rig, 1));
         Assert.Equal("World Transform  (14, 0) r 0 s (1, 1)", Drawn(rig, 4));
         Assert.Equal(1, rig.Overlay.Focus);
@@ -119,7 +121,7 @@ public sealed class OverlayPanelTests
 
         rig.Open();
         rig.Press(Key.S);
-        Assert.Equal([.. Head, "Vanisher", "Lone", "Vanisher (1)"], Named(rig));
+        Assert.Equal([.. Head, "Vanisher", "Lone", "Vanisher (1)"], rig.Rows());
 
         rig.Press(Key.Up);
         rig.Press(Key.Enter);
@@ -133,7 +135,7 @@ public sealed class OverlayPanelTests
         Assert.Equal(3, rig.Overlay.Depth);
 
         rig.Press(Key.Backspace);
-        Assert.Equal([.. Head, "Lone", "Vanisher"], Named(rig));
+        Assert.Equal([.. Head, "Lone", "Vanisher"], rig.Rows());
     }
 
     [Fact]
@@ -159,5 +161,23 @@ public sealed class OverlayPanelTests
         Assert.True(rig.Overlay.IsOpen);
         Assert.Equal("Walker", rig.Overlay.Title);
         Assert.Equal($"Transform     ({10 + ran}, 0) r 0 s (1, 1)", Drawn(rig, 1));
+    }
+
+    [Fact]
+    public void AFieldValueLongerThanAnyBuffer_ShowsWhole()
+    {
+        using OverlayRig rig = new(CreateHost(new LongField()));
+
+        rig.Open();
+        rig.Press(Key.S);
+
+        Assert.Contains(rig.Overlay.Scene.ShownRows(), static row => row.EndsWith(LongField.Value, StringComparison.Ordinal));
+    }
+
+    internal sealed class LongField : Scene
+    {
+        internal static readonly string Value = new string('x', 300) + "end";
+
+        protected override void OnDebugPanel(DebugPanel panel) => panel.Field("Long", Value);
     }
 }

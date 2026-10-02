@@ -51,7 +51,7 @@ public sealed class OverlayAllocationTests
         rig.Press(Key.Right);
 
         Assert.Equal(1, rig.Scheduler.Tick);
-        Assert.Equal("Instrumented  tick 1", rig.Overlay.Readout);
+        Assert.Equal("Instrumented  tick 1", rig.Overlay.Scene.Readout);
         Assert.Contains(
             rig.Overlay.Scene.ShownRows(),
             static row => row.StartsWith("Ticks", StringComparison.Ordinal) && row.EndsWith('1'));

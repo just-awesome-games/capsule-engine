@@ -7,7 +7,7 @@ using Capsule.Rendering;
 namespace Capsule.Diagnostics;
 
 /// <summary>
-/// How a scene, entity or component offers itself to the development overlay from its
+/// How a scene, entity or component offers itself to the debug overlay from its
 /// <c>OnDebugPanel</c> hook. The engine builds the panel and hands it to the hook.
 /// </summary>
 /// <remarks>

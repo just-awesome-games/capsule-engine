@@ -5,7 +5,8 @@ using Microsoft.Xna.Framework.Input;
 namespace Capsule.Runtime.Input;
 
 // Folds the first connected gamepad into a DeviceSnapshot. The only place pad hardware enters the
-// engine. One instance per host, remembering which player index answered last.
+// engine. One instance per host, remembering which player index answered last. The backend reads the
+// pad while another window has focus. An unfocused window folds none of it.
 internal sealed class GamepadSampler
 {
     // How many samples pass between sweeps for a pad on another player index while none is connected.
@@ -28,12 +29,13 @@ internal sealed class GamepadSampler
     internal bool IsConnected => _connected;
 
     // snapshot with this frame's pad buttons also held and its axes set through filter. With no pad
-    // connected it is returned untouched.
-    internal DeviceSnapshot SampleOnto(in DeviceSnapshot snapshot, PadFilter filter)
+    // connected or the window inactive it is returned untouched. The pad is polled either way. The rumble
+    // and the device seed read its connection.
+    internal DeviceSnapshot SampleOnto(in DeviceSnapshot snapshot, PadFilter filter, bool windowActive)
     {
         GamePadState pad = FirstConnected();
         _connected = pad.IsConnected;
-        if (!pad.IsConnected)
+        if (!pad.IsConnected || !windowActive)
         {
             return snapshot;
         }

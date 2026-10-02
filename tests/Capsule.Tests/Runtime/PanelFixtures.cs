@@ -9,8 +9,8 @@ namespace Capsule.Tests.Runtime;
 // The scenes the overlay's panel specs walk: entities that move, leave, nest and carry hooks.
 internal static class PanelFixtures
 {
-    // The page's head for a scene with no hook of its own: the engine's Scene section, then the
-    // Entities heading. Rows are named, not read.
+    // The page's labels for a scene with no hook of its own: the engine's Scene section, then the
+    // Entities heading.
     internal static readonly string[] Head =
     [
         "[Scene]",
@@ -30,24 +30,7 @@ internal static class PanelFixtures
 
     internal static readonly int FirstEntity = Head.Length;
 
-    // Every row named rather than read: its heading, its command, or the field's name without the
-    // column the panel pads it into.
-    internal static string[] Named(OverlayRig rig)
-    {
-        string[] rows = rig.Rows();
-        for (int index = 0; index < rows.Length; index++)
-        {
-            string row = rows[index];
-            string named = row.TrimStart();
-            int column = named.IndexOf("  ", StringComparison.Ordinal);
-
-            rows[index] = row[..(row.Length - named.Length)] + (column < 0 ? named.TrimEnd() : named[..column]);
-        }
-
-        return rows;
-    }
-
-    // One row as drawn, hotkey column and all.
+    // One row as drawn, value column and all.
     internal static string Drawn(OverlayRig rig, int row) => rig.Overlay.Scene.ShownRows()[row];
 
     internal static SceneHost CreateHost(Scene? first = null) =>
@@ -133,8 +116,12 @@ internal static class PanelFixtures
 
         internal bool Slow { get; private set; }
 
+        // How many times the overlay has run this hook.
+        internal int Panels { get; private set; }
+
         protected override void OnDebugPanel(DebugPanel panel)
         {
+            Panels++;
             panel.Command("Spawn", () => Spawned++);
             panel.Toggle("Slow", Slow, on => Slow = on);
             panel.Field("Spawned", Spawned);

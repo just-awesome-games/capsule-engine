@@ -21,7 +21,7 @@ public sealed class OverlayRunTests
     public void Step_RunsOneTickThroughTheInputPathWithoutTheOverlaysKeysAndRepeatsOnAHeldKey()
     {
         using OverlayRig rig = new(
-            new RecordingSimulation(SharedAction, SpaceAction, RightAction),
+            RecordingHost(SharedAction, SpaceAction, RightAction),
             scheduler: CreateScheduler(new ActionBindings().Bind(SpaceAction, Key.Space).Bind(RightAction, Key.Right)));
         List<RecordedStep> recorded = rig.Recording.Recorded;
 
@@ -35,7 +35,7 @@ public sealed class OverlayRunTests
         Assert.Equal(1f, rig.Scheduler.InterpolationAlpha);
         Assert.True(rig.Scheduler.Held);
 
-        for (int frame = 0; frame < OverlayHost.RepeatDelayFrames - 1; frame++)
+        for (int frame = 0; frame < DebugOverlay.RepeatDelayFrames - 1; frame++)
         {
             rig.Frame(DeviceSnapshot.Of(Key.Right));
         }
@@ -45,7 +45,7 @@ public sealed class OverlayRunTests
         rig.Frame(DeviceSnapshot.Of(Key.Right));
         Assert.Equal(2, recorded.Count);
 
-        for (int frame = 0; frame < OverlayHost.RepeatIntervalFrames - 1; frame++)
+        for (int frame = 0; frame < DebugOverlay.RepeatIntervalFrames - 1; frame++)
         {
             rig.Frame(DeviceSnapshot.Of(Key.Right));
         }
@@ -64,14 +64,14 @@ public sealed class OverlayRunTests
         rig.Open();
 
         // The press moves one row and the repeat lands on the frame the delay is met.
-        for (int frame = 0; frame <= OverlayHost.RepeatDelayFrames; frame++)
+        for (int frame = 0; frame <= DebugOverlay.RepeatDelayFrames; frame++)
         {
             rig.Frame(DeviceSnapshot.Of(Key.Down));
         }
 
         Assert.Equal(2, rig.Overlay.Focus);
 
-        for (int frame = 0; frame < OverlayHost.RepeatIntervalFrames; frame++)
+        for (int frame = 0; frame < DebugOverlay.RepeatIntervalFrames; frame++)
         {
             rig.Frame(DeviceSnapshot.Of(Key.Down));
         }
@@ -92,7 +92,7 @@ public sealed class OverlayRunTests
         Assert.IsType<ReadoutScene>(rig.Host.Scene);
         Assert.Equal(1, rig.Scheduler.Tick);
         Assert.True(rig.Scheduler.Held);
-        Assert.Equal("ReadoutScene  tick 1", rig.Overlay.Readout);
+        Assert.Equal("ReadoutScene  tick 1", rig.Overlay.Scene.Readout);
     }
 
     [Fact]
@@ -107,8 +107,8 @@ public sealed class OverlayRunTests
         rig.Open();
         rig.Frame(DeviceSnapshot.Of(Key.R));
 
-        Assert.StartsWith("Restart failed", rig.Overlay.Status, StringComparison.Ordinal);
-        Assert.Contains(nameof(InvalidOperationException), rig.Overlay.Status, StringComparison.Ordinal);
+        Assert.StartsWith("Restart failed", rig.Overlay.Scene.Status, StringComparison.Ordinal);
+        Assert.Contains(nameof(InvalidOperationException), rig.Overlay.Scene.Status, StringComparison.Ordinal);
         Assert.True(rig.Scheduler.Held);
         Assert.True(rig.Overlay.IsOpen);
         Assert.Equal(0, rig.Scheduler.Tick);
@@ -128,7 +128,7 @@ public sealed class OverlayRunTests
         rig.Open();
         rig.Frame(DeviceSnapshot.Of(Key.R));
 
-        Assert.NotEmpty(rig.Overlay.Status);
+        Assert.NotEmpty(rig.Overlay.Scene.Status);
         Assert.Same(before, rig.Host.Scene);
         Assert.True(rig.Scheduler.Held);
         Assert.Equal(0, rig.Scheduler.Tick);
@@ -149,9 +149,9 @@ public sealed class OverlayRunTests
 
         rig.Frame(DeviceSnapshot.Of(Key.Enter));
 
-        Assert.StartsWith("Load failed", rig.Overlay.Status, StringComparison.Ordinal);
-        Assert.Contains(nameof(InvalidOperationException), rig.Overlay.Status, StringComparison.Ordinal);
-        Assert.DoesNotContain("Second line", rig.Overlay.Status, StringComparison.Ordinal);
+        Assert.StartsWith("Load failed", rig.Overlay.Scene.Status, StringComparison.Ordinal);
+        Assert.Contains(nameof(InvalidOperationException), rig.Overlay.Scene.Status, StringComparison.Ordinal);
+        Assert.DoesNotContain("Second line", rig.Overlay.Scene.Status, StringComparison.Ordinal);
         Assert.Same(before, rig.Host.Scene);
         Assert.False(before.Stopped);
         Assert.True(rig.Scheduler.Held);
@@ -162,7 +162,7 @@ public sealed class OverlayRunTests
 
         Assert.Equal(1, rig.Scheduler.Tick);
         Assert.Equal(2, before.Steps);
-        Assert.Equal(string.Empty, rig.Overlay.Status);
+        Assert.Equal(string.Empty, rig.Overlay.Scene.Status);
     }
 
     [Fact]
@@ -179,10 +179,10 @@ public sealed class OverlayRunTests
         Assert.True(rig.Host.ExitRequested);
         Assert.True(rig.Scheduler.Held);
 
-        Assert.True(rig.Scheduler.Advance(StepSeconds, rig.Overlay.Observe(DeviceSnapshot.Empty), rig.Host));
+        Assert.True(rig.Scheduler.Advance(StepSeconds, rig.Overlay.Intercept(DeviceSnapshot.Empty), rig.Host));
 
         // Nothing of the overlay is read once the run is gone.
-        rig.Overlay.Step();
+        rig.Overlay.Update();
         Assert.True(rig.Overlay.IsOpen);
     }
 
@@ -198,6 +198,6 @@ public sealed class OverlayRunTests
         Assert.Equal(0, rig.Scheduler.Tick);
         Assert.True(rig.Scheduler.Held);
 
-        Assert.True(rig.Scheduler.Advance(StepSeconds, rig.Overlay.Observe(DeviceSnapshot.Empty), host));
+        Assert.True(rig.Scheduler.Advance(StepSeconds, rig.Overlay.Intercept(DeviceSnapshot.Empty), host));
     }
 }

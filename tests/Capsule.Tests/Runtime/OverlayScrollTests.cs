@@ -17,7 +17,7 @@ public sealed class OverlayScrollTests
     public void APointerOverARow_FocusesItThroughTheGamesPlacementAndLeavesTheGamesPointerAlone()
     {
         using OverlayRig rig = new(CreateHost());
-        OverlayHost overlay = rig.Overlay;
+        DebugOverlay overlay = rig.Overlay;
         ScreenPlacement gameLayer = new(new Vector2(100f, 20f), 3f);
         const int overlayScale = 2;
         rig.Open();
@@ -27,16 +27,16 @@ public sealed class OverlayScrollTests
         Vector2 window = RowPoint(1) * overlayScale;
         Vector2 gamePoint = (window - gameLayer.Origin) / gameLayer.Scale;
 
-        DeviceSnapshot game = overlay.Observe(DeviceSnapshot.Empty.WithPointer(gamePoint), gameLayer, overlayScale);
+        DeviceSnapshot game = overlay.Intercept(DeviceSnapshot.Empty.WithPointer(gamePoint), gameLayer, overlayScale);
         rig.Scheduler.Advance(OverlayRig.StepSeconds, game, rig.Host);
-        overlay.Step();
+        overlay.Update();
 
         Assert.Equal(gamePoint, game.Pointer);
         Assert.Equal("Step", rig.Focused());
 
-        overlay.Observe(DeviceSnapshot.Empty.WithPointer(gamePoint).With(MouseButton.Left), gameLayer, overlayScale);
+        overlay.Intercept(DeviceSnapshot.Empty.WithPointer(gamePoint).With(MouseButton.Left), gameLayer, overlayScale);
         rig.Scheduler.Advance(OverlayRig.StepSeconds, DeviceSnapshot.Empty, rig.Host);
-        overlay.Step();
+        overlay.Update();
 
         Assert.Equal(1, rig.Scheduler.Tick);
     }

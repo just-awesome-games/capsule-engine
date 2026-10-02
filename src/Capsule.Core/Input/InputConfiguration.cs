@@ -2,8 +2,8 @@ namespace Capsule.Input;
 
 /// <summary>
 /// Everything a game says about input: the actions its devices stand for, the gamepad deadzones its
-/// sampled pad is filtered by, and the host-owned button that opens the debug menu in a development
-/// build.
+/// sampled pad is filtered by, and the host-owned button that opens the debug overlay in a
+/// development build.
 /// </summary>
 /// <remarks>
 /// The deadzones apply only to a sampled gamepad. A run played by an input driver treats the
@@ -42,16 +42,16 @@ public sealed class InputConfiguration
     public float TriggerDeadzone { get; private set; } = DefaultTriggerDeadzone;
 
     /// <summary>
-    /// The host-owned button that opens Capsule's debug menu in a development build,
+    /// The host-owned button that opens Capsule's debug overlay in a development build,
     /// <see cref="Key.Grave"/> by default. The button does not reach the simulation and wins over a
     /// game binding of the same button.
     /// </summary>
     /// <remarks>
-    /// It is inert in a shipping publish, and <see cref="InputButton.None"/> disables the menu.
+    /// It is inert in a shipping publish, and <see cref="InputButton.None"/> disables the overlay.
     /// </remarks>
-    public InputButton DebugMenuButton { get; private set; } = Key.Grave;
+    public InputButton DebugOverlayButton { get; private set; } = Key.Grave;
 
-    // Set when the run's first scene starts. The overlay reads DebugMenuButton once at construction,
+    // Set when the run's first scene starts. The overlay reads DebugOverlayButton once at construction,
     // so a write after that would silently do nothing.
     internal bool Started { get; set; }
 
@@ -74,26 +74,22 @@ public sealed class InputConfiguration
     }
 
     /// <summary>
-    /// Sets the host-owned button that opens Capsule's development debug menu. It may be a key, pad
-    /// button, mouse button or stick direction, and <see cref="InputButton.None"/> leaves the menu
+    /// Sets the host-owned button that opens Capsule's debug overlay. It may be a key, pad button,
+    /// mouse button or stick direction, and <see cref="InputButton.None"/> leaves the overlay
     /// unreachable.
     /// </summary>
-    /// <remarks>
-    /// While the menu is open the simulation is held on the settled step and every playing voice is
-    /// suspended. Closing it resumes both.
-    /// </remarks>
-    /// <param name="button">The button that toggles the menu on its leading edge.</param>
+    /// <param name="button">The button that toggles the overlay on its leading edge.</param>
     /// <exception cref="InvalidOperationException">
     /// The run's first scene has started. Call this from <c>WithRunStart</c>.
     /// </exception>
-    public InputConfiguration DebugMenu(InputButton button)
+    public InputConfiguration DebugOverlay(InputButton button)
     {
         if (Started)
         {
-            throw new InvalidOperationException("The debug-menu button is read at boot. Set it from WithRunStart.");
+            throw new InvalidOperationException("The debug-overlay button is read at boot. Set it from WithRunStart.");
         }
 
-        DebugMenuButton = button;
+        DebugOverlayButton = button;
 
         return this;
     }

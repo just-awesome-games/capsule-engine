@@ -17,7 +17,7 @@ public sealed class FramePaneTests
     public void TheToggle_LastsThePlaySessionAcrossCloseHideAndRestore()
     {
         using OverlayRig rig = new();
-        OverlayHost overlay = rig.Overlay;
+        DebugOverlay overlay = rig.Overlay;
 
         rig.Open();
         rig.Press(Key.F);
@@ -42,9 +42,9 @@ public sealed class FramePaneTests
         Assert.True(overlay.IsFramePaneOn);
         Assert.Contains(overlay.View.ScreenSprites.ToArray(), static sprite => sprite.Color == Highlight);
 
-        rig.Press(Key.Down);
-        rig.Press(Key.Down);
-        rig.Press(Key.Down);
+        rig.Press(Key.Up);
+        rig.Press(Key.Up);
+        rig.Press(Key.Up);
         Assert.Equal("Frame Pane", rig.Focused());
 
         for (int frame = 0; frame < 70; frame++)
@@ -67,7 +67,7 @@ public sealed class FramePaneTests
     public void AWithdrawnMenu_LeavesOnlyThePaneInTheViewAndComesBackAtItsDepthAndFocus()
     {
         using OverlayRig rig = new();
-        OverlayHost overlay = rig.Overlay;
+        DebugOverlay overlay = rig.Overlay;
         OverlayScene scene = overlay.Scene;
 
         rig.Frame();
@@ -78,6 +78,7 @@ public sealed class FramePaneTests
         Assert.Empty(overlay.View.ScreenSprites.ToArray());
 
         rig.Open();
+        rig.Press(Key.Up);
         rig.Press(Key.Up);
         rig.Press(Key.Up);
         rig.Press(Key.F);

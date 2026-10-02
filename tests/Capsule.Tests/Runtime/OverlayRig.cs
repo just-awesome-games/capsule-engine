@@ -9,7 +9,7 @@ using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Runtime;
 
-// The overlay specs' host: one frame is observe, advance the game, step the overlay, the order
+// The overlay specs' host: one frame is intercept, advance the game, update the overlay, the order
 // CapsuleGame runs them in, and a press is the key's frame followed by its release. The instance owns
 // the clock, so a frame pane spec can say how long each frame took.
 internal sealed class OverlayRig : IDisposable
@@ -23,30 +23,28 @@ internal sealed class OverlayRig : IDisposable
     private long _ticks;
     private long _frameStart;
 
-    // A SceneHost simulation is also the overlay's run of scenes. The rig disposes it.
+    // The run defaults to a RecordingScene that records nothing. The rig disposes it.
     internal OverlayRig(
-        ISimulation? simulation = null,
+        SceneHost? host = null,
         SceneRegistry? registry = null,
         InputButton? toggle = null,
         FixedStepScheduler? scheduler = null)
     {
-        Simulation = simulation ?? new RecordingSimulation();
+        Host = host ?? RecordingHost();
         Scheduler = scheduler ?? CreateScheduler();
-        Overlay = new OverlayHost(toggle ?? Key.Grave, Scheduler, Simulation, Simulation as SceneHost, registry, () => _ticks);
+        Overlay = new DebugOverlay(toggle ?? Key.Grave, Scheduler, Host, registry, () => _ticks);
     }
 
-    internal OverlayHost Overlay { get; }
+    internal DebugOverlay Overlay { get; }
 
     internal FixedStepScheduler Scheduler { get; }
 
-    internal ISimulation Simulation { get; }
-
-    internal SceneHost Host => (SceneHost)Simulation;
-
-    internal RecordingSimulation Recording => (RecordingSimulation)Simulation;
+    internal SceneHost Host { get; }
 
     // The game frame's cost the pane is told about, which a rig with no renderer has to supply.
     internal double DrawMs { get; set; }
+
+    internal RecordingSimulation Recording => ((RecordingScene)Host.Scene).Recorder;
 
     // The labels of the page the overlay last built, in order.
     internal string[] Rows()
@@ -91,10 +89,10 @@ internal sealed class OverlayRig : IDisposable
     {
         _frameStart += Ticks(intervalMs);
         _ticks = _frameStart;
-        DeviceSnapshot stripped = Overlay.Observe(sampled);
+        DeviceSnapshot stripped = Overlay.Intercept(sampled);
         _ticks += Ticks(updateMs);
-        Scheduler.Advance(elapsedSeconds, stripped, Simulation);
-        Overlay.Step(lastFrameMs: DrawMs);
+        Scheduler.Advance(elapsedSeconds, stripped, Host);
+        Overlay.Update(lastFrameMs: DrawMs);
 
         return stripped;
     }
@@ -102,11 +100,19 @@ internal sealed class OverlayRig : IDisposable
     public void Dispose()
     {
         Overlay.Dispose();
-        (Simulation as IDisposable)?.Dispose();
+        Host.Dispose();
     }
 
     internal static FixedStepScheduler CreateScheduler(ActionBindings? bindings = null) =>
         new(StepSeconds, 5, bindings ?? new ActionBindings());
+
+    // A run of one RecordingScene reading actions.
+    internal static SceneHost RecordingHost(params InputAction[] actions)
+    {
+        RecordingScene scene = new(actions);
+
+        return new SceneHost(SceneTransition.ToScene(typeof(RecordingScene), null), (in SceneTransition _) => scene, new Run());
+    }
 
     private static long Ticks(double ms) => (long)Math.Round(ms * Stopwatch.Frequency / 1000.0);
 }

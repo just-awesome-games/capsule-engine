@@ -152,6 +152,26 @@ public sealed class OneWayTests
         Assert.Equal(new Vector2(12f, 0f), result.Translation);
     }
 
+    // The surface lies along y = 16, and the box reaches 6 below it. A one-way surface blocks only a shape
+    // coming down onto it from above, so a shape that starts inside it reports nothing.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AShapeCastStartingInsideAOneWaySurface_PassesIt(bool collider)
+    {
+        Scene scene = SceneFixtures.Terrain("....", collider ? "...." : "----", "####");
+        if (collider)
+        {
+            scene.Add(new Slab(new Vector2(0f, 16f)));
+        }
+
+        Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
+        Vector2 origin = new(20f, 14f);
+
+        Assert.False(scene.Collision.ShapeCast(box, origin, Vector2.Zero, CollisionFilter.Everything, out _));
+        Assert.False(scene.Collision.ShapeCast(box, origin, new Vector2(0f, 8f), CollisionFilter.Everything, out _));
+    }
+
     /// <summary>A one-way box on the layer "solid", 64 wide and 8 tall unless sized.</summary>
     private sealed class Slab : Entity
     {

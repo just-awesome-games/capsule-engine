@@ -65,7 +65,7 @@ public sealed partial class CollisionWorld2D
         Guard.Finite(translation, nameof(translation));
         RequireIgnorable(ignore);
 
-        return ShapeCastSweep(shape, origin, translation, Resolve(mask), ignore, out hit);
+        return ShapeCastSweep(shape, origin, translation, Resolve(mask), ignore, true, out hit);
     }
 
     /// <summary>

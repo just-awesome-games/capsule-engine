@@ -5,13 +5,10 @@ using Capsule.UI;
 
 namespace Capsule.Runtime.DevTools;
 
-// One host frame as the overlay measured it: wall-clock milliseconds for the interval since the
-// previous frame, the update bracket and the last game frame's draw submission, and the fixed steps the
-// frame ran.
+// One host frame in wall-clock milliseconds, and the fixed steps it ran.
 internal readonly record struct FrameSample(double IntervalMs, double UpdateMs, double DrawMs, int Steps);
 
-// One second's figures as the pane published them, which its lines are formatted from. Every field is
-// zero until a whole second has been pushed.
+// One published second. Every field is zero until a whole second has been pushed.
 internal readonly record struct FrameFigures(
     double Fps,
     double FrameMs,
@@ -20,26 +17,18 @@ internal readonly record struct FrameFigures(
     double DrawMs,
     double StepsPerSecond);
 
-// The corner readout: a backdrop and a three-line label hanging from the canvas's top-right, showing
-// the last whole second and rewritten when a second completes. Every figure sits in a fixed-width
-// field, so the pane keeps one width. Allocation-free once on, since a pane that churned the GC would
-// distort the counts it shows.
+// The last whole second in fixed-width fields. Allocation-free once on, or it skews its GC counts.
 internal sealed class FramePane : ScreenEntity
 {
-    private const int Padding = 4;
     private const double SecondMs = 1000.0;
-
-    private static readonly BitmapFont Font = BitmapFont.Default;
 
     private readonly ColorRect _backdrop;
     private readonly Label _label;
 
-    // Sized past the widest layout the fields allow. A figure too wide for its field takes what it
-    // needs and the pane grows for that second.
+    // Sized past the widest layout. A figure too wide for its field widens the pane for that second.
     private readonly char[] _text = new char[256];
 
-    // The second in progress. Steps run and the update and draw brackets are summed alongside the
-    // intervals, all published together when the intervals reach a second.
+    // The second in progress, published when the intervals reach a second.
     private double _sumMs;
     private double _maxMs;
     private double _updateMs;
@@ -47,11 +36,13 @@ internal sealed class FramePane : ScreenEntity
     private int _count;
     private int _steps;
 
+    internal FrameFigures Figures { get; private set; }
+
     internal FramePane()
         : base(Anchor.TopRight, Vector2.Zero)
     {
-        _backdrop = new ColorRect(Vector2.Zero) { Color = ColorRgba.Black with { A = 160 } };
-        _label = new Label(Font);
+        _backdrop = new ColorRect(Vector2.Zero) { Color = OverlayScene.BackdropColor };
+        _label = new Label(OverlayScene.Font);
 
         Add(_backdrop);
         Add(_label);
@@ -61,10 +52,7 @@ internal sealed class FramePane : ScreenEntity
 
     internal string Text => _label.Text;
 
-    internal FrameFigures Figures { get; private set; }
-
-    // Drops the second in progress and shows zeros until a whole second has been pushed. A pane
-    // switched back on does not join samples from before it was off.
+    // A pane switched back on does not join samples from before it was off.
     internal void Reset()
     {
         StartSecond();
@@ -95,8 +83,7 @@ internal sealed class FramePane : ScreenEntity
         _count = _steps = 0;
     }
 
-    // Rewrites the label from one second's figures. The collection counts and the heap are read here,
-    // at the second's end.
+    // The GC counts and the heap are read here, at the second's end.
     private void Publish(double frameMs, double worstMs, double updateMs, double drawMs, double stepsPerSecond)
     {
         double fps = frameMs > 0 ? SecondMs / frameMs : 0;
@@ -129,10 +116,11 @@ internal sealed class FramePane : ScreenEntity
         ReadOnlySpan<char> text = line.Written;
         _label.SetText(text);
 
-        Vector2 measured = Font.Measure(text);
-        float width = (int)measured.X + (Padding * 2);
+        const int padding = OverlayScene.Padding;
+        Vector2 measured = OverlayScene.Font.Measure(text);
+        float width = (int)measured.X + (padding * 2);
         _backdrop.Offset = new Vector2(-width, 0f);
-        _backdrop.Size = new Vector2(width, measured.Y + (Padding * 2));
-        _label.Offset = new Vector2(Padding - width, Padding);
+        _backdrop.Size = new Vector2(width, measured.Y + (padding * 2));
+        _label.Offset = new Vector2(padding - width, padding);
     }
 }

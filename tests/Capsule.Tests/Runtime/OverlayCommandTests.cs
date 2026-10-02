@@ -28,7 +28,7 @@ public sealed class OverlayCommandTests
         Assert.Equal("Seamed", rig.Overlay.Title);
         Assert.Equal(
             [.. Head[..11], "Spawned", "  (Commands)", "  Spawn", "  [ ] Slow", "", "[Entities]", "Nudger"],
-            Named(rig));
+            rig.Rows());
         Assert.Equal(13, rig.Overlay.Focus);
 
         rig.Press(Key.Enter);
@@ -57,7 +57,7 @@ public sealed class OverlayCommandTests
         Assert.Equal("Nudger", rig.Overlay.Title);
         Assert.Equal(
             ["[Entity]", "Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [x] Visible", "  Remove", "  Nudge"],
-            Named(rig));
+            rig.Rows());
         Assert.Equal(8, rig.Overlay.Focus);
 
         rig.Press(Key.Down);
@@ -77,6 +77,41 @@ public sealed class OverlayCommandTests
         Assert.Equal(17, rig.Overlay.Focus);
     }
 
+    // A Back and a reopen each rebuild the page once, and a frame without an act rebuilds nothing.
+    [Fact]
+    public void AnAct_RunsThePagesHooksOnce()
+    {
+        Seamed seamed = new();
+        using OverlayRig rig = new(CreateHost(seamed));
+
+        rig.Open();
+        rig.Press(Key.S);
+        rig.Press(Key.Up);
+        rig.Press(Key.Enter);
+        Assert.Equal("Nudger", rig.Overlay.Title);
+        int built = seamed.Panels;
+
+        rig.Press(Key.Backspace);
+
+        Assert.Equal(built + 1, seamed.Panels);
+
+        rig.Press(Key.Grave);
+        rig.Press(Key.Grave);
+
+        Assert.Equal(built + 2, seamed.Panels);
+
+        rig.Press(Key.Enter);
+        Assert.Equal("Nudger", rig.Overlay.Title);
+        rig.Press(Key.Down);
+        built = seamed.Panels;
+
+        // The removal pops the panel. The press's idle frame does not build the scene page again.
+        rig.Press(Key.Enter);
+
+        Assert.Equal(nameof(Seamed), rig.Overlay.Title);
+        Assert.Equal(built + 1, seamed.Panels);
+    }
+
     // The command's own tick consumes the transition it requests. A start that fails shows on the
     // status line and the run stays on its scene.
     [Fact]
@@ -88,13 +123,13 @@ public sealed class OverlayCommandTests
 
         rig.Open();
         rig.Press(Key.S);
-        Assert.Equal([.. Head[..11], "  (Commands)", "  Break", "  Next", "", "[Entities]", "Lone"], Named(rig));
+        Assert.Equal([.. Head[..11], "  (Commands)", "  Break", "  Next", "", "[Entities]", "Lone"], rig.Rows());
         Assert.Equal(12, rig.Overlay.Focus);
 
         rig.Press(Key.Enter);
 
-        Assert.StartsWith("Command failed", rig.Overlay.Status, StringComparison.Ordinal);
-        Assert.Contains(nameof(InvalidOperationException), rig.Overlay.Status, StringComparison.Ordinal);
+        Assert.StartsWith("Command failed", rig.Overlay.Scene.Status, StringComparison.Ordinal);
+        Assert.Contains(nameof(InvalidOperationException), rig.Overlay.Scene.Status, StringComparison.Ordinal);
         Assert.Same(requesting, rig.Host.Scene);
         Assert.True(rig.Scheduler.Held);
         Assert.Equal("Requesting", rig.Overlay.Title);
@@ -105,8 +140,8 @@ public sealed class OverlayCommandTests
         Assert.IsType<OtherScene>(rig.Host.Scene);
         Assert.Equal("OtherScene", rig.Overlay.Title);
         Assert.Equal(2, rig.Overlay.Depth);
-        Assert.Equal([.. Head, "Lone"], Named(rig));
-        Assert.Equal(string.Empty, rig.Overlay.Status);
+        Assert.Equal([.. Head, "Lone"], rig.Rows());
+        Assert.Equal(string.Empty, rig.Overlay.Scene.Status);
     }
 
     [Fact]
@@ -129,7 +164,7 @@ public sealed class OverlayCommandTests
 
         rig.Press(Key.Backspace);
 
-        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Named(rig));
+        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], rig.Rows());
         Assert.Equal(FirstEntity + 3, rig.Overlay.Focus);
     }
 
@@ -154,8 +189,8 @@ public sealed class OverlayCommandTests
         Assert.Equal(2, rig.Scheduler.Tick);
         Assert.Equal("Populated", rig.Overlay.Title);
         Assert.Equal(2, rig.Overlay.Depth);
-        Assert.Contains("Vanisher", rig.Overlay.Status, StringComparison.Ordinal);
-        Assert.Equal([.. Head, "Lone", "Walker", "Walker (1)"], Named(rig));
+        Assert.Contains("Vanisher", rig.Overlay.Scene.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Lone", "Walker", "Walker (1)"], rig.Rows());
         Assert.Equal(FirstEntity + 2, rig.Overlay.Focus);
     }
 
@@ -177,8 +212,8 @@ public sealed class OverlayCommandTests
         Assert.Equal(1, rig.Scheduler.Tick);
         Assert.Equal("Populated", rig.Overlay.Title);
         Assert.Equal(2, rig.Overlay.Depth);
-        Assert.Contains("Walker", rig.Overlay.Status, StringComparison.Ordinal);
-        Assert.Equal([.. Head, "Lone", "Vanisher", "Walker"], Named(rig));
+        Assert.Contains("Walker", rig.Overlay.Scene.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Lone", "Vanisher", "Walker"], rig.Rows());
     }
 
     // Only a failed scene start is a status-line matter. Any other failure of the tick is the game's
@@ -190,13 +225,13 @@ public sealed class OverlayCommandTests
 
         rig.Open();
         rig.Press(Key.S);
-        Assert.Equal([.. Head[..11], "  (Commands)", "  Arm", "", "[Entities]", "<Nothing to show>"], Named(rig));
+        Assert.Equal([.. Head[..11], "  (Commands)", "  Arm", "", "[Entities]", "<Nothing to show>"], rig.Rows());
 
         InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(
             () => rig.Frame(DeviceSnapshot.Of(Key.Enter)));
 
         Assert.Equal("armed", thrown.Message);
-        Assert.Equal(string.Empty, rig.Overlay.Status);
+        Assert.Equal(string.Empty, rig.Overlay.Scene.Status);
     }
 
     [Fact]
@@ -206,7 +241,7 @@ public sealed class OverlayCommandTests
 
         rig.Open();
         rig.Press(Key.S);
-        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], Named(rig));
+        Assert.Equal([.. Head, "Lone", "Walker", "Vanisher", "Walker (1)"], rig.Rows());
 
         rig.Press(Key.Backspace);
         rig.Press(Key.L);
@@ -220,7 +255,7 @@ public sealed class OverlayCommandTests
         rig.Press(Key.S);
 
         Assert.Equal("OtherScene", rig.Overlay.Title);
-        Assert.Equal([.. Head, "Lone"], Named(rig));
+        Assert.Equal([.. Head, "Lone"], rig.Rows());
 
         rig.Press(Key.Backspace);
         rig.Press(Key.L);
@@ -232,7 +267,7 @@ public sealed class OverlayCommandTests
 
         Assert.Equal("EmptyScene", rig.Overlay.Title);
         Assert.Equal(2, rig.Overlay.Depth);
-        Assert.Equal([.. Head, "<Nothing to show>"], Named(rig));
+        Assert.Equal([.. Head, "<Nothing to show>"], rig.Rows());
     }
 
     [Fact]
@@ -250,8 +285,8 @@ public sealed class OverlayCommandTests
 
         Assert.Equal("OtherScene", rig.Overlay.Title);
         Assert.Equal(2, rig.Overlay.Depth);
-        Assert.Contains("Lone", rig.Overlay.Status, StringComparison.Ordinal);
-        Assert.Equal([.. Head, "Lone"], Named(rig));
+        Assert.Contains("Lone", rig.Overlay.Scene.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Lone"], rig.Rows());
     }
 
     // A step from the parent's panel takes the child out. The Back that exposes the child's panel
@@ -263,7 +298,7 @@ public sealed class OverlayCommandTests
 
         rig.Open();
         rig.Press(Key.S);
-        Assert.Equal([.. Head, "Walker", "  Vanisher"], Named(rig));
+        Assert.Equal([.. Head, "Walker", "  Vanisher"], rig.Rows());
 
         rig.Press(Key.Up);
         rig.Press(Key.Enter);
@@ -282,7 +317,7 @@ public sealed class OverlayCommandTests
 
         Assert.Equal("Parented", rig.Overlay.Title);
         Assert.Equal(2, rig.Overlay.Depth);
-        Assert.Contains("Vanisher", rig.Overlay.Status, StringComparison.Ordinal);
-        Assert.Equal([.. Head, "Walker"], Named(rig));
+        Assert.Contains("Vanisher", rig.Overlay.Scene.Status, StringComparison.Ordinal);
+        Assert.Equal([.. Head, "Walker"], rig.Rows());
     }
 }

@@ -139,7 +139,7 @@ build naming the fix.
 A `Material` binds a shader with its parameter values. `Renderer.Material` draws a renderer with it, and
 `TileMap.Material` draws a whole tile map with it. An entity that assigns a material after it has started
 declares it from `CollectAssets` ([`assets.md`](assets.md#loading-and-residency)). Draw order never
-changes for a material. Lines, the light map and the development overlay draw with the engine's own
+changes for a material. Lines, the light map and the debug overlay draw with the engine's own
 shader.
 
 ## Two layers, and draw order
