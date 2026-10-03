@@ -25,6 +25,11 @@ public sealed class SceneSimulation : ISimulation, IDisposable
 
     private CameraView? _viewCamera;
 
+    // Set by a host that places this simulation's world layer itself, not through the scene's camera.
+    // The camera's viewport is then unused. The undrawn-world warning is skipped. A new simulation starts
+    // with it off.
+    internal bool HostPlacesWorld { get; set; }
+
     /// <summary>Starts <paramref name="scene"/> under <paramref name="run"/>.</summary>
     /// <param name="scene">The scene to run.</param>
     /// <param name="entryPayload">State supplied by the transition that opened the scene.</param>
@@ -258,7 +263,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     // touches the camera and must not warn. The warning fires once per simulation.
     private void WarnOnUndrawnWorldLayer()
     {
-        if (_warnedOnUndrawnWorldLayer)
+        if (_warnedOnUndrawnWorldLayer || HostPlacesWorld)
         {
             return;
         }
@@ -276,7 +281,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
 
         _warnedOnUndrawnWorldLayer = true;
         Log.Warning(
-            "the world layer has content but the scene's Camera.ViewportSize is not positive on both "
-            + "axes. The scene renders black. Set the scene's camera to a positive ViewportSize");
+            $"the world layer of {Scene.GetType().Name} has content but the scene's Camera.ViewportSize is "
+            + "not positive on both axes. The scene renders black. Set the scene's camera to a positive ViewportSize");
     }
 }

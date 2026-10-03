@@ -165,6 +165,31 @@ public sealed class OverlayRunTests
         Assert.Equal(string.Empty, rig.Overlay.Scene.Status);
     }
 
+    // The overlay's world layer is placed on the game's, never through the overlay scene's own camera.
+    // A debug draw channel fills that layer. The undrawn-world warning must not fire for it.
+    [Fact]
+    public void AnEnabledDebugDrawChannel_LogsNoUndrawnWorldWarning()
+    {
+        CollectingLogSink sink = new();
+        Log.UseSink(sink);
+        try
+        {
+            using OverlayRig rig = Framing(new FramedScene());
+
+            rig.Open();
+            rig.Press(Key.Right);
+            rig.Overlay.ToggleChannel("Origins");
+            rig.Frame();
+
+            Assert.NotEqual(0, rig.Overlay.View.Lines.Length);
+            Assert.DoesNotContain(sink.Entries, entry => entry.Message.Contains("ViewportSize", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Log.UseSink(null);
+        }
+    }
+
     [Fact]
     public void Exit_TearsDownTheRunAndTheNextHeldAdvanceReportsIt()
     {

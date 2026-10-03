@@ -37,6 +37,7 @@ public sealed class SceneSimulationDiagnosticsTests : IDisposable
         LogEntry entry = Assert.Single(sink.Entries);
         Assert.Equal(LogLevel.Warning, entry.Level);
         Assert.Contains("ViewportSize", entry.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(SceneFixtures.HookScene), entry.Message, StringComparison.Ordinal);
     }
 
     // MainMenu and Options in the sample are class-only scenes that never touch the camera and run

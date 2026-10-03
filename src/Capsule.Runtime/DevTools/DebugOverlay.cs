@@ -123,9 +123,10 @@ internal sealed class DebugOverlay : IDisposable
             EmitsDebugDraw = false,
         };
 
-        // Withdrawn before the simulation writes its first frame.
+        // Withdrawn before the simulation writes its first frame. The renderer places the overlay's world
+        // layer on the game's. The overlay scene's camera frames nothing.
         Scene.ShowMenu(false);
-        _sceneSimulation = new SceneSimulation(Scene, run: _sceneRun);
+        _sceneSimulation = new SceneSimulation(Scene, run: _sceneRun) { HostPlacesWorld = true };
 
         List<InputButton> overlayButtons = [];
         foreach (InputAction action in OverlayActions.Actions)
