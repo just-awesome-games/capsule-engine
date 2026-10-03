@@ -8,11 +8,13 @@ namespace Capsule.Particles;
 
 /// <summary>
 /// Draws a fixed pool of sprite particles simulated on the fixed step, one
-/// <see cref="SpriteIntent"/> per live particle. A particle moves on its own once spawned and does
-/// not follow the entity.
+/// <see cref="SpriteIntent"/> per live particle.
 /// </summary>
 /// <remarks>
-/// Positions are in world units under a world root and canvas pixels under a screen root.
+/// Positions are in world units under a world root and canvas pixels under a screen root. In
+/// <see cref="ParticleSpace.World"/> a particle moves on its own once spawned and does not follow the
+/// entity. In <see cref="ParticleSpace.Local"/> it rides the entity's position, turn and mirror.
+/// Neither space applies the entity's scale to a particle's motion or size.
 /// <para>
 /// The simulation is engine state seeded from the run's seed. A headless run emits exactly the
 /// intents a windowed run draws, and two runs of one seed are identical. A spawn into a full pool
@@ -113,6 +115,9 @@ public sealed class ParticleEmitter : Renderer
     /// <summary>The pool's fixed size, set at construction.</summary>
     public int Capacity { get; }
 
+    /// <summary>Where live particles are kept, <see cref="ParticleSpace.World"/> by default and fixed at construction.</summary>
+    public ParticleSpace Space { get; init; }
+
     /// <summary>How many particles are alive now.</summary>
     public int Alive => _alive;
 
@@ -148,12 +153,19 @@ public sealed class ParticleEmitter : Renderer
     public FloatRange Speed { get; set; }
 
     /// <summary>
+    /// Speed added at launch along the line from the shape's centre to the spawn point, in units per
+    /// second with negative inward, zero by default.
+    /// </summary>
+    /// <remarks>A particle spawned on the shape's centre gets none.</remarks>
+    public FloatRange RadialSpeed { get; set; }
+
+    /// <summary>
     /// Seconds a particle lives, one by default. The drawn value rounds up to whole steps at spawn, one
     /// step at least.
     /// </summary>
     public FloatRange Lifetime { get; set; } = new(1f, 1f);
 
-    /// <summary>Acceleration on every live particle, in units per second squared. Zero by default.</summary>
+    /// <summary>Acceleration on every live particle, in units per second squared along world directions in either <see cref="Space"/>, zero by default.</summary>
     public Vector2 Gravity { get; set; }
 
     /// <summary>Velocity drag per second, applied as <c>velocity *= max(0, 1 - Damping * dt)</c> each step. Zero by default.</summary>
@@ -190,6 +202,7 @@ public sealed class ParticleEmitter : Renderer
     /// <summary>
     /// The frames a particle draws from. Empty, the default, draws the constructor's sprite.
     /// </summary>
+    /// <remarks>A new value reaches live particles on their next draw.</remarks>
     public ReadOnlyMemory<Sprite> Sprites
     {
         get => _sprites;
@@ -204,7 +217,11 @@ public sealed class ParticleEmitter : Renderer
     /// <summary>How a particle picks which of <see cref="Sprites"/> to draw. <see cref="Particles.SpriteMode.RandomAtSpawn"/> by default.</summary>
     public SpriteMode SpriteMode { get; set; }
 
-    /// <summary>The fraction of the emitter's own velocity a particle spawned by <see cref="Rate"/> or <see cref="RateOverDistance"/> inherits. Zero by default.</summary>
+    /// <summary>
+    /// The fraction of the emitter's own velocity that a particle spawned by <see cref="Rate"/> or
+    /// <see cref="RateOverDistance"/> inherits, zero by default.
+    /// </summary>
+    /// <remarks>It has no effect in <see cref="ParticleSpace.Local"/>, where particles already move with the entity.</remarks>
     public float InheritVelocity
     {
         get => _inheritVelocity;
@@ -237,7 +254,11 @@ public sealed class ParticleEmitter : Renderer
         }
     }
 
-    /// <summary>Particles spawned per unit the emitter moves while <see cref="Emitting"/>, zero by default. A fractional remainder carries to the next step.</summary>
+    /// <summary>
+    /// Particles spawned per unit the entity travels in the world while <see cref="Emitting"/>, in either
+    /// <see cref="Space"/>, zero by default.
+    /// </summary>
+    /// <remarks>A fractional remainder carries to the next step.</remarks>
     public float RateOverDistance
     {
         get => _rateOverDistance;
@@ -272,9 +293,26 @@ public sealed class ParticleEmitter : Renderer
     /// The rect covering every live particle's last move, grown by the largest frame's reach at its
     /// largest scale. Empty with nothing alive.
     /// </summary>
-    public override Rect Bounds => _hasBounds
-        ? Inflate(_boundsMin, _boundsMax, _boundsRadius * MathF.Max(-Scale.Min, Scale.Max) * ScaleOverLifetime.Reach)
-        : default;
+    public override Rect Bounds
+    {
+        get
+        {
+            if (!_hasBounds)
+            {
+                return default;
+            }
+
+            Vector2 min = _boundsMin;
+            Vector2 max = _boundsMax;
+            if (Space == ParticleSpace.Local)
+            {
+                // The local box placed through both frames covers every position a draw interpolates.
+                PlaceBox(Frame(PreviousRenderTransform), Frame(RenderTransform), ref min, ref max);
+            }
+
+            return Inflate(min, max, _boundsRadius * MathF.Max(-Scale.Min, Scale.Max) * ScaleOverLifetime.Reach);
+        }
+    }
 
     /// <summary>
     /// Spawns <paramref name="count"/> particles now, at <see cref="Shape"/> about <see cref="Offset"/>,
@@ -421,6 +459,25 @@ public sealed class ParticleEmitter : Renderer
         bool held = Entity!.Held;
         int step = Entity.Scene.StepsBegun;
 
+        bool local = Space == ParticleSpace.Local;
+        Transform2D previousFrame = default;
+        Transform2D currentFrame = default;
+        float previousTurn = 1f;
+        float currentTurn = 1f;
+        bool flipX = false;
+        bool flipY = false;
+        if (local)
+        {
+            previousFrame = Frame(PreviousRenderTransform);
+            currentFrame = Frame(RenderTransform);
+
+            // A mirror conjugates a particle's own turn, as it does a child entity's.
+            previousTurn = previousFrame.Mirrored ? -1f : 1f;
+            currentTurn = currentFrame.Mirrored ? -1f : 1f;
+            flipX = currentFrame.Scale.X < 0f;
+            flipY = currentFrame.Scale.Y < 0f;
+        }
+
         for (int index = 0; index < _alive; index++)
         {
             ref readonly Particle particle = ref _particles[index];
@@ -431,15 +488,27 @@ public sealed class ParticleEmitter : Renderer
             float scale = particle.Scale * scaleOverLifetime.Evaluate(t);
             Vector2 size = new Vector2(frame.Region.Width, frame.Region.Height) * scale;
 
+            Vector2 previousPosition = still ? particle.Position : particle.PreviousPosition;
+            Vector2 position = particle.Position;
+            float previousRotation = still ? particle.Rotation : particle.PreviousRotation;
+            float rotation = particle.Rotation;
+            if (local)
+            {
+                previousPosition = previousFrame.TransformPoint(previousPosition);
+                position = currentFrame.TransformPoint(position);
+                previousRotation = previousFrame.Rotation + (previousTurn * previousRotation);
+                rotation = currentFrame.Rotation + (currentTurn * rotation);
+            }
+
             SpriteIntent intent = new(
                 frame,
-                still ? particle.Position : particle.PreviousPosition,
-                particle.Position,
-                still ? particle.Rotation : particle.PreviousRotation,
-                particle.Rotation,
+                previousPosition,
+                position,
+                previousRotation,
+                rotation,
                 size,
-                false,
-                false,
+                flipX,
+                flipY,
                 color.Evaluate(t),
                 Blend);
 
@@ -470,7 +539,11 @@ public sealed class ParticleEmitter : Renderer
     private void Step(float dt, in Transform2D previous, in Transform2D current)
     {
         _hasBounds = false;
-        Vector2 gravityStep = Gravity * dt;
+        bool local = Space == ParticleSpace.Local;
+        Transform2D turn = Turn(current);
+
+        // Gravity pulls a world direction. A local particle takes it in the entity's current frame.
+        Vector2 gravityStep = local ? turn.InverseTransformPoint(Gravity * dt) : Gravity * dt;
         float drag = MathF.Max(0f, 1f - (Damping * dt));
 
         // Survivors move down over the dead in order, one run of them at a time. Draw order never
@@ -511,7 +584,7 @@ public sealed class ParticleEmitter : Renderer
         _alive = live + _alive - run;
 
         Vector2 displacement = current.Position - previous.Position;
-        Vector2 emitterVelocity = dt > 0f ? displacement / dt : Vector2.Zero;
+        Vector2 emitterVelocity = dt > 0f && !local ? displacement / dt : Vector2.Zero;
 
         int rateCount = 0;
         int distanceCount = 0;
@@ -529,38 +602,61 @@ public sealed class ParticleEmitter : Renderer
         int owed = rateCount + distanceCount;
         if (owed > 0)
         {
-            Vector2 prevWorld = previous.TransformPoint(Offset);
-            Vector2 curWorld = current.TransformPoint(Offset);
+            // A local particle spawns in the entity's frame, which carries the move.
+            Vector2 previousCentre = local ? LocalCentre(Offset, current) : previous.TransformPoint(Offset);
+            Vector2 currentCentre = local ? previousCentre : current.TransformPoint(Offset);
 
             for (int index = 0; index < owed; index++)
             {
                 float f = (index + 0.5f) / owed;
-                SpawnOne(prevWorld, curWorld, emitterVelocity, f, dt, current);
+                SpawnOne(previousCentre, currentCentre, emitterVelocity, f, dt, turn);
             }
         }
     }
 
-    private void SpawnImmediate(int count, Vector2 local)
+    private void SpawnImmediate(int count, Vector2 at)
     {
         Transform2D current = RenderTransform;
-        Vector2 origin = current.TransformPoint(local);
+        Transform2D turn = Turn(current);
+        Vector2 centre = Space == ParticleSpace.Local ? LocalCentre(at, current) : current.TransformPoint(at);
 
         for (int index = 0; index < count; index++)
         {
-            SpawnOne(origin, origin, Vector2.Zero, 0.5f, _lastDeltaSeconds, current);
+            SpawnOne(centre, centre, Vector2.Zero, 0.5f, _lastDeltaSeconds, turn);
         }
     }
 
-    // Places one particle at fraction f of the emitter's move, offset by the shape sample turned the way
-    // Direction is.
-    private void SpawnOne(Vector2 prevWorld, Vector2 curWorld, Vector2 emitterVelocity, float f, float dt, in Transform2D spawnTransform)
+    // Places one particle at fraction f of the centre's move, offset by the shape sample. The launch is
+    // drawn in the entity's unit frame, and in World space turn maps it into the world.
+    private void SpawnOne(Vector2 previousCentre, Vector2 currentCentre, Vector2 emitterVelocity, float f, float dt, in Transform2D turn)
     {
-        Vector2 origin = Vector2.Lerp(prevWorld, curWorld, f) + RotateMirror(Shape.Sample(_random), spawnTransform);
+        Vector2 sample = Shape.Sample(_random);
 
         Vector2 localDirection = Direction == Vector2.Zero
             ? Rotate(Vector2.UnitX, float.DegreesToRadians(_random.Range(0f, 360f)))
             : Rotate(Direction / Direction.Length(), float.DegreesToRadians(_random.Range(-Spread / 2f, Spread / 2f)));
-        Vector2 velocity = (RotateMirror(localDirection, spawnTransform) * _random.Range(Speed)) + (InheritVelocity * emitterVelocity);
+        Vector2 velocity = localDirection * _random.Range(Speed);
+
+        // Drawn only when set. An effect without it keeps its random stream.
+        if (RadialSpeed != default)
+        {
+            float radialSpeed = _random.Range(RadialSpeed);
+            if (sample != Vector2.Zero)
+            {
+                velocity += Vector2.Normalize(sample) * radialSpeed;
+            }
+        }
+
+        Vector2 origin;
+        if (Space == ParticleSpace.Local)
+        {
+            origin = currentCentre + sample;
+        }
+        else
+        {
+            origin = Vector2.Lerp(previousCentre, currentCentre, f) + turn.TransformPoint(sample);
+            velocity = turn.TransformPoint(velocity) + (InheritVelocity * emitterVelocity);
+        }
 
         float lifetimeSeconds = _random.Range(Lifetime);
         int lifetimeTicks = Math.Max(1, (int)MathF.Ceiling(lifetimeSeconds / MathF.Max(dt, 1e-6f)));
@@ -630,13 +726,33 @@ public sealed class ParticleEmitter : Renderer
         return frames[Math.Min(index, frames.Length - 1)];
     }
 
-    private static Vector2 RotateMirror(Vector2 local, in Transform2D transform)
-    {
-        Vector2 mirrored = new(
-            transform.Scale.X < 0f ? -local.X : local.X,
-            transform.Scale.Y < 0f ? -local.Y : local.Y);
+    // The transform's position, turn and mirror at unit size: the frame a local particle moves in.
+    private static Transform2D Frame(in Transform2D transform) => transform.With(transform.Position, Mirror(transform.Scale));
 
-        return Rotate(mirrored, transform.Rotation);
+    // The transform's turn and mirror at unit size about the origin: the frame a launch is drawn in.
+    private static Transform2D Turn(in Transform2D transform) => transform.With(Vector2.Zero, Mirror(transform.Scale));
+
+    private static Vector2 Mirror(Vector2 scale) => new(scale.X < 0f ? -1f : 1f, scale.Y < 0f ? -1f : 1f);
+
+    // The shape centre in the unit frame. A local particle there lands where a world spawn would.
+    private static Vector2 LocalCentre(Vector2 at, in Transform2D transform) => at * Vector2.Abs(transform.Scale);
+
+    // Replaces min and max with the world box of the local box's corners placed through both frames.
+    private static void PlaceBox(in Transform2D previous, in Transform2D current, ref Vector2 min, ref Vector2 max)
+    {
+        Vector2 lower = min;
+        Vector2 upper = max;
+        min = new Vector2(float.PositiveInfinity);
+        max = new Vector2(float.NegativeInfinity);
+
+        for (int corner = 0; corner < 4; corner++)
+        {
+            Vector2 point = new((corner & 1) == 0 ? lower.X : upper.X, (corner & 2) == 0 ? lower.Y : upper.Y);
+            Vector2 placedPrevious = previous.TransformPoint(point);
+            Vector2 placedCurrent = current.TransformPoint(point);
+            min = Vector2.Min(min, Vector2.Min(placedPrevious, placedCurrent));
+            max = Vector2.Max(max, Vector2.Max(placedPrevious, placedCurrent));
+        }
     }
 
     private static Vector2 Rotate(Vector2 v, float radians)
