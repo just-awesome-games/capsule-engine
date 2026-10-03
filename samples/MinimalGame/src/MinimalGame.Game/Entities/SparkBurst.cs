@@ -20,9 +20,10 @@ public sealed class SparkBurst : Entity
     {
         _emitter = new ParticleEmitter(Sprite.White, capacity: 8)
         {
+            // A burst on a ring spreads evenly, so six sparks fly out six ways.
+            Shape = EmitShape.Ring(1f),
+            RadialSpeed = (60f, 140f),
             Lifetime = (0.15f, 0.35f),
-            Speed = (60f, 140f),
-            Spread = 360f,
             Gravity = new Vector2(0f, 300f),
             Scale = (1f, 2f),
             ScaleOverLifetime = Curve.Linear(1f, 0f),

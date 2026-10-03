@@ -318,7 +318,10 @@ public sealed class ParticleEmitter : Renderer
     /// Spawns <paramref name="count"/> particles now, at <see cref="Shape"/> about <see cref="Offset"/>,
     /// placed by the entity's transform at this call.
     /// </summary>
-    /// <remarks>Before the emitter has started, the spawn waits and is placed when it starts.</remarks>
+    /// <remarks>
+    /// Before the emitter has started, the spawn waits and is placed when it starts.
+    /// <para>On a ring <see cref="Shape"/> the particles spread evenly round the rim from one drawn start.</para>
+    /// </remarks>
     /// <param name="count">How many to spawn. Zero or fewer spawns nothing.</param>
     public void Emit(int count) => Emit(count, Offset);
 
@@ -330,6 +333,7 @@ public sealed class ParticleEmitter : Renderer
     /// <remarks>
     /// Before the emitter has started, the spawn waits and is placed at the transform the entity starts
     /// with. Counts from several early calls add up and spawn at the last call's point.
+    /// <para>On a ring <see cref="Shape"/> the particles spread evenly round the rim from one drawn start.</para>
     /// </remarks>
     /// <param name="count">How many to spawn. Zero or fewer spawns nothing.</param>
     /// <param name="at">Where the shape is centred, instead of <see cref="Offset"/>.</param>
@@ -609,29 +613,36 @@ public sealed class ParticleEmitter : Renderer
             for (int index = 0; index < owed; index++)
             {
                 float f = (index + 0.5f) / owed;
-                SpawnOne(previousCentre, currentCentre, emitterVelocity, f, dt, turn);
+                SpawnOne(Shape.Sample(_random), previousCentre, currentCentre, emitterVelocity, f, dt, turn);
             }
         }
     }
 
     private void SpawnImmediate(int count, Vector2 at)
     {
+        if (count <= 0)
+        {
+            return;
+        }
+
+        EmitShape shape = Shape;
+        float ringStart = shape.IsRing ? shape.BurstStart(_random) : 0f;
+
         Transform2D current = RenderTransform;
         Transform2D turn = Turn(current);
         Vector2 centre = Space == ParticleSpace.Local ? LocalCentre(at, current) : current.TransformPoint(at);
 
         for (int index = 0; index < count; index++)
         {
-            SpawnOne(centre, centre, Vector2.Zero, 0.5f, _lastDeltaSeconds, turn);
+            Vector2 sample = shape.IsRing ? shape.BurstPoint(ringStart, index, count) : shape.Sample(_random);
+            SpawnOne(sample, centre, centre, Vector2.Zero, 0.5f, _lastDeltaSeconds, turn);
         }
     }
 
-    // Places one particle at fraction f of the centre's move, offset by the shape sample. The launch is
+    // Places one particle at fraction f of the centre's move, offset by its shape sample. The launch is
     // drawn in the entity's unit frame, and in World space turn maps it into the world.
-    private void SpawnOne(Vector2 previousCentre, Vector2 currentCentre, Vector2 emitterVelocity, float f, float dt, in Transform2D turn)
+    private void SpawnOne(Vector2 sample, Vector2 previousCentre, Vector2 currentCentre, Vector2 emitterVelocity, float f, float dt, in Transform2D turn)
     {
-        Vector2 sample = Shape.Sample(_random);
-
         Vector2 localDirection = Direction == Vector2.Zero
             ? Rotate(Vector2.UnitX, float.DegreesToRadians(_random.Range(0f, 360f)))
             : Rotate(Direction / Direction.Length(), float.DegreesToRadians(_random.Range(-Spread / 2f, Spread / 2f)));
