@@ -164,7 +164,64 @@ public sealed class ColliderLifecycleTests
         Assert.Equal(1, collider.LateStepCount);
     }
 
+    // A box scales its offset and size about the entity's position, written while in a scene or
+    // parented under the scale outside one. A negative axis mirrors it and a squash stretches it. A zero
+    // axis takes it out of the world, raising nothing and leaving it enabled, until the scale spans again.
+    [Theory]
+    [InlineData(false, -1f, 1f, -3f, 2f, -1f, 6f)]
+    [InlineData(true, 2f, 0.5f, 2f, 1f, 6f, 3f)]
+    [InlineData(true, 0f, 1f, float.NaN, 0f, 0f, 0f)]
+    [InlineData(false, 1f, 0f, float.NaN, 0f, 0f, 0f)]
+    public void ABox_FollowsAnAxisAlignedScaleInItsAncestry(
+        bool writtenInScene,
+        float scaleX,
+        float scaleY,
+        float left,
+        float top,
+        float right,
+        float bottom)
+    {
+        Placed root = new(new Vector2(100f, 50f));
+        Holder held = new();
+        BoxCollider2D box = new(new Vector2(2f, 4f)) { Offset = new Vector2(1f, 2f) };
+        held.Add(box);
+        Scene scene = new();
+
+        if (writtenInScene)
+        {
+            held.Parent = root;
+            scene.Add(root);
+            root.Scale = new Vector2(scaleX, scaleY);
+        }
+        else
+        {
+            root.Scale = new Vector2(scaleX, scaleY);
+            held.Parent = root;
+            scene.Add(root);
+        }
+
+        Assert.True(box.Enabled);
+        Assert.Equal(new Vector2(1f, 2f), box.Offset);
+        Assert.Equal(new Vector2(2f, 4f), box.Size);
+
+        if (float.IsNaN(left))
+        {
+            Assert.Null(box.World);
+            Assert.Equal(0, scene.Collision.ColliderCount);
+
+            root.Scale = Vector2.One;
+            Assert.Same(scene.Collision, box.World);
+            Assert.Equal(new Vector2(101f, 52f), box.Bounds.Min);
+            return;
+        }
+
+        Assert.Equal(new Aabb2D(new Vector2(100f + left, 50f + top), new Vector2(100f + right, 50f + bottom)), box.Bounds);
+        Assert.Equal(box.Bounds, scene.Collision.WorldShapeOf(box.Handle).Bounds);
+    }
+
     private sealed class Holder() : Entity(Vector2.Zero);
+
+    private sealed class Placed(Vector2 position) : Entity(position);
 
     private sealed class SteppingCollider() : Collider2D(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)))
     {

@@ -132,7 +132,8 @@ public abstract class Component
 
     // Which parts of its entity's transform this component supports. Position alone means the component
     // follows world position and answers in authored space, so it rejects a scroll factor and any turn or
-    // scale up the ancestry. Scale means it can be resized but not turned, and Full accepts everything.
+    // scale up the ancestry. Scale means it can be resized and scrolled but not turned, and Full accepts
+    // everything.
     // The entity throws on whichever comes second, the transform write or the attach.
     internal virtual TransformSupport Supports => TransformSupport.Full;
 
@@ -233,11 +234,14 @@ public abstract class Component
 }
 
 // The parts of an entity's transform a component can sit under. Every component follows Position.
+// Resize accepts a scale up the ancestry and Scroll a scroll factor other than one.
 [Flags]
 internal enum TransformSupport
 {
     Position = 0,
-    Scale = 1,
+    Resize = 1,
     Rotation = 2,
+    Scroll = 4,
+    Scale = Resize | Scroll,
     Full = Scale | Rotation,
 }

@@ -5,7 +5,7 @@ using Capsule.Build.Schemas;
 
 namespace Capsule.Build.Sheets;
 
-[Description("One region of the sheet's texture, with the pivot and sockets it carries.")]
+[Description("One region of the sheet's texture, with the pivot, sockets and boxes it carries.")]
 internal sealed class FrameJson
 {
     [Description("The frame's name, unique among the frames. Letters, digits, '-' and '_', not starting with a digit.")]
@@ -39,4 +39,7 @@ internal sealed class FrameJson
 
     [Description("A declared socket's name mapped to its point on this frame, [x, y] in the pivot's texel space. A frame sets the sockets it has a point for and leaves the rest out.")]
     public Dictionary<string, float[]>? Sockets { get; set; }
+
+    [Description("A declared box's name mapped to its rect on this frame, in the pivot's texel space. A frame sets the boxes it has a rect for and leaves the rest out.")]
+    public Dictionary<string, FrameBoxJson>? Boxes { get; set; }
 }

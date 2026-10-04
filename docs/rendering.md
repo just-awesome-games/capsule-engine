@@ -69,7 +69,7 @@ entity's position, a `Color`, and a `ZIndex` of its own within the entity's band
 
 | Renderer | Draws |
 | --- | --- |
-| `SpriteRenderer` | One `Sprite`. `Socket(name)` returns a child entity the drawn frame places. |
+| `SpriteRenderer` | One `Sprite`. `Socket(name)` returns a child entity the drawn frame places, and `Box(name)` a collider it places. |
 | `ColorRect` | A flat rect of `Size`. |
 | `Label` | A run of a `BitmapFont`, wrapped and aligned inside `Size`. |
 | `NineSlice` | A sprite stretched to `Size` with its `Insets` corners kept. |
@@ -89,6 +89,23 @@ Add(_animator);
 
 ```csharp
 _animator.Play(velocity.X != 0f ? CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Walk : CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Idle);
+```
+
+A box the sheet marks becomes a collider the drawn frame places:
+
+```csharp
+sprite.Box(CapsuleAssets.Sprites.Traps.SpikesSheet.Boxes.Spikes).Layer = CollisionLayers.Hazard;
+```
+
+`Reached(name)` reads an event the clip's entries raised, and `Speed` sets how many clip ticks each step
+advances:
+
+```csharp
+_animator.Speed = Math.Abs(velocity.X) / _tuning.WalkSpeed;
+if (_animator.Reached(CapsuleAssets.Sprites.Actors.PlayerSheet.Events.Footstep))
+{
+    _footstep.Play();
+}
 ```
 
 Animation, tweens and particles are simulation state counted in fixed steps. They mean the same at any

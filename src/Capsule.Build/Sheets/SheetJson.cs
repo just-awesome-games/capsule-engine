@@ -7,17 +7,17 @@ namespace Capsule.Build.Sheets;
 
 // The document as the JSON spells it. Every member is optional here. A missing one is then refused
 // by name instead of as a parse failure, and a member the format does not declare fails the sheet.
-[Description("A sprite sheet: the texture it cuts from, the sockets its frames set, its frames and the clips played over them.")]
+[Description("A sprite sheet: the texture it cuts from, the sockets and boxes its frames set, the events its clips raise, its frames and the clips played over them.")]
 internal sealed class SheetJson
 {
     /// <summary>What a refusal calls a sheet's members and values.</summary>
     internal const string Members = "member or value";
 
     /// <summary>Every member a sheet and its parts may hold, as a refusal lists them.</summary>
-    internal const string Shape = "A sheet holds \"formatVersion\", \"texture\" and \"frames\", and may hold \"sockets\", \"clips\" and \"source\". "
-        + "A frame holds \"name\", \"x\", \"y\", \"width\" and \"height\", and may hold \"pivot\" and \"sockets\". "
-        + "A clip holds \"name\" and \"frames\", each a \"frame\" and its \"ticks\", and may hold \"loop\". "
-        + "A socket holds \"name\", and \"source\" holds \"tool\", \"path\" and \"hash\".";
+    internal const string Shape = "A sheet holds \"formatVersion\", \"texture\" and \"frames\", and may hold \"sockets\", \"boxes\", \"events\", \"clips\" and \"source\". "
+        + "A frame holds \"name\", \"x\", \"y\", \"width\" and \"height\", and may hold \"pivot\", \"sockets\" and \"boxes\". A frame's box holds \"x\", \"y\", \"width\" and \"height\". "
+        + "A clip holds \"name\" and \"frames\", each a \"frame\" and its \"ticks\", and may hold \"loop\". An entry may hold \"events\". "
+        + "A socket, a box or an event holds \"name\", and \"source\" holds \"tool\", \"path\" and \"hash\".";
 
     // Read and ignored.
     [JsonPropertyName(SchemaKeyConverter.Key)]
@@ -36,6 +36,12 @@ internal sealed class SheetJson
 
     [Description("The sockets the frames set. Absent or empty generates no Sockets class.")]
     public List<SocketJson>? Sockets { get; set; }
+
+    [Description("The boxes the frames set. Absent or empty generates no Boxes class.")]
+    public List<BoxJson>? Boxes { get; set; }
+
+    [Description("The events the clip entries raise. Absent or empty generates no Events class.")]
+    public List<EventJson>? Events { get; set; }
 
     [Description("The regions of the texture the sheet names, at least one.")]
     [Required]

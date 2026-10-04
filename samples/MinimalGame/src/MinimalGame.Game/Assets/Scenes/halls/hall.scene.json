@@ -11,7 +11,7 @@
     {
       "type": "tile-map",
       "tileSize": 16,
-      "width": 4,
+      "width": 10,
       "height": 2,
       "texture": "textures/tiles.png",
       "columns": 2,
@@ -26,8 +26,8 @@
         }
       ],
       "tiles": [
-        0, 0, 0, 0,
-        1, 1, 1, 1
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1
       ],
       "collider": true
     },
@@ -38,12 +38,29 @@
     },
     {
       "type": "door",
-      "x": 48,
+      "x": 144,
       "y": -16,
       "exit": {
         "destination": "scenes/room",
         "arriveAt": "east"
       }
+    },
+    {
+      "type": "spikes",
+      "x": 56,
+      "y": 8
+    },
+    {
+      "type": "spikes",
+      "x": 72,
+      "y": 8,
+      "phase": 20
+    },
+    {
+      "type": "spikes",
+      "x": 88,
+      "y": 8,
+      "phase": 40
     },
     {
       "type": "entrance",

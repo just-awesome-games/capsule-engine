@@ -12,25 +12,35 @@ namespace Capsule.Physics;
 /// <see cref="Scenes.Entity.WorldPosition"/> every step.
 /// </summary>
 /// <remarks>
-/// Position is the only transform it follows. Rotation and scale anywhere in the entity's ancestry
-/// are refused while a collider is present. The subclass defines the shape, and
-/// <see cref="Offset"/> places it relative to the position. Every query throws while the collider
-/// is disabled or in no scene. A filter built from another collision world's layers throws too.
+/// Position is what a collider follows. A <see cref="BoxCollider2D"/> also follows an axis-aligned
+/// scale in the entity's ancestry. Every collider refuses a turn anywhere in that ancestry, and every
+/// other collider refuses a scale too. The subclass defines the shape, and <see cref="Offset"/> places
+/// it relative to the position. Every query throws while the collider is disabled or in no scene. A
+/// filter built from another collision world's layers throws too.
 /// <para>
-/// A contact handler cannot reconfigure the collider it was raised for. <see cref="Enabled"/>,
-/// <see cref="Offset"/>, <see cref="Layer"/>, <see cref="ReportsContacts"/>,
-/// <see cref="Detects"/> and a subclass's shape all throw for the length of the dispatch. A
-/// handler may detach the collider. Detaching removes it from the world, raises the exits it owes,
-/// and cancels the remaining enters for this step.
+/// A contact handler may change its own collider's <see cref="Enabled"/>, <see cref="Offset"/> and
+/// shape, and the change applies at once. Disabling or detaching the collider removes it from the
+/// world, raises the exits it owes, and cancels the remaining enters for this step. Enabling it again
+/// in the same dispatch announces nothing more until the next step. <see cref="Layer"/>,
+/// <see cref="Detects"/>, <see cref="ReportsContacts"/>, <see cref="OneWay"/>,
+/// <see cref="SolidSides"/> and attaching the collider throw for the length of the dispatch.
 /// </para>
 /// </remarks>
 public abstract class Collider2D : Component
 {
     private Shape2D _shape;
 
-    // The shape translated by the offset. This is the form the world holds.
+    // The shape at its offset under the world scale. This is the form the world holds.
     private Shape2D _local;
     private Vector2 _offset;
+
+    // The world scale _local was built for. Only a box sits under a scale other than one.
+    private Vector2 _scale = Vector2.One;
+
+    // Whether the scaled shape spans no more than the slop on an axis. The collider then stays out of
+    // the world with Enabled unchanged, and _local keeps the last shape that spanned.
+    private bool _collapsed;
+
     private string _layer = CollisionWorld2D.DefaultLayerName;
     private bool _enabled = true;
     private bool _reportsContacts;
@@ -58,6 +68,10 @@ public abstract class Collider2D : Component
 
     // True while this collider's own enter and exit handlers are running.
     private bool _dispatching;
+
+    // Counts unregisters. A dispatch that sees it change stops announcing enters, even when a handler
+    // has registered the collider again.
+    private int _unregisters;
 
     // The interned index of Layer in the world this collider is registered with.
     private int _layerIndex;
@@ -88,8 +102,9 @@ public abstract class Collider2D : Component
     /// order.
     /// </summary>
     /// <remarks>
-    /// A handler may not reconfigure the collider. A handler that detaches it ends the dispatch,
-    /// and the contacts the loop had not reached go unannounced.
+    /// A handler may change the collider's <see cref="Enabled"/>, <see cref="Offset"/> and shape, and
+    /// sees the change at once. A handler that disables or detaches it ends the dispatch, and the
+    /// contacts the loop had not reached go unannounced.
     /// </remarks>
     public event Action<ColliderContact2D>? ContactEntered;
 
@@ -100,14 +115,15 @@ public abstract class Collider2D : Component
     /// </summary>
     /// <remarks>
     /// Exits come in <see cref="Touching"/> order, before the step's enters. Each enter is paired with
-    /// one exit, provided the handlers return normally.
+    /// one exit, provided the handlers return normally. A handler may change the collider as a
+    /// <see cref="ContactEntered"/> handler may.
     /// </remarks>
     public event Action<ColliderContact2D>? ContactExited;
 
     /// <summary>The shape in the collider's own space. <see cref="Offset"/> and the entity's position place it.</summary>
     public Shape2D Shape => _shape;
 
-    // The shape at its offset. The world translates this by the entity's position.
+    // The shape at its offset under the world scale. The world translates this by the entity's position.
     internal Shape2D Local => _local;
 
     // The shape at its current place in the world.
@@ -116,25 +132,20 @@ public abstract class Collider2D : Component
             ? _local.Translated(entity.WorldPosition)
             : throw new InvalidOperationException("This Collider2D is attached to no entity. Attach it before asking where its shape sits.");
 
-    // Null to use the channel's colour. A disabled collider draws in that colour at half alpha.
-    private protected ColorRgba? DebugColor => _enabled ? null : DebugDraw.ColorOf(DebugDraw.Colliders) with { A = 128 };
+    // Null to use the channel's colour. A disabled or collapsed collider draws in that colour at half alpha.
+    private protected ColorRgba? DebugColor => _enabled && !_collapsed ? null : DebugDraw.ColorOf(DebugDraw.Colliders) with { A = 128 };
 
     private protected Vector2 Motion => Entity!.WorldPosition - Entity.PreviousWorld.Position;
 
-    /// <summary>Added to the entity's position to place the shape. Zero by default.</summary>
+    /// <summary>Added to the entity's position to place the shape, in the collider's own units. Zero by default.</summary>
     /// <exception cref="ArgumentException">The shape cannot be placed at this offset.</exception>
     public Vector2 Offset
     {
         get => _offset;
         set
         {
-            RequireNotDispatching();
             Guard.Finite(value, nameof(value));
-            RequirePlaceable(_shape, value);
-
-            _offset = value;
-            _local = _shape.Translated(value);
-            Resync();
+            Reshape(_shape, value, _scale);
         }
     }
 
@@ -147,25 +158,9 @@ public abstract class Collider2D : Component
         get => _enabled;
         set
         {
-            if (_enabled == value)
+            if (_enabled != value)
             {
-                return;
-            }
-
-            RequireNotDispatching();
-            _enabled = value;
-            if (_scene is null)
-            {
-                return;
-            }
-
-            if (value)
-            {
-                Register();
-            }
-            else
-            {
-                Unregister();
+                SetEnabled(value);
             }
         }
     }
@@ -514,16 +509,20 @@ public abstract class Collider2D : Component
     /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or cannot be placed at the current offset.</exception>
     protected void SetShape(in Shape2D shape)
     {
-        RequireNotDispatching();
         RequireShape(shape);
-        RequirePlaceable(shape, _offset);
-
-        _shape = shape;
-        _local = shape.Translated(_offset);
-        Resync();
+        Reshape(shape, _offset, _scale);
     }
 
-    internal sealed override TransformSupport Supports => TransformSupport.Position;
+    internal override TransformSupport Supports => TransformSupport.Position;
+
+    // Builds the form the world holds from the shape, its offset and the world scale, or returns false
+    // when that form spans no more than the slop on an axis. Only a collider whose Supports includes
+    // Resize ever sees a scale other than one.
+    private protected virtual bool TryPlace(in Shape2D shape, Vector2 offset, Vector2 scale, out Shape2D placed)
+    {
+        placed = shape.Translated(offset);
+        return true;
+    }
 
     // Re-attaching during a dispatch would put the collider back in the world, and whether it
     // settled again this step would depend on its position in the scene's list.
@@ -556,8 +555,11 @@ public abstract class Collider2D : Component
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()
     {
+        // Parenting outside a scene notifies nothing, so the scale catches up before registering.
+        FollowScale();
+
         _scene = Entity!.Scene;
-        if (_enabled)
+        if (_enabled && !_collapsed)
         {
             Register();
         }
@@ -568,6 +570,24 @@ public abstract class Collider2D : Component
     {
         Unregister();
         _scene = null;
+    }
+
+    private void SetEnabled(bool value)
+    {
+        _enabled = value;
+        if (_scene is null || _collapsed)
+        {
+            return;
+        }
+
+        if (value)
+        {
+            Register();
+        }
+        else
+        {
+            Unregister();
+        }
     }
 
     private void Register()
@@ -602,6 +622,7 @@ public abstract class Collider2D : Component
             return;
         }
 
+        _unregisters++;
         _scene?.UntrackContacts(this);
         world.Remove(_handle);
         ReleaseRiders();
@@ -626,6 +647,9 @@ public abstract class Collider2D : Component
 
         _touchingCount = 0;
 
+        // This can run inside a dispatch, from a handler that disabled or detached the collider. The
+        // outer dispatch stays guarded after it.
+        bool dispatching = _dispatching;
         _dispatching = true;
         try
         {
@@ -639,7 +663,7 @@ public abstract class Collider2D : Component
         }
         finally
         {
-            _dispatching = false;
+            _dispatching = dispatching;
         }
     }
 
@@ -647,6 +671,8 @@ public abstract class Collider2D : Component
     // same translation and then shoves the bodies it moved into.
     internal override void OnEntityMoved()
     {
+        FollowScale();
+
         if (_world is not { } world)
         {
             return;
@@ -871,6 +897,7 @@ public abstract class Collider2D : Component
         ColliderContact2D[] left = _wasTouching;
         bool[] announced = _announced;
 
+        int unregisters = _unregisters;
         _dispatching = true;
         try
         {
@@ -884,7 +911,7 @@ public abstract class Collider2D : Component
 
             // A handler that detaches this collider removes it from the world and raises the exits
             // it owes. Nothing is left to enter.
-            for (int index = 0; index < count && _world is not null; index++)
+            for (int index = 0; index < count && _unregisters == unregisters; index++)
             {
                 if (announced[index])
                 {
@@ -937,15 +964,54 @@ public abstract class Collider2D : Component
         return leftCount;
     }
 
-    // Builds the shape the way the world would hold it before anything is committed. An offset that
-    // cannot be placed throws here instead of later, when the entity joins a scene.
-    private void RequirePlaceable(in Shape2D shape, Vector2 offset)
+    // A pure translation leaves the world scale as it was and does no shape work.
+    private void FollowScale()
     {
-        Shape2D local = shape.Translated(offset);
+        Vector2 scale = Entity!.WorldTransform.Scale;
+        if (scale != _scale)
+        {
+            Reshape(_shape, _offset, scale);
+        }
+    }
 
-        if (Entity is { } entity)
+    // Builds the form the world holds and commits it with its inputs. A form that cannot be placed
+    // throws before anything changes, here instead of later when the entity joins a scene. A form that
+    // collapses takes the collider out of the world as disabling does, and one that spans again puts
+    // it back.
+    private void Reshape(in Shape2D shape, Vector2 offset, Vector2 scale)
+    {
+        bool spans = TryPlace(shape, offset, scale, out Shape2D local);
+        if (spans && Entity is { } entity)
         {
             _ = local.Translated(entity.WorldPosition);
+        }
+
+        bool wasCollapsed = _collapsed;
+        _shape = shape;
+        _offset = offset;
+        _scale = scale;
+        _collapsed = !spans;
+        if (spans)
+        {
+            _local = local;
+        }
+
+        if (_scene is null || !_enabled)
+        {
+            return;
+        }
+
+        if (!spans)
+        {
+            Unregister();
+        }
+        else if (wasCollapsed)
+        {
+            Register();
+        }
+        else if (_world is { } world)
+        {
+            world.SetShape(_handle, _local);
         }
     }
 
@@ -1022,15 +1088,6 @@ public abstract class Collider2D : Component
     // The world keeps candidates only for a collider that reports contacts.
     private void SyncContactFilter() =>
         _world!.SetContactFilter(_handle, _reportsContacts ? Filter : CollisionFilter.None);
-
-    private void Resync()
-    {
-        if (_world is { } world)
-        {
-            world.SetShape(_handle, _local);
-            world.SetPosition(_handle, Entity!.WorldPosition);
-        }
-    }
 
     // The world allows a zero distance, but a zero-length ray from a collider that ignores itself
     // always returns false. Reject it as a caller mistake.

@@ -154,6 +154,7 @@ public sealed class EntityDebugPanelTests
                 ("Loop", "True"),
                 ("IsFinished", "False"),
                 ("Paused", "False"),
+                ("Speed", "1"),
                 ("Restart", null),
             ],
             rows[(heading + 1)..]);

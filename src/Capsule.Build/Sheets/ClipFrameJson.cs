@@ -16,4 +16,7 @@ internal sealed class ClipFrameJson
     [Required]
     [Range(1, int.MaxValue)]
     public int? Ticks { get; set; }
+
+    [Description("The declared events this entry raises as it starts, each listed once. Absent is none.")]
+    public List<string>? Events { get; set; }
 }

@@ -81,6 +81,13 @@ public partial class Entity
         Parent = parent;
     }
 
+    // A plain root at the origin, for an engine child that must hold its components before it is
+    // parented. Parenting then checks them against the ancestry before the child is linked.
+    internal Entity()
+        : this(Vector2.Zero)
+    {
+    }
+
     /// <summary>A root entity at <paramref name="position"/>, in world units.</summary>
     /// <param name="position">
     /// The starting position. A spawn does not interpolate from the origin.
@@ -343,7 +350,7 @@ public partial class Entity
         }
 
         TransformSupport supports = component.Supports;
-        if ((supports & TransformSupport.Scale) == 0 && ScrollFactor != Vector2.One)
+        if ((supports & TransformSupport.Scroll) == 0 && ScrollFactor != Vector2.One)
         {
             throw Unscrollable(component);
         }
@@ -355,7 +362,7 @@ public partial class Entity
                 throw Turned(component, this, above, above._local.Rotation);
             }
 
-            if ((supports & TransformSupport.Scale) == 0 && above._local.Scale != Vector2.One)
+            if ((supports & TransformSupport.Resize) == 0 && above._local.Scale != Vector2.One)
             {
                 throw Scaled(component, this, above, above._local.Scale);
             }
@@ -771,7 +778,7 @@ public partial class Entity
     // Throws if anything in this subtree forbids a scroll factor other than one.
     private void RequireScrollable()
     {
-        if (FirstRefuser(TransformSupport.Scale) is var (component, _))
+        if (FirstRefuser(TransformSupport.Scroll) is var (component, _))
         {
             throw Unscrollable(component);
         }

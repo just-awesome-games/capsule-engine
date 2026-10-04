@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using Capsule.Assets;
 using Capsule.Diagnostics;
+using Capsule.Physics;
 using Capsule.Scenes;
 
 namespace Capsule.Rendering;
@@ -14,7 +15,10 @@ namespace Capsule.Rendering;
 /// <remarks>
 /// A negative scale axis mirrors the frame about the pivot, the same way a flip does. Coordinates
 /// are Y-down, in world units under a world root and canvas pixels under a screen root. A frame's
-/// sockets are placed the same way, as child entities bound through <see cref="Socket"/>.
+/// sockets are placed the same way, as child entities bound through <see cref="Socket"/>, and its
+/// boxes as colliders bound through <see cref="Box"/>. Detaching the renderer disables its boxes, and
+/// attaching it to the same entity again re-places them. Attaching it to any other entity throws
+/// <see cref="InvalidOperationException"/>.
 /// </remarks>
 /// <param name="sprite">The frame to draw.</param>
 public sealed class SpriteRenderer(Sprite sprite) : Renderer
@@ -24,15 +28,16 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     private bool _flipX;
     private bool _flipY;
 
-    // The first Socket call allocates the list, because most renderers bind no sockets.
+    // The first Socket or Box call allocates its list, because most renderers bind neither.
     private List<SocketBinding>? _sockets;
+    private List<BoxBinding>? _boxes;
 
     /// <summary>
     /// The frame this renderer draws. Swap it to animate, or to change a static frame.
     /// </summary>
     /// <remarks>
-    /// Writing it re-places every bound socket the new frame carries, under the rules
-    /// <see cref="Socket"/> describes, before returning.
+    /// Writing it re-places every bound socket the new frame carries and every bound box, under the
+    /// rules <see cref="Socket"/> and <see cref="Box"/> describe, before returning.
     /// </remarks>
     public Sprite Sprite
     {
@@ -49,7 +54,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     /// The point in the entity's own space where the frame's pivot lands, placed by the entity's
     /// world transform. Zero by default, which puts it on the entity.
     /// </summary>
-    /// <remarks>Bound sockets follow it.</remarks>
+    /// <remarks>Bound sockets and boxes follow it.</remarks>
     public Vector2 Offset
     {
         get => _offset;
@@ -75,7 +80,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     /// </remarks>
     public Vector2 Tiling { get; set; }
 
-    /// <summary>Whether the frame is mirrored horizontally about its pivot. Bound sockets mirror with it.</summary>
+    /// <summary>Whether the frame is mirrored horizontally about its pivot. Bound sockets and boxes mirror with it.</summary>
     public bool FlipX
     {
         get => _flipX;
@@ -87,7 +92,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         }
     }
 
-    /// <summary>Whether the frame is mirrored vertically about its pivot. Bound sockets mirror with it.</summary>
+    /// <summary>Whether the frame is mirrored vertically about its pivot. Bound sockets and boxes mirror with it.</summary>
     public bool FlipY
     {
         get => _flipY;
@@ -193,6 +198,74 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         return binding.Child;
     }
 
+    /// <summary>
+    /// Returns the collider covering the box named <paramref name="name"/>. The first call creates it
+    /// on a child entity of this renderer's entity, and every later call returns the same instance.
+    /// </summary>
+    /// <remarks>
+    /// The renderer writes the collider's <see cref="Collider2D.Enabled"/>, <see cref="Collider2D.Offset"/>
+    /// and <see cref="BoxCollider2D.Size"/>, and owns the child entity, which is named for the box and
+    /// leaves the scene with its parent. The game sets its <see cref="Collider2D.Layer"/>,
+    /// <see cref="Collider2D.Detects"/>, <see cref="Collider2D.ReportsContacts"/>,
+    /// <see cref="Collider2D.OneWay"/> and handlers. A game's own write to the three the renderer
+    /// writes lasts until the renderer next places the box.
+    /// <para>
+    /// On a frame carrying the box the collider is enabled and covers the box's rect. The rect is
+    /// measured from the frame's pivot, moved by <see cref="Offset"/> and mirrored about the pivot by
+    /// <see cref="FlipX"/> and <see cref="FlipY"/>, in the entity's own space. On a frame without the
+    /// box, and before any frame carries it, the collider is disabled. Unlike a socket, a box does not
+    /// hold over a frame that lacks it. Every write to <see cref="Sprite"/>, <see cref="Offset"/>,
+    /// <see cref="FlipX"/> or <see cref="FlipY"/> re-places it before returning. The box reports a
+    /// contact on the step the animator enters its frame.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// A hurt box that reports what damages it:
+    /// <code>
+    /// BoxCollider2D hurt = sprite.Box(CapsuleAssets.Sprites.Actors.EnemySheet.Boxes.Hurt);
+    /// hurt.Layer = CollisionLayers.EnemyHurt;
+    /// hurt.Detects = new(CollisionLayers.Damaging);
+    /// hurt.ReportsContacts = true;
+    /// hurt.ContactEntered += OnHurt;
+    /// </code>
+    /// </example>
+    /// <param name="name">The box's name as the sheet declared it. The sheet's generated <c>Boxes</c> class lists them.</param>
+    /// <exception cref="InvalidOperationException">The renderer is attached to no entity. Attach it first.</exception>
+    public BoxCollider2D Box(string name)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
+        if (Entity is not { } entity)
+        {
+            throw new InvalidOperationException(
+                "This renderer is attached to no entity. Attach it before binding a box, whose collider sits on a child of that entity.");
+        }
+
+        _boxes ??= [];
+
+        foreach (BoxBinding bound in _boxes)
+        {
+            if (bound.Name == name)
+            {
+                return bound.Collider;
+            }
+        }
+
+        // The collider is attached before the child is parented. A turned ancestry then refuses the
+        // child before it is linked, and nothing is left behind.
+        BoxBinding binding = new(name);
+        Read(binding);
+        binding.Collider = new BoxCollider2D(Spans(binding) ? Extent(binding.Area) : Vector2.One) { Enabled = false };
+        Entity child = new() { Name = name };
+        child.Add(binding.Collider);
+        child.Parent = entity;
+
+        _boxes.Add(binding);
+        Place(binding);
+
+        return binding.Collider;
+    }
+
     /// <inheritdoc/>
     protected internal override void CollectAssets(AssetCollection assets)
     {
@@ -233,7 +306,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     // comparison usually matches on reference without reading a character.
     private void Read(SocketBinding binding)
     {
-        ReadOnlySpan<SpriteSocket> carried = _sprite.Sockets.Span;
+        ReadOnlySpan<SpriteSocket> carried = _sprite.Marks is { } marks ? marks.Sockets : [];
         binding.Carried = false;
 
         foreach (ref readonly SpriteSocket socket in carried)
@@ -249,24 +322,131 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         }
     }
 
-    // Re-places every binding, first re-reading its point when the frame changed.
+    private void Read(BoxBinding binding)
+    {
+        ReadOnlySpan<SpriteBox> carried = _sprite.Marks is { } marks ? marks.Boxes : [];
+        binding.Carried = false;
+
+        foreach (ref readonly SpriteBox box in carried)
+        {
+            if (box.Name == binding.Name)
+            {
+                binding.Area = box.Area;
+                binding.Pivot = _sprite.Pivot;
+                binding.Carried = true;
+                break;
+            }
+        }
+    }
+
     private void Place(bool frameChanged)
     {
-        if (_sockets is null)
+        if (_sockets is not null)
+        {
+            foreach (SocketBinding binding in _sockets)
+            {
+                if (frameChanged)
+                {
+                    Read(binding);
+                }
+
+                Place(binding);
+            }
+        }
+
+        if (_boxes is not null)
+        {
+            foreach (BoxBinding binding in _boxes)
+            {
+                if (frameChanged)
+                {
+                    Read(binding);
+                }
+
+                Place(binding);
+            }
+        }
+    }
+
+    // Bound boxes return to the world with the renderer. Their children never left the entity.
+    internal override void OnAttachedTo(Entity entity)
+    {
+        base.OnAttachedTo(entity);
+        if (_boxes is null)
         {
             return;
         }
 
-        foreach (SocketBinding binding in _sockets)
+        foreach (BoxBinding binding in _boxes)
         {
-            if (frameChanged)
+            if (!ReferenceEquals(binding.Collider.Entity?.Parent, entity))
             {
-                Read(binding);
+                throw new InvalidOperationException(
+                    $"This renderer's box '{binding.Name}' sits under the entity it was bound on, not this one. Bind boxes on a new renderer for this entity.");
             }
+        }
 
+        foreach (BoxBinding binding in _boxes)
+        {
             Place(binding);
         }
     }
+
+    // Bound boxes leave the world with the renderer. Sockets stay where they are.
+    internal override void OnDetachingFrom(Entity entity)
+    {
+        base.OnDetachingFrom(entity);
+        if (_boxes is null)
+        {
+            return;
+        }
+
+        foreach (BoxBinding binding in _boxes)
+        {
+            binding.Collider.Enabled = false;
+        }
+    }
+
+    // Writes the rect in the entity's own space, mirrored about the pivot as the frame is drawn. The
+    // child sits at the entity's origin, and the collider scales the rect from there. Only changed
+    // values are written.
+    private void Place(BoxBinding binding)
+    {
+        BoxCollider2D collider = binding.Collider;
+        if (Entity is null || !Spans(binding))
+        {
+            collider.Enabled = false;
+            return;
+        }
+
+        Rect area = binding.Area;
+        Vector2 pivot = binding.Pivot;
+        Vector2 size = Extent(area);
+        Vector2 offset = _offset + new Vector2(
+            _flipX ? pivot.X - area.Right : area.Left - pivot.X,
+            _flipY ? pivot.Y - area.Bottom : area.Top - pivot.Y);
+
+        if (size != collider.Size)
+        {
+            collider.Size = size;
+        }
+
+        if (offset != collider.Offset)
+        {
+            collider.Offset = offset;
+        }
+
+        collider.Enabled = true;
+    }
+
+    // A hand-built frame may carry a rect too thin to be a box. It leaves the collider disabled.
+    private static bool Spans(BoxBinding binding)
+    {
+        Vector2 size = Extent(binding.Area);
+        return binding.Carried && size.X > CollisionTolerance.LinearSlop && size.Y > CollisionTolerance.LinearSlop;
+    }
+
+    private static Vector2 Extent(Rect area) => new(area.Right - area.Left, area.Bottom - area.Top);
 
     // Mirrors about the pivot, matching the drawn frame. The entity tree composes the parent's scale and
     // turn, which keeps a facing written as a negative scale from folding in twice.
@@ -299,17 +479,17 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         panel.Toggle("FlipX", FlipX, on => FlipX = on);
         panel.Toggle("FlipY", FlipY, on => FlipY = on);
 
-        if (_sockets is null)
-        {
-            return;
-        }
-
-        foreach (SocketBinding binding in _sockets)
+        foreach (SocketBinding binding in _sockets ?? [])
         {
             panel.Field(
                 "Socket " + binding.Name,
                 DebugPanel.Format(binding.Child.Position)
                     + (binding.Carried ? " on this frame" : binding.Placed ? " held from an earlier frame" : " on no frame yet"));
+        }
+
+        foreach (BoxBinding binding in _boxes ?? [])
+        {
+            panel.Field("Box " + binding.Name, binding.Carried ? "on this frame" : "off");
         }
     }
 
@@ -322,6 +502,16 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         internal Vector2 Point;
         internal Vector2 Pivot;
         internal bool Placed;
+        internal bool Carried;
+    }
+
+    // One bound box: the collider it places and the rect the current frame carries for it, if any.
+    private sealed class BoxBinding(string name)
+    {
+        internal readonly string Name = name;
+        internal BoxCollider2D Collider = null!;
+        internal Rect Area;
+        internal Vector2 Pivot;
         internal bool Carried;
     }
 }

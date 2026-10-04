@@ -1,6 +1,6 @@
 namespace Capsule.Build.Sheets;
 
-/// <summary>One region of the sheet's texture, with the pivot and sockets it carries.</summary>
+/// <summary>One region of the sheet's texture, with the pivot, sockets and boxes it carries.</summary>
 internal readonly record struct SheetFrame(
     string Name,
     int X,
@@ -9,4 +9,5 @@ internal readonly record struct SheetFrame(
     int Height,
     float PivotX,
     float PivotY,
-    SheetSocket[] Sockets);
+    SheetSocket[] Sockets,
+    SheetBox[] Boxes);

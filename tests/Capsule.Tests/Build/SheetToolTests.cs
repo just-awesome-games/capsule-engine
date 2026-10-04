@@ -26,13 +26,19 @@ public sealed class SheetToolTests
         """;
 
     // A socket every frame need not set: the walk's second frame bobs it, the third leaves it out.
+    // The first frame's box reaches past its region, and only the walk's first entry raises an event.
     private const string Armed = """
         { "formatVersion": 1, "texture": "p.png",
           "sockets": [ { "name": "muzzle" }, { "name": "off-hand" } ],
+          "boxes": [ { "name": "hurt" } ],
+          "events": [ { "name": "footstep" } ],
           "frames": [
-            { "name": "walk-0", "x": 0, "y": 0, "width": 8, "height": 8, "pivot": [4, 8], "sockets": { "muzzle": [8, 4], "off-hand": [0, 5.5] } },
+            { "name": "walk-0", "x": 0, "y": 0, "width": 8, "height": 8, "pivot": [4, 8], "sockets": { "muzzle": [8, 4], "off-hand": [0, 5.5] },
+              "boxes": { "hurt": { "x": -1, "y": 0.5, "width": 10, "height": 7 } } },
             { "name": "walk-1", "x": 8, "y": 0, "width": 8, "height": 8, "pivot": [4, 8], "sockets": { "muzzle": [8, 3] } },
-            { "name": "walk-2", "x": 16, "y": 0, "width": 8, "height": 8, "pivot": [4, 8] } ] }
+            { "name": "walk-2", "x": 16, "y": 0, "width": 8, "height": 8, "pivot": [4, 8] } ],
+          "clips": [ { "name": "walk", "loop": true, "frames": [
+            { "frame": "walk-0", "ticks": 6, "events": ["footstep"] }, { "frame": "walk-1", "ticks": 6 } ] } ] }
         """;
 
     [Fact]
@@ -80,10 +86,11 @@ public sealed class SheetToolTests
         Assert.DoesNotContain("public static class Sockets", generated, StringComparison.Ordinal);
     }
 
-    // A socket is a name constant the game binds by and a point each frame carries or leaves out; one
-    // table per frame is what makes two reads of that frame equal and allocation-free.
+    // A socket or a box is a name constant the game binds by and a mark each frame carries or leaves
+    // out; one table per frame is what makes two reads of that frame equal and allocation-free. An
+    // event is a name constant and a list on each clip entry, never on the frame it plays.
     [Fact]
-    public void ASocket_CompilesIntoANameConstantAndThePointsOfTheFramesThatSetIt()
+    public void SocketsBoxesAndEvents_CompileIntoNameConstantsAndTheMarksAndEntriesThatSetThem()
     {
         string generated = Emitted(("armed", Armed));
 
@@ -97,8 +104,21 @@ public sealed class SheetToolTests
             "new global::Capsule.Rendering.SpriteSocket(\"off-hand\", new global::System.Numerics.Vector2(0F, 5.5F))",
             generated,
             StringComparison.Ordinal);
-        Assert.Contains("private static readonly global::Capsule.Rendering.SpriteSocket[] Walk1_Sockets", generated, StringComparison.Ordinal);
-        Assert.DoesNotContain("Walk2_Sockets", generated, StringComparison.Ordinal);
+        Assert.Contains("private static readonly global::Capsule.Rendering.SpriteMarks Walk1_Marks", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("Walk2_Marks", generated, StringComparison.Ordinal);
+
+        Assert.Contains("public const string Hurt = \"hurt\";", generated, StringComparison.Ordinal);
+        Assert.Contains(
+            "new global::Capsule.Rendering.SpriteBox(\"hurt\", new global::Capsule.Rendering.Rect(new global::System.Numerics.Vector2(-1F, 0.5F), new global::System.Numerics.Vector2(10F, 7F)))",
+            generated,
+            StringComparison.Ordinal);
+        Assert.Contains("<c>walk-0</c>: 8x8 at (0, 0), sockets <c>muzzle</c>, <c>off-hand</c>, box <c>hurt</c>.", generated, StringComparison.Ordinal);
+
+        Assert.Contains("public const string Footstep = \"footstep\";", generated, StringComparison.Ordinal);
+        Assert.Contains(
+            "new string[][] { new string[] { \"footstep\" }, global::System.Array.Empty<string>() });",
+            generated,
+            StringComparison.Ordinal);
     }
 
     // The sheet's own spelling of the texture is normalized to the key the build ships it under, so a
@@ -134,14 +154,14 @@ public sealed class SheetToolTests
     {
         string generated = Emitted(
             ("prop", """
-                { "formatVersion": 1, "texture": "p.png", "source": null, "clips": null, "sockets": null,
-                  "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "pivot": null, "sockets": null } ] }
+                { "formatVersion": 1, "texture": "p.png", "source": null, "clips": null, "sockets": null, "boxes": null, "events": null,
+                  "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "pivot": null, "sockets": null, "boxes": null } ] }
                 """),
             ("held", """
                 { "formatVersion": 1, "texture": "p.png",
                   "source": { "tool": null, "path": "p", "hash": null },
                   "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ],
-                  "clips": [ { "name": "c", "loop": null, "frames": [ { "frame": "a", "ticks": 1 } ] } ] }
+                  "clips": [ { "name": "c", "loop": null, "frames": [ { "frame": "a", "ticks": 1, "events": null } ] } ] }
                 """));
 
         Assert.Contains("new global::System.Numerics.Vector2(0F, 0F));", generated, StringComparison.Ordinal);
@@ -229,7 +249,17 @@ public sealed class SheetToolTests
           "clips": [ { "name": "clips", "frames": [ { "frame": "a", "ticks": 1 } ] } ] }
         """, "'Clips' class")]
 
-    // Sockets: declared once, set by name, and set by at least one frame.
+    // Sockets, boxes and events: declared once, set by name, and set by at least one frame or entry.
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png",
+          "boxes": [ { "name": "hurt" } ],
+          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "boxes": { "hrt": { "x": 0, "y": 0, "width": 1, "height": 1 } } } ] }
+        """, "setting box \"hrt\", which the sheet does not declare")]
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png", "events": [ { "name": "step" } ],
+          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ],
+          "clips": [ { "name": "c", "frames": [ { "frame": "a", "ticks": 1, "events": ["step", "stpe"] } ] } ] }
+        """, "raising event \"stpe\", which the sheet does not declare")]
     [InlineData("""
         { "formatVersion": 1, "texture": "p.png",
           "sockets": [ { "name": "muzzle" } ],

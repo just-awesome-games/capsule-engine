@@ -3,7 +3,7 @@ using Capsule.Assets;
 
 namespace Capsule.Rendering;
 
-/// <summary>One drawable frame: a region of a texture, the point inside it a position anchors, and the named points a sheet set on it.</summary>
+/// <summary>One drawable frame: a region of a texture, the point inside it a position anchors, and the named marks a sheet set on it.</summary>
 /// <param name="Texture">The texture the region is cut from.</param>
 /// <param name="Region">The region drawn, in texels of <paramref name="Texture"/>.</param>
 /// <param name="Pivot">
@@ -12,15 +12,15 @@ namespace Capsule.Rendering;
 /// region about it. A pivot halfway across an axis flips in place, while a pivot at the edge swings the
 /// region across the position.
 /// </param>
-/// <param name="Sockets">
-/// The named points this frame carries, in <paramref name="Pivot"/>'s texel space, and empty by
-/// default. The frame holds the caller's memory without copying it. Names are unique within a frame.
+/// <param name="Marks">
+/// The named sockets and boxes this frame carries, in <paramref name="Pivot"/>'s texel space, and none
+/// by default. Sprites of one frame share one instance.
 /// </param>
 public readonly record struct Sprite(
     TextureHandle Texture,
     TextureRegion Region,
     Vector2 Pivot = default,
-    ReadOnlyMemory<SpriteSocket> Sockets = default)
+    SpriteMarks? Marks = null)
 {
     /// <summary>
     /// The engine's white texel, anchored at its corner. Flat colour is drawn from this frame,

@@ -30,7 +30,8 @@ public sealed class EntityAttachmentTests
     }
 
     // The attach, the parent write and the transform write each refuse. The message names the entity
-    // carrying the value. A collider follows position alone, and a label or panel scales but cannot turn.
+    // carrying the value. A collider cannot turn, a circle or a body's box cannot scale either, and a
+    // label or panel scales but cannot turn.
     [Fact]
     public void AComponentThatCannotTurnOrScale_IsRefusedAtEverySite()
     {
@@ -42,10 +43,13 @@ public sealed class EntityAttachmentTests
         Assert.Throws<InvalidOperationException>(() => child.Add(new Label(BitmapFont.Default, "hi")));
 
         Node collides = new(Vector2.Zero);
-        collides.Add(new BoxCollider2D(new Vector2(4f, 4f)));
+        collides.Add(new CircleCollider2D(2f));
         Assert.Throws<InvalidOperationException>(() => collides.Parent = turned);
         Assert.Throws<InvalidOperationException>(() => collides.Parent = new Node(Vector2.Zero) { Scale = new Vector2(2f, 2f) });
         Assert.Null(collides.Parent);
+        InvalidOperationException body = Assert.Throws<InvalidOperationException>(
+            () => new SceneFixtures.Body(Vector2.Zero).Parent = new Node(Vector2.Zero) { Scale = new Vector2(2f, 2f) });
+        Assert.Contains("KinematicBody2D", body.Message, StringComparison.Ordinal);
 
         Node upright = new(Vector2.Zero);
         collides.Parent = upright;

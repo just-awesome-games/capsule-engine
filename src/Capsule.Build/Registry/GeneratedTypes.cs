@@ -21,6 +21,12 @@ internal static class GeneratedTypes
 
     internal const string SpriteSocket = "global::Capsule.Rendering.SpriteSocket";
 
+    internal const string SpriteBox = "global::Capsule.Rendering.SpriteBox";
+
+    internal const string SpriteMarks = "global::Capsule.Rendering.SpriteMarks";
+
+    internal const string Rect = "global::Capsule.Rendering.Rect";
+
     internal const string SpriteClip = "global::Capsule.Animation.SpriteClip";
 
     internal const string Shader = "global::Capsule.Rendering.Shader";

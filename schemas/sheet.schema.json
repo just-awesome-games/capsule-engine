@@ -3,7 +3,7 @@
   "$id": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/sheet.schema.json",
   "$comment": "Generated from Capsule.Build.Sheets.SheetJson.",
   "title": "Capsule sprite sheet",
-  "description": "A sprite sheet: the texture it cuts from, the sockets its frames set, its frames and the clips played over them.",
+  "description": "A sprite sheet: the texture it cuts from, the sockets and boxes its frames set, the events its clips raise, its frames and the clips played over them.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -28,6 +28,42 @@
         "properties": {
           "name": {
             "description": "The socket's name, unique among the sockets. Letters, digits, '-' and '_', not starting with a digit.",
+            "type": "string",
+            "pattern": "^[-_]*[A-Za-z][A-Za-z0-9_-]*$"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ]
+      }
+    },
+    "boxes": {
+      "description": "The boxes the frames set. Absent or empty generates no Boxes class.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "The box's name, unique among the boxes. Letters, digits, '-' and '_', not starting with a digit.",
+            "type": "string",
+            "pattern": "^[-_]*[A-Za-z][A-Za-z0-9_-]*$"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ]
+      }
+    },
+    "events": {
+      "description": "The events the clip entries raise. Absent or empty generates no Events class.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "The event's name, unique among the events. Letters, digits, '-' and '_', not starting with a digit.",
             "type": "string",
             "pattern": "^[-_]*[A-Za-z][A-Za-z0-9_-]*$"
           }
@@ -87,6 +123,40 @@
                 "type": "number"
               }
             }
+          },
+          "boxes": {
+            "description": "A declared box's name mapped to its rect on this frame, in the pivot's texel space. A frame sets the boxes it has a rect for and leaves the rest out.",
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "description": "The box's left edge in texels of the frame, finite.",
+                  "type": "number"
+                },
+                "y": {
+                  "description": "The box's top edge in texels of the frame, finite.",
+                  "type": "number"
+                },
+                "width": {
+                  "description": "The box's width in texels, positive.",
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "height": {
+                  "description": "The box's height in texels, positive.",
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "x",
+                "y",
+                "width",
+                "height"
+              ]
+            }
           }
         },
         "additionalProperties": false,
@@ -131,6 +201,13 @@
                   "description": "The fixed steps the frame is held for, at least one. Not milliseconds.",
                   "type": "integer",
                   "minimum": 1
+                },
+                "events": {
+                  "description": "The declared events this entry raises as it starts, each listed once. Absent is none.",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 }
               },
               "additionalProperties": false,

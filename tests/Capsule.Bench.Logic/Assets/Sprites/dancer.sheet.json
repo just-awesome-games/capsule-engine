@@ -1,0 +1,24 @@
+{
+  "formatVersion": 1,
+  "texture": "textures/walker.png",
+  "boxes": [{ "name": "strike" }],
+  "events": [{ "name": "step" }],
+  "frames": [
+    { "name": "dance-0", "x": 0, "y": 0, "width": 16, "height": 24, "pivot": [8, 24] },
+    { "name": "dance-1", "x": 16, "y": 0, "width": 16, "height": 24, "pivot": [8, 24], "boxes": { "strike": { "x": 10, "y": 6, "width": 10, "height": 8 } } },
+    { "name": "dance-2", "x": 32, "y": 0, "width": 16, "height": 24, "pivot": [8, 24] },
+    { "name": "dance-3", "x": 48, "y": 0, "width": 16, "height": 24, "pivot": [8, 24], "boxes": { "strike": { "x": 12, "y": 4, "width": 12, "height": 10 } } }
+  ],
+  "clips": [
+    {
+      "name": "dance",
+      "loop": true,
+      "frames": [
+        { "frame": "dance-0", "ticks": 3 },
+        { "frame": "dance-1", "ticks": 3, "events": ["step"] },
+        { "frame": "dance-2", "ticks": 3 },
+        { "frame": "dance-3", "ticks": 3, "events": ["step"] }
+      ]
+    }
+  ]
+}

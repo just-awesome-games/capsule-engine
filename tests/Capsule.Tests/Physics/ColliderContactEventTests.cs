@@ -131,21 +131,77 @@ public sealed class ColliderContactEventTests
         Assert.Equal(3, settled.Collider.Touching.Length);
     }
 
-    // What a handler is being told about must not change underneath it, so the setters that would
-    // change it refuse for as long as the dispatch runs.
-    [Fact]
-    public void AContactHandlerThatReconfiguresItsOwnCollider_IsRefused()
+    // A hurt box's own handler flinches on its first contact. It sees its change at once. Disabling
+    // ends the dispatch as detaching does, and enabling again in the same handler announces nothing
+    // more until the next step. A resized box finishes the dispatch it started and exits what it no
+    // longer touches on the next step. What it detects and the layer it sits on stay refused.
+    [Theory]
+    [InlineData("disables")]
+    [InlineData("disables then enables")]
+    [InlineData("resizes")]
+    [InlineData("changes layer")]
+    public void AContactHandler_ChangesItsOwnCollidersEnabledOffsetAndShapeAtOnce(string flinch)
     {
         Scene scene = SceneFixtures.Terrain("....", "####");
         Straddler body = new(new Vector2(0f, 8f));
         scene.Add(body);
-        body.Collider.ContactEntered += _ => body.Collider.Enabled = false;
 
-        using SceneSimulation simulation = new(scene);
+        bool flinched = false;
+        Aabb2D? placed = null;
+        body.Collider.ContactEntered += _ =>
+        {
+            if (flinched)
+            {
+                return;
+            }
 
-        Assert.Throws<InvalidOperationException>(() => simulation.Step(SceneFixtures.Step(0)));
+            flinched = true;
+            switch (flinch)
+            {
+                case "disables":
+                    body.Collider.Enabled = false;
+                    break;
+                case "disables then enables":
+                    body.Collider.Enabled = false;
+                    body.Collider.Enabled = true;
+                    break;
+                case "resizes":
+                    body.Collider.Size = new Vector2(8f, 8f);
+                    body.Collider.Offset = new Vector2(2f, 0f);
+                    placed = body.Collider.Bounds;
+                    break;
+                default:
+                    body.Collider.Layer = "hurt";
+                    break;
+            }
+        };
 
-        Assert.True(body.Collider.Enabled);
+        using SimulationHost run = new(scene);
+
+        if (flinch == "changes layer")
+        {
+            Assert.Throws<InvalidOperationException>(() => run.Step());
+            Assert.Equal(CollisionWorld2D.DefaultLayerName, body.Collider.Layer);
+            return;
+        }
+
+        run.Step();
+        run.Step();
+
+        switch (flinch)
+        {
+            case "disables":
+                Assert.Equal(["+(0,1)", "-(0,1)"], body.Log);
+                Assert.Null(body.Collider.World);
+                break;
+            case "disables then enables":
+                Assert.Equal(["+(0,1)", "-(0,1)", "+(0,1)", "+(1,1)", "+(2,1)"], body.Log);
+                break;
+            default:
+                Assert.Equal(new Aabb2D(new Vector2(2f, 8f), new Vector2(10f, 16f)), placed);
+                Assert.Equal(["+(0,1)", "+(1,1)", "+(2,1)", "-(1,1)", "-(2,1)"], body.Log);
+                break;
+        }
     }
 
     // The enemy that dies on contact. Detaching the collider from inside its own enter handler ends

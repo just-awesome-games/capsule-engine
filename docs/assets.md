@@ -67,8 +67,13 @@ and `Sockets.Muzzle` a socket's name. A misspelt frame or socket is a build erro
 }
 ```
 
+A sheet may also declare `boxes`, named rects a frame sets as `"boxes": { "hurt": { "x": 1, "y": 0, "width": 6, "height": 8 } }`,
+and `events`, names a clip entry raises as `"events": ["footstep"]`. A box belongs to the drawing, as a
+socket does. An event belongs to the clip entry, and the same frame played by another clip raises none
+of it. Each list generates a `Boxes` or `Events` class of names.
+
 The format's JSON Schema documents every field ([Editor completion](configuring-assets.md#editor-completion)).
-Pivots and socket points are texels from the frame's top-left corner, and durations are fixed steps. An
+Pivots, socket points and boxes are texels from the frame's top-left corner, and durations are fixed steps. An
 importer converting another editor's sheets converts to these units. Playback and sockets are
 [`rendering.md`](rendering.md#renderers).
 

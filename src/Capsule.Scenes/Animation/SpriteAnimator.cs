@@ -27,6 +27,18 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     private AnimationPlayback _playback;
     private bool _pendingStart;
     private long? _startedOnTick;
+    private float _speed = 1f;
+
+    // The fraction of a tick Speed has advanced and no step has spent yet.
+    private float _carry;
+
+    // What the animator's most recent step reported, each name once. Reached reads only this set.
+    private string[] _readable = [];
+    private int _readableCount;
+
+    // What a Play or the removal rewind reported since that step. The animator's next step makes it readable.
+    private string[] _pending = [];
+    private int _pendingCount;
 
     /// <summary>The clip playing, or null until one is played.</summary>
     public SpriteClip? Clip { get; private set; }
@@ -79,6 +91,33 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// </example>
     public bool Paused { get; set; }
 
+    /// <summary>How many clip ticks each step advances. One by default, and zero holds the frame.</summary>
+    /// <remarks>
+    /// A fraction of a tick carries over to later steps. The carry restarts on every <c>Play</c> and
+    /// on removal from the scene. <see cref="Tick"/> and <see cref="FrameTick"/> stay whole ticks. A
+    /// frame crossed inside one step is never drawn and never places its boxes. Above one, an attack's
+    /// one-tick active frame can be skipped. <see cref="Paused"/> holds the clip whatever the speed.
+    /// Removal from the scene keeps the speed, unlike <see cref="Paused"/>. Reverse playback is a
+    /// reversed clip.
+    /// </remarks>
+    public float Speed
+    {
+        get => _speed;
+
+        set
+        {
+            if (!float.IsFinite(value) || value < 0f)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    value,
+                    "Speed is finite and not negative. Play a reversed clip to run an animation backwards.");
+            }
+
+            _speed = value;
+        }
+    }
+
     /// <inheritdoc/>
     protected internal override void CollectAssets(AssetCollection assets)
     {
@@ -96,6 +135,44 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
                 assets.Add(frame.Texture);
             }
         }
+    }
+
+    /// <summary>
+    /// Whether playback reached a frame raising the event <paramref name="name"/> recently enough to
+    /// read it on this step.
+    /// </summary>
+    /// <remarks>
+    /// A frame's events are reported when stepping enters it. That is every frame a step crosses, and
+    /// frame 0 again on every loop wrap. A step crossing several passes of a loop reports each event
+    /// once. Any <c>Play</c> reports the frame it lands on when it lands on that frame's first tick.
+    /// Landing part-way through a frame reports nothing. Playing the clip already playing without a
+    /// restart reports nothing.
+    /// <para>
+    /// Every report is readable from the animator step that makes it until the animator's next step.
+    /// A <c>Play</c> reports toward the animator's next step, which is this tick's step when the
+    /// animator has not stepped yet. A reader that steps after the animator, such as a late step or a
+    /// component attached after it, sees the event on that step. A reader that steps before the
+    /// animator sees it one step later. No reader misses it or sees it twice. An animator held by a
+    /// freeze or pause of its entity does not step, and its reports stay readable until it does.
+    /// Removal from the scene clears every report and rewinds to frame 0. The rewind reports that
+    /// frame toward the animator's first step after it rejoins a scene.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// if (_animator.Reached(CapsuleAssets.Sprites.Actors.PlayerSheet.Events.Footstep))
+    /// {
+    ///     _footstep.Play();
+    /// }
+    /// </code>
+    /// </example>
+    /// <param name="name">The event's name as the sheet declared it. The sheet's generated <c>Events</c> class lists them.</param>
+    /// <returns>Whether the event was reported and is still readable.</returns>
+    public bool Reached(string name)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
+        return Holds(_readable, _readableCount, name);
     }
 
     /// <summary>
@@ -162,7 +239,7 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// The frame holds for the rest of its own ticks, counted from the tick of this call. This method
     /// always repositions, even onto the clip already playing. A frame tick equal to a non-looping
     /// clip's last frame ticks lands finished, as <see cref="FrameTick"/> reads once such a clip
-    /// finishes.
+    /// finishes. A variant swap landing on a frame's first tick reports that frame's events again.
     /// </remarks>
     /// <example>
     /// Swapping a walk for its shooting variant mid-stride:
@@ -207,6 +284,13 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     {
         _pendingStart = true;
         _startedOnTick = Entity?.SceneOrNull?.SteppingTick;
+        _carry = 0f;
+
+        if (_playback.TicksElapsed == 0 && !_playback.IsFinished)
+        {
+            Report(clip.EventsAt(_playback.FrameIndex), ref _pending, ref _pendingCount);
+        }
+
         _renderer.Sprite = clip.Frames[_playback.FrameIndex];
     }
 
@@ -225,6 +309,11 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     protected internal override void OnRemovedFromScene()
     {
         Paused = false;
+        _carry = 0f;
+        Array.Clear(_readable, 0, _readableCount);
+        _readableCount = 0;
+        Array.Clear(_pending, 0, _pendingCount);
+        _pendingCount = 0;
         if (Clip is not { } clip)
         {
             return;
@@ -233,12 +322,19 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         _playback.Restart();
         _pendingStart = true;
         _startedOnTick = null;
+        Report(clip.EventsAt(0), ref _pending, ref _pendingCount);
         _renderer.Sprite = clip.Frames[0];
     }
 
     /// <inheritdoc/>
     protected internal override void OnStep(in StepContext context)
     {
+        // A paused or clipless step still rolls the reports over. The buffers swap to stay allocation-free.
+        (_readable, _pending) = (_pending, _readable);
+        (_readableCount, _pendingCount) = (_pendingCount, _readableCount);
+        Array.Clear(_pending, 0, _pendingCount);
+        _pendingCount = 0;
+
         if (Clip is not { } clip)
         {
             return;
@@ -262,8 +358,91 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
             }
         }
 
-        _playback.Step(clip.FrameTicks, clip.Loop);
-        _renderer.Sprite = clip.Frames[_playback.FrameIndex];
+        float advance = _carry + _speed;
+        float whole = MathF.Floor(advance);
+        _carry = advance - whole;
+
+        int drawn = _playback.FrameIndex;
+        Advance(clip, whole);
+
+        // Only a new frame is written. Writing re-reads the frame's sockets and boxes.
+        if (_playback.FrameIndex != drawn)
+        {
+            _renderer.Sprite = clip.Frames[_playback.FrameIndex];
+        }
+    }
+
+    // Steps the cursor a tick at a time, reporting each frame it enters. Whole passes of a loop are
+    // reported once and skipped, which bounds the work to one pass whatever the speed.
+    private void Advance(SpriteClip clip, float ticks)
+    {
+        if (ticks < 1f)
+        {
+            return;
+        }
+
+        ReadOnlySpan<int> frameTicks = clip.FrameTicks;
+        long steps = 1;
+        if (ticks > 1f)
+        {
+            long total = AnimationPlayback.ValidatedTotal(frameTicks);
+            if (clip.Loop && ticks >= total)
+            {
+                for (int frame = 0; frame < frameTicks.Length; frame++)
+                {
+                    Report(clip.EventsAt(frame), ref _readable, ref _readableCount);
+                }
+
+                steps = (long)((double)ticks % total);
+            }
+            else
+            {
+                steps = ticks >= total ? total : (long)ticks;
+            }
+        }
+
+        for (long step = 0; step < steps && !_playback.IsFinished; step++)
+        {
+            _playback.Step(frameTicks, clip.Loop);
+
+            // A step leaves no ticks spent only on the frame it just entered.
+            if (_playback.TicksElapsed == 0)
+            {
+                Report(clip.EventsAt(_playback.FrameIndex), ref _readable, ref _readableCount);
+            }
+        }
+    }
+
+    private static void Report(ReadOnlySpan<string> events, ref string[] names, ref int count)
+    {
+        foreach (string name in events)
+        {
+            if (Holds(names, count, name))
+            {
+                continue;
+            }
+
+            if (count == names.Length)
+            {
+                Array.Resize(ref names, Math.Max(names.Length * 2, count + events.Length));
+            }
+
+            names[count++] = name;
+        }
+    }
+
+    // Generated names are interned, and the ordinal comparison usually matches on reference first.
+    private static bool Holds(string[] names, int count, string name)
+    {
+        for (int index = 0; index < count; index++)
+        {
+            if (string.Equals(names[index], name, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // A clip has no name. Its frames' span of the sheet identifies it.
@@ -288,6 +467,7 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         panel.Field("Loop", clip.Loop);
         panel.Field("IsFinished", IsFinished);
         panel.Field("Paused", Paused);
+        panel.Field("Speed", Speed);
         panel.Command("Restart", () => Play(clip, restart: true));
     }
 }

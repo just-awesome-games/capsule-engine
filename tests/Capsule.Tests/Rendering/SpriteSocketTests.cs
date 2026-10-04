@@ -18,14 +18,14 @@ public sealed class SpriteSocketTests
     private static readonly TextureHandle Sheet = new("player", ".png");
 
     // Every frame is 8x8 pivoted bottom-centre; the muzzle sits on the right edge, bobbing.
-    private static readonly SpriteSocket[] Mid = [new(Muzzle, new Vector2(8f, 4f))];
-    private static readonly SpriteSocket[] High = [new(Muzzle, new Vector2(8f, 3f))];
-    private static readonly SpriteSocket[] Low = [new(Muzzle, new Vector2(8f, 5f))];
+    private static readonly SpriteMarks Mid = new([new(Muzzle, new Vector2(8f, 4f))]);
+    private static readonly SpriteMarks High = new([new(Muzzle, new Vector2(8f, 3f))]);
+    private static readonly SpriteMarks Low = new([new(Muzzle, new Vector2(8f, 5f))]);
 
     private static readonly Sprite FrameMid = Frame(0, Mid);
     private static readonly Sprite FrameHigh = Frame(1, High);
     private static readonly Sprite FrameLow = Frame(2, Low);
-    private static readonly Sprite FrameBare = Frame(3, []);
+    private static readonly Sprite FrameBare = Frame(3, null);
 
     [Fact]
     public void ABoundSocket_IsOneChildOfTheRenderersEntityNamedForIt()
@@ -155,17 +155,17 @@ public sealed class SpriteSocketTests
         Assert.Equal(new Vector2(-1f, -2f), muzzle.Position);
     }
 
-    // Two reads of a frame over one socket table are the same frame, so an animator comparing
+    // Two reads of a frame over one marks table are the same frame, so an animator comparing
     // frames or a test asserting one sees no difference from the table.
     [Fact]
-    public void SpritesOverOneSocketTable_AreEqual()
+    public void SpritesOverOneMarksTable_AreEqual()
     {
         Sprite first = new(Sheet, new TextureRegion(0, 0, 8, 8), new Vector2(4f, 8f), Mid);
         Sprite second = new(Sheet, new TextureRegion(0, 0, 8, 8), new Vector2(4f, 8f), Mid);
 
         Assert.Equal(first, second);
-        Assert.NotEqual(first, first with { Sockets = High });
-        Assert.NotEqual(first, first with { Sockets = default });
+        Assert.NotEqual(first, first with { Marks = High });
+        Assert.NotEqual(first, first with { Marks = null });
     }
 
     private static (Root Root, SpriteRenderer Renderer, SpriteAnimator Animator, SimulationHost Run) Animating(Vector2 at)
@@ -182,8 +182,8 @@ public sealed class SpriteSocketTests
         return (root, renderer, animator, new SimulationHost(scene));
     }
 
-    private static Sprite Frame(int index, SpriteSocket[] sockets) =>
-        new(Sheet, new TextureRegion(index * 8, 0, 8, 8), new Vector2(4f, 8f), sockets);
+    private static Sprite Frame(int index, SpriteMarks? marks) =>
+        new(Sheet, new TextureRegion(index * 8, 0, 8, 8), new Vector2(4f, 8f), marks);
 
     private sealed class Root(Vector2 position) : Entity(position);
 }

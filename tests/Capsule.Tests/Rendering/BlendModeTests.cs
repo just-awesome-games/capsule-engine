@@ -6,12 +6,12 @@ namespace Capsule.Tests.Rendering;
 
 public sealed class BlendModeTests
 {
-    // Blend landed in the padding after the two bools, and the flash in the padding after Blend: 112
-    // bytes before and after each (measured against the pre-change record shape).
+    // Blend landed in the padding after the two bools, and the flash in the padding after Blend. A
+    // sprite's marks are one reference, which took the intent from 112 bytes to 104.
     [Fact]
     public void SpriteIntent_KeepsItsSize()
     {
-        Assert.Equal(112, Unsafe.SizeOf<SpriteIntent>());
+        Assert.Equal(104, Unsafe.SizeOf<SpriteIntent>());
     }
 
     // Additive premultiplies by alpha, so a glow fades as its alpha falls. Opaque adds the colour exactly.

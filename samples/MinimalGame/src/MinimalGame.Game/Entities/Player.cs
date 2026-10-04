@@ -314,15 +314,17 @@ public sealed class Player : Entity
 
     /// <summary>
     /// Everything the player looks like: the sprite, its animator, facing and squash-and-stretch,
-    /// composed into this child's <see cref="Entity.Scale"/>. It reads what the root publishes and
-    /// reacts; a child steps after its parent, so it reads this step's facts. The muzzle socket is
-    /// placed under this child, so the facing scale mirrors it with the frame.
+    /// composed into this child's <see cref="Entity.Scale"/>, and the footsteps the walk cycle
+    /// raises. It reads what the root publishes and reacts; a child steps after its parent, so it
+    /// reads this step's facts. The muzzle socket is placed under this child, so the facing scale
+    /// mirrors it with the frame.
     /// </summary>
     private sealed class Visual : Entity
     {
         private readonly Player _player;
         private readonly PlayerTuning _tuning;
         private readonly SpriteAnimator _animator;
+        private readonly AudioSource _footstep;
 
         private float _facing = 1f;
         private Vector2 _squash = Vector2.One;
@@ -342,6 +344,9 @@ public sealed class Player : Entity
 
             _animator = new SpriteAnimator(sprite);
             Add(_animator);
+
+            _footstep = new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx };
+            Add(_footstep);
         }
 
         /// <summary>The sign of the X the player faces along; the scale the frame is mirrored by.</summary>
@@ -368,7 +373,12 @@ public sealed class Player : Entity
             {
                 // Asked every step: the animator ignores the clip already playing, so the cycle runs
                 // instead of restarting on frame 0.
-                _animator.Play(velocity.X != 0f ? CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Walk : CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Idle);
+                bool walking = velocity.X != 0f;
+                _animator.Play(walking ? CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Walk : CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Idle);
+
+                // The stride keeps pace with the ground covered. A downhill run or an ice slide plays
+                // it faster.
+                _animator.Speed = walking ? MathF.Abs(velocity.X) / _tuning.WalkSpeed : 1f;
             }
 
             if (_player.JumpedThisStep)
@@ -385,9 +395,15 @@ public sealed class Player : Entity
 
         // A hit flashes white and fades, then the grace reads as a red blink. The root owns the rule
         // and this child owns the look. Read after contacts, so the step a hit lands on draws white
-        // and the hitstop holds it.
+        // and the hitstop holds it. The late step also follows the animator, so a footstep sounds on
+        // the step its frame is drawn.
         protected override void OnLateStep(in StepContext context)
         {
+            if (_animator.Reached(CapsuleAssets.Sprites.Actors.PlayerSheet.Events.Footstep))
+            {
+                _footstep.Play();
+            }
+
             int grace = _player.InvulnerableTicksLeft;
             int sinceHit = _tuning.InvulnerableTicks - grace;
 

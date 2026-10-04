@@ -148,7 +148,7 @@ public partial class Entity
 
     private void RequireScalable(Entity carrier, Vector2 scale)
     {
-        if (scale != Vector2.One && FirstRefuser(TransformSupport.Scale) is var (component, holder))
+        if (scale != Vector2.One && FirstRefuser(TransformSupport.Resize) is var (component, holder))
         {
             throw Scaled(component, holder, carrier, scale);
         }

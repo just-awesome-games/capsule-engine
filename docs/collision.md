@@ -18,8 +18,8 @@ registers when the entity joins a scene and unregisters when the entity leaves.
 | `CapsuleCollider2D(start, end, radius)` | A segment swollen by a radius. |
 | `PolygonCollider2D(points, radius)` | A convex polygon, optionally rounded. |
 
-A collider follows position alone. An entity turned or scaled anywhere up its ancestry refuses a
-collider. The sample's spinning hazard keeps its box on the root and spins a child.
+A collider follows position, and a `BoxCollider2D` also follows an axis-aligned scale up its ancestry.
+Every collider refuses a turn. The sample's spinning hazard keeps its box on the root and spins a child.
 
 ## Layers and filters
 
