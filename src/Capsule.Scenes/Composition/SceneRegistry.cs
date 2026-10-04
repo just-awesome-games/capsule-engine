@@ -315,7 +315,7 @@ public sealed class SceneRegistry
                 $"No scene is registered for '{sceneType}'. A scene registers by being a non-abstract "
                 + "Capsule.Scenes.Scene with either a public parameterless constructor, or a public constructor "
                 + "taking one Capsule.Scenes.SceneContent, which composes it from the scene document it names, "
-                + "the key its namespace names unless [SceneDocument(\"key\")] overrides that. "
+                + "the key its namespace names unless [TypeKey(\"key\")] overrides that. "
                 + $"Registered: {Registered.Names(_byType.Keys)}.");
         }
 

@@ -31,7 +31,7 @@ public sealed class SceneAuthorableTests
         }
 
         // Records what its constructor body sees, then assigns a member of its own.
-        [SceneDocument("scenes/hall")]
+        [TypeKey("scenes/hall")]
         public sealed class Hall : Level
         {
             public Hall(SceneContent content)

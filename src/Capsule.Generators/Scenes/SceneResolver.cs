@@ -94,7 +94,7 @@ internal static class SceneResolver
 
     private static DiagnosticDescriptor? Reported(SceneFault fault) => fault switch
     {
-        SceneFault.SceneDocumentRequiresContentConstructor => Diagnostics.SceneDocumentRequiresContentConstructor,
+        SceneFault.TypeKeyRequiresContentConstructor => Diagnostics.TypeKeyRequiresContentConstructor,
         SceneFault.InaccessibleType => Diagnostics.InaccessibleRegisteredType,
         SceneFault.AmbiguousConstructors => Diagnostics.AmbiguousSceneConstructors,
         _ => null,
@@ -150,42 +150,20 @@ internal static class SceneResolver
         return null;
     }
 
-    // Every scene the assembly declares, by its baseScene key. Eligible classes claim keys first, and two of them
-    // on one key is CAP032. An ineligible class then fills a free key so a baseScene naming it gets CAP028, not CAP030.
+    // Every scene the assembly declares, by its baseScene key. Eligible classes claim keys first under the type key
+    // rule and its refusals. An ineligible class then fills a free key so a baseScene naming it gets CAP028, not CAP030.
     private static Dictionary<string, SceneModel> KeyedBaseScenes(
         List<Diagnostic> diagnostics, ImmutableArray<SceneModel> models, string rootNamespace)
     {
-        List<SceneModel> ordered = new(models);
-        ordered.Sort(static (left, right) =>
+        Dictionary<string, SceneModel> keyed = RegistryPass.Keyed(
+            diagnostics, models.Where(static model => model.BaseFault == SceneFault.None), rootNamespace);
+
+        List<SceneModel> ineligible = [.. models.Where(static model => model.BaseFault != SceneFault.None)];
+        ineligible.Sort(static (left, right) =>
             DeclarationOrder.Compare(left.QualifiedName, left.At, right.QualifiedName, right.At));
-
-        Dictionary<string, SceneModel> keyed = new(StringComparer.Ordinal);
-        foreach (SceneModel model in ordered)
+        foreach (SceneModel model in ineligible)
         {
-            if (model.BaseFault != SceneFault.None)
-            {
-                continue;
-            }
-
-            string key = TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
-            if (keyed.TryGetValue(key, out SceneModel claimed))
-            {
-                diagnostics.Add(Diagnostic.Create(
-                    Diagnostics.DuplicateBaseSceneKey, model.At.Location(), claimed.DisplayName, model.DisplayName, key));
-                continue;
-            }
-
-            keyed.Add(key, model);
-        }
-
-        foreach (SceneModel model in ordered)
-        {
-            if (model.BaseFault == SceneFault.None)
-            {
-                continue;
-            }
-
-            string key = TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
+            string key = model.Declared ?? TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
             if (!keyed.ContainsKey(key))
             {
                 keyed.Add(key, model);

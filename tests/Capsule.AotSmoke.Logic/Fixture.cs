@@ -35,7 +35,7 @@ public static class FixtureInput
     }
 }
 
-[SceneDocument("scenes/fixture")]
+[TypeKey("scenes/fixture")]
 public sealed class FixtureScene(SceneContent content) : Scene(content)
 {
     // What the last scene start read, for the shell to check after the run: a fixture's static.

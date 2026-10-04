@@ -30,12 +30,12 @@ public sealed class SceneGeneratorTests
     }
 
     [Fact]
-    public void SceneDocument_FixesTheAuthoredIdentityAcrossAClassRename()
+    public void ATypeKey_FixesTheClaimedDocumentAcrossAClassRename()
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
-            [SceneDocument("room-01")]
+            [TypeKey("room-01")]
             public sealed class OpeningRoom(SceneContent content) : Scene(content);
             """);
 
@@ -55,7 +55,7 @@ public sealed class SceneGeneratorTests
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
-            [SceneDocument("{{documentName}}")]
+            [TypeKey("{{documentName}}")]
             public sealed class OpeningRoom(SceneContent content) : Scene(content);
             """).Diagnostics;
 
@@ -73,7 +73,7 @@ public sealed class SceneGeneratorTests
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
-            [SceneDocument("Stage1/Room01")]
+            [TypeKey("Stage1/Room01")]
             public sealed class OpeningRoom(SceneContent content) : Scene(content);
             """);
 
@@ -84,7 +84,7 @@ public sealed class SceneGeneratorTests
     }
 
     [Theory]
-    [InlineData("[SceneDocument(\"menu\")] public sealed class MainMenu : Scene;", "CAP007")]
+    [InlineData("[TypeKey(\"menu\")] public sealed class MainMenu : Scene;", "CAP007")]
     [InlineData("public static class Scenes { private sealed class Room(SceneContent content) : Scene(content); }", "CAP008")]
     [InlineData("public sealed class Room : Scene { public Room() { } public Room(SceneContent content) : base(content) { } }", "CAP009")]
     public void ASceneOfAShapeTheRegistryCannotCompose_FailsTheBuild(string declaration, string id)
@@ -159,9 +159,8 @@ public sealed class SceneGeneratorTests
         Assert.Contains("'room-01'", message, StringComparison.Ordinal);
     }
 
-    // A baseScene resolves against every Scene subclass, abstract included, the same key space a
-    // document-backed scene claims. Two abstract classes sharing that key used to pick the first by
-    // declaration order in silence.
+    // A baseScene resolves against every abstract Scene subclass by the type key rule, so two sharing a key
+    // are refused like any other pair of classes claiming one type key.
     [Fact]
     public void TwoAbstractScenesClaimingOneBaseSceneKey_FailTheBuildNamingBoth()
     {
@@ -180,7 +179,7 @@ public sealed class SceneGeneratorTests
             """).Diagnostics;
 
         Diagnostic collision = Assert.Single(GeneratorHarness.Errors(diagnostics));
-        Assert.Equal("CAP032", collision.Id);
+        Assert.Equal("CAP003", collision.Id);
 
         string message = collision.GetMessage(System.Globalization.CultureInfo.InvariantCulture);
         Assert.Contains("Game.PlayableRoom", message, StringComparison.Ordinal);
@@ -289,17 +288,20 @@ public sealed class SceneGeneratorTests
 
     // The template a developer no longer writes: an abstract base with no document of its own, and
     // the document that names it composes into an instance carrying the document's entities.
-    [Fact]
-    public void ADocumentsBaseScene_ComposesAnInstanceOfItCarryingTheDocumentsEntities()
+    [Theory]
+    [InlineData("", "playable-room")]
+    [InlineData("[TypeKey(\"rooms/playable\")]", "rooms/playable")]
+    public void ADocumentsBaseScene_ComposesAnInstanceOfItCarryingTheDocumentsEntities(string attribute, string baseScene)
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(
             $$"""
             {{GeneratorHarness.Preamble}}
 
+            {{attribute}}
             public abstract class PlayableRoom(SceneContent content) : Scene(content);
             """,
             logic: true,
-            ("scenes/halls/hall.scene.json", """{"baseScene": "playable-room", "entities": []}"""));
+            ("scenes/halls/hall.scene.json", $$"""{"baseScene": "{{baseScene}}", "entities": []}"""));
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 

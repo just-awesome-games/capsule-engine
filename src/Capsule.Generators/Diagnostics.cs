@@ -49,10 +49,10 @@ internal static class Diagnostics
         "A scene document key must be a portable path",
         "'{0}' claims unsafe scene document key '{1}'. " + KeyGrammar);
 
-    internal static readonly DiagnosticDescriptor SceneDocumentRequiresContentConstructor = Rule(
+    internal static readonly DiagnosticDescriptor TypeKeyRequiresContentConstructor = Rule(
         "CAP007", ScenesCategory, ScenesPage,
-        "[SceneDocument] requires a document-backed scene",
-        "'{0}' is marked [SceneDocument] but is not a concrete Capsule.Scenes.Scene with one public constructor taking Capsule.Scenes.SceneContent");
+        "A concrete scene with a [TypeKey] must take its document",
+        "'{0}' is marked [TypeKey], which names the document a concrete scene composes from, but has no public constructor taking Capsule.Scenes.SceneContent. Add one, or drop the attribute");
 
     internal static readonly DiagnosticDescriptor InaccessibleRegisteredType = Rule(
         "CAP008", ScenesCategory, ScenesPage,
@@ -128,11 +128,6 @@ internal static class Diagnostics
         "CAP030", ScenesCategory, ScenesPage,
         "A baseScene key must name a declared class",
         "Scene document '{0}' names {1} '{2}', which no class claims");
-
-    internal static readonly DiagnosticDescriptor DuplicateBaseSceneKey = Rule(
-        "CAP032", ScenesCategory, ScenesPage,
-        "Two classes claim one baseScene key",
-        "'{0}' and '{1}' both claim baseScene key '{2}'. A baseScene has no attribute to override its key, so rename one class");
 
     internal static readonly DiagnosticDescriptor DuplicateAuthorableKey = Rule(
         "CAP033", ScenesCategory, ScenesPage,

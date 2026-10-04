@@ -84,7 +84,7 @@ internal static class RegistryPass
 
     /// <summary>
     /// Every class by the key its <c>[TypeKey]</c> or its namespace and name claim: a subclass a member object's type
-    /// key names. The first by <see cref="DeclarationOrder"/> keeps a key and a second is CAP003. A blank or unsafe
+    /// key names, or a document's baseScene. The first by <see cref="DeclarationOrder"/> keeps a key and a second is CAP003. A blank or unsafe
     /// key claims nothing. A partial class's second declaration is the same class.
     /// </summary>
     internal static Dictionary<string, TModel> Keyed<TModel>(List<Diagnostic> diagnostics, IEnumerable<TModel> models, string rootNamespace)

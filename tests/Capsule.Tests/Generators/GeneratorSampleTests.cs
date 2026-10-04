@@ -60,7 +60,7 @@ public sealed class GeneratorSampleTests
 
         public sealed class MainMenu : Scene;
 
-        [SceneDocument("scenes/hall")]
+        [TypeKey("scenes/hall")]
         public sealed class Hall(SceneContent content) : Scene(content);
 
         public abstract class PlayableScene(SceneContent content) : Scene(content)

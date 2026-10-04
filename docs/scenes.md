@@ -17,8 +17,8 @@ Data and behaviour are separate halves, and a game takes either or both:
 Name a document by its key even when a class claims it. The key survives adding or removing the class.
 
 The `SceneContent` constructor is the opt-in. A class taking one claims the document at the path its
-namespace names under `Assets/`, unless `[SceneDocument("key")]` names another. `MyGame.Scenes.Test`
-claims `Assets/Scenes/test.scene.json`. A class declaring both constructor shapes is a compile error.
+namespace names under `Assets/`, keyed as [Entries and composition](#entries-and-composition) states.
+`MyGame.Scenes.Test` claims `Assets/Scenes/test.scene.json`. A class declaring both constructor shapes is a compile error.
 
 Every document has a generated `SceneKey` in `CapsuleAssets`, one nested class per folder.
 `Assets/Scenes/halls/hall.scene.json` is `CapsuleAssets.Scenes.Halls.HallScene`, whose `Name` is
@@ -101,10 +101,11 @@ Every `type` names an entity class: the engine's `tile-map`, or one in the game'
 `Entity` with one public constructor taking an `EntitySpawn` claims the key its namespace names. Code places the
 same entity through the same constructor with `new EntitySpawn(position) { Rotation = turn }`.
 
-One rule keys entities, a member object's subclasses, `TileType` ones among them, and a document's `baseScene`.
+One rule keys every class a document names: entities, a member object's subclasses, `TileType` ones among them,
+a document's `baseScene`, and a scene class claiming a document.
 Take the type's namespace below the assembly's root namespace. Drop a leading `Entities`, `Cameras`, `Tiles` or
 `Scenes` segment and a trailing segment repeating the type's own name. Kebab-case each segment, join them with
-`/`, then append the kebab-cased type name. `[TypeKey("key")]` on any class a `type` names claims that key instead:
+`/`, then append the kebab-cased type name. `[TypeKey("key")]` on any of these classes claims that key instead:
 
 | Type | Key |
 | --- | --- |

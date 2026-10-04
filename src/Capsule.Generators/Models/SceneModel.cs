@@ -3,7 +3,7 @@ namespace Capsule.Generators;
 internal enum SceneFault
 {
     None,
-    SceneDocumentRequiresContentConstructor,
+    TypeKeyRequiresContentConstructor,
     InaccessibleType,
     AmbiguousConstructors,
     NotAbstract,
@@ -17,7 +17,7 @@ internal enum SceneFault
 /// <c>baseScene</c> key names it when <see cref="BaseFault"/> is <see cref="SceneFault.None"/>.
 /// </summary>
 /// <param name="Documented">Whether a document composes this scene.</param>
-/// <param name="Declared">The key <c>[SceneDocument]</c> names, or null when the type claims one by convention.</param>
+/// <param name="Declared">The key <c>[TypeKey]</c> names, or null when the type claims one by convention.</param>
 /// <param name="Fault">Why a registration candidate cannot register.</param>
 /// <param name="Registrable">Whether this class is a registration candidate at all.</param>
 /// <param name="Abstract">Whether the class is abstract, the shape a baseScene's generated subclass needs.</param>
@@ -44,7 +44,7 @@ internal readonly record struct SceneModel(
     DeclaredAt At,
     EquatableArray<PropertyModel> Properties,
     EquatableArray<ObjectModel> Objects,
-    string ContentModifier)
+    string ContentModifier) : IClaimingClass
 {
     /// <summary>Every member a document's top-level keys set, the engine's own Scene members included.</summary>
     internal IEnumerable<PropertyModel> Authored => Properties.Items.Where(static property => property.Authorable && property.Settable);

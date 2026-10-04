@@ -1,10 +1,10 @@
 namespace Capsule.Scenes;
 
 /// <summary>
-/// Overrides the type key a class would otherwise derive from its namespace. A scene document's <c>type</c>
-/// names an entity, a camera, a tile type or any member object's subclass by this key. The value is a complete
-/// key: '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows
-/// device name.
+/// Overrides the key a class would otherwise derive from its namespace. It applies to any class a scene document's
+/// <c>type</c> or <c>baseScene</c> names, and on a scene taking <see cref="SceneContent"/> it names the document that
+/// scene claims. The value is a complete key: '/'-joined segments of ASCII letters, digits, hyphens and underscores,
+/// none of them a reserved Windows device name.
 /// </summary>
 /// <example>
 /// <code>

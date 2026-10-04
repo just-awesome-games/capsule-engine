@@ -23,15 +23,18 @@ internal static class SceneDescriber
         int contentConstructors = constructors.Count;
         string contentModifier = contentConstructors == 1 ? SymbolShape.Modifier(constructors[0].Parameters[0].RefKind) : string.Empty;
         bool parameterless = concreteScene && SymbolShape.HasPublicParameterlessConstructor(type);
-        AttributeData? annotation = SymbolShape.Attribute(type, compilation, MetadataNames.SceneDocumentAttribute);
+        // [TypeKey] names the document a concrete scene claims, or the baseScene key of an abstract one.
+        string? declared = SymbolShape.Attribute(type, compilation, MetadataNames.TypeKeyAttribute) is { ConstructorArguments.Length: 1 } annotation
+            ? annotation.ConstructorArguments[0].Value as string ?? string.Empty
+            : null;
         bool accessible = SymbolShape.IsAccessibleFromGeneratedCode(type);
         (EquatableArray<PropertyModel> properties, EquatableArray<ObjectModel> objects) = PropertySchema.WithObjects(type, compilation);
 
-        if (annotation is not null)
+        if (declared is not null && concreteScene)
         {
-            if (!concreteScene || contentConstructors == 0)
+            if (contentConstructors == 0)
             {
-                return Model(SceneFault.SceneDocumentRequiresContentConstructor);
+                return Model(SceneFault.TypeKeyRequiresContentConstructor);
             }
 
             if (contentConstructors > 1 || parameterless)
@@ -39,14 +42,7 @@ internal static class SceneDescriber
                 return Model(SceneFault.AmbiguousConstructors);
             }
 
-            if (annotation.ConstructorArguments.Length != 1)
-            {
-                return Model(SceneFault.None, registrable: false);
-            }
-
-            string documentName = annotation.ConstructorArguments[0].Value as string ?? string.Empty;
-
-            return Model(Accessibility(), documented: true, documentName);
+            return Model(Accessibility(), documented: true);
         }
 
         if (!concreteScene || (contentConstructors == 0 && !parameterless))
@@ -63,7 +59,7 @@ internal static class SceneDescriber
 
         SceneFault Accessibility() => accessible ? SceneFault.None : SceneFault.InaccessibleType;
 
-        SceneModel Model(SceneFault fault, bool documented = false, string? declared = null, bool registrable = true) =>
+        SceneModel Model(SceneFault fault, bool documented = false, bool registrable = true) =>
             new(
                 SymbolShape.QualifiedName(type), type.ToDisplayString(), SymbolShape.NamespaceOf(type), type.Name,
                 documented, declared, fault, registrable, type.IsAbstract, type.IsGenericType, derivable.Count, accessible,

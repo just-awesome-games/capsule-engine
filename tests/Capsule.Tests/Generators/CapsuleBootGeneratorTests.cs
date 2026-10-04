@@ -124,7 +124,7 @@ public sealed class CapsuleBootGeneratorTests
 
             public sealed class Brick : TileType;
 
-            [SceneDocument("scenes/wall")]
+            [TypeKey("scenes/wall")]
             public sealed class Wall(SceneContent content) : Scene(content)
             {
                 [Authorable]
@@ -216,8 +216,8 @@ public sealed class CapsuleBootGeneratorTests
         "namespace Second; [Capsule.Scenes.TypeKey(\"chest\")] public sealed class IronChest(Capsule.Scenes.Spawning.EntitySpawn spawn) : Capsule.Scenes.Entity(spawn);",
         "CAP003")]
     [InlineData(
-        "namespace First; [Capsule.Scenes.SceneDocument(\"opening\")] public sealed class FirstOpening(Capsule.Scenes.SceneContent content) : Capsule.Scenes.Scene(content);",
-        "namespace Second; [Capsule.Scenes.SceneDocument(\"opening\")] public sealed class SecondOpening(Capsule.Scenes.SceneContent content) : Capsule.Scenes.Scene(content);",
+        "namespace First; [Capsule.Scenes.TypeKey(\"opening\")] public sealed class FirstOpening(Capsule.Scenes.SceneContent content) : Capsule.Scenes.Scene(content);",
+        "namespace Second; [Capsule.Scenes.TypeKey(\"opening\")] public sealed class SecondOpening(Capsule.Scenes.SceneContent content) : Capsule.Scenes.Scene(content);",
         "CAP005")]
     public void OneKeyClaimedByTwoLogicAssemblies_FailsTheShellBuild(string first, string second, string id)
     {
