@@ -120,6 +120,28 @@ public sealed class ImportTests
         Assert.Contains(message, refused.Message, StringComparison.Ordinal);
     }
 
+    // An importer's own test runs it with no build. Every path it read or probed is an input, even one
+    // that was missing or whose read threw.
+    [Fact]
+    public void AStandaloneContext_CapturesOutputsAndEveryPathItReadOrProbed()
+    {
+        using ToolWorkspace workspace = new();
+        workspace.Write("Assets/Scenes/a.note", NoteImporter.Include + "Assets/Scenes/gone.part");
+        workspace.Write("Assets/Scenes/d.note", NoteImporter.Optional + "Assets/Parts/absent.part");
+        AssetImportContext including = new("Assets/Scenes/a.note", "Assets");
+        AssetImportContext probing = new(Path.GetFullPath("Assets/Scenes/d.note"), "Assets") { TileSize = 16 };
+
+        Assert.Throws<FormatException>(() => new NoteImporter().Import(including));
+        new NoteImporter().Import(probing);
+
+        Assert.Equal(["Assets/Scenes/a.note", "Assets/Scenes/gone.part"], including.Inputs);
+        Assert.Equal(["Assets/Scenes/d.note", "Assets/Parts/absent.part"], probing.Inputs);
+        (string assetPath, byte[] contents) = Assert.Single(probing.Outputs);
+        Assert.Equal("Scenes/d.scene.json", assetPath);
+        Assert.Equal(Scene, System.Text.Encoding.UTF8.GetString(contents));
+        Assert.False(Directory.Exists(ToolWorkspace.Out));
+    }
+
     // Two notes that each include a part, a third that includes none, a fourth that probes for a missing part, and a part nothing reads.
     private static ToolWorkspace Including()
     {

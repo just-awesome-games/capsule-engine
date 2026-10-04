@@ -68,8 +68,12 @@ internal static class ImportStep
     // import hands these on, and nothing reads its outputs again to hash them.
     private static Dictionary<string, FileRecordJson> Import(PipelinePass pass, Request source, IAssetImporter importer, DerivedFiles files)
     {
-        AssetImportContext context = new(source.Path, pass.Requests.AssetRoot, pass.Configuration.TileSize, files);
+        AssetImportContext context = new(source.Path, pass.Requests.AssetRoot) { TileSize = pass.Configuration.TileSize };
         importer.Import(context);
+        foreach (string input in context.Inputs)
+        {
+            files.Reads(input);
+        }
 
         Dictionary<string, FileRecordJson> outputs = new(StringComparer.Ordinal);
         foreach ((string assetPath, byte[] contents) in context.Outputs)

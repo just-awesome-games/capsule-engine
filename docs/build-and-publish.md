@@ -292,7 +292,8 @@ implements `IAssetImporter`, whose XML documentation is the contract and shows o
 only through its `AssetImportContext`. Each output keys and ships as an authored file at its path would. A
 key an authored file already claims fails the build naming both, as does an output two sources write.
 Outputs land in `obj/capsule/imported/`, or `obj/capsule-shipping/imported/` for a publish, and are never
-committed.
+committed. An importer's tests construct an `AssetImportContext` over files on disk, call `Import`, and
+assert on the context's `Outputs` and `Inputs`. The context writes nothing to disk.
 
 ## A private platform module
 
