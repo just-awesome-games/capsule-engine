@@ -1,43 +1,36 @@
 using System.Numerics;
 using System.Text.Json;
+using Capsule.Scenes.Spawning;
 
 namespace Capsule.Scenes.Documents;
 
-/// <summary>One entry in a scene document's ordered list: the entity it places and the members it authors.</summary>
-/// <param name="Type">The spawn type of the entity class the entry composes, <c>tile-map</c> for the engine's map.</param>
-/// <param name="X">The authored world-space X coordinate, 0 by default.</param>
-/// <param name="Y">The authored world-space Y coordinate, 0 by default.</param>
-/// <param name="ScaleX">The authored X scale factor, where 1 is the authored size.</param>
-/// <param name="ScaleY">The authored Y scale factor, where 1 is the authored size.</param>
-/// <param name="ZIndex">
-/// The authored draw band, or null when the entry authors none. It reaches the entity's constructor as
-/// <see cref="Spawning.EntitySpawn.ZIndex"/>, and the base constructor applies it before the subclass body
-/// runs.
+/// <summary>One entry in a scene document's ordered list: the entity class it places, where, and the members it authors.</summary>
+/// <example>
+/// An importer places a door at (96, 0) on band 3, which an entity reference names by id 4:
+/// <code>
+/// JsonElement members = JsonSerializer.SerializeToElement(new { destination = "scenes/hall" });
+/// SceneDocumentEntry door = new("door", new EntitySpawn(new Vector2(96f, 0f)) { ZIndex = 3 }, members) { Id = 4 };
+/// </code>
+/// </example>
+/// <param name="Type">The type key of the entity class the entry places, <c>tile-map</c> for the engine's map.</param>
+/// <param name="Spawn">
+/// Where and how the entry places its entity, which reaches the entity's constructor as authored. A
+/// <c>default</c> spawn has a scale of zero, which the document refuses.
 /// </param>
-/// <param name="ScrollFactor">
-/// The authored scroll factor, or null when the entry authors none. It reaches the entity's constructor as
-/// <see cref="Spawning.EntitySpawn.ScrollFactor"/>, and the base constructor applies it before the subclass
-/// body runs.
-/// </param>
-/// <param name="RotationDegrees">
-/// The authored turn in degrees, clockwise on screen, where 0 is unturned. It reaches the entity's
-/// constructor in radians as <see cref="Spawning.EntitySpawn.Rotation"/>.
-/// </param>
-/// <param name="Properties">
+/// <param name="Members">
 /// The entry's authorable member values as one JSON object, or null when it authors none. Each key sets the
-/// claiming class's authorable member of that name, camel-cased.
+/// entity class's authorable member of that name.
 /// </param>
-public readonly record struct SceneDocumentEntry(
-    string Type,
-    float X = 0f,
-    float Y = 0f,
-    float ScaleX = 1f,
-    float ScaleY = 1f,
-    int? ZIndex = null,
-    Vector2? ScrollFactor = null,
-    float RotationDegrees = 0f,
-    JsonElement? Properties = null)
+public readonly record struct SceneDocumentEntry(string Type, EntitySpawn Spawn, JsonElement? Members = null)
 {
+    /// <summary>An entry placing its entity at the world origin, unturned and at scale one.</summary>
+    /// <param name="type">The type key of the entity class the entry places.</param>
+    /// <param name="members">The entry's authorable member values as one JSON object, or null when it authors none.</param>
+    public SceneDocumentEntry(string type, JsonElement? members = null)
+        : this(type, new EntitySpawn(Vector2.Zero), members)
+    {
+    }
+
     /// <summary>The id an entity reference names this entry by, or null when nothing references it.</summary>
     public int? Id { get; init; }
 }

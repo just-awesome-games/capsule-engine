@@ -75,7 +75,7 @@ public sealed class TileMapEntryTests
     }
 
     private static Scene Composed(string document) =>
-        Registry.Value.Create(new SceneKey("scenes/rink"), SceneDocumentFile.Parse(document));
+        Registry.Value.Create(new SceneKey("scenes/rink"), SceneDocument.Parse(document));
 
     // One colliding tile-map entry whose palette entry "slick" carries what the test authors, painted mirrored at (0, 0).
     private static string Document(string authored) => $$$"""

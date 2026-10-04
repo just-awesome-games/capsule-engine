@@ -25,15 +25,15 @@ namespace Capsule.Tiles;
 /// authored.
 /// </para>
 /// <para>
-/// A scene document places one as the entity type <c>tile-map</c>. Its authorable members hold the grid the
+/// A scene document places one by the type key <c>tile-map</c>. Its authorable members hold the grid the
 /// document describes, and the map is built from them before a subclass constructor body runs.
 /// </para>
 /// </remarks>
-[SpawnType(SpawnKey)]
+[TypeKey(Key)]
 public class TileMap : Entity
 {
-    // The spawn type every logic assembly registers the engine's map under.
-    internal const string SpawnKey = "tile-map";
+    // The type key every logic assembly registers the engine's map under.
+    internal const string Key = "tile-map";
 
     private TileGrid _grid;
 

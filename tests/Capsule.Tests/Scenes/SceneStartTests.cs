@@ -35,8 +35,8 @@ public sealed class SceneStartTests
 
         Scene scene = SceneFixtures.RoomScene(
             SceneFixtures.Room(
-                new SceneDocumentEntry("seeker", 0, 0),
-                new SceneDocumentEntry("placed", 16, 0)),
+                new SceneDocumentEntry("seeker"),
+                new SceneDocumentEntry("placed", new EntitySpawn(new Vector2(16, 0)))),
             registry);
 
         using SceneSimulation simulation = new(scene);

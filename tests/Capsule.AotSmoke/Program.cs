@@ -203,7 +203,7 @@ internal static class Program
     private static bool ContentShipped()
     {
         using StreamReader inflated = new(new GZipStream(File.OpenRead(Path.Combine(AppContext.BaseDirectory, NativeScenePath)), CompressionMode.Decompress));
-        SceneDocument fixture = SceneDocumentFile.Parse(inflated.ReadToEnd());
+        SceneDocument fixture = SceneDocument.Parse(inflated.ReadToEnd());
 
         return fixture.Entries.Length > 0
             && Shipped(CapsuleAssets.Textures.PixelTexture)
@@ -213,7 +213,7 @@ internal static class Program
             && !Shipped("fonts/menu.fnt")
             && Shipped(CapsuleAssets.Textures.TileSets.CaveWallTexture)
             && CapsuleAssets.Textures.TileSets.CaveWallTexture.Name == "textures/tile-sets/cave-wall"
-            && fixture.Entries[1].Properties?.GetProperty("texture").GetString() == "Textures/TileSets/Cave_Wall.png";
+            && fixture.Entries[1].Members?.GetProperty("texture").GetString() == "Textures/TileSets/Cave_Wall.png";
     }
 
     private static bool Shipped(TextureHandle texture) => Shipped(texture.Name + texture.Extension);

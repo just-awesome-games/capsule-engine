@@ -1,4 +1,6 @@
+using System.Numerics;
 using Capsule.Scenes.Documents;
+using Capsule.Scenes.Spawning;
 using static Capsule.Tests.Documents.SceneDocumentFixtures;
 
 namespace Capsule.Tests.Documents;
@@ -15,7 +17,7 @@ public sealed class SceneDocumentParseTests
     public void Parse_RefusesAMalformedDocumentWithTheDefectNamed(string json, string defect)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(json));
+            () => SceneDocument.Parse(json));
 
         Assert.Contains(defect, error.Message, StringComparison.Ordinal);
     }
@@ -31,7 +33,7 @@ public sealed class SceneDocumentParseTests
     public void Parse_RefusesAMalformedEntryWithTheDefectNamed(string entities, string expected)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(entities)));
+            () => SceneDocument.Parse(DocumentText(entities)));
 
         Assert.Contains(expected, error.Message, StringComparison.Ordinal);
     }
@@ -44,7 +46,7 @@ public sealed class SceneDocumentParseTests
     public void Parse_RejectsAScaleThatIsNotTwoPositiveFactors(string scale, string expected)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText($$""",{"id": 2, "type": "coin", "x": 8, "y": 0, "scale": {{scale}}}""")));
+            () => SceneDocument.Parse(DocumentText($$""",{"id": 2, "type": "coin", "x": 8, "y": 0, "scale": {{scale}}}""")));
 
         Assert.Contains(expected, error.Message, StringComparison.Ordinal);
     }
@@ -55,7 +57,7 @@ public sealed class SceneDocumentParseTests
     public void Constructor_RejectsANonFiniteEntityPosition(float x, float y)
     {
         ArgumentException error = Assert.Throws<ArgumentException>(
-            () => new SceneDocument([new SceneDocumentEntry("coin", x, y)]));
+            () => new SceneDocument([new SceneDocumentEntry("coin", new EntitySpawn(new Vector2(x, y)))]));
 
         Assert.Contains("not finite", error.Message, StringComparison.Ordinal);
     }
@@ -67,7 +69,7 @@ public sealed class SceneDocumentParseTests
         System.Text.Json.JsonElement members = System.Text.Json.JsonDocument.Parse("""{ "x": 4 }""").RootElement;
 
         ArgumentException error = Assert.Throws<ArgumentException>(
-            () => new SceneDocument([new SceneDocumentEntry("coin", Properties: members)]));
+            () => new SceneDocument([new SceneDocumentEntry("coin", members)]));
 
         Assert.Contains("member 'x', which the format reserves", error.Message, StringComparison.Ordinal);
     }

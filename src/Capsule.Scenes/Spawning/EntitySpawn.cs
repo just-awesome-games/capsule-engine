@@ -40,11 +40,11 @@ public readonly record struct EntitySpawn(Vector2 Position)
     /// <summary>The scroll factor, or null to keep the entity's own.</summary>
     public Vector2? ScrollFactor { get; init; }
 
-    // A placement's spawn type, authored member values and its class's generated applier. A spawn built in
+    // A placement's type key, authored member values and its class's generated applier. A spawn built in
     // code carries none of them, and the members stay out of the record's printed form.
     internal string? Type { get; init; }
 
-    internal AuthoredProperties Properties { get; init; }
+    internal AuthoredMembers Members { get; init; }
 
     internal EntityApplier? Apply { get; init; }
 }

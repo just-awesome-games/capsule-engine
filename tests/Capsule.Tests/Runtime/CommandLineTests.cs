@@ -83,7 +83,7 @@ public sealed class CommandLineTests : IDisposable
         string documents = Path.Combine(_workspace.Root, "assets", "halls");
         Directory.CreateDirectory(documents);
         ShippedSceneDocument.Write(
-            SceneDocumentFile.Parse("""{"entities": []}"""),
+            SceneDocument.Parse("""{"entities": []}"""),
             Path.Combine(documents, "hall" + ShippedSceneDocument.Extension),
             CompressionLevel.Fastest);
 

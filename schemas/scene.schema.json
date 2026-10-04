@@ -26,7 +26,7 @@
             "minimum": 1
           },
           "type": {
-            "description": "The spawn type: the key of the entity class the entry composes, \"tile-map\" for the engine's tile map.",
+            "description": "The type key of the entity class the entry places, \"tile-map\" for the engine's tile map.",
             "type": "string",
             "minLength": 1
           },

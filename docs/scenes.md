@@ -63,8 +63,8 @@ A document is a tree of objects: the scene, its entries, and any object a member
 }
 ```
 
-Each JSON object is a C# object. Its reserved keys are structure, and every other key sets the member of that
-name its class marks `[Authorable]`:
+Each JSON object is a C# object. Its reserved keys are structure, listed in code as `SceneDocumentKeys`, and every
+other key sets the member of that name its class marks `[Authorable]`:
 
 | Object | Reserved keys | Every other key sets a member of |
 | --- | --- | --- |
@@ -74,11 +74,19 @@ name its class marks `[Authorable]`:
 
 An entry's spawn keys reach the entity's constructor as an `EntitySpawn`, applied as the `Entity(EntitySpawn)`
 constructor documents. An absent `x` or `y` is 0. An `id` is needed only on an entry another names, and ids are
-unique. A key no member takes fails the scene at load, naming the document, the entry and the key's path, and
-one test catches it before a player does ([`testing.md`](testing.md)).
+unique. A key no member takes fails the scene at load, naming the document, the entry and the key's path.
 `AuthorableAttribute` documents how a key is named, when a value lands and each type's JSON form. The format's
 JSON Schema documents every reserved field ([Editor completion](configuring-assets.md#editor-completion)). An
 invalid document throws `SceneDocumentFormatException`, naming the defect.
+
+### Validating every document
+
+Every game should carry this one test, which validates every shipped document without running the game:
+
+```csharp
+[Fact]
+public void EveryScenePlacementIsValid() => CapsuleScenes.Registry.ComposeAll();
+```
 
 ### The tile map entry
 
@@ -90,14 +98,13 @@ collide is [`collision.md`](collision.md#terrain).
 ### Entries and composition
 
 Every `type` names an entity class: the engine's `tile-map`, or one in the game's logic assembly. A concrete
-`Entity` with one public constructor taking an `EntitySpawn` claims the key its namespace names, and
-`[SpawnType("key")]` names another key. Code places the same entity through the same constructor with
-`new EntitySpawn(position) { Rotation = turn }`.
+`Entity` with one public constructor taking an `EntitySpawn` claims the key its namespace names. Code places the
+same entity through the same constructor with `new EntitySpawn(position) { Rotation = turn }`.
 
-One rule keys entities, a member object's subclasses, `TileType` ones among them, and a document's `baseScene`. Take the type's
-namespace below the assembly's root namespace. Drop a leading `Entities`, `Cameras`, `Tiles` or `Scenes` segment
-and a trailing segment repeating the type's own name. Kebab-case each segment, join them with `/`, then append
-the kebab-cased type name:
+One rule keys entities, a member object's subclasses, `TileType` ones among them, and a document's `baseScene`.
+Take the type's namespace below the assembly's root namespace. Drop a leading `Entities`, `Cameras`, `Tiles` or
+`Scenes` segment and a trailing segment repeating the type's own name. Kebab-case each segment, join them with
+`/`, then append the kebab-cased type name. `[TypeKey("key")]` on any class a `type` names claims that key instead:
 
 | Type | Key |
 | --- | --- |
@@ -108,7 +115,7 @@ the kebab-cased type name:
 | `MyGame.Scenes.Stage1.Room01` claiming a document | `scenes/stage-1/room-01` |
 
 A class claiming a document keeps the leading segment, because the document's key is its path. A type
-outside the root namespace claims its kebab-cased name. A spawn type no class claims fails the scene at load.
+outside the root namespace claims its kebab-cased name. A type key no class claims fails the scene at load.
 
 ## From source to game
 
@@ -118,6 +125,6 @@ without either extension, keyed as [named assets](assets.md#named-assets) define
 
 An editor's own format enters through an authoring module, a package that ships an
 [importer](build-and-publish.md#writing-an-importer). The importer builds a `SceneDocument` of entries
-carrying their members as JSON and writes it with `SceneDocumentFile.ToJson`. The engine validates, keys and
+carrying their members as JSON and writes it with `document.ToJson()`. The engine validates, keys and
 ships each document it writes like a hand-authored one at that path. JAG Studios publishes the Tiled module as
 `JAG.Capsule.Tiled` from [capsule-engine-tiled](https://github.com/just-awesome-games/capsule-engine-tiled).

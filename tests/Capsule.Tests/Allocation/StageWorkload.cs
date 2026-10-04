@@ -46,15 +46,12 @@ internal static class StageWorkload
     internal static SceneDocument Build()
     {
         SceneDocumentEntry[] placements = new SceneDocumentEntry[PlacedEntities];
-        placements[0] = new SceneDocumentEntry("hero", 4f * TileSize, HeroTileY * TileSize);
+        placements[0] = new SceneDocumentEntry("hero", new EntitySpawn(new Vector2(4f * TileSize, HeroTileY * TileSize)));
 
         float spacing = (float)TilesWide * TileSize / (PlacedEntities - 1);
         for (int index = 1; index < PlacedEntities; index++)
         {
-            placements[index] = new SceneDocumentEntry(
-                "actor",
-                index * spacing,
-                (HeroTileY + (index % 4)) * TileSize);
+            placements[index] = new SceneDocumentEntry("actor", new EntitySpawn(new Vector2(index * spacing, (HeroTileY + (index % 4)) * TileSize)));
         }
 
         return new SceneDocument([new SceneDocumentEntry("tile-map"), .. placements]);

@@ -108,7 +108,7 @@ public sealed class SceneRegistryTests
         string shipped = Path.Combine(AppContext.BaseDirectory, "assets", "compose-all");
         Directory.CreateDirectory(shipped);
         ShippedSceneDocument.Write(SceneFixtures.Room(), Path.Combine(shipped, "good.scene.json.gz"), CompressionLevel.Fastest);
-        ShippedSceneDocument.Write(SceneFixtures.Room(new SceneDocumentEntry("wyvern", 0f, 0f)), Path.Combine(shipped, "bad.scene.json.gz"), CompressionLevel.Fastest);
+        ShippedSceneDocument.Write(SceneFixtures.Room(new SceneDocumentEntry("wyvern")), Path.Combine(shipped, "bad.scene.json.gz"), CompressionLevel.Fastest);
         SceneRegistry scenes = Registry(
             SceneRegistration.DocumentOnly("compose-all/good", static content => new Scene(content!.Value)),
             SceneRegistration.DocumentOnly("compose-all/bad", static content => new Scene(content!.Value)));
@@ -117,7 +117,7 @@ public sealed class SceneRegistryTests
         {
             SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(scenes.ComposeAll);
 
-            Assert.StartsWith("1 of 2 scene documents do not compose:\nscene document 'compose-all/bad': spawn type 'wyvern'", failure.Message, StringComparison.Ordinal);
+            Assert.StartsWith("1 of 2 scene documents do not compose:\nscene document 'compose-all/bad': type key 'wyvern'", failure.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("good", failure.Message, StringComparison.Ordinal);
         }
         finally

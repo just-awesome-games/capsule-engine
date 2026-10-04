@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Numerics;
 using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
@@ -25,7 +26,7 @@ public sealed class SceneComposerTests : IDisposable
     [Fact]
     public void ADocumentBackedClass_BootedByItsClass_IsComposedFromTheDocumentItClaims()
     {
-        Write(SceneFixtures.Room(new SceneDocumentEntry("chest", 48f, 16f)));
+        Write(SceneFixtures.Room(new SceneDocumentEntry("chest", new EntitySpawn(new Vector2(48f, 16f)))));
         SceneComposer composer = new(Registry(), new DesktopPlatform());
 
         Scene composed = composer.Resolve(SceneTransition.ToScene(typeof(Hall), null));
@@ -35,11 +36,11 @@ public sealed class SceneComposerTests : IDisposable
     }
 
     // The scene layer is pure and knows no paths, so without this the commonest authoring mistake
-    // leaves the author guessing which document holds the spawn type it names.
+    // leaves the author guessing which document holds the type key it names.
     [Fact]
     public void APlacementNoEntityClaims_NamesTheDocumentFileThatHoldsIt()
     {
-        Write(SceneFixtures.Room(new SceneDocumentEntry("wyvern", 0f, 0f)));
+        Write(SceneFixtures.Room(new SceneDocumentEntry("wyvern")));
         SceneComposer composer = new(Registry(), new DesktopPlatform());
 
         SpawnException failure = Assert.Throws<SpawnException>(
@@ -54,7 +55,7 @@ public sealed class SceneComposerTests : IDisposable
     public void AShippedDocumentThatIsNotGzip_FailsAsAMalformedDocumentNamingItsFile()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DocumentPath)!);
-        File.WriteAllText(DocumentPath, SceneDocumentFile.ToJson(SceneFixtures.Room()));
+        File.WriteAllText(DocumentPath, SceneFixtures.Room().ToJson());
         SceneComposer composer = new(Registry(), new DesktopPlatform());
 
         SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(

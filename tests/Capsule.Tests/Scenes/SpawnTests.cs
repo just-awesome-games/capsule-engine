@@ -7,13 +7,13 @@ namespace Capsule.Tests.Scenes;
 public sealed class SpawnTests
 {
     [Fact]
-    public void AnUnregisteredSpawnType_NamesItselfAndWhatIsRegistered()
+    public void AnUnregisteredTypeKey_NamesItselfAndWhatIsRegistered()
     {
         SpawnException failure = Assert.Throws<SpawnException>(() => new SceneFixtures.SpawnScene(
             SceneFixtures.Registry(
                 ("chest", static spawn => new SceneFixtures.Placed(spawn)),
                 ("player", static spawn => new SceneFixtures.Placed(spawn))),
-            new SceneDocumentEntry("wyvern", 0f, 0f)));
+            new SceneDocumentEntry("wyvern")));
 
         Assert.Contains("wyvern", failure.Message, StringComparison.Ordinal);
         Assert.Contains("chest, player", failure.Message, StringComparison.Ordinal);

@@ -25,7 +25,7 @@ internal static class SceneStep
             (source, files) =>
             {
                 // Reading it as text drops any byte order mark an editor added.
-                SceneDocument document = SceneDocumentFile.Parse(File.ReadAllText(source.Path));
+                SceneDocument document = SceneDocument.Parse(File.ReadAllText(source.Path));
                 files.Write(source.Key + ShippedSceneDocument.Extension, path => ShippedSceneDocument.Write(document, path, level));
 
                 return SceneMembers.Attributes(document, source.Key);

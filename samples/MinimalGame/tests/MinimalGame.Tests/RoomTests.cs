@@ -7,6 +7,7 @@ using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
+using Capsule.Scenes.Spawning;
 using Capsule.Tiles;
 using MinimalGame.Game;
 using MinimalGame.Game.Entities;
@@ -202,7 +203,7 @@ public sealed class RoomTests
         Array.Fill(tiles, 1, (High - 1) * Wide, Wide);
         SceneDocumentEntry floor = new(
             "tile-map",
-            Properties: JsonSerializer.SerializeToElement(new
+            JsonSerializer.SerializeToElement(new
             {
                 tileSize = 16,
                 width = Wide,
@@ -214,12 +215,11 @@ public sealed class RoomTests
 
         SceneDocumentEntry Zone(Rect area) => new(
             "camera-zone",
-            area.Left,
-            area.Top,
-            Properties: JsonSerializer.SerializeToElement(new { size = new[] { area.Size.X, area.Size.Y } }));
+            new EntitySpawn(area.Position),
+            JsonSerializer.SerializeToElement(new { size = new[] { area.Size.X, area.Size.Y } }));
 
         SceneDocument document = new(
-            [floor, new SceneDocumentEntry("player", 32f, RoomFixture.FloorTop - 8f), Zone(zoneA), Zone(zoneB)],
+            [floor, new SceneDocumentEntry("player", new EntitySpawn(new Vector2(32f, RoomFixture.FloorTop - 8f))), Zone(zoneA), Zone(zoneB)],
             JsonSerializer.SerializeToElement(new { camera = new { type = "game-camera" }, music = "audio/music/room.ogg" }));
 
         Run run = new();

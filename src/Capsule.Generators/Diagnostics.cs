@@ -21,23 +21,23 @@ internal static class Diagnostics
 
     internal static readonly DiagnosticDescriptor NotAConcreteEntity = Rule(
         "CAP001", ScenesCategory, ScenesPage,
-        "A [SpawnType] class must be a concrete entity",
-        "'{0}' is marked [SpawnType] but is not a non-abstract class deriving from Capsule.Scenes.Entity");
+        "An entity with a [TypeKey] must be concrete",
+        "'{0}' is marked [TypeKey] but is an entity class no document can construct. Make it a non-abstract class, or drop the attribute");
 
     internal static readonly DiagnosticDescriptor MissingSpawnConstructor = Rule(
         "CAP002", ScenesCategory, ScenesPage,
-        "A [SpawnType] class must take its spawn data",
-        "'{0}' is marked [SpawnType] but has no public constructor taking one Capsule.Scenes.Spawning.EntitySpawn");
+        "An entity with a [TypeKey] must take its spawn data",
+        "'{0}' is marked [TypeKey] but has no public constructor taking one Capsule.Scenes.Spawning.EntitySpawn");
 
-    internal static readonly DiagnosticDescriptor DuplicateSpawnType = Rule(
+    internal static readonly DiagnosticDescriptor DuplicateTypeKey = Rule(
         "CAP003", ScenesCategory, ScenesPage,
-        "Two classes claim one spawn type",
-        "'{0}' and '{1}' both claim spawn type '{2}'. Give one an explicit [SpawnType(\"type\")]");
+        "Two classes claim one type key",
+        "'{0}' and '{1}' both claim type key '{2}'. Give one an explicit [TypeKey(\"key\")]");
 
-    internal static readonly DiagnosticDescriptor BlankSpawnType = Rule(
+    internal static readonly DiagnosticDescriptor BlankTypeKey = Rule(
         "CAP004", ScenesCategory, ScenesPage,
-        "A spawn type cannot be blank",
-        "'{0}' declares a blank [SpawnType]. Drop the attribute to claim the key its namespace names");
+        "A type key cannot be blank",
+        "'{0}' declares a blank [TypeKey]. Drop the attribute to claim the key its namespace names");
 
     internal static readonly DiagnosticDescriptor DuplicateSceneDocumentName = Rule(
         "CAP005", ScenesCategory, ScenesPage,
@@ -94,10 +94,10 @@ internal static class Diagnostics
         "A game-shell project must reference a game-logic assembly",
         "This project's file declares <CapsuleGameShell> but the project references no assembly declaring <CapsuleGameLogic>, so its entry point would name no scenes. Reference the game's logic project");
 
-    internal static readonly DiagnosticDescriptor UnsafeSpawnType = Rule(
+    internal static readonly DiagnosticDescriptor UnsafeTypeKey = Rule(
         "CAP019", ScenesCategory, ScenesPage,
-        "A spawn type must be a portable key",
-        "'{0}' claims unsafe spawn type '{1}'. " + KeyGrammar);
+        "A type key must be a portable key",
+        "'{0}' claims unsafe type key '{1}'. " + KeyGrammar);
 
     internal static readonly DiagnosticDescriptor DuplicateInputDriverName = Rule(
         "CAP020", ScenesCategory, ScenesPage,
@@ -128,11 +128,6 @@ internal static class Diagnostics
         "CAP030", ScenesCategory, ScenesPage,
         "A baseScene key must name a declared class",
         "Scene document '{0}' names {1} '{2}', which no class claims");
-
-    internal static readonly DiagnosticDescriptor DuplicateClaimedKey = Rule(
-        "CAP031", ScenesCategory, ScenesPage,
-        "Two classes claim one object type key",
-        "'{0}' and '{1}' both claim {3} key '{2}'. A {3} has no attribute to override its key, so rename one class");
 
     internal static readonly DiagnosticDescriptor DuplicateBaseSceneKey = Rule(
         "CAP032", ScenesCategory, ScenesPage,

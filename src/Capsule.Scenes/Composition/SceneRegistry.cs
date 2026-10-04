@@ -24,7 +24,7 @@ public sealed class SceneRegistry
     internal IReadOnlyDictionary<Assembly, EntityRegistry> Owned { get; init; } = new Dictionary<Assembly, EntityRegistry>();
 
     /// <summary>A registry over <paramref name="scenes"/>.</summary>
-    /// <param name="entities">The registry saying what each spawn type in a scene document constructs.</param>
+    /// <param name="entities">The registry saying what each type key in a scene document constructs.</param>
     /// <param name="scenes">Every scene the assembly declares.</param>
     /// <param name="appliers">
     /// The applier of each scene class, or null for none. The first applier of a class is kept, since every logic
@@ -142,14 +142,14 @@ public sealed class SceneRegistry
     /// claims composes a plain <see cref="Scene"/>. The scene is returned unstarted.
     /// </remarks>
     /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
-    /// <param name="document">The parsed document, as <see cref="SceneDocumentFile.Parse(string)"/> returns it.</param>
+    /// <param name="document">The parsed document, as <see cref="SceneDocument.Parse(string)"/> returns it.</param>
     /// <returns>The composed scene.</returns>
     /// <exception cref="SceneDocumentFormatException">An entry's or the scene's members do not fit what their class declares.</exception>
     /// <exception cref="SpawnException">The document places a type the registry cannot construct.</exception>
     /// <example>
     /// A test composes a document it builds and steps it:
     /// <code>
-    /// SceneDocument document = SceneDocumentFile.Parse(json);
+    /// SceneDocument document = SceneDocument.Parse(json);
     /// Scene room = CapsuleScenes.Registry.Create(CapsuleAssets.Scenes.RoomScene, document);
     /// using SimulationHost host = new(room);
     /// </code>

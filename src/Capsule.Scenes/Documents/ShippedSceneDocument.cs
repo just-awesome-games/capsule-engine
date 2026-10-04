@@ -16,7 +16,7 @@ internal static class ShippedSceneDocument
     // The level trades build time for size. The reader inflates every level alike.
     internal static void Write(SceneDocument document, string path, CompressionLevel level)
     {
-        byte[] json = Encoding.UTF8.GetBytes(SceneDocumentFile.ToJson(document));
+        byte[] json = Encoding.UTF8.GetBytes(document.ToJson());
 
         using FileStream file = File.Create(path);
         using GZipStream compressed = new(file, level);
@@ -40,6 +40,6 @@ internal static class ShippedSceneDocument
                 exception);
         }
 
-        return SceneDocumentFile.Parse(json);
+        return SceneDocument.Parse(json);
     }
 }

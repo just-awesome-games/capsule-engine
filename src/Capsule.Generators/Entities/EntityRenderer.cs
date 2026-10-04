@@ -27,7 +27,7 @@ internal static class EntityRenderer
     {
         List<RegisteredEntity> registrations = [.. plan.Registrations];
         List<string> claims = [.. registrations.Select(static entry =>
-            GeneratedFile.ClaimAttribute(RegistryClaimKind.Entity, entry.SpawnType, entry.Model.QualifiedName))];
+            GeneratedFile.ClaimAttribute(RegistryClaimKind.Entity, entry.Key, entry.Model.QualifiedName))];
         List<PropertyModel> authored = [.. registrations.SelectMany(static entry => entry.Model.Authored)];
         string members = string.Concat(registrations
                 .Where(static entry => entry.Model.Required)
@@ -44,7 +44,7 @@ internal static class EntityRenderer
                 {
             {{GeneratedFile.Registrations("global::Capsule.Scenes.Spawning.EntityRegistration", registrations.Select(Registration))}}
 
-                    /// <summary>The registry a scene resolves its spawn types through.</summary>
+                    /// <summary>The registry a scene resolves its type keys through.</summary>
                     public static global::Capsule.Scenes.Spawning.EntityRegistry Registry { get; } =
                         new global::Capsule.Scenes.Spawning.EntityRegistry(Registrations);
             {{members}}    }
@@ -60,10 +60,10 @@ internal static class EntityRenderer
             : $"static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new {model.QualifiedName}(spawn)";
         if (!model.Authored.Any())
         {
-            return $"new global::Capsule.Scenes.Spawning.EntityRegistration({CodeText.Literal(entry.SpawnType)}, {spawner})";
+            return $"new global::Capsule.Scenes.Spawning.EntityRegistration({CodeText.Literal(entry.Key)}, {spawner})";
         }
 
-        string[] arguments = [CodeText.Literal(entry.SpawnType), spawner, Applier(model)];
+        string[] arguments = [CodeText.Literal(entry.Key), spawner, Applier(model)];
 
         return "new global::Capsule.Scenes.Spawning.EntityRegistration(\n"
             + string.Join(",\n", arguments.Select(static argument => ArgumentIndent + argument))
@@ -73,7 +73,7 @@ internal static class EntityRenderer
     // The base constructor calls the applier before the derived body runs. The applier defers an entity reference
     // until every entry of the document is constructed.
     private static string Applier(EntityModel model) =>
-        "static (placed, properties) =>\n"
+        "static (placed, members) =>\n"
         + ArgumentIndent + "{\n"
         + StatementIndent + $"{model.QualifiedName} entity = ({model.QualifiedName})placed;\n"
         + PropertyReadRenderer.Assignments(model.Authored, "entity", model.QualifiedName, StatementIndent)

@@ -146,7 +146,7 @@ public sealed class CapsuleBootGeneratorTests
 
         (string?, string?, object?, string?) Composed(SceneRegistry registry)
         {
-            Scene scene = registry.Create(new SceneKey("scenes/wall"), SceneDocumentFile.Parse(document));
+            Scene scene = registry.Create(new SceneKey("scenes/wall"), SceneDocument.Parse(document));
             TileMap map = Assert.IsType<TileMap>(Assert.Single(scene.Entities.ToArray()));
 
             return (scene.GetType().FullName, scene.Camera.GetType().FullName, scene.GetType().GetProperty("Floor")!.GetValue(scene), map.TileAt(0, 0).GetType().FullName);
@@ -213,7 +213,7 @@ public sealed class CapsuleBootGeneratorTests
     [Theory]
     [InlineData(
         "namespace First; public sealed class Chest(Capsule.Scenes.Spawning.EntitySpawn spawn) : Capsule.Scenes.Entity(spawn);",
-        "namespace Second; [Capsule.Scenes.Spawning.SpawnType(\"chest\")] public sealed class IronChest(Capsule.Scenes.Spawning.EntitySpawn spawn) : Capsule.Scenes.Entity(spawn);",
+        "namespace Second; [Capsule.Scenes.TypeKey(\"chest\")] public sealed class IronChest(Capsule.Scenes.Spawning.EntitySpawn spawn) : Capsule.Scenes.Entity(spawn);",
         "CAP003")]
     [InlineData(
         "namespace First; [Capsule.Scenes.SceneDocument(\"opening\")] public sealed class FirstOpening(Capsule.Scenes.SceneContent content) : Capsule.Scenes.Scene(content);",

@@ -26,45 +26,47 @@ namespace Capsule.Scenes.Spawning;
 /// at any level fails the same way.
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public readonly struct AuthoredProperties
+public readonly struct AuthoredMembers
 {
+    private const string TypeKey = SceneDocumentKeys.MemberObject.Type;
+
     // Plain options with no reflection-based resolver, which a trimmed or ahead-of-time build keeps.
     private static readonly JsonSerializerOptions ConverterOptions = new();
 
     // What every level of one owner's values shares, or null for a spawn built in code.
     private readonly Owner? _owner;
 
-    private readonly JsonElement? _properties;
+    private readonly JsonElement? _members;
 
     // The key path from the owner to these values, as "exit." or "items[2].", and empty at the top.
     private readonly string _path;
 
-    // One element of an authored array and its index, or an index of -1 for the properties themselves.
+    // One element of an authored array and its index, or an index of -1 for the members themselves.
     private readonly JsonElement _element;
     private readonly int _index;
 
-    // Every key a read asked for, shared by each copy, or null when the properties carry no key.
+    // Every key a read asked for, shared by each copy, or null when the members carry no key.
     private readonly List<string>? _asked;
 
-    // An entry's properties. References resolve against placed once every entry is constructed.
-    internal AuthoredProperties(SceneDocumentEntry entry, int index, Dictionary<int, Entity>? placed = null, AssetCollection? assets = null)
-        : this(new Owner(string.Create(CultureInfo.InvariantCulture, $"entities[{index}] ('{entry.Type}')"), "the entry", placed, assets), entry.Properties, string.Empty)
+    // An entry's members. References resolve against placed once every entry is constructed.
+    internal AuthoredMembers(SceneDocumentEntry entry, int index, Dictionary<int, Entity>? placed = null, AssetCollection? assets = null)
+        : this(new Owner(string.Create(CultureInfo.InvariantCulture, $"entities[{index}] ('{entry.Type}')"), "the entry", placed, assets), entry.Members, string.Empty)
     {
     }
 
-    // The scene document's own properties, read once every entry is constructed.
-    internal AuthoredProperties(JsonElement? scene, Dictionary<int, Entity> placed, AssetCollection assets)
+    // The scene document's own members, read once every entry is constructed.
+    internal AuthoredMembers(JsonElement? scene, Dictionary<int, Entity> placed, AssetCollection assets)
         : this(new Owner("the scene document", "the document", placed, assets), scene, string.Empty)
     {
     }
 
-    private AuthoredProperties(Owner owner, JsonElement? properties, string path)
+    private AuthoredMembers(Owner owner, JsonElement? members, string path)
     {
         _owner = owner;
-        _properties = properties;
+        _members = members;
         _path = path;
         _index = -1;
-        _asked = properties is { ValueKind: JsonValueKind.Object } members && members.EnumerateObject().Any() ? [] : null;
+        _asked = members is { ValueKind: JsonValueKind.Object } authored && authored.EnumerateObject().Any() ? [] : null;
         if (_asked is not null)
         {
             owner.Levels.Add(this);
@@ -72,17 +74,17 @@ public readonly struct AuthoredProperties
     }
 
     // One element of an authored array, read by the array's key.
-    private AuthoredProperties(AuthoredProperties array, JsonElement element, int index)
+    private AuthoredMembers(AuthoredMembers array, JsonElement element, int index)
     {
         this = array;
         _element = element;
         _index = index;
     }
 
-    /// <summary>Whether the properties author <paramref name="key"/>, as a JSON null included.</summary>
+    /// <summary>Whether the members author <paramref name="key"/>, as a JSON null included.</summary>
     public bool Has(string key) => Find(key, out _);
 
-    /// <summary>Whether the properties author <paramref name="key"/> as a JSON null.</summary>
+    /// <summary>Whether the members author <paramref name="key"/> as a JSON null.</summary>
     public bool IsNull(string key) => Find(key, out JsonElement value) && value.ValueKind == JsonValueKind.Null;
 
     /// <summary>Reads a <see langword="bool"/>, written <c>true</c> or <c>false</c>.</summary>
@@ -153,7 +155,7 @@ public readonly struct AuthoredProperties
         }
     }
 
-    /// <summary>Reads the enum member or definition the properties name, which the applier then matches.</summary>
+    /// <summary>Reads the enum member or definition the members name, which the applier then matches.</summary>
     public string Name(string key) =>
         Authored(key) is { ValueKind: JsonValueKind.String } value
             ? value.GetString()!
@@ -247,7 +249,7 @@ public readonly struct AuthoredProperties
     /// </summary>
     /// <param name="key">The member's key.</param>
     /// <param name="element">Reads one element from the value it is handed, by the same key.</param>
-    public T[] Array<T>(string key, Func<AuthoredProperties, T> element)
+    public T[] Array<T>(string key, Func<AuthoredMembers, T> element)
     {
         ArgumentNullException.ThrowIfNull(element);
         JsonElement value = Authored(key);
@@ -259,7 +261,7 @@ public readonly struct AuthoredProperties
         T[] read = new T[value.GetArrayLength()];
         for (int i = 0; i < read.Length; i++)
         {
-            read[i] = element(new AuthoredProperties(this, value[i], i));
+            read[i] = element(new AuthoredMembers(this, value[i], i));
         }
 
         return read;
@@ -323,7 +325,7 @@ public readonly struct AuthoredProperties
     /// Reads an object, written <c>{ "member": value }</c>, as the values its class's authorable members read in turn.
     /// Its own <c>type</c> key names the class to construct.
     /// </summary>
-    public AuthoredProperties Object(string key)
+    public AuthoredMembers Object(string key)
     {
         JsonElement value = Authored(key);
         if (value.ValueKind != JsonValueKind.Object)
@@ -333,20 +335,20 @@ public readonly struct AuthoredProperties
 
         string path = _index < 0 ? $"{_path}{key}." : string.Create(CultureInfo.InvariantCulture, $"{_path}{key}[{_index}].");
 
-        return new AuthoredProperties(_owner!, value, path);
+        return new AuthoredMembers(_owner!, value, path);
     }
 
     /// <summary>The key of the class an object's <c>type</c> names, or null when it names none.</summary>
     public string? Type()
     {
-        if (!Find("type", out JsonElement value))
+        if (!Find(TypeKey, out JsonElement value))
         {
             return null;
         }
 
         return value.ValueKind == JsonValueKind.String
             ? value.GetString()
-            : throw new SceneDocumentFormatException($"{OwnerName} sets '{_path}type' to {Found(value)}. Write the key of a class in quotes.");
+            : throw new SceneDocumentFormatException($"{OwnerName} sets '{_path}{TypeKey}' to {Found(value)}. Write the key of a class in quotes.");
     }
 
     /// <summary>The failure for an object whose <c>type</c> names no class the member takes, or that needs a type and names none.</summary>
@@ -357,7 +359,7 @@ public readonly struct AuthoredProperties
         string fix = types.Length == 0 ? "No class the member takes has a key." : $"Write one of: {types}.";
 
         return Type() is { } type
-            ? new($"{OwnerName} sets '{_path}type' to \"{type}\", which names no class '{member}' takes. {fix}")
+            ? new($"{OwnerName} sets '{_path}{TypeKey}' to \"{type}\", which names no class '{member}' takes. {fix}")
             : new($"{OwnerName} sets '{member}' with no type, and the member holds no object to fill. {fix}");
     }
 
@@ -366,8 +368,8 @@ public readonly struct AuthoredProperties
     /// entity reference.
     /// </summary>
     /// <param name="target">The object whose member <paramref name="set"/> assigns.</param>
-    /// <param name="set">Reads the reference off the properties it is handed and assigns it.</param>
-    public void Link(object target, Action<object, AuthoredProperties> set)
+    /// <param name="set">Reads the reference off the members it is handed and assigns it.</param>
+    public void Link(object target, Action<object, AuthoredMembers> set)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(set);
@@ -383,13 +385,13 @@ public readonly struct AuthoredProperties
             return;
         }
 
-        foreach ((object target, Action<object, AuthoredProperties> set, AuthoredProperties from) in owner.Links)
+        foreach ((object target, Action<object, AuthoredMembers> set, AuthoredMembers from) in owner.Links)
         {
             set(target, from);
         }
 
         owner.Links.Clear();
-        foreach (AuthoredProperties level in owner.Levels)
+        foreach (AuthoredMembers level in owner.Levels)
         {
             level.RefuseUnread();
         }
@@ -413,7 +415,7 @@ public readonly struct AuthoredProperties
             asked.Add(key);
         }
 
-        return _properties is { } properties && properties.TryGetProperty(key, out value);
+        return _members is { } members && members.TryGetProperty(key, out value);
     }
 
     // The applier reads an optional member only after Has, so an absent key here is a required member.
@@ -428,17 +430,17 @@ public readonly struct AuthoredProperties
     {
         List<string> asked = _asked!;
         string path = _path;
-        string[] unread = [.. _properties!.Value.EnumerateObject().Select(static member => member.Name).Where(name => !asked.Contains(name))];
+        string[] unread = [.. _members!.Value.EnumerateObject().Select(static member => member.Name).Where(name => !asked.Contains(name))];
         if (unread.Length == 0)
         {
             return;
         }
 
         // A nested object takes a type only through a member it can be assigned to.
-        if (_path.Length > 0 && unread.Contains("type"))
+        if (_path.Length > 0 && unread.Contains(TypeKey))
         {
             throw new SceneDocumentFormatException(
-                $"{OwnerName} sets '{_path}type', but '{_path.TrimEnd('.')}' fills the object its member holds and has no setter to take another. Drop the type, or give the member a setter.");
+                $"{OwnerName} sets '{_path}{TypeKey}', but '{_path.TrimEnd('.')}' fills the object its member holds and has no setter to take another. Drop the type, or give the member a setter.");
         }
 
         string declares = _asked!.Count == 0 ? "none" : string.Join(", ", _asked);
@@ -457,7 +459,7 @@ public readonly struct AuthoredProperties
             : $"{Sets(key)} to {Found(value)}, but the member takes {expected}. Write {form}.");
     }
 
-    // An asset the properties name by key: the string it wrote, normalized, resolved through find, and joined to the
+    // An asset the members name by key: the string it wrote, normalized, resolved through find, and joined to the
     // scene's preload where join adds it.
     private T Asset<T>(string key, Func<string, T?> find, Func<string, string?> normalize, string form, string fix, Action<AssetCollection, T>? join)
         where T : struct
@@ -506,8 +508,8 @@ public readonly struct AuthoredProperties
 
         internal AssetCollection? Assets => assets;
 
-        internal List<AuthoredProperties> Levels { get; } = [];
+        internal List<AuthoredMembers> Levels { get; } = [];
 
-        internal List<(object Target, Action<object, AuthoredProperties> Set, AuthoredProperties From)> Links { get; } = [];
+        internal List<(object Target, Action<object, AuthoredMembers> Set, AuthoredMembers From)> Links { get; } = [];
     }
 }

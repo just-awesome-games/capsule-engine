@@ -449,7 +449,7 @@ public sealed class EngineBuilder
     /// <param name="payload">Boot state, as <see cref="RunScene{TScene}(object?)"/> takes it.</param>
     /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
-    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
+    /// <exception cref="SpawnException">A placement's type key is claimed by no entity.</exception>
     public HeadlessRunResult RunHeadless<TScene>(IInputDriver driver, object? payload = null)
         where TScene : Scene
         => RunHeadless(SceneTransition.ToScene(typeof(TScene), payload), driver);
@@ -463,7 +463,7 @@ public sealed class EngineBuilder
     /// <param name="payload">Boot state, as <see cref="RunScene(SceneKey, object?)"/> takes it.</param>
     /// <exception cref="ArgumentException">The key is not '/'-joined safe segments.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
-    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
+    /// <exception cref="SpawnException">A placement's type key is claimed by no entity.</exception>
     public HeadlessRunResult RunHeadless(SceneKey scene, IInputDriver driver, object? payload = null) =>
         RunHeadless(SceneTransition.ToName(scene.Required(nameof(scene)), payload), driver);
 
@@ -479,7 +479,7 @@ public sealed class EngineBuilder
     /// </param>
     /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
-    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
+    /// <exception cref="SpawnException">A placement's type key is claimed by no entity.</exception>
     public int RunScene<TScene>(object? payload = null)
         where TScene : Scene
         => RunWindowed(SceneTransition.ToScene(typeof(TScene), payload));
@@ -493,7 +493,7 @@ public sealed class EngineBuilder
     /// <param name="payload">Boot state, as <see cref="RunScene{TScene}(object?)"/> takes it.</param>
     /// <exception cref="ArgumentException">The key is not '/'-joined safe segments.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
-    /// <exception cref="SpawnException">A placement's spawn type is claimed by no entity.</exception>
+    /// <exception cref="SpawnException">A placement's type key is claimed by no entity.</exception>
     public int RunScene(SceneKey scene, object? payload = null) =>
         RunWindowed(SceneTransition.ToName(scene.Required(nameof(scene)), payload));
 

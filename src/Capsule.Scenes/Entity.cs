@@ -122,7 +122,7 @@ public partial class Entity
             ScrollFactor = factor;
         }
 
-        spawn.Apply?.Invoke(this, spawn.Properties);
+        spawn.Apply?.Invoke(this, spawn.Members);
     }
 
     /// <summary>The entity this one is placed by, or null for a root.</summary>

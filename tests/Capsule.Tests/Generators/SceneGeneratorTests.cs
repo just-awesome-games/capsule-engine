@@ -218,7 +218,7 @@ public sealed class SceneGeneratorTests
         Type registryHolder = assembly.GetType("Capsule.Generated.CapsuleScenes")!;
         SceneRegistry registry = (SceneRegistry)registryHolder.GetProperty("Registry")!.GetValue(null)!;
 
-        SceneDocument document = SceneDocumentFile.Parse(
+        SceneDocument document = SceneDocument.Parse(
             """{"entities": [{"type": "tile-map", "tileSize": 16, "width": 1, "height": 1, "tileTypes": [{"name": "empty"}], "tiles": [0]}]}""");
         Scene composed = registry.Create(new SceneKey("scenes/halls/hall"), document);
 
@@ -307,7 +307,7 @@ public sealed class SceneGeneratorTests
         Type registryHolder = assembly.GetType("Capsule.Generated.CapsuleScenes")!;
         SceneRegistry registry = (SceneRegistry)registryHolder.GetProperty("Registry")!.GetValue(null)!;
 
-        SceneDocument document = SceneDocumentFile.Parse(
+        SceneDocument document = SceneDocument.Parse(
             """{"entities": [{"type": "tile-map", "tileSize": 16, "width": 1, "height": 1, "tileTypes": [{"name": "empty"}], "tiles": [0]}]}""");
         Scene composed = registry.Create(new SceneKey("scenes/halls/hall"), document);
 

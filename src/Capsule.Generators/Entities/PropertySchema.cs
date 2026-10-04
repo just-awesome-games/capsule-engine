@@ -9,11 +9,6 @@ namespace Capsule.Generators;
 // member only where it carries C#'s required.
 internal static class PropertySchema
 {
-    // The keys a scene document reads itself at each level, which no authorable member there may take.
-    private static readonly string[] SceneKeys = ["$schema", "baseScene", "entities"];
-    private static readonly string[] EntryKeys = ["id", "type", "x", "y", "rotation", "scale", "zIndex", "scrollFactor"];
-    private static readonly string[] ObjectKeys = ["type"];
-
     // Every class the compilation declares in source, which a member's subclasses are found among.
     private static readonly ConditionalWeakTable<Compilation, List<INamedTypeSymbol>> SourceClasses = new();
 
@@ -189,18 +184,18 @@ internal static class PropertySchema
         bool fills = kind == PropertyKind.Object && array is null;
         bool marked = mark?.NamedArguments.Any(static named => named is { Key: "Required", Value.Value: true }) ?? false;
         string key = CamelCase(member is IFieldSymbol && member.Name.StartsWith("_", StringComparison.Ordinal) ? member.Name.Substring(1) : member.Name);
-        string[] reserved = role switch
+        string reserved = role switch
         {
-            Role.Scene => SceneKeys,
-            Role.Object => ObjectKeys,
-            _ => EntryKeys,
+            Role.Scene => MetadataNames.DocumentKeys,
+            Role.Object => MetadataNames.MemberObjectKeys,
+            _ => MetadataNames.EntryKeys,
         };
         string? refusal = mark is null
             ? null
             : Misuse(member, fills)
                 ?? RoleMisuse(role, keyword, marked, reference)
                 ?? unsupported
-                ?? (reserved.Contains(key) ? $"takes the key '{key}', which the scene document reserves for its own field there. Rename the member" : null);
+                ?? (Reserved(reserved, compilation).Contains(key) ? $"takes the key '{key}', which the scene document reserves for its own field there. Rename the member" : null);
 
         if (refusal is null && kind == PropertyKind.Object && objects is not null && type is INamedTypeSymbol objectType)
         {
@@ -238,6 +233,11 @@ internal static class PropertySchema
             DeclaredAt.From(member.Locations.FirstOrDefault() ?? Location.None));
     }
 
+    // The keys a scene document reads itself at one level, which no authorable member there may take: the string
+    // constants of the engine's SceneDocumentKeys class for that level.
+    private static IEnumerable<string> Reserved(string keys, Compilation compilation) =>
+        compilation.GetTypeByMetadataName(keys)?.GetMembers().OfType<IFieldSymbol>().Select(static field => field.ConstantValue).OfType<string>() ?? [];
+
     // Describes the class and every subclass a type key can name, each once. The placeholder ends a cycle of
     // classes holding one another.
     private static void DescribeObject(INamedTypeSymbol type, Compilation compilation, Dictionary<string, ObjectModel> objects)
@@ -255,6 +255,9 @@ internal static class PropertySchema
             type.ToDisplayString(),
             SymbolShape.NamespaceOf(type),
             type.Name,
+            SymbolShape.Attribute(type, compilation, MetadataNames.TypeKeyAttribute) is { ConstructorArguments.Length: 1 } annotation
+                ? annotation.ConstructorArguments[0].Value as string ?? string.Empty
+                : null,
             DeclaredAt.From(type.Locations.FirstOrDefault() ?? Location.None),
             Construction(type, compilation),
             Of(type, compilation, objects),

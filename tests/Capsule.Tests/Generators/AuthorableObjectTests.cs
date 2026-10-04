@@ -125,7 +125,7 @@ public sealed class AuthorableObjectTests
         Assert.Contains("sets 'movement' with no type, and the member holds no object to fill. Write one of: patrol.", failure.Message, StringComparison.Ordinal);
     }
 
-    private static Scene Composed(string json) => Registry.Value.Create(new SceneKey("scenes/room"), SceneDocumentFile.Parse(json));
+    private static Scene Composed(string json) => Registry.Value.Create(new SceneKey("scenes/room"), SceneDocument.Parse(json));
 
     private static object? Member(object owner, string name) =>
         owner.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public)!.GetValue(owner);

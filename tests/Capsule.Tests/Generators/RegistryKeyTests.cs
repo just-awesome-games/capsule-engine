@@ -91,7 +91,7 @@ public sealed class RegistryKeyTests
     // folder claims the same key as one filed under its own, and the pair is refused naming both.
     [Theory]
     [InlineData("public sealed class Bat(EntitySpawn spawn) : Entity(spawn);", "CAP003")]
-    [InlineData("public sealed class Bat : Camera;", "CAP031")]
+    [InlineData("public sealed class Bat : Camera;", "CAP003")]
     public void TwoClassesClaimingOneKeyAcrossDomainSegments_FailTheBuildNamingBoth(string declaration, string id)
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileIn("Game", $$"""
@@ -143,25 +143,25 @@ public sealed class RegistryKeyTests
             StringComparison.Ordinal);
     }
 
-    // The attribute names a whole key, path and all, and the namespace says nothing.
-    [Fact]
-    public void AnExplicitKey_OverridesTheNamespaceWhole()
+    // The attribute names a whole key, path and all, and the namespace says nothing. An entity and a member
+    // object's subclass, a camera here, take it alike.
+    [Theory]
+    [InlineData("public sealed class Bat(EntitySpawn spawn) : Entity(spawn);", GeneratorHarness.CapsuleEntitiesFile)]
+    [InlineData("public sealed class Bat : Camera;", GeneratorHarness.CapsuleScenesFile)]
+    public void AnExplicitKey_OverridesTheNamespaceWhole(string declaration, string file)
     {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileIn("Game", """
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileIn("Game", $$"""
             using Capsule.Scenes;
             using Capsule.Scenes.Spawning;
 
             namespace Game.Entities.Enemies;
 
-            [SpawnType("bosses/wyrm")]
-            public sealed class Bat(EntitySpawn spawn) : Entity(spawn);
+            [TypeKey("bosses/wyrm")]
+            {{declaration}}
             """);
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
-        Assert.Contains(
-            "\"bosses/wyrm\"",
-            GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleEntitiesFile),
-            StringComparison.Ordinal);
+        Assert.Contains("\"bosses/wyrm\"", GeneratorHarness.Emitted(compiled, file), StringComparison.Ordinal);
     }
 
     // An override names a whole key; one that is no key names a file the build cannot write.
@@ -174,7 +174,7 @@ public sealed class RegistryKeyTests
     [InlineData("wyrm.json")]
     [InlineData("boss wyrm")]
     [InlineData("bosses/nul")]
-    public void AnUnsafeExplicitSpawnType_FailsTheBuild(string spawnType)
+    public void AnUnsafeExplicitTypeKey_FailsTheBuild(string key)
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileIn("Game", $$"""
             using Capsule.Scenes;
@@ -182,7 +182,7 @@ public sealed class RegistryKeyTests
 
             namespace Game.Entities;
 
-            [SpawnType("{{spawnType}}")]
+            [TypeKey("{{key}}")]
             public sealed class Wyrm(EntitySpawn spawn) : Entity(spawn);
             """).Diagnostics;
 

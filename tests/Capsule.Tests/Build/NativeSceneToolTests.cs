@@ -30,11 +30,11 @@ public sealed class NativeSceneToolTests
         Assert.Equal([0x1f, 0x8b, 0, 0, 0, 0], [shipped[0], shipped[1], .. shipped[4..8]]);
         using StreamReader inflated = new(new GZipStream(new MemoryStream(shipped), CompressionMode.Decompress));
         string emitted = inflated.ReadToEnd();
-        SceneDocument derived = SceneDocumentFile.Parse(emitted);
-        Assert.Equal(SceneDocumentFile.ToJson(derived), emitted);
+        SceneDocument derived = SceneDocument.Parse(emitted);
+        Assert.Equal(derived.ToJson(), emitted);
         Assert.NotEqual(Authored, emitted);
         Assert.DoesNotContain("$schema", emitted, StringComparison.Ordinal);
-        Assert.Equal(2, derived.Entries[0].Properties?.GetProperty("width").GetInt32());
+        Assert.Equal(2, derived.Entries[0].Members?.GetProperty("width").GetInt32());
         Assert.Equal("player", derived.Entries[1].Type);
     }
 

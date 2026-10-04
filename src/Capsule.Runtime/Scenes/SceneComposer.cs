@@ -22,7 +22,6 @@ internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
         _ => throw new InvalidOperationException($"'{target.Kind}' names no scene to compose."),
     };
 
-    // What SceneDocumentFile.Load does for a path, over the platform's shipped content instead.
     private SceneDocument Load(string path)
     {
         using Stream content = platform.OpenContent(path);

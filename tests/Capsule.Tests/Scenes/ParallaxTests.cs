@@ -264,9 +264,9 @@ public sealed class ParallaxTests
     {
         SceneDocument document = new(
             [
-                new SceneDocumentEntry("placed", 4f, 4f, ScrollFactor: Vector2.Zero),
-                new SceneDocumentEntry("placed", 4f, 4f),
-                new SceneDocumentEntry("fixed", 4f, 4f, ScrollFactor: Half),
+                new SceneDocumentEntry("placed", new EntitySpawn(new Vector2(4f, 4f)) { ScrollFactor = Vector2.Zero }),
+                new SceneDocumentEntry("placed", new EntitySpawn(new Vector2(4f, 4f))),
+                new SceneDocumentEntry("fixed", new EntitySpawn(new Vector2(4f, 4f)) { ScrollFactor = Half }),
             ]);
         Scene scene = SceneFixtures.RoomScene(
             document,

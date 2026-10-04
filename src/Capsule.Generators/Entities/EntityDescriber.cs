@@ -13,9 +13,10 @@ internal static class EntityDescriber
         List<IMethodSymbol> constructors = concreteEntity
             ? SymbolShape.Public(SymbolShape.ConstructorsTaking(type, compilation, MetadataNames.EntitySpawn))
             : [];
-        AttributeData? annotation = SymbolShape.Attribute(type, compilation, MetadataNames.SpawnTypeAttribute);
+        AttributeData? annotation = SymbolShape.Attribute(type, compilation, MetadataNames.TypeKeyAttribute);
 
-        if (annotation is null)
+        // A [TypeKey] on a class that is no entity keys it as a member object, which the object pass checks.
+        if (annotation is null || !SymbolShape.DerivesFrom(type, compilation, MetadataNames.Entity))
         {
             // A class of the wrong shape that claims nothing is an ordinary class, not a mistake.
             if (constructors.Count == 0)
@@ -38,10 +39,10 @@ internal static class EntityDescriber
             return null;
         }
 
-        string? spawnType = annotation.ConstructorArguments[0].Value as string;
-        if (string.IsNullOrWhiteSpace(spawnType))
+        string? key = annotation.ConstructorArguments[0].Value as string;
+        if (string.IsNullOrWhiteSpace(key))
         {
-            return Model(type, declaration, null, EntityFault.BlankSpawnType);
+            return Model(type, declaration, null, EntityFault.BlankTypeKey);
         }
 
         EntityFault fault = !concreteEntity ? EntityFault.NotAConcreteEntity
@@ -50,15 +51,15 @@ internal static class EntityDescriber
             : !SymbolShape.IsAccessibleFromGeneratedCode(type) ? EntityFault.InaccessibleType
             : EntityFault.None;
 
-        return SpawnChecked(type, declaration, spawnType!, fault, model, constructors);
+        return SpawnChecked(type, declaration, key!, fault, model, constructors);
     }
 
-    // An engine entity a document places by the key its [SpawnType] names. Its members are described as a game class's
+    // An engine entity a document places by the key its [TypeKey] names. Its members are described as a game class's
     // are, and it carries no fault.
     internal static EntityModel? DescribeEngine(Compilation compilation, string metadataName)
     {
         if (compilation.GetTypeByMetadataName(metadataName) is not { } type
-            || SymbolShape.Attribute(type, compilation, MetadataNames.SpawnTypeAttribute) is not { ConstructorArguments.Length: 1 } annotation
+            || SymbolShape.Attribute(type, compilation, MetadataNames.TypeKeyAttribute) is not { ConstructorArguments.Length: 1 } annotation
             || annotation.ConstructorArguments[0].Value is not string key)
         {
             return null;

@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 namespace Capsule.Generators;
 
 /// <summary>One entity class registered under the key it claims.</summary>
-internal readonly record struct RegisteredEntity(string SpawnType, EntityModel Model);
+internal readonly record struct RegisteredEntity(string Key, EntityModel Model);
 
 /// <summary>The lookup one asset type an authored member takes resolves its keys through.</summary>
 /// <param name="Assets">Each declared asset of the form, by key, with the member it is read from.</param>

@@ -122,7 +122,7 @@ public sealed class EntityReferenceTests
         SceneRegistry registry = (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!
             .GetProperty("Registry")!.GetValue(null)!;
 
-        return registry.Create(new SceneKey("scenes/room"), SceneDocumentFile.Parse(Document(entries)));
+        return registry.Create(new SceneKey("scenes/room"), SceneDocument.Parse(Document(entries)));
     }
 
     private static object? Member(Entity entity, string name) => entity.GetType().GetProperty(name)!.GetValue(entity);

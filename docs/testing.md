@@ -14,12 +14,8 @@ Input is `DeviceSnapshot` values, an `InputScript`, or an `IInputDriver` that re
 ([`persistence.md`](persistence.md)). A seeded `RandomSource` makes a run repeatable under the
 [determinism contract](architecture.md#determinism-contract).
 A test composes a shipped scene document through the generated `CapsuleScenes.Registry` in `Capsule.Generated`,
-as `Registry.Create(CapsuleAssets.Scenes.RoomScene)`. One test catches every placement a run would refuse:
-
-```csharp
-[Fact]
-public void EveryScenePlacementIsValid() => CapsuleScenes.Registry.ComposeAll();
-```
+as `Registry.Create(CapsuleAssets.Scenes.RoomScene)`. One test catches every placement a run would refuse
+([Validating every document](scenes.md#validating-every-document)).
 
 [`samples/MinimalGame/tests/MinimalGame.Tests/`](../samples/MinimalGame/tests/MinimalGame.Tests/) is the
 worked example at both boundaries.

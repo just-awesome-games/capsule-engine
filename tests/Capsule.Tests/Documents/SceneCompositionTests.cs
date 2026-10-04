@@ -14,8 +14,8 @@ public sealed class SceneCompositionTests
     public void EachPlacementBecomesOneEntity_InTheDocumentsOwnOrder_CarryingItsPlacementData()
     {
         SceneDocument room = SceneFixtures.Room(
-            new SceneDocumentEntry("chest", 48f, 16f),
-            new SceneDocumentEntry("player-spawn", 32f, 24f));
+            new SceneDocumentEntry("chest", new EntitySpawn(new Vector2(48f, 16f))),
+            new SceneDocumentEntry("player-spawn", new EntitySpawn(new Vector2(32f, 24f))));
 
         Scene scene = SceneFixtures.RoomScene(
             room,
@@ -42,7 +42,7 @@ public sealed class SceneCompositionTests
     public void ADocumentWithNoTerrain_ComposesWithNoTileMapAndNoSize()
     {
         Scene scene = SceneFixtures.RoomScene(
-            SceneFixtures.Room(new SceneDocumentEntry("chest", 48f, 16f)),
+            SceneFixtures.Room(new SceneDocumentEntry("chest", new EntitySpawn(new Vector2(48f, 16f)))),
             SceneFixtures.Registry(("chest", static spawn => new SceneFixtures.Placed(spawn))));
 
         Assert.Null(scene.FindFirst<TileMap>());
@@ -56,8 +56,8 @@ public sealed class SceneCompositionTests
     {
         Scene scene = SceneFixtures.RoomScene(
             SceneFixtures.Room(
-                new SceneDocumentEntry("turned", 0f, 0f, RotationDegrees: 90f),
-                new SceneDocumentEntry("upright", 0f, 0f, RotationDegrees: 90f)),
+                new SceneDocumentEntry("turned", new EntitySpawn(Vector2.Zero) { Rotation = float.DegreesToRadians(90f) }),
+                new SceneDocumentEntry("upright", new EntitySpawn(Vector2.Zero) { Rotation = float.DegreesToRadians(90f) })),
             SceneFixtures.Registry(
                 ("turned", static spawn => new Turned(spawn)),
                 ("upright", static spawn => new Upright(spawn))));

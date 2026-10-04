@@ -54,7 +54,7 @@ internal static class BootResolver
                 }
 
                 diagnostics.Add(Diagnostic.Create(
-                    claim.Kind == RegistryClaimKind.Entity ? Diagnostics.DuplicateSpawnType : Diagnostics.DuplicateSceneDocumentName,
+                    claim.Kind == RegistryClaimKind.Entity ? Diagnostics.DuplicateTypeKey : Diagnostics.DuplicateSceneDocumentName,
                     Location.None,
                     previous.DeclaringType,
                     claim.DeclaringType,

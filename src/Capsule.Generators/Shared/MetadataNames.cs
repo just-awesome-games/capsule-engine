@@ -10,7 +10,7 @@ internal static class MetadataNames
 
     internal const string Entity = "Capsule.Scenes.Entity";
     internal const string EntitySpawn = "Capsule.Scenes.Spawning.EntitySpawn";
-    internal const string SpawnTypeAttribute = "Capsule.Scenes.Spawning.SpawnTypeAttribute";
+    internal const string TypeKeyAttribute = "Capsule.Scenes.TypeKeyAttribute";
     internal const string AuthorableAttribute = "Capsule.Scenes.AuthorableAttribute";
     internal const string Scene = "Capsule.Scenes.Scene";
     internal const string SceneContent = "Capsule.Scenes.SceneContent";
@@ -20,6 +20,11 @@ internal static class MetadataNames
     internal const string InputDriver = "Capsule.Input.IInputDriver";
     internal const string CapsuleEngine = "Capsule.Runtime.CapsuleEngine";
     internal const string SaveKey = "Capsule.Persistence.SaveKey`1";
+
+    // The engine's reserved scene document keys, one nested class of string constants per object.
+    internal const string DocumentKeys = "Capsule.Scenes.Documents.SceneDocumentKeys+Document";
+    internal const string EntryKeys = "Capsule.Scenes.Documents.SceneDocumentKeys+Entry";
+    internal const string MemberObjectKeys = "Capsule.Scenes.Documents.SceneDocumentKeys+MemberObject";
 
     // What the build marks CapsuleAssets with.
     internal const string AssetAttribute = "Capsule.Generated.CapsuleGeneratedAssetAttribute";

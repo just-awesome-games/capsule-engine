@@ -128,7 +128,7 @@ public sealed class SceneAuthorableTests
     }
 
     [Fact]
-    public void ATestSubclassOfAnAbstractScene_GetsTheDocumentsProperties_ThroughContent()
+    public void ATestSubclassOfAnAbstractScene_GetsTheDocumentsMembers_ThroughContent()
     {
         Assembly game = Loaded(Rooms);
         SceneContent content = Content(game, "Game.Stage", """{"start": 1, "floor": 3}""");
@@ -150,10 +150,10 @@ public sealed class SceneAuthorableTests
     private static SceneRegistry Registry(Assembly game) =>
         (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;
 
-    private static SceneContent Content(Assembly game, string sceneType, string properties) =>
+    private static SceneContent Content(Assembly game, string sceneType, string members) =>
         (SceneContent)typeof(SceneRegistry).GetMethod(nameof(SceneRegistry.Content))!
             .MakeGenericMethod(game.GetType(sceneType)!)
-            .Invoke(Registry(game), BindingFlags.DoNotWrapExceptions, null, [SceneDocumentFile.Parse(Document(properties))], null)!;
+            .Invoke(Registry(game), BindingFlags.DoNotWrapExceptions, null, [SceneDocument.Parse(Document(members))], null)!;
 
     // The document's members, written as one object, beside its one entry.
     private static string Document(string members) =>
@@ -164,7 +164,7 @@ public sealed class SceneAuthorableTests
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (path, Document(members)));
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
-        return Registry(GeneratorHarness.Loaded(compiled)).Create(new SceneKey(path[..^".scene.json".Length]), SceneDocumentFile.Parse(Document(members)));
+        return Registry(GeneratorHarness.Loaded(compiled)).Create(new SceneKey(path[..^".scene.json".Length]), SceneDocument.Parse(Document(members)));
     }
 
     private static object? Member(Scene scene, string name) => scene.GetType().GetProperty(name)!.GetValue(scene);

@@ -120,7 +120,7 @@ internal static class SceneRenderer
     // every entry is constructed, before the derived body runs.
     private static string Applier(SceneModel model) => $$"""
 
-                private static void {{ApplierName(model.QualifiedName)}}(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+                private static void {{ApplierName(model.QualifiedName)}}(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.Spawning.AuthoredMembers members)
                 {
                     {{model.QualifiedName}} scene = ({{model.QualifiedName}})composed;
         {{PropertyReadRenderer.Assignments(model.Authored, "scene", model.QualifiedName, StatementIndent)}}        }

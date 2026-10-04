@@ -2,12 +2,12 @@ namespace Capsule.Generators;
 
 /// <summary>A type a scene document writes in a JSON form of the engine's own.</summary>
 /// <param name="Type">The type as the generator displays it fully qualified.</param>
-/// <param name="Read">The <c>AuthoredProperties</c> method the spawner reads it with.</param>
+/// <param name="Read">The <c>AuthoredMembers</c> method the spawner reads it with.</param>
 internal sealed record BuiltInForm(string Type, string Read);
 
 /// <summary>An asset type a scene document names by key, resolved at load through a generated lookup.</summary>
 /// <param name="Type">The type as the generator displays it fully qualified.</param>
-/// <param name="Read">The <c>AuthoredProperties</c> method the spawner reads it with, which also names its lookup.</param>
+/// <param name="Read">The <c>AuthoredMembers</c> method the spawner reads it with, which also names its lookup.</param>
 /// <param name="Scene">Whether it is keyed as a scene document, without an extension, where otherwise by key and extension.</param>
 internal sealed record AssetForm(string Type, string Read, bool Scene)
 {
@@ -18,7 +18,7 @@ internal sealed record AssetForm(string Type, string Read, bool Scene)
 // Every member type a scene document writes in a form of the engine's own, and how each is read.
 internal static class PropertyForms
 {
-    // A new built-in type is one entry here and one read method of the same name on AuthoredProperties.
+    // A new built-in type is one entry here and one read method of the same name on AuthoredMembers.
     internal static readonly BuiltInForm[] BuiltIns =
     [
         new("bool", "Bool"),
@@ -30,7 +30,7 @@ internal static class PropertyForms
         new("global::Capsule.Rendering.ColorRgba", "Color"),
     ];
 
-    // A new asset type is one entry here, one read method of the same name on AuthoredProperties, and the build's
+    // A new asset type is one entry here, one read method of the same name on AuthoredMembers, and the build's
     // CapsuleGeneratedAsset attribute on its CapsuleAssets members. Lookups are generated in this order.
     internal static readonly AssetForm[] Assets =
     [

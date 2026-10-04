@@ -44,96 +44,96 @@ namespace Capsule.Generated
             return scenes.Build();
         }
 
-        private static void Apply_Capsule_Scenes_Scene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        private static void Apply_Capsule_Scenes_Scene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.Spawning.AuthoredMembers members)
         {
             global::Capsule.Scenes.Scene scene = (global::Capsule.Scenes.Scene)composed;
-            if (properties.Has("camera"))
+            if (members.Has("camera"))
             {
-                SetCamera(scene, Object_Capsule_Scenes_Camera(scene.Camera, properties.Object("camera"), replaces: true));
+                SetCamera(scene, Object_Capsule_Scenes_Camera(scene.Camera, members.Object("camera"), replaces: true));
             }
-            if (properties.Has("size"))
+            if (members.Has("size"))
             {
-                SetSize(scene, properties.Vector2("size"));
+                SetSize(scene, members.Vector2("size"));
             }
-            if (properties.Has("clearColor"))
+            if (members.Has("clearColor"))
             {
-                SetClearColor(scene, properties.Color("clearColor"));
+                SetClearColor(scene, members.Color("clearColor"));
             }
-            if (properties.Has("ambient"))
+            if (members.Has("ambient"))
             {
-                SetAmbient(scene, properties.Color("ambient"));
+                SetAmbient(scene, members.Color("ambient"));
             }
-            if (properties.Has("sampling"))
+            if (members.Has("sampling"))
             {
-                SetSampling(scene, properties.Name("sampling") switch
+                SetSampling(scene, members.Name("sampling") switch
                 {
                     "linear" => global::Capsule.Rendering.TextureSampling.Linear,
                     "point" => global::Capsule.Rendering.TextureSampling.Point,
-                    _ => throw properties.NotAName("sampling", "linear, point"),
+                    _ => throw members.NotAName("sampling", "linear, point"),
                 });
             }
         }
 
-        private static void Apply_Game_PlayableScene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        private static void Apply_Game_PlayableScene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.Spawning.AuthoredMembers members)
         {
             global::Game.PlayableScene scene = (global::Game.PlayableScene)composed;
-            if (properties.Has("camera"))
+            if (members.Has("camera"))
             {
-                SetCamera(scene, Object_Capsule_Scenes_Camera(scene.Camera, properties.Object("camera"), replaces: true));
+                SetCamera(scene, Object_Capsule_Scenes_Camera(scene.Camera, members.Object("camera"), replaces: true));
             }
-            if (properties.Has("size"))
+            if (members.Has("size"))
             {
-                SetSize(scene, properties.Vector2("size"));
+                SetSize(scene, members.Vector2("size"));
             }
-            if (properties.Has("clearColor"))
+            if (members.Has("clearColor"))
             {
-                SetClearColor(scene, properties.Color("clearColor"));
+                SetClearColor(scene, members.Color("clearColor"));
             }
-            if (properties.Has("ambient"))
+            if (members.Has("ambient"))
             {
-                SetAmbient(scene, properties.Color("ambient"));
+                SetAmbient(scene, members.Color("ambient"));
             }
-            if (properties.Has("sampling"))
+            if (members.Has("sampling"))
             {
-                SetSampling(scene, properties.Name("sampling") switch
+                SetSampling(scene, members.Name("sampling") switch
                 {
                     "linear" => global::Capsule.Rendering.TextureSampling.Linear,
                     "point" => global::Capsule.Rendering.TextureSampling.Point,
-                    _ => throw properties.NotAName("sampling", "linear, point"),
+                    _ => throw members.NotAName("sampling", "linear, point"),
                 });
             }
-            if (properties.Has("floor"))
+            if (members.Has("floor"))
             {
-                SetFloor(scene, properties.Int("floor"));
+                SetFloor(scene, members.Int("floor"));
             }
         }
 
-        private static global::Capsule.Scenes.Camera Object_Capsule_Scenes_Camera(global::Capsule.Scenes.Camera? held, global::Capsule.Scenes.Spawning.AuthoredProperties properties, bool replaces) => (replaces ? properties.Type() : null) switch
+        private static global::Capsule.Scenes.Camera Object_Capsule_Scenes_Camera(global::Capsule.Scenes.Camera? held, global::Capsule.Scenes.Spawning.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
         {
             null => held switch
             {
-                global::Game.GameCamera subclass => Fill_Game_GameCamera(subclass, properties),
-                null => Fill_Capsule_Scenes_Camera(new global::Capsule.Scenes.Camera(), properties),
-                _ => Fill_Capsule_Scenes_Camera(held, properties),
+                global::Game.GameCamera subclass => Fill_Game_GameCamera(subclass, members),
+                null => Fill_Capsule_Scenes_Camera(new global::Capsule.Scenes.Camera(), members),
+                _ => Fill_Capsule_Scenes_Camera(held, members),
             },
-            "game-camera" => Fill_Game_GameCamera(new global::Game.GameCamera(), properties),
-            _ => throw properties.NotAType("game-camera"),
+            "game-camera" => Fill_Game_GameCamera(new global::Game.GameCamera(), members),
+            _ => throw members.NotAType("game-camera"),
         };
 
-        private static global::Capsule.Scenes.Camera Fill_Capsule_Scenes_Camera(global::Capsule.Scenes.Camera target, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        private static global::Capsule.Scenes.Camera Fill_Capsule_Scenes_Camera(global::Capsule.Scenes.Camera target, global::Capsule.Scenes.Spawning.AuthoredMembers members)
         {
-            if (properties.Has("scrollCenter"))
+            if (members.Has("scrollCenter"))
             {
-                target.ScrollCenter = properties.IsNull("scrollCenter") ? null : properties.Vector2("scrollCenter");
+                target.ScrollCenter = members.IsNull("scrollCenter") ? null : members.Vector2("scrollCenter");
             }
             return target;
         }
 
-        private static global::Game.GameCamera Fill_Game_GameCamera(global::Game.GameCamera target, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        private static global::Game.GameCamera Fill_Game_GameCamera(global::Game.GameCamera target, global::Capsule.Scenes.Spawning.AuthoredMembers members)
         {
-            if (properties.Has("scrollCenter"))
+            if (members.Has("scrollCenter"))
             {
-                target.ScrollCenter = properties.IsNull("scrollCenter") ? null : properties.Vector2("scrollCenter");
+                target.ScrollCenter = members.IsNull("scrollCenter") ? null : members.Vector2("scrollCenter");
             }
             return target;
         }

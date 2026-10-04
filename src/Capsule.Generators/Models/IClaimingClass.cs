@@ -1,6 +1,6 @@
 namespace Capsule.Generators;
 
-/// <summary>A class that claims the key its namespace and name spell, with no attribute to override it: a subclass a type key names.</summary>
+/// <summary>A subclass a member object's type key names, by the key its namespace and name spell or its <c>[TypeKey]</c> declares.</summary>
 internal interface IClaimingClass
 {
     string QualifiedName { get; }
@@ -10,6 +10,8 @@ internal interface IClaimingClass
     string ContainingNamespace { get; }
 
     string TypeName { get; }
+
+    string? Declared { get; }
 
     DeclaredAt At { get; }
 }

@@ -16,6 +16,7 @@ internal enum ObjectConstruction
 
 /// <summary>One class a member's JSON object fills or constructs, with what the object's keys may name.</summary>
 /// <param name="QualifiedName">The class, fully qualified.</param>
+/// <param name="Declared">The key <c>[TypeKey]</c> names, or null when the class claims one by convention.</param>
 /// <param name="Properties">What the object's keys may name, as <see cref="PropertySchema.Of"/> finds it.</param>
 /// <param name="Subclasses">
 /// Every class deriving from it that generated code can name, fully qualified, deepest first. Each has an
@@ -26,6 +27,7 @@ internal readonly record struct ObjectModel(
     string DisplayName,
     string ContainingNamespace,
     string TypeName,
+    string? Declared,
     DeclaredAt At,
     ObjectConstruction Construction,
     EquatableArray<PropertyModel> Properties,

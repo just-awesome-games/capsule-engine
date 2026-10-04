@@ -26,14 +26,14 @@ internal static class EntityResolver
             static model => Reported(model.Fault),
             model =>
             {
-                string spawnType = KeyOf(model, inputs.RootNamespace);
-                if (AssetPaths.IsKey(spawnType))
+                string key = KeyOf(model, inputs.RootNamespace);
+                if (AssetPaths.IsKey(key))
                 {
-                    sound.Add(new RegisteredEntity(spawnType, model));
+                    sound.Add(new RegisteredEntity(key, model));
                 }
                 else
                 {
-                    diagnostics.Add(Diagnostic.Create(Diagnostics.UnsafeSpawnType, model.At.Location(), model.DisplayName, spawnType));
+                    diagnostics.Add(Diagnostic.Create(Diagnostics.UnsafeTypeKey, model.At.Location(), model.DisplayName, key));
                 }
             });
 
@@ -42,14 +42,14 @@ internal static class EntityResolver
             sound,
             static (left, right) =>
             {
-                int byType = string.CompareOrdinal(left.SpawnType, right.SpawnType);
+                int byType = string.CompareOrdinal(left.Key, right.Key);
 
                 return byType != 0 ? byType : string.CompareOrdinal(left.Model.QualifiedName, right.Model.QualifiedName);
             },
-            static entry => entry.SpawnType,
+            static entry => entry.Key,
             static entry => entry.Model.DisplayName,
             static entry => entry.Model.At,
-            Diagnostics.DuplicateSpawnType);
+            Diagnostics.DuplicateTypeKey);
 
         ImmutableArray<string> claimed = [.. models
             .Select(model => KeyOf(model, inputs.RootNamespace))
@@ -73,7 +73,7 @@ internal static class EntityResolver
     {
         EntityFault.NotAConcreteEntity => Diagnostics.NotAConcreteEntity,
         EntityFault.MissingSpawnConstructor => Diagnostics.MissingSpawnConstructor,
-        EntityFault.BlankSpawnType => Diagnostics.BlankSpawnType,
+        EntityFault.BlankTypeKey => Diagnostics.BlankTypeKey,
         EntityFault.InaccessibleType => Diagnostics.InaccessibleRegisteredType,
         EntityFault.AmbiguousSpawnConstructors => Diagnostics.AmbiguousEntityConstructors,
         EntityFault.SpawnNotPassedToBase => Diagnostics.SpawnNotPassedToBase,
@@ -81,7 +81,7 @@ internal static class EntityResolver
     };
 
     // The key comes from where the type is declared, so it is not settled until the assembly's root
-    // namespace is known. An explicit [SpawnType] names the full key under the same grammar.
+    // namespace is known. An explicit [TypeKey] names the full key under the same grammar.
     private static string KeyOf(EntityModel model, string rootNamespace) =>
         model.Declared ?? TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
 

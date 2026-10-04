@@ -20,177 +20,177 @@ namespace Capsule.Generated
                 new global::Capsule.Scenes.Spawning.EntityRegistration(
                     "floor-switch",
                     static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => New_Game_FloorSwitch(spawn),
-                    static (placed, properties) =>
+                    static (placed, members) =>
                     {
                         global::Game.FloorSwitch entity = (global::Game.FloorSwitch)placed;
-                        properties.Link(entity, static (owner, linked) => ((global::Game.FloorSwitch)owner).Lamp = linked.Entity<global::Game.Lamp>("lamp"));
+                        members.Link(entity, static (owner, linked) => ((global::Game.FloorSwitch)owner).Lamp = linked.Entity<global::Game.Lamp>("lamp"));
                     }),
                 new global::Capsule.Scenes.Spawning.EntityRegistration(
                     "lamp",
                     static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new global::Game.Lamp(spawn),
-                    static (placed, properties) =>
+                    static (placed, members) =>
                     {
                         global::Game.Lamp entity = (global::Game.Lamp)placed;
-                        SetGlow(entity, properties.Name("glow") switch
+                        SetGlow(entity, members.Name("glow") switch
                         {
                             "dim" => global::Game.Glow.Dim,
                             "bright" => global::Game.Glow.Bright,
-                            _ => throw properties.NotAName("glow", "dim, bright"),
+                            _ => throw members.NotAName("glow", "dim, bright"),
                         });
-                        if (properties.Has("icon"))
+                        if (members.Has("icon"))
                         {
-                            entity.Icon = properties.Texture("icon", FindTexture);
+                            entity.Icon = members.Texture("icon", FindTexture);
                         }
-                        if (properties.Has("charge"))
+                        if (members.Has("charge"))
                         {
-                            SetCharge(entity) = properties.Int("charge");
+                            SetCharge(entity) = members.Int("charge");
                         }
                     }),
                 new global::Capsule.Scenes.Spawning.EntityRegistration(
                     "portal",
                     static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new global::Game.Portal(spawn),
-                    static (placed, properties) =>
+                    static (placed, members) =>
                     {
                         global::Game.Portal entity = (global::Game.Portal)placed;
-                        if (properties.Has("exit"))
+                        if (members.Has("exit"))
                         {
-                            Object_Game_Exit(entity.Exit, properties.Object("exit"), replaces: false);
+                            Object_Game_Exit(entity.Exit, members.Object("exit"), replaces: false);
                         }
                     }),
                 new global::Capsule.Scenes.Spawning.EntityRegistration(
                     "tile-map",
                     static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new global::Capsule.Tiles.TileMap(spawn),
-                    static (placed, properties) =>
+                    static (placed, members) =>
                     {
                         global::Capsule.Tiles.TileMap entity = (global::Capsule.Tiles.TileMap)placed;
-                        SetTileSize(entity, properties.Int("tileSize"));
-                        SetWidth(entity, properties.Int("width"));
-                        SetHeight(entity, properties.Int("height"));
-                        if (properties.Has("texture"))
+                        SetTileSize(entity, members.Int("tileSize"));
+                        SetWidth(entity, members.Int("width"));
+                        SetHeight(entity, members.Int("height"));
+                        if (members.Has("texture"))
                         {
-                            SetTexture(entity, properties.IsNull("texture") ? null : properties.Texture("texture", FindTexture));
+                            SetTexture(entity, members.IsNull("texture") ? null : members.Texture("texture", FindTexture));
                         }
-                        if (properties.Has("columns"))
+                        if (members.Has("columns"))
                         {
-                            SetColumns(entity, properties.Int("columns"));
+                            SetColumns(entity, members.Int("columns"));
                         }
-                        SetTileTypes(entity, properties.Array<global::Capsule.Tiles.TileType>("tileTypes", static element => Object_Capsule_Tiles_TileType(null, element.Object("tileTypes"), replaces: true)));
-                        SetTiles(entity, properties.Array<int>("tiles", static element => element.Int("tiles")));
-                        if (properties.Has("transforms"))
+                        SetTileTypes(entity, members.Array<global::Capsule.Tiles.TileType>("tileTypes", static element => Object_Capsule_Tiles_TileType(null, element.Object("tileTypes"), replaces: true)));
+                        SetTiles(entity, members.Array<int>("tiles", static element => element.Int("tiles")));
+                        if (members.Has("transforms"))
                         {
-                            SetTransforms(entity, properties.IsNull("transforms") ? null : properties.Array<int>("transforms", static element => element.Int("transforms")));
+                            SetTransforms(entity, members.IsNull("transforms") ? null : members.Array<int>("transforms", static element => element.Int("transforms")));
                         }
-                        if (properties.Has("collider"))
+                        if (members.Has("collider"))
                         {
-                            SetCollider(entity, properties.Bool("collider"));
+                            SetCollider(entity, members.Bool("collider"));
                         }
                     }),
             };
 
-        /// <summary>The registry a scene resolves its spawn types through.</summary>
+        /// <summary>The registry a scene resolves its type keys through.</summary>
         public static global::Capsule.Scenes.Spawning.EntityRegistry Registry { get; } =
             new global::Capsule.Scenes.Spawning.EntityRegistry(Registrations);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Constructor)]
         private static extern global::Game.FloorSwitch New_Game_FloorSwitch(global::Capsule.Scenes.Spawning.EntitySpawn spawn);
 
-        private static global::Capsule.Tiles.TileFrame Object_Capsule_Tiles_TileFrame(global::Capsule.Tiles.TileFrame? held, global::Capsule.Scenes.Spawning.AuthoredProperties properties, bool replaces) => (replaces ? properties.Type() : null) switch
+        private static global::Capsule.Tiles.TileFrame Object_Capsule_Tiles_TileFrame(global::Capsule.Tiles.TileFrame? held, global::Capsule.Scenes.Spawning.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
         {
-            null => Fill_Capsule_Tiles_TileFrame(held ?? new global::Capsule.Tiles.TileFrame(), properties),
-            _ => throw properties.NotAType(""),
+            null => Fill_Capsule_Tiles_TileFrame(held ?? new global::Capsule.Tiles.TileFrame(), members),
+            _ => throw members.NotAType(""),
         };
 
-        private static global::Capsule.Tiles.TileType Object_Capsule_Tiles_TileType(global::Capsule.Tiles.TileType? held, global::Capsule.Scenes.Spawning.AuthoredProperties properties, bool replaces) => (replaces ? properties.Type() : null) switch
+        private static global::Capsule.Tiles.TileType Object_Capsule_Tiles_TileType(global::Capsule.Tiles.TileType? held, global::Capsule.Scenes.Spawning.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
         {
             null => held switch
             {
-                global::Game.Ice subclass => Fill_Game_Ice(subclass, properties),
-                null => Fill_Capsule_Tiles_TileType(new global::Capsule.Tiles.TileType(), properties),
-                _ => Fill_Capsule_Tiles_TileType(held, properties),
+                global::Game.Ice subclass => Fill_Game_Ice(subclass, members),
+                null => Fill_Capsule_Tiles_TileType(new global::Capsule.Tiles.TileType(), members),
+                _ => Fill_Capsule_Tiles_TileType(held, members),
             },
-            "ice" => Fill_Game_Ice(new global::Game.Ice(), properties),
-            _ => throw properties.NotAType("ice"),
+            "ice" => Fill_Game_Ice(new global::Game.Ice(), members),
+            _ => throw members.NotAType("ice"),
         };
 
-        private static global::Game.Exit Object_Game_Exit(global::Game.Exit? held, global::Capsule.Scenes.Spawning.AuthoredProperties properties, bool replaces) => (replaces ? properties.Type() : null) switch
+        private static global::Game.Exit Object_Game_Exit(global::Game.Exit? held, global::Capsule.Scenes.Spawning.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
         {
-            null => Fill_Game_Exit(held ?? new global::Game.Exit(), properties),
-            _ => throw properties.NotAType(""),
+            null => Fill_Game_Exit(held ?? new global::Game.Exit(), members),
+            _ => throw members.NotAType(""),
         };
 
-        private static global::Capsule.Tiles.TileFrame Fill_Capsule_Tiles_TileFrame(global::Capsule.Tiles.TileFrame target, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        private static global::Capsule.Tiles.TileFrame Fill_Capsule_Tiles_TileFrame(global::Capsule.Tiles.TileFrame target, global::Capsule.Scenes.Spawning.AuthoredMembers members)
         {
-            SetCell(target, properties.Int("cell"));
-            SetTicks(target, properties.Int("ticks"));
+            SetCell(target, members.Int("cell"));
+            SetTicks(target, members.Int("ticks"));
             return target;
         }
 
-        private static global::Capsule.Tiles.TileType Fill_Capsule_Tiles_TileType(global::Capsule.Tiles.TileType target, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        private static global::Capsule.Tiles.TileType Fill_Capsule_Tiles_TileType(global::Capsule.Tiles.TileType target, global::Capsule.Scenes.Spawning.AuthoredMembers members)
         {
-            SetName(target, properties.String("name"));
-            if (properties.Has("cell"))
+            SetName(target, members.String("name"));
+            if (members.Has("cell"))
             {
-                SetCell(target, properties.IsNull("cell") ? null : properties.Int("cell"));
+                SetCell(target, members.IsNull("cell") ? null : members.Int("cell"));
             }
-            if (properties.Has("frames"))
+            if (members.Has("frames"))
             {
-                SetFrames(target, properties.IsNull("frames") ? null : properties.Array<global::Capsule.Tiles.TileFrame>("frames", static element => Object_Capsule_Tiles_TileFrame(null, element.Object("frames"), replaces: true)));
+                SetFrames(target, members.IsNull("frames") ? null : members.Array<global::Capsule.Tiles.TileFrame>("frames", static element => Object_Capsule_Tiles_TileFrame(null, element.Object("frames"), replaces: true)));
             }
-            if (properties.Has("layer"))
+            if (members.Has("layer"))
             {
-                SetLayer(target, properties.IsNull("layer") ? null : properties.String("layer"));
+                SetLayer(target, members.IsNull("layer") ? null : members.String("layer"));
             }
-            if (properties.Has("shape"))
+            if (members.Has("shape"))
             {
-                SetShape(target, properties.IsNull("shape") ? null : properties.Array<global::System.Numerics.Vector2>("shape", static element => element.Vector2("shape")));
+                SetShape(target, members.IsNull("shape") ? null : members.Array<global::System.Numerics.Vector2>("shape", static element => element.Vector2("shape")));
             }
-            if (properties.Has("oneWay"))
+            if (members.Has("oneWay"))
             {
-                SetOneWay(target, properties.Bool("oneWay"));
+                SetOneWay(target, members.Bool("oneWay"));
             }
-            if (properties.Has("solidSides"))
+            if (members.Has("solidSides"))
             {
-                SetSolidSides(target, properties.Bool("solidSides"));
+                SetSolidSides(target, members.Bool("solidSides"));
             }
             return target;
         }
 
-        private static global::Game.Exit Fill_Game_Exit(global::Game.Exit target, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        private static global::Game.Exit Fill_Game_Exit(global::Game.Exit target, global::Capsule.Scenes.Spawning.AuthoredMembers members)
         {
-            target.Destination = properties.Scene("destination", FindScene);
+            target.Destination = members.Scene("destination", FindScene);
             return target;
         }
 
-        private static global::Game.Ice Fill_Game_Ice(global::Game.Ice target, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        private static global::Game.Ice Fill_Game_Ice(global::Game.Ice target, global::Capsule.Scenes.Spawning.AuthoredMembers members)
         {
-            SetName(target, properties.String("name"));
-            if (properties.Has("cell"))
+            SetName(target, members.String("name"));
+            if (members.Has("cell"))
             {
-                SetCell(target, properties.IsNull("cell") ? null : properties.Int("cell"));
+                SetCell(target, members.IsNull("cell") ? null : members.Int("cell"));
             }
-            if (properties.Has("frames"))
+            if (members.Has("frames"))
             {
-                SetFrames(target, properties.IsNull("frames") ? null : properties.Array<global::Capsule.Tiles.TileFrame>("frames", static element => Object_Capsule_Tiles_TileFrame(null, element.Object("frames"), replaces: true)));
+                SetFrames(target, members.IsNull("frames") ? null : members.Array<global::Capsule.Tiles.TileFrame>("frames", static element => Object_Capsule_Tiles_TileFrame(null, element.Object("frames"), replaces: true)));
             }
-            if (properties.Has("layer"))
+            if (members.Has("layer"))
             {
-                SetLayer(target, properties.IsNull("layer") ? null : properties.String("layer"));
+                SetLayer(target, members.IsNull("layer") ? null : members.String("layer"));
             }
-            if (properties.Has("shape"))
+            if (members.Has("shape"))
             {
-                SetShape(target, properties.IsNull("shape") ? null : properties.Array<global::System.Numerics.Vector2>("shape", static element => element.Vector2("shape")));
+                SetShape(target, members.IsNull("shape") ? null : members.Array<global::System.Numerics.Vector2>("shape", static element => element.Vector2("shape")));
             }
-            if (properties.Has("oneWay"))
+            if (members.Has("oneWay"))
             {
-                SetOneWay(target, properties.Bool("oneWay"));
+                SetOneWay(target, members.Bool("oneWay"));
             }
-            if (properties.Has("solidSides"))
+            if (members.Has("solidSides"))
             {
-                SetSolidSides(target, properties.Bool("solidSides"));
+                SetSolidSides(target, members.Bool("solidSides"));
             }
-            if (properties.Has("grip"))
+            if (members.Has("grip"))
             {
-                SetGrip(target, properties.Float("grip"));
+                SetGrip(target, members.Float("grip"));
             }
             return target;
         }

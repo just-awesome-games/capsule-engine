@@ -286,7 +286,7 @@ public sealed class AuthorableTests
         SceneRegistry registry = (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!
             .GetProperty("Registry")!.GetValue(null)!;
 
-        return Assert.Single(registry.Create(new SceneKey("scenes/room"), SceneDocumentFile.Parse(Document(entry))).Entities.ToArray());
+        return Assert.Single(registry.Create(new SceneKey("scenes/room"), SceneDocument.Parse(Document(entry))).Entities.ToArray());
     }
 
     private static string? Seen(Entity lift) => Text(lift.GetType().GetProperty("Seen")!.GetValue(lift));

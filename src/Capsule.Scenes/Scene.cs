@@ -110,7 +110,7 @@ public class Scene
     /// The world a scene document describes: one entity per entry, in authored order. The document is construction data and is not retained.
     /// </summary>
     /// <exception cref="SpawnException">
-    /// A placement's spawn type is claimed by no entity, or its class returned no entity.
+    /// A placement's type key is claimed by no entity, or its class returned no entity.
     /// </exception>
     /// <exception cref="SceneDocumentFormatException">
     /// A placement's or the document's members do not match its class's authorable members, or an entity's
@@ -125,32 +125,24 @@ public class Scene
         // References are set once every entry is constructed. A reference may name a later entry.
         ReadOnlySpan<SceneDocumentEntry> entries = content.Document.Entries;
         Dictionary<int, Entity> placed = [];
-        AuthoredProperties[] spawned = new AuthoredProperties[entries.Length];
+        AuthoredMembers[] spawned = new AuthoredMembers[entries.Length];
         _authoredAssets = new AssetCollection();
         for (int i = 0; i < entries.Length; i++)
         {
             SceneDocumentEntry entry = entries[i];
-            EntitySpawn spawn = new(new Vector2(entry.X, entry.Y))
-            {
-                Type = entry.Type,
-                Rotation = float.DegreesToRadians(entry.RotationDegrees),
-                Scale = new Vector2(entry.ScaleX, entry.ScaleY),
-                ZIndex = entry.ZIndex,
-                ScrollFactor = entry.ScrollFactor,
-            };
-            AuthoredProperties properties = new(entry, i, placed, _authoredAssets);
+            AuthoredMembers authored = new(entry, i, placed, _authoredAssets);
             Entity entity;
             try
             {
-                entity = content.Entities.Create(spawn, properties);
+                entity = content.Entities.Create(entry.Spawn with { Type = entry.Type }, authored);
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
-                throw properties.Refused(ex);
+                throw authored.Refused(ex);
             }
 
             Add(entity);
-            spawned[i] = properties;
+            spawned[i] = authored;
             if (entry.Id is { } id)
             {
                 placed.Add(id, entity);
@@ -163,13 +155,13 @@ public class Scene
             }
         }
 
-        foreach (AuthoredProperties properties in spawned)
+        foreach (AuthoredMembers authored in spawned)
         {
-            properties.Finish();
+            authored.Finish();
         }
 
         // The scene's own members land once every entry is built, before a subclass constructor body runs.
-        AuthoredProperties members = new(content.Document.Properties, placed, _authoredAssets);
+        AuthoredMembers members = new(content.Document.Members, placed, _authoredAssets);
         content.Apply?.Invoke(this, members);
         members.Finish();
     }

@@ -144,7 +144,7 @@ internal static class FormatSchemas
             return setting;
         }
 
-        // Raw JSON whose contract belongs to someone else, such as a game entity's properties.
+        // Raw JSON whose contract belongs to someone else, such as a game entity's members.
         if (type == typeof(JsonElement))
         {
             setting["type"] = "object";

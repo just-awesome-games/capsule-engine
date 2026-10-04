@@ -45,7 +45,7 @@ public sealed class SceneRegistryBuilder
     }
 
     /// <summary>The registry over everything added.</summary>
-    /// <exception cref="ArgumentException">Two assemblies register the same spawn type, scene class, scene document or applier.</exception>
+    /// <exception cref="ArgumentException">Two assemblies register the same type key, scene class, scene document or applier.</exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public SceneRegistry Build()
     {

@@ -3,11 +3,11 @@ using System.Text;
 namespace Capsule.Generators;
 
 // The statements an applier sets authored members with, and the expression each reads its value with off the
-// properties of an entry, of the document or of an object a member holds.
+// members of an entry, of the document or of an object a member holds.
 internal static class PropertyReadRenderer
 {
     // Sets each member on target, typed targetType: a required one always, and an optional one only where the
-    // properties author its key. An entity reference is set once every entry is built. Each statement starts at
+    // members author its key. An entity reference is set once every entry is built. Each statement starts at
     // indent and ends with a newline.
     internal static string Assignments(IEnumerable<PropertyModel> properties, string target, string targetType, string indent)
     {
@@ -21,7 +21,7 @@ internal static class PropertyReadRenderer
                 continue;
             }
 
-            statements.Append(indent).Append("if (properties.Has(").Append(CodeText.Literal(property.Key)).Append("))\n")
+            statements.Append(indent).Append("if (members.Has(").Append(CodeText.Literal(property.Key)).Append("))\n")
                 .Append(indent).Append("{\n")
                 .Append(nested).Append(Statement(property, target, targetType, nested)).Append('\n')
                 .Append(indent).Append("}\n");
@@ -35,12 +35,12 @@ internal static class PropertyReadRenderer
     {
         if (property.Held)
         {
-            return $"{ObjectRenderer.Builder(property.Type)}({Current(property, target)}, properties.Object({CodeText.Literal(property.Key)}), replaces: false);";
+            return $"{ObjectRenderer.Builder(property.Type)}({Current(property, target)}, members.Object({CodeText.Literal(property.Key)}), replaces: false);";
         }
 
         return property.Kind == PropertyKind.Reference
-            ? $"properties.Link({target}, static (owner, linked) => {Assignment(property, $"(({targetType})owner)", "linked", indent).TrimEnd(';')});"
-            : Assignment(property, target, "properties", indent);
+            ? $"members.Link({target}, static (owner, linked) => {Assignment(property, $"(({targetType})owner)", "linked", indent).TrimEnd(';')});"
+            : Assignment(property, target, "members", indent);
     }
 
     // The read expression for a member whose statement starts at indent. A nullable member tests for a
@@ -75,7 +75,7 @@ internal static class PropertyReadRenderer
         : property.Field ? $"{EntityAccessorRenderer.SetterReference(property)}({target})"
         : $"{EntityAccessorRenderer.GetterReference(property)}({target})";
 
-    // One value's read off the properties or array element named by from. An object read is handed the
+    // One value's read off the members or array element named by from. An object read is handed the
     // instance it may fill.
     private static string Element(PropertyModel property, string from, string key, string held, string indent) => property.Kind switch
     {

@@ -5,14 +5,14 @@ internal enum EntityFault
     None,
     NotAConcreteEntity,
     MissingSpawnConstructor,
-    BlankSpawnType,
+    BlankTypeKey,
     InaccessibleType,
     AmbiguousSpawnConstructors,
     SpawnNotPassedToBase,
 }
 
 /// <summary>One class the entity registry considered, with the key it claims or the fault it carries.</summary>
-/// <param name="Declared">The key <c>[SpawnType]</c> names, or null when the type claims one by convention.</param>
+/// <param name="Declared">The key <c>[TypeKey]</c> names, or null when the type claims one by convention.</param>
 /// <param name="At">Where a fault about this model is reported.</param>
 /// <param name="Properties">What a document entry's keys may name, as <see cref="PropertySchema.Of"/> finds it.</param>
 /// <param name="Objects">Every class a member's JSON object fills or constructs, as <see cref="PropertySchema.WithObjects"/> finds it.</param>

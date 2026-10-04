@@ -14,7 +14,7 @@ public sealed class SceneDrawOrderTests
     public void ARuntimeEntityInALowerBand_DrawsUnderADocumentPlacedOne()
     {
         Scene scene = SceneFixtures.RoomScene(
-            SceneFixtures.Room(new SceneDocumentEntry("prop", 0f, 0f, ZIndex: 10)),
+            SceneFixtures.Room(new SceneDocumentEntry("prop", new EntitySpawn(Vector2.Zero) { ZIndex = 10 })),
             SceneFixtures.Registry(("prop", Spawns(2))));
 
         Layered background = new() { ZIndex = -5 };
@@ -147,8 +147,8 @@ public sealed class SceneDrawOrderTests
     {
         Scene scene = SceneFixtures.RoomScene(
             SceneFixtures.Room(
-                new SceneDocumentEntry("placed", 0f, 0f, ZIndex: authored),
-                new SceneDocumentEntry("banded", 0f, 0f, ZIndex: authored)),
+                new SceneDocumentEntry("placed", new EntitySpawn(Vector2.Zero) { ZIndex = authored }),
+                new SceneDocumentEntry("banded", new EntitySpawn(Vector2.Zero) { ZIndex = authored })),
             SceneFixtures.Registry(
                 ("placed", spawn => new SceneFixtures.Placed(spawn)),
                 ("banded", spawn => new Banded(spawn))));

@@ -11,7 +11,7 @@ internal readonly record struct KeyedObject(ObjectModel Model, EquatableArray<(s
 // their own members reach.
 internal static class ObjectRenderer
 {
-    private const string Properties = "global::Capsule.Scenes.Spawning.AuthoredProperties";
+    private const string Members = "global::Capsule.Scenes.Spawning.AuthoredMembers";
 
     // A Fill method's statements sit one level inside its braces.
     private const string StatementIndent = "            ";
@@ -34,8 +34,7 @@ internal static class ObjectRenderer
             Dictionary<string, ObjectModel> claimed = RegistryPass.Keyed(
                 diagnostics,
                 model.Subclasses.Items.Select(name => objects[name]).Where(static subclass => subclass.Construction != ObjectConstruction.None),
-                rootNamespace,
-                model.TypeName + " type");
+                rootNamespace);
 
             keyed.Add(new KeyedObject(model, new([.. claimed.OrderBy(static entry => entry.Key, StringComparer.Ordinal).Select(static entry => (entry.Key, entry.Value.QualifiedName))])));
         }
@@ -91,37 +90,37 @@ internal static class ObjectRenderer
         ObjectModel model = entry.Model;
         string name = model.QualifiedName;
         string types = CodeText.Literal(string.Join(", ", entry.Types.Items.Select(static type => type.Key)));
-        string fresh = Construct(model) ?? $"throw properties.NotAType({types})";
+        string fresh = Construct(model) ?? $"throw members.NotAType({types})";
         StringBuilder arms = new();
         if (model.Subclasses.Items.IsEmpty)
         {
-            arms.Append($"            null => {Fill(name)}(held ?? {fresh}, properties),\n");
+            arms.Append($"            null => {Fill(name)}(held ?? {fresh}, members),\n");
         }
         else
         {
             arms.Append("            null => held switch\n            {\n");
             foreach (string subclass in model.Subclasses.Items)
             {
-                arms.Append($"                {subclass} subclass => {Fill(subclass)}(subclass, properties),\n");
+                arms.Append($"                {subclass} subclass => {Fill(subclass)}(subclass, members),\n");
             }
 
             // A throw expression cannot be an argument, so a class nothing constructs throws as the arm itself.
-            string unheld = Construct(model) is { } constructed ? $"{Fill(name)}({constructed}, properties)" : fresh;
+            string unheld = Construct(model) is { } constructed ? $"{Fill(name)}({constructed}, members)" : fresh;
             arms.Append($"                null => {unheld},\n")
-                .Append($"                _ => {Fill(name)}(held, properties),\n")
+                .Append($"                _ => {Fill(name)}(held, members),\n")
                 .Append("            },\n");
         }
 
         foreach ((string key, string type) in entry.Types.Items)
         {
-            arms.Append($"            {CodeText.Literal(key)} => {Fill(type)}({Construct(byName[type].Model)}, properties),\n");
+            arms.Append($"            {CodeText.Literal(key)} => {Fill(type)}({Construct(byName[type].Model)}, members),\n");
         }
 
         return $$"""
 
-                    private static {{name}} {{Builder(name)}}({{name}}? held, {{Properties}} properties, bool replaces) => (replaces ? properties.Type() : null) switch
+                    private static {{name}} {{Builder(name)}}({{name}}? held, {{Members}} members, bool replaces) => (replaces ? members.Type() : null) switch
                     {
-            {{arms}}            _ => throw properties.NotAType({{types}}),
+            {{arms}}            _ => throw members.NotAType({{types}}),
                     };
 
             """;
@@ -129,7 +128,7 @@ internal static class ObjectRenderer
 
     private static string Fill(ObjectModel model) => $$"""
 
-                private static {{model.QualifiedName}} {{Fill(model.QualifiedName)}}({{model.QualifiedName}} target, {{Properties}} properties)
+                private static {{model.QualifiedName}} {{Fill(model.QualifiedName)}}({{model.QualifiedName}} target, {{Members}} members)
                 {
         {{PropertyReadRenderer.Assignments(model.Authored, "target", model.QualifiedName, StatementIndent)}}            return target;
                 }

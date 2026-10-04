@@ -1,7 +1,7 @@
 namespace Capsule.Scenes.Spawning;
 
 /// <summary>
-/// An entity could not be spawned. The message names the spawn type that failed.
+/// An entity could not be spawned. The message names the type key that failed.
 /// </summary>
 public sealed class SpawnException : Exception
 {

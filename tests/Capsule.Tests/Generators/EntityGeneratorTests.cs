@@ -49,12 +49,12 @@ public sealed class EntityGeneratorTests
     }
 
     [Fact]
-    public void AnExplicitSpawnType_ReplacesTheConvention()
+    public void AnExplicitTypeKey_ReplacesTheConvention()
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile($$"""
             {{GeneratorHarness.Preamble}}
 
-            [SpawnType("player-spawn")]
+            [TypeKey("player-spawn")]
             public sealed class Protagonist(EntitySpawn spawn) : Entity(spawn);
             """);
 
@@ -77,7 +77,7 @@ public sealed class EntityGeneratorTests
 
             public sealed class Chest(EntitySpawn spawn) : Entity(spawn);
 
-            [SpawnType("chest")]
+            [TypeKey("chest")]
             public sealed class IronChest(EntitySpawn spawn) : Entity(spawn);
             """).Diagnostics;
 
@@ -91,10 +91,9 @@ public sealed class EntityGeneratorTests
     }
 
     [Theory]
-    [InlineData("[SpawnType(\"hazard\")] public abstract class Hazard : Entity { protected Hazard(EntitySpawn spawn) : base(spawn) { } }", "CAP001")]
-    [InlineData("[SpawnType(\"marker\")] public sealed class Marker { public Marker(EntitySpawn spawn) { } }", "CAP001")]
-    [InlineData("[SpawnType(\"player\")] public sealed class Player : Entity { public Player() : base(Vector2.Zero) { } }", "CAP002")]
-    [InlineData("[SpawnType(\"  \")] public sealed class Player(EntitySpawn spawn) : Entity(spawn);", "CAP004")]
+    [InlineData("[TypeKey(\"hazard\")] public abstract class Hazard : Entity { protected Hazard(EntitySpawn spawn) : base(spawn) { } }", "CAP001")]
+    [InlineData("[TypeKey(\"player\")] public sealed class Player : Entity { public Player() : base(Vector2.Zero) { } }", "CAP002")]
+    [InlineData("[TypeKey(\"  \")] public sealed class Player(EntitySpawn spawn) : Entity(spawn);", "CAP004")]
     [InlineData("public static class Entities { private sealed class Player(EntitySpawn spawn) : Entity(spawn); }", "CAP008")]
     [InlineData("public sealed class Player : Entity { public Player(EntitySpawn spawn) : base(spawn) { } public Player(in EntitySpawn spawn) : base(spawn) { } }", "CAP010")]
     public void AnEntityOfAShapeTheRegistryCannotSpawn_FailsTheBuild(string declaration, string id)

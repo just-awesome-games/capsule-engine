@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Capsule.Assets;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Generators;
@@ -82,12 +83,11 @@ internal static class RegistryPass
     }
 
     /// <summary>
-    /// Every class by the key its namespace and name claim, with no attribute to override it: a subclass a member
-    /// object's type key names. The first by <see cref="DeclarationOrder"/> keeps a key and a
-    /// second is CAP031. A partial class's second declaration is the same class.
+    /// Every class by the key its <c>[TypeKey]</c> or its namespace and name claim: a subclass a member object's type
+    /// key names. The first by <see cref="DeclarationOrder"/> keeps a key and a second is CAP003. A blank or unsafe
+    /// key claims nothing. A partial class's second declaration is the same class.
     /// </summary>
-    internal static Dictionary<string, TModel> Keyed<TModel>(
-        List<Diagnostic> diagnostics, IEnumerable<TModel> models, string rootNamespace, string kind)
+    internal static Dictionary<string, TModel> Keyed<TModel>(List<Diagnostic> diagnostics, IEnumerable<TModel> models, string rootNamespace)
         where TModel : IClaimingClass
     {
         List<TModel> ordered = new(models);
@@ -97,13 +97,25 @@ internal static class RegistryPass
         Dictionary<string, TModel> keyed = new(StringComparer.Ordinal);
         foreach (TModel model in ordered)
         {
-            string key = TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
+            string key = model.Declared ?? TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                diagnostics.Add(Diagnostic.Create(Diagnostics.BlankTypeKey, model.At.Location(), model.DisplayName));
+                continue;
+            }
+
+            if (!AssetPaths.IsKey(key))
+            {
+                diagnostics.Add(Diagnostic.Create(Diagnostics.UnsafeTypeKey, model.At.Location(), model.DisplayName, key));
+                continue;
+            }
+
             if (keyed.TryGetValue(key, out TModel claimed))
             {
                 if (claimed.QualifiedName != model.QualifiedName)
                 {
                     diagnostics.Add(Diagnostic.Create(
-                        Diagnostics.DuplicateClaimedKey, model.At.Location(), claimed.DisplayName, model.DisplayName, key, kind));
+                        Diagnostics.DuplicateTypeKey, model.At.Location(), claimed.DisplayName, model.DisplayName, key));
                 }
 
                 continue;
