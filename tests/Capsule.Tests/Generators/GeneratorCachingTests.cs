@@ -33,7 +33,7 @@ public sealed class GeneratorCachingTests
         GeneratorDriverRunResult result = GeneratorHarness.RanTwice(
             Before,
             Before.Replace("=> 1;", "=> 2;", StringComparison.Ordinal),
-            ("hall.scene.json", """{"formatVersion": 8, "entities": [], "nextEntityId": 1}"""));
+            ("hall.scene.json", """{"entities": []}"""));
 
         List<IncrementalGeneratorRunStep> runs = [];
         foreach (GeneratorRunResult generator in result.Results)

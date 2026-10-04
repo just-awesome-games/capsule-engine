@@ -28,11 +28,13 @@ internal static class EntityRenderer
         List<RegisteredEntity> registrations = [.. plan.Registrations];
         List<string> claims = [.. registrations.Select(static entry =>
             GeneratedFile.ClaimAttribute(RegistryClaimKind.Entity, entry.SpawnType, entry.Model.QualifiedName))];
+        List<PropertyModel> authored = [.. registrations.SelectMany(static entry => entry.Model.Authored)];
         string members = string.Concat(registrations
                 .Where(static entry => entry.Model.Required)
                 .Select(static entry => EntityAccessorRenderer.Constructor(
                     entry.Model.QualifiedName, entry.Model.SpawnModifier + "global::Capsule.Scenes.Spawning.EntitySpawn spawn")))
-            + EntityAccessorRenderer.Setters(registrations.SelectMany(static entry => entry.Model.Authored).Where(static property => !property.Direct))
+            + ObjectRenderer.Methods(plan.Objects, authored)
+            + EntityAccessorRenderer.Accessors(authored.Concat(ObjectRenderer.Authored(plan.Objects)))
             + string.Concat(plan.Lookups.Items.Select(Lookup));
 
         return GeneratedFile.Write(claims, $$"""
@@ -49,43 +51,32 @@ internal static class EntityRenderer
             """);
     }
 
-    // The key and spawner on one line, or one argument per line when appliers follow.
+    // The key and spawner on one line, or one argument per line when an applier follows.
     private static string Registration(RegisteredEntity entry)
     {
         EntityModel model = entry.Model;
         string spawner = model.Required
             ? $"static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => {EntityAccessorRenderer.ConstructorName(model.QualifiedName)}(spawn)"
             : $"static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new {model.QualifiedName}(spawn)";
-        bool applies = model.Authored.Any(static property => property.Kind != PropertyKind.Reference);
-        bool links = model.Authored.Any(static property => property.Kind == PropertyKind.Reference);
-        if (!applies && !links)
+        if (!model.Authored.Any())
         {
             return $"new global::Capsule.Scenes.Spawning.EntityRegistration({CodeText.Literal(entry.SpawnType)}, {spawner})";
         }
 
-        List<string> arguments = [CodeText.Literal(entry.SpawnType), spawner];
-        if (applies)
-        {
-            arguments.Add(Applier(model, references: false));
-        }
-
-        if (links)
-        {
-            arguments.Add("Link: " + Applier(model, references: true));
-        }
+        string[] arguments = [CodeText.Literal(entry.SpawnType), spawner, Applier(model)];
 
         return "new global::Capsule.Scenes.Spawning.EntityRegistration(\n"
             + string.Join(",\n", arguments.Select(static argument => ArgumentIndent + argument))
             + ")";
     }
 
-    // The base constructor calls the applier of every member but references before the derived body runs. The
-    // scene calls the applier of references once every entry of the document is constructed.
-    private static string Applier(EntityModel model, bool references) =>
+    // The base constructor calls the applier before the derived body runs. The applier defers an entity reference
+    // until every entry of the document is constructed.
+    private static string Applier(EntityModel model) =>
         "static (placed, properties) =>\n"
         + ArgumentIndent + "{\n"
         + StatementIndent + $"{model.QualifiedName} entity = ({model.QualifiedName})placed;\n"
-        + PropertyReadRenderer.Assignments(model.Authored.Where(property => (property.Kind == PropertyKind.Reference) == references), "entity", StatementIndent)
+        + PropertyReadRenderer.Assignments(model.Authored, "entity", model.QualifiedName, StatementIndent)
         + ArgumentIndent + "}";
 
     // The switch one asset type's reads resolve a key through, to the member the build declared it on.

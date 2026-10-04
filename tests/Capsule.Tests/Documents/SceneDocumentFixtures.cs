@@ -1,32 +1,17 @@
-using Capsule.Assets;
-using Capsule.Scenes.Documents;
-using Capsule.Tests.Scenes;
-using Capsule.Tiles;
-
 namespace Capsule.Tests.Documents;
 
 internal static class SceneDocumentFixtures
 {
-    /// <summary>The one authored tile-map entry every document fixture is written around.</summary>
-    internal const string TileMapEntry = """
-            { "id": 1, "type": "tile-map", "x": 0, "y": 0,
-              "properties": { "tileSize": 16, "width": 2, "height": 1,
-                              "texture": "terrain.png", "columns": 4,
-                              "tileTypes": [ { "name": "empty" }, { "name": "ground", "cell": 0 } ],
-                              "tiles": [0, 1] } }
-        """;
-
-    /// <summary>An authored document of <see cref="TileMapEntry"/> and one placed entity.</summary>
+    /// <summary>An authored document of a tile-map entry and one placed entity, which a build ships as it reads it.</summary>
     internal const string AuthoredTileMapAndPlayer = """
-        { "formatVersion": 8,
-          "entities": [
-        """ + TileMapEntry + """
-        ,
-            { "id": 2, "type": "player", "x": 8, "y": 0 } ],
-          "nextEntityId": 3 }
+        { "entities": [
+            { "id": 1, "type": "tile-map",
+              "tileSize": 16, "width": 2, "height": 1,
+              "texture": "terrain.png", "columns": 4,
+              "tileTypes": [ { "name": "empty" }, { "name": "ground", "cell": 0 } ],
+              "tiles": [0, 1] },
+            { "id": 2, "type": "player", "x": 8, "y": 0 } ] }
         """;
-
-    internal const string Sha256 = "c304030d3d53c9c440cd5d251080080a16b34be3832ad1218b2b63cae622cf6d";
 
     internal const string Coin = """
         ,
@@ -38,59 +23,16 @@ internal static class SceneDocumentFixtures
             }
         """;
 
-    internal static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
-
-    // A tile-map entry with no properties, and the least grid that parses, which the defect theory
-    // edits one field of per case.
-    internal const string TileMapWithoutProperties =
-        """{"formatVersion": 8, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0}], "nextEntityId": 2}""";
-
-    internal const string Grid1x1 =
-        """
-        {"formatVersion": 8, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0,
-          "properties": {"tileSize": 16, "width": 1, "height": 1,
-                         "tileTypes": [{"name": "empty"}], "tiles": [0]}}], "nextEntityId": 2}
-        """;
-
-    internal static SceneDocument Drawing(TextureHandle texture) =>
-        new([new TileMapPlacement(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, SceneFixtures.Tile("ground", 0)], [0, 1], texture, 4))], 2);
-
-    internal static TileMapPlacement Terrain() =>
-        new(1, new TileGrid(16, 2, 1, [TileGrid.EmptyTile, SceneFixtures.Tile("ground", 0)], [0, 1], Atlas, 4));
-
-    internal static TileMapPlacement TileMapOf(SceneDocument document, int index = 0) =>
-        document.Entries[index].TileMap!.Value;
-
-    internal static string DocumentText(
-        string? tileTypes = null,
-        string tiles = "[0, 1]",
-        string entities = "",
-        int nextEntityId = 2,
-        string extra = "",
-        string texture = "\"terrain.png\"",
-        string tileMapField = "") =>
+    /// <summary>A document of one coin with id 1, then <paramref name="entities"/>.</summary>
+    internal static string DocumentText(string entities = "") =>
         $$"""
         {
-          "formatVersion": 8,
           "entities": [
             {
               "id": 1,
-              "type": "tile-map",
-              "x": 0,
-              "y": 0,
-              {{tileMapField}}
-              "properties": {
-                "tileSize": 16,
-                "width": 2,
-                "height": 1,
-                "texture": {{texture}},
-                "columns": 4,
-                "tileTypes": {{tileTypes ?? """[{"name": "empty"}, {"name": "ground", "cell": 0}]"""}},
-                "tiles": {{tiles}}
-              }
+              "type": "coin"
             }{{entities}}
-          ],
-          "nextEntityId": {{nextEntityId}}{{extra}}
+          ]
         }
         """;
 

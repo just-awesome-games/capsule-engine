@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using Capsule.Animation;
 using Capsule.Assets;
@@ -5,6 +6,7 @@ using Capsule.Diagnostics;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tiles;
 
@@ -22,20 +24,82 @@ namespace Capsule.Tiles;
 /// The <see cref="TileGrid"/> handed in is never written. A scene rebuilt from it starts as
 /// authored.
 /// </para>
+/// <para>
+/// A scene document places one as the entity type <c>tile-map</c>. Its authorable members hold the grid the
+/// document describes, and the map is built from them before a subclass constructor body runs.
+/// </para>
 /// </remarks>
-public sealed class TileMap : Entity
+[SpawnType(SpawnKey)]
+public class TileMap : Entity
 {
-    private readonly TileGrid _grid;
+    // The spawn type every logic assembly registers the engine's map under.
+    internal const string SpawnKey = "tile-map";
+
+    private TileGrid _grid;
 
     // The map's own palette indices and transforms, row-major. Drawing, reading and SetTile all use
     // this copy.
-    private readonly int[] _cells;
-    private readonly TileTransform[] _transforms;
+    private int[] _cells;
+    private TileTransform[] _transforms;
 
-    private readonly VisibleTiles _tiles;
+    private VisibleTiles _tiles;
+
+    /// <summary>The edge length of one tile in world units, which also equals its edge in atlas pixels.</summary>
+    [Authorable(Required = true)]
+    public int TileSize { get; protected set; }
+
+    /// <summary>Grid width in tiles.</summary>
+    [Authorable(Required = true)]
+    public int Width { get; protected set; }
+
+    /// <summary>Grid height in tiles.</summary>
+    [Authorable(Required = true)]
+    public int Height { get; protected set; }
+
+    /// <summary>The texture every drawn tile is cut from, or null for a map that draws nothing.</summary>
+    [Authorable]
+    protected TextureHandle? Texture { get; set; }
+
+    /// <summary>
+    /// How many cells wide <see cref="Texture"/> is, and 0 without one. Cell numbers run across a row of this
+    /// many and then wrap to the next row.
+    /// </summary>
+    [Authorable]
+    protected int Columns { get; set; }
+
+    /// <summary>
+    /// The palette every tile indexes. Index 0 is a plain <see cref="TileType"/> named
+    /// <see cref="TileGrid.EmptyTileName"/>, and names are unique.
+    /// </summary>
+    /// <remarks>
+    /// Each entry composes a <see cref="TileType"/>, or the subclass its <c>type</c> names. <see cref="TileAt"/>
+    /// and <c>TileContact2D.Type</c> return that instance, read as <c>map.TileAt(x, y).Name</c> or matched as
+    /// <c>map.TileAt(x, y) is Ice ice</c>.
+    /// </remarks>
+    [Authorable(Required = true)]
+    protected TileType[] TileTypes { get; set; } = [];
+
+    /// <summary>Every tile's palette index, <see cref="Width"/> * <see cref="Height"/> of them, row by row from the top-left.</summary>
+    [Authorable(Required = true)]
+    protected int[] Tiles { get; set; } = [];
+
+    /// <summary>
+    /// How each tile in <see cref="Tiles"/> is mirrored or turned, as its <see cref="TileTransform"/> value, or
+    /// null for every tile as authored. 1 mirrors it left to right, 2 top to bottom, 4 swaps its axes before
+    /// either, and the sum combines them.
+    /// </summary>
+    [Authorable]
+    protected int[]? Transforms { get; set; }
+
+    /// <summary>
+    /// Whether the map is built with a <see cref="TileMapCollider2D"/>, false by default. The palette must then
+    /// name a layer, and the map's scroll factor stay one.
+    /// </summary>
+    [Authorable]
+    protected bool Collider { get; set; }
 
     // The map's collider, set while one is attached.
-    internal TileMapCollider2D? Collider { get; set; }
+    internal TileMapCollider2D? AttachedCollider { get; set; }
 
     /// <param name="grid">The grid to hold and draw. Its palette decides what each tile looks like.</param>
     public TileMap(TileGrid grid)
@@ -44,36 +108,32 @@ public sealed class TileMap : Entity
         ArgumentNullException.ThrowIfNull(grid);
 
         Anchored = true;
-        _grid = grid;
-        _cells = grid.Tiles.ToArray();
-        _transforms = grid.Transforms.ToArray();
-        Size = new Vector2(grid.Width * grid.TileSize, grid.Height * grid.TileSize);
-
-        // A map with animated entries draws from its own copy of the table. Two maps may share a grid
-        // and step apart.
-        ReadOnlyMemory<Sprite?> sprites = grid.Sprites;
-        if (!grid.Animations.IsEmpty)
-        {
-            Sprite?[] own = grid.Sprites.ToArray();
-            sprites = own;
-            Add(new TileAnimator(grid.Animations, own));
-        }
-
-        _tiles = new VisibleTiles(grid, _cells, _transforms, sprites);
-        Add(_tiles);
+        Build(grid);
     }
 
-    /// <summary>The edge length of one tile, taken from <see cref="TileGrid.TileSize"/>.</summary>
-    public int TileSize => _grid.TileSize;
+    /// <summary>A map built from the members a scene document authors.</summary>
+    /// <param name="spawn">The placement, which leaves the map at the world origin, unturned and unscaled.</param>
+    /// <exception cref="ArgumentException">The placement moves, turns or scales the map, or its members describe no valid grid.</exception>
+    public TileMap(EntitySpawn spawn)
+        : base(spawn)
+    {
+        if (spawn.Position != Vector2.Zero || spawn.Rotation != 0f || spawn.Scale != Vector2.One)
+        {
+            throw new ArgumentException(
+                "A tile map is anchored at the world origin, unturned and unscaled. Drop its x, y, rotation and scale, and turn single tiles with transforms.",
+                nameof(spawn));
+        }
 
-    /// <summary>Grid width in tiles.</summary>
-    public int Width => _grid.Width;
-
-    /// <summary>Grid height in tiles.</summary>
-    public int Height => _grid.Height;
+        Anchored = true;
+        Build(new TileGrid(TileSize, Width, Height, TileTypes, Tiles, Texture, Columns, Facing(Transforms)));
+        if (Collider)
+        {
+            Add(new TileMapCollider2D());
+        }
+    }
 
     /// <summary>How many world units the grid spans, measured from the world origin.</summary>
-    public Vector2 Size { get; }
+    public Vector2 Size => new(Width * TileSize, Height * TileSize);
 
     /// <summary>The material every tile draws with, and null for the engine's own sprite shader, the default.</summary>
     /// <remarks>
@@ -91,7 +151,7 @@ public sealed class TileMap : Entity
 
     internal ReadOnlySpan<int> Cells => _cells;
 
-    internal ReadOnlySpan<TileTransform> Transforms => _transforms;
+    internal ReadOnlySpan<TileTransform> Facings => _transforms;
 
     /// <summary>
     /// Returns the palette entry at a tile coordinate, and the entry named <see cref="TileGrid.EmptyTileName"/>
@@ -170,7 +230,7 @@ public sealed class TileMap : Entity
 
         _cells[index] = palette;
         _transforms[index] = transform;
-        Collider?.SetCell(x, y, palette, transform);
+        AttachedCollider?.SetCell(x, y, palette, transform);
     }
 
     /// <inheritdoc/>
@@ -182,6 +242,50 @@ public sealed class TileMap : Entity
         {
             assets.Add(texture);
         }
+    }
+
+    // Each authored transform as the enum it stands for. A byte cast alone would wrap an out-of-range value.
+    private static TileTransform[]? Facing(int[]? transforms)
+    {
+        if (transforms is null)
+        {
+            return null;
+        }
+
+        TileTransform[] facing = new TileTransform[transforms.Length];
+        for (int i = 0; i < facing.Length; i++)
+        {
+            facing[i] = transforms[i] is >= 0 and < TileTransforms.Count
+                ? (TileTransform)transforms[i]
+                : throw new ArgumentException(
+                    $"transforms[{i}] is {transforms[i]}. Use 0 for a tile as authored, or add 1 to mirror it left to right, 2 to mirror it top to bottom and 4 to swap its axes, up to {TileTransforms.Count - 1}.",
+                    nameof(transforms));
+        }
+
+        return facing;
+    }
+
+    // A map with animated entries draws from its own copy of the table. Two maps may share a grid and step apart.
+    [MemberNotNull(nameof(_grid), nameof(_cells), nameof(_transforms), nameof(_tiles))]
+    private void Build(TileGrid grid)
+    {
+        _grid = grid;
+        _cells = grid.Tiles.ToArray();
+        _transforms = grid.Transforms.ToArray();
+        TileSize = grid.TileSize;
+        Width = grid.Width;
+        Height = grid.Height;
+
+        ReadOnlyMemory<Sprite?> sprites = grid.Sprites;
+        if (!grid.Animations.IsEmpty)
+        {
+            Sprite?[] own = grid.Sprites.ToArray();
+            sprites = own;
+            Add(new TileAnimator(grid.Animations, own));
+        }
+
+        _tiles = new VisibleTiles(grid, _cells, _transforms, sprites);
+        Add(_tiles);
     }
 
     private int IndexOf(int x, int y)

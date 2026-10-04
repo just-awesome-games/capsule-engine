@@ -35,8 +35,8 @@ than the surface filters it straight down.
 
 ## A camera that follows
 
-A document's `camera` key installs a camera, or a scene's constructor sets one directly. A subclass sets
-its feel once and names its subject in `OnStart`:
+A document's `camera` object installs the camera its `type` names, or a scene's constructor sets one
+directly. A subclass sets its feel once and names its subject in `OnStart`:
 
 ```csharp
 public sealed class GameCamera : Camera

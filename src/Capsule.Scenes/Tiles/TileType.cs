@@ -1,4 +1,5 @@
-using Capsule.Physics;
+using System.Numerics;
+using Capsule.Scenes;
 
 namespace Capsule.Tiles;
 
@@ -14,13 +15,15 @@ namespace Capsule.Tiles;
 public class TileType
 {
     /// <summary>The tile type's name, unique within the palette. It identifies the tile and is not a layer name.</summary>
-    public required string Name { get; init; }
+    [Authorable(Required = true)]
+    public string Name { get; init; } = string.Empty;
 
     /// <summary>
     /// The cell of the grid's texture this tile type draws, counted from cell 0 left to right then top to
     /// bottom, or null for a tile type that animates through <see cref="Frames"/> or draws nothing. The
     /// grid's <c>Columns</c> and tile size turn it into a source region.
     /// </summary>
+    [Authorable]
     public int? Cell { get; init; }
 
     /// <summary>
@@ -38,27 +41,37 @@ public class TileType
     /// TileType falls = new() { Name = "falls", Frames = [new(4, 8), new(5, 8), new(6, 8), new(7, 8)] };
     /// </code>
     /// </example>
-    public IReadOnlyList<TileFrame>? Frames { get; init; }
+    [Authorable]
+    public TileFrame[]? Frames { get; init; }
 
     /// <summary>The collision layer this tile type is on. Null means it does not collide.</summary>
+    [Authorable]
     public string? Layer { get; init; }
 
     /// <summary>
-    /// The convex polygon this tile type collides as, in world units from the tile's top-left corner with
-    /// Y down, or null for the whole tile. A grid rejects a shape on a tile with no layer, a rounded one, and
-    /// one reaching outside the tile.
+    /// The convex polygon this tile type collides as, three or four points in world units from the tile's
+    /// top-left corner with Y down, or null for the whole tile. A grid rejects a shape on a tile with no
+    /// layer, and one reaching outside the tile.
     /// </summary>
-    public Shape2D? Shape { get; init; }
+    /// <example>
+    /// <code>
+    /// TileType slope = new() { Name = "slope", Cell = 3, Layer = "solid", Shape = [new(0, 16), new(16, 0), new(16, 16)] };
+    /// </code>
+    /// </example>
+    [Authorable]
+    public Vector2[]? Shape { get; init; }
 
     /// <summary>
     /// Whether this tile type lets a mover pass from below and blocks it from above, and from the sides too
     /// with <see cref="SolidSides"/>. A grid rejects it on a tile with no layer.
     /// </summary>
+    [Authorable]
     public bool OneWay { get; init; }
 
     /// <summary>
     /// Whether a one-way tile type also blocks from the sides, passing a mover only from below. A grid
     /// rejects it on a tile that is not one-way.
     /// </summary>
+    [Authorable]
     public bool SolidSides { get; init; }
 }

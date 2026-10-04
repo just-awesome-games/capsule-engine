@@ -85,23 +85,23 @@ internal static class AssetCorpusProjects
                 string[] size = room[1].Split(' ');
 
                 StringBuilder scene = new();
-                scene.Append("{\n  \"formatVersion\": 8,\n  \"entities\": [\n    {\n      \"id\": 1,\n      \"type\": \"tile-map\",\n      \"x\": 0,\n      \"y\": 0,\n      \"properties\": {\n");
-                scene.Append($"        \"tileSize\": 16,\n        \"width\": {size[1]},\n        \"height\": {size[2]},\n        \"texture\": \"{palette[0]["texture ".Length..]}\",\n        \"columns\": {palette[1]["columns ".Length..]},\n");
-                scene.Append("        \"tileTypes\": [\n          { \"name\": \"empty\" }");
+                scene.Append("{\n  \"entities\": [\n    {\n      \"type\": \"tile-map\",\n");
+                scene.Append($"      \"tileSize\": 16,\n      \"width\": {size[1]},\n      \"height\": {size[2]},\n      \"texture\": \"{palette[0]["texture ".Length..]}\",\n      \"columns\": {palette[1]["columns ".Length..]},\n");
+                scene.Append("      \"tileTypes\": [\n        { \"name\": \"empty\" }");
                 foreach (string line in palette.Skip(2))
                 {
                     string[] fields = line.Split(' ');
                     string layer = fields.Length > 2 ? $", \"layer\": \"{fields[2]}\"" : string.Empty;
-                    scene.Append($",\n          {{ \"name\": \"{fields[0]}\", \"cell\": {fields[1]}{layer} }}");
+                    scene.Append($",\n        {{ \"name\": \"{fields[0]}\", \"cell\": {fields[1]}{layer} }}");
                 }
 
-                scene.Append("\n        ],\n        \"tiles\": [\n");
+                scene.Append("\n      ],\n      \"tiles\": [\n");
                 foreach (string row in room.Skip(2))
                 {
-                    scene.Append("          ").Append(row).Append('\n');
+                    scene.Append("        ").Append(row).Append('\n');
                 }
 
-                scene.Append("        ]\n      }\n    }\n  ],\n  \"nextEntityId\": 2\n}\n");
+                scene.Append("      ]\n    }\n  ]\n}\n");
                 context.Write(Path.ChangeExtension(context.AssetPath, ".scene.json"), scene.ToString());
             }
         }

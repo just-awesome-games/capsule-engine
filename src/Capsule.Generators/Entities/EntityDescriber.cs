@@ -53,6 +53,33 @@ internal static class EntityDescriber
         return SpawnChecked(type, declaration, spawnType!, fault, model, constructors);
     }
 
+    // An engine entity a document places by the key its [SpawnType] names. Its members are described as a game class's
+    // are, and it carries no fault.
+    internal static EntityModel? DescribeEngine(Compilation compilation, string metadataName)
+    {
+        if (compilation.GetTypeByMetadataName(metadataName) is not { } type
+            || SymbolShape.Attribute(type, compilation, MetadataNames.SpawnTypeAttribute) is not { ConstructorArguments.Length: 1 } annotation
+            || annotation.ConstructorArguments[0].Value is not string key)
+        {
+            return null;
+        }
+
+        (EquatableArray<PropertyModel> properties, EquatableArray<ObjectModel> objects) = PropertySchema.WithObjects(type, compilation);
+
+        return new EntityModel(
+            SymbolShape.QualifiedName(type),
+            type.ToDisplayString(),
+            SymbolShape.NamespaceOf(type),
+            type.Name,
+            key,
+            EntityFault.None,
+            DeclaredAt.From(Location.None),
+            properties,
+            objects,
+            PropertySchema.AssignableTo(type),
+            string.Empty);
+    }
+
     // A sound claim must also pass its spawn to the base constructor, or the authored band and
     // factor the spawn carries never reach the entity. The fault is reported at the constructor.
     private static EntityModel SpawnChecked(
@@ -69,7 +96,7 @@ internal static class EntityDescriber
         }
 
         return PassesSpawnOn(constructors[0], model, out Location? at)
-            ? Model(type, declaration, declared, fault, properties: PropertySchema.Of(type, model.Compilation, MetadataNames.Entity), spawn: constructors[0].Parameters[0].RefKind)
+            ? Model(type, declaration, declared, fault, authoring: PropertySchema.WithObjects(type, model.Compilation), spawn: constructors[0].Parameters[0].RefKind)
             : Model(type, declaration, declared, EntityFault.SpawnNotPassedToBase, at);
     }
 
@@ -133,7 +160,7 @@ internal static class EntityDescriber
         string? declared,
         EntityFault fault,
         Location? at = null,
-        EquatableArray<PropertyModel> properties = default,
+        (EquatableArray<PropertyModel> Properties, EquatableArray<ObjectModel> Objects) authoring = default,
         RefKind spawn = RefKind.None) =>
         new(
             SymbolShape.QualifiedName(type),
@@ -143,7 +170,8 @@ internal static class EntityDescriber
             declared,
             fault,
             DeclaredAt.From(at ?? declaration.Identifier.GetLocation()),
-            properties,
+            authoring.Properties,
+            authoring.Objects,
             PropertySchema.AssignableTo(type),
             SymbolShape.Modifier(spawn));
 }

@@ -257,46 +257,26 @@ public sealed class ParallaxTests
         Assert.Equal(Vector2.One, element.ScrollFactor);
     }
 
-    // The document's scroll centre is the scene's, so a camera the scene installs over the default one
-    // takes it too.
-    [Fact]
-    public void ADocumentsScrollCenter_ReachesTheCameraTheSceneInstalls()
-    {
-        SceneDocument document = new([], 1, settings: new SceneSettings { ScrollCenter = new Vector2(160, 90) });
-        Camera installed = new();
-        Scene scene = new ComposedScene(SceneFixtures.Content(document, SceneFixtures.Registry()), installed);
-
-        SceneSimulation simulation = new(scene);
-
-        Assert.Same(installed, scene.Camera);
-        Assert.Equal(new Vector2(160, 90), installed.ScrollCenter);
-        Assert.Equal(new Vector2(160, 90), simulation.View.Camera.ScrollCenter);
-    }
-
     // The document supplies the factor ahead of the constructor's body: a class that sets none
-    // takes it, a class that sets its own keeps it, and the engine-built tile map takes it as
-    // composed.
+    // takes it, and a class that sets its own keeps it.
     [Fact]
     public void ADocumentsScrollFactor_IsTheConstructorsToKeepOrOverride()
     {
         SceneDocument document = new(
             [
-                new TileMapPlacement(1, SceneFixtures.RoomGrid(), ScrollFactor: new Vector2(0.25f, 1f)),
-                new EntityPlacement(2, "placed", 4f, 4f, ScrollFactor: Vector2.Zero),
-                new EntityPlacement(3, "placed", 4f, 4f),
-                new EntityPlacement(4, "fixed", 4f, 4f, ScrollFactor: Half),
-            ],
-            5);
+                new SceneDocumentEntry("placed", 4f, 4f, ScrollFactor: Vector2.Zero),
+                new SceneDocumentEntry("placed", 4f, 4f),
+                new SceneDocumentEntry("fixed", 4f, 4f, ScrollFactor: Half),
+            ]);
         Scene scene = SceneFixtures.RoomScene(
             document,
             SceneFixtures.Registry(
                 ("placed", spawn => new SceneFixtures.Placed(spawn)),
                 ("fixed", spawn => new ScreenFixed(spawn))));
 
-        Assert.Equal(new Vector2(0.25f, 1f), scene.Entities[0].ScrollFactor);
-        Assert.Equal(Vector2.Zero, scene.Entities[1].ScrollFactor);
-        Assert.Equal(Vector2.One, scene.Entities[2].ScrollFactor);
-        Assert.Equal(Vector2.Zero, scene.Entities[3].ScrollFactor);
+        Assert.Equal(Vector2.Zero, scene.Entities[0].ScrollFactor);
+        Assert.Equal(Vector2.One, scene.Entities[1].ScrollFactor);
+        Assert.Equal(Vector2.Zero, scene.Entities[2].ScrollFactor);
     }
 
     // The factor is applied before the body runs, so a body that then attaches a collider is
@@ -328,12 +308,5 @@ public sealed class ParallaxTests
     {
         public Colliding(EntitySpawn spawn)
             : base(spawn) => Add(new BoxCollider2D(new Vector2(8, 8)));
-    }
-
-    private sealed class ComposedScene : Scene
-    {
-        public ComposedScene(SceneContent content, Camera camera)
-            : base(content) =>
-            Camera = camera;
     }
 }

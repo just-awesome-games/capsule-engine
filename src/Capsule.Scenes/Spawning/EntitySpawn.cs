@@ -22,12 +22,6 @@ namespace Capsule.Scenes.Spawning;
 /// </param>
 public readonly record struct EntitySpawn(Vector2 Position)
 {
-    /// <summary>The placement's id in the document's id space, or 0 for a spawn built in code.</summary>
-    public int Id { get; internal init; }
-
-    /// <summary>The spawn type the entity claimed, or null for a spawn built in code.</summary>
-    public string? Type { get; internal init; }
-
     /// <summary>
     /// The turn in radians, clockwise on screen, defaulting to 0. It becomes <see cref="Entity.Rotation"/>.
     /// </summary>
@@ -46,8 +40,10 @@ public readonly record struct EntitySpawn(Vector2 Position)
     /// <summary>The scroll factor, or null to keep the entity's own.</summary>
     public Vector2? ScrollFactor { get; init; }
 
-    // A placement's authored member values and its class's generated applier. A spawn built in code
-    // carries neither, and the members stay out of the record's printed form.
+    // A placement's spawn type, authored member values and its class's generated applier. A spawn built in
+    // code carries none of them, and the members stay out of the record's printed form.
+    internal string? Type { get; init; }
+
     internal AuthoredProperties Properties { get; init; }
 
     internal EntityApplier? Apply { get; init; }

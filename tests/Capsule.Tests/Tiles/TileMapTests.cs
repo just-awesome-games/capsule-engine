@@ -15,7 +15,8 @@ public sealed class TileMapTests
         SceneFixtures.Drifter drifter = new(new Vector2(7, 9));
         drifter.Add(new SpriteRenderer(SceneFixtures.Frame(4, 8)));
 
-        Scene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
+        Scene scene = new();
+        scene.Add(new TileMap(SceneFixtures.RoomGrid()));
         scene.Add(drifter);
         Vector2 room = new(3 * SceneFixtures.TileSize, 2 * SceneFixtures.TileSize);
         SceneFixtures.Open(scene, room / 2f, room);
@@ -41,8 +42,7 @@ public sealed class TileMapTests
     [Fact]
     public void ATilemapRefusesAPositionWrite()
     {
-        Scene scene = SceneFixtures.RoomScene(SceneFixtures.Room(), SceneFixtures.Registry());
-        TileMap terrain = SceneFixtures.TerrainOf(scene);
+        TileMap terrain = new(SceneFixtures.RoomGrid());
 
         Assert.Throws<InvalidOperationException>(() => terrain.Position = new Vector2(1000, 1000));
         Assert.Throws<InvalidOperationException>(() => terrain.Teleport(new Vector2(1000, 1000)));

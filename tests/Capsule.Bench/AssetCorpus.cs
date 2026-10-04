@@ -246,29 +246,29 @@ internal sealed class AssetCorpus
         Random map = new(Seed(5, index, edit));
 
         StringBuilder scene = new();
-        scene.Append("{\n  \"formatVersion\": 8,\n  \"entities\": [\n");
-        AppendTileMap(scene, 1, -10, $"tilesets/tileset-{area:D2}.png", "solid", map);
+        scene.Append("{\n  \"entities\": [\n");
+        AppendTileMap(scene, -10, $"tilesets/tileset-{area:D2}.png", "solid", map);
         scene.Append(",\n");
-        AppendTileMap(scene, 2, 10, $"tilesets/tileset-{area:D2}.png", null, map);
-        scene.Append("\n  ],\n  \"nextEntityId\": 3\n}\n");
+        AppendTileMap(scene, 10, $"tilesets/tileset-{area:D2}.png", null, map);
+        scene.Append("\n  ]\n}\n");
 
         WriteText($"Scenes/area-{area:D2}/room-{index % ScenesPerArea:D3}.scene.json", scene.ToString());
     }
 
-    private static void AppendTileMap(StringBuilder scene, int id, int zIndex, string texture, string? layer, Random map)
+    private static void AppendTileMap(StringBuilder scene, int zIndex, string texture, string? layer, Random map)
     {
-        scene.Append(CultureInfo.InvariantCulture, $"    {{\n      \"id\": {id},\n      \"type\": \"tile-map\",\n      \"x\": 0,\n      \"y\": 0,\n      \"zIndex\": {zIndex},\n");
-        scene.Append(CultureInfo.InvariantCulture, $"      \"properties\": {{\n        \"tileSize\": 16,\n        \"width\": {MapWidth},\n        \"height\": {MapHeight},\n        \"texture\": \"{texture}\",\n        \"columns\": {TilesetColumns},\n");
-        scene.Append("        \"tileTypes\": [\n          { \"name\": \"empty\" }");
+        scene.Append(CultureInfo.InvariantCulture, $"    {{\n      \"type\": \"tile-map\",\n      \"zIndex\": {zIndex},\n");
+        scene.Append(CultureInfo.InvariantCulture, $"      \"tileSize\": 16,\n      \"width\": {MapWidth},\n      \"height\": {MapHeight},\n      \"texture\": \"{texture}\",\n      \"columns\": {TilesetColumns},\n");
+        scene.Append("      \"tileTypes\": [\n        { \"name\": \"empty\" }");
         for (int type = 1; type <= TileTypes; type++)
         {
             string collides = layer is not null && type <= 8 ? $", \"layer\": \"{layer}\"" : string.Empty;
-            scene.Append(CultureInfo.InvariantCulture, $",\n          {{ \"name\": \"t{type}\", \"cell\": {(type * 7) % (TilesetColumns * TilesetColumns)}{collides} }}");
+            scene.Append(CultureInfo.InvariantCulture, $",\n        {{ \"name\": \"t{type}\", \"cell\": {(type * 7) % (TilesetColumns * TilesetColumns)}{collides} }}");
         }
 
-        scene.Append("\n        ],\n        \"tiles\": [\n");
-        AppendGrid(scene, map, "          ");
-        scene.Append(layer is null ? "        ]\n      }\n    }" : "        ],\n        \"collider\": true\n      }\n    }");
+        scene.Append("\n      ],\n      \"tiles\": [\n");
+        AppendGrid(scene, map, "        ");
+        scene.Append(layer is null ? "      ]\n    }" : "      ],\n      \"collider\": true\n    }");
     }
 
     // Ground along the bottom and scattered tiles above it, one comma-separated row per line.

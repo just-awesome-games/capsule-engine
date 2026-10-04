@@ -21,8 +21,8 @@ public sealed class SceneKeyGeneratorTests
             public abstract class PlayableRoom(SceneContent content) : Scene(content);
             """,
             logic: true,
-            ("scenes/a/b.scene.json", """{"formatVersion": 8, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}"""),
-            ("scenes/a-b.scene.json", """{"formatVersion": 8, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}"""));
+            ("scenes/a/b.scene.json", """{"baseScene": "playable-room", "entities": []}"""),
+            ("scenes/a-b.scene.json", """{"baseScene": "playable-room", "entities": []}"""));
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
@@ -31,8 +31,8 @@ public sealed class SceneKeyGeneratorTests
             .GetProperty("Registry")!.GetValue(null)!;
         Type playableRoom = assembly.GetType("Game.PlayableRoom")!;
 
-        Scene nested = registry.Create(new SceneKey("scenes/a/b"), new SceneDocument([], 1));
-        Scene joined = registry.Create(new SceneKey("scenes/a-b"), new SceneDocument([], 1));
+        Scene nested = registry.Create(new SceneKey("scenes/a/b"), new SceneDocument([]));
+        Scene joined = registry.Create(new SceneKey("scenes/a-b"), new SceneDocument([]));
 
         Assert.True(playableRoom.IsInstanceOfType(nested));
         Assert.True(playableRoom.IsInstanceOfType(joined));

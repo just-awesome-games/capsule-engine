@@ -84,7 +84,7 @@ public sealed class TileMapCollider2D : Component
                 $"A {nameof(TileMapCollider2D)} cannot be added to a {entity.GetType().Name}. Add it to a {nameof(TileMap)}, or give the entity a {nameof(Collider2D)}.");
         }
 
-        if (map.Collider is not null)
+        if (map.AttachedCollider is not null)
         {
             throw new InvalidOperationException(
                 $"This {nameof(TileMap)} already holds a {nameof(TileMapCollider2D)}. Keep one per map, since each registers the whole grid.");
@@ -96,13 +96,13 @@ public sealed class TileMapCollider2D : Component
                 $"This {nameof(TileMap)}'s palette names no collision layer, so a {nameof(TileMapCollider2D)} on it could never collide. Give a tile type a layer, or remove the collider.");
         }
 
-        map.Collider = this;
+        map.AttachedCollider = this;
         _map = map;
     }
 
     internal override void OnDetachingFrom(Entity entity)
     {
-        _map!.Collider = null;
+        _map!.AttachedCollider = null;
         _map = null;
     }
 
@@ -222,10 +222,11 @@ public sealed class TileMapCollider2D : Component
         CollisionWorld2D world = _world!;
         TileGrid tiles = map.Grid;
         ReadOnlySpan<TileType> palette = tiles.TileTypes;
+        ReadOnlySpan<Shape2D?> shapes = tiles.Shapes;
         int shaped = 0;
-        foreach (TileType tileType in palette)
+        foreach (Shape2D? shape in shapes)
         {
-            shaped += tileType.Shape is null ? 0 : 1;
+            shaped += shape is null ? 0 : 1;
         }
 
         // The palette's own profiles come first, so an untransformed cell's profile index is its palette
@@ -239,7 +240,7 @@ public sealed class TileMapCollider2D : Component
             TileType tileType = palette[index];
             CellProfile2D profile = new(
                 tileType.Layer is { } layer ? world.Layer(layer) : null,
-                tileType.Shape,
+                shapes[index],
                 tileType.OneWay,
                 tileType.SolidSides);
             profiles[index] = profile;
@@ -247,7 +248,7 @@ public sealed class TileMapCollider2D : Component
             for (int transform = 0; transform < TileTransforms.Count; transform++)
             {
                 int slot = (index * TileTransforms.Count) + transform;
-                if (transform == 0 || tileType.Shape is not { } shape)
+                if (transform == 0 || shapes[index] is not { } shape)
                 {
                     lookup[slot] = index;
                     continue;
@@ -260,7 +261,7 @@ public sealed class TileMapCollider2D : Component
 
         // The grid keeps its own profile indices. The map's cells stay palette indices.
         ReadOnlySpan<int> painted = map.Cells;
-        ReadOnlySpan<TileTransform> facings = map.Transforms;
+        ReadOnlySpan<TileTransform> facings = map.Facings;
         int[] cells = new int[painted.Length];
         for (int index = 0; index < cells.Length; index++)
         {

@@ -13,12 +13,6 @@ internal static class GeneratedAttributes
     /// <summary>What marks a constant as a shipped scene document.</summary>
     internal const string SceneDocumentName = "CapsuleGeneratedSceneDocument";
 
-    /// <summary>What marks each game entry of a shipped scene document.</summary>
-    internal const string PlacementName = "CapsuleGeneratedPlacement";
-
-    /// <summary>What marks each palette entry of a shipped scene document that names a class or authors properties.</summary>
-    internal const string TileTypeName = "CapsuleGeneratedTileType";
-
     /// <summary>The declaration of <see cref="AssetName"/>.</summary>
     internal const string Asset = """
             /// <summary>A texture or sound, with the key and extension a scene document names it by. Generated code.</summary>
@@ -35,9 +29,9 @@ internal static class GeneratedAttributes
 
         """;
 
-    /// <summary>The declarations of <see cref="SceneDocumentName"/>, <see cref="PlacementName"/> and <see cref="TileTypeName"/>.</summary>
+    /// <summary>The declaration of <see cref="SceneDocumentName"/>.</summary>
     internal const string SceneDocument = """
-            /// <summary>A shipped scene document, with the settings the build read from it. Generated code.</summary>
+            /// <summary>A shipped scene document, with the baseScene the build read from it. Generated code.</summary>
             [global::System.AttributeUsage(global::System.AttributeTargets.Property)]
             [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
             [global::System.Diagnostics.Conditional("CAPSULE_GENERATED_FACTS")]
@@ -48,59 +42,6 @@ internal static class GeneratedAttributes
 
                 /// <summary>The key of the abstract scene the document derives from, or null.</summary>
                 public string? BaseScene { get; set; }
-
-                /// <summary>The key of the camera the document installs, or null.</summary>
-                public string? Camera { get; set; }
-
-                /// <summary>The file an authoring module derived the document from, or null for a hand-authored one.</summary>
-                public string? Source { get; set; }
-
-                /// <summary>The file the build read, relative to the project, where the compiler reports an entry's error.</summary>
-                public string? Path { get; set; }
-
-                /// <summary>Each of the document's own properties' name and value in turn, as a placement carries its own, or null.</summary>
-                public object?[]? Properties { get; set; }
-            }
-
-            /// <summary>One game entry of a shipped scene document, which the compiler checks against the class claiming its type. Generated code.</summary>
-            /// <remarks>
-            /// Each property is its name, then its JSON value as a C# constant: a bool, an int, a double, a string,
-            /// null or an object array. A JSON object is written typeof(object), since only a converter reads one.
-            /// </remarks>
-            [global::System.AttributeUsage(global::System.AttributeTargets.Property, AllowMultiple = true)]
-            [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
-            [global::System.Diagnostics.Conditional("CAPSULE_GENERATED_FACTS")]
-            internal sealed class CapsuleGeneratedPlacementAttribute : global::System.Attribute
-            {
-                /// <summary>The entry's id, type, and each property's name and value in turn.</summary>
-                public CapsuleGeneratedPlacementAttribute(int id, string type, params object?[] properties)
-                {
-                }
-
-                /// <summary>The line the entry starts on in the file the build read, counted from 1.</summary>
-                public int Line { get; set; }
-
-                /// <summary>The column the entry starts at on that line, counted from 1.</summary>
-                public int Column { get; set; }
-            }
-
-            /// <summary>One palette entry of a shipped scene document, which the compiler checks against the tile type its type names. Generated code.</summary>
-            /// <remarks>Each property is written as a placement's is.</remarks>
-            [global::System.AttributeUsage(global::System.AttributeTargets.Property, AllowMultiple = true)]
-            [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
-            [global::System.Diagnostics.Conditional("CAPSULE_GENERATED_FACTS")]
-            internal sealed class CapsuleGeneratedTileTypeAttribute : global::System.Attribute
-            {
-                /// <summary>The tile-map entry's id, the palette entry's name and type, and each property's name and value in turn.</summary>
-                public CapsuleGeneratedTileTypeAttribute(int id, string name, string? type, params object?[] properties)
-                {
-                }
-
-                /// <summary>The line the tile-map entry starts on in the file the build read, counted from 1.</summary>
-                public int Line { get; set; }
-
-                /// <summary>The column the tile-map entry starts at on that line, counted from 1.</summary>
-                public int Column { get; set; }
             }
 
         """;

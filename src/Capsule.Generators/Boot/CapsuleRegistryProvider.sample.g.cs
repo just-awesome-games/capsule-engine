@@ -37,10 +37,9 @@ namespace Capsule.Generated
         public static void AddScenes(global::Capsule.Scenes.SceneRegistryBuilder scenes)
         {
             global::System.ArgumentNullException.ThrowIfNull(scenes);
-            scenes.AddEntities(global::Capsule.Generated.CapsuleEntities.Registrations);
+            scenes.AddEntities(typeof(global::Capsule.Generated.CapsuleEntities).Assembly, global::Capsule.Generated.CapsuleEntities.Registrations);
             scenes.AddScenes(global::Capsule.Generated.CapsuleScenes.Registrations);
             scenes.AddAppliers(global::Capsule.Generated.CapsuleScenes.Appliers);
-            scenes.AddTileTypes(global::Capsule.Generated.CapsuleScenes.TileTypes);
         }
 
         [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]

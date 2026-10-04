@@ -148,7 +148,7 @@ TileMap terrain = new(grid);
 terrain.Add(new TileMapCollider2D());
 ```
 
-A tile-map entry authors `"collider": true` in its properties, beside the grid. The collider refuses a
+A tile-map entry authors `"collider": true` beside its grid. The collider refuses a
 map whose palette names no layer, and a second collider on the same map.
 
 A tile is its whole cell by default, or a convex polygon such as a slope. A tile's edge that lies flush

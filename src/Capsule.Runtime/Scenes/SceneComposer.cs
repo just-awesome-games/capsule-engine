@@ -8,10 +8,6 @@ namespace Capsule.Runtime.Scenes;
 // Holds only the current parsed document so restarts do not touch disk.
 internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
 {
-    // Where the scene-document build hook lands its output in a shell's content. A document name
-    // resolves against it and the shipped extension.
-    private const string DocumentDirectory = "assets";
-
     private string? _heldName;
     private SceneDocument? _held;
 
@@ -50,7 +46,7 @@ internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
 
     private Scene ComposeDocument(string name)
     {
-        string path = DocumentDirectory + "/" + DocumentFileName(name);
+        string path = ShippedSceneDocument.Folder + "/" + DocumentFileName(name);
         SceneDocument document = Hold(name, path);
 
         try

@@ -210,7 +210,7 @@ public sealed class SceneGeneratorTests
             }
             """,
             logic: true,
-            ("scenes/halls/hall.scene.json", """{"formatVersion": 8, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}"""));
+            ("scenes/halls/hall.scene.json", """{"baseScene": "playable-room", "entities": []}"""));
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
@@ -218,7 +218,8 @@ public sealed class SceneGeneratorTests
         Type registryHolder = assembly.GetType("Capsule.Generated.CapsuleScenes")!;
         SceneRegistry registry = (SceneRegistry)registryHolder.GetProperty("Registry")!.GetValue(null)!;
 
-        SceneDocument document = new([new TileMapPlacement(1, new TileGrid(16, 1, 1, [TileGrid.EmptyTile], [0]))], 2);
+        SceneDocument document = SceneDocumentFile.Parse(
+            """{"entities": [{"type": "tile-map", "tileSize": 16, "width": 1, "height": 1, "tileTypes": [{"name": "empty"}], "tiles": [0]}]}""");
         Scene composed = registry.Create(new SceneKey("scenes/halls/hall"), document);
 
         Assert.True(assembly.GetType("Game.Z.PlayableRoom")!.IsInstanceOfType(composed));
@@ -259,7 +260,7 @@ public sealed class SceneGeneratorTests
             public sealed class Room01(SceneContent content) : Scene(content);
             """,
             logic: true,
-            ("room-01.scene.json", """{"formatVersion": 8, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}""")).Diagnostics;
+            ("room-01.scene.json", """{"baseScene": "playable-room", "entities": []}""")).Diagnostics;
 
         Diagnostic error = Assert.Single(GeneratorHarness.Errors(diagnostics));
         Assert.Equal("CAP027", error.Id);
@@ -279,7 +280,7 @@ public sealed class SceneGeneratorTests
             public sealed class PlayableRoom(SceneContent content) : Scene(content);
             """,
             logic: true,
-            ("scenes/halls/hall.scene.json", $$"""{"formatVersion": 8, "baseScene": "{{baseScene}}", "entities": [], "nextEntityId": 1}""")).Diagnostics;
+            ("scenes/halls/hall.scene.json", $$"""{"baseScene": "{{baseScene}}", "entities": []}""")).Diagnostics;
 
         Diagnostic error = Assert.Single(GeneratorHarness.Errors(diagnostics));
         Assert.Equal(id, error.Id);
@@ -298,7 +299,7 @@ public sealed class SceneGeneratorTests
             public abstract class PlayableRoom(SceneContent content) : Scene(content);
             """,
             logic: true,
-            ("scenes/halls/hall.scene.json", """{"formatVersion": 8, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}"""));
+            ("scenes/halls/hall.scene.json", """{"baseScene": "playable-room", "entities": []}"""));
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
@@ -306,7 +307,8 @@ public sealed class SceneGeneratorTests
         Type registryHolder = assembly.GetType("Capsule.Generated.CapsuleScenes")!;
         SceneRegistry registry = (SceneRegistry)registryHolder.GetProperty("Registry")!.GetValue(null)!;
 
-        SceneDocument document = new([new TileMapPlacement(1, new TileGrid(16, 1, 1, [TileGrid.EmptyTile], [0]))], 2);
+        SceneDocument document = SceneDocumentFile.Parse(
+            """{"entities": [{"type": "tile-map", "tileSize": 16, "width": 1, "height": 1, "tileTypes": [{"name": "empty"}], "tiles": [0]}]}""");
         Scene composed = registry.Create(new SceneKey("scenes/halls/hall"), document);
 
         Assert.True(assembly.GetType("Game.PlayableRoom")!.IsInstanceOfType(composed));

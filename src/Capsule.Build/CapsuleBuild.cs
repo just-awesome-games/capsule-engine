@@ -83,7 +83,7 @@ public sealed class CapsuleBuild
         return this;
     }
 
-    /// <summary>Requires every scene document's tile maps to use tiles of <paramref name="pixels"/> square.</summary>
+    /// <summary>Declares the game's tile size in pixels, which every importer reads as <see cref="AssetImportContext.TileSize"/>.</summary>
     /// <remarks>A game with no one tile size leaves it unset, and each tile map declares its own.</remarks>
     public CapsuleBuild WithTileSize(int pixels)
     {

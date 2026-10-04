@@ -278,15 +278,13 @@ public sealed class StepTests
             [
                 TileGrid.EmptyTile,
                 new TileType { Name = "solid", Cell = 0, Layer = "solid" },
-                new TileType { Name = "lip", Cell = 0, Layer = "solid", Shape = Shape2D.Polygon([new(0f, top), new(16f, top), new(16f, 16f), new(0f, 16f)]) },
+                new TileType { Name = "lip", Cell = 0, Layer = "solid", Shape = [new(0f, top), new(16f, top), new(16f, 16f), new(0f, 16f)] },
             ],
             cells,
             SceneFixtures.Atlas,
             1);
 
-        return new Scene(SceneFixtures.Content(
-            new SceneDocument([new TileMapPlacement(SceneFixtures.TerrainId, grid, HasCollider: true)], SceneFixtures.TerrainId + 1),
-            SceneFixtures.Registry()));
+        return SceneFixtures.Terrain(grid);
     }
 
     // A box or a polygon on a layer, "solid" unless named.

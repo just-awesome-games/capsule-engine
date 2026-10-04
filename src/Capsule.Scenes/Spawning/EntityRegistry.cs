@@ -1,5 +1,6 @@
 using System.ComponentModel;
-using Capsule.Scenes.Documents;
+using System.Globalization;
+using Capsule.Tiles;
 
 namespace Capsule.Scenes.Spawning;
 
@@ -21,8 +22,11 @@ public sealed class EntityRegistry
 {
     private readonly Dictionary<string, EntityRegistration> _entities;
 
+    // The tile map of the assembly owning the document, whose asset lookup and tile types its maps read.
+    private readonly EntityRegistration? _ownedTileMap;
+
     /// <summary>A registry over <paramref name="entities"/>.</summary>
-    /// <exception cref="ArgumentException">A spawn type is blank, reserved or repeated, or a spawner is null.</exception>
+    /// <exception cref="ArgumentException">A spawn type is blank or repeated, or a spawner is null.</exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRegistry(IEnumerable<EntityRegistration> entities)
     {
@@ -37,33 +41,54 @@ public sealed class EntityRegistry
                 throw new ArgumentException("A spawn type is blank. Give every registration a type.", nameof(entities));
             }
 
-            if (string.Equals(type, SceneDocument.TileMapType, StringComparison.Ordinal))
-            {
-                throw new ArgumentException(
-                    $"The spawn type '{SceneDocument.TileMapType}' is reserved for scene-document tile-map entries, "
-                    + "which the engine composes itself. Give the class its own [SpawnType].",
-                    nameof(entities));
-            }
-
             if (spawner is null)
             {
                 throw new ArgumentException($"The spawn type '{type}' has no spawner. Supply one.", nameof(entities));
             }
 
-            if (!_entities.TryAdd(type, entity))
+            // Every logic assembly registers the engine's tile map. The first serves a document no assembly owns.
+            if (!_entities.TryAdd(type, entity) && !string.Equals(type, TileMap.SpawnKey, StringComparison.Ordinal))
             {
                 throw new ArgumentException($"The spawn type '{type}' appears more than once. Register it once.", nameof(entities));
             }
         }
     }
 
+    private EntityRegistry(Dictionary<string, EntityRegistration> entities, EntityRegistration? ownedTileMap)
+    {
+        _entities = entities;
+        _ownedTileMap = ownedTileMap;
+    }
+
+    /// <summary>This registry with the tile map that <paramref name="owner"/>, the registrations of the assembly owning a document, declares.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public EntityRegistry OwnedBy(IEnumerable<EntityRegistration> owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+
+        foreach (EntityRegistration entity in owner)
+        {
+            if (string.Equals(entity.SpawnType, TileMap.SpawnKey, StringComparison.Ordinal))
+            {
+                return new EntityRegistry(_entities, entity);
+            }
+        }
+
+        return this;
+    }
+
     // Throws SpawnException when no class claims the type, or the claiming class returned null.
     internal Entity Create(EntitySpawn spawn, AuthoredProperties properties)
     {
-        if (!_entities.TryGetValue(spawn.Type!, out EntityRegistration registered))
+        EntityRegistration registered;
+        if (_ownedTileMap is { } owned && string.Equals(spawn.Type, TileMap.SpawnKey, StringComparison.Ordinal))
+        {
+            registered = owned;
+        }
+        else if (!_entities.TryGetValue(spawn.Type!, out registered))
         {
             throw new SpawnException(
-                $"spawn type '{spawn.Type}' (entity id {spawn.Id}) is claimed by no entity. A class claims "
+                string.Create(CultureInfo.InvariantCulture, $"spawn type '{spawn.Type}' at ({spawn.Position.X}, {spawn.Position.Y}) is claimed by no entity. A class claims ")
                 + "a type by being a non-abstract Capsule.Scenes.Entity with a public constructor taking one "
                 + "Capsule.Scenes.Spawning.EntitySpawn. The type is the key its namespace names unless "
                 + "[SpawnType] gives one. A class with a C# required member other than an entity reference is placed in code only. "
@@ -79,8 +104,4 @@ public sealed class EntityRegistry
         return registered.Spawner(spawn)
             ?? throw new SpawnException($"the class claiming spawn type '{spawn.Type}' returned no entity.");
     }
-
-    // The delegate setting the entity references of a class claiming the type, or null when it holds none.
-    internal EntityApplier? Link(string type) =>
-        _entities.TryGetValue(type, out EntityRegistration registered) ? registered.Link : null;
 }

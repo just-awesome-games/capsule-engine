@@ -45,6 +45,32 @@ internal static class StageWorkload
 
     internal static SceneDocument Build()
     {
+        SceneDocumentEntry[] placements = new SceneDocumentEntry[PlacedEntities];
+        placements[0] = new SceneDocumentEntry("hero", 4f * TileSize, HeroTileY * TileSize);
+
+        float spacing = (float)TilesWide * TileSize / (PlacedEntities - 1);
+        for (int index = 1; index < PlacedEntities; index++)
+        {
+            placements[index] = new SceneDocumentEntry(
+                "actor",
+                index * spacing,
+                (HeroTileY + (index % 4)) * TileSize);
+        }
+
+        return new SceneDocument([new SceneDocumentEntry("tile-map"), .. placements]);
+    }
+
+    internal static EntityRegistry Entities() =>
+        new(
+        [
+            new EntityRegistration("tile-map", static _ => new TileMap(Grid())),
+            new EntityRegistration("hero", static spawn => new Hero(spawn)),
+            new EntityRegistration("actor", static spawn => new Actor(spawn)),
+        ]);
+
+    // The terrain the document's tile-map entry composes, which a game's generated registration reads from the entry.
+    private static TileGrid Grid()
+    {
         int[] tiles = new int[TilesWide * TilesHigh];
         for (int x = 0; x < TilesWide; x++)
         {
@@ -67,34 +93,8 @@ internal static class StageWorkload
             }
         }
 
-        TileGrid grid = new(TileSize, TilesWide, TilesHigh, [TileGrid.EmptyTile, Solid, Platform], tiles, Atlas, 2);
-
-        EntityPlacement[] placements = new EntityPlacement[PlacedEntities];
-        placements[0] = new EntityPlacement(1, "hero", 4f * TileSize, HeroTileY * TileSize);
-
-        float spacing = (float)TilesWide * TileSize / (PlacedEntities - 1);
-        for (int index = 1; index < PlacedEntities; index++)
-        {
-            placements[index] = new EntityPlacement(
-                index + 1,
-                "actor",
-                index * spacing,
-                (HeroTileY + (index % 4)) * TileSize);
-        }
-
-        // The tile-map entry takes the id after the placements, so the whole workload has one id
-        // space the way an authored document does.
-        return new SceneDocument(
-            [new TileMapPlacement(PlacedEntities + 1, grid), .. placements],
-            PlacedEntities + 2);
+        return new TileGrid(TileSize, TilesWide, TilesHigh, [TileGrid.EmptyTile, Solid, Platform], tiles, Atlas, 2);
     }
-
-    internal static EntityRegistry Entities() =>
-        new(
-        [
-            new EntityRegistration("hero", static spawn => new Hero(spawn)),
-            new EntityRegistration("actor", static spawn => new Actor(spawn)),
-        ]);
 
     internal static SceneRegistry Scenes() =>
         new(
@@ -128,9 +128,10 @@ internal static class StageWorkload
         internal Actor(EntitySpawn spawn)
             : base(spawn)
         {
-            _drift = new Vector2(((spawn.Id % 5) - 2) * 0.25f, 0f);
+            int slot = (int)(spawn.Position.X + spawn.Position.Y);
+            _drift = new Vector2(((slot % 5) - 2) * 0.25f, 0f);
 
-            if (spawn.Id % 3 == 0)
+            if (slot % 3 == 0)
             {
                 Add(new SpriteRenderer(ActorFrame));
             }

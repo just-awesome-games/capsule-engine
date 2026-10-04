@@ -172,7 +172,7 @@ public sealed class AuthorableTests
             "96.5|90|IceCave|none|none|3|0.5",
             Seen(
                 Composed(
-                    """{"id": 3, "type": "lift", "x": 0, "y": 0, "properties": {"rise": 96.5, "swingTicks": 90, "biome": "iceCave", "size": null, "label": null, "tuning": "heavy"}}""")));
+                    """{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 96.5, "swingTicks": 90, "biome": "iceCave", "size": null, "label": null, "tuning": "heavy"}""")));
     }
 
     [Fact]
@@ -180,13 +180,13 @@ public sealed class AuthorableTests
     {
         Assert.Equal(
             "1|150|Cave|<1, 1>|platform|3|1",
-            Seen(Composed("""{"id": 3, "type": "lift", "x": 0, "y": 0, "properties": {"rise": 1}}""")));
+            Seen(Composed("""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 1}""")));
     }
 
     [Fact]
     public void ABodyWrite_WinsOverTheDocument()
     {
-        Entity lamp = Composed("""{"id": 3, "type": "lamp", "x": 0, "y": 0, "properties": {"glow": 9}}""");
+        Entity lamp = Composed("""{"id": 3, "type": "lamp", "x": 0, "y": 0, "glow": 9}""");
 
         Assert.Equal(5, lamp.GetType().GetProperty("Glow")!.GetValue(lamp));
     }
@@ -194,7 +194,7 @@ public sealed class AuthorableTests
     [Fact]
     public void AConvertedType_IsReadThroughTheConverterItsTypeDeclares()
     {
-        Entity gate = Composed("""{"id": 3, "type": "gate", "x": 0, "y": 0, "properties": {"route": "hall>vault"}}""");
+        Entity gate = Composed("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "hall>vault"}""");
 
         Assert.Equal("Route { From = hall, To = vault }", Text(gate.GetType().GetProperty("Route")!.GetValue(gate)));
     }
@@ -202,7 +202,7 @@ public sealed class AuthorableTests
     [Fact]
     public void ARect_IsReadFromItsFourEdges()
     {
-        Entity gate = Composed("""{"id": 3, "type": "gate", "x": 0, "y": 0, "properties": {"route": "a>b", "bounds": [8, 16, 40.5, 48]}}""");
+        Entity gate = Composed("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "bounds": [8, 16, 40.5, 48]}""");
 
         Assert.Equal(new Rect(8f, 16f, 40.5f, 48f), gate.GetType().GetProperty("Bounds")!.GetValue(gate));
     }
@@ -210,7 +210,7 @@ public sealed class AuthorableTests
     [Fact]
     public void AMemberOfAGenericBase_IsSet()
     {
-        Entity hook = Composed("""{"id": 3, "type": "hook", "x": 0, "y": 0, "properties": {"stops": 5}}""");
+        Entity hook = Composed("""{"id": 3, "type": "hook", "x": 0, "y": 0, "stops": 5}""");
 
         Assert.Equal(5, hook.GetType().BaseType!.GetProperty("Stops")!.GetValue(hook));
     }
@@ -218,7 +218,7 @@ public sealed class AuthorableTests
     [Fact]
     public void AKeyOfAPublicBaseMember_SetsItPastAPrivateDerivedMemberOfTheSameName()
     {
-        Entity sign = Composed("""{"id": 3, "type": "sign", "x": 0, "y": 0, "properties": {"label": "exit"}}""");
+        Entity sign = Composed("""{"id": 3, "type": "sign", "x": 0, "y": 0, "label": "exit"}""");
 
         Assert.Equal("exit", sign.GetType().BaseType!.GetProperty("Label")!.GetValue(sign));
     }
@@ -226,15 +226,12 @@ public sealed class AuthorableTests
     [Fact]
     public void AnUnmarkedOverride_KeepsTheBaseContract_AndIsSetThroughTheOverride()
     {
-        string entry = """{"id": 3, "type": "balloon", "x": 0, "y": 0, "properties": {"rise": 5}}""";
-        (ImmutableArray<Diagnostic> diagnostics, _) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (Room, Document(entry)));
-        Entity balloon = Composed(entry);
+        Entity balloon = Composed("""{"id": 3, "type": "balloon", "x": 0, "y": 0, "rise": 5}""");
 
-        Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Equal(10f, balloon.GetType().GetProperty("Rise")!.GetValue(balloon));
     }
 
-    // The class compiles clean and stays out of the registry. A document entry placing it fails (CAP035).
+    // The class compiles clean and stays out of the registry. A document entry placing it fails at load.
     [Fact]
     public void ACodeOnlyEntity_IsNotRegistered()
     {
@@ -243,43 +240,11 @@ public sealed class AuthorableTests
         Assert.Contains("A class with a C# required member other than an entity reference is placed in code only", failure.Message, StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData("""{"id": 3, "type": "elevator", "x": 0, "y": 0}""", "CAP034", "'elevator', which no entity claims")]
-    [InlineData("""{"id": 3, "type": "crane", "x": 0, "y": 0}""", "CAP035", "has the C# required members Owner, which only code can set")]
-    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "properties": {"rise": 1, "height": 2}}""", "CAP036", "authorable members are: label, rise, biome, size, tint, tuning, swingTicks")]
-    [InlineData("""{"id": 3, "type": "crank", "x": 0, "y": 0, "properties": {"label": "a"}}""", "CAP036", "authorable members are: none")]
-    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "properties": {"rise": 1, "seen": "a"}}""", "CAP037", "sets 'seen', but 'Game.Lift.Seen' is not [Authorable]. Mark it [Authorable]")]
-    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "properties": {"rise": 1, "swingTicks": 1.5}}""", "CAP038", "takes int")]
-    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "properties": {"rise": null}}""", "CAP038", "or make the member nullable")]
-    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "properties": {"rise": 1, "biome": "lava"}}""", "CAP039", "Write one of: cave, iceCave")]
-    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "properties": {"rise": 1, "tuning": "light"}}""", "CAP039", "Write one of: default, heavy")]
-    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0}""", "CAP040", "omits 'rise'")]
-    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "properties": {"route": "a>b", "bounds": [8, 16, 40]}}""", "CAP038", RectFix)]
-    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "properties": {"route": "a>b", "bounds": [40, 16, 8, 48]}}""", "CAP038", RectFix)]
-    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "properties": {"route": "a>b", "bounds": [8, 48, 40, 16]}}""", "CAP038", RectFix)]
-    public void AnEntryItsClassRefuses_FailsTheBuildAtTheEntryNamingTheDocumentEntryAndFix(string entry, string id, string fix)
-    {
-        (ImmutableArray<Diagnostic> diagnostics, _) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (Room, Document(entry)));
-
-        Diagnostic refused = Assert.Single(GeneratorHarness.Errors(diagnostics));
-        Assert.Equal(id, refused.Id);
-        string message = refused.GetMessage(CultureInfo.InvariantCulture);
-        Assert.Contains("'scenes/room'", message, StringComparison.Ordinal);
-        Assert.Contains("entity 3", message, StringComparison.Ordinal);
-        Assert.Contains(fix, message, StringComparison.Ordinal);
-
-        // The error opens the document at the entry's own brace.
-        FileLinePositionSpan at = refused.Location.GetLineSpan();
-        Assert.Equal(
-            (Room, 0, Document(entry).IndexOf(entry, StringComparison.Ordinal)),
-            (at.Path, at.StartLinePosition.Line, at.StartLinePosition.Character));
-    }
-
     // The generator reads the build's facts from source, and the compiled game carries none of them.
     [Fact]
     public void ThePlacementFacts_StayOutOfTheCompiledAssembly()
     {
-        string entry = """{"id": 3, "type": "lift", "x": 0, "y": 0, "properties": {"rise": 1}}""";
+        string entry = """{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 1}""";
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (Room, Document(entry)));
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
@@ -288,30 +253,30 @@ public sealed class AuthorableTests
         Assert.Empty(documents.GetFields().SelectMany(static field => field.CustomAttributes));
     }
 
-    // At load the applier reads only the members it sets, and a wrong value form, a missing required member
-    // or a converter that throws each fails the load. An unknown key is the build's check alone (CAP036).
+    // At load a wrong value form, a missing required member, a key the class does not declare or a converter
+    // that throws each fails the load.
     [Theory]
-    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "properties": {"rise": "high"}}""", "the member takes float. Write a finite number.")]
-    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "properties": {"swingTicks": 5}}""", "omits 'rise'")]
-    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "properties": {"rise": 1, "tuning": "light"}}""", "Write one of: default, heavy.")]
-    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "properties": {"route": "vault"}}""", "Write a route as from>to.")]
-    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "properties": {"route": null}}""", "to null, which only a nullable member accepts")]
-    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "properties": {"route": "a>b", "seal": 1}}""", "SealConverter could not read as Seal: The seal registry is closed.")]
-    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "properties": {"route": "a>b", "bounds": [40, 16, 8, 48]}}""", "the member takes Rect. " + RectFix)]
-    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "properties": {"route": "a>b", "bounds": [8, 48, 40, 16]}}""", "the member takes Rect. " + RectFix)]
+    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 1, "height": 2}""", "sets 'height', which no authorable member takes. Its authorable members are: label, rise, biome, size, tint, tuning, swingTicks.")]
+    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": "high"}""", "the member takes float. Write a finite number.")]
+    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "swingTicks": 5}""", "omits 'rise'")]
+    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 1, "tuning": "light"}""", "Write one of: default, heavy.")]
+    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "vault"}""", "Write a route as from>to.")]
+    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": null}""", "to null, which only a nullable member accepts")]
+    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "seal": 1}""", "SealConverter could not read as Seal: The seal registry is closed.")]
+    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "bounds": [40, 16, 8, 48]}""", "the member takes Rect. " + RectFix)]
+    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "bounds": [8, 48, 40, 16]}""", "the member takes Rect. " + RectFix)]
     public void AnEntryItsClassRefusesAtLoad_ThrowsNamingTheDocumentEntryAndFix(string entry, string fix)
     {
         SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(() => Composed(entry));
 
-        Assert.StartsWith("scene document 'scenes/room': entity id 3 (", failure.Message, StringComparison.Ordinal);
+        Assert.StartsWith("scene document 'scenes/room': entities[0] (", failure.Message, StringComparison.Ordinal);
         Assert.Contains(fix, failure.Message, StringComparison.Ordinal);
     }
 
     private static string Document(string entry) =>
-        "{\"formatVersion\": 8, \"entities\": [" + entry + "], \"nextEntityId\": 4}";
+        "{\"entities\": [" + entry + "]}";
 
-    // Composes the room through the generated registry, compiled with no document so the build's check
-    // does not stand in front of the load-time one.
+    // Composes the room through the generated registry.
     private static Entity Composed(string entry)
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile(Game);

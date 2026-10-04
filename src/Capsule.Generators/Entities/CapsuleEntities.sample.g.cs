@@ -4,6 +4,8 @@
 [assembly: global::Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute(0, "door", typeof(global::Game.Door))]
 [assembly: global::Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute(0, "floor-switch", typeof(global::Game.FloorSwitch))]
 [assembly: global::Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute(0, "lamp", typeof(global::Game.Lamp))]
+[assembly: global::Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute(0, "portal", typeof(global::Game.Portal))]
+[assembly: global::Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute(0, "tile-map", typeof(global::Capsule.Tiles.TileMap))]
 
 namespace Capsule.Generated
 {
@@ -18,10 +20,10 @@ namespace Capsule.Generated
                 new global::Capsule.Scenes.Spawning.EntityRegistration(
                     "floor-switch",
                     static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => New_Game_FloorSwitch(spawn),
-                    Link: static (placed, properties) =>
+                    static (placed, properties) =>
                     {
                         global::Game.FloorSwitch entity = (global::Game.FloorSwitch)placed;
-                        entity.Lamp = properties.Entity<global::Game.Lamp>("lamp");
+                        properties.Link(entity, static (owner, linked) => ((global::Game.FloorSwitch)owner).Lamp = linked.Entity<global::Game.Lamp>("lamp"));
                     }),
                 new global::Capsule.Scenes.Spawning.EntityRegistration(
                     "lamp",
@@ -44,6 +46,45 @@ namespace Capsule.Generated
                             SetCharge(entity) = properties.Int("charge");
                         }
                     }),
+                new global::Capsule.Scenes.Spawning.EntityRegistration(
+                    "portal",
+                    static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new global::Game.Portal(spawn),
+                    static (placed, properties) =>
+                    {
+                        global::Game.Portal entity = (global::Game.Portal)placed;
+                        if (properties.Has("exit"))
+                        {
+                            Object_Game_Exit(entity.Exit, properties.Object("exit"), replaces: false);
+                        }
+                    }),
+                new global::Capsule.Scenes.Spawning.EntityRegistration(
+                    "tile-map",
+                    static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new global::Capsule.Tiles.TileMap(spawn),
+                    static (placed, properties) =>
+                    {
+                        global::Capsule.Tiles.TileMap entity = (global::Capsule.Tiles.TileMap)placed;
+                        SetTileSize(entity, properties.Int("tileSize"));
+                        SetWidth(entity, properties.Int("width"));
+                        SetHeight(entity, properties.Int("height"));
+                        if (properties.Has("texture"))
+                        {
+                            SetTexture(entity, properties.IsNull("texture") ? null : properties.Texture("texture", FindTexture));
+                        }
+                        if (properties.Has("columns"))
+                        {
+                            SetColumns(entity, properties.Int("columns"));
+                        }
+                        SetTileTypes(entity, properties.Array<global::Capsule.Tiles.TileType>("tileTypes", static element => Object_Capsule_Tiles_TileType(null, element.Object("tileTypes"), replaces: true)));
+                        SetTiles(entity, properties.Array<int>("tiles", static element => element.Int("tiles")));
+                        if (properties.Has("transforms"))
+                        {
+                            SetTransforms(entity, properties.IsNull("transforms") ? null : properties.Array<int>("transforms", static element => element.Int("transforms")));
+                        }
+                        if (properties.Has("collider"))
+                        {
+                            SetCollider(entity, properties.Bool("collider"));
+                        }
+                    }),
             };
 
         /// <summary>The registry a scene resolves its spawn types through.</summary>
@@ -53,15 +94,180 @@ namespace Capsule.Generated
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Constructor)]
         private static extern global::Game.FloorSwitch New_Game_FloorSwitch(global::Capsule.Scenes.Spawning.EntitySpawn spawn);
 
+        private static global::Capsule.Tiles.TileFrame Object_Capsule_Tiles_TileFrame(global::Capsule.Tiles.TileFrame? held, global::Capsule.Scenes.Spawning.AuthoredProperties properties, bool replaces) => (replaces ? properties.Type() : null) switch
+        {
+            null => Fill_Capsule_Tiles_TileFrame(held ?? new global::Capsule.Tiles.TileFrame(), properties),
+            _ => throw properties.NotAType(""),
+        };
+
+        private static global::Capsule.Tiles.TileType Object_Capsule_Tiles_TileType(global::Capsule.Tiles.TileType? held, global::Capsule.Scenes.Spawning.AuthoredProperties properties, bool replaces) => (replaces ? properties.Type() : null) switch
+        {
+            null => held switch
+            {
+                global::Game.Ice subclass => Fill_Game_Ice(subclass, properties),
+                null => Fill_Capsule_Tiles_TileType(new global::Capsule.Tiles.TileType(), properties),
+                _ => Fill_Capsule_Tiles_TileType(held, properties),
+            },
+            "ice" => Fill_Game_Ice(new global::Game.Ice(), properties),
+            _ => throw properties.NotAType("ice"),
+        };
+
+        private static global::Game.Exit Object_Game_Exit(global::Game.Exit? held, global::Capsule.Scenes.Spawning.AuthoredProperties properties, bool replaces) => (replaces ? properties.Type() : null) switch
+        {
+            null => Fill_Game_Exit(held ?? new global::Game.Exit(), properties),
+            _ => throw properties.NotAType(""),
+        };
+
+        private static global::Capsule.Tiles.TileFrame Fill_Capsule_Tiles_TileFrame(global::Capsule.Tiles.TileFrame target, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        {
+            SetCell(target, properties.Int("cell"));
+            SetTicks(target, properties.Int("ticks"));
+            return target;
+        }
+
+        private static global::Capsule.Tiles.TileType Fill_Capsule_Tiles_TileType(global::Capsule.Tiles.TileType target, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        {
+            SetName(target, properties.String("name"));
+            if (properties.Has("cell"))
+            {
+                SetCell(target, properties.IsNull("cell") ? null : properties.Int("cell"));
+            }
+            if (properties.Has("frames"))
+            {
+                SetFrames(target, properties.IsNull("frames") ? null : properties.Array<global::Capsule.Tiles.TileFrame>("frames", static element => Object_Capsule_Tiles_TileFrame(null, element.Object("frames"), replaces: true)));
+            }
+            if (properties.Has("layer"))
+            {
+                SetLayer(target, properties.IsNull("layer") ? null : properties.String("layer"));
+            }
+            if (properties.Has("shape"))
+            {
+                SetShape(target, properties.IsNull("shape") ? null : properties.Array<global::System.Numerics.Vector2>("shape", static element => element.Vector2("shape")));
+            }
+            if (properties.Has("oneWay"))
+            {
+                SetOneWay(target, properties.Bool("oneWay"));
+            }
+            if (properties.Has("solidSides"))
+            {
+                SetSolidSides(target, properties.Bool("solidSides"));
+            }
+            return target;
+        }
+
+        private static global::Game.Exit Fill_Game_Exit(global::Game.Exit target, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        {
+            target.Destination = properties.Scene("destination", FindScene);
+            return target;
+        }
+
+        private static global::Game.Ice Fill_Game_Ice(global::Game.Ice target, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        {
+            SetName(target, properties.String("name"));
+            if (properties.Has("cell"))
+            {
+                SetCell(target, properties.IsNull("cell") ? null : properties.Int("cell"));
+            }
+            if (properties.Has("frames"))
+            {
+                SetFrames(target, properties.IsNull("frames") ? null : properties.Array<global::Capsule.Tiles.TileFrame>("frames", static element => Object_Capsule_Tiles_TileFrame(null, element.Object("frames"), replaces: true)));
+            }
+            if (properties.Has("layer"))
+            {
+                SetLayer(target, properties.IsNull("layer") ? null : properties.String("layer"));
+            }
+            if (properties.Has("shape"))
+            {
+                SetShape(target, properties.IsNull("shape") ? null : properties.Array<global::System.Numerics.Vector2>("shape", static element => element.Vector2("shape")));
+            }
+            if (properties.Has("oneWay"))
+            {
+                SetOneWay(target, properties.Bool("oneWay"));
+            }
+            if (properties.Has("solidSides"))
+            {
+                SetSolidSides(target, properties.Bool("solidSides"));
+            }
+            if (properties.Has("grip"))
+            {
+                SetGrip(target, properties.Float("grip"));
+            }
+            return target;
+        }
+
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Glow")]
         private static extern void SetGlow(global::Game.Lamp owner, global::Game.Glow value);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Field, Name = "_charge")]
         private static extern ref int SetCharge(global::Game.Lamp owner);
 
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_TileSize")]
+        private static extern void SetTileSize(global::Capsule.Tiles.TileMap owner, int value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Width")]
+        private static extern void SetWidth(global::Capsule.Tiles.TileMap owner, int value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Height")]
+        private static extern void SetHeight(global::Capsule.Tiles.TileMap owner, int value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Texture")]
+        private static extern void SetTexture(global::Capsule.Tiles.TileMap owner, global::Capsule.Assets.TextureHandle? value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Columns")]
+        private static extern void SetColumns(global::Capsule.Tiles.TileMap owner, int value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_TileTypes")]
+        private static extern void SetTileTypes(global::Capsule.Tiles.TileMap owner, global::Capsule.Tiles.TileType[] value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Tiles")]
+        private static extern void SetTiles(global::Capsule.Tiles.TileMap owner, int[] value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Transforms")]
+        private static extern void SetTransforms(global::Capsule.Tiles.TileMap owner, int[]? value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Collider")]
+        private static extern void SetCollider(global::Capsule.Tiles.TileMap owner, bool value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Cell")]
+        private static extern void SetCell(global::Capsule.Tiles.TileFrame owner, int value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Ticks")]
+        private static extern void SetTicks(global::Capsule.Tiles.TileFrame owner, int value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Name")]
+        private static extern void SetName(global::Capsule.Tiles.TileType owner, string value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Cell")]
+        private static extern void SetCell(global::Capsule.Tiles.TileType owner, int? value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Frames")]
+        private static extern void SetFrames(global::Capsule.Tiles.TileType owner, global::Capsule.Tiles.TileFrame[]? value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Layer")]
+        private static extern void SetLayer(global::Capsule.Tiles.TileType owner, string? value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Shape")]
+        private static extern void SetShape(global::Capsule.Tiles.TileType owner, global::System.Numerics.Vector2[]? value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_OneWay")]
+        private static extern void SetOneWay(global::Capsule.Tiles.TileType owner, bool value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_SolidSides")]
+        private static extern void SetSolidSides(global::Capsule.Tiles.TileType owner, bool value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Grip")]
+        private static extern void SetGrip(global::Game.Ice owner, float value);
+
         private static global::Capsule.Assets.TextureHandle? FindTexture(string key) => key switch
         {
             "textures/lamp.png" => global::Capsule.Generated.Documents.Asset0,
+            _ => null,
+        };
+
+        private static global::Capsule.Scenes.SceneKey? FindScene(string key) => key switch
+        {
+            "scenes/hall" => global::Capsule.Generated.Documents.Document1,
+            "scenes/room" => global::Capsule.Generated.Documents.Document2,
             _ => null,
         };
     }

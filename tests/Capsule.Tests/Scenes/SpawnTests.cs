@@ -13,7 +13,7 @@ public sealed class SpawnTests
             SceneFixtures.Registry(
                 ("chest", static spawn => new SceneFixtures.Placed(spawn)),
                 ("player", static spawn => new SceneFixtures.Placed(spawn))),
-            new EntityPlacement(1, "wyvern", 0f, 0f)));
+            new SceneDocumentEntry("wyvern", 0f, 0f)));
 
         Assert.Contains("wyvern", failure.Message, StringComparison.Ordinal);
         Assert.Contains("chest, player", failure.Message, StringComparison.Ordinal);
@@ -29,20 +29,5 @@ public sealed class SpawnTests
         ];
 
         Assert.Throws<ArgumentException>(() => new EntityRegistry(entries));
-    }
-
-    // The engine composes a scene document's terrain entry itself, so no game class may claim
-    // the type it is written under.
-    [Fact]
-    public void ARegistryClaimingTheReservedTerrainType_IsRejectedWhereItIsBuilt()
-    {
-        List<EntityRegistration> entries =
-        [
-            new(SceneDocument.TileMapType, static spawn => new SceneFixtures.Placed(spawn)),
-        ];
-
-        ArgumentException failure = Assert.Throws<ArgumentException>(() => new EntityRegistry(entries));
-
-        Assert.Contains("reserved", failure.Message, StringComparison.Ordinal);
     }
 }

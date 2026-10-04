@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using Capsule.Animation;
 using Capsule.Assets;
@@ -24,8 +25,8 @@ public sealed class TileGrid
     // One per palette entry with frames, cut once beside _sprites.
     private readonly Animation[] _animations;
 
-    // Parallel to the palette, or null when no entry authors a class or properties.
-    private readonly AuthoredTileType[]? _authored;
+    // Each palette entry's collision polygon, built once from its points, or null for a whole tile.
+    private readonly Shape2D?[] _shapes;
 
     /// <param name="tileSize">The edge length of one tile. See <see cref="TileSize"/>.</param>
     /// <param name="width">Grid width in tiles.</param>
@@ -41,11 +42,6 @@ public sealed class TileGrid
     /// How each tile is mirrored or turned, row-major and parallel to <paramref name="tiles"/>, or null
     /// for a grid of tiles drawn as authored.
     /// </param>
-    /// <param name="authored">
-    /// What a scene document authors for each palette entry beyond the engine's fields, parallel to
-    /// <paramref name="tileTypes"/>, or null for a palette of plain entries. A scene composes each entry that
-    /// names a type into an instance of that type, carried in <see cref="TileTypes"/>.
-    /// </param>
     /// <exception cref="ArgumentException">The grid is malformed. The message names the defect.</exception>
     public TileGrid(
         int tileSize,
@@ -55,17 +51,10 @@ public sealed class TileGrid
         IReadOnlyList<int> tiles,
         TextureHandle? texture = null,
         int columns = 0,
-        IReadOnlyList<TileTransform>? transforms = null,
-        IReadOnlyList<AuthoredTileType>? authored = null)
+        IReadOnlyList<TileTransform>? transforms = null)
     {
         ArgumentNullException.ThrowIfNull(tileTypes);
         ArgumentNullException.ThrowIfNull(tiles);
-        if (authored is not null && authored.Count != tileTypes.Count)
-        {
-            throw new ArgumentException(
-                $"authored has {authored.Count} entries for a palette of {tileTypes.Count}. Give one per palette entry.",
-                nameof(authored));
-        }
 
         TileSize = tileSize;
         Width = width;
@@ -74,7 +63,7 @@ public sealed class TileGrid
         Columns = columns;
         _tileTypes = [.. tileTypes];
         _tiles = [.. tiles];
-        _authored = authored is null ? null : [.. authored];
+        _shapes = new Shape2D?[_tileTypes.Length];
 
         Validate();
 
@@ -129,11 +118,8 @@ public sealed class TileGrid
 
     internal ReadOnlyMemory<Animation> Animations => _animations;
 
-    // Build metadata for the scene document writer. A composed grid carries instances and no authored entries.
-    internal IReadOnlyList<AuthoredTileType>? Authored => _authored;
-
-    // This grid with the palette a scene composed from it, whose instances now carry what was authored.
-    internal TileGrid Composed(TileType[] tileTypes) => new(TileSize, Width, Height, tileTypes, _tiles, Texture, Columns, _transforms);
+    // Parallel to TileTypes. A collider reads each entry's polygon here, not off its points.
+    internal ReadOnlySpan<Shape2D?> Shapes => _shapes;
 
     private void Validate()
     {
@@ -192,7 +178,7 @@ public sealed class TileGrid
 
             if (tileType.Cell is { } cell && cell < 0)
             {
-                throw Malformed($"tileTypes[{i}] draws cell {cell}. Count cells from 0.", "tileTypes");
+                throw Malformed($"{Palette(tileType, i)} draws cell {cell}. Count cells from 0.", "tileTypes");
             }
 
             if (tileType.Frames is { } frames)
@@ -202,78 +188,83 @@ public sealed class TileGrid
 
             if (tileType.Layer is { } layer && string.IsNullOrWhiteSpace(layer))
             {
-                throw Malformed($"tileTypes[{i}] has a blank layer. Name the layer a colliding tile is on.", "tileTypes");
+                throw Malformed($"{Palette(tileType, i)} has a blank layer. Name the layer a colliding tile is on.", "tileTypes");
             }
 
             if (tileType.Layer is null && (tileType.Shape is not null || tileType.OneWay))
             {
                 throw Malformed(
-                    $"tileTypes[{i}] declares {(tileType.Shape is null ? "oneWay" : "a shape")} but no layer and collides as nothing. Add a layer or drop it.",
+                    $"{Palette(tileType, i)} declares {(tileType.Shape is null ? "oneWay" : "a shape")} but no layer and collides as nothing. Add a layer or drop it.",
                     "tileTypes");
             }
 
             if (tileType.SolidSides && !tileType.OneWay)
             {
                 throw Malformed(
-                    $"tileTypes[{i}] declares solidSides but no oneWay. Add oneWay, or drop solidSides for a tile solid from every side.",
+                    $"{Palette(tileType, i)} declares solidSides but no oneWay. Add oneWay, or drop solidSides for a tile solid from every side.",
                     "tileTypes");
             }
 
-            if (tileType.Shape is { } shape)
+            if (tileType.Shape is { } points)
             {
-                ValidateShape(shape, i);
+                _shapes[i] = ShapeOf(tileType, points, i);
             }
         }
     }
 
-    private static void ValidateFrames(TileType tileType, IReadOnlyList<TileFrame> frames, int index)
+    private static void ValidateFrames(TileType tileType, TileFrame[] frames, int index)
     {
         if (tileType.Cell is not null)
         {
             throw Malformed(
-                $"tileTypes[{index}] sets both cell and frames. Keep cell for a still tile, or frames for an animated one.",
+                $"{Palette(tileType, index)} sets both cell and frames. Keep cell for a still tile, or frames for an animated one.",
                 "tileTypes");
         }
 
-        if (frames.Count == 0)
+        if (frames.Length == 0)
         {
-            throw Malformed($"tileTypes[{index}] has no frames. Give it at least one frame, or drop frames.", "tileTypes");
+            throw Malformed($"{Palette(tileType, index)} has no frames. Give it at least one frame, or drop frames.", "tileTypes");
         }
 
-        for (int frame = 0; frame < frames.Count; frame++)
+        for (int frame = 0; frame < frames.Length; frame++)
         {
             (int cell, int ticks) = frames[frame];
             if (cell < 0)
             {
-                throw Malformed($"tileTypes[{index}].frames[{frame}] draws cell {cell}. Count cells from 0.", "tileTypes");
+                throw Malformed($"{Palette(tileType, index)}.frames[{frame}] draws cell {cell}. Count cells from 0.", "tileTypes");
             }
 
             if (ticks < 1)
             {
                 throw Malformed(
-                    $"tileTypes[{index}].frames[{frame}] is held for {ticks} ticks. Hold every frame for at least 1 tick.",
+                    $"{Palette(tileType, index)}.frames[{frame}] is held for {ticks} ticks. Hold every frame for at least 1 tick.",
                     "tileTypes");
             }
         }
     }
 
-    // A tile's shape is a plain convex polygon inside its own tile. Shape2D already refused a concave one.
-    private void ValidateShape(in Shape2D shape, int index)
+    // A tile's shape is a convex polygon inside its own tile.
+    private Shape2D ShapeOf(TileType tileType, Vector2[] points, int index)
     {
-        if (shape.Kind is not (ShapeKind2D.Polygon or ShapeKind2D.Box) || shape.Radius != 0f)
+        Shape2D shape;
+        try
         {
-            throw Malformed(
-                $"tileTypes[{index}] has a {shape.Kind} shape of radius {shape.Radius}. Give a tile a polygon of 3 or 4 points with no radius.",
-                "tileTypes");
+            shape = Shape2D.Polygon(points);
+        }
+        catch (ArgumentException ex)
+        {
+            throw Malformed($"{Palette(tileType, index)}.shape is not a convex polygon of 3 or {Shape2D.MaxPoints} points. {ex.Message}", "tileTypes");
         }
 
         Aabb2D bounds = shape.Bounds;
         if (bounds.Min.X < 0f || bounds.Min.Y < 0f || bounds.Max.X > TileSize || bounds.Max.Y > TileSize)
         {
             throw Malformed(
-                $"tileTypes[{index}] has a shape point outside its tile. Keep every point within [0, {TileSize}] on both axes, measured from the tile's top-left corner.",
+                $"{Palette(tileType, index)} has a shape point outside its tile. Keep every point within [0, {TileSize}] on both axes, measured from the tile's top-left corner.",
                 "tileTypes");
         }
+
+        return shape;
     }
 
     // Checks both directions, because a cell without a texture or a texture without a cell is a
@@ -295,7 +286,7 @@ public sealed class TileGrid
             {
                 string draws = tileType.Cell is { } cell ? $"cell {cell}" : "frames";
                 throw Malformed(
-                    $"tileTypes[{i}] draws {draws} but the grid names no texture. Give the grid a texture to cut from.",
+                    $"{Palette(tileType, i)} draws {draws} but the grid names no texture. Give the grid a texture to cut from.",
                     "tileTypes");
             }
         }
@@ -342,7 +333,7 @@ public sealed class TileGrid
 
             if (_tileTypes[i].Frames is { } frames)
             {
-                for (int frame = 0; frame < frames.Count; frame++)
+                for (int frame = 0; frame < frames.Length; frame++)
                 {
                     ValidateCellRegion(frames[frame].Cell, i, $".frames[{frame}]");
                 }
@@ -449,8 +440,8 @@ public sealed class TileGrid
                 continue;
             }
 
-            Sprite[] sprites = new Sprite[frames.Count];
-            int[] ticks = new int[frames.Count];
+            Sprite[] sprites = new Sprite[frames.Length];
+            int[] ticks = new int[frames.Length];
             for (int frame = 0; frame < sprites.Length; frame++)
             {
                 sprites[frame] = CutCell(texture, frames[frame].Cell);
@@ -468,11 +459,14 @@ public sealed class TileGrid
         new TextureRegion(cell % Columns * TileSize, cell / Columns * TileSize, TileSize, TileSize),
         new Vector2(TileSize / 2f, TileSize / 2f));
 
-    // The empty entry draws, collides and authors nothing. A class or properties would fill every unpainted cell.
-    private bool IsEmpty(TileType tileType) =>
+    // The empty entry draws, collides and authors nothing. A subclass would fill every unpainted cell.
+    private static bool IsEmpty(TileType tileType) =>
         tileType is { Name: EmptyTileName, Cell: null, Frames: null, Layer: null, Shape: null, OneWay: false, SolidSides: false }
-        && tileType.GetType() == typeof(TileType)
-        && _authored?[0] is null or { Type: null, Properties: null };
+        && tileType.GetType() == typeof(TileType);
+
+    // How a message names a palette entry: its index, and the name an author finds it by.
+    private static string Palette(TileType tileType, int index) =>
+        string.Create(CultureInfo.InvariantCulture, $"tileTypes[{index}] (\"{tileType.Name}\")");
 
     private static ArgumentException Malformed(string message, string parameterName) => new(message, parameterName);
 

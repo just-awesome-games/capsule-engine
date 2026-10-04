@@ -1,87 +1,64 @@
 using System.Globalization;
+using System.Numerics;
 using System.Text.Json;
 using Capsule.Assets;
-using Capsule.Rendering;
 
 namespace Capsule.Scenes.Documents;
 
-/// <summary>
-/// A scene as data, held as one ordered list of engine-native tile maps and game-defined entity
-/// placements.
-/// </summary>
+/// <summary>A scene as data: its ordered entries and the members it authors, each as raw JSON its class reads.</summary>
 /// <remarks>
 /// File order is composition order. The constructor enforces the format's invariants, and every
 /// document that exists is valid.
 /// </remarks>
 public sealed class SceneDocument
 {
-    // The entry type the engine reserves for tile maps. A document may hold any number of them.
-    internal const string TileMapType = "tile-map";
-
     private const string KeyForm =
         "A key is one or more '/'-joined segments of ASCII letters, digits, hyphens and underscores, none of them a reserved Windows device name.";
+
+    private static readonly string[] RootKeys = ["$schema", "baseScene", "entities"];
+    private static readonly string[] EntryKeys = ["id", "type", "x", "y", "rotation", "scale", "zIndex", "scrollFactor"];
 
     private readonly SceneDocumentEntry[] _entries;
 
     /// <summary>A validated document over <paramref name="entries"/>.</summary>
-    /// <param name="entries">Every tile map and entity placement, in composition order.</param>
-    /// <param name="nextEntityId">The next id to hand out. At least 1, and greater than every entry's id.</param>
-    /// <param name="source">Where a derived document came from, or null when it is hand-authored.</param>
-    /// <param name="settings">
-    /// The scene-level state the document authors, or null when it authors none. Its <see cref="SceneSettings.Properties"/>
-    /// set the composing scene class's authorable members.
+    /// <param name="entries">Every entry, in composition order.</param>
+    /// <param name="properties">
+    /// The document's other top-level keys as one JSON object, or null when it authors none. Each sets the
+    /// authorable member of that name on the composed scene.
     /// </param>
+    /// <param name="baseScene">The key of the abstract <see cref="Scene"/> subclass the composed scene derives from, or null.</param>
     /// <exception cref="ArgumentException">The document is malformed. The message names the defect.</exception>
     /// <example>
-    /// An importer for another editor's format builds a document whose scene properties name the entry with id 3:
+    /// An importer for another editor's format builds a document whose scene member names the entry with id 3:
     /// <code>
-    /// SceneSettings settings = new() { Properties = JsonSerializer.SerializeToElement(new { startBounds = 3 }) };
-    /// SceneDocument document = new(entries, nextEntityId: 4, source: null, settings);
+    /// JsonElement properties = JsonSerializer.SerializeToElement(new { startBounds = 3 });
+    /// SceneDocument document = new([new SceneDocumentEntry("camera-bounds") { Id = 3 }], properties);
     /// </code>
     /// </example>
-    public SceneDocument(
-        IReadOnlyList<SceneDocumentEntry> entries,
-        int nextEntityId,
-        SceneDocumentSource? source = null,
-        SceneSettings? settings = null)
+    public SceneDocument(IReadOnlyList<SceneDocumentEntry> entries, JsonElement? properties = null, string? baseScene = null)
     {
         ArgumentNullException.ThrowIfNull(entries);
 
-        NextEntityId = nextEntityId;
-        Source = source;
-        Settings = settings ?? new SceneSettings();
         _entries = [.. entries];
+        Properties = properties;
+        BaseScene = baseScene;
 
-        Validate();
+        ValidateRoot();
+        ValidateEntries();
     }
 
-    /// <summary>Every tile map and entity placement, in composition order.</summary>
+    /// <summary>Every entry, in composition order.</summary>
     public ReadOnlySpan<SceneDocumentEntry> Entries => _entries;
 
-    /// <summary>
-    /// The next id to hand out. It rises and never falls, ids are never reused, and deleting an
-    /// entry does not rewind it.
-    /// </summary>
-    /// <remarks>Every entry's id is below this value.</remarks>
-    public int NextEntityId { get; }
+    /// <summary>The document's other top-level keys as one JSON object, or null when it authors none.</summary>
+    public JsonElement? Properties { get; }
 
-    /// <summary>The authoring source this document was derived from, or null when it is hand-authored.</summary>
-    public SceneDocumentSource? Source { get; }
+    /// <summary>The key of the abstract <see cref="Scene"/> subclass the composed scene derives from, or null.</summary>
+    public string? BaseScene { get; }
 
-    /// <summary>The scene-level state the document authors, never null.</summary>
-    public SceneSettings Settings { get; }
-
-    private void Validate()
-    {
-        if (NextEntityId < 1)
-        {
-            throw Malformed($"nextEntityId is {NextEntityId}. Set it to at least 1.", nameof(NextEntityId));
-        }
-
-        ValidateSettings();
-        ValidateEntries();
-        ValidateSource();
-    }
+    // How a message names the entry at index: its place in the list and what it places.
+    private static string Describe(SceneDocumentEntry entry, int index) =>
+        string.Create(CultureInfo.InvariantCulture, $"entities[{index}] ('{entry.Type}' at ({entry.X}, {entry.Y}))");
 
     private void ValidateEntries()
     {
@@ -89,209 +66,75 @@ public sealed class SceneDocument
         for (int i = 0; i < _entries.Length; i++)
         {
             SceneDocumentEntry entry = _entries[i];
-            EntityPlacement? entity = entry.Entity;
-            TileMapPlacement? tileMap = entry.TileMap;
-
-            // The authoring tool mints ids. The reader never assigns one.
-            if (entry.Id < 1)
+            if (string.IsNullOrWhiteSpace(entry.Type))
             {
-                string identity = entity is { } unidentified
-                    ? string.Create(CultureInfo.InvariantCulture, $"entity '{unidentified.Type}' at ({unidentified.X}, {unidentified.Y})")
-                    : $"the '{TileMapType}' entry";
-                throw Malformed($"{identity} has no id. Assign one from nextEntityId when the entry is created.");
+                throw Malformed($"entities[{i}] has no type. Name the spawn type it composes.");
             }
 
-            if (tileMap is { Grid: null })
+            string named = Describe(entry, i);
+            if (entry.Id is < 1)
             {
-                throw Malformed($"the '{TileMapType}' entry carries no grid. Write the grid it draws in its properties.");
+                throw Malformed(string.Create(CultureInfo.InvariantCulture, $"{named} has id {entry.Id}. Make it positive, or omit it."));
             }
 
-            if (entity is { } placed && string.Equals(placed.Type, TileMapType, StringComparison.Ordinal))
+            if (entry.Id is { } id && !seen.Add(id))
             {
-                throw Malformed($"the type '{TileMapType}' is reserved for {nameof(TileMapPlacement)} entries. Give this entity another type.");
-            }
-
-            if (entity is { } placedWithoutType && string.IsNullOrWhiteSpace(placedWithoutType.Type))
-            {
-                throw Malformed($"entity id {placedWithoutType.Id} has no type. Name the spawn type it composes.");
+                throw Malformed(string.Create(CultureInfo.InvariantCulture, $"{named} has id {id}, which an earlier entry has. Give every entry a unique id."));
             }
 
             // NaN and the infinities have no JSON number, so such a document could not be written out.
-            if (!float.IsFinite(entry.X) || !float.IsFinite(entry.Y))
+            Vector2 factor = entry.ScrollFactor ?? Vector2.One;
+            if (!float.IsFinite(entry.X + entry.Y + entry.RotationDegrees + factor.X + factor.Y))
             {
-                throw Malformed(string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"entity id {entry.Id} is at ({entry.X}, {entry.Y}), which is not a position. Make both coordinates finite."));
+                throw Malformed($"{named} places with a number that is not finite. Make its position, rotation and scroll factor finite.");
             }
 
             // A scale of zero or less has no size, and a non-finite one has no JSON number.
-            if (entity is { } sized && (!IsScale(sized.ScaleX) || !IsScale(sized.ScaleY)))
+            if (!IsScale(entry.ScaleX) || !IsScale(entry.ScaleY))
             {
                 throw Malformed(string.Create(
                     CultureInfo.InvariantCulture,
-                    $"entity id {entry.Id} is scaled ({sized.ScaleX}, {sized.ScaleY}), which is not a scale. Make both factors finite and greater than zero."));
+                    $"{named} is scaled ({entry.ScaleX}, {entry.ScaleY}), which is not a scale. Make both factors finite and greater than zero."));
             }
 
-            // What each key means is the claiming class's contract, checked when the build compiles and again
-            // when the entry spawns.
-            if (entity is { Properties.ValueKind: not JsonValueKind.Object })
+            // What each key means is the claiming class's contract, checked when the entry spawns.
+            if (entry.Properties is { ValueKind: not JsonValueKind.Object })
             {
-                throw Malformed(
-                    $"entity id {entry.Id} has properties that are not an object. Write them as {{ \"name\": value }}, or omit them.");
+                throw Malformed($"{named} has properties that are not an object. Write them as {{ \"name\": value }}, or omit them.");
             }
 
-            // The build writes each property value and array element as a C# constant, and a number beyond
-            // double range has no literal. A nested object is left to the converter that reads it.
-            if (entity is { Properties: { } properties } && !properties.EnumerateObject().All(static member => Finite(member.Value)))
+            if (Reserved(entry.Properties, EntryKeys) is { } entryKey)
             {
-                throw Malformed(
-                    $"entity id {entry.Id} has a property number beyond the range of a double. Write a finite number.");
-            }
-
-            if (entity is { } turned && !float.IsFinite(turned.RotationDegrees))
-            {
-                throw Malformed(string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"entity id {entry.Id} has rotation {turned.RotationDegrees}, which is not a turn. Make it a finite number of degrees."));
-            }
-
-            if (entry.ScrollFactor is { } factor && (!float.IsFinite(factor.X) || !float.IsFinite(factor.Y)))
-            {
-                throw Malformed(string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"entity id {entry.Id} has scroll factor ({factor.X}, {factor.Y}), which is not a scroll factor. Make both components finite."));
-            }
-
-            if (tileMap is { HasCollider: true, Grid.Collides: false })
-            {
-                throw Malformed(
-                    $"the '{TileMapType}' entry with id {entry.Id} sets collider on a palette that names no layer. Give a tile type a layer, or drop collider from its properties.");
-            }
-
-            // A grid answers queries at its authored cells, but a scrolled grid draws somewhere else.
-            if (tileMap is { HasCollider: true, ScrollFactor: not null })
-            {
-                throw Malformed(
-                    $"the '{TileMapType}' entry with id {entry.Id} authors a scrollFactor on a map with a collider. Drop the scrollFactor, or drop collider from its properties.");
-            }
-
-            if (entry.Id >= NextEntityId)
-            {
-                throw Malformed($"entity id {entry.Id} is not below nextEntityId {NextEntityId}. Raise nextEntityId above every id.");
-            }
-
-            if (!seen.Add(entry.Id))
-            {
-                throw Malformed($"entity id {entry.Id} appears more than once. Give every entry a unique id.");
+                throw Malformed($"{named} has a member '{entryKey}', which the format reserves for the entry itself. Set it on the entry.");
             }
         }
     }
 
-    private void ValidateSettings()
+    private void ValidateRoot()
     {
-        SceneSettings settings = Settings;
-
-        if (settings.BaseScene is { } baseScene && !AssetPaths.IsKey(baseScene))
+        if (BaseScene is { } baseScene && !AssetPaths.IsKey(baseScene))
         {
-            throw Malformed(
-                $"baseScene is '{baseScene}', which is not a key. {KeyForm}",
-                nameof(Settings));
+            throw Malformed($"baseScene is '{baseScene}', which is not a key. {KeyForm}", "baseScene");
         }
 
-        if (settings.Camera is { } camera && !AssetPaths.IsKey(camera))
+        if (Properties is { ValueKind: not JsonValueKind.Object })
         {
-            throw Malformed(
-                $"camera is '{camera}', which is not a key. {KeyForm}",
-                nameof(Settings));
+            throw Malformed("the scene's properties are not an object. Write them as { \"name\": value }, or omit them.", "properties");
         }
 
-        if (settings.Size is { } size && (!IsScale(size.X) || !IsScale(size.Y)))
+        if (Reserved(Properties, RootKeys) is { } rootKey)
         {
-            throw Malformed(string.Create(
-                CultureInfo.InvariantCulture,
-                $"size is ({size.X}, {size.Y}), which is not a size. Make both components finite and greater than zero."),
-                nameof(Settings));
-        }
-
-        if (settings.ScrollCenter is { } center && (!float.IsFinite(center.X) || !float.IsFinite(center.Y)))
-        {
-            throw Malformed(string.Create(
-                CultureInfo.InvariantCulture,
-                $"scrollCenter is ({center.X}, {center.Y}), which is not a position. Make both components finite."),
-                nameof(Settings));
-        }
-
-        // The format writes a colour as #rrggbb, which carries no alpha. This is the one opacity check for
-        // a document read from a file as well.
-        if (settings.ClearColor is { A: not byte.MaxValue } clearColor)
-        {
-            throw Malformed($"clearColor has alpha {clearColor.A}. A scene document authors an opaque clear colour. Set its alpha to 255.", nameof(Settings));
-        }
-
-        if (settings.Ambient is { A: not byte.MaxValue } ambient)
-        {
-            throw Malformed($"ambient has alpha {ambient.A}. A scene document authors an opaque ambient colour. Set its alpha to 255.", nameof(Settings));
-        }
-
-        if (settings.Sampling is { } sampling && !Enum.IsDefined(sampling))
-        {
-            throw Malformed($"sampling is {(int)sampling}, which is not a {nameof(TextureSampling)}. Use one of its named values.", nameof(Settings));
-        }
-
-        if (settings.Properties is { ValueKind: not JsonValueKind.Object })
-        {
-            throw Malformed("properties is not an object. Write it as { \"name\": value }, or omit it.", nameof(Settings));
-        }
-
-        if (settings.Properties is { } properties && !properties.EnumerateObject().All(static member => Finite(member.Value)))
-        {
-            throw Malformed("properties has a number beyond the range of a double. Write a finite number.", nameof(Settings));
+            throw Malformed($"the scene's properties have a member '{rootKey}', which the format reserves for the document itself.", "properties");
         }
     }
 
-    // A half-filled source block writes an object the reader would reject, so the document would not
-    // survive a round trip. The path and hash shapes are checked here for the same reason.
-    private void ValidateSource()
-    {
-        if (Source is not { } source)
-        {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(source.Tool) || string.IsNullOrWhiteSpace(source.Path)
-            || string.IsNullOrWhiteSpace(source.Hash))
-        {
-            throw Malformed("source is incomplete. Give it a tool, a path and a hash.", nameof(Source));
-        }
-
-        if (!IsPortableRelativePath(source.Path))
-        {
-            throw Malformed($"source.path '{source.Path}' must be relative and use forward slashes.", nameof(Source));
-        }
-
-        if (!IsSha256Hex(source.Hash))
-        {
-            throw Malformed($"source.hash is '{source.Hash}'. Write 64 lowercase hex characters.", nameof(Source));
-        }
-    }
-
-    internal static bool Finite(JsonElement value) => value.ValueKind switch
-    {
-        JsonValueKind.Number => value.TryGetDouble(out double number) && double.IsFinite(number),
-        JsonValueKind.Array => value.EnumerateArray().All(Finite),
-        _ => true,
-    };
+    // The first of keys the object authors, which the writer would write a second time.
+    private static string? Reserved(JsonElement? properties, string[] keys) =>
+        properties is { ValueKind: JsonValueKind.Object } members
+            ? members.EnumerateObject().Select(static member => member.Name).FirstOrDefault(keys.Contains)
+            : null;
 
     private static bool IsScale(float factor) => float.IsFinite(factor) && factor > 0f;
-
-    // Does not use Path.IsPathRooted, because what counts as rooted differs between Windows and Linux and
-    // a scene document must mean the same thing on both.
-    private static bool IsPortableRelativePath(string path) =>
-        !path.Contains('\\', StringComparison.Ordinal)
-        && !path.StartsWith('/')
-        && (path.Length < 2 || path[1] != ':');
-
-    private static bool IsSha256Hex(string hash) => hash.Length == 64 && hash.All(char.IsAsciiHexDigitLower);
 
     private static ArgumentException Malformed(string message, string parameterName = "entries") =>
         new(message, parameterName);

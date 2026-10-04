@@ -134,7 +134,7 @@ public sealed class RegistryKeyTests
 
             public abstract class PlayableRoom(SceneContent content) : Scene(content);
             """,
-            ("scenes/halls/hall.scene.json", """{"formatVersion": 8, "baseScene": "playable-room", "entities": [], "nextEntityId": 1}"""));
+            ("scenes/halls/hall.scene.json", """{"baseScene": "playable-room", "entities": []}"""));
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Contains(

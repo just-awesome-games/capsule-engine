@@ -25,14 +25,13 @@ public sealed class SceneComposerTests : IDisposable
     [Fact]
     public void ADocumentBackedClass_BootedByItsClass_IsComposedFromTheDocumentItClaims()
     {
-        Write(SceneFixtures.Room(new EntityPlacement(1, "chest", 48f, 16f)));
+        Write(SceneFixtures.Room(new SceneDocumentEntry("chest", 48f, 16f)));
         SceneComposer composer = new(Registry(), new DesktopPlatform());
 
         Scene composed = composer.Resolve(SceneTransition.ToScene(typeof(Hall), null));
 
         Assert.IsType<Hall>(composed);
-        Assert.IsType<TileMap>(composed.Entities[0]);
-        Assert.IsType<SceneFixtures.Placed>(composed.Entities[1]);
+        Assert.IsType<SceneFixtures.Placed>(Assert.Single(composed.Entities.ToArray()));
     }
 
     // The scene layer is pure and knows no paths, so without this the commonest authoring mistake
@@ -40,7 +39,7 @@ public sealed class SceneComposerTests : IDisposable
     [Fact]
     public void APlacementNoEntityClaims_NamesTheDocumentFileThatHoldsIt()
     {
-        Write(SceneFixtures.Room(new EntityPlacement(1, "wyvern", 0f, 0f)));
+        Write(SceneFixtures.Room(new SceneDocumentEntry("wyvern", 0f, 0f)));
         SceneComposer composer = new(Registry(), new DesktopPlatform());
 
         SpawnException failure = Assert.Throws<SpawnException>(

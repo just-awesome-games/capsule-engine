@@ -61,9 +61,6 @@ public class Scene
     private Camera _camera = new();
     private Run? _run;
 
-    // The scroll centre authored in the document, written to each camera installed.
-    private Vector2? _scrollCenter;
-
     private bool _stepping;
     private bool _starting;
     private bool _started;
@@ -110,15 +107,15 @@ public class Scene
     }
 
     /// <summary>
-    /// The world a scene document describes: one <see cref="TileMap"/> or game entity per entry,
-    /// in authored order. The document is construction data and is not retained.
+    /// The world a scene document describes: one entity per entry, in authored order. The document is construction data and is not retained.
     /// </summary>
     /// <exception cref="SpawnException">
     /// A placement's spawn type is claimed by no entity, or its class returned no entity.
     /// </exception>
     /// <exception cref="SceneDocumentFormatException">
-    /// A placement's, a palette entry's or the document's properties do not match its class's authorable
-    /// members, or a palette entry's type is claimed by no tile type.
+    /// A placement's or the document's members do not match its class's authorable members, or an entity's
+    /// constructor refuses what its placement authors with an <see cref="ArgumentException"/> or an
+    /// <see cref="InvalidOperationException"/>.
     /// </exception>
     public Scene(SceneContent content)
     {
@@ -126,71 +123,66 @@ public class Scene
         ArgumentNullException.ThrowIfNull(content.Entities);
 
         // References are set once every entry is constructed. A reference may name a later entry.
+        ReadOnlySpan<SceneDocumentEntry> entries = content.Document.Entries;
         Dictionary<int, Entity> placed = [];
+        AuthoredProperties[] spawned = new AuthoredProperties[entries.Length];
         _authoredAssets = new AssetCollection();
-        foreach (SceneDocumentEntry entry in content.Document.Entries)
+        for (int i = 0; i < entries.Length; i++)
         {
-            if (entry.TileMap is { } tileMap)
+            SceneDocumentEntry entry = entries[i];
+            EntitySpawn spawn = new(new Vector2(entry.X, entry.Y))
             {
-                TileMap tiles = new(Composed(tileMap, content.TileTypes, _authoredAssets));
-                if (tileMap.HasCollider)
-                {
-                    tiles.Add(new TileMapCollider2D());
-                }
-
-                if (tileMap.ZIndex is { } band)
-                {
-                    tiles.ZIndex = band;
-                }
-
-                if (tileMap.ScrollFactor is { } factor)
-                {
-                    tiles.ScrollFactor = factor;
-                }
-
-                Add(tiles);
-                Size = Vector2.Max(Size, tiles.Size);
+                Type = entry.Type,
+                Rotation = float.DegreesToRadians(entry.RotationDegrees),
+                Scale = new Vector2(entry.ScaleX, entry.ScaleY),
+                ZIndex = entry.ZIndex,
+                ScrollFactor = entry.ScrollFactor,
+            };
+            AuthoredProperties properties = new(entry, i, placed, _authoredAssets);
+            Entity entity;
+            try
+            {
+                entity = content.Entities.Create(spawn, properties);
             }
-            else if (entry.Entity is { } placement)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
-                EntitySpawn spawn = new(new Vector2(placement.X, placement.Y))
-                {
-                    Id = placement.Id,
-                    Type = placement.Type,
-                    Rotation = float.DegreesToRadians(placement.RotationDegrees),
-                    Scale = new Vector2(placement.ScaleX, placement.ScaleY),
-                    ZIndex = placement.ZIndex,
-                    ScrollFactor = placement.ScrollFactor,
-                };
-                Entity entity = content.Entities.Create(spawn, new AuthoredProperties(placement, assets: _authoredAssets));
-                Add(entity);
-                placed.Add(placement.Id, entity);
+                throw properties.Refused(ex);
+            }
+
+            Add(entity);
+            spawned[i] = properties;
+            if (entry.Id is { } id)
+            {
+                placed.Add(id, entity);
+            }
+
+            // The size the scene authors, applied below, overrides the one its maps span.
+            if (entity is TileMap map)
+            {
+                Size = Vector2.Max(Size, map.Size);
             }
         }
 
-        foreach (SceneDocumentEntry entry in content.Document.Entries)
+        foreach (AuthoredProperties properties in spawned)
         {
-            if (entry.Entity is { } placement && content.Entities.Link(placement.Type) is { } link)
-            {
-                link(placed[placement.Id], new AuthoredProperties(placement, placed));
-            }
+            properties.Finish();
         }
 
-        Apply(content);
-
-        // Every entry exists by now, so a reference member is set in the same pass as the rest.
-        content.Apply?.Invoke(this, new AuthoredProperties(content.Document.Settings.Properties, placed, _authoredAssets));
+        // The scene's own members land once every entry is built, before a subclass constructor body runs.
+        AuthoredProperties members = new(content.Document.Properties, placed, _authoredAssets);
+        content.Apply?.Invoke(this, members);
+        members.Finish();
     }
 
     /// <summary>
     /// The camera framing this scene. A scene always has one, and installing another cuts to it.
     /// </summary>
     /// <remarks>
-    /// When the scene comes from a document that authors a scroll centre, that centre is written to
-    /// the camera. A camera installed before the scene starts becomes the opening camera. One
-    /// installed later runs its <see cref="Scenes.Camera.OnStart"/> immediately.
+    /// A camera installed before the scene starts becomes the opening camera. One installed later runs its
+    /// <see cref="Scenes.Camera.OnStart"/> immediately.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The camera already frames another scene.</exception>
+    [Authorable]
     public Camera Camera
     {
         get => _camera;
@@ -246,9 +238,11 @@ public class Scene
     /// A scene composed from a document spans its authored size, or else its tile maps' largest
     /// dimensions.
     /// </remarks>
+    [Authorable]
     public Vector2 Size { get; protected set; }
 
     /// <summary>The colour behind everything the scene draws, defaulting to black.</summary>
+    [Authorable]
     public ColorRgba ClearColor { get; protected set; } = ColorRgba.Black;
 
     /// <summary>
@@ -258,12 +252,14 @@ public class Scene
     /// <remarks>
     /// A light adds to it and brightens up to twice that colour. The screen layer is never lit.
     /// </remarks>
+    [Authorable]
     public ColorRgba Ambient { get; protected set; } = ColorRgba.White;
 
     /// <summary>
     /// The sampling for world-space textures. A scene that sets none takes <see cref="Run.Sampling"/>
     /// when it starts, and reads <see cref="TextureSampling.Linear"/> before then.
     /// </summary>
+    [Authorable]
     public TextureSampling Sampling
     {
         get => _sampling ?? TextureSampling.Linear;
@@ -1158,75 +1154,9 @@ public class Scene
         }
     }
 
-    // Writes the document's authored settings over the defaults. This runs inside the base constructor.
-    // A subclass assigning Size, ClearColor, Ambient, Sampling or Camera in its own constructor body
-    // runs after it and still wins.
-    private void Apply(SceneContent content)
-    {
-        SceneSettings settings = content.Document.Settings;
-        _scrollCenter = settings.ScrollCenter;
-
-        // Installation into the scene happens at start, so this only picks which camera that is.
-        if (content.Camera is { } camera)
-        {
-            _camera = camera();
-        }
-
-        if (settings.Size is { } size)
-        {
-            Size = size;
-        }
-
-        if (settings.ClearColor is { } clearColor)
-        {
-            ClearColor = clearColor;
-        }
-
-        if (settings.Ambient is { } ambient)
-        {
-            Ambient = ambient;
-        }
-
-        if (settings.Sampling is { } sampling)
-        {
-            _sampling = sampling;
-        }
-    }
-
-    // The grid a tile-map entry composes: each palette entry naming a class built as that class, with the
-    // authored members set. A grid authoring nothing, or content with no composer, is used as it stands.
-    private static TileGrid Composed(TileMapPlacement placement, TileTypeComposer? compose, AssetCollection assets)
-    {
-        TileGrid grid = placement.Grid;
-        if (grid.Authored is not { } authored || compose is null)
-        {
-            return grid;
-        }
-
-        ReadOnlySpan<TileType> palette = grid.TileTypes;
-        TileType[] composed = new TileType[palette.Length];
-        for (int i = 0; i < composed.Length; i++)
-        {
-            TileType tile = palette[i];
-            composed[i] = authored[i].Type is { } type
-                ? compose(type, tile, new AuthoredProperties(placement.Id, tile.Name, authored[i].Properties, assets))
-                    ?? throw new SceneDocumentFormatException(
-                        $"tile-map entry {placement.Id}'s tile '{tile.Name}' has type '{type}', which no tile type claims. Declare the TileType subclass whose namespace names that key, or correct the type.")
-                : tile;
-        }
-
-        return grid.Composed(composed);
-    }
-
     private void Install(Camera camera)
     {
         RequireUnowned(camera);
-
-        if (_scrollCenter is { } center)
-        {
-            camera.ScrollCenter = center;
-        }
-
         camera.SceneOrNull = this;
         camera.RunStart();
     }

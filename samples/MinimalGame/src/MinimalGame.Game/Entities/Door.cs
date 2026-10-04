@@ -21,20 +21,15 @@ public sealed class Door : Entity
 
     private static readonly ColorRgba PortalGlow = ColorRgba.FromHex("#c8a0ff");
 
-    /// <summary>The room this door leads to.</summary>
-    [Authorable(Required = true)]
-    public SceneKey Destination { get; private set; }
-
-    /// <summary>The key of the <see cref="Entrance"/> in <see cref="Destination"/> the player arrives at.</summary>
-    [Authorable(Required = true)]
-    public string ArriveAt { get; private set; } = string.Empty;
+    /// <summary>Where the door leads.</summary>
+    [Authorable]
+    public SceneExit Exit { get; } = new();
 
     /// <param name="spawn">The doorway's top-left corner.</param>
     public Door(EntitySpawn spawn)
         : base(spawn)
     {
-        SceneExit exit = new(Destination, ArriveAt);
-        Add(exit);
+        Add(Exit);
 
         // Behind the player walking through it, and in front of the hills.
         ZIndex = -5;
@@ -57,7 +52,7 @@ public sealed class Door : Entity
         });
 
         BoxCollider2D doorway = new(Size) { ReportsContacts = true, Detects = new(CollisionLayers.Player) };
-        doorway.ContactEntered += _ => exit.Leave();
+        doorway.ContactEntered += _ => Exit.Leave();
         Add(doorway);
     }
 }

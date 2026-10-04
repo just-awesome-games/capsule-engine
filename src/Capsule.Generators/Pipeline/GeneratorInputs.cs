@@ -17,26 +17,21 @@ internal readonly record struct ProjectConfiguration(
 }
 
 /// <summary>What the entity resolver reads.</summary>
+/// <param name="EngineTileMap">The engine's tile map, which every logic assembly registers under its key.</param>
 internal readonly record struct EntityInputs(
     EquatableArray<EntityModel> Models,
+    EntityModel? EngineTileMap,
     bool IsLogicAssembly,
     string RootNamespace,
     EquatableArray<SceneDocumentModel> Documents,
     EquatableArray<AssetModel> Assets);
 
 /// <summary>What the scene resolver reads.</summary>
+/// <param name="EngineScene">The engine's plain Scene, which a document naming no class composes.</param>
 internal readonly record struct SceneInputs(
     EquatableArray<SceneModel> Models,
+    SceneModel? EngineScene,
     bool IsLogicAssembly,
     string RootNamespace,
-    EquatableArray<SceneDocumentModel> Documents,
-    EquatableArray<CameraModel> Cameras,
-    EquatableArray<TileTypeModel> TileTypes,
-    EquatableArray<AssetModel> Assets);
-
-/// <summary>What the placement check reads: each document's entries and own properties, and the classes and assets they name.</summary>
-internal readonly record struct PlacementInputs(
-    EntityPlan Entities,
-    ScenePlan Scenes,
     EquatableArray<SceneDocumentModel> Documents,
     EquatableArray<AssetModel> Assets);

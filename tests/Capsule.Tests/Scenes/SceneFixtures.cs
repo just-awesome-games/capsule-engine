@@ -15,9 +15,6 @@ internal static class SceneFixtures
 {
     internal const int TileSize = 16;
 
-    // Above every placement id the fixtures mint, so the tile-map entry never collides with one.
-    internal const int TerrainId = 100;
-
     /// <summary>The one texture every fixture draws from; a column of <see cref="TileSize"/> cells.</summary>
     internal static readonly TextureHandle Atlas = new("atlas", ".png");
 
@@ -28,19 +25,15 @@ internal static class SceneFixtures
     internal static readonly Vector2 Viewport = new(320, 180);
 
     /// <summary>The top half of a tile.</summary>
-    internal static readonly Shape2D HalfHeight = Shape2D.Polygon([new(0f, 0f), new(TileSize, 0f), new(TileSize, TileSize / 2f), new(0f, TileSize / 2f)]);
+    internal static readonly Vector2[] HalfHeight = [new(0f, 0f), new(TileSize, 0f), new(TileSize, TileSize / 2f), new(0f, TileSize / 2f)];
 
     internal delegate void StepHook(Scene scene, in StepContext context);
 
     /// <summary>A frame of <see cref="Atlas"/> cut from its top-left corner.</summary>
     internal static Sprite Frame(int width, int height) => new(Atlas, new TextureRegion(0, 0, width, height));
 
-    internal static SceneDocument Room(params EntityPlacement[] entities) =>
-        new([new TileMapPlacement(TerrainId, RoomGrid()), .. entities], TerrainId + 1);
-
-    /// <summary>A document of entities alone: no tile-map entry composes out of it.</summary>
-    internal static SceneDocument RoomWithoutTerrain(params EntityPlacement[] entities) =>
-        new([.. entities], TerrainId + 1);
+    /// <summary>A document of <paramref name=entities/>, which a hand-built registry composes.</summary>
+    internal static SceneDocument Room(params SceneDocumentEntry[] entities) => new([.. entities]);
 
     /// <summary>One palette entry: <paramref name="name"/> drawing <paramref name="cell"/>.</summary>
     internal static TileType Tile(string name, int cell, string? layer = null) => new() { Name = name, Cell = cell, Layer = layer };
@@ -49,10 +42,10 @@ internal static class SceneFixtures
         new(TileSize, 3, 2, [TileGrid.EmptyTile, new TileType { Name = "solid", Cell = 0 }], [0, 1, 0, 0, 0, 0], Atlas, 1);
 
     /// <summary>A scene of one tile map drawn as rows of '#' for solid terrain and '.' for empty.</summary>
-    internal static Scene Terrain(params string[] rows) =>
-        new(Content(
-            new SceneDocument([new TileMapPlacement(TerrainId, TerrainGrid(rows), HasCollider: true)], TerrainId + 1),
-            Registry()));
+    internal static Scene Terrain(params string[] rows) => Terrain(TerrainGrid(rows));
+
+    /// <summary>A scene of one map of <paramref name="grid"/> that collides, spanning it.</summary>
+    internal static Scene Terrain(TileGrid grid) => new TerrainScene(Colliding(grid));
 
     /// <summary>A map of <paramref name="grid"/> that collides through a <see cref="TileMapCollider2D"/>.</summary>
     internal static TileMap Colliding(TileGrid grid)
@@ -97,8 +90,8 @@ internal static class SceneFixtures
                 TileGrid.EmptyTile,
                 new TileType { Name = "solid", Cell = 0, Layer = "solid" },
                 new TileType { Name = "ledge", Cell = 0, Layer = "solid", OneWay = true },
-                new TileType { Name = "slope-up", Cell = 0, Layer = "solid", Shape = CollisionFixtures.SlopeUp },
-                new TileType { Name = "slope-down", Cell = 0, Layer = "solid", Shape = CollisionFixtures.SlopeDown },
+                new TileType { Name = "slope-up", Cell = 0, Layer = "solid", Shape = CollisionFixtures.SlopeUpPoints },
+                new TileType { Name = "slope-down", Cell = 0, Layer = "solid", Shape = CollisionFixtures.SlopeDownPoints },
                 new TileType { Name = "girder", Cell = 0, Layer = "solid", OneWay = true, SolidSides = true },
                 new TileType { Name = "half-girder", Cell = 0, Layer = "solid", Shape = HalfHeight, OneWay = true, SolidSides = true },
             ],
@@ -171,15 +164,22 @@ internal static class SceneFixtures
 
     internal sealed class SpawnScene : Scene
     {
-        internal SpawnScene(EntityRegistry entities, params EntityPlacement[] placements)
-            : base(Content(RoomWithoutTerrain(placements), entities))
+        internal SpawnScene(EntityRegistry entities, params SceneDocumentEntry[] placements)
+            : base(Content(Room(placements), entities))
         {
         }
     }
 
-    internal sealed class Room01(SceneContent content) : Scene(content)
+    internal sealed class Room01(SceneContent content) : Scene(content);
+
+    /// <summary>A scene of one map, spanning it as a scene composing the map from a document does.</summary>
+    private sealed class TerrainScene : Scene
     {
-        internal TileMap Terrain => FindSingle<TileMap>();
+        internal TerrainScene(TileMap map)
+        {
+            Add(map);
+            Size = map.Size;
+        }
     }
 
     /// <summary>An 8x8 box with the <see cref="KinematicBody2D"/> that sweeps it.</summary>

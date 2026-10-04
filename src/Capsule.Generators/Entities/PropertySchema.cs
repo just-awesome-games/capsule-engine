@@ -1,13 +1,30 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Generators;
 
-// A placement sets the members its entity class marks [Authorable], a palette entry those of its tile type, and a
-// document's own properties those of the scene class composing it. Every other field and property a key could name
-// is kept with the reason it cannot be set.
+// A placement sets the members its entity class marks [Authorable], the document's top-level keys those of the scene
+// class composing it, and a member's JSON object those of the class it holds or constructs. Each [Authorable] member is kept with the reason it cannot be set, if any, and each other
+// member only where it carries C#'s required.
 internal static class PropertySchema
 {
+    // The keys a scene document reads itself at each level, which no authorable member there may take.
+    private static readonly string[] SceneKeys = ["$schema", "baseScene", "entities"];
+    private static readonly string[] EntryKeys = ["id", "type", "x", "y", "rotation", "scale", "zIndex", "scrollFactor"];
+    private static readonly string[] ObjectKeys = ["type"];
+
+    // Every class the compilation declares in source, which a member's subclasses are found among.
+    private static readonly ConditionalWeakTable<Compilation, List<INamedTypeSymbol>> SourceClasses = new();
+
+    // What a document object holding the member is: an entry, the scene, or an object a member holds.
+    private enum Role
+    {
+        Entity,
+        Scene,
+        Object,
+    }
+
     /// <summary>Whether a member of <paramref name="type"/> names another entry: an entity class or any interface.</summary>
     internal static bool IsReference(ITypeSymbol type, Compilation compilation) =>
         type.TypeKind == TypeKind.Interface
@@ -30,27 +47,39 @@ internal static class PropertySchema
     }
 
     /// <summary>
-    /// Every field and property of <paramref name="type"/> and its game base classes that a key could name,
-    /// base classes first. A member that a derived member the game can see hides is left out, as in C# member
-    /// lookup. An override stands in for the member it overrides.
+    /// Every field and property of <paramref name="type"/> and all its base classes, engine ones included, that a key
+    /// could name, base classes first. A member that a derived member the game can see hides is left out, as in C#
+    /// member lookup. An override stands in for the member it overrides.
     /// </summary>
-    /// <param name="engineType">The metadata name of the engine class the walk stops at: the entity's, the scene's or the tile type's.</param>
-    internal static EquatableArray<PropertyModel> Of(INamedTypeSymbol type, Compilation compilation, string engineType)
+    internal static EquatableArray<PropertyModel> Of(INamedTypeSymbol type, Compilation compilation) =>
+        Of(type, compilation, null);
+
+    /// <summary>
+    /// What <see cref="Of(INamedTypeSymbol, Compilation)"/> finds, with every class a member's JSON object fills or
+    /// constructs at any depth, each subclass a type key can name among them.
+    /// </summary>
+    internal static (EquatableArray<PropertyModel> Properties, EquatableArray<ObjectModel> Objects) WithObjects(INamedTypeSymbol type, Compilation compilation)
     {
-        bool tile = engineType == MetadataNames.TileType;
-        INamedTypeSymbol? engine = compilation.GetTypeByMetadataName(engineType);
+        Dictionary<string, ObjectModel> objects = new(StringComparer.Ordinal);
+        EquatableArray<PropertyModel> properties = Of(type, compilation, objects);
+
+        return (properties, new([.. objects.Values.OrderBy(static model => model.QualifiedName, StringComparer.Ordinal)]));
+    }
+
+    // With objects, each object class a member reaches is described into it as well.
+    private static EquatableArray<PropertyModel> Of(INamedTypeSymbol type, Compilation compilation, Dictionary<string, ObjectModel>? objects)
+    {
         INamedTypeSymbol? authorable = compilation.GetTypeByMetadataName(MetadataNames.AuthorableAttribute);
         HashSet<string> hidden = new(StringComparer.Ordinal);
         List<PropertyModel> properties = [];
-        for (INamedTypeSymbol? current = type;
-            current is not null && !SymbolEqualityComparer.Default.Equals(current, engine);
-            current = current.BaseType)
+        for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
         {
             ImmutableArray<ISymbol> members = current.GetMembers();
+            Role role = RoleOf(current, compilation);
             List<PropertyModel> declared = members
                 .Where(static member => member is IPropertySymbol { IsIndexer: false } or IFieldSymbol && member.CanBeReferencedByName)
                 .Where(member => !hidden.Contains(member.Name))
-                .Select(member => Describe(member, authorable, compilation, tile))
+                .Select(member => Describe(member, authorable, compilation, role, objects))
                 .OfType<PropertyModel>()
                 .ToList();
 
@@ -78,9 +107,7 @@ internal static class PropertySchema
     internal static AuthorableFault? FaultOf(ISymbol member, Compilation compilation)
     {
         DeclaredAt at = DeclaredAt.From(member.Locations.FirstOrDefault() ?? Location.None);
-        string engineType = new[] { MetadataNames.Scene, MetadataNames.TileType }
-            .FirstOrDefault(engine => SymbolShape.DerivesFrom(member.ContainingType, compilation, engine)) ?? MetadataNames.Entity;
-        PropertyModel model = Of(member.ContainingType, compilation, engineType).Items.FirstOrDefault(property => property.At == at);
+        PropertyModel model = Of(member.ContainingType, compilation).Items.FirstOrDefault(property => property.At == at);
         string name = $"{member.ContainingType.ToDisplayString()}.{member.Name}";
 
         return model.Refusal is not null || model.Clash is not null
@@ -88,32 +115,43 @@ internal static class PropertySchema
             : null;
     }
 
-    // Null for a static member without [Authorable], which no key names. An override is the member it
-    // overrides: it carries an [Authorable] mark from anywhere along its chain, and is set through the nearest
-    // declaration with a setter. A chain with no setter stays at this declaration, where the refusal reports.
-    private static PropertyModel? Describe(ISymbol member, INamedTypeSymbol? authorable, Compilation compilation, bool tile)
+    private static Role RoleOf(INamedTypeSymbol type, Compilation compilation) =>
+        IsOrDerives(type, compilation, MetadataNames.Scene) ? Role.Scene
+        : IsOrDerives(type, compilation, MetadataNames.Entity) ? Role.Entity
+        : Role.Object;
+
+    private static bool IsOrDerives(INamedTypeSymbol type, Compilation compilation, string engineType) =>
+        SymbolEqualityComparer.Default.Equals(type, compilation.GetTypeByMetadataName(engineType)) || SymbolShape.DerivesFrom(type, compilation, engineType);
+
+    // Null for a member without [Authorable] and without C#'s required, which no key names and nothing checks. An
+    // override is the member it overrides: it carries an [Authorable] mark from anywhere along its chain, and is set
+    // through the nearest declaration with a setter. A chain with no setter stays at this declaration.
+    private static PropertyModel? Describe(ISymbol member, INamedTypeSymbol? authorable, Compilation compilation, Role role, Dictionary<string, ObjectModel>? objects)
     {
         AttributeData? mark = OverrideChain(member)
             .SelectMany(static overridden => overridden.GetAttributes())
             .FirstOrDefault(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, authorable));
         member = OverrideChain(member).FirstOrDefault(static overridden => overridden is not IPropertySymbol { SetMethod: null }) ?? member;
-        if (member.IsStatic && mark is null)
+        bool keyword = member is IPropertySymbol { IsRequired: true } or IFieldSymbol { IsRequired: true };
+        if (mark is null && (member.IsStatic || !keyword))
         {
             return null;
         }
 
-        (ITypeSymbol declared, NullableAnnotation annotation, bool keyword, bool direct) = member switch
+        (ITypeSymbol declared, NullableAnnotation annotation, bool direct, bool readable, bool held) = member switch
         {
             IPropertySymbol property => (
                 property.Type,
                 property.NullableAnnotation,
-                property.IsRequired,
-                property.SetMethod is { IsInitOnly: false } setter && compilation.IsSymbolAccessibleWithin(setter, compilation.Assembly)),
+                property.SetMethod is { IsInitOnly: false } setter && compilation.IsSymbolAccessibleWithin(setter, compilation.Assembly),
+                property.GetMethod is { } getter && compilation.IsSymbolAccessibleWithin(getter, compilation.Assembly),
+                property.SetMethod is null),
             IFieldSymbol field => (
                 field.Type,
                 field.NullableAnnotation,
-                field.IsRequired,
-                compilation.IsSymbolAccessibleWithin(field, compilation.Assembly)),
+                compilation.IsSymbolAccessibleWithin(field, compilation.Assembly),
+                compilation.IsSymbolAccessibleWithin(field, compilation.Assembly),
+                field.IsReadOnly),
             _ => throw new ArgumentException("Only a field or property is described.", nameof(member)),
         };
 
@@ -146,13 +184,28 @@ internal static class PropertySchema
             Classify(type, array is null && nullable && type.IsValueType, compilation, (array is null ? type : declared).ToDisplayString());
         unsupported = elementRefusal ?? unsupported;
         bool reference = kind == PropertyKind.Reference;
+
+        // An object member without a setter is filled in place. An array of objects is always built anew.
+        bool fills = kind == PropertyKind.Object && array is null;
         bool marked = mark?.NamedArguments.Any(static named => named is { Key: "Required", Value.Value: true }) ?? false;
+        string key = CamelCase(member is IFieldSymbol && member.Name.StartsWith("_", StringComparison.Ordinal) ? member.Name.Substring(1) : member.Name);
+        string[] reserved = role switch
+        {
+            Role.Scene => SceneKeys,
+            Role.Object => ObjectKeys,
+            _ => EntryKeys,
+        };
         string? refusal = mark is null
-            ? "is not [Authorable]. Mark it [Authorable] for a placement to set it"
-            : Misuse(member, keyword && !reference && !tile)
-                ?? (tile ? TileMisuse(keyword, marked, reference) : null)
-                ?? (reference && marked ? "is an entity reference, which Required = true does not mark. Drop Required = true and write C#'s required instead" : null)
-                ?? unsupported;
+            ? null
+            : Misuse(member, fills)
+                ?? RoleMisuse(role, keyword, marked, reference)
+                ?? unsupported
+                ?? (reserved.Contains(key) ? $"takes the key '{key}', which the scene document reserves for its own field there. Rename the member" : null);
+
+        if (refusal is null && kind == PropertyKind.Object && objects is not null && type is INamedTypeSymbol objectType)
+        {
+            DescribeObject(objectType, compilation, objects);
+        }
 
         List<INamedTypeSymbol> owners = [];
         for (INamedTypeSymbol? owner = member.ContainingType; owner is not null; owner = owner.ContainingType)
@@ -162,19 +215,20 @@ internal static class PropertySchema
 
         return new PropertyModel(
             member.Name,
-            CamelCase(member is IFieldSymbol && member.Name.StartsWith("_", StringComparison.Ordinal) ? member.Name.Substring(1) : member.Name),
+            key,
             mark is not null,
             marked || (keyword && reference),
             keyword,
             member is IFieldSymbol,
             direct,
+            readable,
+            held && fills,
             kind,
             member.ContainingType.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             string.Join(", ", owners.SelectMany(static owner => owner.OriginalDefinition.TypeParameters).Select(static parameter => parameter.Name)),
             string.Join(", ", owners.SelectMany(static owner => owner.TypeArguments).Select(static argument => argument.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))),
             string.Concat(owners.Select(static owner => Constraints(owner.OriginalDefinition))),
             type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            declared.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
             nullable,
             array is not null,
             names,
@@ -183,6 +237,84 @@ internal static class PropertySchema
             null,
             DeclaredAt.From(member.Locations.FirstOrDefault() ?? Location.None));
     }
+
+    // Describes the class and every subclass a type key can name, each once. The placeholder ends a cycle of
+    // classes holding one another.
+    private static void DescribeObject(INamedTypeSymbol type, Compilation compilation, Dictionary<string, ObjectModel> objects)
+    {
+        string name = SymbolShape.QualifiedName(type);
+        if (objects.ContainsKey(name))
+        {
+            return;
+        }
+
+        objects[name] = default;
+        List<INamedTypeSymbol> subclasses = Subclasses(type, compilation);
+        objects[name] = new ObjectModel(
+            name,
+            type.ToDisplayString(),
+            SymbolShape.NamespaceOf(type),
+            type.Name,
+            DeclaredAt.From(type.Locations.FirstOrDefault() ?? Location.None),
+            Construction(type, compilation),
+            Of(type, compilation, objects),
+            new([.. subclasses.Select(SymbolShape.QualifiedName)]));
+
+        foreach (INamedTypeSymbol subclass in subclasses)
+        {
+            DescribeObject(subclass, compilation, objects);
+        }
+    }
+
+    // Every class the game declares deriving from type that generated code can name, deepest first.
+    private static List<INamedTypeSymbol> Subclasses(INamedTypeSymbol type, Compilation compilation) =>
+        [.. SourceClasses.GetValue(compilation, static declaring => [.. Declared(declaring.Assembly.GlobalNamespace)])
+            .Where(candidate => !candidate.IsGenericType && Named(candidate, compilation) && Depth(candidate, type) > 0)
+            .OrderByDescending(candidate => Depth(candidate, type))
+            .ThenBy(static candidate => SymbolShape.QualifiedName(candidate), StringComparer.Ordinal)];
+
+    private static IEnumerable<INamedTypeSymbol> Declared(INamespaceOrTypeSymbol container) =>
+        container.GetMembers().SelectMany(static member => member switch
+        {
+            INamespaceSymbol space => Declared(space),
+            INamedTypeSymbol { TypeKind: TypeKind.Class } type => Declared(type).Prepend(type),
+            INamedTypeSymbol type => Declared(type),
+            _ => [],
+        });
+
+    // How many classes down from ancestor the type is, or 0 when it does not derive from it.
+    private static int Depth(INamedTypeSymbol type, INamedTypeSymbol ancestor)
+    {
+        int depth = 1;
+        for (INamedTypeSymbol? current = type.BaseType; current is not null; current = current.BaseType, depth++)
+        {
+            if (SymbolEqualityComparer.Default.Equals(current, ancestor))
+            {
+                return depth;
+            }
+        }
+
+        return 0;
+    }
+
+    // Only code can satisfy C#'s required, so a class carrying it is filled in place and never constructed.
+    private static ObjectConstruction Construction(INamedTypeSymbol type, Compilation compilation)
+    {
+        IMethodSymbol? constructor = type.InstanceConstructors.FirstOrDefault(static constructor => constructor.Parameters.Length == 0);
+        bool required = false;
+        for (INamedTypeSymbol? current = type; current is not null && !required; current = current.BaseType)
+        {
+            required = current.GetMembers().Any(static member => member is IPropertySymbol { IsRequired: true } or IFieldSymbol { IsRequired: true });
+        }
+
+        return type.IsAbstract || type.IsStatic || constructor is null || required ? ObjectConstruction.None
+            : compilation.IsSymbolAccessibleWithin(constructor, compilation.Assembly) ? ObjectConstruction.New
+            : ObjectConstruction.Accessor;
+    }
+
+    // Whether generated code can name the class.
+    private static bool Named(INamedTypeSymbol type, Compilation compilation) =>
+        !type.IsFileLocal && compilation.IsSymbolAccessibleWithin(type, compilation.Assembly);
 
     // The member, then each property it overrides in turn.
     private static IEnumerable<ISymbol> OverrideChain(ISymbol member)
@@ -193,23 +325,28 @@ internal static class PropertySchema
         }
     }
 
-    // What makes an [Authorable] member one no placement can set, whatever its type.
-    private static string? Misuse(ISymbol member, bool keyword) => member switch
+    // What makes an [Authorable] member one no placement can set, whatever its type. A member holding an object
+    // needs no setter, since the document fills the object it holds.
+    private static string? Misuse(ISymbol member, bool fills) => member switch
     {
         { IsStatic: true } => "is static. A placement sets one entity's member. Make it an instance member, or drop [Authorable]",
-        IFieldSymbol { IsReadOnly: true } => "is readonly. Drop readonly, or drop [Authorable]",
-        IPropertySymbol { SetMethod: null } => "has no setter. Add a set or init accessor of any access, or drop [Authorable]",
-        _ when keyword => "is required, which only an entity reference carries. Drop required and write [Authorable(Required = true)]",
+        IFieldSymbol { IsReadOnly: true } when !fills => "is readonly. Drop readonly, or drop [Authorable]",
+        IPropertySymbol { SetMethod: null } when !fills => "has no setter. Add a set or init accessor of any access, or drop [Authorable]",
         _ => null,
     };
 
-    // What a tile type refuses beyond any other class. A palette entry need not author a member, and one instance
-    // serves every cell painted with it.
-    private static string? TileMisuse(bool keyword, bool marked, bool reference) =>
-        keyword ? "is required, which a tile type refuses. Drop required and give the member a default"
-        : marked ? "is Required = true, which a tile type refuses. Drop Required = true and give the member a default"
-        : reference ? "is an entity reference, which a tile type shared by every cell cannot hold. Drop [Authorable] and find the entity in code"
-        : null;
+    // What the object holding the member refuses. An entry or the scene takes C#'s required only on an entity
+    // reference, which the document sets past the compiler's check. Generated code constructs a nested object, and
+    // cannot satisfy required there.
+    private static string? RoleMisuse(Role role, bool keyword, bool marked, bool reference) => role switch
+    {
+        Role.Object => keyword
+            ? "is required, which an object the document constructs cannot satisfy. Drop required and write [Authorable(Required = true)], on a nullable member for an entity reference"
+            : null,
+        _ => keyword && !reference ? "is required, which only an entity reference carries. Drop required and write [Authorable(Required = true)]"
+            : reference && marked ? "is an entity reference, which Required = true does not mark. Drop Required = true and write C#'s required instead"
+            : null,
+    };
 
     // A generic type's own where clauses, as its fully qualified display renders them.
     private static string Constraints(INamedTypeSymbol type)
@@ -222,7 +359,7 @@ internal static class PropertySchema
     }
 
     // A built-in form or an asset first, then an entity reference, then an enum, then a converter the type declares,
-    // then the refusal of any other collection, then the type's own definitions.
+    // then the refusal of any other collection, then a class of authorable members, then the type's own definitions.
     private static (PropertyKind Kind, string? Converter, EquatableArray<(string, string)> Names, string? Refusal) Classify(
         ITypeSymbol type,
         bool nullableValue,
@@ -283,6 +420,15 @@ internal static class PropertySchema
             return (PropertyKind.Converted, null, default, collection);
         }
 
+        // A class that declares authorable members, or whose subclasses do, is written as a JSON object of them.
+        if (named.TypeKind == TypeKind.Class && Authors(named, compilation))
+        {
+            return !named.IsGenericType && Named(named, compilation)
+                ? (PropertyKind.Object, null, default, null)
+                : (PropertyKind.Object, null, default,
+                    $"has type '{display}', which generated code cannot name. Make the class non-generic and visible to this assembly");
+        }
+
         // Every placement naming a definition shares one instance, so only a readonly struct or a record class
         // without settable members can declare them. What a member's own type allows is not policed.
         bool immutable = named is { TypeKind: TypeKind.Struct, IsReadOnly: true }
@@ -294,6 +440,27 @@ internal static class PropertySchema
         return !immutable || definitions.Items.IsEmpty
             ? (PropertyKind.Converted, null, default, unsupported)
             : (PropertyKind.Named, null, definitions, null);
+    }
+
+    // Whether the class or a base declares an [Authorable] member, or a subclass the game declares does.
+    private static bool Authors(INamedTypeSymbol type, Compilation compilation)
+    {
+        INamedTypeSymbol? authorable = compilation.GetTypeByMetadataName(MetadataNames.AuthorableAttribute);
+
+        bool Declares(INamedTypeSymbol declaring)
+        {
+            for (INamedTypeSymbol? current = declaring; current is not null; current = current.BaseType)
+            {
+                if (current.GetMembers().Any(member => member.GetAttributes().Any(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, authorable))))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return Declares(type) || Subclasses(type, compilation).Any(Declares);
     }
 
     private static bool IsSystem(ITypeSymbol type)

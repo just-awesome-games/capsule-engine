@@ -1,18 +1,15 @@
 using System.Text;
-using System.Text.Json;
 using Capsule.Build.Registry;
 using Capsule.Scenes.Documents;
 
 namespace Capsule.Build.Scenes;
 
 /// <summary>
-/// Writes a scene document's member: a <c>SceneKey</c> constant carrying the attributes the generator
-/// composes the scene registry from and checks every entry by.
+/// Writes a scene document's member: a <c>SceneKey</c> constant carrying the attribute the generator
+/// composes the scene registry from.
 /// </summary>
 internal static class SceneMembers
 {
-    // The generator checks every entry against the class claiming its type, so each member carries
-    // what the generator cannot read out of the document itself.
     internal static void Write(StringBuilder code, string indent, string identifier, Source document, string[] attributes)
     {
         code.Append(indent).Append("/// <summary>The scene document <c>").Append(document.Key).AppendLine("</c>.</summary>");
@@ -25,140 +22,15 @@ internal static class SceneMembers
             .Append(" => new ").Append(GeneratedTypes.SceneKey).Append('(').Append(Literal.Of(document.Key)).AppendLine(");");
     }
 
-    /// <summary>
-    /// The attributes marking one document's key member: its key and settings, then one per game entry and one per
-    /// palette entry naming a class or authoring properties, with where the entry starts in <paramref name="json"/>,
-    /// the text of the file at <paramref name="path"/>.
-    /// </summary>
-    internal static string[] Attributes(SceneDocument scene, string key, string path, string json)
+    /// <summary>The attribute marking one document's key member: its key, and the baseScene it names.</summary>
+    internal static string[] Attributes(SceneDocument scene, string key)
     {
-        List<string> named = [$"Key = {Literal.Of(key)}", $"Path = {Literal.Of(path)}"];
-        if (scene.Settings.BaseScene is { } baseScene)
+        List<string> named = [$"Key = {Literal.Of(key)}"];
+        if (scene.BaseScene is { } baseScene)
         {
             named.Add($"BaseScene = {Literal.Of(baseScene)}");
         }
 
-        if (scene.Settings.Camera is { } camera)
-        {
-            named.Add($"Camera = {Literal.Of(camera)}");
-        }
-
-        if (scene.Source is { Tool: not SceneStep.ToolName } derived)
-        {
-            named.Add($"Source = {Literal.Of(derived.Path)}");
-        }
-
-        if (scene.Settings.Properties is { } authored)
-        {
-            named.Add($"Properties = new object?[] {{ {string.Join(", ", Pairs(authored))} }}");
-        }
-
-        List<string> attributes = [$"{GeneratedAttributes.SceneDocumentName}({string.Join(", ", named)})"];
-        Dictionary<int, (int Line, int Column)> starts = EntryStarts(json);
-        foreach (SceneDocumentEntry entry in scene.Entries)
-        {
-            if (entry.TileMap is { Grid.Authored: { } palette } tileMap)
-            {
-                for (int i = 0; i < palette.Count; i++)
-                {
-                    if (palette[i] is { Type: not null } or { Properties: not null })
-                    {
-                        string head = $"{GeneratedAttributes.TileTypeName}({Literal.Of(tileMap.Id)}, {Literal.Of(tileMap.Grid.TileTypes[i].Name)}, "
-                            + (palette[i].Type is { } type ? Literal.Of(type) : "null");
-                        attributes.Add(Marked(head, palette[i].Properties, starts, tileMap.Id));
-                    }
-                }
-            }
-            else if (entry.Entity is { } placed)
-            {
-                string head = $"{GeneratedAttributes.PlacementName}({Literal.Of(placed.Id)}, {Literal.Of(placed.Type)}";
-                attributes.Add(Marked(head, placed.Properties, starts, placed.Id));
-            }
-        }
-
-        return [.. attributes];
+        return [$"{GeneratedAttributes.SceneDocumentName}({string.Join(", ", named)})"];
     }
-
-    // One entry's attribute: its head, each authored property's name and value, then where the entry starts.
-    private static string Marked(string head, JsonElement? properties, Dictionary<int, (int Line, int Column)> starts, int id)
-    {
-        StringBuilder marked = new(head);
-        if (properties is { } authored)
-        {
-            foreach (string pair in Pairs(authored))
-            {
-                marked.Append(", ").Append(pair);
-            }
-        }
-
-        if (starts.TryGetValue(id, out (int Line, int Column) start))
-        {
-            marked.Append(", Line = ").Append(Literal.Of(start.Line)).Append(", Column = ").Append(Literal.Of(start.Column));
-        }
-
-        return marked.Append(')').ToString();
-    }
-
-    // Each property's name and value as the constants an attribute carries.
-    private static IEnumerable<string> Pairs(JsonElement properties) =>
-        properties.EnumerateObject().Select(static property => Literal.Of(property.Name) + ", " + Constant(property.Value));
-
-    // Where each entry's opening brace sits, by id, as the line and column an editor shows, both from 1.
-    private static Dictionary<int, (int Line, int Column)> EntryStarts(string json)
-    {
-        byte[] utf8 = Encoding.UTF8.GetBytes(json);
-        Utf8JsonReader reader = new(utf8);
-        Dictionary<int, (int Line, int Column)> starts = [];
-        bool inEntities = false;
-        (int Line, int Column) start = default;
-        int line = 1;
-        int lineStart = 0;
-        int scanned = 0;
-
-        while (reader.Read())
-        {
-            switch (reader.TokenType)
-            {
-                case JsonTokenType.PropertyName when reader.CurrentDepth == 1:
-                    inEntities = reader.ValueTextEquals("entities");
-                    break;
-
-                case JsonTokenType.StartObject when inEntities && reader.CurrentDepth == 2:
-                    int offset = (int)reader.TokenStartIndex;
-                    for (; scanned < offset; scanned++)
-                    {
-                        if (utf8[scanned] == (byte)'\n')
-                        {
-                            line++;
-                            lineStart = scanned + 1;
-                        }
-                    }
-
-                    start = (line, 1 + Encoding.UTF8.GetCharCount(utf8, lineStart, offset - lineStart));
-                    break;
-
-                case JsonTokenType.PropertyName when inEntities && reader.CurrentDepth == 3 && reader.ValueTextEquals("id"):
-                    if (reader.Read() && reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int id))
-                    {
-                        starts[id] = start;
-                    }
-
-                    break;
-            }
-        }
-
-        return starts;
-    }
-
-    // A JSON value as the C# constant an attribute carries. Parsing rejected any number beyond double range.
-    private static string Constant(JsonElement value) => value.ValueKind switch
-    {
-        JsonValueKind.True => "true",
-        JsonValueKind.False => "false",
-        JsonValueKind.Number => value.TryGetInt32(out int whole) ? Literal.Of(whole) : Literal.Of(value.GetDouble()),
-        JsonValueKind.String => Literal.Of(value.GetString()!),
-        JsonValueKind.Array => "new object[] { " + string.Join(", ", value.EnumerateArray().Select(Constant)) + " }",
-        JsonValueKind.Object => "typeof(object)",
-        _ => "null",
-    };
 }

@@ -38,8 +38,8 @@ internal static class CollisionWorkload
         TileGrid.EmptyTile,
         new() { Name = Solid, Cell = 0, Layer = Solid },
         new() { Name = Platform, Cell = 1, Layer = Platform, OneWay = true },
-        new() { Name = "slope-up", Cell = 0, Layer = Solid, Shape = CollisionFixtures.SlopeUp },
-        new() { Name = "slope-down", Cell = 0, Layer = Solid, Shape = CollisionFixtures.SlopeDown },
+        new() { Name = "slope-up", Cell = 0, Layer = Solid, Shape = CollisionFixtures.SlopeUpPoints },
+        new() { Name = "slope-down", Cell = 0, Layer = Solid, Shape = CollisionFixtures.SlopeDownPoints },
     ];
 
     /// <summary>The starting box of the mover: a character-sized body on the floor.</summary>
@@ -103,11 +103,7 @@ internal static class CollisionWorkload
 
     internal static Scene Room()
     {
-        TileGrid grid = new(TileSize, TilesWide, TilesHigh, Palette, Cells(), Atlas, 2);
-
-        return new Scene(new SceneContent(
-            new SceneDocument([new TileMapPlacement(1, grid, HasCollider: true)], 2),
-            new EntityRegistry([])));
+        return SceneFixtures.Terrain(new TileGrid(TileSize, TilesWide, TilesHigh, Palette, Cells(), Atlas, 2));
     }
 
     /// <summary>A grounded entity that walks right over the hill, falls, and turns around at the far wall.</summary>

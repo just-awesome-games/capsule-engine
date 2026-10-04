@@ -15,9 +15,11 @@ public sealed class Bystander : Entity
     public Bystander(EntitySpawn spawn)
         : base(spawn)
     {
-        _drift = new Vector2(((spawn.Id % 5) - 2) * 0.25f, 0f);
+        // Where it stands picks its drift and whether it draws, which varies across a row of placements.
+        int slot = (int)(spawn.Position.X + spawn.Position.Y);
+        _drift = new Vector2(((slot % 5) - 2) * 0.25f, 0f);
 
-        if (spawn.Id % 3 == 0)
+        if (slot % 3 == 0)
         {
             Add(new SpriteRenderer(Frame));
         }

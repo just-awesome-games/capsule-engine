@@ -1,123 +1,39 @@
-using Capsule.Assets;
 using Capsule.Scenes.Documents;
-using Capsule.Tests.Scenes;
-using Capsule.Tiles;
 using static Capsule.Tests.Documents.SceneDocumentFixtures;
 
 namespace Capsule.Tests.Documents;
 
 public sealed class SceneDocumentParseTests
 {
-    // One document, one defect: whatever the reader, the document model or a grid refuses, the
-    // message names it and the failure arrives as a malformed document.
+    // One document, one defect: whatever the reader or the document model refuses, the message names it and
+    // the failure arrives as a malformed document.
     [Theory]
-    [InlineData("""{"entities": [], "nextEntityId": 1}""", "no formatVersion")]
-    [InlineData("""{"formatVersion": 2, "entities": [], "nextEntityId": 1}""", "formatVersion 2 is unsupported")]
-    [InlineData("""{"formatVersion": 8, "nextEntityId": 1}""", "the scene document has no entities")]
-    [InlineData("""{"formatVersion": 8, "entities": null, "nextEntityId": 1}""", "the scene document has no entities")]
-    [InlineData(TileMapWithoutProperties, "declares no properties")]
-    [InlineData("""{"formatVersion": 8, "entities": [{"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": null}], "nextEntityId": 2}""", "declares no properties")]
-    [InlineData(Grid1x1, "anchored at the world origin", "\"x\": 0", "\"x\": 8")]
-    [InlineData(Grid1x1, "tileSize must be positive", "\"tileSize\": 16", "\"tileSize\": 0")]
-    [InlineData(Grid1x1, "the 'tile-map' entry has no id", "\"id\": 1,", "")]
-    [InlineData(Grid1x1, "columns is 4 on a grid that names no texture", "\"tileSize\": 16", "\"columns\": 4, \"tileSize\": 16")]
-    [InlineData("""{"$schema": null, "formatVersion": 8, "entities": [], "nextEntityId": 1}""", "\"$schema\" is null")]
-    [InlineData("""{"$schema": 7, "formatVersion": 8, "entities": [], "nextEntityId": 1}""", "\"$schema\" is a number")]
-    [InlineData("""{"$schema": "scene.schema.json", "formatVersion": 8, "entities": [{"$schema": "scene.schema.json", "id": 1, "type": "coin", "x": 0, "y": 0}], "nextEntityId": 2}""", "'$schema' could not be mapped")]
-    public void Parse_RefusesAMalformedDocumentWithTheDefectNamed(string json, string defect, string? find = null, string? replace = null)
+    [InlineData("""{}""", "the scene document has no entities")]
+    [InlineData("""{"entities": null}""", "the scene document has no entities")]
+    [InlineData("""{"$schema": null, "entities": []}""", "\"$schema\" is null")]
+    [InlineData("""{"$schema": 7, "entities": []}""", "\"$schema\" is a number")]
+    public void Parse_RefusesAMalformedDocumentWithTheDefectNamed(string json, string defect)
     {
-        string text = find is null ? json : json.Replace(find, replace, StringComparison.Ordinal);
-
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(text));
+            () => SceneDocumentFile.Parse(json));
 
         Assert.Contains(defect, error.Message, StringComparison.Ordinal);
     }
 
-    // A scene setting names its key, the authored value and the form the key accepts.
+    // An untyped entry would reach the entity registry as "", failing at boot naming nothing an author could act on.
     [Theory]
-    [InlineData("\"clearColor\": \"#10182g\"", "clearColor is \"#10182g\"", "\"#rrggbb\"")]
-    [InlineData("\"ambient\": \"#fff\"", "ambient is \"#fff\"", "\"#rrggbb\"")]
-    [InlineData("\"ambient\": \"#484c6880\"", "ambient has alpha 128", "opaque")]
-    [InlineData("\"size\": [0, 180]", "size is (0, 180)", "greater than zero")]
-    [InlineData("\"size\": [320, -1]", "size is (320, -1)", "greater than zero")]
-    [InlineData("\"sampling\": \"nearest\"", "sampling is \"nearest\"", "\"linear\" or \"point\"")]
-    public void Parse_RefusesAMalformedSettingWithTheKeyAndTheAcceptedForm(string field, string defect, string fix)
+    [InlineData(Coin + Coin, "has id 2, which an earlier entry has")]
+    [InlineData(""",{"id": 1, "type": "coin", "x": 8, "y": 0}""", "has id 1, which an earlier entry has")]
+    [InlineData(""",{"id": 0, "type": "coin", "x": 8, "y": 0}""", "has id 0. Make it positive")]
+    [InlineData(", null", "entities[1] is null")]
+    [InlineData(""",{"x": 8, "y": 0}""", "entities[1] has no type")]
+    [InlineData(""",{"type": "coin", "x": 8, "y": 0, "rotation": 1e39}""", "not finite")]
+    public void Parse_RefusesAMalformedEntryWithTheDefectNamed(string entities, string expected)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse($$"""{"formatVersion": 8, {{field}}, "entities": [], "nextEntityId": 1}"""));
-
-        Assert.Contains(defect, error.Message, StringComparison.Ordinal);
-        Assert.Contains(fix, error.Message, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("null", "[0, 1]", "the 'tile-map' entry's grid has no tileTypes")]
-    [InlineData(null, "null", "the 'tile-map' entry's grid has no tiles")]
-    [InlineData("""[{"name": "empty"}, null]""", "[0, 1]", "tileTypes[1] is null")]
-    [InlineData("""[{"name": "empty"}, {"cell": 0}]""", "[0, 1]", "tileTypes[1] has no name")]
-    [InlineData("""[{"name": "empty"}, {"name": "ice", "cell": 0, "properties": 3}]""", "[0, 1]", "tileTypes[1] has properties that are not an object")]
-    [InlineData(null, "[0, 7]", "tiles[1] is 7")]
-    [InlineData(null, "[0, 1], \"transforms\": [0, 8]", "transforms[1] is 8")]
-    // A palette field the format does not define, as a typo spells one.
-    [InlineData("""[{"name": "empty"}, {"name": "ground", "sprite": "wall.png"}]""", "[0, 1]", "the 'tile-map' entry's properties are not")]
-    public void Parse_RefusesAMalformedGridWithTheDefectNamed(string? tileTypes, string tiles, string expected)
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(tileTypes: tileTypes, tiles: tiles)));
+            () => SceneDocumentFile.Parse(DocumentText(entities)));
 
         Assert.Contains(expected, error.Message, StringComparison.Ordinal);
-    }
-
-    // The two spellings differ only for the separator JSON itself escapes.
-    [Theory]
-    [InlineData("tiles", "tiles")]
-    [InlineData("../tiles.png", "../tiles.png")]
-    [InlineData("a\\\\tiles.png", "a\\tiles.png")]
-    [InlineData(" ", " ")]
-    public void Parse_RejectsATextureThatIsNotOneAssetPath(string authored, string texture)
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(texture: $"\"{authored}\"")));
-
-        Assert.Contains($"grid has texture \"{texture}\"", error.Message, StringComparison.Ordinal);
-        Assert.Contains("extension included", error.Message, StringComparison.Ordinal);
-    }
-
-    // Ids share one space with the tile-map entry's, and nextEntityId is the next one to hand out.
-    // An entry with no position would otherwise be placed at the origin, which is a position the
-    // file never stated. An untyped entry would reach the entity registry as "", failing at boot
-    // naming nothing an author could act on. A property number beyond double range has no C# literal
-    // for the build's check.
-    [Theory]
-    [InlineData(Coin + Coin, 3, "appears more than once")]
-    [InlineData(""",{"id": 1, "type": "coin", "x": 8, "y": 0}""", 2, "entity id 1 appears more than once")]
-    [InlineData(Coin, 2, "entity id 2 is not below nextEntityId 2")]
-    [InlineData("", 1, "entity id 1 is not below nextEntityId 1")]
-    [InlineData(", null", 2, "entities[1] is null")]
-    [InlineData(""",{"type": "coin", "x": 128, "y": 64}""", 2, "entity 'coin' at (128, 64) has no id. Assign one")]
-    [InlineData(""",{"id": 2, "type": "coin", "y": 0}""", 3, "entities[1] has no x")]
-    [InlineData(""",{"id": 2, "type": "coin", "x": 8}""", 3, "entities[1] has no y")]
-    [InlineData(""",{"id": 2, "x": 8, "y": 0}""", 3, "entity id 2 has no type")]
-    [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "properties": [5]}""", 3, "has properties that are not an object")]
-    [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "properties": {"reach": [1, 1e999]}}""", 3, "beyond the range of a double")]
-    [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "properties": {"reach": 1e999}}""", 3, "beyond the range of a double")]
-    [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "rotation": 1e39}""", 3, "which is not a turn")]
-    public void Parse_RefusesAMalformedEntryWithTheDefectNamed(string entities, int nextEntityId, string expected)
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(entities: entities, nextEntityId: nextEntityId)));
-
-        Assert.Contains(expected, error.Message, StringComparison.Ordinal);
-    }
-
-    // A nested object never becomes a constant, so its numbers are left to the property's converter.
-    [Fact]
-    public void Parse_LeavesANonFiniteNumberInsideAnObjectPropertyToItsConverter()
-    {
-        SceneDocumentFile.Parse(DocumentText(
-            entities: """,{"id": 2, "type": "coin", "x": 8, "y": 0, "properties": {"route": {"len": 1e999}}}""",
-            nextEntityId: 3));
     }
 
     [Theory]
@@ -128,35 +44,31 @@ public sealed class SceneDocumentParseTests
     public void Parse_RejectsAScaleThatIsNotTwoPositiveFactors(string scale, string expected)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(
-                entities: $$"""
-                    ,
-                        {
-                          "id": 2,
-                          "type": "coin",
-                          "x": 8,
-                          "y": 0,
-                          "scale": {{scale}}
-                        }
-                    """,
-                nextEntityId: 3)));
+            () => SceneDocumentFile.Parse(DocumentText($$""",{"id": 2, "type": "coin", "x": 8, "y": 0, "scale": {{scale}}}""")));
 
         Assert.Contains(expected, error.Message, StringComparison.Ordinal);
     }
 
-    // Terrain is drawn in world coordinates and sized by its grid's tileSize, so a scale or a turn here
-    // would be a value the engine writes back and then ignores. Asked of the field's presence rather
-    // than its value: on value alone a null field would parse and be written back without it.
     [Theory]
-    [InlineData("\"scale\": [2, 2],", "anchored and unscaled")]
-    [InlineData("\"scale\": null,", "anchored and unscaled")]
-    [InlineData("\"rotation\": 90,", "anchored and unturned")]
-    [InlineData("\"rotation\": null,", "anchored and unturned")]
-    public void Parse_RejectsAScaleOrRotationOnTheTileMapEntry(string field, string expected)
+    [InlineData(float.NaN, 0f)]
+    [InlineData(0f, float.PositiveInfinity)]
+    public void Constructor_RejectsANonFiniteEntityPosition(float x, float y)
     {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocumentFile.Parse(DocumentText(tileMapField: field)));
+        ArgumentException error = Assert.Throws<ArgumentException>(
+            () => new SceneDocument([new SceneDocumentEntry("coin", x, y)]));
 
-        Assert.Contains(expected, error.Message, StringComparison.Ordinal);
+        Assert.Contains("not finite", error.Message, StringComparison.Ordinal);
+    }
+
+    // An importer's member named for a reserved key would be written twice.
+    [Fact]
+    public void Constructor_RejectsAMemberNamedForAReservedKey()
+    {
+        System.Text.Json.JsonElement members = System.Text.Json.JsonDocument.Parse("""{ "x": 4 }""").RootElement;
+
+        ArgumentException error = Assert.Throws<ArgumentException>(
+            () => new SceneDocument([new SceneDocumentEntry("coin", Properties: members)]));
+
+        Assert.Contains("member 'x', which the format reserves", error.Message, StringComparison.Ordinal);
     }
 }

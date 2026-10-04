@@ -67,9 +67,8 @@ public sealed class AuthorableArrayTests
         Scene scene = Composed(
             """
             {"id": 1, "type": "lift", "x": 0, "y": 0},
-            {"id": 2, "type": "gate", "x": 0, "y": 0, "properties": {
-              "path": [[0, 0], [48, -8]], "kinds": " spikes ,both", "icon": "Textures/Hazard.PNG",
-              "chimes": ["Audio/Chime.wav"], "destination": "Scenes/Hall", "lifts": [3, 1]}},
+            {"id": 2, "type": "gate", "x": 0, "y": 0, "path": [[0, 0], [48, -8]], "kinds": " spikes ,both", "icon": "Textures/Hazard.PNG",
+              "chimes": ["Audio/Chime.wav"], "destination": "Scenes/Hall", "lifts": [3, 1]},
             {"id": 3, "type": "lift", "x": 0, "y": 0}
             """);
         Entity[] entities = scene.Entities.ToArray();
@@ -92,35 +91,11 @@ public sealed class AuthorableArrayTests
         AssetCollection preload = Composed(
             """
             {"id": 1, "type": "lift", "x": 0, "y": 0},
-            {"id": 2, "type": "gate", "x": 0, "y": 0, "properties": {"icon": "textures/hazard.png", "chimes": ["audio/chime.wav"], "lifts": [1]}}
+            {"id": 2, "type": "gate", "x": 0, "y": 0, "icon": "textures/hazard.png", "chimes": ["audio/chime.wav"], "lifts": [1]}
             """).CollectAssetPreloads();
 
         Assert.Equal([new TextureHandle("textures/hazard", ".png")], preload.Textures);
         Assert.Equal([new AudioClip("audio/chime", ".wav", 0.5)], preload.Clips);
-    }
-
-    [Theory]
-    [InlineData("\"path\": [[0, 0], [1]], \"lifts\": [1]", "CAP038", "sets 'path' element 1 to an array, but 'Game.Gate' takes Vector2. Write [x, y]")]
-    [InlineData("\"kinds\": \"spikes, lava\", \"lifts\": [1]", "CAP039", "sets 'kinds' to the name \"lava\" in the string \"spikes, lava\", which names nothing 'Kinds' declares")]
-    [InlineData("\"icon\": \"Textures/Hazzard.png\", \"lifts\": [1]", "CAP044", "sets 'icon' to the string \"Textures/Hazzard.png\", but no TextureHandle keys as \"textures/hazzard.png\"")]
-    [InlineData("\"chimes\": [\"audio/chime.wav\", \"audio/gong.wav\"], \"lifts\": [1]", "CAP044", "sets 'chimes' element 1 to the string \"audio/gong.wav\", but no AudioClip keys as \"audio/gong.wav\"")]
-    [InlineData("\"destination\": \"scenes/vault\", \"lifts\": [1]", "CAP044", "but no SceneKey keys as \"scenes/vault\"")]
-    [InlineData("\"lifts\": [1, 5]", "CAP043", "sets 'lifts' element 1 to entity 5, a 'Game.Shuttle', but 'Game.Gate.Lifts' takes 'Lift'")]
-    [InlineData("", "CAP040", "omits 'lifts'")]
-    public void AnElementOrKeyTheBuildCannotResolve_FailsTheBuildAtTheEntry(string properties, string id, string fix)
-    {
-        string entries = $$$"""
-            {"id": 1, "type": "lift", "x": 0, "y": 0},
-            {"id": 2, "type": "gate", "x": 0, "y": 0, "properties": {{{{properties}}}}},
-            {"id": 5, "type": "shuttle", "x": 0, "y": 0}
-            """;
-        (ImmutableArray<Diagnostic> diagnostics, _) = GeneratorHarness.CompileAgainstSources(Game, logic: true, [(Room, Document(entries)), .. Declared]);
-
-        Diagnostic refused = Assert.Single(GeneratorHarness.Errors(diagnostics));
-        Assert.Equal(id, refused.Id);
-        string message = refused.GetMessage(CultureInfo.InvariantCulture);
-        Assert.Contains("'scenes/room': entity 2 ", message, StringComparison.Ordinal);
-        Assert.Contains(fix, message, StringComparison.Ordinal);
     }
 
     // A collection is written as an array. A converter type or a game interface that is also enumerable keeps
@@ -183,21 +158,20 @@ public sealed class AuthorableArrayTests
     {
         string entries = $$$"""
             {"id": 1, "type": "lift", "x": 0, "y": 0},
-            {"id": 2, "type": "gate", "x": 0, "y": 0, "properties": {{{{properties}}}}},
+            {"id": 2, "type": "gate", "x": 0, "y": 0, {{{properties}}}},
             {"id": 5, "type": "shuttle", "x": 0, "y": 0}
             """;
 
         SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(() => Composed(entries));
 
-        Assert.StartsWith("scene document 'scenes/room': entity id 2 ('gate') ", failure.Message, StringComparison.Ordinal);
+        Assert.StartsWith("scene document 'scenes/room': entities[1] ('gate') ", failure.Message, StringComparison.Ordinal);
         Assert.Contains(fix, failure.Message, StringComparison.Ordinal);
     }
 
     private static string Document(string entries) =>
-        "{\"formatVersion\": 8, \"entities\": [" + entries + "], \"nextEntityId\": 100}";
+        "{\"entities\": [" + entries + "]}";
 
-    // Composes the room through the generated registry, compiled against the declared assets and with no room
-    // document, so the build's check does not stand in front of the load-time one.
+    // Composes the room through the generated registry, compiled against the declared assets.
     private static Scene Composed(string entries)
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(Game, logic: true, Declared);

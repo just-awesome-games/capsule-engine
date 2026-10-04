@@ -125,6 +125,7 @@ public partial class Camera
     /// first screen draws it as authored. Set it for a room whose first screen is elsewhere. A game that
     /// changes <see cref="ViewportSize"/> at run time sets it to keep every layer where it was.
     /// </remarks>
+    [Authorable]
     public Vector2? ScrollCenter
     {
         get;

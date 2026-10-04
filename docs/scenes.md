@@ -1,7 +1,7 @@
 # Scenes
 
 A scene is one world: its ordered contents and a camera. A `*.scene.json` scene document is its serialized
-form, data carrying no behaviour. Tile maps are one engine-native entry type, not a separate kind of scene.
+form, data carrying no behaviour. The engine's tile map is placed like any other entity.
 
 ## Authoring model
 
@@ -27,120 +27,97 @@ value is both.
 
 ## Format
 
-`SceneDocumentFile` reads and writes format version 8. Its canonical form is two-space-indented UTF-8 JSON
-with LF endings and one trailing newline. A document is one uniform list of entries:
+A document is a tree of objects: the scene, its entries, and any object a member holds.
 
 ```json
 {
-  "formatVersion": 8,
+  "baseScene": "playable-room",
   "size": [320, 192],
   "ambient": "#484c68",
+  "camera": { "type": "room-camera", "lead": 24 },
   "entities": [
     {
-      "id": 1,
       "type": "tile-map",
-      "x": 0,
-      "y": 0,
-      "properties": {
-        "tileSize": 16,
-        "width": 4,
-        "height": 2,
-        "texture": "terrain.png",
-        "columns": 4,
-        "tileTypes": [
-          { "name": "empty" },
-          { "name": "ground", "cell": 0, "layer": "solid" },
-          { "name": "ledge", "cell": 2, "layer": "ledge", "oneWay": true }
-        ],
-        "tiles": [
-          0, 0, 2, 0,
-          1, 1, 1, 1
-        ],
-        "collider": true
-      },
-      "zIndex": -10
+      "zIndex": -10,
+      "tileSize": 16,
+      "width": 4,
+      "height": 2,
+      "texture": "terrain.png",
+      "columns": 4,
+      "tileTypes": [
+        { "name": "empty" },
+        { "name": "ground", "cell": 0, "layer": "solid" },
+        { "name": "ledge", "cell": 2, "layer": "ledge", "oneWay": true }
+      ],
+      "tiles": [
+        0, 0, 2, 0,
+        1, 1, 1, 1
+      ],
+      "collider": true
     },
-    { "id": 2, "type": "coin", "x": 8, "y": 0 },
-    { "id": 3, "type": "banner", "x": 32, "y": 0, "rotation": 90, "scale": [2, 3], "zIndex": 10 },
-    { "id": 4, "type": "hills", "x": 0, "y": 100, "zIndex": -20, "scrollFactor": [0.5, 1] }
-  ],
-  "nextEntityId": 5
+    { "id": 3, "type": "lift", "x": 32, "rise": 40 },
+    { "type": "switch", "x": 64, "lift": 3, "movement": { "type": "patrol", "speed": 30 } },
+    { "type": "door", "x": 96, "exit": { "destination": "scenes/hall", "arriveAt": "west" } },
+    { "type": "hills", "y": 100, "zIndex": -20, "scrollFactor": [0.5, 1] }
+  ]
 }
 ```
 
-The format's JSON Schema documents every field ([Editor completion](configuring-assets.md#editor-completion)).
-An invalid document throws `SceneDocumentFormatException`, naming the defect.
+Each JSON object is a C# object. Its reserved keys are structure, and every other key sets the member of that
+name its class marks `[Authorable]`:
 
-A top-level key sets the `Scene` property of the same name before any subclass constructor body runs.
-Code assigning that property still wins.
+| Object | Reserved keys | Every other key sets a member of |
+| --- | --- | --- |
+| The document | `$schema`, `baseScene`, `entities` | the composing scene: the class claiming the document, the `baseScene` it names, or `Scene`, whose own are `size`, `clearColor`, `ambient`, `sampling` and `camera` |
+| An entry | `type`, `id`, `x`, `y`, `rotation`, `scale`, `zIndex`, `scrollFactor` | the entity class its `type` names |
+| A member's object | `type` | the object the member holds, or else a new one of the member's class or of the subclass its `type` names |
 
-An entry's position, `rotation`, `scale`, `zIndex` and `scrollFactor` reach the entity's constructor as
-an `EntitySpawn`, applied as the `Entity(EntitySpawn)` constructor documents.
+An entry's spawn keys reach the entity's constructor as an `EntitySpawn`, applied as the `Entity(EntitySpawn)`
+constructor documents. An absent `x` or `y` is 0. An `id` is needed only on an entry another names, and ids are
+unique. A key no member takes fails the scene at load, naming the document, the entry and the key's path, and
+one test catches it before a player does ([`testing.md`](testing.md)).
+`AuthorableAttribute` documents how a key is named, when a value lands and each type's JSON form. The format's
+JSON Schema documents every reserved field ([Editor completion](configuring-assets.md#editor-completion)). An
+invalid document throws `SceneDocumentFormatException`, naming the defect.
 
 ### The tile map entry
 
-`tile-map` is reserved by the engine. A document may carry any number, interleaved with game entities, all
-anchored at the world origin and drawn by their `zIndex` bands. The canonical form writes `tiles` one grid
-row per line.
-
-Each palette entry composes a `TileType`, or the subclass its `type` names. A palette entry's `properties`
-set that class's `[Authorable]` members, as an entity entry's do. `TileMap.TileAt` and `TileContact2D.Type`
-return the entry's instance, read as `map.TileAt(x, y).Name` or matched as `map.TileAt(x, y) is Ice ice`.
-`TileMap.SetTile` paints by name. `"collider": true` in the properties gives the map a
-`TileMapCollider2D`, and a map without it only draws. How tiles collide is
-[`collision.md`](collision.md#terrain).
+`tile-map` places the engine's `TileMap`, whose members are its grid and each of whose `tileTypes` is a
+`TileType` object. A document may carry any number, interleaved with game entities, all anchored at the world
+origin and drawn by their `zIndex` bands. A scene that authors no `size` spans its largest map. How tiles
+collide is [`collision.md`](collision.md#terrain).
 
 ### Entries and composition
 
-Every `type` other than `tile-map` names an entity class in the game's own logic assembly. A concrete
+Every `type` names an entity class: the engine's `tile-map`, or one in the game's logic assembly. A concrete
 `Entity` with one public constructor taking an `EntitySpawn` claims the key its namespace names, and
 `[SpawnType("key")]` names another key. Code places the same entity through the same constructor with
 `new EntitySpawn(position) { Rotation = turn }`.
 
-One rule keys entities, cameras, tile types and a document's `baseScene`. Take the type's namespace below
-the assembly's root namespace. Drop a leading `Entities`, `Cameras`, `Tiles` or `Scenes` segment and a
-trailing segment repeating the type's own name. Kebab-case each segment, join them with `/`, then append
+One rule keys entities, a member object's subclasses, `TileType` ones among them, and a document's `baseScene`. Take the type's
+namespace below the assembly's root namespace. Drop a leading `Entities`, `Cameras`, `Tiles` or `Scenes` segment
+and a trailing segment repeating the type's own name. Kebab-case each segment, join them with `/`, then append
 the kebab-cased type name:
 
 | Type | Key |
 | --- | --- |
 | `MyGame.Entities.Enemies.Bat` | `enemies/bat` |
 | `MyGame.Entities.Player.Player` | `player` |
-| `MyGame.Tiles.Ice` | `ice` |
+| `MyGame.Cameras.RoomCamera` as a `camera` object's `type` | `room-camera` |
 | `MyGame.Scenes.PlayableRoom` as a `baseScene` | `playable-room` |
 | `MyGame.Scenes.Stage1.Room01` claiming a document | `scenes/stage-1/room-01` |
 
 A class claiming a document keeps the leading segment, because the document's key is its path. A type
-outside the root namespace claims its kebab-cased name. A spawn type no class claims fails the build
-(`CAP034`), or fails the scene at load in a document the build never saw.
-
-#### Properties
-
-An entry's `properties` object sets the members its class marks `[Authorable]`:
-
-```csharp
-[Authorable]
-public float Rise { get; set; } = 64f;
-```
-
-```json
-{ "id": 11, "type": "lift", "x": 496, "y": 170, "properties": { "rise": 40 } }
-```
-
-`AuthorableAttribute` documents how a key is named, when a value lands and each type's JSON form. The
-document's top-level `properties` sets the members of the class composing the scene the same way: the
-class claiming the document, or the `baseScene` it names.
+outside the root namespace claims its kebab-cased name. A spawn type no class claims fails the scene at load.
 
 ## From source to game
 
-Documents are authored anywhere under the logic project's `Assets/`. The build validates each, re-emits it
-canonically, stamps its provenance in a `source` block, and ships it gzipped at
-`assets/<key>.scene.json.gz`. A document's key is its source path without either extension, keyed as
-[named assets](assets.md#named-assets) defines. Two sources sharing a key fail the build.
-`CapsuleBuild.WithTileSize` declares the tile size every scene must match
-([`build-and-publish.md`](build-and-publish.md#the-build-project)).
+Documents are authored anywhere under the logic project's `Assets/`. The build parses each, re-emits it
+compact, and ships it gzipped at `assets/<key>.scene.json.gz`. A document's key is its source path
+without either extension, keyed as [named assets](assets.md#named-assets) defines. Two sources sharing a key fail the build.
 
 An editor's own format enters through an authoring module, a package that ships an
-[importer](build-and-publish.md#writing-an-importer). The engine validates, canonicalizes, keys and ships
-each document it writes like a hand-authored one at that path. JAG Studios publishes the Tiled module as
+[importer](build-and-publish.md#writing-an-importer). The importer builds a `SceneDocument` of entries
+carrying their members as JSON and writes it with `SceneDocumentFile.ToJson`. The engine validates, keys and
+ships each document it writes like a hand-authored one at that path. JAG Studios publishes the Tiled module as
 `JAG.Capsule.Tiled` from [capsule-engine-tiled](https://github.com/just-awesome-games/capsule-engine-tiled).

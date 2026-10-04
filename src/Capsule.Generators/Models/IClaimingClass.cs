@@ -1,6 +1,6 @@
 namespace Capsule.Generators;
 
-/// <summary>A class that claims the key its namespace and name spell, with no attribute to override it: a camera or a tile type.</summary>
+/// <summary>A class that claims the key its namespace and name spell, with no attribute to override it: a subclass a type key names.</summary>
 internal interface IClaimingClass
 {
     string QualifiedName { get; }

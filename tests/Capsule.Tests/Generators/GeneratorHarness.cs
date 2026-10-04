@@ -164,7 +164,7 @@ internal static class GeneratorHarness
                 string key = document.Path[..^Extension.Length];
                 IEnumerable<string> attributes = document.Content is null
                     ? [$"{GeneratedAttributes.SceneDocumentName}(Key = \"{key}\")"]
-                    : SceneMembers.Attributes(SceneDocumentFile.Parse(document.Content), key, document.Path, document.Content);
+                    : SceneMembers.Attributes(SceneDocumentFile.Parse(document.Content), key);
 
                 return $"{string.Concat(attributes.Select(static attribute => $"[{attribute}]"))} public static global::Capsule.Scenes.SceneKey Document{index} => new(\"{key}\");";
             });

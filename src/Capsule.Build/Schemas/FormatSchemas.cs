@@ -81,7 +81,11 @@ internal static class FormatSchemas
             root["required"] = required;
         }
 
-        root["additionalProperties"] = false;
+        // A format whose objects take a class's members as undeclared keys leaves the root open to them.
+        if (!parser.Properties.Any(static property => property.IsExtensionData))
+        {
+            root["additionalProperties"] = false;
+        }
 
         using MemoryStream output = new();
         using (Utf8JsonWriter writer = new(output, new JsonWriterOptions { Indented = true, NewLine = "\n", Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
@@ -107,10 +111,6 @@ internal static class FormatSchemas
         if (node is JsonObject shape && context.TypeInfo.Kind == JsonTypeInfoKind.Object)
         {
             Require(shape, context.TypeInfo);
-            if (type == typeof(SceneEntryJson))
-            {
-                TileMapProperties(shape);
-            }
         }
 
         if (context.PropertyInfo is not { } property || property.Name == SchemaKeyConverter.Key)
@@ -221,32 +221,6 @@ internal static class FormatSchemas
         {
             shape["required"] = required;
         }
-    }
-
-    // A tile-map entry sits at the origin, unturned and unscaled, with a grid as its properties. Any other
-    // entry's properties belong to its class, and no schema describes them.
-    private static void TileMapProperties(JsonObject entry)
-    {
-        JsonObject grid = SceneDocumentJsonContext.Default.TileGridJson.GetJsonSchemaAsNode(Exporter).AsObject();
-        grid.Insert(0, "description", DescriptionOf(typeof(TileGridJson)));
-
-        entry["if"] = new JsonObject
-        {
-            ["properties"] = new JsonObject { ["type"] = new JsonObject { ["const"] = SceneDocument.TileMapType } },
-            ["required"] = new JsonArray("type"),
-        };
-        entry["then"] = new JsonObject
-        {
-            ["properties"] = new JsonObject
-            {
-                ["x"] = new JsonObject { ["const"] = 0 },
-                ["y"] = new JsonObject { ["const"] = 0 },
-                ["rotation"] = false,
-                ["scale"] = false,
-                ["properties"] = grid,
-            },
-            ["required"] = new JsonArray("properties"),
-        };
     }
 
     private static string DescriptionOf(MemberInfo member) =>

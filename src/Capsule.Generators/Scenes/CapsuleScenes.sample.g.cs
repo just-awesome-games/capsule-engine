@@ -2,7 +2,6 @@
 #nullable enable
 
 [assembly: global::Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute(1, "scenes/hall", typeof(global::Game.Hall))]
-[assembly: global::Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute(2, "ice", typeof(global::Game.Ice))]
 
 namespace Capsule.Generated
 {
@@ -22,22 +21,20 @@ namespace Capsule.Generated
             new global::Capsule.Scenes.SceneRegistration[]
             {
                 global::Capsule.Scenes.SceneRegistration.Plain(typeof(global::Game.MainMenu), static _ => new global::Game.MainMenu()),
-                global::Capsule.Scenes.SceneRegistration.FromDocument(typeof(global::Game.Hall), "scenes/hall", static content => new global::Game.Hall(content!.Value with { Camera = static () => new global::Game.GameCamera() })),
-                global::Capsule.Scenes.SceneRegistration.DocumentOnly("scenes/room", static content => new global::Capsule.Generated.CapsuleGeneratedScene_Scenes_Room(content!.Value with { Camera = static () => new global::Game.GameCamera(), Apply = Apply_Game_PlayableScene })),
+                global::Capsule.Scenes.SceneRegistration.FromDocument(typeof(global::Game.Hall), "scenes/hall", static content => new global::Game.Hall(content!.Value with { Apply = Apply_Capsule_Scenes_Scene, Entities = content!.Value.Entities.OwnedBy(global::Capsule.Generated.CapsuleEntities.Registrations) })),
+                global::Capsule.Scenes.SceneRegistration.DocumentOnly("scenes/room", static content => new global::Capsule.Generated.CapsuleGeneratedScene_Scenes_Room(content!.Value with { Apply = Apply_Game_PlayableScene, Entities = content!.Value.Entities.OwnedBy(global::Capsule.Generated.CapsuleEntities.Registrations) })),
             };
 
         // The applier of each scene class authoring members, by class, which SceneRegistry.Content finds along a class's bases.
         internal static global::System.Collections.Generic.KeyValuePair<global::System.Type, global::Capsule.Scenes.SceneApplier>[] Appliers { get; } =
             new global::System.Collections.Generic.KeyValuePair<global::System.Type, global::Capsule.Scenes.SceneApplier>[]
             {
+                new(typeof(global::Capsule.Scenes.Scene), Apply_Capsule_Scenes_Scene),
                 new(typeof(global::Game.PlayableScene), Apply_Game_PlayableScene),
             };
 
         /// <summary>The registry the engine composes every scene through.</summary>
         public static global::Capsule.Scenes.SceneRegistry Registry { get; } = CreateRegistry();
-
-        // The composer this assembly's provider hands its tile types over through, or null when it declares none.
-        internal static global::Capsule.Scenes.TileTypeComposer? TileTypes => ComposeTileType;
 
         // Built through the provider the shell's CapsuleBoot reads. A test composing through Registry composes what a run does.
         private static global::Capsule.Scenes.SceneRegistry CreateRegistry()
@@ -47,44 +44,116 @@ namespace Capsule.Generated
             return scenes.Build();
         }
 
+        private static void Apply_Capsule_Scenes_Scene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        {
+            global::Capsule.Scenes.Scene scene = (global::Capsule.Scenes.Scene)composed;
+            if (properties.Has("camera"))
+            {
+                SetCamera(scene, Object_Capsule_Scenes_Camera(scene.Camera, properties.Object("camera"), replaces: true));
+            }
+            if (properties.Has("size"))
+            {
+                SetSize(scene, properties.Vector2("size"));
+            }
+            if (properties.Has("clearColor"))
+            {
+                SetClearColor(scene, properties.Color("clearColor"));
+            }
+            if (properties.Has("ambient"))
+            {
+                SetAmbient(scene, properties.Color("ambient"));
+            }
+            if (properties.Has("sampling"))
+            {
+                SetSampling(scene, properties.Name("sampling") switch
+                {
+                    "linear" => global::Capsule.Rendering.TextureSampling.Linear,
+                    "point" => global::Capsule.Rendering.TextureSampling.Point,
+                    _ => throw properties.NotAName("sampling", "linear, point"),
+                });
+            }
+        }
+
         private static void Apply_Game_PlayableScene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
         {
             global::Game.PlayableScene scene = (global::Game.PlayableScene)composed;
+            if (properties.Has("camera"))
+            {
+                SetCamera(scene, Object_Capsule_Scenes_Camera(scene.Camera, properties.Object("camera"), replaces: true));
+            }
+            if (properties.Has("size"))
+            {
+                SetSize(scene, properties.Vector2("size"));
+            }
+            if (properties.Has("clearColor"))
+            {
+                SetClearColor(scene, properties.Color("clearColor"));
+            }
+            if (properties.Has("ambient"))
+            {
+                SetAmbient(scene, properties.Color("ambient"));
+            }
+            if (properties.Has("sampling"))
+            {
+                SetSampling(scene, properties.Name("sampling") switch
+                {
+                    "linear" => global::Capsule.Rendering.TextureSampling.Linear,
+                    "point" => global::Capsule.Rendering.TextureSampling.Point,
+                    _ => throw properties.NotAName("sampling", "linear, point"),
+                });
+            }
             if (properties.Has("floor"))
             {
                 SetFloor(scene, properties.Int("floor"));
             }
         }
 
-        private static global::Capsule.Tiles.TileType? ComposeTileType(string type, global::Capsule.Tiles.TileType tile, global::Capsule.Scenes.Spawning.AuthoredProperties properties) => type switch
+        private static global::Capsule.Scenes.Camera Object_Capsule_Scenes_Camera(global::Capsule.Scenes.Camera? held, global::Capsule.Scenes.Spawning.AuthoredProperties properties, bool replaces) => (replaces ? properties.Type() : null) switch
         {
-            "ice" => ComposeTileType_Game_Ice(tile, properties),
-            _ => null,
+            null => held switch
+            {
+                global::Game.GameCamera subclass => Fill_Game_GameCamera(subclass, properties),
+                null => Fill_Capsule_Scenes_Camera(new global::Capsule.Scenes.Camera(), properties),
+                _ => Fill_Capsule_Scenes_Camera(held, properties),
+            },
+            "game-camera" => Fill_Game_GameCamera(new global::Game.GameCamera(), properties),
+            _ => throw properties.NotAType("game-camera"),
         };
 
-        private static global::Game.Ice ComposeTileType_Game_Ice(global::Capsule.Tiles.TileType tile, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        private static global::Capsule.Scenes.Camera Fill_Capsule_Scenes_Camera(global::Capsule.Scenes.Camera target, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
         {
-            global::Game.Ice composed = new global::Game.Ice
+            if (properties.Has("scrollCenter"))
             {
-                Name = tile.Name,
-                Cell = tile.Cell,
-                Frames = tile.Frames,
-                Layer = tile.Layer,
-                Shape = tile.Shape,
-                OneWay = tile.OneWay,
-                SolidSides = tile.SolidSides,
-            };
-            if (properties.Has("grip"))
-            {
-                SetGrip(composed, properties.Float("grip"));
+                target.ScrollCenter = properties.IsNull("scrollCenter") ? null : properties.Vector2("scrollCenter");
             }
-            return composed;
+            return target;
         }
+
+        private static global::Game.GameCamera Fill_Game_GameCamera(global::Game.GameCamera target, global::Capsule.Scenes.Spawning.AuthoredProperties properties)
+        {
+            if (properties.Has("scrollCenter"))
+            {
+                target.ScrollCenter = properties.IsNull("scrollCenter") ? null : properties.Vector2("scrollCenter");
+            }
+            return target;
+        }
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Camera")]
+        private static extern void SetCamera(global::Capsule.Scenes.Scene owner, global::Capsule.Scenes.Camera value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Size")]
+        private static extern void SetSize(global::Capsule.Scenes.Scene owner, global::System.Numerics.Vector2 value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_ClearColor")]
+        private static extern void SetClearColor(global::Capsule.Scenes.Scene owner, global::Capsule.Rendering.ColorRgba value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Ambient")]
+        private static extern void SetAmbient(global::Capsule.Scenes.Scene owner, global::Capsule.Rendering.ColorRgba value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Sampling")]
+        private static extern void SetSampling(global::Capsule.Scenes.Scene owner, global::Capsule.Rendering.TextureSampling value);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Floor")]
         private static extern void SetFloor(global::Game.PlayableScene owner, int value);
-
-        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Grip")]
-        private static extern void SetGrip(global::Game.Ice owner, float value);
     }
 }

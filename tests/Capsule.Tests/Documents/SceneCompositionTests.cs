@@ -14,8 +14,8 @@ public sealed class SceneCompositionTests
     public void EachPlacementBecomesOneEntity_InTheDocumentsOwnOrder_CarryingItsPlacementData()
     {
         SceneDocument room = SceneFixtures.Room(
-            new EntityPlacement(2, "chest", 48f, 16f),
-            new EntityPlacement(1, "player-spawn", 32f, 24f));
+            new SceneDocumentEntry("chest", 48f, 16f),
+            new SceneDocumentEntry("player-spawn", 32f, 24f));
 
         Scene scene = SceneFixtures.RoomScene(
             room,
@@ -25,31 +25,16 @@ public sealed class SceneCompositionTests
 
         Entity[] entities = scene.Entities.ToArray();
 
-        Assert.Equal(3, entities.Length);
-        Assert.IsType<TileMap>(entities[0]);
+        Assert.Equal(2, entities.Length);
         Assert.Equal(
-            new EntitySpawn(new Vector2(48f, 16f)) { Id = 2, Type = "chest" },
+            new EntitySpawn(new Vector2(48f, 16f)) { Type = "chest" },
+            Assert.IsType<SceneFixtures.Placed>(entities[0]).Spawn);
+        Assert.Equal(
+            new EntitySpawn(new Vector2(32f, 24f)) { Type = "player-spawn" },
             Assert.IsType<SceneFixtures.Placed>(entities[1]).Spawn);
-        Assert.Equal(
-            new EntitySpawn(new Vector2(32f, 24f)) { Id = 1, Type = "player-spawn" },
-            Assert.IsType<SceneFixtures.Placed>(entities[2]).Spawn);
 
         // A spawn opens where it was placed rather than sliding in from the render origin.
-        Assert.Equal(entities[1].Position, entities[1].PreviousTransform.Position);
-    }
-
-    [Fact]
-    public void ASubclassPassesItsContentThrough_AndReachesTheTerrainItComposed()
-    {
-        SceneDocument room = SceneFixtures.Room(new EntityPlacement(1, "chest", 48f, 16f));
-
-        SceneFixtures.Room01 scene = new(SceneFixtures.Content(
-            room,
-            SceneFixtures.Registry(("chest", static spawn => new SceneFixtures.Placed(spawn)))));
-
-        Assert.Same(scene.Terrain, scene.Entities[0]);
-        Assert.Equal(new Vector2(3 * SceneFixtures.TileSize, 2 * SceneFixtures.TileSize), scene.Size);
-        Assert.IsType<SceneFixtures.Placed>(scene.Entities[1]);
+        Assert.Equal(entities[0].Position, entities[0].PreviousTransform.Position);
     }
 
     // A scene of entities alone draws no terrain and spans nothing until it sets its own size.
@@ -57,7 +42,7 @@ public sealed class SceneCompositionTests
     public void ADocumentWithNoTerrain_ComposesWithNoTileMapAndNoSize()
     {
         Scene scene = SceneFixtures.RoomScene(
-            SceneFixtures.RoomWithoutTerrain(new EntityPlacement(1, "chest", 48f, 16f)),
+            SceneFixtures.Room(new SceneDocumentEntry("chest", 48f, 16f)),
             SceneFixtures.Registry(("chest", static spawn => new SceneFixtures.Placed(spawn))));
 
         Assert.Null(scene.FindFirst<TileMap>());
@@ -65,35 +50,14 @@ public sealed class SceneCompositionTests
         Assert.IsType<SceneFixtures.Placed>(Assert.Single(scene.Entities.ToArray()));
     }
 
-    [Fact]
-    public void TileMapsAndEntities_ComposeInDocumentOrder()
-    {
-        SceneDocument document = new(
-            [
-                new TileMapPlacement(3, SceneFixtures.RoomGrid()),
-                new EntityPlacement(1, "chest", 32f, 24f),
-                new TileMapPlacement(4, SceneFixtures.RoomGrid()),
-                new EntityPlacement(2, "chest", 48f, 16f),
-            ],
-            5);
-
-        Scene scene = SceneFixtures.RoomScene(
-            document,
-            SceneFixtures.Registry(("chest", static spawn => new SceneFixtures.Placed(spawn))));
-
-        Assert.Equal(
-            [typeof(TileMap), typeof(SceneFixtures.Placed), typeof(TileMap), typeof(SceneFixtures.Placed)],
-            scene.Entities.ToArray().Select(static entity => entity.GetType()));
-    }
-
     // The document writes degrees, and the entity reads radians before its own body runs.
     [Fact]
     public void APlacementsRotation_LandsBeforeTheBody_AndABodyWriteWins()
     {
         Scene scene = SceneFixtures.RoomScene(
-            SceneFixtures.RoomWithoutTerrain(
-                new EntityPlacement(1, "turned", 0f, 0f, RotationDegrees: 90f),
-                new EntityPlacement(2, "upright", 0f, 0f, RotationDegrees: 90f)),
+            SceneFixtures.Room(
+                new SceneDocumentEntry("turned", 0f, 0f, RotationDegrees: 90f),
+                new SceneDocumentEntry("upright", 0f, 0f, RotationDegrees: 90f)),
             SceneFixtures.Registry(
                 ("turned", static spawn => new Turned(spawn)),
                 ("upright", static spawn => new Upright(spawn))));

@@ -1,49 +1,36 @@
 {
-  "formatVersion": 8,
   "entities": [
     {
       "id": 1,
-      "type": "fixture-entity",
-      "x": 0,
-      "y": 0
+      "type": "fixture-entity"
     },
     {
-      "id": 2,
       "type": "tile-map",
-      "x": 0,
-      "y": 0,
-      "properties": {
-        "tileSize": 1,
-        "width": 1,
-        "height": 1,
-        "texture": "Textures/TileSets/Cave_Wall.png",
-        "columns": 1,
-        "tileTypes": [
-          {
-            "name": "empty"
-          },
-          {
-            "name": "wall",
-            "cell": 0
-          }
-        ],
-        "tiles": [
-          1
-        ]
-      }
+      "tileSize": 1,
+      "width": 1,
+      "height": 1,
+      "texture": "Textures/TileSets/Cave_Wall.png",
+      "columns": 1,
+      "tileTypes": [
+        {
+          "name": "empty"
+        },
+        {
+          "name": "wall",
+          "cell": 0
+        }
+      ],
+      "tiles": [
+        1
+      ]
     },
     {
       "id": 3,
       "type": "beacon",
-      "x": 0,
-      "y": 0,
-      "properties": {
-        "route": "cave>vault",
-        "band": 3,
-        "charge": 3,
-        "anchor": 1
-      }
+      "route": "cave\u003Evault",
+      "band": 3,
+      "charge": 3,
+      "anchor": 1
     }
-  ],
-  "nextEntityId": 4
+  ]
 }

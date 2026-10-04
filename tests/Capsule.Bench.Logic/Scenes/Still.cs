@@ -1,5 +1,4 @@
 using System.Numerics;
-using Capsule.Bench.Logic.Cameras;
 using Capsule.Bench.Logic.UI;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -19,7 +18,6 @@ public sealed class Still : Scene
     public Still(SceneContent content)
         : base(content)
     {
-        Camera = new ParkedCamera();
         ClearColor = new ColorRgba(24, 28, 40);
 
         Add(new Caption(Anchor.TopLeft, new Vector2(8f, 8f), "Capsule bench 0123 AaBb"));

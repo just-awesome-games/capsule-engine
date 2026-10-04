@@ -14,7 +14,7 @@ public sealed class SceneDrawOrderTests
     public void ARuntimeEntityInALowerBand_DrawsUnderADocumentPlacedOne()
     {
         Scene scene = SceneFixtures.RoomScene(
-            SceneFixtures.RoomWithoutTerrain(new EntityPlacement(1, "prop", 0f, 0f, ZIndex: 10)),
+            SceneFixtures.Room(new SceneDocumentEntry("prop", 0f, 0f, ZIndex: 10)),
             SceneFixtures.Registry(("prop", Spawns(2))));
 
         Layered background = new() { ZIndex = -5 };
@@ -138,22 +138,6 @@ public sealed class SceneDrawOrderTests
         Assert.Equal([1], Order(second));
     }
 
-    [Fact]
-    public void AnAuthoredBand_LandsOnEveryComposedEntity()
-    {
-        Scene scene = SceneFixtures.RoomScene(
-            new SceneDocument(
-                [
-                    new TileMapPlacement(SceneFixtures.TerrainId, SceneFixtures.RoomGrid(), ZIndex: -20),
-                    new EntityPlacement(1, "prop", 0f, 0f, ZIndex: 7),
-                ],
-                SceneFixtures.TerrainId + 1),
-            SceneFixtures.Registry(("prop", spawn => new SceneFixtures.Placed(spawn))));
-
-        Assert.Equal(-20, Assert.IsType<TileMap>(scene.Entities[0]).ZIndex);
-        Assert.Equal(7, scene.Entities[1].ZIndex);
-    }
-
     // A constructor that sets no band takes the authored one, and one that sets its own keeps it.
     [Theory]
     [InlineData(null, 0, Banded.Band)]
@@ -162,9 +146,9 @@ public sealed class SceneDrawOrderTests
     public void AnAuthoredBand_IsTheConstructorsToKeepOrOverride(int? authored, int taken, int kept)
     {
         Scene scene = SceneFixtures.RoomScene(
-            SceneFixtures.RoomWithoutTerrain(
-                new EntityPlacement(1, "placed", 0f, 0f, ZIndex: authored),
-                new EntityPlacement(2, "banded", 0f, 0f, ZIndex: authored)),
+            SceneFixtures.Room(
+                new SceneDocumentEntry("placed", 0f, 0f, ZIndex: authored),
+                new SceneDocumentEntry("banded", 0f, 0f, ZIndex: authored)),
             SceneFixtures.Registry(
                 ("placed", spawn => new SceneFixtures.Placed(spawn)),
                 ("banded", spawn => new Banded(spawn))));

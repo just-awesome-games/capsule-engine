@@ -33,8 +33,8 @@ public sealed class TileTransformTests
             1,
             [
                 TileGrid.EmptyTile,
-                new TileType { Name = "slope", Layer = "solid", Shape = CollisionFixtures.SlopeUp },
-                new TileType { Name = "authored", Layer = "solid", Shape = Shape2D.Polygon(points) },
+                new TileType { Name = "slope", Layer = "solid", Shape = CollisionFixtures.SlopeUpPoints },
+                new TileType { Name = "authored", Layer = "solid", Shape = points },
             ],
             [0, 2]));
         Scene scene = new();

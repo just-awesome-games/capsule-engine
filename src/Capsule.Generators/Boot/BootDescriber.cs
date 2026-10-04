@@ -76,7 +76,7 @@ internal static class BootDescriber
     // The claim GeneratedFile.ClaimAttribute wrote, or null for an attribute of any other shape.
     private static RegistryClaimModel? Claim(AttributeData attribute) =>
         attribute.ConstructorArguments is { Length: 3 } arguments
-        && arguments[0].Value is int kind and ((int)RegistryClaimKind.Entity or (int)RegistryClaimKind.SceneDocument or (int)RegistryClaimKind.TileType)
+        && arguments[0].Value is int kind and ((int)RegistryClaimKind.Entity or (int)RegistryClaimKind.SceneDocument)
         && arguments[1].Value is string key
         && arguments[2].Value is INamedTypeSymbol declaringType
             ? new RegistryClaimModel((RegistryClaimKind)kind, key, declaringType.ToDisplayString())

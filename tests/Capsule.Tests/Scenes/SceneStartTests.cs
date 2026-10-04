@@ -34,9 +34,9 @@ public sealed class SceneStartTests
             ("placed", spawn => new SceneFixtures.Placed(spawn)));
 
         Scene scene = SceneFixtures.RoomScene(
-            SceneFixtures.RoomWithoutTerrain(
-                new EntityPlacement(1, "seeker", 0, 0),
-                new EntityPlacement(2, "placed", 16, 0)),
+            SceneFixtures.Room(
+                new SceneDocumentEntry("seeker", 0, 0),
+                new SceneDocumentEntry("placed", 16, 0)),
             registry);
 
         using SceneSimulation simulation = new(scene);

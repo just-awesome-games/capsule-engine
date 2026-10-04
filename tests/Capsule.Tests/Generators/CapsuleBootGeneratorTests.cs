@@ -132,10 +132,10 @@ public sealed class CapsuleBootGeneratorTests
             }
             """;
         const string document = """
-            {"formatVersion": 8, "camera": "game-camera", "properties": {"floor": 2}, "entities": [
-              {"id": 1, "type": "tile-map", "x": 0, "y": 0, "properties": {"tileSize": 16, "width": 1, "height": 1,
-                "tileTypes": [{"name": "empty"}, {"name": "wall", "layer": "solid", "type": "brick"}], "tiles": [1]}}
-            ], "nextEntityId": 2}
+            {"camera": {"type": "game-camera"}, "floor": 2, "entities": [
+              {"id": 1, "type": "tile-map", "tileSize": 16, "width": 1, "height": 1,
+                "tileTypes": [{"name": "empty"}, {"name": "wall", "layer": "solid", "type": "brick"}], "tiles": [1]}
+            ]}
             """;
 
         using GeneratorHarness.ShellContext loaded = GeneratorHarness.LoadedShell(ShellSource, logic, ("scenes/wall.scene.json", document));
@@ -219,10 +219,6 @@ public sealed class CapsuleBootGeneratorTests
         "namespace First; [Capsule.Scenes.SceneDocument(\"opening\")] public sealed class FirstOpening(Capsule.Scenes.SceneContent content) : Capsule.Scenes.Scene(content);",
         "namespace Second; [Capsule.Scenes.SceneDocument(\"opening\")] public sealed class SecondOpening(Capsule.Scenes.SceneContent content) : Capsule.Scenes.Scene(content);",
         "CAP005")]
-    [InlineData(
-        "namespace Game; public sealed class Brick : Capsule.Tiles.TileType;",
-        "namespace Game; public sealed class Brick : Capsule.Tiles.TileType;",
-        "CAP031")]
     public void OneKeyClaimedByTwoLogicAssemblies_FailsTheShellBuild(string first, string second, string id)
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileShellWithLogicAssemblies(

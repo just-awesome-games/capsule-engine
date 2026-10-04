@@ -18,13 +18,13 @@ public sealed class AssetPipelineTests
     public void ARunWithADefectInTwoKinds_ReportsBoth()
     {
         using ToolWorkspace workspace = new();
-        workspace.Write("Assets/Scenes/broken.scene.json", """{ "formatVersion": 8, "entities": [ { "id": 1, "type": "tile-map", "x": 0, "y": 0 } ], "nextEntityId": 2 }""");
+        workspace.Write("Assets/Scenes/broken.scene.json", """{ "entities": [ { "id": 1, "x": 0, "y": 0 } ] }""");
         workspace.Write("Assets/Audio/hum.wav", "not a wav");
 
         string errors = workspace.Fail();
 
         Assert.Contains("Assets/Scenes/broken.scene.json", errors, StringComparison.Ordinal);
-        Assert.Contains("declares no properties", errors, StringComparison.Ordinal);
+        Assert.Contains("has no type", errors, StringComparison.Ordinal);
         Assert.Contains("Assets/Audio/hum.wav", errors, StringComparison.Ordinal);
     }
 
@@ -76,7 +76,7 @@ public sealed class AssetPipelineTests
         workspace.Write("Assets/hero.png", string.Empty);
         workspace.Write("Assets/Dev/.capsuleignore", string.Empty);
         workspace.Write("Assets/Dev/scratch.png", string.Empty);
-        workspace.Write("Assets/Dev/room.note", """{"formatVersion": 8, "entities": [], "nextEntityId": 1}""");
+        workspace.Write("Assets/Dev/room.note", """{"entities": []}""");
         workspace.Configure = static build => build.AddImporter(new NoteImporter());
 
         workspace.Succeed(shipping ? ["--shipping"] : []);
@@ -92,12 +92,12 @@ public sealed class AssetPipelineTests
     {
         using ToolWorkspace workspace = new();
         workspace.Write("Assets/Textures/hero.png", string.Empty);
-        workspace.Write("Assets/Scenes/room.scene.json", """{"formatVersion": 8, "entities": [], "nextEntityId": 1}""");
+        workspace.Write("Assets/Scenes/room.scene.json", """{"entities": []}""");
         workspace.Succeed();
         string[] outputs = ["CapsuleAssets.g.cs", "assets/textures/hero.png", "assets/scenes/room.scene.json.gz"];
         DateTime[] written = [.. outputs.Select(static output => File.GetLastWriteTimeUtc(Path.Combine(ToolWorkspace.Out, output)))];
 
-        workspace.Write("Assets/Scenes/room.scene.json", """{"formatVersion": 8, "entities": [], "nextEntityId": 1}""");
+        workspace.Write("Assets/Scenes/room.scene.json", """{"entities": []}""");
         workspace.Succeed();
 
         Assert.Equal(written, outputs.Select(static output => File.GetLastWriteTimeUtc(Path.Combine(ToolWorkspace.Out, output))));
@@ -139,7 +139,7 @@ public sealed class AssetPipelineTests
     [Theory]
     [InlineData("Textures/hero.png", "")]
     [InlineData("Sprites/prop.sheet.json", """{ "formatVersion": 1, "texture": "sprites/p.png", "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ] }""")]
-    [InlineData("Scenes/room.scene.json", """{"formatVersion": 8, "entities": [], "nextEntityId": 1}""")]
+    [InlineData("Scenes/room.scene.json", """{"entities": []}""")]
     public void AnImportedFile_BuildsAsTheSameFileAuthored(string below, string text)
     {
         (string[] Shipped, string Generated) authored = BuiltFrom("Assets/" + below, text, output: null);
@@ -156,7 +156,7 @@ public sealed class AssetPipelineTests
     public void ARunAcrossCores_LeavesAndReportsExactlyWhatARunOnOneCoreDoes()
     {
         using ToolWorkspace workspace = new();
-        const string Scene = """{"formatVersion": 8, "entities": [], "nextEntityId": 1}""";
+        const string Scene = """{"entities": []}""";
         for (int i = 0; i < 8; i++)
         {
             workspace.WritePng($"Assets/Textures/t{i}.png", 4, 4, seed: i + 1);

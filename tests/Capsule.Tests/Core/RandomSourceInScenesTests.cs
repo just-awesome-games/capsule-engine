@@ -67,7 +67,7 @@ public sealed class RandomSourceInScenesTests
         RandomSource run = new(0x5EED);
         SceneFixtures.SpawnScene scene = new(
             SceneFixtures.Registry(("prober", static spawn => new SpawnedProber(spawn))),
-            new EntityPlacement(1, "prober", 0f, 0f));
+            new SceneDocumentEntry("prober", 0f, 0f));
 
         SpawnedProber prober = Assert.IsType<SpawnedProber>(scene.Entities[0]);
 

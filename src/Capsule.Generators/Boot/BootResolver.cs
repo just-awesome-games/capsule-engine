@@ -47,15 +47,18 @@ internal static class BootResolver
                     continue;
                 }
 
-                diagnostics.Add(claim.Kind switch
+                // Every logic assembly claims the engine's tile map for the same class, which is no conflict.
+                if (previous.DeclaringType == claim.DeclaringType)
                 {
-                    RegistryClaimKind.Entity => Diagnostic.Create(
-                        Diagnostics.DuplicateSpawnType, Location.None, previous.DeclaringType, claim.DeclaringType, claim.Key),
-                    RegistryClaimKind.SceneDocument => Diagnostic.Create(
-                        Diagnostics.DuplicateSceneDocumentName, Location.None, previous.DeclaringType, claim.DeclaringType, claim.Key),
-                    _ => Diagnostic.Create(
-                        Diagnostics.DuplicateClaimedKey, Location.None, previous.DeclaringType, claim.DeclaringType, claim.Key, "tile type"),
-                });
+                    continue;
+                }
+
+                diagnostics.Add(Diagnostic.Create(
+                    claim.Kind == RegistryClaimKind.Entity ? Diagnostics.DuplicateSpawnType : Diagnostics.DuplicateSceneDocumentName,
+                    Location.None,
+                    previous.DeclaringType,
+                    claim.DeclaringType,
+                    claim.Key));
             }
         }
     }

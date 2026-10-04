@@ -10,10 +10,13 @@ internal static class ShippedSceneDocument
 {
     internal const string Extension = ".scene.json.gz";
 
+    // The folder of shipped content every document sits under, by its key.
+    internal const string Folder = "assets";
+
     // The level trades build time for size. The reader inflates every level alike.
     internal static void Write(SceneDocument document, string path, CompressionLevel level)
     {
-        byte[] json = Encoding.UTF8.GetBytes(SceneDocumentFile.ToJson(document, compact: true));
+        byte[] json = Encoding.UTF8.GetBytes(SceneDocumentFile.ToJson(document));
 
         using FileStream file = File.Create(path);
         using GZipStream compressed = new(file, level);

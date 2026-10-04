@@ -5,8 +5,8 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Generators;
 
-// Keys every scene, camera and tile type class, matches each shipped document to the class composing it, its
-// baseScene and its camera, and reports each refusal.
+// Keys every scene class, matches each shipped document to the class composing it and its baseScene,
+// and reports each refusal.
 internal static class SceneResolver
 {
     internal static ScenePlan Resolve(SceneInputs inputs)
@@ -49,15 +49,10 @@ internal static class SceneResolver
 
         HashSet<string> claimed = new(registered.Select(static entry => entry.DocumentName).OfType<string>(), StringComparer.Ordinal);
         Dictionary<string, SceneModel> baseScenes = KeyedBaseScenes(diagnostics, inputs.Models.Items, inputs.RootNamespace);
-        Dictionary<string, CameraModel> cameras = Keyed(diagnostics, inputs.Cameras.Items, inputs.RootNamespace, "camera");
-        Dictionary<string, TileTypeModel> tileTypes = Keyed(diagnostics, inputs.TileTypes.Items, inputs.RootNamespace, "tile type");
 
-        Dictionary<string, string?> cameraOf = new(StringComparer.Ordinal);
         List<(string DocumentName, GeneratedBase? Base)> unclaimed = [];
         foreach (SceneDocumentModel document in inputs.Documents.Items)
         {
-            cameraOf[document.Key] = ResolveCamera(diagnostics, document, cameras);
-
             if (!claimed.Contains(document.Key))
             {
                 unclaimed.Add((document.Key, ResolveBase(diagnostics, document, baseScenes)));
@@ -66,33 +61,35 @@ internal static class SceneResolver
 
         unclaimed.Sort(static (left, right) => string.CompareOrdinal(left.DocumentName, right.DocumentName));
 
-        // A class no document names gets an applier too, so a test composing it by class sets its members.
+        // A class no document names gets an applier too, so a test composing it by class sets its members. The
+        // engine's plain Scene gets one for every class that adds no member to it.
         IEnumerable<SceneModel> applied = inputs.Models.Items.Where(static model => model.Applied)
-            .Concat(registered.Where(static entry => entry.DocumentName is not null).Select(static entry => entry.Model))
-            .Concat(unclaimed.Where(static entry => entry.Base is not null).Select(static entry => entry.Base!.Value.Base))
-            .Where(static model => model.Authored.Any())
+            .Concat(inputs.EngineScene is { } engine ? [engine] : [])
             .GroupBy(static model => model.QualifiedName, StringComparer.Ordinal)
             .Select(static models => models.First())
             .OrderBy(static model => model.QualifiedName, StringComparer.Ordinal);
 
         ScenePlan plan = new(
             Generates: true,
-            new([.. registered.Select(entry => new RegisteredScene(entry.DocumentName, entry.Model, CameraOf(entry.DocumentName)))]),
-            new([.. unclaimed.Select(entry => new DocumentOnlyScene(entry.DocumentName, entry.Base, CameraOf(entry.DocumentName)))]),
+            new([.. registered.Select(static entry => new RegisteredScene(entry.DocumentName, entry.Model))]),
+            new([.. unclaimed.Select(static entry => new DocumentOnlyScene(entry.DocumentName, entry.Base))]),
             new([.. applied]),
-            new([.. tileTypes.OrderBy(static entry => entry.Key, StringComparer.Ordinal).Select(static entry => new KeyedTileType(entry.Key, entry.Value))]),
+            default,
             default,
             new([.. diagnostics]));
+        EquatableArray<KeyedObject> objects = ObjectRenderer.Keyed(
+            plan.Applied.Items.SelectMany(static model => model.Objects.Items),
+            inputs.RootNamespace,
+            diagnostics);
 
         return plan with
         {
+            Objects = objects,
             Lookups = EntityResolver.Lookups(
-                plan.Applied.Items.SelectMany(static model => model.Authored).Concat(plan.Composed.SelectMany(static entry => entry.Model.Authored)),
+                plan.Applied.Items.SelectMany(static model => model.Authored).Concat(ObjectRenderer.Authored(objects)),
                 new AssetTable(inputs.Assets.Items, inputs.Documents.Items)),
+            Diagnostics = new([.. diagnostics]),
         };
-
-        string? CameraOf(string? documentName) =>
-            documentName is not null && cameraOf.TryGetValue(documentName, out string? camera) ? camera : null;
     }
 
     private static DiagnosticDescriptor? Reported(SceneFault fault) => fault switch
@@ -196,65 +193,6 @@ internal static class SceneResolver
         }
 
         return keyed;
-    }
-
-    // Every camera or tile type the assembly declares, by the key its namespace and name claim. The first class
-    // keeps a key and a second is CAP031. A partial class's second declaration is the same class.
-    private static Dictionary<string, TModel> Keyed<TModel>(
-        List<Diagnostic> diagnostics, ImmutableArray<TModel> models, string rootNamespace, string kind)
-        where TModel : IClaimingClass
-    {
-        List<TModel> ordered = new(models);
-        ordered.Sort(static (left, right) =>
-            DeclarationOrder.Compare(left.QualifiedName, left.At, right.QualifiedName, right.At));
-
-        Dictionary<string, TModel> keyed = new(StringComparer.Ordinal);
-        foreach (TModel model in ordered)
-        {
-            string key = TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
-            if (keyed.TryGetValue(key, out TModel claimed))
-            {
-                if (claimed.QualifiedName != model.QualifiedName)
-                {
-                    diagnostics.Add(Diagnostic.Create(
-                        Diagnostics.DuplicateClaimedKey, model.At.Location(), claimed.DisplayName, model.DisplayName, key, kind));
-                }
-
-                continue;
-            }
-
-            keyed.Add(key, model);
-        }
-
-        return keyed;
-    }
-
-    // The camera class a document's camera key names, or null when it names none or one that cannot serve.
-    private static string? ResolveCamera(List<Diagnostic> diagnostics, SceneDocumentModel document, Dictionary<string, CameraModel> cameras)
-    {
-        if (document.Camera is not { } key)
-        {
-            return null;
-        }
-
-        if (!cameras.TryGetValue(key, out CameraModel model))
-        {
-            diagnostics.Add(Diagnostic.Create(
-                Diagnostics.UnclaimedSceneKey, Location.None, document.Key, "camera", key));
-
-            return null;
-        }
-
-        if (!model.Valid)
-        {
-            diagnostics.Add(Diagnostic.Create(
-                Diagnostics.InvalidClaimingClass, model.At.Location(), model.DisplayName, "camera", key,
-                "is not a concrete Capsule.Scenes.Camera with an accessible parameterless constructor"));
-
-            return null;
-        }
-
-        return model.QualifiedName;
     }
 
     private static GeneratedBase? ResolveBase(

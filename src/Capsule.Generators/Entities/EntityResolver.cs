@@ -14,7 +14,7 @@ internal static class EntityResolver
             return default;
         }
 
-        ImmutableArray<EntityModel> models = inputs.Models.Items;
+        ImmutableArray<EntityModel> models = inputs.EngineTileMap is { } engine ? inputs.Models.Items.Add(engine) : inputs.Models.Items;
         List<Diagnostic> diagnostics = [];
         List<RegisteredEntity> sound = [];
         RegistryPass.ValidateAndOrder(
@@ -56,14 +56,15 @@ internal static class EntityResolver
             .Distinct(StringComparer.Ordinal)
             .OrderBy(static key => key, StringComparer.Ordinal)];
 
-        IEnumerable<PropertyModel> authored = registered
-            .Where(static entry => !entry.Model.CodeOnly)
-            .SelectMany(static entry => entry.Model.Authored);
+        List<EntityModel> placed = [.. registered.Where(static entry => !entry.Model.CodeOnly).Select(static entry => entry.Model)];
+        EquatableArray<KeyedObject> objects = ObjectRenderer.Keyed(placed.SelectMany(static model => model.Objects.Items), inputs.RootNamespace, diagnostics);
+        IEnumerable<PropertyModel> authored = placed.SelectMany(static model => model.Authored).Concat(ObjectRenderer.Authored(objects));
 
         return new EntityPlan(
             Generates: true,
             new([.. registered]),
             new(claimed),
+            objects,
             Lookups(authored, new AssetTable(inputs.Assets.Items, inputs.Documents.Items)),
             new([.. diagnostics]));
     }

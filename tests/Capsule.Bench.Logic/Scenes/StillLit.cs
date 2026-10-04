@@ -1,5 +1,4 @@
 using System.Numerics;
-using Capsule.Bench.Logic.Cameras;
 using Capsule.Bench.Logic.UI;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -18,7 +17,6 @@ public sealed class StillLit : Scene
     public StillLit(SceneContent content)
         : base(content)
     {
-        Camera = new ParkedCamera();
         ClearColor = new ColorRgba(24, 28, 40);
         Ambient = new ColorRgba(64, 68, 96);
 

@@ -5,6 +5,7 @@ using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
+using Capsule.Tiles;
 
 namespace Capsule.Tests.Scenes;
 
@@ -34,7 +35,8 @@ public sealed class SceneAssetTests
     [Fact]
     public void ActualTilesSpritesAndCurrentAnimationFrames_AreCollected()
     {
-        Scene scene = new(SceneFixtures.Content(SceneFixtures.Room(), SceneFixtures.Registry()));
+        Scene scene = new();
+        scene.Add(new TileMap(SceneFixtures.RoomGrid()));
         SpriteRenderer animated = new(default);
         SpriteAnimator animator = new(animated);
         animator.Play(new SpriteClip(
@@ -66,7 +68,7 @@ public sealed class SceneAssetTests
     {
         EntityRegistry registry = new(
             [new EntityRegistration("unused", static spawn => new TestEntity(new SpriteRenderer(Frame(Unused))))]);
-        Scene scene = new(SceneFixtures.Content(SceneFixtures.RoomWithoutTerrain(), registry));
+        Scene scene = new(SceneFixtures.Content(SceneFixtures.Room(), registry));
 
         Assert.Empty(scene.CollectAssetPreloads().Textures);
     }

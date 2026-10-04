@@ -8,8 +8,8 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
 
-// A document's own properties set the members its composing scene class marks [Authorable]. They land once every
-// entry is constructed and before the derived constructor body runs, and the build checks them like an entry's.
+// A document's own members set those its composing scene class marks [Authorable]. They land once every entry is
+// constructed and before the derived constructor body runs, and the load checks them like an entry's.
 public sealed class SceneAuthorableTests
 {
     private const string Hall = "scenes/hall.scene.json";
@@ -117,21 +117,14 @@ public sealed class SceneAuthorableTests
 
     // The engine's Scene declares no members, so a document no class claims authors none.
     [Theory]
-    [InlineData(Hall, """{"lift": 1}""", "CAP040", "the document omits 'floor', which 'Game.Hall' requires. Add \"floor\" to its properties")]
-    [InlineData(Hall, """{"floor": 3, "lift": 1, "music": 2}""", "CAP036", "the document sets 'music', which 'Game.Hall' does not declare")]
-    [InlineData(Hall, """{"floor": 3, "lift": 1, "bounds": [0, 0, 320]}""", "CAP038", "the document sets 'bounds' to an array, but 'Game.Hall' takes Rect. Write [left, top, right, bottom]")]
-    [InlineData("scenes/plain.scene.json", """{"music": 2}""", "CAP036", "the document sets 'music', which 'Capsule.Scenes.Scene' does not declare. Its authorable members are: none")]
-    public void ADocumentItsClassRefuses_FailsTheBuildAtTheStartOfItsFile(string path, string properties, string id, string fix)
+    [InlineData(Hall, """{"lift": 1}""", "the scene document omits 'floor', which its class requires. Add \"floor\" to the document.")]
+    [InlineData(Hall, """{"floor": 3, "lift": 1, "music": 2}""", "the scene document sets 'music', which no authorable member takes. Its authorable members are: camera, size, clearColor, ambient, sampling, floor, title, bounds, lift.")]
+    [InlineData("scenes/plain.scene.json", """{"music": 2}""", "the scene document sets 'music', which no authorable member takes. Its authorable members are: camera, size, clearColor, ambient, sampling.")]
+    public void ADocumentItsClassRefuses_FailsTheLoad(string path, string members, string fix)
     {
-        string document = Document(properties);
-        (ImmutableArray<Diagnostic> diagnostics, _) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (path, document));
+        SceneDocumentFormatException refused = Assert.Throws<SceneDocumentFormatException>(() => Composed(members, path));
 
-        Diagnostic refused = Assert.Single(GeneratorHarness.Errors(diagnostics));
-        Assert.Equal(id, refused.Id);
-        Assert.Contains(fix, refused.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
-
-        FileLinePositionSpan at = refused.Location.GetLineSpan();
-        Assert.Equal((path, 0, 0), (at.Path, at.StartLinePosition.Line, at.StartLinePosition.Character));
+        Assert.Contains(fix, refused.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -144,15 +137,6 @@ public sealed class SceneAuthorableTests
 
         Assert.Same(Assert.Single(stage.Entities.ToArray()), Member(stage, "Start"));
         Assert.Equal(3, Member(stage, "Floor"));
-    }
-
-    [Fact]
-    public void ContentForAClassDeclaringNoAuthorableMember_RefusesADocumentAuthoringProperties()
-    {
-        SceneDocumentFormatException refused = Assert.Throws<SceneDocumentFormatException>(
-            () => Content(Loaded(Rooms), "Game.Quiet", """{"start": 1}"""));
-
-        Assert.Contains("'Game.Quiet' declares no authorable member and inherits none", refused.Message, StringComparison.Ordinal);
     }
 
     private static Assembly Loaded(string source)
@@ -171,16 +155,16 @@ public sealed class SceneAuthorableTests
             .MakeGenericMethod(game.GetType(sceneType)!)
             .Invoke(Registry(game), BindingFlags.DoNotWrapExceptions, null, [SceneDocumentFile.Parse(Document(properties))], null)!;
 
-    private static string Document(string properties) =>
-        "{\"formatVersion\": 8, \"properties\": " + properties + ", \"entities\": [{\"id\": 1, \"type\": \"lift\", \"x\": 0, \"y\": 0}], \"nextEntityId\": 2}";
+    // The document's members, written as one object, beside its one entry.
+    private static string Document(string members) =>
+        "{" + members.Trim()[1..^1] + ", \"entities\": [{\"id\": 1, \"type\": \"lift\", \"x\": 0, \"y\": 0}]}";
 
-    // Compiled against the document, so the build's check passes it before the scene is composed.
-    private static Scene Composed(string properties)
+    private static Scene Composed(string members, string path = Hall)
     {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (Hall, Document(properties)));
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (path, Document(members)));
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
-        return Registry(GeneratorHarness.Loaded(compiled)).Create(new SceneKey("scenes/hall"), SceneDocumentFile.Parse(Document(properties)));
+        return Registry(GeneratorHarness.Loaded(compiled)).Create(new SceneKey(path[..^".scene.json".Length]), SceneDocumentFile.Parse(Document(members)));
     }
 
     private static object? Member(Scene scene, string name) => scene.GetType().GetProperty(name)!.GetValue(scene);

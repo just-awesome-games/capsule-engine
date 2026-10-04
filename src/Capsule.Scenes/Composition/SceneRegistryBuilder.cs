@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Reflection;
 using Capsule.Scenes.Spawning;
 
 namespace Capsule.Scenes;
@@ -12,16 +13,19 @@ namespace Capsule.Scenes;
 public sealed class SceneRegistryBuilder
 {
     private readonly List<EntityRegistration> _entities = [];
+    private readonly Dictionary<Assembly, EntityRegistration[]> _owners = [];
     private readonly List<SceneRegistration> _scenes = [];
-    private readonly List<TileTypeComposer> _tileTypes = [];
     private readonly List<KeyValuePair<Type, SceneApplier>> _appliers = [];
 
-    /// <summary>Adds one assembly's entity registrations.</summary>
+    /// <summary>Adds the entity registrations of <paramref name="owner"/>, whose scene classes compose with its tile map.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public void AddEntities(IEnumerable<EntityRegistration> entities)
+    public void AddEntities(Assembly owner, IEnumerable<EntityRegistration> entities)
     {
+        ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(entities);
-        _entities.AddRange(entities);
+        EntityRegistration[] registered = [.. entities];
+        _owners[owner] = registered;
+        _entities.AddRange(registered);
     }
 
     /// <summary>Adds one assembly's scene registrations.</summary>
@@ -40,45 +44,16 @@ public sealed class SceneRegistryBuilder
         _appliers.AddRange(appliers);
     }
 
-    /// <summary>Adds one assembly's tile type composer. A null composer, from an assembly declaring no tile type, adds nothing.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public void AddTileTypes(TileTypeComposer? tileTypes)
-    {
-        if (tileTypes is not null)
-        {
-            _tileTypes.Add(tileTypes);
-        }
-    }
-
     /// <summary>The registry over everything added.</summary>
     /// <exception cref="ArgumentException">Two assemblies register the same spawn type, scene class, scene document or applier.</exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public SceneRegistry Build() => new(new EntityRegistry(_entities), _scenes, ComposeTileType(), _appliers);
-
-    // A palette entry's type is claimed by at most one assembly, so the first composer returning a tile builds it.
-    private TileTypeComposer? ComposeTileType()
+    public SceneRegistry Build()
     {
-        switch (_tileTypes.Count)
+        EntityRegistry entities = new(_entities);
+
+        return new(entities, _scenes, _appliers)
         {
-            case 0:
-                return null;
-            case 1:
-                return _tileTypes[0];
-        }
-
-        TileTypeComposer[] composers = [.. _tileTypes];
-
-        return (type, tile, properties) =>
-        {
-            foreach (TileTypeComposer compose in composers)
-            {
-                if (compose(type, tile, properties) is { } composed)
-                {
-                    return composed;
-                }
-            }
-
-            return null;
+            Owned = _owners.ToDictionary(static owner => owner.Key, owner => entities.OwnedBy(owner.Value)),
         };
     }
 }

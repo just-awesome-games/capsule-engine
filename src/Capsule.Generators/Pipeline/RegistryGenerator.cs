@@ -38,12 +38,17 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         IncrementalValueProvider<EquatableArray<EntityModel>> entities = Collected(candidates, static candidate => candidate.Entity);
         IncrementalValueProvider<EquatableArray<SceneModel>> scenes = Collected(candidates, static candidate => candidate.Scene);
         IncrementalValueProvider<EquatableArray<InputDriverModel>> drivers = Collected(candidates, static candidate => candidate.Driver);
-        IncrementalValueProvider<EquatableArray<CameraModel>> cameras = Collected(candidates, static candidate => candidate.Camera);
-        IncrementalValueProvider<EquatableArray<TileTypeModel>> tileTypes = Collected(candidates, static candidate => candidate.TileType);
+
+        // The engine's own Scene, whose members every document's top-level keys may set, and its tile map, which
+        // every document may place.
+        IncrementalValueProvider<SceneModel?> engineScene = context.CompilationProvider
+            .Select(static (compilation, _) => SceneDescriber.DescribeEngineScene(compilation));
+        IncrementalValueProvider<EntityModel?> engineTileMap = context.CompilationProvider
+            .Select(static (compilation, _) => EntityDescriber.DescribeEngine(compilation, MetadataNames.TileMap));
 
         // What the build declares on CapsuleAssets: every scene document it shipped, whether or not a class
-        // claims it, with the baseScene, camera and game entries it authors, resolved once by the build's own
-        // parser. And every texture and sound, which a placement's asset member names by key.
+        // claims it, with the baseScene it names, read once by the build's own parser. And every
+        // texture and sound, which a placement's asset member names by key.
         IncrementalValueProvider<EquatableArray<SceneDocumentModel>> documents = Collected(Marked(
             context, MetadataNames.SceneDocumentKeyAttribute, static marked => SceneDescriber.DescribeDocument(marked)));
         IncrementalValueProvider<EquatableArray<AssetModel>> assets = Collected(Marked(
@@ -74,21 +79,21 @@ public sealed class RegistryGenerator : IIncrementalGenerator
 
         // The plans each file is rendered from.
         IncrementalValueProvider<EntityPlan> entityPlan = entities
-            .Combine(isLogicAssembly).Combine(rootNamespace).Combine(documents).Combine(assets)
+            .Combine(engineTileMap).Combine(isLogicAssembly).Combine(rootNamespace).Combine(documents).Combine(assets)
             .Select(static (input, _) =>
             {
-                var ((((models, logic), root), shipped), declared) = input;
+                var (((((models, engine), logic), root), shipped), declared) = input;
 
-                return EntityResolver.Resolve(new EntityInputs(models, logic, root, shipped, declared));
+                return EntityResolver.Resolve(new EntityInputs(models, engine, logic, root, shipped, declared));
             })
             .WithTrackingName("EntityPlan");
         IncrementalValueProvider<ScenePlan> scenePlan = scenes
-            .Combine(isLogicAssembly).Combine(rootNamespace).Combine(documents).Combine(cameras).Combine(tileTypes).Combine(assets)
+            .Combine(engineScene).Combine(isLogicAssembly).Combine(rootNamespace).Combine(documents).Combine(assets)
             .Select(static (input, _) =>
             {
-                var ((((((models, logic), root), shipped), declared), tiles), assetModels) = input;
+                var (((((models, engine), logic), root), shipped), assetModels) = input;
 
-                return SceneResolver.Resolve(new SceneInputs(models, logic, root, shipped, declared, tiles, assetModels));
+                return SceneResolver.Resolve(new SceneInputs(models, engine, logic, root, shipped, assetModels));
             })
             .WithTrackingName("ScenePlan");
         IncrementalValueProvider<InputDriverPlan> driverPlan = drivers
@@ -103,10 +108,6 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(authorableFaults, AuthorableCheck.Report);
         context.RegisterSourceOutput(writableAuthorableFields, AuthorableSuppressionRenderer.Emit);
         context.RegisterSourceOutput(entityPlan, EntityRenderer.Emit);
-        context.RegisterSourceOutput(
-            entityPlan.Combine(scenePlan).Combine(documents).Combine(assets)
-                .Select(static (input, _) => new PlacementInputs(input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right)),
-            PlacementCheck.Run);
         context.RegisterSourceOutput(scenePlan.Combine(providerName), SceneRenderer.Emit);
         context.RegisterSourceOutput(scenePlan.Combine(documents), DocumentClaimCheck.Run);
         context.RegisterSourceOutput(driverPlan.Combine(isLogicAssembly), InputDriverRenderer.Emit);
@@ -136,9 +137,7 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         return new RegistryCandidate(
             EntityDescriber.Describe(type, declaration, context.SemanticModel),
             SceneDescriber.Describe(type, declaration, compilation),
-            InputDriverDescriber.Describe(type, declaration, compilation),
-            SceneDescriber.DescribeCamera(type, declaration, compilation),
-            SceneDescriber.DescribeTileType(type, declaration, compilation));
+            InputDriverDescriber.Describe(type, declaration, compilation));
     }
 
     // Keys are measured against the declared root namespace, or the assembly name when the project

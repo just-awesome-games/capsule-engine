@@ -198,14 +198,14 @@ internal static class Program
             .WithoutLogging()
             .RunHeadless<FixtureScene>(new InputScript().Wait(IdleSteps).Tap(Key.Escape).Build());
 
-    // Assets/Textures/TileSets/Cave_Wall.png is spelled one way and keyed another, and the document
-    // names it under the authored spelling: this is where the whole key path is proved end to end.
+    // Assets/Textures/TileSets/Cave_Wall.png is spelled one way and keyed another. The document names it
+    // under the authored spelling, and the run composing it resolves the key: the whole key path is proved here.
     private static bool ContentShipped()
     {
         using StreamReader inflated = new(new GZipStream(File.OpenRead(Path.Combine(AppContext.BaseDirectory, NativeScenePath)), CompressionMode.Decompress));
         SceneDocument fixture = SceneDocumentFile.Parse(inflated.ReadToEnd());
 
-        return fixture.Source is { Tool: "native" }
+        return fixture.Entries.Length > 0
             && Shipped(CapsuleAssets.Textures.PixelTexture)
             && Shipped("fonts/menu.png")
 
@@ -213,7 +213,7 @@ internal static class Program
             && !Shipped("fonts/menu.fnt")
             && Shipped(CapsuleAssets.Textures.TileSets.CaveWallTexture)
             && CapsuleAssets.Textures.TileSets.CaveWallTexture.Name == "textures/tile-sets/cave-wall"
-            && fixture.Entries[1].TileMap?.Grid.Texture?.Name == "textures/tile-sets/cave-wall";
+            && fixture.Entries[1].Properties?.GetProperty("texture").GetString() == "Textures/TileSets/Cave_Wall.png";
     }
 
     private static bool Shipped(TextureHandle texture) => Shipped(texture.Name + texture.Extension);

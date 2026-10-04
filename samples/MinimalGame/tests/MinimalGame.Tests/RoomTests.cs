@@ -200,19 +200,27 @@ public sealed class RoomTests
         const int High = 12;
         int[] tiles = new int[Wide * High];
         Array.Fill(tiles, 1, (High - 1) * Wide, Wide);
-        TileGrid floor = new(16, Wide, High, [TileGrid.EmptyTile, new TileType { Name = "ground", Layer = CollisionLayers.Solid }], tiles);
+        SceneDocumentEntry floor = new(
+            "tile-map",
+            Properties: JsonSerializer.SerializeToElement(new
+            {
+                tileSize = 16,
+                width = Wide,
+                height = High,
+                tileTypes = new object[] { new { name = "empty" }, new { name = "ground", layer = CollisionLayers.Solid } },
+                tiles,
+                collider = true,
+            }));
 
-        EntityPlacement Zone(int id, Rect area) => new(
-            id,
+        SceneDocumentEntry Zone(Rect area) => new(
             "camera-zone",
             area.Left,
             area.Top,
             Properties: JsonSerializer.SerializeToElement(new { size = new[] { area.Size.X, area.Size.Y } }));
 
         SceneDocument document = new(
-            [new TileMapPlacement(1, floor, HasCollider: true), new EntityPlacement(2, "player", 32f, RoomFixture.FloorTop - 8f), Zone(3, zoneA), Zone(4, zoneB)],
-            nextEntityId: 5,
-            settings: new SceneSettings { Properties = JsonSerializer.SerializeToElement(new { music = "audio/music/room.ogg" }) });
+            [floor, new SceneDocumentEntry("player", 32f, RoomFixture.FloorTop - 8f), Zone(zoneA), Zone(zoneB)],
+            JsonSerializer.SerializeToElement(new { camera = new { type = "game-camera" }, music = "audio/music/room.ogg" }));
 
         Run run = new();
         GameBoot.Start(run);

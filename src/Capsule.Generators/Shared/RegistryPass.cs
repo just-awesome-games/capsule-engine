@@ -80,4 +80,38 @@ internal static class RegistryPass
 
         return registered;
     }
+
+    /// <summary>
+    /// Every class by the key its namespace and name claim, with no attribute to override it: a subclass a member
+    /// object's type key names. The first by <see cref="DeclarationOrder"/> keeps a key and a
+    /// second is CAP031. A partial class's second declaration is the same class.
+    /// </summary>
+    internal static Dictionary<string, TModel> Keyed<TModel>(
+        List<Diagnostic> diagnostics, IEnumerable<TModel> models, string rootNamespace, string kind)
+        where TModel : IClaimingClass
+    {
+        List<TModel> ordered = new(models);
+        ordered.Sort(static (left, right) =>
+            DeclarationOrder.Compare(left.QualifiedName, left.At, right.QualifiedName, right.At));
+
+        Dictionary<string, TModel> keyed = new(StringComparer.Ordinal);
+        foreach (TModel model in ordered)
+        {
+            string key = TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
+            if (keyed.TryGetValue(key, out TModel claimed))
+            {
+                if (claimed.QualifiedName != model.QualifiedName)
+                {
+                    diagnostics.Add(Diagnostic.Create(
+                        Diagnostics.DuplicateClaimedKey, model.At.Location(), claimed.DisplayName, model.DisplayName, key, kind));
+                }
+
+                continue;
+            }
+
+            keyed.Add(key, model);
+        }
+
+        return keyed;
+    }
 }

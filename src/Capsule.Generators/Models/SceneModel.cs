@@ -25,7 +25,8 @@ internal enum SceneFault
 /// <param name="DerivableContentConstructors">Constructors taking <c>SceneContent</c> a derived type in this assembly can call.</param>
 /// <param name="AccessibleType">Whether the class itself is reachable from generated code.</param>
 /// <param name="At">Where a fault about this model is reported.</param>
-/// <param name="Properties">What a document's own <c>properties</c> keys may name, as <see cref="PropertySchema.Of"/> finds it.</param>
+/// <param name="Properties">What a document's top-level keys may name, as <see cref="PropertySchema.Of"/> finds it.</param>
+/// <param name="Objects">Every class a member's JSON object fills or constructs, as <see cref="PropertySchema.WithObjects"/> finds it.</param>
 /// <param name="ContentModifier">How the content constructor takes its content: empty, <c>in </c> or <c>ref readonly </c>.</param>
 internal readonly record struct SceneModel(
     string QualifiedName,
@@ -42,13 +43,23 @@ internal readonly record struct SceneModel(
     bool AccessibleType,
     DeclaredAt At,
     EquatableArray<PropertyModel> Properties,
+    EquatableArray<ObjectModel> Objects,
     string ContentModifier)
 {
-    /// <summary>Every member a document's properties set.</summary>
+    /// <summary>Every member a document's top-level keys set, the engine's own Scene members included.</summary>
     internal IEnumerable<PropertyModel> Authored => Properties.Items.Where(static property => property.Authorable && property.Settable);
 
-    /// <summary>Whether generated code emits and registers an applier for the class: it authors members and code can name it.</summary>
-    internal bool Applied => AccessibleType && !Generic && Authored.Any();
+    /// <summary>The engine's plain Scene, whose applier serves every class that adds no authorable member to it.</summary>
+    internal const string EngineScene = "global::Capsule.Scenes.Scene";
+
+    /// <summary>
+    /// Whether generated code emits and registers an applier for the class: code can name it, and it or a game base
+    /// declares an authorable member.
+    /// </summary>
+    internal bool Applied => AccessibleType && !Generic && Authored.Any(static property => property.Declaring != EngineScene);
+
+    /// <summary>The class whose applier composes this one: itself, or the engine's Scene when it adds no member.</summary>
+    internal string Composing => Applied ? QualifiedName : EngineScene;
 
     /// <summary>
     /// Whether generated code constructs the class past C#'s required check: its required members are all

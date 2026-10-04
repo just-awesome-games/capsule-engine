@@ -9,9 +9,6 @@ namespace Capsule.Tests.Generators;
 // The generator checks each [Authorable] member where it is declared.
 public sealed class AuthorableMemberTests
 {
-    // A tile type refuses more member forms than an entity does.
-    private const string Tile = "Lift : Capsule.Tiles.TileType";
-
     [Theory]
     [InlineData("[Authorable] public readonly float Stops = 64f;", "is readonly. Drop readonly, or drop [Authorable]", "")]
     [InlineData("[Authorable] public int Stops => 1;", "has no setter. Add a set or init accessor of any access", "")]
@@ -23,11 +20,8 @@ public sealed class AuthorableMemberTests
     [InlineData("[Authorable] public Tuning Stops { get; set; } = Tuning.Default;", "has type 'Game.Tuning', which a scene document cannot carry", "public record Tuning { public int Speed { get; set; } public static readonly Tuning Default = new(); }")]
     [InlineData("[Authorable] public Wide Stops { get; set; } = new();", "has type 'Game.Wide', whose [JsonConverter] names 'Game.Wrong'", "[System.Text.Json.Serialization.JsonConverter(typeof(Wrong))] public sealed class Wide; public sealed class Wrong : System.Text.Json.Serialization.JsonConverter<int> { public override int Read(ref System.Text.Json.Utf8JsonReader reader, System.Type type, System.Text.Json.JsonSerializerOptions options) => 0; public override void Write(System.Text.Json.Utf8JsonWriter writer, int value, System.Text.Json.JsonSerializerOptions options) { } }")]
     [InlineData("[Authorable] public override int Stops => 1;", "has no setter. Add a set or init accessor of any access", "public abstract class Mount(EntitySpawn spawn) : Entity(spawn) { public virtual int Stops => 0; }", "Lift(EntitySpawn spawn) : Mount(spawn)")]
-    [InlineData("[Authorable(Required = true)] public int Stops { get; init; }", "is Required = true, which a tile type refuses. Drop Required = true and give the member a default", "", Tile)]
-    [InlineData("[Authorable] public Puck? Stops { get; init; }", "is an entity reference, which a tile type shared by every cell cannot hold. Drop [Authorable]", "public sealed class Puck(EntitySpawn spawn) : Entity(spawn);", Tile)]
-    [InlineData("[Authorable] public Entity? Stops { get; init; }", "is an entity reference, which a tile type shared by every cell cannot hold. Drop [Authorable]", "", Tile)]
-    [InlineData("[Authorable] public required int Stops { get; init; }", "is required, which a tile type refuses. Drop required and give the member a default", "", Tile)]
-    public void AnAuthorableMemberNoPlacementCanSet_FailsAtTheMemberNamingTheFix(string member, string fix, string declarations, string lift = "Lift(EntitySpawn spawn) : Entity(spawn)")
+    [InlineData("[Authorable] public Vector2 Scale { get; set; }", "takes the key 'scale', which the scene document reserves for its own field there. Rename the member", "", "Lift(EntitySpawn spawn) : Entity(spawn)", "Scale")]
+    public void AnAuthorableMemberNoPlacementCanSet_FailsAtTheMemberNamingTheFix(string member, string fix, string declarations, string lift = "Lift(EntitySpawn spawn) : Entity(spawn)", string name = "Stops")
     {
         string source = $$"""
             {{GeneratorHarness.Preamble}}
@@ -42,8 +36,8 @@ public sealed class AuthorableMemberTests
 
         Diagnostic refused = Assert.Single(GeneratorHarness.Errors(GeneratorHarness.Compile(source).Diagnostics));
         Assert.Equal("CAP041", refused.Id);
-        Assert.Equal("'Game.Lift.Stops' " + fix, refused.GetMessage(CultureInfo.InvariantCulture)[..("'Game.Lift.Stops' " + fix).Length]);
-        AssertAt(refused, source, "Stops");
+        Assert.Equal($"'Game.Lift.{name}' " + fix, refused.GetMessage(CultureInfo.InvariantCulture)[..($"'Game.Lift.{name}' " + fix).Length]);
+        AssertAt(refused, source, name);
     }
 
     // The applier writes the field through an accessor the compiler cannot see.

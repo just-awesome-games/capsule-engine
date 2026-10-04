@@ -11,7 +11,7 @@ namespace Capsule.Tests.Build;
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class ImportTests
 {
-    internal const string Scene = """{"formatVersion": 8, "entities": [], "nextEntityId": 1}""";
+    internal const string Scene = """{"entities": []}""";
 
     // What a source imported to on an earlier run is gone, not just left unrequested.
     [Fact]
@@ -39,7 +39,7 @@ public sealed class ImportTests
         using ToolWorkspace workspace = Including();
         workspace.Succeed();
 
-        workspace.Write(edited, """{"formatVersion": 8, "entities": [], "nextEntityId": 5}""");
+        workspace.Write(edited, """{"size": [8, 8], "entities": []}""");
         workspace.Succeed();
 
         Assert.Equal(imported, Imports(workspace));

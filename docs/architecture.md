@@ -19,8 +19,8 @@ clock or platform. The runtime hosts them and draws, plays and samples on their 
 | `Capsule.Build` | The asset build a game's build project runs through `CapsuleBuild`: importers, keys, validation, compilation, atlas packing, `CapsuleAssets` and the derivation cache. | unconstrained |
 | `Capsule` | No code. The pack root of `JAG.Capsule`, whose project references admit what the package holds. | the pure modules |
 
-The pure modules perform no external I/O, except `SceneDocumentFile.Load` and `Save`, which are filesystem
-adapters for tools and hosts. `build/engine/Capsule.Architecture.targets` enforces the reference direction, and that the pure modules take no package dependency.
+The pure modules perform no external I/O, except `SceneRegistry.Create(SceneKey)` and `ComposeAll`, which
+read shipped documents for tests. `build/engine/Capsule.Architecture.targets` enforces the reference direction, and that the pure modules take no package dependency.
 MonoGame belongs to `Capsule.Runtime` alone.
 
 ## Placement

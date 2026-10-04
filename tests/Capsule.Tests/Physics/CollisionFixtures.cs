@@ -61,11 +61,17 @@ internal static class CollisionFixtures
         new(world.Layer(Solid), SlopeDown),
     ];
 
+    /// <summary>The cell below the diagonal from its bottom-left corner to its top-right, as a tile type's points.</summary>
+    internal static readonly Vector2[] SlopeUpPoints = [new(0f, TileSize), new(TileSize, 0f), new(TileSize, TileSize)];
+
+    /// <summary>The cell below the diagonal from its top-left corner to its bottom-right, as a tile type's points.</summary>
+    internal static readonly Vector2[] SlopeDownPoints = [new(0f, 0f), new(TileSize, TileSize), new(0f, TileSize)];
+
     /// <summary>The cell below the diagonal from its bottom-left corner to its top-right.</summary>
-    internal static readonly Shape2D SlopeUp = Shape2D.Polygon([new(0f, TileSize), new(TileSize, 0f), new(TileSize, TileSize)]);
+    internal static readonly Shape2D SlopeUp = Shape2D.Polygon(SlopeUpPoints);
 
     /// <summary>The cell below the diagonal from its top-left corner to its bottom-right.</summary>
-    internal static readonly Shape2D SlopeDown = Shape2D.Polygon([new(0f, 0f), new(TileSize, TileSize), new(0f, TileSize)]);
+    internal static readonly Shape2D SlopeDown = Shape2D.Polygon(SlopeDownPoints);
 
     internal static Aabb2D Box(float x, float y, float width, float height) =>
         Aabb2D.FromCorner(new Vector2(x, y), new Vector2(width, height));
