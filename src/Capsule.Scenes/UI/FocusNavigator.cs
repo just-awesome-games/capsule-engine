@@ -465,12 +465,13 @@ public sealed class FocusNavigator : Component
         return bounds.Position + (bounds.Size / 2f);
     }
 
-    // An entity queued to leave has already stopped stepping, so the focus stops reaching it in the
-    // same step instead of one step later. An entity queued to join counts as live, which lets a menu
+    // An entity queued to leave, by itself or with an ancestor, drops out of focus in the same step
+    // instead of one step later. An entity queued to join counts as live, which lets a menu
     // rebuilt during a step focus the row it just added when that step's queue drains.
     private static bool Live(Focusable item) =>
         item.Entity is { } entity &&
-        (entity.SceneOrNull is { } scene ? scene.Contains(entity) : entity.PendingScene is not null) &&
+        (entity.SceneOrNull is not null || entity.PendingScene is not null) &&
+        !entity.IsRemovalPending &&
         entity.ShownInTree;
 
     // Returns the first screen item containing the pointer, or null. World items are skipped, because

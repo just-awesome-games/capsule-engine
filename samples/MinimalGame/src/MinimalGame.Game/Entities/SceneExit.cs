@@ -1,12 +1,18 @@
+using System.Numerics;
+using Capsule.Physics;
 using Capsule.Scenes;
 using MinimalGame.Game.Scenes;
 
 namespace MinimalGame.Game.Entities;
 
-/// <summary>Leaves for another room, arriving at the entrance there that its arrival key names.</summary>
-/// <remarks>The entity decides what triggers the exit and calls <see cref="Leave"/>.</remarks>
-public sealed class SceneExit : Component
+/// <summary>
+/// Leaves for another room when the player walks into its doorway, arriving at the entrance there that its
+/// arrival key names.
+/// </summary>
+/// <param name="size">The doorway, from its entity's corner.</param>
+public sealed class SceneExit(Vector2 size) : Component
 {
+    private readonly BoxCollider2D _doorway = new(size) { ReportsContacts = true, Detects = new(CollisionLayers.Player) };
     private bool _leaving;
 
     /// <summary>The room to leave for.</summary>
@@ -17,8 +23,20 @@ public sealed class SceneExit : Component
     [Authorable(Required = true)]
     public string ArriveAt { get; set; } = string.Empty;
 
-    /// <summary>Requests the destination room once, however often a trigger fires.</summary>
-    public void Leave()
+    protected override void OnAttached(Entity entity)
+    {
+        _doorway.ContactEntered += Enter;
+        entity.Add(_doorway);
+    }
+
+    protected override void OnDetached(Entity entity)
+    {
+        _doorway.ContactEntered -= Enter;
+        entity.Remove(_doorway);
+    }
+
+    // Requests the destination room once, however often the doorway is entered.
+    private void Enter(ColliderContact2D contact)
     {
         if (!_leaving)
         {

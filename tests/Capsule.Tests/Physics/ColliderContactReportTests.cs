@@ -92,6 +92,93 @@ public sealed class ColliderContactReportTests
         Assert.Same(replacement.Collider, Assert.Single(sensor.Collider.Touching.ToArray()).OtherCollider);
     }
 
+    // Contacts settle between the entity steps and the late steps. A late step's move shows on the next
+    // settle, and the list a late step reads is the one that settle wrote.
+    [Fact]
+    public void Touching_KeepsTheSettledContactsWhenALateStepMovesTheCollider()
+    {
+        Body sensor = Sensor();
+        Body post = new(new Vector2(4f, 0f));
+        bool moveAway = false;
+        SceneFixtures.HookScene scene = new(lateStep: (Scene _, in StepContext _) =>
+        {
+            if (moveAway)
+            {
+                sensor.Position = new Vector2(500f, 0f);
+            }
+        });
+        scene.Add(sensor);
+        scene.Add(post);
+
+        using SimulationHost run = new(scene);
+        run.Step();
+        moveAway = true;
+        run.Step();
+
+        Assert.Same(post.Collider, Assert.Single(sensor.Collider.Touching.ToArray()).OtherCollider);
+
+        moveAway = false;
+        run.Step();
+
+        Assert.Empty(sensor.Collider.Touching.ToArray());
+    }
+
+    // Disabling empties the list without touching the storage behind a span already read. Only the
+    // next settle reuses it.
+    [Fact]
+    public void ASpanReadBeforeItsColliderIsDisabled_KeepsItsContacts()
+    {
+        Scene scene = new();
+        Body sensor = Sensor();
+        Body post = new(new Vector2(4f, 0f));
+        scene.Add(sensor);
+        scene.Add(post);
+
+        using SimulationHost run = new(scene);
+        run.Step();
+        ReadOnlySpan<ColliderContact2D> read = sensor.Collider.Touching;
+        sensor.Collider.Enabled = false;
+
+        Assert.Empty(sensor.Collider.Touching.ToArray());
+        Assert.Same(post.Collider, Assert.Single(read.ToArray()).OtherCollider);
+    }
+
+    // A collider out of the world at the settle settled nothing that step, so enabling it in a late
+    // step neither fills the list nor raises an enter before the next step's settle.
+    [Fact]
+    public void AColliderEnabledAfterContactsSettle_TouchesNothingUntilTheNextStep()
+    {
+        Body sensor = Sensor();
+        sensor.Collider.Enabled = false;
+        Body post = new(new Vector2(4f, 0f));
+        SceneFixtures.HookScene scene = new(lateStep: (Scene _, in StepContext _) => sensor.Collider.Enabled = true);
+        scene.Add(sensor);
+        scene.Add(post);
+        int entered = 0;
+        sensor.Collider.ContactEntered += _ => entered++;
+
+        using SimulationHost run = new(scene);
+        run.Step();
+
+        Assert.True(sensor.Collider.Enabled);
+        Assert.Empty(sensor.Collider.Touching.ToArray());
+        Assert.Equal(0, entered);
+
+        run.Step();
+
+        Assert.Same(post.Collider, Assert.Single(sensor.Collider.Touching.ToArray()).OtherCollider);
+        Assert.Equal(1, entered);
+    }
+
+    // An 8x8 body at the origin reporting what it touches on the default layer.
+    private static Body Sensor()
+    {
+        Body sensor = new(Vector2.Zero);
+        sensor.Collider.Detects = new(CollisionWorld2D.DefaultLayerName);
+        sensor.Collider.ReportsContacts = true;
+        return sensor;
+    }
+
     // A face is a surface only from the side it faces, and this is where a game reads that: a body
     // rising through a ledge is not standing on it on the way up, and is the moment it settles on
     // top. An enter while passing would fire a landing in mid-air.

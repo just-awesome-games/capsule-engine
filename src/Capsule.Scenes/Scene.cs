@@ -353,7 +353,8 @@ public class Scene
     /// An entity still queued for addition attaches and detaches in the same drain, with matching
     /// hooks. Children detach first, deepest and last-parented first. A child removed by itself
     /// releases its <see cref="Entity.Parent"/> and becomes a root. Every removal hook runs, and
-    /// failures propagate once detachment finishes.
+    /// failures propagate once detachment finishes. The entity reads <see cref="Entity.IsRemovalPending"/>
+    /// until the remove lands.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// The scene has stopped, the entity is not in it, or it is called inside a <see cref="Renderer.Draw"/>.
@@ -764,10 +765,27 @@ public class Scene
         }
     }
 
-    // Held and not queued for removal.
-    internal bool Contains(Entity entity) =>
-        ReferenceEquals(entity.SceneOrNull, this) &&
-        (_pendingRemoveSet.Count == 0 || !_pendingRemoveSet.Contains(entity));
+    // Held and not queued for removal, by itself or with an ancestor.
+    internal bool Contains(Entity entity) => ReferenceEquals(entity.SceneOrNull, this) && !IsRemovalPending(entity);
+
+    // Whether a removal queued this step takes the entity, directly or through an ancestor.
+    internal bool IsRemovalPending(Entity entity)
+    {
+        if (_pendingRemoveSet.Count == 0)
+        {
+            return false;
+        }
+
+        for (Entity? above = entity; above is not null; above = above.Parent)
+        {
+            if (_pendingRemoveSet.Contains(above))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     internal void BeginStep()
     {

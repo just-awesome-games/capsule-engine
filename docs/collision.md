@@ -67,6 +67,12 @@ A contact names the other side as `OtherCollider` for a collider or `Tile` for a
 `CollisionTolerance.ContactSkin`. In a Y-down world, standing on something gives a normal of `(0, -1)`.
 `Collider2D` documents what a handler may change.
 
+`Touching` lists the contacts as they last settled. Contacts settle once a step, after every entity's step
+and before any late step. A late step reads them, and a move it makes shows on the next settle. A collider
+enabled after the settle touches nothing until the next step. Disabling a collider empties its list at
+once, but a span already read keeps its contents. A loop that can disable its own collider checks
+`Enabled` before each contact.
+
 ## Moving a body
 
 `KinematicBody2D` sweeps one of its entity's colliders along a translation, stops it on what it blocks on

@@ -10,7 +10,8 @@ namespace Capsule.Scenes;
 /// <remarks>
 /// Make something a component when another entity type would attach it unchanged. A component has
 /// no position of its own and reads its entity's position and scene through the entity. The scene
-/// steps components after their entity, in attachment order. Override <see cref="OnStart"/> to find
+/// steps components after their entity, in attachment order. Override <see cref="OnAttached"/> and
+/// <see cref="OnDetached"/> to bring and release the components it needs, <see cref="OnStart"/> to find
 /// what it needs, <see cref="OnStep"/> to advance it, <see cref="OnDebugPanel"/> to expose it to
 /// the overlay, and <see cref="CollectAssets"/> to declare what it loads.
 /// </remarks>
@@ -39,9 +40,28 @@ public abstract class Component
     /// </summary>
     public RandomSource Random => Run.Random;
 
+    /// <summary>Runs as this component is attached to <paramref name="entity"/>, before any scene hook.</summary>
+    /// <remarks>
+    /// Attach the components this one brings here. They follow this one in attachment order, so this one
+    /// steps first. It runs even when the entity is queued to leave its scene. Throwing leaves this
+    /// component unattached, and the parts it attached before the throw stay attached.
+    /// </remarks>
+    protected internal virtual void OnAttached(Entity entity)
+    {
+    }
+
     /// <summary>
-    /// Advances this component by one fixed step, after its entity has stepped. A component steps only
-    /// after <see cref="OnStart"/> has run.
+    /// Runs as this component is detached from <paramref name="entity"/>, after
+    /// <see cref="OnRemovedFromScene"/>, with <see cref="Entity"/> already null.
+    /// </summary>
+    /// <remarks>Detach what <see cref="OnAttached"/> attached here. Leaving a scene detaches nothing.</remarks>
+    protected internal virtual void OnDetached(Entity entity)
+    {
+    }
+
+    /// <summary>
+    /// Advances this component by one fixed step, after its entity has stepped and in attachment order. A
+    /// component steps only after <see cref="OnStart"/> has run.
     /// </summary>
     protected internal virtual void OnStep(in StepContext context)
     {

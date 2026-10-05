@@ -327,13 +327,22 @@ public abstract class Collider2D : Component
     public Aabb2D Bounds => WorldShape.Bounds;
 
     /// <summary>
-    /// Everything this collider was touching as of the last step while
-    /// <see cref="ReportsContacts"/> is on, and empty otherwise, in overlap-query order.
+    /// The <see cref="ColliderContact2D"/> contacts this collider held when contacts last settled, in
+    /// overlap-query order, and empty while <see cref="ReportsContacts"/> is off. Contacts settle once a step,
+    /// after every entity's step and before any late step.
     /// </summary>
     /// <remarks>
-    /// During a dispatch the span can already hold contacts whose <see cref="ContactEntered"/> has
-    /// not been raised. The enter and exit pairing is a guarantee about the events, not about this
-    /// span.
+    /// A move made after the settle shows on the next one. A collider out of the world at the settle holds an
+    /// empty list until the next step's settle, even when enabled again before then. A collider on a held
+    /// entity keeps the list from its last settle. Disabling or detaching the collider, or turning
+    /// <see cref="ReportsContacts"/> off, empties the list at once. A scene removal made during a step empties
+    /// it at the step's end, and the removed entity reads <see cref="Scenes.Entity.IsRemovalPending"/> until then. A
+    /// span read before the list empties keeps its contents. A loop that can disable the collider checks
+    /// <see cref="Enabled"/> before each contact.
+    /// <para>
+    /// During a dispatch the span can already hold contacts whose <see cref="ContactEntered"/> has not been
+    /// raised. The enter and exit pairing is a guarantee about the events, not about this span.
+    /// </para>
     /// </remarks>
     public ReadOnlySpan<ColliderContact2D> Touching => _touching.AsSpan(0, _touchingCount);
 

@@ -284,6 +284,29 @@ public partial class Entity
     /// <summary>The scene holding this entity, or null before addition or after removal.</summary>
     public Scene? SceneOrNull { get; internal set; }
 
+    /// <summary>Whether a removal requested during this step will take this entity out of its scene when the step ends.</summary>
+    /// <remarks>
+    /// The entity keeps stepping and colliding until then. A removal of its parent counts. An entity queued to
+    /// join this step counts too, and it joins and leaves at the same drain.
+    /// </remarks>
+    public bool IsRemovalPending
+    {
+        get
+        {
+            // A tree shares one scene. An entity queued to join, or under a root queued to join, finds it
+            // through the first ancestor that holds or awaits one.
+            for (Entity? above = this; above is not null; above = above._parent)
+            {
+                if ((above.SceneOrNull ?? above.PendingScene) is { } scene)
+                {
+                    return scene.IsRemovalPending(this);
+                }
+            }
+
+            return false;
+        }
+    }
+
     /// <summary>The run of the scene holding this entity, available from <see cref="OnStart"/> on.</summary>
     /// <exception cref="InvalidOperationException">This entity is in no scene or the scene has not started.</exception>
     public Run Run => SceneOrNull is { } scene
@@ -335,9 +358,14 @@ public partial class Entity
     /// when its <see cref="ScrollFactor"/> is not one or anything in its ancestry is scaled, and a
     /// component that cannot rotate when anything in its ancestry is rotated. Only a
     /// <see cref="Tiles.TileMap"/> whose palette names a layer takes one
-    /// <see cref="Tiles.TileMapCollider2D"/>. A refused component stays unattached. It is also thrown
-    /// inside a <see cref="Rendering.Renderer.Draw"/>.
+    /// <see cref="Tiles.TileMapCollider2D"/>. A refused component stays unattached, as does one whose own
+    /// <see cref="Component.OnAttached"/> throws. It is also thrown inside a
+    /// <see cref="Rendering.Renderer.Draw"/>.
     /// </exception>
+    /// <remarks>
+    /// The component takes the next place in attachment order before its <see cref="Component.OnAttached"/>
+    /// runs. A component that attaches its parts there steps before them.
+    /// </remarks>
     public void Add(Component component)
     {
         ArgumentNullException.ThrowIfNull(component);
@@ -374,34 +402,51 @@ public partial class Entity
         {
             _steppers++;
         }
+
+        bool registered = false;
         try
         {
             component.OnAttachedTo(this);
+            registered = true;
+            component.OnAttached(this);
         }
         catch
         {
-            // A component refuses its entity before it registers anything, and leaves no trace.
-            _components.RemoveAt(_components.Count - 1);
-            if (component.Steps)
+            // The attach leaves no trace. A component that detached itself before throwing is already
+            // gone, and one refusing its entity in OnAttachedTo registered nothing.
+            if (ReferenceEquals(component.Entity, this))
             {
-                _steppers--;
+                if (registered)
+                {
+                    component.OnDetachingFrom(this);
+                }
+
+                _components.RemoveAt(IndexOf(_components, component));
+                if (component.Steps)
+                {
+                    _steppers--;
+                }
+
+                component.Entity = null;
             }
 
-            component.Entity = null;
+            // OnAttached may have attached and detached other components before throwing.
+            SceneOrNull?.InvalidateRenderers();
             throw;
         }
-
 
         // Attaching to an entity a scene already holds changes that scene's renderer set.
         SceneOrNull?.InvalidateRenderers();
 
-        if (SceneOrNull is not null)
+        // OnAttached may have detached the component, which must then not enter the scene.
+        if (SceneOrNull is not null && ReferenceEquals(component.Entity, this))
         {
             component.EnterScene();
         }
 
-        // The hooks above may have detached the component or removed this entity. An entity queued for
-        // removal will not step again, and its new component waits for the next add.
+        // The hooks above may have detached the component or removed this entity. An entity queued to
+        // leave, by itself or with an ancestor, still steps until the drain. Its new component waits for
+        // the next add before it starts.
         if (_started && SceneOrNull?.Contains(this) == true && ReferenceEquals(component.Entity, this))
         {
             component.RunStart();
@@ -431,9 +476,31 @@ public partial class Entity
 
         // Clear the owner before hooks run. Hooks cannot then observe the component still attached.
         component.Entity = null;
-        component.LeaveScene();
+
+        // Every hook runs and the engine's own release always follows, so a throwing hook leaves no
+        // detached component registered or drawn. Failures propagate once detachment finishes.
+        List<Exception>? failures = null;
+        try
+        {
+            component.LeaveScene();
+        }
+        catch (Exception exception)
+        {
+            (failures ??= []).Add(exception);
+        }
+
+        try
+        {
+            component.OnDetached(this);
+        }
+        catch (Exception exception)
+        {
+            (failures ??= []).Add(exception);
+        }
+
         component.OnDetachingFrom(this);
         SceneOrNull?.InvalidateRenderers();
+        Scenes.Scene.ThrowCleanupFailures(failures);
     }
 
     /// <summary>Finds the first attached component assignable to <typeparamref name="T"/>.</summary>

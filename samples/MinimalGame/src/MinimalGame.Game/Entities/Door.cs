@@ -1,7 +1,6 @@
 using System.Numerics;
 using Capsule.Animation;
 using Capsule.Particles;
-using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Scenes.Spawning;
@@ -23,7 +22,7 @@ public sealed class Door : Entity
 
     /// <summary>Where the door leads.</summary>
     [Authorable]
-    public SceneExit Exit { get; } = new();
+    public SceneExit Exit { get; } = new(Size);
 
     /// <param name="spawn">The doorway's top-left corner.</param>
     public Door(EntitySpawn spawn)
@@ -50,9 +49,5 @@ public sealed class Door : Entity
             Color = Gradient.Linear(PortalGlow, PortalGlow with { A = 0 }),
             Blend = BlendMode.Additive,
         });
-
-        BoxCollider2D doorway = new(Size) { ReportsContacts = true, Detects = new(CollisionLayers.Player) };
-        doorway.ContactEntered += _ => Exit.Leave();
-        Add(doorway);
     }
 }

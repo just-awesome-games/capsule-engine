@@ -96,11 +96,190 @@ public sealed class EntityTests
         Assert.Equal(["remove", "next"], log);
     }
 
+    // A component brings its parts in OnAttached, and they join the scene before it does. Detaching it
+    // takes them away after it has left the scene.
+    [Fact]
+    public void AComponentAttachedInAStartedScene_BringsItsPartsAndTakesThemWhenDetached()
+    {
+        List<string> log = [];
+        TestEntity entity = new(Vector2.Zero);
+        Scene scene = new();
+        scene.Add(entity);
+        using SceneSimulation simulation = new(scene);
+        Composite composite = new(log);
+
+        entity.Add(composite);
+
+        Assert.Equal(["attached", "part+", "part!", "composite+", "composite!"], log);
+        Assert.Same(entity, composite.Part.Entity);
+
+        log.Clear();
+        entity.Remove(composite);
+
+        Assert.Equal(["composite-", "detached", "part-"], log);
+        Assert.Same(entity, composite.DetachedFrom);
+        Assert.Null(composite.Part.Entity);
+        Assert.Empty(entity.Components.ToArray());
+    }
+
+    // A component that detaches itself in OnAttached never joins the scene its entity is in.
+    [Fact]
+    public void AComponentDetachingItselfInOnAttached_NeverEntersTheScene()
+    {
+        List<string> log = [];
+        TestEntity entity = new(Vector2.Zero);
+        Scene scene = new();
+        scene.Add(entity);
+        using SceneSimulation simulation = new(scene);
+        SelfDetaching component = new(log);
+
+        entity.Add(component);
+
+        Assert.Equal(["attached", "detached"], log);
+        Assert.Null(component.Entity);
+    }
+
+    // An entity whose root is leaving at this step's end does not start what is attached to it. The
+    // component would otherwise start on an entity about to leave its scene.
+    [Fact]
+    public void AComponentAttachedBeneathARootRemovedThisStep_DoesNotStart()
+    {
+        List<string> log = [];
+        TestEntity root = new(Vector2.Zero);
+        TestEntity child = new(Vector2.Zero) { Parent = root };
+        LoggingComponent late = new("late", log);
+        bool removing = false;
+        SceneFixtures.HookScene scene = new(step: (Scene stepping, in StepContext _) =>
+        {
+            if (removing)
+            {
+                stepping.Remove(root);
+                child.Add(late);
+            }
+        });
+        scene.Add(root);
+        using SceneSimulation simulation = new(scene);
+
+        removing = true;
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal(["late+", "late-"], log);
+    }
+
+    // A throwing OnDetached still releases the component from the engine. The draw order no longer
+    // holds a renderer whose entity is gone.
+    [Fact]
+    public void ARendererWhoseOnDetachedThrows_IsStillDroppedFromTheDrawOrder()
+    {
+        Scene scene = new();
+        TestEntity entity = new(Vector2.Zero);
+        RefusingToLeave renderer = new();
+        entity.Add(renderer);
+        scene.Add(entity);
+        SceneSimulation simulation = new(scene);
+        Assert.Single(simulation.View.Sprites.ToArray());
+
+        Assert.Throws<InvalidOperationException>(() => entity.Remove(renderer));
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Null(renderer.Entity);
+        Assert.Empty(simulation.View.Sprites.ToArray());
+    }
+
+    [Fact]
+    public void AComponentWhoseOnAttachedThrows_StaysUnattached()
+    {
+        TestEntity entity = new(Vector2.Zero);
+        Refusing refusing = new();
+
+        Assert.Throws<InvalidOperationException>(() => entity.Add(refusing));
+
+        Assert.Null(refusing.Entity);
+        Assert.False(entity.TryGet<Refusing>(out _));
+    }
+
     private sealed class TestEntity(Vector2 position) : Entity(position);
 
     private abstract class BaseComponent : Component;
 
     private sealed class DerivedComponent : BaseComponent;
+
+    private sealed class Composite(List<string> log) : Component
+    {
+        internal LoggingComponent Part { get; } = new("part", log);
+
+        internal Entity? DetachedFrom { get; private set; }
+
+        protected internal override void OnAttached(Entity entity)
+        {
+            log.Add("attached");
+            entity.Add(Part);
+        }
+
+        protected internal override void OnDetached(Entity entity)
+        {
+            Assert.Null(Entity);
+            log.Add("detached");
+            DetachedFrom = entity;
+            entity.Remove(Part);
+        }
+
+        protected internal override void OnAddedToScene() => log.Add("composite+");
+
+        protected internal override void OnStart() => log.Add("composite!");
+
+        protected internal override void OnRemovedFromScene() => log.Add("composite-");
+    }
+
+    private sealed class LoggingComponent(string name, List<string> log) : Component
+    {
+        protected internal override void OnAddedToScene() => log.Add($"{name}+");
+
+        protected internal override void OnStart() => log.Add($"{name}!");
+
+        protected internal override void OnRemovedFromScene() => log.Add($"{name}-");
+    }
+
+    private sealed class SelfDetaching(List<string> log) : Component
+    {
+        protected internal override void OnAttached(Entity entity)
+        {
+            log.Add("attached");
+            entity.Remove(this);
+        }
+
+        protected internal override void OnDetached(Entity entity) => log.Add("detached");
+
+        protected internal override void OnAddedToScene() => log.Add("entered");
+    }
+
+    private sealed class RefusingToLeave : Renderer
+    {
+        protected internal override void Draw(FrameView view) =>
+            view.Add(new SpriteIntent(
+                SceneFixtures.Frame(1, 1),
+                Entity!.PreviousTransform.Position,
+                Entity.Position,
+                PreviousRotation: 0f,
+                Rotation: 0f,
+                Vector2.One,
+                FlipX: false,
+                FlipY: false,
+                ColorRgba.White));
+
+        protected internal override void OnDetached(Entity entity) =>
+            throw new InvalidOperationException("Refused to leave.");
+    }
+
+    // Attaches a part before throwing, so the rollback must find this component, not the last one.
+    private sealed class Refusing : Component
+    {
+        protected internal override void OnAttached(Entity entity)
+        {
+            entity.Add(new DerivedComponent());
+            throw new InvalidOperationException("Refused.");
+        }
+    }
 
     private sealed class SelfRemovingComponent(List<string> log) : Component
     {

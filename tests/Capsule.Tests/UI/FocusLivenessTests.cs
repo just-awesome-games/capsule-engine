@@ -184,6 +184,28 @@ public sealed class FocusLivenessTests
         Assert.Equal(4, menu.OnlyFocusedIndex);
     }
 
+    // An item beneath an entity removed this step is no longer live, though it stays in the scene until
+    // the step ends. A request for it lands the first live item instead.
+    [Fact]
+    public void AnItemBeneathAnEntityRemovedThisStep_CannotTakeTheFocus()
+    {
+        using Menu menu = Column().Open();
+        Focusable nested = new(Box);
+        _ = new WorldHolder(Vector2.Zero, nested) { Parent = menu.At(1).Entity };
+        menu.Navigator.Add(nested);
+        menu.Rest();
+
+        menu.At(0).Pressed += () =>
+        {
+            menu.Remove(1);
+            menu.Navigator.Focus(nested);
+        };
+        menu.Tap(Key.Enter);
+
+        Assert.Same(menu.At(0), menu.Navigator.Focused);
+        Assert.False(nested.IsFocused);
+    }
+
     // Nothing waits for a later step: a request naming an item that is not live lands the first live
     // item there and then.
     [Fact]
