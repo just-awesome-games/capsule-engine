@@ -63,7 +63,7 @@ public abstract class Renderer : Component
 
     /// <summary>
     /// The rect this renderer covers, in the space it draws in: world units under a world root, or
-    /// canvas pixels with the anchor resolved under a screen root. It reads the entity's current
+    /// canvas pixels with every anchor resolved under a screen root. It reads the entity's current
     /// world transform.
     /// </summary>
     /// <remarks>
@@ -78,8 +78,8 @@ public abstract class Renderer : Component
 
     /// <summary>
     /// The transform this renderer draws by: its entity's <see cref="Entity.WorldTransform"/> in world
-    /// units under a world root, or in canvas pixels with the <see cref="ScreenEntity.Anchor"/> resolved
-    /// under a screen root. Reads <see cref="Transform2D.Identity"/> while attached to no entity.
+    /// units under a world root, or in canvas pixels with every <see cref="ScreenEntity.Anchor"/>
+    /// resolved under a screen root. Reads <see cref="Transform2D.Identity"/> while attached to no entity.
     /// </summary>
     /// <remarks>
     /// An intent takes its position from <c>RenderTransform.TransformPoint(Offset)</c>, its rotation from
@@ -92,10 +92,13 @@ public abstract class Renderer : Component
     /// <see cref="RenderTransform"/> as of the previous step, which an intent interpolates from. Reads
     /// <see cref="Transform2D.Identity"/> while attached to no entity.
     /// </summary>
-    protected Transform2D PreviousRenderTransform => Entity is { } entity ? Placed(entity.PreviousWorld, entity) : Transform2D.Identity;
+    protected Transform2D PreviousRenderTransform => Entity is { } entity ? PreviousPlaced(entity.PreviousWorld, entity) : Transform2D.Identity;
 
     private static Transform2D Placed(in Transform2D world, Entity entity) =>
         world.With(world.Position + entity.SpaceOrigin, world.Scale);
+
+    private static Transform2D PreviousPlaced(in Transform2D world, Entity entity) =>
+        world.With(world.Position + entity.PreviousSpaceOrigin, world.Scale);
 
     /// <summary>
     /// Writes this renderer's intent onto the frame being built. The frame is already cleared and

@@ -11,6 +11,9 @@ public sealed class Music(AudioMixer mixer)
     /// <summary>The voice the current track plays on, or <see cref="Voice.None"/> before the first <see cref="Play"/>.</summary>
     public Voice Voice => _voice;
 
+    /// <summary>Whether the track is still fading in or out.</summary>
+    public bool IsFading => mixer.IsFading(_voice);
+
     /// <summary>Whether <paramref name="clip"/> is the track playing now.</summary>
     public bool IsPlaying(AudioClip clip) => _clip == clip && mixer.IsLive(_voice);
 

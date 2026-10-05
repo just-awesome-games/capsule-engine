@@ -143,6 +143,21 @@ public sealed class AudioMixer
         return index >= 0 && _buses[index].Paused;
     }
 
+    /// <summary>
+    /// Whether a ramp <see cref="FadeVolume(AudioBus, float, float, Ease)"/> started on this bus is still
+    /// moving. It reads false from the step the ramp lands on.
+    /// </summary>
+    /// <remarks>
+    /// A fade of zero duration never reads true. A later fade replaces the ramp and its landing step,
+    /// and <see cref="SetVolume(AudioBus, float)"/> cancels it.
+    /// </remarks>
+    public bool IsFading(AudioBus bus)
+    {
+        int index = Find(bus);
+
+        return index >= 0 && _buses[index].Ramp.Active;
+    }
+
     /// <summary>Pauses this bus, registering it if it is new.</summary>
     /// <remarks>
     /// Every voice on the bus is held where it is. Pausing <see cref="AudioBus.Master"/> pauses
@@ -465,6 +480,18 @@ public sealed class AudioMixer
 
     /// <summary>Whether this voice is live and held, by its own pause or by its bus's.</summary>
     public bool IsPaused(Voice voice) => TryResolve(voice, out int index) && _slots[index].Paused;
+
+    /// <summary>
+    /// Whether this voice is live and a ramp is still moving its own volume. It reads false from the
+    /// step the ramp lands on.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="FadeVolume(Voice, float, float, Ease)"/>, <see cref="Stop(Voice, float)"/> and both
+    /// halves of <see cref="CrossFade"/> start a ramp, and a fade of zero duration never reads true.
+    /// A fade-out reads false on the step its voice ends. <see cref="SetVolume(Voice, float)"/> cancels
+    /// the ramp, and a later fade replaces it and its landing step. A bus fade does not count.
+    /// </remarks>
+    public bool IsFading(Voice voice) => TryResolve(voice, out int index) && _slots[index].Ramp.Active;
 
     // Clears the previous step's commands and moves the mixer's clock onto this step. A voice started
     // during the step expires against this step's tick and step length. One walk over the buses and

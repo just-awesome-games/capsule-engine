@@ -92,6 +92,22 @@ public sealed class AudioSourceTests
         Assert.False(source.IsLive);
     }
 
+    // A fade made before the first play only sets the level the next voice starts at.
+    [Fact]
+    public void ASourcesFade_IsFadingOnlyOnAVoiceItOwns()
+    {
+        AudioSource source = new(Step) { Loop = true };
+        using SimulationHost run = Run(source);
+
+        source.FadeVolume(0.5f, 1f);
+        Assert.False(source.IsFading);
+        Assert.Equal(0.5f, source.Volume);
+
+        source.Play();
+        source.FadeVolume(0f, 1f);
+        Assert.True(source.IsFading);
+    }
+
     [Fact]
     public void ASource_DeclaresItsClipAsAPreload()
     {

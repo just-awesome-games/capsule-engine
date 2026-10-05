@@ -147,7 +147,7 @@ public sealed class EntityTreeTests
     }
 
     [Fact]
-    public void AParent_IsRefusedInASceneOrQueued_InACycle_AndOnAScreenEntityOrTileMap()
+    public void AParent_IsRefusedInASceneOrQueued_InACycle_OnATileMap_AndWhenPlainOverAScreenEntity()
     {
         SceneFixtures.HookScene scene = new();
         Node root = new(Vector2.Zero);

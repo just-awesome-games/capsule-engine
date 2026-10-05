@@ -7,14 +7,18 @@ using Capsule.Scenes;
 namespace Capsule.Particles;
 
 /// <summary>
-/// Draws a fixed pool of sprite particles simulated on the fixed step, one
+/// A <see cref="Renderer"/> that draws a fixed pool of sprite particles simulated on the fixed step, one
 /// <see cref="SpriteIntent"/> per live particle.
 /// </summary>
 /// <remarks>
+/// It takes the <see cref="Renderer.ZIndex"/>, <see cref="Renderer.Visible"/> and
+/// <see cref="Renderer.Material"/> every renderer has, and the material shades every particle.
+/// <para>
 /// Positions are in world units under a world root and canvas pixels under a screen root. In
 /// <see cref="ParticleSpace.World"/> a particle moves on its own once spawned and does not follow the
 /// entity. In <see cref="ParticleSpace.Local"/> it rides the entity's position, turn and mirror.
 /// Neither space applies the entity's scale to a particle's motion or size.
+/// </para>
 /// <para>
 /// The simulation is engine state seeded from the run's seed. A headless run emits exactly the
 /// intents a windowed run draws, and two runs of one seed are identical. A spawn into a full pool

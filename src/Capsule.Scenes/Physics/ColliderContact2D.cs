@@ -66,6 +66,11 @@ public readonly struct ColliderContact2D
     public TileContact2D? Tile { get; }
 
     /// <summary>The entity behind <see cref="OtherCollider"/>, or the tile map when a tile was touched.</summary>
+    /// <remarks>
+    /// It is null on a default contact. It is also null once the other collider has been detached from
+    /// its entity, which a <see cref="Collider2D.ContactExited"/> handler sees when the other side left
+    /// that way.
+    /// </remarks>
     public Entity? OtherEntity => OtherCollider?.Entity ?? Tile?.Map;
 
     /// <summary>

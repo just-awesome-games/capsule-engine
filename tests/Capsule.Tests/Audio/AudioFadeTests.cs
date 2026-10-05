@@ -26,12 +26,53 @@ public sealed class AudioFadeTests
             AudioCommand raised = Assert.Single(mixer.Commands.ToArray());
             Assert.Equal(AudioCommandKind.SetGain, raised.Kind);
             Assert.Equal(voice, raised.Voice);
+            Assert.True(mixer.IsFading(voice));
         }
 
         Advance(mixer, ticks);
         AudioCommand landing = Assert.Single(mixer.Commands.ToArray());
         Assert.Equal(AudioCommandKind.SetGain, landing.Kind);
         Assert.Equal(0.5f * 0.5f * 0.8f, landing.Gain);
+        Assert.False(mixer.IsFading(voice));
+        Assert.True(mixer.IsLive(voice));
+    }
+
+    // The read a game waits on before it changes scene: true on every step the ramp is still moving
+    // and false on the step it lands, for a bus fade and a voice's fade-out alike.
+    [Fact]
+    public void IsFading_ReadsTrueFromTheCallUntilTheStepTheRampLands()
+    {
+        AudioMixer mixer = new();
+        Voice voice = mixer.Play(new AudioPlayback(Theme) { Bus = Music, Loop = true });
+
+        mixer.FadeVolume(Music, 0f, 0.5f);
+        mixer.Stop(voice, 0.5f);
+        long ticks = (long)Math.Ceiling(0.5 * StepContext.DefaultStepHertz);
+
+        for (long tick = 0; tick < ticks; tick++)
+        {
+            Advance(mixer, tick);
+            Assert.True(mixer.IsFading(Music));
+            Assert.True(mixer.IsFading(voice));
+        }
+
+        Advance(mixer, ticks);
+        Assert.False(mixer.IsFading(Music));
+        Assert.False(mixer.IsFading(voice));
+    }
+
+    [Fact]
+    public void AZeroDurationFade_SetsTheVolumeAndIsNeverFading()
+    {
+        AudioMixer mixer = new();
+        Voice voice = mixer.Play(new AudioPlayback(Theme) { Loop = true });
+
+        mixer.FadeVolume(Music, 0.5f, 0f);
+        mixer.FadeVolume(voice, 0.5f, 0f);
+
+        Assert.False(mixer.IsFading(Music));
+        Assert.False(mixer.IsFading(voice));
+        Assert.Equal(0.5f, mixer.GetVolume(Music));
     }
 
     [Fact]

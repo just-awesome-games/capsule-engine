@@ -20,6 +20,8 @@ public abstract class PlayableScene : Scene
 
     private readonly PauseMenu _pauseMenu = new();
 
+    private bool _dying;
+
     /// <summary>The body the document placed, for the level that wants to reach it.</summary>
     protected Player Player { get; private set; } = null!;
 
@@ -78,14 +80,24 @@ public abstract class PlayableScene : Scene
         Run.Cursor.Image = Paused ? null : Crosshair;
     }
 
-    // Health is spent by a contact handler, so the death test runs where contacts have settled: the
-    // step that lands the killing damage is the step that leaves the room.
+    // Health is spent by a contact handler, so the death test runs where contacts have settled. The
+    // step that lands the killing damage fades the music out, and the room is left once it has.
     /// <inheritdoc/>
     protected override void OnLateStep(in StepContext context)
     {
-        if (Player.Health == 0)
+        if (Player.Health > 0)
         {
+            return;
+        }
+
+        if (!_dying)
+        {
+            _dying = true;
             Run.Game.Music.Stop(seconds: 0.5f);
+        }
+
+        if (!Run.Game.Music.IsFading)
+        {
             Run.RequestScene<MainMenu>();
         }
     }

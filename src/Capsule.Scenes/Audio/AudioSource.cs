@@ -62,7 +62,10 @@ public sealed class AudioSource(AudioClip clip) : Component
     /// <paramref name="seconds"/> on <paramref name="ease"/>. <see cref="Volume"/> reads
     /// <paramref name="volume"/> at once, the target, not the ramp.
     /// </summary>
-    /// <remarks>Does nothing to the mixer when this source owns no voice.</remarks>
+    /// <remarks>
+    /// <see cref="IsFading"/> follows the ramp. Poll it for the landing step. Does nothing to the mixer
+    /// when this source owns no voice.
+    /// </remarks>
     public void FadeVolume(float volume, float seconds, Ease ease = Ease.Linear)
     {
         Guard.InUnit(volume, nameof(volume));
@@ -145,6 +148,16 @@ public sealed class AudioSource(AudioClip clip) : Component
 
     /// <summary>Whether this source's voice is live and held, by its own pause or its bus's.</summary>
     public bool IsPaused => _playing?.IsPaused(_voice) ?? false;
+
+    /// <summary>
+    /// Whether this source's voice is live and still ramping toward the volume <see cref="FadeVolume"/>
+    /// or <see cref="Stop(float)"/> gave it. It reads false from the step the ramp lands on.
+    /// </summary>
+    /// <remarks>
+    /// It never reads true after a fade of zero duration or a fade made while the source owned no voice.
+    /// Setting <see cref="Volume"/> cancels the ramp, and a later fade replaces it.
+    /// </remarks>
+    public bool IsFading => _playing?.IsFading(_voice) ?? false;
 
     /// <summary>
     /// Starts <see cref="Clip"/> from the beginning and stops whatever this source was already playing.
@@ -270,6 +283,7 @@ public sealed class AudioSource(AudioClip clip) : Component
         panel.Field("Time", Time);
         panel.Field("IsPlaying", IsPlaying);
         panel.Field("IsPaused", IsPaused);
+        panel.Field("IsFading", IsFading);
         panel.Toggle("Loop", Loop, on => Loop = on);
         panel.Toggle("PlayOnStart", PlayOnStart, on => PlayOnStart = on);
         panel.Command("Play", Play);

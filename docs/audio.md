@@ -83,7 +83,20 @@ Run.Audio.Stop(Music, seconds: 0.5f);
 Run.Audio.FadeVolume(AudioBuses.Music, 0.2f, seconds: 0.3f);
 ```
 
-A fade raises no completion callback. Poll `IsLive` for the edge.
+A fade raises no completion callback. `IsFading` reads true until the step a fade lands on, for a bus,
+a voice or an `AudioSource`. A game that changes scene once the music has faded out polls the ramp it
+started:
+
+```csharp
+Run.Audio.FadeVolume(Music, 0f, seconds: 1f);
+```
+
+```csharp
+if (!Run.Audio.IsFading(Music))
+{
+    Run.RequestScene<MainMenu>();
+}
+```
 
 ## Formats and streaming
 
