@@ -3,6 +3,7 @@ using System.Numerics;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Scenes;
+using Capsule.UI;
 
 namespace Capsule.Rendering;
 
@@ -35,7 +36,8 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
     /// </summary>
     /// <remarks>
     /// A size smaller than the insets on an axis keeps both edge slices at their own size and
-    /// overlaps them.
+    /// overlaps them. A zero axis on a <see cref="ScreenEntity"/> takes the entity's rect extent on that
+    /// axis.
     /// </remarks>
     public Vector2 Size { get; set; } = size;
 
@@ -47,6 +49,14 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
 
     /// <summary>A tint multiplied into every texel of every slice. White by default, which draws the frame unchanged.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
+
+    /// <summary>A panel with no size of its own, which fills the rect of the <see cref="ScreenEntity"/> holding it.</summary>
+    /// <param name="sprite">The frame to cut into slices. Its pivot is not read.</param>
+    /// <param name="insets">Where the cuts fall inside the frame's region, in texels.</param>
+    public NineSlice(Sprite sprite, SliceInsets insets)
+        : this(sprite, insets, Vector2.Zero)
+    {
+    }
 
     internal override bool Steps => false;
 
@@ -75,7 +85,7 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
     {
         Transform2D current = RenderTransform;
 
-        return new NineSliceIntent(Sprite, Insets, PreviousRenderTransform.TransformPoint(Offset), current.TransformPoint(Offset), Size * current.Scale, Color);
+        return new NineSliceIntent(Sprite, Insets, PreviousRenderTransform.TransformPoint(Offset), current.TransformPoint(Offset), ScreenEntity.Fill(Entity, Size) * current.Scale, Color);
     }
 
     /// <inheritdoc/>

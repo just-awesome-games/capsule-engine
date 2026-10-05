@@ -78,6 +78,70 @@ public sealed class ScreenSpaceTests
         Assert.Equal(new Vector2(190f, 80f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
     }
 
+    // Anchors resolve on every read, so a nested element follows a new canvas and a resized parent.
+    [Fact]
+    public void ANestedEntity_TracksACanvasResizeAndAParentResize()
+    {
+        ScreenEntity panel = new(Anchor.Center, Vector2.Zero) { Size = new Vector2(40f, 20f) };
+        _ = new ScreenHolder(Anchor.BottomRight, new Vector2(-2f, -3f)) { Parent = panel, Size = new Vector2(4f, 4f) };
+
+        using SimulationHost run = Run(panel);
+        run.Step();
+
+        // The child's bottom-right corner sits (-2, -3) from the panel's, which spans (30, 15) to (70, 35).
+        Assert.Equal(new Vector2(64f, 28f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
+
+        run.Simulation.Run.Canvas = new Vector2(200f, 100f);
+        run.Step();
+
+        Assert.Equal(new Vector2(114f, 53f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
+
+        panel.Size = new Vector2(60f, 30f);
+        run.Step();
+
+        Assert.Equal(new Vector2(124f, 58f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
+    }
+
+    [Fact]
+    public void ASpanAnchor_StretchesOverItsShareOfTheParentsPaddedRect()
+    {
+        ScreenEntity root = new(Anchor.Fill, Vector2.Zero) { Padding = new Insets(10f, 5f, 20f, 15f) };
+        ScreenEntity bar = new(new Anchor(0.5f, 1f, 1f, 1f), new Vector2(1f, -2f)) { Parent = root, Size = new Vector2(999f, 4f) };
+        ColorRect rect = new();
+        bar.Add(rect);
+
+        using SimulationHost run = Run(root);
+        run.Step();
+
+        // The inside is (10, 5) to (80, 35). X spans its right half and ignores the size, and Y is a point on its bottom edge.
+        Assert.Equal(new Rect(46f, 29f, 81f, 33f), rect.Bounds);
+    }
+
+    // Nested, the parent's uneven scale stretches the anchor point but never shears the turned rect.
+    [Theory]
+    [InlineData(false, 50f, 25f)]
+    [InlineData(true, 100f, 25f)]
+    public void ATurnedPointAnchoredEntity_TurnsItsRectAboutTheAnchoredPoint(bool nested, float x, float y)
+    {
+        ScreenEntity turned = new(Anchor.Center, Vector2.Zero) { Size = new Vector2(40f, 20f), Rotation = MathF.PI / 2f };
+        turned.Add(new ColorRect());
+        ScreenEntity root = turned;
+        if (nested)
+        {
+            root = new ScreenEntity(Anchor.TopLeft, Vector2.Zero) { Size = new Vector2(100f, 50f), Scale = new Vector2(2f, 1f) };
+            turned.Parent = root;
+        }
+
+        using SimulationHost run = Run(root);
+        run.Step();
+
+        SpriteIntent drawn = Assert.Single(run.Simulation.View.ScreenSprites.ToArray());
+        Vector2 centre = drawn.Position + Vector2.Transform(drawn.Size / 2f, Matrix3x2.CreateRotation(drawn.Rotation));
+
+        Assert.Equal(x, centre.X, 3);
+        Assert.Equal(y, centre.Y, 3);
+    }
+
     [Fact]
     public void AScreenEntity_InterpolatesItsPositionAsAWorldOneDoes()
     {
@@ -123,12 +187,11 @@ public sealed class ScreenSpaceTests
     }
 
     [Fact]
-    public void AnAnchorThatIsNotFinite_IsRefused()
+    public void AnAnchorThatIsNotFiniteOrSpansBackwards_IsRefused()
     {
-        ScreenHolder holder = new(Anchor.TopLeft, Vector2.Zero);
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => holder.Anchor = new Anchor(float.NaN, 0f));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ScreenHolder(new Anchor(0f, float.NaN), Vector2.Zero));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Anchor(float.NaN, 0f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Anchor(0f, 0f, 1f, float.PositiveInfinity));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Anchor(1f, 0f, 0f, 1f));
     }
 
     private static SimulationHost Run(Entity holder)

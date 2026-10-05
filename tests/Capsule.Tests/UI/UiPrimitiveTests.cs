@@ -98,6 +98,24 @@ public sealed class UiPrimitiveTests
     }
 
     [Fact]
+    public void AZeroSizeAxis_FillsTheScreenEntitysRect_AndALabelMeasuresWhereTheRectHasNoExtent()
+    {
+        ColorRect rect = new() { Size = new Vector2(0f, 5f) };
+        Label label = new(BitmapFont.Default, "Hi");
+        ScreenEntity holder = new(Anchor.TopLeft, new Vector2(4f, 5f)) { Size = new Vector2(30f, 0f) };
+        holder.Add(rect);
+        holder.Add(label);
+
+        Assert.Equal(new Rect(4f, 5f, 34f, 10f), rect.Bounds);
+        Assert.Equal(new Rect(4f, 5f, 34f, 5f + BitmapFont.Default.Measure("Hi").Y), label.Bounds);
+
+        // A centre pivot keeps the filled X on the rect and centres only the measured Y.
+        label.Pivot = Pivot.Center;
+        float half = BitmapFont.Default.Measure("Hi").Y / 2f;
+        Assert.Equal(new Rect(4f, 5f - half, 34f, 5f + half), label.Bounds);
+    }
+
+    [Fact]
     public void APrimitiveOnNoEntity_OccupiesNoRect()
     {
         Assert.True(new ColorRect(new Vector2(30f, 10f)).Bounds.IsEmpty);

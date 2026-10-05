@@ -309,7 +309,7 @@ internal static class FocusFixtures
             item.Pressed += () => _log.Add($"pressed {index}");
 
             _items.Add(item);
-            _scene.Add(item.Entity!);
+            _scene.Add(item.Entity!.Root);
 
             return item;
         }

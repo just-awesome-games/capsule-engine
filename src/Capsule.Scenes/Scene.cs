@@ -387,7 +387,11 @@ public class Scene
     /// Holds the entities <see cref="Paused"/> would hold for the next <paramref name="ticks"/> steps,
     /// then resumes them by itself.
     /// </summary>
-    /// <remarks>A freeze already running keeps the longer of the two remaining counts, and zero changes nothing.</remarks>
+    /// <remarks>
+    /// The count starts at the next step. A call made during a step, from a step, a late step or a
+    /// contact handler, never holds the step in progress. A freeze already running keeps the longer of
+    /// the two remaining counts, and zero changes nothing.
+    /// </remarks>
     /// <param name="ticks">Fixed steps to hold, counted whether or not the scene is paused.</param>
     public void Freeze(int ticks)
     {

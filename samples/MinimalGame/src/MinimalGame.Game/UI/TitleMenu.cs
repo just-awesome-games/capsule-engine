@@ -21,13 +21,18 @@ public sealed class TitleMenu : ScreenEntity
     private readonly MenuItem _exit = new(Anchor.Center, new Vector2(0f, MenuItem.Spacing), "Exit");
 
     public TitleMenu()
-        : base(Anchor.Top, new Vector2(0f, TitleMargin))
+        : base(Anchor.Fill, Vector2.Zero)
     {
+        // The label fills the canvas this menu spans. Centring the line centres the title.
         Add(new Label(CapsuleAssets.Fonts.MenuFont, "Minimal Game")
         {
-            Pivot = Pivot.Top,
+            Offset = new Vector2(0f, TitleMargin),
             HorizontalAlignment = HorizontalAlignment.Center,
         });
+
+        _start.Parent = this;
+        _options.Parent = this;
+        _exit.Parent = this;
 
         // The items' order carries no layout: the navigator reads each direction from where the items
         // sit, so Up and Down walk this column and a grid needs no more than its cells listed.
@@ -36,16 +41,6 @@ public sealed class TitleMenu : ScreenEntity
         _start.Pressed += StartGame;
         _options.Pressed += OpenOptions;
         _exit.Pressed += Quit;
-    }
-
-    // The items are anchored to the canvas rather than to this entity, so they are the scene's peers.
-    // An entity adds another by reaching the scene it has just joined. Every menu here does the same.
-    /// <inheritdoc/>
-    protected override void OnAddedToScene()
-    {
-        Scene.Add(_start);
-        Scene.Add(_options);
-        Scene.Add(_exit);
     }
 
     private void StartGame() => Run.RequestScene(CapsuleAssets.Scenes.RoomScene);

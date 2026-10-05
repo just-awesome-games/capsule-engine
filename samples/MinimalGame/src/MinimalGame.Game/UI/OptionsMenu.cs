@@ -32,6 +32,11 @@ public sealed class OptionsMenu : ScreenEntity
     public OptionsMenu()
         : base(Anchor.Center, Vector2.Zero)
     {
+        _jump.Parent = this;
+        _shoot.Parent = this;
+        _sound.Parent = this;
+        _back.Parent = this;
+
         _navigator = new FocusNavigator(GameInput.MenuFocus, _jump.Focusable, _shoot.Focusable, _sound.Focusable, _back.Focusable);
         Add(_navigator);
 
@@ -39,15 +44,6 @@ public sealed class OptionsMenu : ScreenEntity
         _shoot.Pressed += () => Listen(_shoot);
         _sound.Pressed += ToggleSound;
         _back.Pressed += Leave;
-    }
-
-    /// <inheritdoc/>
-    protected override void OnAddedToScene()
-    {
-        Scene.Add(_jump);
-        Scene.Add(_shoot);
-        Scene.Add(_sound);
-        Scene.Add(_back);
     }
 
     /// <inheritdoc/>

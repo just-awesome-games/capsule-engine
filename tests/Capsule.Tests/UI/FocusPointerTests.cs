@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Input;
+using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.UI;
 
@@ -84,6 +85,25 @@ public sealed class FocusPointerTests
         Assert.Equal(0, menu.FocusedIndex);
 
         Assert.Equal(1, menu.Tap(Key.Down).FocusedIndex);
+    }
+
+    // A hit box is placed through every anchor and padding above it.
+    [Fact]
+    public void APointer_HitsAnItemNestedTwoLevelsDeep()
+    {
+        ScreenEntity panel = new(Anchor.BottomRight, new Vector2(-10f, -10f)) { Size = new Vector2(60f, 40f), Padding = new Insets(5f) };
+        ScreenEntity row = new(Anchor.BottomWide, Vector2.Zero) { Parent = panel, Size = new Vector2(0f, 10f) };
+        ScreenEntity cell = new(Anchor.Right, Vector2.Zero) { Parent = row, Size = new Vector2(20f, 10f) };
+        Focusable nested = new();
+        cell.Add(nested);
+
+        using Menu menu = new(Item(Vector2.Zero), nested);
+
+        menu.Open().Pointer(new Vector2(175f, 100f)).Rest();
+
+        // The panel's inside is (135, 75) to (185, 105), the row its bottom ten pixels, and the cell the row's right end.
+        Assert.Equal(new Rect(165f, 95f, 185f, 105f), nested.Bounds);
+        Assert.Equal(1, menu.FocusedIndex);
     }
 
     // The pointer is a canvas position and a world item's bounds are world units under a camera that

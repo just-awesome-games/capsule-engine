@@ -173,11 +173,15 @@ Within a layer, what draws later has the higher sum of the entity's `ZIndex` up 
 renderer's own `ZIndex`. Ties break by file order in a document and then by attachment order. A top-down
 scene sets `Scene.YSort` to order world renderers in one band by their root entity's Y.
 
-A `ScreenEntity` is placed by an `Anchor`, a fraction of the canvas on each axis, plus an offset in canvas
-pixels. It keeps its distance from the edge it was anchored to whatever the canvas is:
+A `ScreenEntity` is a rect placed by an `Anchor` and an offset in its parent screen entity's padded rect,
+or in the canvas for a root, and a resized canvas or parent moves everything under it. A `ColorRect`,
+`NineSlice`, `Label` or `Focusable` built without a size fills its entity's rect:
 
 ```csharp
-private readonly HealthBar _healthBar = new(Anchor.TopLeft, new Vector2(8f, 8f));
+ScreenEntity panel = new(Anchor.Center, Vector2.Zero) { Size = new Vector2(104f, 52f), Padding = new Insets(8f) };
+panel.Add(new ColorRect { Color = PanelColor });
+ScreenEntity title = new(Anchor.TopWide, Vector2.Zero) { Parent = panel, Size = new Vector2(0f, 12f) };
+title.Add(new Label(font, "Paused") { HorizontalAlignment = HorizontalAlignment.Center });
 ```
 
 Menus are `Focusable` components under one `FocusNavigator`, which moves focus from the game's own focus

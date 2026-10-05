@@ -3,6 +3,7 @@ using System.Numerics;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Scenes;
+using Capsule.UI;
 
 namespace Capsule.Rendering;
 
@@ -18,7 +19,8 @@ namespace Capsule.Rendering;
 /// The box's <see cref="Pivot"/> sits at the entity's position plus <see cref="Offset"/>, and
 /// defaults to the box's top-left corner. <see cref="HorizontalAlignment"/> and
 /// <see cref="VerticalAlignment"/> then move the text inside the box and never move the box. A
-/// <see cref="Size"/> of zero makes the box the measured run. To centre a label on its point, use
+/// <see cref="Size"/> of zero makes the box the rect of the <see cref="ScreenEntity"/> holding it, or
+/// else the measured run. To centre a label on its point, use
 /// <see cref="Capsule.Rendering.Pivot.Center"/>.
 /// </para>
 /// </remarks>
@@ -99,7 +101,11 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// The box the run is laid out in, in the entity's units. A non-positive component uses the
     /// measured run on that axis, which is the default on both axes.
     /// </summary>
-    /// <remarks><see cref="Wrap"/> wraps inside a positive X.</remarks>
+    /// <remarks>
+    /// A zero axis on a <see cref="ScreenEntity"/> takes the entity's rect extent first, and the measured
+    /// run where that extent is zero too. On an axis the rect fills, <see cref="Pivot"/> reads zero and the
+    /// box is the rect itself. <see cref="Wrap"/> wraps inside a positive X.
+    /// </remarks>
     public Vector2 Size { get; set; }
 
     /// <summary>
@@ -169,11 +175,14 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     {
         Transform2D previous = PreviousRenderTransform;
         Transform2D current = RenderTransform;
+        Vector2 box = ScreenEntity.Fill(Entity, Size);
 
         return new TextIntent(Font, _memory, previous.TransformPoint(Offset), current.TransformPoint(Offset), current.Scale, Color)
         {
-            Size = Size * current.Scale,
-            Pivot = Pivot,
+            Size = box * current.Scale,
+
+            // An axis the fill changed is the screen entity's rect, which starts at the entity's position.
+            Pivot = new Pivot(box.X != Size.X ? 0f : Pivot.X, box.Y != Size.Y ? 0f : Pivot.Y),
             Wrap = Wrap,
             HorizontalAlignment = HorizontalAlignment,
             VerticalAlignment = VerticalAlignment,

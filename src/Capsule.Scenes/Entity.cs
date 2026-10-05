@@ -50,6 +50,9 @@ public partial class Entity
     private bool _started;
     private Vector2 _scrollFactor = Vector2.One;
 
+    // Facts a subclass fixes at construction, packed into one byte. Every entity carries them.
+    private Traits _traits;
+
     // The pool that owns this entity for life, or null when the entity was never built by one.
     internal IEntityPool? Pool { get; set; }
 
@@ -331,16 +334,28 @@ public partial class Entity
     // The render layer, read from the root of the chain.
     internal RenderSpace Space => _root.OwnSpace;
 
-    // The offset a renderer adds to reach its draw space.
-    internal Vector2 SpaceOrigin => _root.OwnSpaceOrigin;
+    // The offset a renderer adds to reach its draw space. A world tree has none and makes no call.
+    internal Vector2 SpaceOrigin => _root.OnScreen ? ScreenEntity.OriginOf(this, previous: false) : Vector2.Zero;
+
+    // SpaceOrigin as of the previous step, which a renderer interpolates from.
+    internal Vector2 PreviousSpaceOrigin => _root.OnScreen ? ScreenEntity.OriginOf(this, previous: true) : Vector2.Zero;
 
     // The render layer this entity draws on as a root.
-    internal virtual RenderSpace OwnSpace => RenderSpace.World;
+    internal RenderSpace OwnSpace => OnScreen ? RenderSpace.Screen : RenderSpace.World;
 
-    internal virtual Vector2 OwnSpaceOrigin => Vector2.Zero;
+    // Set by ScreenEntity alone.
+    internal bool OnScreen
+    {
+        get => (_traits & Traits.Screen) != 0;
+        init => _traits = value ? _traits | Traits.Screen : _traits & ~Traits.Screen;
+    }
 
     // Set by a subclass holding world coordinates, where position changes are errors.
-    internal bool Anchored { get; init; }
+    internal bool Anchored
+    {
+        get => (_traits & Traits.Anchored) != 0;
+        init => _traits = value ? _traits | Traits.Anchored : _traits & ~Traits.Anchored;
+    }
 
     internal ReadOnlySpan<Component> Components => CollectionsMarshal.AsSpan(_components);
 
@@ -812,10 +827,10 @@ public partial class Entity
                 $"A {GetType().Name} is anchored at the world origin and cannot be placed by a parent.");
         }
 
-        if (OwnSpace == RenderSpace.Screen)
+        if (OwnSpace == RenderSpace.Screen && parent is not ScreenEntity)
         {
             throw new InvalidOperationException(
-                $"A {GetType().Name} is on the screen layer and can only be a root. Parent a plain entity under it to draw on the screen with it.");
+                $"A {GetType().Name} is on the screen layer and cannot be placed by the plain {parent.GetType().Name}. Make the parent a ScreenEntity, or parent a plain entity under this one instead.");
         }
 
         if (_scrollFactor != Vector2.One)
@@ -908,6 +923,14 @@ public partial class Entity
         Vector2 motion = position - _previousWorld.Position;
         DebugDraw.Line(DebugDraw.Origins, position - new Vector2(OriginArm, 0f), position + new Vector2(OriginArm, 0f), null, motion);
         DebugDraw.Line(DebugDraw.Origins, position - new Vector2(0f, OriginArm), position + new Vector2(0f, OriginArm), null, motion);
+    }
+
+    [Flags]
+    private enum Traits : byte
+    {
+        None = 0,
+        Anchored = 1,
+        Screen = 2,
     }
 
     private struct ComponentWalk(List<Component> components)

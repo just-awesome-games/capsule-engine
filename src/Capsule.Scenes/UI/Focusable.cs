@@ -25,6 +25,7 @@ public sealed class Focusable(Vector2 size) : Component
     /// on a screen entity. A non-positive axis is never under the pointer, but the directional actions still
     /// reach the item.
     /// </summary>
+    /// <remarks>A zero axis on a <see cref="ScreenEntity"/> takes the entity's rect extent on that axis.</remarks>
     public Vector2 Size { get; set; } = size;
 
     /// <summary>
@@ -44,7 +45,7 @@ public sealed class Focusable(Vector2 size) : Component
     /// reads <c>default</c> while attached to no entity.
     /// </remarks>
     public Rect Bounds => Entity is { } entity
-        ? new Rect(entity.World.TransformPoint(Offset) + entity.SpaceOrigin, Size * entity.World.Scale)
+        ? new Rect(entity.World.TransformPoint(Offset) + entity.SpaceOrigin, ScreenEntity.Fill(entity, Size) * entity.World.Scale)
         : default;
 
     /// <summary>
@@ -72,6 +73,12 @@ public sealed class Focusable(Vector2 size) : Component
     /// which is when its starting item takes the focus.
     /// </summary>
     public bool IsFocused { get; private set; }
+
+    /// <summary>A hit box with no size of its own, which fills the rect of the <see cref="ScreenEntity"/> holding it.</summary>
+    public Focusable()
+        : this(Vector2.Zero)
+    {
+    }
 
     internal override bool Steps => false;
 

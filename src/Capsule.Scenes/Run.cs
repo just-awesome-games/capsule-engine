@@ -291,7 +291,9 @@ public sealed class Run
     /// </param>
     /// <remarks>
     /// The image is the surface the world was drawn on: the declared render resolution, or the back
-    /// buffer when the run declares none. Requesting again
+    /// buffer when the run declares none. A capture is not tied to the step that requested it. The host
+    /// may run more steps before it next draws, and the frame shows the last of them interpolated from
+    /// the one before. An event that lasts one step can be missing from the image. Requesting again
     /// before the host takes the request replaces the path, and the request survives a scene transition.
     /// A frame with no surface to draw on, such as a minimised window, leaves the request pending. A run
     /// with no graphics device (<c>RunHeadless</c>, or <c>--headless</c>) clears the request and writes

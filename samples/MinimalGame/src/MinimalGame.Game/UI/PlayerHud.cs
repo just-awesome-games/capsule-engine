@@ -13,17 +13,13 @@ namespace MinimalGame.Game.UI;
 /// </summary>
 public sealed class PlayerHud : ScreenEntity
 {
-    private readonly HealthBar _healthBar = new(Anchor.TopLeft, new Vector2(8f, 8f));
+    private readonly HealthBar _healthBar = new(Anchor.TopLeft, new Vector2(7f, 7f));
 
     private Player _player = null!;
 
     public PlayerHud()
-        : base(Anchor.TopLeft, Vector2.Zero)
-    {
-    }
-
-    /// <inheritdoc/>
-    protected override void OnAddedToScene() => Scene.Add(_healthBar);
+        : base(Anchor.Fill, Vector2.Zero) =>
+        _healthBar.Parent = this;
 
     /// <inheritdoc/>
     protected override void OnStart() => _player = Scene.FindSingle<Player>();

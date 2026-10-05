@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Diagnostics;
 using Capsule.Scenes;
+using Capsule.UI;
 
 namespace Capsule.Rendering;
 
@@ -22,6 +23,7 @@ public sealed class ColorRect(Vector2 size) : Renderer
     /// The extent the rectangle covers, in the entity's units. A component that is not positive and
     /// finite draws nothing.
     /// </summary>
+    /// <remarks>A zero axis on a <see cref="ScreenEntity"/> takes the entity's rect extent on that axis.</remarks>
     public Vector2 Size { get; set; } = size;
 
     /// <summary>
@@ -35,6 +37,12 @@ public sealed class ColorRect(Vector2 size) : Renderer
 
     /// <summary>How the rectangle's colour combines with what is already drawn. Alpha by default.</summary>
     public BlendMode Blend { get; set; }
+
+    /// <summary>A rectangle with no size of its own, which fills the rect of the <see cref="ScreenEntity"/> holding it.</summary>
+    public ColorRect()
+        : this(Vector2.Zero)
+    {
+    }
 
     internal override bool Steps => false;
 
@@ -59,7 +67,7 @@ public sealed class ColorRect(Vector2 size) : Renderer
     // scale axis folds into the flip flags, and the backend draws the magnitude of the extent.
     private SpriteIntent Intent(in Transform2D previous, in Transform2D current)
     {
-        Vector2 size = Size * current.Scale;
+        Vector2 size = ScreenEntity.Fill(Entity, Size) * current.Scale;
 
         return new SpriteIntent(Sprite.White, previous.TransformPoint(Offset), current.TransformPoint(Offset), previous.Rotation, current.Rotation, Vector2.Abs(size), size.X < 0f, size.Y < 0f, Color, Blend);
     }
