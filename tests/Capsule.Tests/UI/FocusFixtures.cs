@@ -252,6 +252,25 @@ internal static class FocusFixtures
             return Advance(_held);
         }
 
+        /// <summary>Steps with <paramref name="button"/> down and leaves it held.</summary>
+        internal Menu Hold(MouseButton button)
+        {
+            _held = _held.With(button);
+
+            return Advance(_held);
+        }
+
+        /// <summary>Lets go of <paramref name="button"/> and steps.</summary>
+        internal Menu Release(MouseButton button)
+        {
+            _held = _held.Without(button);
+
+            return Advance(_held);
+        }
+
+        /// <summary>Steps with the vertical wheel turned <paramref name="notches"/>, positive away from the user.</summary>
+        internal Menu Wheel(float notches) => Advance(_held.WithScroll(new Vector2(0f, notches)));
+
         /// <summary>Steps with nothing new: the held state exactly as it stands.</summary>
         internal Menu Rest() => Advance(_held);
 

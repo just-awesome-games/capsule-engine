@@ -9,7 +9,7 @@ namespace MinimalGame.Game.UI;
 /// It draws its caption, a <see cref="Meter"/> showing the level, and the same highlight a
 /// <see cref="MenuItem"/> takes. It spans its slot's width and its meter sits on its right edge. A
 /// column's meters then line up. Left and right step the level while it has the focus, and up and down
-/// move on.
+/// move on. Dragging the meter or turning the wheel over the focused row sets the level too.
 /// </remarks>
 public sealed class VolumeSlider : ScreenEntity
 {
@@ -20,7 +20,7 @@ public sealed class VolumeSlider : ScreenEntity
     private readonly ColorRect _bar;
     private readonly Meter _meter = new(Anchor.Right, Vector2.Zero);
 
-    /// <summary>Raised with the new level when the player steps it, and never when <see cref="Value"/> is set.</summary>
+    /// <summary>Raised with the new level when the player changes it, and never when <see cref="Value"/> is set.</summary>
     public event Action<float>? Changed;
 
     /// <summary>The level from 0 to 1, full until something sets it. Setting it raises nothing.</summary>
@@ -55,7 +55,15 @@ public sealed class VolumeSlider : ScreenEntity
         Focusable focus = new() { Adjusts = Axis.Horizontal };
         focus.Focused += OnFocused;
         focus.Unfocused += OnUnfocused;
-        focus.Adjusted += Step;
+        focus.Adjusted += step => Set(Value + (step / 10f));
+        focus.Dragged += drag =>
+        {
+            // A press on the caption focuses the row and leaves the level where it was.
+            if (_meter.Contains(drag.Start))
+            {
+                Set(_meter.FractionAt(drag.Position));
+            }
+        };
 
         // The bar is attached first, so the caption draws over it.
         Add(_bar);
@@ -63,10 +71,10 @@ public sealed class VolumeSlider : ScreenEntity
         Add(focus);
     }
 
-    // Rounded to tenths, so stepping down and back up lands on the level it left.
-    private void Step(int direction)
+    // Rounded to tenths, so a drag and the arrows land on the same levels.
+    private void Set(float level)
     {
-        float stepped = Math.Clamp(MathF.Round((Value * 10f) + direction) / 10f, 0f, 1f);
+        float stepped = Math.Clamp(MathF.Round(level * 10f) / 10f, 0f, 1f);
 
         if (stepped == Value)
         {

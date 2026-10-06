@@ -28,6 +28,8 @@ public sealed class MenuAllocationTests
         int focused = 0;
         int unfocused = 0;
         int pressed = 0;
+        int adjusted = 0;
+        int dragged = 0;
         int moves = 0;
 
         for (int i = 0; i < items.Length; i++)
@@ -38,11 +40,14 @@ public sealed class MenuAllocationTests
             item.Focused += () => focused++;
             item.Unfocused += () => unfocused++;
             item.Pressed += () => pressed++;
+            item.Adjusted += _ => adjusted++;
+            item.Dragged += _ => dragged++;
 
             focus.Add(item);
             scene.Add(new Holder(new Vector2(0f, i * 20f), item));
         }
 
+        items[^1].Adjusts = Axis.Horizontal;
         focus.FocusChanged += _ => moves++;
         scene.Add(new Holder(Vector2.Zero, focus));
 
@@ -59,30 +64,36 @@ public sealed class MenuAllocationTests
         using SimulationHost run = new(scene, run: new Run { Canvas = new Vector2(320f, 180f) });
 
         // The expensive step: the pointer moved, it is inside the last item, and the click is pressed,
-        // so both hit tests walk the whole list.
+        // so both hit tests walk the whole list. The held click then drags the item and the wheel turns
+        // over it before the release.
         DeviceSnapshot clicked = DeviceSnapshot.Empty.With(MouseButton.Left).WithPointer(new Vector2(10f, 145f));
-        DeviceSnapshot released = DeviceSnapshot.Empty.WithPointer(new Vector2(10f, 146f));
+        DeviceSnapshot dragging = DeviceSnapshot.Empty.With(MouseButton.Left).WithPointer(new Vector2(10f, 146f)).WithScroll(Vector2.UnitY);
+        DeviceSnapshot released = DeviceSnapshot.Empty.WithPointer(new Vector2(10f, 147f));
+        DeviceSnapshot[] cycle = [clicked, dragging, released];
 
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < 99; i++)
         {
-            Step(focus, input, i % 2 == 0 ? clicked : released, run.StepSeconds, i);
+            Step(focus, input, cycle[i % cycle.Length], run.StepSeconds, i);
         }
 
         long before = GC.GetAllocatedBytesForCurrentThread();
 
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 999; i++)
         {
-            Step(focus, input, i % 2 == 0 ? clicked : released, run.StepSeconds, i);
+            Step(focus, input, cycle[i % cycle.Length], run.StepSeconds, i);
         }
 
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
         Assert.Same(items[^1], focus.Focused);
 
-        // The start and the pointer's one landing, and the click on every other step.
+        // The start and the pointer's one landing. Each of the 366 cycles presses once, drags on the
+        // press and the move, and turns one notch.
         Assert.Equal(2, moves);
         Assert.Equal(2, focused);
         Assert.Equal(1, unfocused);
-        Assert.Equal(550, pressed);
+        Assert.Equal(366, pressed);
+        Assert.Equal(732, dragged);
+        Assert.Equal(366, adjusted);
     }
 
     // The directions are the other half of a menu's step, and the named neighbours put a walk on that

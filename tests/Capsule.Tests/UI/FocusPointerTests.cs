@@ -122,4 +122,97 @@ public sealed class FocusPointerTests
 
         Assert.Equal(1, menu.FocusedIndex);
     }
+
+    // A slider dragged past its end must keep the pointer, or the row below grabs the focus mid-drag.
+    [Fact]
+    public void AHeldClick_CapturesThePointerForTheItemItPressedUntilReleased()
+    {
+        using Menu menu = Column().Open();
+        List<PointerDrag> drags = [];
+        menu.At(0).Dragged += drags.Add;
+
+        menu.Pointer(InFirst).Hold(MouseButton.Left);
+
+        Assert.Equal(["pressed 0"], menu.Log);
+        Assert.Equal([new PointerDrag(InFirst, InFirst)], drags);
+
+        menu.Pointer(InSecond).Rest();
+
+        Assert.Equal(0, menu.FocusedIndex);
+        Assert.Empty(menu.Log);
+        Assert.Equal(new PointerDrag(InFirst, InSecond), drags[^1]);
+
+        menu.Release(MouseButton.Left);
+
+        Assert.Equal(2, drags.Count);
+        Assert.Equal(0, menu.FocusedIndex);
+
+        menu.Pointer(InSecond + Vector2.UnitX).Rest();
+
+        Assert.Equal(1, menu.FocusedIndex);
+        Assert.Equal(2, drags.Count);
+    }
+
+    // A direction that moves the focus mid-drag must take the drag with it, or the item left behind keeps sliding.
+    [Fact]
+    public void ADirectionThatMovesTheFocusMidDrag_EndsTheCapture()
+    {
+        using Menu menu = Column().Open();
+        int drags = 0;
+        menu.At(0).Dragged += _ => drags++;
+
+        menu.Pointer(InFirst).Hold(MouseButton.Left).Tap(Key.Down);
+
+        Assert.Equal(1, menu.FocusedIndex);
+
+        menu.Pointer(InSecond).Rest();
+
+        Assert.Equal(1, drags);
+    }
+
+    // A wheel that reports finer than a notch must still step a slider once per notch, not once per report.
+    [Fact]
+    public void TheWheelOverTheFocusedAdjustingItem_AdjustsItOncePerWholeNotch()
+    {
+        using Menu menu = Column();
+        menu.At(0).Adjusts = Axis.Horizontal;
+
+        menu.Open().Pointer(InFirst).Wheel(0.5f);
+
+        Assert.Empty(menu.Log);
+
+        menu.Wheel(0.5f);
+
+        Assert.Equal(["adjusted 0 1"], menu.Log);
+
+        menu.Wheel(-1f);
+
+        Assert.Equal(["adjusted 0 -1"], menu.Log);
+    }
+
+    // A slider whose step opens a prompt must not keep stepping behind it for the rest of a fast turn.
+    [Fact]
+    public void AnAdjustThatTurnsTheNavigatorOff_EndsTheTurnsRemainingNotches()
+    {
+        using Menu menu = Column();
+        menu.At(0).Adjusts = Axis.Horizontal;
+        menu.At(0).Adjusted += _ => menu.Navigator.Interactable = false;
+
+        menu.Open().Pointer(InFirst).Wheel(2f);
+
+        Assert.Equal(["adjusted 0 1"], menu.Log);
+    }
+
+    // A list scrolled under a resting pointer must not have a slider it passes grab the wheel.
+    [Fact]
+    public void TheWheelOverAnAdjustingItemWithoutTheFocus_DoesNothing()
+    {
+        using Menu menu = Column();
+        menu.At(1).Adjusts = Axis.Horizontal;
+
+        menu.Open().Pointer(InSecond).Rest().Tap(Key.Up).Wheel(1f);
+
+        Assert.Equal(0, menu.FocusedIndex);
+        Assert.Empty(menu.Log);
+    }
 }

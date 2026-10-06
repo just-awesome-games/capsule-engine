@@ -21,6 +21,8 @@ public sealed class Meter : ScreenEntity
     // Spans the bed's padded inside on Y, and the share Fraction names of it on X.
     private readonly ScreenEntity _fill = new(Anchor.Fill, Vector2.Zero);
 
+    private readonly ColorRect _bed = new() { Color = BedColor };
+
     /// <param name="anchor">Where the meter sits in its display's rect.</param>
     /// <param name="offset">Canvas pixels from that point to the same point of the meter.</param>
     public Meter(Anchor anchor, Vector2 offset)
@@ -28,7 +30,7 @@ public sealed class Meter : ScreenEntity
     {
         Size = BedSize;
         Padding = new Insets(1f);
-        Add(new ColorRect { Color = BedColor });
+        Add(_bed);
 
         _fill.Parent = this;
         _fill.Add(new ColorRect { Color = FillColor });
@@ -48,4 +50,15 @@ public sealed class Meter : ScreenEntity
             _fill.Anchor = new Anchor(0f, 0f, field, 1f);
         }
     } = 1f;
+
+    /// <summary>Whether <paramref name="point"/>, in canvas pixels, lies on the bed.</summary>
+    public bool Contains(Vector2 point) => _bed.Bounds.Contains(point);
+
+    /// <summary>The share of the fill's span that <paramref name="point"/> reaches on X, unclamped.</summary>
+    public float FractionAt(Vector2 point)
+    {
+        Rect bed = _bed.Bounds;
+
+        return (point.X - bed.Left - Padding.Left) / (bed.Size.X - Padding.Left - Padding.Right);
+    }
 }

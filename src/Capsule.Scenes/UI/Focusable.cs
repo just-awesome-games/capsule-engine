@@ -129,9 +129,20 @@ public sealed class Focusable(Vector2 size) : Component
     /// </summary>
     /// <remarks>
     /// It follows the same press edge and hold repeat as a focus move, and comes after that step's focus
-    /// events and before its press.
+    /// events and before its press. It is also raised once per whole wheel notch turned while the pointer
+    /// is over this item and it has the focus. Away from the user and right count as +1.
     /// </remarks>
     public event Action<int>? Adjusted;
+
+    /// <summary>
+    /// Raised on the step a click presses this item, and on each step the pointer moves while the
+    /// click stays held, after that step's press.
+    /// </summary>
+    /// <remarks>
+    /// While the click is held the pointer focuses no other item. The drag ends when the click is
+    /// released or the focus leaves this item, and the release raises nothing.
+    /// </remarks>
+    public event Action<PointerDrag>? Dragged;
 
     internal void TakeFocus(FocusNavigator holder)
     {
@@ -150,6 +161,8 @@ public sealed class Focusable(Vector2 size) : Component
     internal void Press() => Pressed?.Invoke();
 
     internal void Adjust(int step) => Adjusted?.Invoke(step);
+
+    internal void Drag(PointerDrag drag) => Dragged?.Invoke(drag);
 
     /// <inheritdoc/>
     protected internal override void OnAddedToScene() => FocusNavigator.Join(this);

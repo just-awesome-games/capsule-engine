@@ -58,6 +58,14 @@ public sealed class FocusNavigator : Component
     // this step.
     private HoldRepeat _repeat;
 
+    // The item a held click is dragging, or null, and where that click pressed it.
+    private Focusable? _dragging;
+    private Vector2 _dragStart;
+
+    // Wheel notches turned over the focused adjusting item and not yet raised as a whole step. It
+    // keeps the sign of the turn and clears when the focus moves.
+    private float _notches;
+
     /// <summary>
     /// Raised with the item the focus landed on, after that item's <see cref="Focusable.Focused"/>
     /// and before anything presses it in the same step.
@@ -307,6 +315,17 @@ public sealed class FocusNavigator : Component
     /// nothing else but <see cref="FocusActions.Cancel"/>. The item it lands on cannot be pressed by an action aimed at the previously
     /// focused item. A handler that takes the landing item out of its scene drops the press.
     /// </para>
+    /// <para>
+    /// A click that presses an item captures the pointer for it. While the click is held the pointer
+    /// focuses nothing, and the item raises <see cref="Focusable.Dragged"/> on the press and on each
+    /// move. The capture ends when the click is released or the focus leaves the item.
+    /// </para>
+    /// <para>
+    /// The wheel adjusts the focused item when that item has an <see cref="Focusable.Adjusts"/> axis and
+    /// the pointer is over it. Each whole notch raises one adjust, and a part notch waits for the
+    /// rest. The vertical wheel always counts, and the horizontal wheel counts only on a horizontal
+    /// item. The wheel over an item without the focus does nothing.
+    /// </para>
     /// </remarks>
     protected internal override void OnStep(in StepContext context)
     {
@@ -316,6 +335,8 @@ public sealed class FocusNavigator : Component
         if (!Interactable || justTurnedInteractable)
         {
             _repeat = default;
+            _dragging = null;
+            _notches = 0f;
 
             return;
         }
@@ -334,15 +355,23 @@ public sealed class FocusNavigator : Component
             return;
         }
 
+        if (_dragging is not null && (_actions.Click is not { } held || !input.IsHeld(held)))
+        {
+            _dragging = null;
+        }
+
+        bool captured = _dragging is not null;
+
         Focusable target = focused;
         bool press = false;
 
         // One hit test per step. Pointer focusing requires the pointer to have moved, but a click does
         // not, so clicking without nudging the mouse still picks the item under it.
         bool clicking = _actions.Click is { } click && input.WasPressed(click);
-        Focusable? under = input.PointerMoved || clicking ? Under(input.Pointer) : null;
+        bool hovering = input.PointerMoved && !captured;
+        Focusable? under = hovering || clicking ? Under(input.Pointer) : null;
 
-        if (input.PointerMoved && under is not null)
+        if (hovering && under is not null)
         {
             target = under;
         }
@@ -374,17 +403,71 @@ public sealed class FocusNavigator : Component
         // Move first. A press handler then finds this navigator already focused on the pressed item.
         Move(target);
 
+        bool dragStarted = clicking && under is not null && ReferenceEquals(Focused, under);
+
+        if (dragStarted)
+        {
+            _dragging = under;
+            _dragStart = input.Pointer;
+        }
+
         if (adjusting is not null && ReferenceEquals(Focused, adjusting) && Live(adjusting))
         {
             adjusting.Adjust(adjust);
         }
+
+        Wheel(input);
 
         if (press && Focused is { } pressed && Live(pressed))
         {
             pressed.Press();
         }
 
+        if (_dragging is { } dragged)
+        {
+            if (!Reading || !Live(dragged))
+            {
+                _dragging = null;
+            }
+            else if (dragStarted || input.PointerMoved)
+            {
+                dragged.Drag(new PointerDrag(_dragStart, input.Pointer));
+            }
+        }
+
         Cancel(input);
+    }
+
+    // Raises one adjust per whole notch the wheel turned over the focused adjusting item. A turn
+    // anywhere else clears the notches it had gathered.
+    private void Wheel(InputState input)
+    {
+        Vector2 scroll = input.Scroll;
+
+        if (scroll == Vector2.Zero)
+        {
+            return;
+        }
+
+        if (Focused is not { Adjusts: { } axis } item || !Live(item) || item.Entity is not ScreenEntity ||
+            !item.Bounds.Contains(input.Pointer))
+        {
+            _notches = 0f;
+
+            return;
+        }
+
+        _notches += scroll.Y + (axis == Axis.Horizontal ? scroll.X : 0f);
+
+        int whole = (int)_notches;
+        _notches -= whole;
+
+        int step = Math.Sign(whole);
+
+        for (int i = 0; i < Math.Abs(whole) && Reading && ReferenceEquals(Focused, item) && Live(item); i++)
+        {
+            item.Adjust(step);
+        }
     }
 
     // Appends an item that joined the scene under a gathering navigator after it started. Its named
@@ -422,10 +505,12 @@ public sealed class FocusNavigator : Component
     }
 
     // A handler earlier in the step may have turned Interactable off, or off and on again, and either
-    // way the step's cancel is dropped.
+    // way the step's cancel and drag are dropped.
+    private bool Reading => Interactable && !_justTurnedInteractable;
+
     private void Cancel(InputState input)
     {
-        if (Interactable && !_justTurnedInteractable && _actions.Cancel is { } cancel && input.WasPressed(cancel))
+        if (Reading && _actions.Cancel is { } cancel && input.WasPressed(cancel))
         {
             Canceled?.Invoke();
         }
@@ -685,6 +770,8 @@ public sealed class FocusNavigator : Component
 
         Focusable? left = Focused;
         Focused = landing;
+        _notches = 0f;
+        _dragging = null;
 
         if (_started)
         {
