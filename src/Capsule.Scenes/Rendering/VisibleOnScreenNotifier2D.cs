@@ -8,15 +8,27 @@ namespace Capsule.Rendering;
 /// Watches a rect on its entity against the scene camera's <see cref="Camera.VisibleRegion"/> and
 /// reports when it comes on screen and when it leaves. The rect is corner-anchored like a
 /// <see cref="Physics.BoxCollider2D"/>: its corner sits at the entity's position plus
-/// <see cref="Offset"/> and it spans <see cref="Size"/> world units from there.
+/// <see cref="Offset"/> and it spans <see cref="Size"/> from there.
 /// </summary>
 /// <remarks>
 /// This is simulation state, settled once per step after the step's deferred adds land. From its
 /// entity's first step, <see cref="IsOnScreen"/> and the events describe that step's frame. Sharing
-/// an edge with the region is not being on screen. Rotation and scale anywhere in the entity's
-/// ancestry, and an <see cref="Entity.ScrollFactor"/> other than one, are refused while the
-/// notifier is present.
+/// an edge with the region is not being on screen.
+/// <para>
+/// The rect follows scale in the entity's ancestry as a box collider does. <see cref="Offset"/> and
+/// <see cref="Size"/> are multiplied by the entity's world scale, and a negative axis mirrors the rect
+/// about the entity's position. A rect scaled to no extent on an axis is off screen. Rotation in the
+/// ancestry and an <see cref="Entity.ScrollFactor"/> other than one are refused while the notifier is
+/// present.
+/// </para>
 /// </remarks>
+/// <example>
+/// A shot faces left by mirroring its whole entity, and the notifier mirrors with it:
+/// <code>
+/// Add(new VisibleOnScreenNotifier2D(new Vector2(12f, 8f)) { Offset = new Vector2(2f, -4f) });
+/// Scale = new Vector2(-1f, 1f);
+/// </code>
+/// </example>
 public sealed class VisibleOnScreenNotifier2D : Component
 {
     private Vector2 _size;
@@ -24,7 +36,7 @@ public sealed class VisibleOnScreenNotifier2D : Component
     private Scene? _scene;
     private bool _dispatching;
 
-    /// <param name="size">The extent the rect spans from its corner, in world units.</param>
+    /// <param name="size">The extent the rect spans from its corner, in the entity's own units.</param>
     public VisibleOnScreenNotifier2D(Vector2 size) => _size = RequireSize(size);
 
     /// <summary>
@@ -40,7 +52,7 @@ public sealed class VisibleOnScreenNotifier2D : Component
     /// </remarks>
     public event Action? ScreenExited;
 
-    /// <summary>The extent the rect spans from its corner, in world units.</summary>
+    /// <summary>The extent the rect spans from its corner, in the entity's own units.</summary>
     /// <exception cref="InvalidOperationException">Set from inside this notifier's own handler.</exception>
     public Vector2 Size
     {
@@ -52,7 +64,7 @@ public sealed class VisibleOnScreenNotifier2D : Component
         }
     }
 
-    /// <summary>Added to the entity's position to place the rect's corner. Zero by default.</summary>
+    /// <summary>Added to the entity's position to place the rect's corner, in the entity's own units. Zero by default.</summary>
     /// <exception cref="InvalidOperationException">Set from inside this notifier's own handler.</exception>
     public Vector2 Offset
     {
@@ -73,7 +85,7 @@ public sealed class VisibleOnScreenNotifier2D : Component
 
     internal override bool Steps => false;
 
-    internal override TransformSupport Supports => TransformSupport.Position;
+    internal override TransformSupport Supports => TransformSupport.Resize;
 
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()
@@ -101,8 +113,8 @@ public sealed class VisibleOnScreenNotifier2D : Component
     // how the renderer shows a partly framed sprite.
     internal void SettleVisibility(in Rect region)
     {
-        bool onScreen = !region.IsEmpty &&
-            region.Intersects(new Rect(Entity!.WorldPosition + _offset, _size));
+        Rect rect = WorldRect(Entity!.World);
+        bool onScreen = !region.IsEmpty && !rect.IsEmpty && region.Intersects(rect);
 
         if (onScreen == IsOnScreen)
         {
@@ -111,6 +123,23 @@ public sealed class VisibleOnScreenNotifier2D : Component
 
         IsOnScreen = onScreen;
         Raise(onScreen ? ScreenEntered : ScreenExited);
+    }
+
+    // Scales both corners about the entity's position. A scale of one keeps the plain translation, which
+    // leaves an unscaled rect exactly as it was.
+    private Rect WorldRect(in Transform2D world)
+    {
+        if (world.Scale == Vector2.One)
+        {
+            return new Rect(world.Position + _offset, _size);
+        }
+
+        Vector2 first = world.Position + (_offset * world.Scale);
+        Vector2 second = world.Position + ((_offset + _size) * world.Scale);
+        Vector2 min = Vector2.Min(first, second);
+        Vector2 max = Vector2.Max(first, second);
+
+        return new Rect(min.X, min.Y, max.X, max.Y);
     }
 
     // A handler sees the new state and may not resize or move the notifier it is running for.

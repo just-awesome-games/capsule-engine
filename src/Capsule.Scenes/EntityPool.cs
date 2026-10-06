@@ -9,6 +9,8 @@ namespace Capsule.Scenes;
 internal interface IEntityPool
 {
     void Return(Entity entity);
+
+    void CollectAssets(AssetCollection assets);
 }
 
 /// <summary>
@@ -19,7 +21,8 @@ internal interface IEntityPool
 /// <remarks>
 /// The game writes no release call, and the pooled class holds no pool reference. Idle entities sit
 /// outside any scene. The pool's owner forwards it from its own <c>CollectAssets</c> through
-/// <see cref="CollectAssets"/> to preload what they draw and play. The first take logs once at
+/// <see cref="CollectAssets"/> to preload what they draw and play. A pool several spawners share is
+/// the scene's, from <see cref="Scene.Pool{T}"/>. The first take logs once at
 /// <see cref="Log.Info"/> when no preload collection has reached the pool and its entities hold assets
 /// to preload.
 /// </remarks>
@@ -45,7 +48,7 @@ public sealed class EntityPool<T> : IEntityPool
 
     // Every entity Build ever returned, idle or taken, for asset collection.
     private readonly List<T> _built;
-    private readonly int _constructedCapacity;
+    private int _sizedCapacity;
     private bool _loggedGrowth;
 
     // Whether CollectAssets has run outside a probe, and whether the first take has checked it.
@@ -54,6 +57,9 @@ public sealed class EntityPool<T> : IEntityPool
 
     // Set while this pool collects. An entity that forwards the pool it lives in stops here.
     private bool _collecting;
+
+    // Set on a scene's shared pool, whose first-take log names the declaration that preloads it.
+    internal bool Shared { get; init; }
 
     /// <summary>Builds <paramref name="capacity"/> entities now through <paramref name="create"/> and holds them idle.</summary>
     /// <param name="create">Builds one more entity, on demand. Every entity it ever returns is owned by this pool for life.</param>
@@ -65,7 +71,7 @@ public sealed class EntityPool<T> : IEntityPool
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(capacity, 0);
 
         _create = create;
-        _constructedCapacity = capacity;
+        _sizedCapacity = capacity;
         _idle = new Stack<T>(capacity);
         _built = new List<T>(capacity);
 
@@ -105,7 +111,7 @@ public sealed class EntityPool<T> : IEntityPool
         if (!_loggedGrowth)
         {
             _loggedGrowth = true;
-            Log.Debug($"{typeof(T).Name} pool grew past {_constructedCapacity}. Size the pool for its peak");
+            Log.Debug($"{typeof(T).Name} pool grew past {_sizedCapacity}. Size the pool for its peak");
         }
 
         T built = Build();
@@ -155,14 +161,25 @@ public sealed class EntityPool<T> : IEntityPool
         _collecting = true;
         try
         {
-            foreach (T entity in _built)
+            // Indexed because a pooled entity can declare its own scene pool larger, which builds more.
+            for (int index = 0; index < _built.Count; index++)
             {
-                CollectTree(entity, assets);
+                CollectTree(_built[index], assets);
             }
         }
         finally
         {
             _collecting = false;
+        }
+    }
+
+    // Builds idle entities until the pool holds capacity, as a scene's shared pool does for each declaration.
+    internal void Reserve(int capacity)
+    {
+        _sizedCapacity = Math.Max(_sizedCapacity, capacity);
+        while (_built.Count < capacity)
+        {
+            _idle.Push(Build());
         }
     }
 
@@ -210,7 +227,16 @@ public sealed class EntityPool<T> : IEntityPool
 
         AssetCollection probe = new() { IsProbe = true };
         CollectAssets(probe);
-        if (probe.HoldsPreloads)
+        if (!probe.HoldsPreloads)
+        {
+            return;
+        }
+
+        if (Shared)
+        {
+            Log.Info($"The scene's shared EntityPool<{typeof(T).Name}> was not declared before its first take. Declare it with assets.Pool<{typeof(T).Name}>(capacity) in the CollectAssets of what takes from it, and have that in the scene before it starts, to preload its assets");
+        }
+        else
         {
             Log.Info($"EntityPool<{typeof(T).Name}>'s assets were not collected before its first take. Forward the pool from its owner's CollectAssets, and have the owner in the scene before it starts, to preload them");
         }

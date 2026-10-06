@@ -70,8 +70,18 @@ Scene.Add(_bolts.Take().Fire(Muzzle.WorldPosition, _visual.Facing, _bolt));
 The engine returns the entity to its pool when it leaves and resets its own components' per-life state.
 The game sets its own in `Fire`.
 
-A pool lives as far up as its entities reach and no further. It sits on the spawner when one spawner
-fires it, on the scene when several share it, and on `Run.State<T>()` when it must span scenes. A pool
-builds its entities where it lives. One that lives higher than its entities reach builds them before
-anything can use them. An effect that never moves is better off as one long-lived `ParticleEmitter` fed
+A pool lives as far up as its entities reach and no further. One spawner holds its own
+`new EntityPool<T>(create, capacity)` and forwards it from its `CollectAssets`. When several spawners share a
+pool, it belongs to the scene. Each spawner declares it in `CollectAssets` and takes from `Scene.Pool<T>()`:
+
+```csharp
+protected override void CollectAssets(AssetCollection assets) => assets.Pool<SparkBurst>(capacity: 8);
+
+Scene.Add(Scene.Pool<SparkBurst>().Take().Burst(Position));
+```
+
+The scene builds each shared pool before it starts, with the largest capacity any declaration asks for, and
+preloads it. A shared pool's type builds with no arguments, and everything per-life, tuning included, is
+set after `Take`. A pool that must span scenes lives on `Run.State<T>()`. A pool builds its entities where
+it lives. One that lives higher than its entities reach builds them before anything can use them. An effect that never moves is better off as one long-lived `ParticleEmitter` fed
 by `Emit(count, at)`.

@@ -209,6 +209,23 @@ public sealed class SceneVisibilityTests
         Assert.Equal(["entered"], log);
     }
 
+    [Fact]
+    public void AMirroredAncestor_MirrorsTheRectAboutTheEntity()
+    {
+        List<string> log = [];
+        EntityHierarchyFixtures.Node facingLeft = new(new Vector2(6f, 0f)) { Scale = new Vector2(-1f, 1f) };
+        Watched marker = new(Vector2.Zero, log) { Notifier = { Offset = new Vector2(2f, 0f) }, Parent = facingLeft };
+
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
+        scene.Add(facingLeft);
+
+        SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step());
+
+        // Unmirrored, the rect would sit at 8..9 past the region's edge at 5. Mirrored, it spans 3..4.
+        Assert.Equal(["entered"], log);
+    }
+
     // The canonical detach during a settle: a handler takes a notifier the walk has not reached out
     // of the scene, which must neither settle nor cost the one behind it its turn.
     [Fact]

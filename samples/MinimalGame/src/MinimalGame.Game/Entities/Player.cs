@@ -42,8 +42,8 @@ public sealed class Player : Entity
     private readonly AudioSource _footfall;
     private readonly ParticleEmitter _dust;
     private readonly BoltTuning _bolt = BoltTuning.Default;
-    private readonly EntityPool<SparkBurst> _sparks = new(() => new SparkBurst(), capacity: 8);
-    private readonly EntityPool<Bolt> _bolts;
+    private readonly EntityPool<Puff> _puffs = new(() => new Puff(), capacity: 4);
+    private readonly EntityPool<Bolt> _bolts = new(() => new Bolt(), capacity: 8);
 
     [Authorable]
     private PlayerTuning _tuning = PlayerTuning.Default;
@@ -66,8 +66,6 @@ public sealed class Player : Entity
     public Player(EntitySpawn spawn)
         : base(spawn)
     {
-        _bolts = new EntityPool<Bolt>(() => new Bolt(_sparks), capacity: 8);
-
         Health = _tuning.MaxHealth;
 
         _visual = new Visual(this, FramePivot, _tuning);
@@ -169,6 +167,7 @@ public sealed class Player : Entity
             {
                 _velocity.Y = -_tuning.JumpSpeed;
                 JumpedThisStep = true;
+                Scene.Add(_puffs.Take().Place(Position + new Vector2(BodyPixels / 2f, BodyPixels)));
                 Log.Info("jumped");
             }
         }
@@ -236,7 +235,7 @@ public sealed class Player : Entity
             if (_body.ClassifyNormal(contact.Normal) == SurfaceKind.Ceiling && contact.Tile is { Type: Brick } tile)
             {
                 tile.Map.RemoveTile(tile.X, tile.Y);
-                Scene.Add(_sparks.Take().Burst(contact.Point));
+                Scene.Add(Scene.Pool<SparkBurst>().Take().Burst(contact.Point));
             }
         }
     }
@@ -272,12 +271,14 @@ public sealed class Player : Entity
         return new Vector2(_visual.Facing, 0f);
     }
 
-    // Pooled entities sit outside the scene until taken. The player forwards its pools to preload them.
+    // Pooled entities sit outside the scene until taken. The player forwards its own pools to preload
+    // them and declares the sparks it shares with its bolts.
     /// <inheritdoc/>
     protected override void CollectAssets(AssetCollection assets)
     {
         _bolts.CollectAssets(assets);
-        _sparks.CollectAssets(assets);
+        _puffs.CollectAssets(assets);
+        assets.Pool<SparkBurst>(capacity: 2);
     }
 
     protected override void OnDebugPanel(DebugPanel panel)

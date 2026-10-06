@@ -20,6 +20,11 @@ public sealed class AssetCollection
     // gather one. Collecting a pool into it does not forward the pool.
     internal bool IsProbe { get; init; }
 
+    // The scene gathering this collection, which builds the shared entity pools declared into it. Typed as
+    // object because scenes live above this assembly. Set only while the scene collects, because a host
+    // keeps a scene's preloads past the scene's life.
+    internal object? GatheringScene { get; set; }
+
     /// <summary>
     /// Adds one texture unless it was already declared. A default handle is ignored, and so are the
     /// engine's own textures, the white texel and the default font's page, which belong to the host.

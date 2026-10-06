@@ -245,3 +245,5 @@ emits its own per-glyph sprites.
 
 A `VisibleOnScreenNotifier2D` raises `ScreenEntered` and `ScreenExited` as a rect on its entity meets the
 camera's visible region. It is how a bullet despawns when it leaves the screen.
+The rect follows scale up its ancestry as a `BoxCollider2D` does. A shot facing left with a scale of
+`(-1, 1)` mirrors its sprite, its box and its notifier together.

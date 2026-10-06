@@ -91,6 +91,33 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// </example>
     public bool Paused { get; set; }
 
+    /// <summary>
+    /// Whether the animator removes its entity from the scene when a non-looping clip finishes. False
+    /// by default.
+    /// </summary>
+    /// <remarks>
+    /// The animator calls <see cref="Scene.Remove(Entity)"/> on its own entity in the step that finds
+    /// <see cref="IsFinished"/>, and the removal lands at that step's end. The last frame draws for its
+    /// own ticks and no longer. The entity leaves with its subtree, and its parent stays. A pooled entity
+    /// returns to its <see cref="EntityPool{T}"/> as any removal returns it. Removal rewinds the clip,
+    /// and the reused entity replays it from its first frame. The setting itself survives removal.
+    /// <para>
+    /// A looping clip never finishes and never removes its entity. A <see cref="Paused"/> animator keeps
+    /// its entity in the scene until it is unpaused. An entity held by <see cref="Scene.Freeze(int)"/>
+    /// or <see cref="Scene.Paused"/> does not step its animator. Its clip finishes, and the entity
+    /// leaves, as many steps later as the hold lasted.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// A pooled impact that plays once and leaves:
+    /// <code>
+    /// _animator = new SpriteAnimator(sprite) { RemovesEntityWhenFinished = true };
+    /// Add(_animator);
+    /// _animator.Play(CapsuleAssets.Sprites.EffectsSheet.Clips.Impact);
+    /// </code>
+    /// </example>
+    public bool RemovesEntityWhenFinished { get; set; }
+
     /// <summary>How many clip ticks each step advances. One by default, and zero holds the frame.</summary>
     /// <remarks>
     /// A fraction of a tick carries over to later steps. The carry restarts on every <c>Play</c> and
@@ -369,6 +396,11 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         if (_playback.FrameIndex != drawn)
         {
             _renderer.Sprite = clip.Frames[_playback.FrameIndex];
+        }
+
+        if (RemovesEntityWhenFinished && _playback.IsFinished)
+        {
+            Entity!.Scene.Remove(Entity);
         }
     }
 

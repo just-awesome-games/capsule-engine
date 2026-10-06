@@ -23,17 +23,13 @@ public sealed class Bolt : Entity
     private static readonly Sprite Glow = new(CapsuleAssets.Textures.GlowTexture, new TextureRegion(0, 0, GlowTexels, GlowTexels), new Vector2(GlowTexels / 2f));
 
     private readonly SpriteRenderer _sprite;
-    private readonly EntityPool<SparkBurst> _sparks;
 
     private Vector2 _velocity;
     private Countdown _life;
 
-    /// <param name="sparks">The pool <see cref="SparkBurst"/> is taken from when this bolt's life ends.</param>
-    public Bolt(EntityPool<SparkBurst> sparks)
+    public Bolt()
         : base(Vector2.Zero)
     {
-        _sparks = sparks;
-
         _sprite = new SpriteRenderer(Glow) { Blend = BlendMode.Additive };
         Add(_sprite);
         Add(new PointLight { Radius = 5f, Color = ColorRgba.Yellow, Intensity = 0.75f });
@@ -56,6 +52,10 @@ public sealed class Bolt : Entity
         return this;
     }
 
+    // Every live bolt can end at once, and each bursts into sparks from the scene's shared pool.
+    /// <inheritdoc/>
+    protected override void CollectAssets(AssetCollection assets) => assets.Pool<SparkBurst>(capacity: 8);
+
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
     {
@@ -64,7 +64,7 @@ public sealed class Bolt : Entity
         _life.Step();
         if (!_life.IsRunning)
         {
-            Scene.Add(_sparks.Take().Burst(Position));
+            Scene.Add(Scene.Pool<SparkBurst>().Take().Burst(Position));
             Scene.Remove(this);
         }
     }

@@ -92,6 +92,38 @@ public sealed class SpriteAnimatorPlaybackTests
         Assert.Equal(Frame(3), renderer.Sprite);
     }
 
+    // A one-shot effect leaves through the ordinary removal. Its last frame draws for its own ticks, the
+    // pool takes it back, and the rewind replays the clip on its next life with no second Play.
+    [Fact]
+    public void AnAnimatorThatRemovesItsEntity_LeavesWhenTheClipFinishesAndReplaysItWhenReused()
+    {
+        EntityPool<Animated> pool = new(
+            () =>
+            {
+                Animated effect = new() { Animator = { RemovesEntityWhenFinished = true } };
+                effect.Animator.Play(Land);
+                return effect;
+            },
+            capacity: 1);
+        SceneFixtures.HookScene scene = new();
+        Animated first = pool.Take();
+        scene.Add(first);
+        SimulationHost run = new(scene);
+
+        Assert.Equal([Frame(3), Frame(4)], DrawnOver(run, 2));
+
+        run.Step();
+
+        Assert.Empty(run.Simulation.View.Sprites.ToArray());
+        Assert.Empty(scene.Entities.ToArray());
+        Assert.Equal(1, pool.Available);
+
+        scene.Add(pool.Take());
+
+        Assert.Equal([Frame(3), Frame(4)], DrawnOver(run, 2));
+        Assert.Same(first, scene.Entities[0]);
+    }
+
     // The point of playing a variant at the animator's own tick: the cursor is reproduced, so the
     // variant continues on the frame and the part-spent tick the outgoing clip stood on.
     [Fact]

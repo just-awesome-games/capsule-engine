@@ -97,6 +97,11 @@ public class Scene
     // Whether a preload collection has run. Start runs one first when no host did.
     private bool _preloadsCollected;
 
+    // The shared entity pools by entity type, and in the order built. Collecting a pool can declare
+    // another, which appends to the list the collection walks.
+    private readonly Dictionary<Type, IEntityPool> _pools = [];
+    private readonly List<IEntityPool> _poolOrder = [];
+
     // Handed out one at a time to each particle emitter added, so every emitter in a scene draws its
     // own randomness stream. A new scene instance starts at 0.
     private ulong _nextParticleStream;
@@ -480,6 +485,65 @@ public class Scene
     }
 
     /// <summary>
+    /// The pool of <typeparamref name="T"/> that every spawner in this scene shares. The scene builds it
+    /// with the largest capacity any declaration asks for, preloads it before it starts, and returns its
+    /// entities when they leave or the scene stops.
+    /// </summary>
+    /// <remarks>
+    /// What takes from the pool declares it with <see cref="AssetCollectionExtensions.Pool{T}"/> from its
+    /// <c>CollectAssets</c>. A pool no declaration reached builds one entity at its first call, and its
+    /// first take logs once at <see cref="Log.Info"/> that its assets were not preloaded.
+    /// <para>
+    /// A taken entity is a new life. Everything per-life, tuning included, is set after <c>Take</c>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// protected override void CollectAssets(AssetCollection assets) =&gt; assets.Pool&lt;SparkBurst&gt;(capacity: 8);
+    ///
+    /// protected override void OnStep(in StepContext context)
+    /// {
+    ///     if (_life.IsRunning) return;
+    ///     Scene.Add(Scene.Pool&lt;SparkBurst&gt;().Take().Burst(Position));
+    ///     Scene.Remove(this);
+    /// }
+    /// </code>
+    /// </example>
+    /// <typeparam name="T">The pooled entity type, built with no arguments.</typeparam>
+    public EntityPool<T> Pool<T>()
+        where T : Entity, new()
+    {
+        if (_pools.TryGetValue(typeof(T), out IEntityPool? pool))
+        {
+            return (EntityPool<T>)pool;
+        }
+
+        return BuildPool<T>(capacity: 1);
+    }
+
+    // A declaration from a CollectAssets hook. The pool grows to the largest capacity declared.
+    internal void DeclarePool<T>(int capacity)
+        where T : Entity, new()
+    {
+        if (_pools.TryGetValue(typeof(T), out IEntityPool? pool))
+        {
+            ((EntityPool<T>)pool).Reserve(capacity);
+            return;
+        }
+
+        BuildPool<T>(capacity);
+    }
+
+    private EntityPool<T> BuildPool<T>(int capacity)
+        where T : Entity, new()
+    {
+        EntityPool<T> pool = new(static () => new T(), capacity) { Shared = true };
+        _pools.Add(typeof(T), pool);
+        _poolOrder.Add(pool);
+        return pool;
+    }
+
+    /// <summary>
     /// The <see cref="Collider2D"/> a query hit names, or null when it names a tile map's grid, nothing,
     /// or a collider since removed.
     /// </summary>
@@ -598,15 +662,29 @@ public class Scene
 
     private void Collect(AssetCollection assets)
     {
-        CollectAssets(assets);
-        if (_authoredAssets is { } authored)
+        assets.GatheringScene = this;
+        try
         {
-            assets.Add(authored);
-        }
+            CollectAssets(assets);
+            if (_authoredAssets is { } authored)
+            {
+                assets.Add(authored);
+            }
 
-        foreach (Entity entity in Entities)
+            foreach (Entity entity in Entities)
+            {
+                entity.CollectAssetPreloads(assets);
+            }
+
+            // Indexed because a pooled entity can declare a further pool as it is collected.
+            for (int index = 0; index < _poolOrder.Count; index++)
+            {
+                _poolOrder[index].CollectAssets(assets);
+            }
+        }
+        finally
         {
-            entity.CollectAssetPreloads(assets);
+            assets.GatheringScene = null;
         }
     }
 

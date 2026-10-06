@@ -1,0 +1,59 @@
+{
+  "$schema": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/sheet.schema.json",
+  "formatVersion": 1,
+  "texture": "textures/effects/puff.png",
+  "frames": [
+    {
+      "name": "puff-0",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "pivot": [
+        4,
+        8
+      ]
+    },
+    {
+      "name": "puff-1",
+      "x": 8,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "pivot": [
+        4,
+        8
+      ]
+    },
+    {
+      "name": "puff-2",
+      "x": 16,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "pivot": [
+        4,
+        8
+      ]
+    }
+  ],
+  "clips": [
+    {
+      "name": "puff",
+      "frames": [
+        {
+          "frame": "puff-0",
+          "ticks": 4
+        },
+        {
+          "frame": "puff-1",
+          "ticks": 5
+        },
+        {
+          "frame": "puff-2",
+          "ticks": 6
+        }
+      ]
+    }
+  ]
+}
