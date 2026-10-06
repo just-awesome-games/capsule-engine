@@ -10,7 +10,7 @@ namespace MinimalGame.Game.UI;
 /// <see cref="Fraction"/> says. Nothing here is a widget, and whose share it is showing is its display's
 /// business.
 /// </summary>
-public sealed class HealthBar : ScreenEntity
+public sealed class Meter : ScreenEntity
 {
     // The bed's extent in canvas pixels. The fill is the bed less its frame.
     private static readonly Vector2 BedSize = new(66f, 8f);
@@ -21,9 +21,9 @@ public sealed class HealthBar : ScreenEntity
     // Spans the bed's padded inside on Y, and the share Fraction names of it on X.
     private readonly ScreenEntity _fill = new(Anchor.Fill, Vector2.Zero);
 
-    /// <param name="anchor">Where the bar sits in its display's rect.</param>
-    /// <param name="offset">Canvas pixels from that point to the same point of the bar.</param>
-    public HealthBar(Anchor anchor, Vector2 offset)
+    /// <param name="anchor">Where the meter sits in its display's rect.</param>
+    /// <param name="offset">Canvas pixels from that point to the same point of the meter.</param>
+    public Meter(Anchor anchor, Vector2 offset)
         : base(anchor, offset)
     {
         Size = BedSize;

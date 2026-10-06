@@ -1,4 +1,5 @@
 using Capsule.Rendering;
+using Capsule.UI;
 
 namespace Capsule.Scenes;
 
@@ -34,6 +35,12 @@ public partial class Entity
 
             field = value;
             StaleAppearance();
+
+            // A hidden screen entity takes no slot in a container parent.
+            if (OnScreen)
+            {
+                ScreenEntity.Reflow(_parent);
+            }
         }
     } = true;
 

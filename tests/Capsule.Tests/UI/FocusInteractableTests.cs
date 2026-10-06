@@ -63,6 +63,38 @@ public sealed class FocusInteractableTests
         Assert.Equal(1, menu.FocusedIndex);
     }
 
+    // Cancel comes after the step's move, and an empty menu can still be backed out of. A capture that
+    // owns the input keeps it, as it does every other action.
+    [Fact]
+    public void Cancel_IsRaisedAfterTheStepsMove_AndNotWhileNotInteractable()
+    {
+        using Menu menu = Column().Open();
+
+        menu.Tap(Key.Down, Key.Escape);
+        Assert.Equal(["unfocused 0", "focused 1", "changed 1", "canceled"], menu.Log);
+
+        menu.Navigator.Interactable = false;
+        menu.Tap(Key.Escape);
+        Assert.Empty(menu.Log);
+
+        menu.Navigator.Interactable = true;
+        menu.Rest().Unseated().Tap(Key.Escape);
+        Assert.Equal(["unfocused 1", "canceled"], menu.Log);
+    }
+
+    // A press that opens a rebinding prompt owns the input from then on. The cancel pressed with it in
+    // the same step does not leave the menu.
+    [Fact]
+    public void APressHandlerTurningInteractableOff_DropsThatStepsCancel()
+    {
+        using Menu menu = Column().Open();
+        menu.At(0).Pressed += () => menu.Navigator.Interactable = false;
+
+        menu.Tap(Key.Enter, Key.Escape);
+
+        Assert.Equal(["pressed 0"], menu.Log);
+    }
+
     // Sits where a menu item would, so it steps before the navigator, and arms Interactable on the
     // same step Down is pressed.
     private sealed class ArmedItem : ScreenEntity

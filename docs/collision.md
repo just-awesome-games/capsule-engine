@@ -142,6 +142,14 @@ _body.Crushed += OnCrushed;
 A body rides such a collider when its last `Move` stopped on it, and the collider moving into the body
 shoves it. A `MovedBy` layer also blocks the body. A shove that pins the body raises `Crushed`.
 
+### Surface velocity
+
+```json
+{ "name": "belt", "cell": 1, "layer": "platform", "surfaceVelocity": [-30, 0] }
+```
+
+A body rides a belt as it rides a moving collider, through `MovedBy`.
+
 ## Terrain
 
 A tile map collides only through a `TileMapCollider2D` added to it, and a map without one is decoration.

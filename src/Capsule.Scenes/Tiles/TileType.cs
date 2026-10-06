@@ -74,4 +74,16 @@ public class TileType
     /// </summary>
     [Authorable]
     public bool SolidSides { get; init; }
+
+    /// <summary>
+    /// The velocity, in world units per second, at which each cell of this tile type carries the bodies
+    /// riding it without moving, where zero, the default, carries nothing.
+    /// </summary>
+    /// <remarks>
+    /// A grid rejects it on a tile with no layer. A cell's flip or quarter turn turns the velocity as it
+    /// turns the cell's shape.
+    /// <see cref="Physics.KinematicBody2D.MovedBy"/> says which bodies ride it and when they are carried.
+    /// </remarks>
+    [Authorable]
+    public Vector2 SurfaceVelocity { get; init; }
 }

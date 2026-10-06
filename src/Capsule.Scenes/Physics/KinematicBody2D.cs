@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using Capsule.Diagnostics;
 using Capsule.Scenes;
+using Capsule.Tiles;
 
 namespace Capsule.Physics;
 
@@ -126,6 +127,18 @@ public sealed class KinematicBody2D : Component
 
     // The collider this body rides, as found by its last Move. Only a Move changes it.
     private Collider2D? _floor;
+
+    // The cell this body rides, as found by its last Move, and the tile it held then. Only a tile with a
+    // surface velocity is ridden. The ride ends when the cell holds another tile.
+    private TileContact2D? _floorCell;
+    private TileType? _floorTile;
+
+    // The map collider that lists this body while it rides one of the map's cells.
+    private TileMapCollider2D? _floorGrid;
+
+    // The tick of the step that last surface-carried this body in its current scene. A later surface in the
+    // same step skips it.
+    private long _surfaceTick = -1;
 
     // True while this body writes its own position. A collider that moves because of that write, such
     // as one on a child entity, cannot carry or shove the body again.
@@ -320,10 +333,19 @@ public sealed class KinematicBody2D : Component
     /// </summary>
     /// <remarks>
     /// A body standing on such a collider rides it, and one moving into the body shoves it. A layer
-    /// that moves the body also blocks it. The body rides the floor its last
+    /// that moves the body also blocks it. The body rides the first such floor its last
     /// <see cref="Move(Vector2)"/> stopped on, and is carried exactly whether that floor steps before
     /// or after it. A wall or ceiling stops a carry or a shove. A collider moving into several bodies
     /// shoves them one at a time, in the order of their colliders' handles.
+    /// <para>
+    /// A floor with a <see cref="Collider2D.SurfaceVelocity"/> or <see cref="TileType.SurfaceVelocity"/>
+    /// carries the body by that velocity on every step, whether or not the body moves itself. The carry runs
+    /// in the floor's own step, as a moving floor's does, and only the first such floor in tree order to
+    /// carry the body moves it that step. A <see cref="BodyMode.Grounded"/> body walks its floor as its own move does. The carry never
+    /// changes the caller's velocity, and a floor on a held entity carries nothing. After each carry the
+    /// body rides the carrying floor it then stands on, or nothing, and <see cref="IsOnFloor"/>,
+    /// <see cref="MoveContacts"/> and their peers keep what the last move set.
+    /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public CollisionMask MovedBy
@@ -412,14 +434,36 @@ public sealed class KinematicBody2D : Component
     {
         CollisionWorld2D world = RequireSweepable(out Entity entity);
         Guard.Finite(translation, nameof(translation));
-        Shape2D shape = world.ShapeOf(_collider.Handle);
-        Vector2 origin = Swept(entity);
         Guard.Finite(entity.WorldPosition + translation, nameof(translation));
 
         bool through = _dropThrough;
         _dropThrough = false;
         _carriedWhole = false;
 
+        MoveResult2D result = Travel(world, entity, translation, blocking, through, out Vector2 centerNormal);
+        _moveContactCount = result.ContactCount;
+        Collider2D.Grow(ref _moveContacts, _moveContactCount);
+        for (int index = 0; index < _moveContactCount; index++)
+        {
+            _moveContacts[index] = Collider2D.Describe(world, _found[index]);
+        }
+
+        Classify();
+        _walkNormal = FloorNormal;
+        if (IsOnFloor && centerNormal != Vector2.Zero)
+        {
+            FloorNormal = centerNormal;
+        }
+
+        return result;
+    }
+
+    // Sweeps the body, settles one that rests on its center, and writes the entity. The contacts are left
+    // in _found. Returns the translation the entity moved and the center's floor normal, or zero.
+    private MoveResult2D Travel(CollisionWorld2D world, Entity entity, Vector2 translation, CollisionFilter blocking, bool through, out Vector2 centerNormal)
+    {
+        Shape2D shape = world.ShapeOf(_collider.Handle);
+        Vector2 origin = Swept(entity);
         float sunk = _sink;
         bool rests = RestsOnCenter && _mode == BodyMode.Grounded;
         bool rising = Vector2.Dot(translation, Up) > 0f;
@@ -434,7 +478,7 @@ public sealed class KinematicBody2D : Component
         }
 
         MoveResult2D result = Sweep(world, shape, origin, swept, blocking, through, rising);
-        Vector2 centerNormal = Vector2.Zero;
+        centerNormal = Vector2.Zero;
         if (rests)
         {
             float cleared = 0f;
@@ -451,19 +495,6 @@ public sealed class KinematicBody2D : Component
         // A world translation equals a local one here, because nothing above a body is turned or scaled.
         Vector2 moved = result.Translation + new Vector2(0f, _sink - sunk);
         Displace(entity, moved);
-        _moveContactCount = result.ContactCount;
-        Collider2D.Grow(ref _moveContacts, _moveContactCount);
-        for (int index = 0; index < _moveContactCount; index++)
-        {
-            _moveContacts[index] = Collider2D.Describe(world, _found[index]);
-        }
-
-        Classify();
-        _walkNormal = FloorNormal;
-        if (IsOnFloor && centerNormal != Vector2.Zero)
-        {
-            FloorNormal = centerNormal;
-        }
 
         return result with { Translation = moved };
     }
@@ -1009,6 +1040,67 @@ public sealed class KinematicBody2D : Component
     // cannot reach the body.
     internal bool CarriedWholeBy(Collider2D floor) => _carriedWhole && ReferenceEquals(_floor, floor);
 
+    // Carries the body one step of its cell's surface velocity. A cell that now holds another tile ends
+    // the ride.
+    internal void CarryOnCell(in StepContext context)
+    {
+        TileContact2D cell = _floorCell!.Value;
+        if (!ReferenceEquals(cell.Type, _floorTile))
+        {
+            Unride();
+            return;
+        }
+
+        CarryOnSurface(cell.Map.SurfaceVelocityAt(cell.X, cell.Y) * context.DeltaSeconds, context.Tick);
+    }
+
+    // Carries the body by its floor's surface motion, swept as its own move is, and finds its floor again.
+    // Only the first surface to carry the body in a step moves it.
+    internal void CarryOnSurface(Vector2 motion, long tick)
+    {
+        if (_surfaceTick == tick)
+        {
+            return;
+        }
+
+        _surfaceTick = tick;
+        CollisionWorld2D world = _collider.World!;
+        Entity entity = Entity!;
+        Travel(world, entity, motion, Filter, false, out _);
+        Refind(world, entity);
+    }
+
+    // Finds the floor under the body after a carry, by a probe down the contact skin, and rides it when it
+    // carries. The floor's normal steers the next walk. A body standing on no carrying floor leaves its ride.
+    private void Refind(CollisionWorld2D world, Entity entity)
+    {
+        MoveSweep probe = new(world, world.ShapeOf(_collider.Handle), Swept(entity), Filter, _collider.Handle, false, _found, _stopped);
+        probe.Pass(-Up * CollisionTolerance.ContactSkin);
+        bool floored = false;
+        for (int index = 0; index < probe.Written; index++)
+        {
+            if (!_stopped[index] || !IsFloor(_found[index].Normal))
+            {
+                continue;
+            }
+
+            if (!floored)
+            {
+                floored = true;
+                _walkNormal = _found[index].Normal;
+            }
+
+            ColliderContact2D contact = Collider2D.Describe(world, _found[index]);
+            if (MovedByFilter.Admits(contact.Layer) && Carries(contact))
+            {
+                Ride(contact.OtherCollider, contact.Tile);
+                return;
+            }
+        }
+
+        Unride();
+    }
+
     // Shoves the body by what is left of the pusher's move after meeting it, or leaves a rider where
     // its carry put it. A shove that falls short by more than the mover's slop raises Crushed with the
     // pusher's surface where the two met, and the shortfall along its normal as the depth.
@@ -1061,6 +1153,17 @@ public sealed class KinematicBody2D : Component
         }
     }
 
+    // Called by a map collider this body rides as it leaves the world. The collider has already let go.
+    internal void ForgetCell(TileMapCollider2D grid)
+    {
+        if (ReferenceEquals(_floorGrid, grid))
+        {
+            _floorGrid = null;
+            _floorCell = null;
+            _floorTile = null;
+        }
+    }
+
     // Replaces the effective moved-by layers, keeping the scene's union current. A changed set drops
     // the riding link, which the next Move finds again.
     private void SetMovedBy(CollisionFilter effective)
@@ -1095,23 +1198,34 @@ public sealed class KinematicBody2D : Component
         }
     }
 
-    private void Ride(Collider2D? floor)
+    private void Ride(Collider2D? floor, TileContact2D? cell)
     {
-        if (ReferenceEquals(_floor, floor))
+        if (!ReferenceEquals(_floor, floor))
         {
-            return;
+            LeaveFloor();
+            if (floor is not null)
+            {
+                floor.AddRider(this);
+                _floor = floor;
+            }
         }
 
-        Unride();
-        if (floor is not null)
+        TileMapCollider2D? grid = cell?.Map.AttachedCollider;
+        if (!ReferenceEquals(_floorGrid, grid))
         {
-            floor.AddRider(this);
-            _floor = floor;
+            _floorGrid?.RemoveRider(this);
+            grid?.AddRider(this);
+            _floorGrid = grid;
         }
+
+        _floorCell = cell;
+        _floorTile = cell?.Type;
     }
 
     // Clears the riding link both ways.
-    internal void Unride()
+    internal void Unride() => Ride(null, null);
+
+    private void LeaveFloor()
     {
         if (_floor is { } floor)
         {
@@ -1193,6 +1307,9 @@ public sealed class KinematicBody2D : Component
         Classify();
         _scene?.CountMovedBy(MovedByFilter, -1);
         _scene = null;
+
+        // A new scene's host may count its ticks from zero again.
+        _surfaceTick = -1;
         if (ReferenceEquals(_collider.Body, this))
         {
             _collider.Body = null;
@@ -1212,6 +1329,7 @@ public sealed class KinematicBody2D : Component
     private void Classify()
     {
         Collider2D? ridden = null;
+        TileContact2D? riddenCell = null;
         IsOnFloor = false;
         IsOnWall = false;
         IsOnCeiling = false;
@@ -1236,12 +1354,12 @@ public sealed class KinematicBody2D : Component
                     FloorNormal = normal;
                 }
 
-                // Grid cells never carry, because a grid is anchored.
-                if (ridden is null
-                    && _moveContacts[index].OtherCollider is { } other
-                    && MovedByFilter.Admits(_moveContacts[index].Layer))
+                // A grid is anchored, so a cell carries only by its tile's surface velocity.
+                ref readonly ColliderContact2D contact = ref _moveContacts[index];
+                if (ridden is null && riddenCell is null && MovedByFilter.Admits(contact.Layer) && Carries(contact))
                 {
-                    ridden = other;
+                    ridden = contact.OtherCollider;
+                    riddenCell = contact.Tile;
                 }
             }
             else if (kind == SurfaceKind.Ceiling)
@@ -1255,6 +1373,10 @@ public sealed class KinematicBody2D : Component
             }
         }
 
-        Ride(ridden);
+        Ride(ridden, riddenCell);
     }
+
+    // Whether a floor contact can carry this body: any collider, or a cell whose tile has a surface velocity.
+    private static bool Carries(in ColliderContact2D contact) =>
+        contact.OtherCollider is not null || (contact.Tile is { } cell && cell.Type.SurfaceVelocity != Vector2.Zero);
 }

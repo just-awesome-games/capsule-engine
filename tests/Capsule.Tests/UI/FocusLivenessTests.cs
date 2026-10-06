@@ -220,4 +220,162 @@ public sealed class FocusLivenessTests
         Assert.Equal(["unfocused 1", "focused 0", "changed 0"], menu.Log);
         Assert.Equal(0, menu.FocusedIndex);
     }
+
+    // A navigator given no items gathers its subtree in tree order, leaves a nested gathering navigator
+    // its own subtree, and follows items joining and leaving under it after it started. A focused item
+    // that leaves drops out at once, and its focus moves on at the next step.
+    [Fact]
+    public void AGatheringNavigator_HoldsItsSubtree_AndFollowsItemsJoiningAndLeaving()
+    {
+        FocusNavigator navigator = new(Actions);
+        FocusNavigator nearer = new(Actions);
+        ScreenHolder root = new(Vector2.Zero, navigator);
+        Focusable first = Under(root, Vector2.Zero);
+        Focusable owned = Under(new ScreenHolder(new Vector2(40f, 0f), nearer) { Parent = root }, Vector2.Zero);
+        Focusable second = Under(root, new Vector2(0f, 40f));
+
+        Scene scene = new();
+        scene.Add(root);
+        using SimulationHost run = new(scene, run: new Run { Canvas = Canvas });
+
+        Assert.Equal([first, second], navigator.Items.ToArray());
+        Assert.Equal([owned], nearer.Items.ToArray());
+        Assert.Same(first, navigator.Focused);
+
+        Focusable late = Under(root, new Vector2(0f, 80f));
+        run.Step();
+        Assert.Equal([first, second, late], navigator.Items.ToArray());
+
+        scene.Remove(first.Entity!);
+        Assert.Equal([second, late], navigator.Items.ToArray());
+        Assert.Same(first, navigator.Focused);
+
+        run.Step();
+        Assert.Same(second, navigator.Focused);
+    }
+
+    // Closing a menu or stopping its scene tears down its items with it. Nothing flickers through them on
+    // the way out, and the same menu added back holds each item once with the focus where it was.
+    [Fact]
+    public void TearingDownAGatheredMenu_RaisesNoFocusEvents_AndReaddingItHoldsEachItemOnce()
+    {
+        FocusNavigator navigator = new(Actions);
+        ScreenHolder root = new(Vector2.Zero, navigator);
+        Focusable first = Under(root, Vector2.Zero);
+        Focusable second = Under(root, new Vector2(0f, 40f));
+        Closer closer = new();
+
+        List<string> log = [];
+        first.Focused += () => log.Add("focused first");
+        second.Focused += () => log.Add("focused second");
+        first.Unfocused += () => log.Add("unfocused first");
+        navigator.FocusChanged += _ => log.Add("changed");
+
+        Scene scene = new();
+        scene.Add(root);
+        scene.Add(closer);
+        using SimulationHost run = new(scene, run: new Run { Canvas = Canvas });
+        log.Clear();
+
+        closer.Closing = root;
+        run.Step();
+
+        Assert.Empty(log);
+        Assert.Equal(0, navigator.Items.Length);
+
+        scene.Add(root);
+        run.Step();
+
+        Assert.Empty(log);
+        Assert.Equal([first, second], navigator.Items.ToArray());
+        Assert.Same(first, navigator.Focused);
+
+        run.Dispose();
+        Assert.Empty(log);
+    }
+
+    // The focused item leaves and comes back as a root of its own before the navigator steps. It is live
+    // again but no longer held, so the next step repairs the focus and the confirm never reaches it.
+    [Fact]
+    public void AFocusedGatheredItemThatLeavesAndIsLiveAgainElsewhere_IsRepairedAwayFromAndNeverPressed()
+    {
+        FocusNavigator navigator = new(Actions);
+        ScreenHolder root = new(Vector2.Zero, navigator);
+        Focusable first = Under(root, Vector2.Zero);
+        Focusable second = Under(root, new Vector2(0f, 40f));
+        bool firstPressed = false;
+        first.Pressed += () => firstPressed = true;
+
+        Scene scene = new();
+        scene.Add(root);
+        Run game = new() { Canvas = Canvas };
+        game.Input.Bindings.Bind(Confirm, Key.Enter);
+        using SimulationHost run = new(scene, run: game);
+
+        scene.Remove(first.Entity!);
+        scene.Add(first.Entity!);
+        run.Step(default(DeviceSnapshot).With(Key.Enter));
+
+        Assert.Same(second, navigator.Focused);
+        Assert.False(first.IsFocused);
+
+        run.Step();
+        run.Step(default(DeviceSnapshot).With(Key.Enter));
+
+        Assert.False(firstPressed);
+        Assert.Equal([second], navigator.Items.ToArray());
+    }
+
+    // A focused item moves to another menu's subtree before its old navigator steps. The new navigator
+    // holds no focus and takes it, and the old one's repair leaves an item it no longer holds alone.
+    [Fact]
+    public void AFocusedItemMovingToAnotherGatheringNavigator_KeepsTheFocusItWasGivenThere()
+    {
+        FocusNavigator departed = new(Actions);
+        FocusNavigator joined = new(Actions);
+        ScreenHolder from = new(Vector2.Zero, departed);
+        ScreenHolder to = new(new Vector2(100f, 0f), joined);
+        Focusable moving = Under(from, Vector2.Zero);
+        Focusable staying = Under(from, new Vector2(0f, 40f));
+        int unfocused = 0;
+        moving.Unfocused += () => unfocused++;
+
+        Scene scene = new();
+        scene.Add(from);
+        scene.Add(to);
+        using SimulationHost run = new(scene, run: new Run { Canvas = Canvas });
+
+        scene.Remove(moving.Entity!);
+        moving.Entity!.Parent = to;
+        run.Step();
+
+        Assert.Same(moving, joined.Focused);
+        Assert.True(moving.IsFocused);
+        Assert.Equal(0, unfocused);
+        Assert.Same(staying, departed.Focused);
+        Assert.True(staying.IsFocused);
+    }
+
+    private static Focusable Under(Entity parent, Vector2 position)
+    {
+        Focusable item = new(Box);
+        _ = new ScreenHolder(position, item) { Parent = parent };
+
+        return item;
+    }
+
+    // Removes the entity it is handed from inside its own step, as a menu's close does.
+    private sealed class Closer() : ScreenEntity(Anchor.TopLeft, Vector2.Zero)
+    {
+        internal Entity? Closing { get; set; }
+
+        protected internal override void OnStep(in StepContext context)
+        {
+            if (Closing is { } closing)
+            {
+                Closing = null;
+                Scene.Remove(closing);
+            }
+        }
+    }
 }

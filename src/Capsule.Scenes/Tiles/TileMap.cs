@@ -168,6 +168,15 @@ public class TileMap : Entity
     /// <summary>Returns how the tile at a tile coordinate is mirrored or turned.</summary>
     public TileTransform TransformAt(int x, int y) => _transforms[IndexOf(x, y)];
 
+    // The surface velocity of the tile a cell holds now, turned the way the cell faces.
+    internal Vector2 SurfaceVelocityAt(int x, int y)
+    {
+        int index = IndexOf(x, y);
+
+        // A direction maps as a point in a tile of size 0, where each flip negates its axis.
+        return TileTransforms.Apply(_grid.TileTypes[_cells[index]].SurfaceVelocity, 0f, _transforms[index]);
+    }
+
     /// <summary>
     /// Returns the tile coordinate of the cell a world position falls in. The cell may lie outside the
     /// map, where <see cref="TileAt"/> throws.

@@ -55,7 +55,7 @@ public sealed class BoxCollider2D : Collider2D
         }
     }
 
-    internal override bool Steps => false;
+    internal override bool Steps => SurfaceVelocity != Vector2.Zero;
 
     internal override TransformSupport Supports => TransformSupport.Resize;
 

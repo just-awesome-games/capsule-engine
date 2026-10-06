@@ -29,7 +29,7 @@ public sealed class CircleCollider2D : Collider2D
         }
     }
 
-    internal override bool Steps => false;
+    internal override bool Steps => SurfaceVelocity != Vector2.Zero;
 
     /// <inheritdoc/>
     protected internal override void OnDebugDraw()

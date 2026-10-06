@@ -15,14 +15,11 @@ public sealed class PauseMenu : ScreenEntity
     // Canvas pixels between the panel's edge and its items.
     private const float PanelPadding = 8f;
 
-    // Two items one spacing apart at their narrowest, inside the padding.
-    private static readonly Vector2 PanelSize = new(MenuItem.MinWidth + (2f * PanelPadding), MenuItem.Spacing + MenuItem.BoxHeight + (2f * PanelPadding));
-
     private static readonly ColorRgba DimColor = new(0, 0, 0, 160);
     private static readonly ColorRgba PanelColor = new(24, 24, 32);
 
-    private readonly MenuItem _resume = new(Anchor.Top, Vector2.Zero, "Resume");
-    private readonly MenuItem _quit = new(Anchor.Top, new Vector2(0f, MenuItem.Spacing), "Quit");
+    private readonly MenuItem _resume = new("Resume");
+    private readonly MenuItem _quit = new("Quit");
 
     private readonly FocusNavigator _navigator;
 
@@ -33,18 +30,19 @@ public sealed class PauseMenu : ScreenEntity
         StepMode = StepMode.WhenPaused;
         Add(new ColorRect { Color = DimColor });
 
-        ScreenEntity panel = new(Anchor.Center, Vector2.Zero)
+        // The panel fits its items, and its colour fills the fitted rect.
+        BoxContainer panel = new(Axis.Vertical, Anchor.Center, Vector2.Zero)
         {
             Parent = this,
-            Size = PanelSize,
             Padding = new Insets(PanelPadding),
+            Spacing = MenuItem.Spacing,
         };
         panel.Add(new ColorRect { Color = PanelColor });
 
         _resume.Parent = panel;
         _quit.Parent = panel;
 
-        _navigator = new FocusNavigator(GameInput.MenuFocus, _resume.Focusable, _quit.Focusable);
+        _navigator = new FocusNavigator(GameInput.MenuFocus);
         Add(_navigator);
 
         _resume.Pressed += Close;

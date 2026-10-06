@@ -152,6 +152,10 @@ namespace Capsule.Generated
             {
                 SetSolidSides(target, members.Bool("solidSides"));
             }
+            if (members.Has("surfaceVelocity"))
+            {
+                SetSurfaceVelocity(target, members.Vector2("surfaceVelocity"));
+            }
             return target;
         }
 
@@ -187,6 +191,10 @@ namespace Capsule.Generated
             if (members.Has("solidSides"))
             {
                 SetSolidSides(target, members.Bool("solidSides"));
+            }
+            if (members.Has("surfaceVelocity"))
+            {
+                SetSurfaceVelocity(target, members.Vector2("surfaceVelocity"));
             }
             if (members.Has("grip"))
             {
@@ -254,6 +262,9 @@ namespace Capsule.Generated
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_SolidSides")]
         private static extern void SetSolidSides(global::Capsule.Tiles.TileType owner, bool value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_SurfaceVelocity")]
+        private static extern void SetSurfaceVelocity(global::Capsule.Tiles.TileType owner, global::System.Numerics.Vector2 value);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Grip")]
         private static extern void SetGrip(global::Game.Ice owner, float value);

@@ -54,7 +54,7 @@ public static class GameInput
     /// What drives a menu's focus, declared here beside the actions it names so every menu the game
     /// opens is navigated the same way.
     /// </summary>
-    public static readonly FocusActions MenuFocus = new(MenuUp, MenuDown, MenuLeft, MenuRight, Confirm, Click);
+    public static readonly FocusActions MenuFocus = new(MenuUp, MenuDown, MenuLeft, MenuRight, Confirm, Click, Back);
 
     /// <summary>Binds every action to the devices the game supports.</summary>
     public static void Configure(InputConfiguration input, GameSettings settings)

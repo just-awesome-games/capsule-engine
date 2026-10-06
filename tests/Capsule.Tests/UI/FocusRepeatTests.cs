@@ -82,6 +82,34 @@ public sealed class FocusRepeatTests
         Assert.Equal(2, menu.FocusedIndex);
     }
 
+    // The adjusted axis never moves the focus, even past a neighbour named on it, and its adjusts keep
+    // the same press edge and repeat a move has. The other axis still navigates.
+    [Fact]
+    public void AnAdjustingItem_TurnsItsAxisIntoAdjustsThatRepeatWhileHeld()
+    {
+        using Menu menu = Column().Open();
+        menu.At(0).Adjusts = Axis.Horizontal;
+        menu.At(0).Right = menu.At(1);
+        menu.Navigator.RepeatDelay = 2;
+        menu.Navigator.RepeatInterval = 1;
+
+        menu.Hold(Key.Right);
+        Assert.Equal(["adjusted 0 1"], menu.Log);
+
+        menu.Rest();
+        Assert.Empty(menu.Log);
+
+        menu.Rest();
+        Assert.Equal(["adjusted 0 1"], menu.Log);
+
+        menu.Release(Key.Right).Tap(Key.Left);
+        Assert.Equal(["adjusted 0 -1"], menu.Log);
+        Assert.Equal(0, menu.FocusedIndex);
+
+        menu.Tap(Key.Down);
+        Assert.Equal(1, menu.FocusedIndex);
+    }
+
     [Fact]
     public void AnIntervalOfZero_NeverRepeatsAndAHeldConfirmNeverRePresses()
     {

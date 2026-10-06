@@ -8,15 +8,16 @@ using MinimalGame.Game.Scenes;
 namespace MinimalGame.Game.UI;
 
 /// <summary>
-/// The options screen's menu: Jump and Shoot rebinding, the sound toggle and Back, over one
-/// <see cref="FocusNavigator"/>.
+/// The options screen's menu: a column of Jump and Shoot rebinding, the music and effects levels and
+/// Back, over one <see cref="FocusNavigator"/>.
 /// </summary>
-public sealed class OptionsMenu : ScreenEntity
+public sealed class OptionsMenu : BoxContainer
 {
-    private readonly MenuItem _jump = new(Anchor.Center, new Vector2(0f, -1.5f * MenuItem.Spacing), "");
-    private readonly MenuItem _shoot = new(Anchor.Center, new Vector2(0f, -0.5f * MenuItem.Spacing), "");
-    private readonly MenuItem _sound = new(Anchor.Center, new Vector2(0f, 0.5f * MenuItem.Spacing), "");
-    private readonly MenuItem _back = new(Anchor.Center, new Vector2(0f, 1.5f * MenuItem.Spacing), "Back");
+    private readonly MenuItem _jump = new("");
+    private readonly MenuItem _shoot = new("");
+    private readonly VolumeSlider _music = new("Music");
+    private readonly VolumeSlider _effects = new("Effects");
+    private readonly MenuItem _back = new("Back");
 
     private readonly FocusNavigator _navigator;
 
@@ -30,30 +31,39 @@ public sealed class OptionsMenu : ScreenEntity
     private InputDevice _shownDevice;
 
     public OptionsMenu()
-        : base(Anchor.Center, Vector2.Zero)
+        : base(Axis.Vertical, Anchor.Center, Vector2.Zero)
     {
+        Spacing = MenuItem.Spacing;
+
         _jump.Parent = this;
         _shoot.Parent = this;
-        _sound.Parent = this;
+        _music.Parent = this;
+        _effects.Parent = this;
         _back.Parent = this;
 
-        _navigator = new FocusNavigator(GameInput.MenuFocus, _jump.Focusable, _shoot.Focusable, _sound.Focusable, _back.Focusable);
+        _navigator = new FocusNavigator(GameInput.MenuFocus);
         Add(_navigator);
 
         _jump.Pressed += () => Listen(_jump);
         _shoot.Pressed += () => Listen(_shoot);
-        _sound.Pressed += ToggleSound;
+        _music.Changed += SetMusic;
+        _effects.Changed += SetEffects;
         _back.Pressed += Leave;
+        _navigator.Canceled += Leave;
     }
 
     /// <inheritdoc/>
     protected override void OnStart()
     {
         _settings = Run.Saves.Read(GameSaves.Settings);
+        _music.Value = _settings.MusicVolume;
+        _effects.Value = _settings.EffectsVolume;
         Refresh(InputDevice.KeyboardMouse);
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.TitleSound);
     }
 
+    // Back cancels a capture here. The navigator reads nothing while a capture listens or on the step
+    // it turns back on, and the same press never also leaves the screen.
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
     {
@@ -68,13 +78,6 @@ public sealed class OptionsMenu : ScreenEntity
                 Capture(item, button);
                 EndListening(context.Input.ActiveDevice);
             }
-
-            return;
-        }
-
-        if (context.Input.WasPressed(GameInput.Back))
-        {
-            Leave();
 
             return;
         }
@@ -117,16 +120,18 @@ public sealed class OptionsMenu : ScreenEntity
         Run.Saves.Write(GameSaves.Settings, _settings);
     }
 
-    private void ToggleSound()
+    private void SetMusic(float volume)
     {
-        _settings.SoundOn = !_settings.SoundOn;
+        _settings.MusicVolume = volume;
         Run.Saves.Write(GameSaves.Settings, _settings);
+        Run.Audio.SetVolume(AudioBuses.Music, volume);
+    }
 
-        // A click must not ramp; music must not pop.
-        Run.Audio.SetVolume(AudioBuses.Sfx, _settings.SoundOn ? 1f : 0f);
-        Run.Audio.FadeVolume(AudioBuses.Music, _settings.SoundOn ? 1f : 0f, 0.2f);
-
-        Refresh(_shownDevice);
+    private void SetEffects(float volume)
+    {
+        _settings.EffectsVolume = volume;
+        Run.Saves.Write(GameSaves.Settings, _settings);
+        Run.Audio.SetVolume(AudioBuses.Sfx, volume);
     }
 
     private void Leave() => Run.RequestScene<MainMenu>();
@@ -137,7 +142,6 @@ public sealed class OptionsMenu : ScreenEntity
 
         _jump.Caption = $"Jump: {DisplayName(_settings.Input.Jump.For(device))}";
         _shoot.Caption = $"Shoot: {DisplayName(_settings.Input.Shoot.For(device))}";
-        _sound.Caption = _settings.SoundOn ? "Sound: On" : "Sound: Off";
     }
 
     // A mouse button is prefixed, since a player does not read "Left" alone as a device.

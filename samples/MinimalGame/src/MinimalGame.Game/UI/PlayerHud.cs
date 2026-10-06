@@ -13,13 +13,13 @@ namespace MinimalGame.Game.UI;
 /// </summary>
 public sealed class PlayerHud : ScreenEntity
 {
-    private readonly HealthBar _healthBar = new(Anchor.TopLeft, new Vector2(7f, 7f));
+    private readonly Meter _health = new(Anchor.TopLeft, new Vector2(7f, 7f));
 
     private Player _player = null!;
 
     public PlayerHud()
         : base(Anchor.Fill, Vector2.Zero) =>
-        _healthBar.Parent = this;
+        _health.Parent = this;
 
     /// <inheritdoc/>
     protected override void OnStart() => _player = Scene.FindSingle<Player>();
@@ -27,5 +27,5 @@ public sealed class PlayerHud : ScreenEntity
     // Health is spent by a contact handler, so the read runs where contacts have settled.
     /// <inheritdoc/>
     protected override void OnLateStep(in StepContext context) =>
-        _healthBar.Fraction = (float)_player.Health / _player.Tuning.MaxHealth;
+        _health.Fraction = (float)_player.Health / _player.Tuning.MaxHealth;
 }

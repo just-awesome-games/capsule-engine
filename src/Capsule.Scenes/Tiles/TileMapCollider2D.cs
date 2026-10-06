@@ -38,6 +38,13 @@ public sealed class TileMapCollider2D : Component
     // Only a shaped entry has a profile per transform. Null while no grid is registered.
     private int[]? _profiles;
 
+    // The bodies riding a cell whose tile has a surface velocity, grown once and never shrunk. A slot
+    // empties to null while this collider is carrying, and is compacted once the carry is done.
+    private KinematicBody2D?[] _riders = [];
+    private int _riderCount;
+    private bool _ridersEmptied;
+    private bool _carrying;
+
     /// <summary>Whether the grid is in the scene's world, true by default.</summary>
     /// <remarks>A change in a scene adds or removes the grid at once.</remarks>
     public bool Enabled
@@ -71,9 +78,13 @@ public sealed class TileMapCollider2D : Component
     // no scene.
     internal CollisionGrid2D? Grid { get; private set; }
 
+    /// <summary>A collider for the map it is added to.</summary>
+    public TileMapCollider2D() => EngineSteps = true;
+
     internal override TransformSupport Supports => TransformSupport.Position;
 
-    internal override bool Steps => false;
+    // The palette is fixed per grid, so whether the map's cells carry is known when this attaches.
+    internal override bool Steps => Entity is TileMap { Grid.Carries: true };
 
     // Only a map whose palette names a layer can collide, and one grid covers the whole map.
     internal override void OnAttachedTo(Entity entity)
@@ -113,6 +124,64 @@ public sealed class TileMapCollider2D : Component
         if (Grid is { } grid)
         {
             grid.SetCell(x, y, _profiles![(palette * TileTransforms.Count) + (int)transform]);
+        }
+    }
+
+    internal void AddRider(KinematicBody2D body)
+    {
+        if (_riderCount == _riders.Length)
+        {
+            Array.Resize(ref _riders, Math.Max(4, _riders.Length * 2));
+        }
+
+        _riders[_riderCount++] = body;
+    }
+
+    internal void RemoveRider(KinematicBody2D body)
+    {
+        for (int index = 0; index < _riderCount; index++)
+        {
+            if (!ReferenceEquals(_riders[index], body))
+            {
+                continue;
+            }
+
+            if (_carrying)
+            {
+                _riders[index] = null;
+                _ridersEmptied = true;
+                return;
+            }
+
+            _riderCount--;
+            _riders[index] = _riders[_riderCount];
+            _riders[_riderCount] = null;
+            return;
+        }
+    }
+
+    // Carries each rider by one step of its cell's surface velocity. The count is read once, so a body
+    // that lands here mid-carry waits for the next step.
+    internal override void OnEngineStep(in StepContext context)
+    {
+        if (_riderCount == 0 || _carrying)
+        {
+            return;
+        }
+
+        _carrying = true;
+        try
+        {
+            int count = _riderCount;
+            for (int index = 0; index < count && Grid is not null; index++)
+            {
+                _riders[index]?.CarryOnCell(context);
+            }
+        }
+        finally
+        {
+            _carrying = false;
+            CompactRiders();
         }
     }
 
@@ -281,5 +350,43 @@ public sealed class TileMapCollider2D : Component
 
         Grid = null;
         _profiles = null;
+        ReleaseRiders();
+    }
+
+    private void CompactRiders()
+    {
+        if (!_ridersEmptied)
+        {
+            return;
+        }
+
+        _ridersEmptied = false;
+        int kept = 0;
+        for (int index = 0; index < _riderCount; index++)
+        {
+            if (_riders[index] is { } rider)
+            {
+                _riders[kept++] = rider;
+            }
+        }
+
+        Array.Clear(_riders, kept, _riderCount - kept);
+        _riderCount = kept;
+    }
+
+    // Lets go of every rider as the grid leaves the world.
+    private void ReleaseRiders()
+    {
+        for (int index = 0; index < _riderCount; index++)
+        {
+            if (_riders[index] is { } rider)
+            {
+                _riders[index] = null;
+                rider.ForgetCell(this);
+            }
+        }
+
+        _riderCount = 0;
+        _ridersEmptied = false;
     }
 }

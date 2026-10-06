@@ -46,6 +46,7 @@ public abstract class Collider2D : Component
     private bool _reportsContacts;
     private bool _oneWay;
     private bool _solidSides;
+    private Vector2 _surfaceVelocity;
     private CollisionMask _detects = CollisionMask.Empty;
 
     // Whether the warning for reporting contacts with an empty Detects has fired since this
@@ -95,6 +96,7 @@ public abstract class Collider2D : Component
 
         _shape = shape;
         _local = shape;
+        EngineSteps = true;
     }
 
     /// <summary>
@@ -243,6 +245,26 @@ public abstract class Collider2D : Component
             if (_world is { } world)
             {
                 world.SetSolidSides(_handle, value);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The world-space velocity, in units per second, at which this collider carries the bodies riding it
+    /// without moving itself, where zero, the default, carries nothing.
+    /// </summary>
+    /// <remarks><see cref="KinematicBody2D.MovedBy"/> says which bodies ride it and when they are carried.</remarks>
+    public Vector2 SurfaceVelocity
+    {
+        get => _surfaceVelocity;
+        set
+        {
+            Guard.Finite(value, nameof(value));
+            bool steps = Steps;
+            _surfaceVelocity = value;
+            if (Steps != steps)
+            {
+                Entity?.CountStepper(Steps);
             }
         }
     }
@@ -757,16 +779,44 @@ public abstract class Collider2D : Component
         }
     }
 
+    // A surface with a velocity is a floor that moves zero and carries its riders by one step of it.
+    internal override void OnEngineStep(in StepContext context)
+    {
+        if (_surfaceVelocity == Vector2.Zero || _riderCount == 0 || _pushing)
+        {
+            return;
+        }
+
+        _pushing = true;
+        try
+        {
+            CarryRiders(_surfaceVelocity * context.DeltaSeconds, context.Tick);
+        }
+        finally
+        {
+            _pushing = false;
+            CompactRiders();
+        }
+    }
+
     // A carried rider's colliders move in turn, which carries whatever rides them. The count is read
-    // once, so a body that lands here mid-carry waits for the next move.
-    private void CarryRiders(Vector2 motion)
+    // once, so a body that lands here mid-carry waits for the next move. A surface carry passes its step's
+    // tick.
+    private void CarryRiders(Vector2 motion, long? surfaceTick = null)
     {
         int count = _riderCount;
         for (int index = 0; index < count && _world is not null; index++)
         {
-            if (_riders[index] is { } rider
-                && rider.IsMovedBy(_layerIndex)
-                && !MovesWith(rider.Entity))
+            if (_riders[index] is not { } rider || !rider.IsMovedBy(_layerIndex) || MovesWith(rider.Entity))
+            {
+                continue;
+            }
+
+            if (surfaceTick is { } tick)
+            {
+                rider.CarryOnSurface(motion, tick);
+            }
+            else
             {
                 rider.Carry(motion);
             }

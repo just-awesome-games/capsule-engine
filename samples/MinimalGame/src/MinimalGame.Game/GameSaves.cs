@@ -7,8 +7,11 @@ namespace MinimalGame.Game;
 /// <summary>What the player keeps between runs. One document, written when the options screen changes it.</summary>
 public sealed record GameSettings
 {
-    /// <summary>Whether the game is audible. Both audio buses are levelled from it.</summary>
-    public bool SoundOn { get; set; } = true;
+    /// <summary>The music bus's level, from 0 to 1.</summary>
+    public float MusicVolume { get; set; } = 1f;
+
+    /// <summary>The sound effects bus's level, from 0 to 1.</summary>
+    public float EffectsVolume { get; set; } = 1f;
 
     /// <summary>The bindings the player may change.</summary>
     public InputSettings Input { get; set; } = new();

@@ -247,6 +247,34 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         Assert.True(crate.Position.X > lift.Position.X);
     }
 
+    // A belt of floor tiles carries a grounded body left into a solid tile on every step, and the wall
+    // stops it there.
+    [Fact]
+    public void ABeltCarryingABodyIntoAWall_AllocatesNothingPerStep()
+    {
+        Scene scene = CollisionWorkload.Room();
+        TileMap terrain = SceneFixtures.TerrainOf(scene);
+        terrain.SetTile(19, 39, "solid");
+        for (int x = 20; x < 28; x++)
+        {
+            terrain.SetTile(x, 40, "belt");
+        }
+
+        CollisionWorkload.Hauled rider = new(new Vector2(400f, 620f), walk: 0f, BodyMode.Grounded);
+        scene.Add(rider);
+
+        using SceneSimulation simulation = new(scene, run: StageWorkload.Defaults);
+        InputState input = new(new ActionBindings());
+
+        Report("belt carrying a body into a wall", Measure(step =>
+        {
+            simulation.Step(new StepContext(StageWorkload.StepSeconds, input, step));
+            return (int)rider.Position.X;
+        }));
+
+        Assert.Equal(320f, rider.Position.X, 0.01f);
+    }
+
     // A sensor spans a row whose cells turn solid one a step, so its contact count rises by one on
     // every step. Buffers grown to the exact count would allocate on each of those steps. Doubling
     // allocates each buffer twice past its starting sixteen, and the bound is twice that.

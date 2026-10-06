@@ -21,7 +21,9 @@ internal static class FocusFixtures
 
     internal static readonly InputAction Click = new("Click");
 
-    internal static readonly FocusActions Actions = new(Up, Down, Left, Right, Confirm, Click);
+    internal static readonly InputAction Cancel = new("Cancel");
+
+    internal static readonly FocusActions Actions = new(Up, Down, Left, Right, Confirm, Click, Cancel);
 
     internal static readonly Vector2 Box = new(20f, 10f);
 
@@ -108,6 +110,7 @@ internal static class FocusFixtures
             }
 
             Navigator.FocusChanged += item => _log.Add($"changed {IndexOf(item)}");
+            Navigator.Canceled += () => _log.Add("canceled");
             _scene.Add(new WorldHolder(Vector2.Zero, Navigator));
         }
 
@@ -289,7 +292,8 @@ internal static class FocusFixtures
                 .Bind(Left, Key.Left)
                 .Bind(Right, Key.Right)
                 .Bind(Confirm, Key.Enter)
-                .Bind(Click, MouseButton.Left);
+                .Bind(Click, MouseButton.Left)
+                .Bind(Cancel, Key.Escape);
 
         private Menu Advance(in DeviceSnapshot snapshot)
         {
@@ -307,6 +311,7 @@ internal static class FocusFixtures
             item.Focused += () => _log.Add($"focused {index}");
             item.Unfocused += () => _log.Add($"unfocused {index}");
             item.Pressed += () => _log.Add($"pressed {index}");
+            item.Adjusted += step => _log.Add($"adjusted {index} {step}");
 
             _items.Add(item);
             _scene.Add(item.Entity!.Root);

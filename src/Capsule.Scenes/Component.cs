@@ -19,6 +19,10 @@ public abstract class Component
 {
     private bool _started;
 
+    // Whether RunStep runs OnEngineStep. The constructor of an engine type that overrides it sets this,
+    // and every other component skips a virtual call each step.
+    private protected bool EngineSteps;
+
     /// <summary>The entity this component is attached to, or null until it is attached.</summary>
     public Entity? Entity { get; internal set; }
 
@@ -173,7 +177,8 @@ public abstract class Component
     }
 
     // False on an engine component that overrides neither OnStep nor OnLateStep. An entity whose
-    // components all return false skips its component walk. Only a sealed type may return false.
+    // components all return false skips its component walk. Only a sealed type may return false. A
+    // component whose answer changes while attached tells its entity through Entity.CountStepper.
     internal virtual bool Steps => true;
 
     // Safe to call twice. An entity notifies its components when it joins a scene, and Entity.Add notifies
@@ -211,7 +216,17 @@ public abstract class Component
             return;
         }
 
+        if (EngineSteps)
+        {
+            OnEngineStep(context);
+        }
+
         OnStep(context);
+    }
+
+    // Runs before OnStep for engine work that a subclass overriding OnStep cannot drop.
+    internal virtual void OnEngineStep(in StepContext context)
+    {
     }
 
     // Same rule as RunStep: a component that has not started takes no late step.

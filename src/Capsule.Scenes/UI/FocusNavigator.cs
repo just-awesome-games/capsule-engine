@@ -40,12 +40,19 @@ public sealed class FocusNavigator : Component
     private readonly List<Focusable> _items = [];
     private readonly FocusActions _actions;
 
+    // Whether this navigator collects the items in its entity's subtree.
+    private readonly bool _gathers;
+
     private bool _started;
     private bool _raising;
 
     // Set by the Interactable setter on a false-to-true transition, and cleared by the next OnStep,
     // whose read this navigator then skips.
     private bool _justTurnedInteractable;
+
+    // Set when Leave drops the focused item, and cleared by every Move. The item may be live again
+    // elsewhere before the next step, and the step repairs the focus all the same.
+    private bool _focusDeparted;
 
     // The repeat of a held direction. It counts while any direction is held and none was pressed
     // this step.
@@ -60,6 +67,16 @@ public sealed class FocusNavigator : Component
     /// focus is released to no item.
     /// </remarks>
     public event Action<Focusable>? FocusChanged;
+
+    /// <summary>
+    /// Raised on the press edge of <see cref="FocusActions.Cancel"/>, after that step's focus move and
+    /// press, at most once per step.
+    /// </summary>
+    /// <remarks>
+    /// It is raised while this navigator holds no live focus too, so an empty menu can still be left. It
+    /// is gated by <see cref="Interactable"/> as every other action is.
+    /// </remarks>
+    public event Action? Canceled;
 
     /// <summary>
     /// The item that has the focus, or null while this navigator holds none. Before the navigator
@@ -119,8 +136,27 @@ public sealed class FocusNavigator : Component
     } = 6;
 
     /// <summary>
+    /// Navigates the items it gathers from its entity's subtree, and the first item takes the focus when
+    /// this navigator starts.
+    /// </summary>
+    /// <remarks>
+    /// At start it gathers every <see cref="Focusable"/> under its entity in tree order: the entity, its
+    /// components in attachment order, then each child's subtree in child order. A subtree under an
+    /// entity holding another gathering navigator belongs to that navigator. After start, an item that
+    /// joins the scene under it is appended, and one that leaves its scene drops out. A focus on the item
+    /// that left moves on at this navigator's next step. <see cref="Add"/> and <see cref="Remove"/> still
+    /// work.
+    /// </remarks>
+    /// <param name="actions">The actions that drive this navigator for its whole life.</param>
+    public FocusNavigator(FocusActions actions)
+    {
+        _actions = actions;
+        _gathers = true;
+    }
+
+    /// <summary>
     /// Navigates <paramref name="items"/>, and the first item takes the focus when this navigator
-    /// starts.
+    /// starts. It gathers nothing.
     /// </summary>
     /// <remarks>
     /// Directions come from where the items sit, not from list order. One call serves a column, a
@@ -168,20 +204,7 @@ public sealed class FocusNavigator : Component
         RequireNotRaising();
         Append(item);
         RequireNeighboursHeld(item);
-
-        if (Focused is not null)
-        {
-            return;
-        }
-
-        if (_started)
-        {
-            Move(Live(item) ? item : FirstLive());
-        }
-        else
-        {
-            Focused = item;
-        }
+        Seat(item);
     }
 
     /// <summary>
@@ -239,6 +262,13 @@ public sealed class FocusNavigator : Component
     /// </remarks>
     protected internal override void OnStart()
     {
+        // A gathered item may name a neighbour outside the subtree. A chain that reaches it moves nothing.
+        if (_gathers && Entity is { } entity)
+        {
+            Gather(entity);
+            Focused ??= First();
+        }
+
         _started = true;
 
         if (Focused is not { } starting)
@@ -262,7 +292,9 @@ public sealed class FocusNavigator : Component
     /// </summary>
     /// <remarks>
     /// One counter serves every direction and runs while any direction is held and no direction was
-    /// pressed this step. A step holding two directions uses the first of up, down, left and right.
+    /// pressed this step. A step holding two directions uses the first of up, down, left and right. A
+    /// direction on the focused item's <see cref="Focusable.Adjusts"/> axis adjusts that item in place of
+    /// moving the focus.
     /// <see cref="FocusActions.Confirm"/> and <see cref="FocusActions.Click"/> are read on their
     /// press edge only.
     /// <para>
@@ -272,7 +304,7 @@ public sealed class FocusNavigator : Component
     /// pointer. Both the pointer and the click only reach items on a <see cref="ScreenEntity"/>. A
     /// click presses the item under the pointer whether or not the pointer moved, and does nothing
     /// over empty space. A step that finds no live focus spends itself moving to one and reads
-    /// nothing else. The item it lands on cannot be pressed by an action aimed at the previously
+    /// nothing else but <see cref="FocusActions.Cancel"/>. The item it lands on cannot be pressed by an action aimed at the previously
     /// focused item. A handler that takes the landing item out of its scene drops the press.
     /// </para>
     /// </remarks>
@@ -294,9 +326,10 @@ public sealed class FocusNavigator : Component
         Side? heldSide = Direction(input, pressed: false);
         bool repeat = _repeat.Next(heldSide is not null, pressedSide is not null, RepeatDelay, RepeatInterval);
 
-        if (Focused is not { } focused || !Live(focused))
+        if (_focusDeparted || Focused is not { } focused || !Live(focused))
         {
             Move(FirstLive());
+            Cancel(input);
 
             return;
         }
@@ -314,9 +347,20 @@ public sealed class FocusNavigator : Component
             target = under;
         }
 
-        if ((pressedSide ?? (repeat ? heldSide : null)) is { } side && Reached(target, side) is { } moved)
+        Focusable? adjusting = null;
+        int adjust = 0;
+
+        if ((pressedSide ?? (repeat ? heldSide : null)) is { } side)
         {
-            target = moved;
+            if (target.Adjusts == AxisOf(side))
+            {
+                adjusting = target;
+                adjust = side is Side.Right or Side.Up ? 1 : -1;
+            }
+            else if (Reached(target, side) is { } moved)
+            {
+                target = moved;
+            }
         }
 
         if (clicking && under is not null)
@@ -330,9 +374,118 @@ public sealed class FocusNavigator : Component
         // Move first. A press handler then finds this navigator already focused on the pressed item.
         Move(target);
 
+        if (adjusting is not null && ReferenceEquals(Focused, adjusting) && Live(adjusting))
+        {
+            adjusting.Adjust(adjust);
+        }
+
         if (press && Focused is { } pressed && Live(pressed))
         {
             pressed.Press();
+        }
+
+        Cancel(input);
+    }
+
+    // Appends an item that joined the scene under a gathering navigator after it started. Its named
+    // neighbours may join later in the same batch.
+    internal static void Join(Focusable item)
+    {
+        for (Entity? above = item.Entity; above is not null; above = above.Parent)
+        {
+            if (GathererOn(above) is not { } navigator)
+            {
+                continue;
+            }
+
+            item.Gatherer = navigator;
+
+            if (navigator._started && !navigator._items.Contains(item))
+            {
+                navigator.RequireNotRaising();
+                navigator._items.Add(item);
+                navigator.Seat(item);
+            }
+
+            return;
+        }
+    }
+
+    // Drops a gathered item leaving its scene and raises nothing. A focus left on it moves on at the next
+    // step. A torn-down menu never steps again.
+    internal void Leave(Focusable item)
+    {
+        if (_items.Remove(item) && ReferenceEquals(Focused, item))
+        {
+            _focusDeparted = true;
+        }
+    }
+
+    // A handler earlier in the step may have turned Interactable off, or off and on again, and either
+    // way the step's cancel is dropped.
+    private void Cancel(InputState input)
+    {
+        if (Interactable && !_justTurnedInteractable && _actions.Cancel is { } cancel && input.WasPressed(cancel))
+        {
+            Canceled?.Invoke();
+        }
+    }
+
+    // Returns the gathering navigator on `entity`, or null.
+    private static FocusNavigator? GathererOn(Entity entity)
+    {
+        foreach (Component component in entity.Components)
+        {
+            if (component is FocusNavigator { _gathers: true } navigator)
+            {
+                return navigator;
+            }
+        }
+
+        return null;
+    }
+
+    // Collects the items under `entity` in tree order, leaving out a subtree another gathering navigator
+    // owns.
+    private void Gather(Entity entity)
+    {
+        foreach (Component component in entity.Components)
+        {
+            if (component is Focusable item)
+            {
+                item.Gatherer = this;
+
+                if (!_items.Contains(item))
+                {
+                    _items.Add(item);
+                }
+            }
+        }
+
+        foreach (Entity child in entity.Children)
+        {
+            if (GathererOn(child) is null)
+            {
+                Gather(child);
+            }
+        }
+    }
+
+    // Lands the focus on a new item when this navigator holds none.
+    private void Seat(Focusable item)
+    {
+        if (Focused is not null)
+        {
+            return;
+        }
+
+        if (_started)
+        {
+            Move(Live(item) ? item : FirstLive());
+        }
+        else
+        {
+            Focused = item;
         }
     }
 
@@ -366,7 +519,7 @@ public sealed class FocusNavigator : Component
     {
         if (Named(from, side) is not { } named)
         {
-            return Neighbour(from, Axis(side));
+            return Neighbour(from, Toward(side));
         }
 
         Focusable step = named;
@@ -405,7 +558,7 @@ public sealed class FocusNavigator : Component
             _ => item.Right,
         };
 
-    private static Vector2 Axis(Side side) =>
+    private static Vector2 Toward(Side side) =>
         side switch
         {
             Side.Up => -Vector2.UnitY,
@@ -523,6 +676,8 @@ public sealed class FocusNavigator : Component
     // Applies the move before raising anything. A handler then reads the focus it landed on.
     private void Move(Focusable? landing)
     {
+        _focusDeparted = false;
+
         if (ReferenceEquals(landing, Focused))
         {
             return;
@@ -543,11 +698,15 @@ public sealed class FocusNavigator : Component
 
         try
         {
-            left?.LoseFocus();
+            // A departed item may already hold another navigator's focus, which this one leaves alone.
+            if (left is not null && ReferenceEquals(left.Holder, this))
+            {
+                left.LoseFocus();
+            }
 
             if (landing is { } item)
             {
-                item.TakeFocus();
+                item.TakeFocus(this);
                 FocusChanged?.Invoke(item);
             }
         }
@@ -565,6 +724,8 @@ public sealed class FocusNavigator : Component
                 "A FocusNavigator cannot change its items or its focus while its own focus events are being raised.");
         }
     }
+
+    private static Axis AxisOf(Side side) => side is Side.Left or Side.Right ? Axis.Horizontal : Axis.Vertical;
 
     private enum Side
     {

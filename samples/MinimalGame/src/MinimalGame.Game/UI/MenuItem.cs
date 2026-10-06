@@ -6,14 +6,15 @@ using Capsule.UI;
 namespace MinimalGame.Game.UI;
 
 /// <summary>
-/// One item of a menu: a focus box, its caption and its highlight bar, all filling the item. It reacts to
-/// its own focus and says it was pressed, never what pressing means. Everything is attached in its
-/// constructor so the font is collected for the scene's preload.
+/// One item of a menu: a focus box, its caption and its highlight bar, all filling the item. It spans its
+/// slot's width, so a column's items are all as wide as the widest. It reacts to its own focus and says it
+/// was pressed, never what pressing means. Everything is attached in its constructor so the font is
+/// collected for the scene's preload.
 /// </summary>
 public sealed class MenuItem : ScreenEntity
 {
-    /// <summary>Canvas pixels between the centres of neighbouring items in a column.</summary>
-    public const float Spacing = 20f;
+    /// <summary>Canvas pixels between neighbouring items in a column.</summary>
+    public const float Spacing = 4f;
 
     /// <summary>The box's narrowest width in canvas pixels, whatever the caption measures.</summary>
     public const float MinWidth = 88f;
@@ -23,17 +24,15 @@ public sealed class MenuItem : ScreenEntity
 
     private const float HorizontalPadding = 8f;
 
-    private static readonly ColorRgba FocusedInk = ColorRgba.Black;
-    private static readonly ColorRgba RestingInk = ColorRgba.White;
+    internal static readonly ColorRgba FocusedInk = ColorRgba.Black;
+    internal static readonly ColorRgba RestingInk = ColorRgba.White;
 
     private readonly Label _caption;
     private readonly ColorRect _bar;
 
-    /// <param name="anchor">Where the item sits in its menu's rect.</param>
-    /// <param name="offset">Canvas pixels from that point to the same point of the item's box.</param>
     /// <param name="text">The caption drawn inside the box.</param>
-    public MenuItem(Anchor anchor, Vector2 offset, string text)
-        : base(anchor, offset)
+    public MenuItem(string text)
+        : base(Anchor.TopWide, Vector2.Zero)
     {
         _bar = new ColorRect { Visible = false };
 

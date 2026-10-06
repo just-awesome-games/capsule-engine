@@ -12,7 +12,7 @@ public static class GameBoot
         GameSettings settings = run.Saves.Read(GameSaves.Settings);
 
         GameInput.Configure(run.Input, settings);
-        run.Audio.SetVolume(AudioBuses.Sfx, settings.SoundOn ? 1f : 0f);
-        run.Audio.SetVolume(AudioBuses.Music, settings.SoundOn ? 1f : 0f);
+        run.Audio.SetVolume(AudioBuses.Sfx, settings.EffectsVolume);
+        run.Audio.SetVolume(AudioBuses.Music, settings.MusicVolume);
     }
 }

@@ -69,10 +69,25 @@ public sealed class Focusable(Vector2 size) : Component
     public Focusable? Right { get; set; }
 
     /// <summary>
+    /// The axis whose directions raise <see cref="Adjusted"/> on this item while it has the focus, in
+    /// place of moving the focus. Null, the default, lets every direction navigate.
+    /// </summary>
+    /// <remarks>
+    /// The other axis navigates as usual. The neighbours named on the adjusted axis are not read.
+    /// </remarks>
+    public Axis? Adjusts { get; set; }
+
+    /// <summary>
     /// Whether a navigator's focus is on this item. False until the navigator holding it starts,
     /// which is when its starting item takes the focus.
     /// </summary>
     public bool IsFocused { get; private set; }
+
+    // The gathering navigator that holds this item through its subtree, or null.
+    internal FocusNavigator? Gatherer { get; set; }
+
+    // The navigator that gave this item the focus, or null. Only that navigator takes it away.
+    internal FocusNavigator? Holder { get; private set; }
 
     /// <summary>A hit box with no size of its own, which fills the rect of the <see cref="ScreenEntity"/> holding it.</summary>
     public Focusable()
@@ -108,19 +123,46 @@ public sealed class Focusable(Vector2 size) : Component
     /// <remarks>At most once per step, however many actions asked for it.</remarks>
     public event Action? Pressed;
 
-    internal void TakeFocus()
+    /// <summary>
+    /// Raised with +1 for right or up and -1 for left or down when a direction on the <see cref="Adjusts"/>
+    /// axis is pressed or repeats while this item has the focus.
+    /// </summary>
+    /// <remarks>
+    /// It follows the same press edge and hold repeat as a focus move, and comes after that step's focus
+    /// events and before its press.
+    /// </remarks>
+    public event Action<int>? Adjusted;
+
+    internal void TakeFocus(FocusNavigator holder)
     {
+        Holder = holder;
         IsFocused = true;
         Focused?.Invoke();
     }
 
     internal void LoseFocus()
     {
+        Holder = null;
         IsFocused = false;
         Unfocused?.Invoke();
     }
 
     internal void Press() => Pressed?.Invoke();
+
+    internal void Adjust(int step) => Adjusted?.Invoke(step);
+
+    /// <inheritdoc/>
+    protected internal override void OnAddedToScene() => FocusNavigator.Join(this);
+
+    /// <inheritdoc/>
+    protected internal override void OnRemovedFromScene()
+    {
+        if (Gatherer is { } gatherer)
+        {
+            Gatherer = null;
+            gatherer.Leave(this);
+        }
+    }
 
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)

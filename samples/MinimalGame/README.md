@@ -32,6 +32,6 @@ The gate is `sh hooks/pre-commit` from the sample root.
 - Drop through a ledge: hold down and press Jump.
 - Shoot: the left mouse button or the west pad button.
 - Pause: Escape or Start.
-- Change rooms: walk into the dark doorway at the room's far right.
+- Change rooms: walk into the dark doorway at the room's far right, past the belt that pushes back.
 
 Jump and shoot can be rebound under Options on the title menu.

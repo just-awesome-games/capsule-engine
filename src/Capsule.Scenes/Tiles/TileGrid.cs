@@ -113,6 +113,9 @@ public sealed class TileGrid
     // Whether any palette entry is on a layer. A grid with none needs no collider.
     internal bool Collides => Array.Exists(_tileTypes, static tileType => tileType.Layer is not null);
 
+    // Whether any palette entry has a surface velocity. Only such a grid's collider steps.
+    internal bool Carries => Array.Exists(_tileTypes, static tileType => tileType.SurfaceVelocity != Vector2.Zero);
+
     // Memory instead of a span, so a map can hold them. A map never writes the grid's own table.
     internal ReadOnlyMemory<Sprite?> Sprites => _sprites;
 
@@ -195,6 +198,18 @@ public sealed class TileGrid
             {
                 throw Malformed(
                     $"{Palette(tileType, i)} declares {(tileType.Shape is null ? "oneWay" : "a shape")} but no layer and collides as nothing. Add a layer or drop it.",
+                    "tileTypes");
+            }
+
+            if (!float.IsFinite(tileType.SurfaceVelocity.X) || !float.IsFinite(tileType.SurfaceVelocity.Y))
+            {
+                throw Malformed($"{Palette(tileType, i)} has a surfaceVelocity that is not finite. Give it finite world units per second.", "tileTypes");
+            }
+
+            if (tileType.Layer is null && tileType.SurfaceVelocity != Vector2.Zero)
+            {
+                throw Malformed(
+                    $"{Palette(tileType, i)} declares a surfaceVelocity but no layer and carries nothing. Add a layer or drop it.",
                     "tileTypes");
             }
 
@@ -461,7 +476,7 @@ public sealed class TileGrid
 
     // The empty entry draws, collides and authors nothing. A subclass would fill every unpainted cell.
     private static bool IsEmpty(TileType tileType) =>
-        tileType is { Name: EmptyTileName, Cell: null, Frames: null, Layer: null, Shape: null, OneWay: false, SolidSides: false }
+        tileType is { Name: EmptyTileName, Cell: null, Frames: null, Layer: null, Shape: null, OneWay: false, SolidSides: false, SurfaceVelocity: { X: 0f, Y: 0f } }
         && tileType.GetType() == typeof(TileType);
 
     // How a message names a palette entry: its index, and the name an author finds it by.

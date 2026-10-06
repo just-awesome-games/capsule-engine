@@ -19,10 +19,15 @@ namespace Capsule.UI;
 /// Presses the item under the pointer, and only that item. Null, the default, makes the navigator ignore the
 /// pointer's buttons however the game bound them.
 /// </param>
+/// <param name="Cancel">
+/// Raises <see cref="FocusNavigator.Canceled"/>, as backing out of a menu does. Null, the default, raises
+/// nothing.
+/// </param>
 public readonly record struct FocusActions(
     InputAction Up,
     InputAction Down,
     InputAction Left,
     InputAction Right,
     InputAction Confirm,
-    InputAction? Click = null);
+    InputAction? Click = null,
+    InputAction? Cancel = null);

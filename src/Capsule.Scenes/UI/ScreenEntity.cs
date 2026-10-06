@@ -9,9 +9,10 @@ namespace Capsule.UI;
 /// holds draws over the world layer whatever the two layers' bands are.
 /// </summary>
 /// <remarks>
-/// A screen entity is placed in its parent's rect inset by that parent's <see cref="Padding"/>, or in
-/// the canvas when it is a root, by its <see cref="Anchor"/> and its <see cref="Entity.Position"/>. The
-/// canvas is the run's (<see cref="Run.Canvas"/>), not the window's. Its <see cref="Entity.Parent"/> may
+/// A screen entity is placed in the slot its parent gives it, or in the canvas when it is a root, by its
+/// <see cref="Anchor"/> and its <see cref="Entity.Position"/>. A plain parent's slot is its rect inset by
+/// its <see cref="Padding"/>, and a container's is the child's cell. The canvas is the run's
+/// (<see cref="Run.Canvas"/>), not the window's. Its <see cref="Entity.Parent"/> may
 /// be another screen entity but never a plain one. A plain entity parented under one joins the group
 /// and draws on the screen layer in canvas pixels from this entity's top-left corner.
 /// </remarks>
@@ -27,7 +28,7 @@ namespace Capsule.UI;
 public class ScreenEntity : Entity
 {
     /// <summary>
-    /// Where this entity sits in its parent's padded rect, or in the canvas for a root,
+    /// Where this entity sits in the slot its parent gives it, or in the canvas for a root,
     /// <see cref="Anchor.TopLeft"/> by default.
     /// </summary>
     public Anchor Anchor { get; set; }
@@ -35,7 +36,10 @@ public class ScreenEntity : Entity
     /// <summary>
     /// This entity's rect extent in canvas pixels, where the default of zero makes the entity a point.
     /// </summary>
-    /// <remarks>An axis the <see cref="Anchor"/> spans takes the span's extent and ignores this one.</remarks>
+    /// <remarks>
+    /// An axis the <see cref="Anchor"/> spans takes the span's extent and ignores this one. A container
+    /// grows past it to fit its children.
+    /// </remarks>
     public Vector2 Size
     {
         get;
@@ -43,7 +47,13 @@ public class ScreenEntity : Entity
         set
         {
             Guard.NonNegative(value, nameof(value));
+            if (field == value)
+            {
+                return;
+            }
+
             field = value;
+            Reflow(Layout is null ? Parent : this);
         }
     }
 
@@ -54,9 +64,29 @@ public class ScreenEntity : Entity
     /// <remarks>
     /// The entity's own components fill its outer rect. An inner extent smaller than zero is zero.
     /// </remarks>
-    public Insets Padding { get; set; }
+    public Insets Padding
+    {
+        get;
 
-    /// <param name="anchor">Where this entity sits in its parent's padded rect, or in the canvas for a root.</param>
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            Reflow(this);
+        }
+    }
+
+    // The tracks a container places its children with, or null on any other screen entity.
+    internal Tracks? Layout { get; private protected init; }
+
+    // This entity's cell in its container parent's last solve, or -1 while it is hidden and takes none.
+    internal int Cell { get; set; }
+
+    /// <param name="anchor">Where this entity sits in the slot its parent gives it, or in the canvas for a root.</param>
     /// <param name="offset">
     /// Canvas pixels from the anchor to the same point of this entity's rect. A negative component
     /// measures back towards the top-left.
@@ -70,7 +100,23 @@ public class ScreenEntity : Entity
 
     // The rect's extent in this entity's units. It reads the canvas through the root's scene, and an
     // entity in no scene places its root in a canvas of zero.
-    internal Vector2 Extent => Anchor.Extent(Parent is ScreenEntity parent ? parent.Padding.Inside(parent.Extent) : Canvas, Size);
+    internal Vector2 Extent
+    {
+        get
+        {
+            if (Parent is not ScreenEntity parent)
+            {
+                return Anchor.Extent(Canvas, Preferred);
+            }
+
+            parent.Slot(this, parent.Extent, out Vector2 slot);
+
+            return Anchor.Extent(slot, Preferred);
+        }
+    }
+
+    // The extent this entity takes on an axis its anchor does not span. A container's fits its children.
+    internal Vector2 Preferred => Layout?.Preferred(this) ?? Size;
 
     private Vector2 Canvas => Root.SceneOrNull?.RunOrNull?.Canvas ?? Vector2.Zero;
 
@@ -102,17 +148,43 @@ public class ScreenEntity : Entity
         return ((ScreenEntity)holder).Origin(previous, out _);
     }
 
+    // Marks the container `from` stale and walks up while its parent is a container too. A walk that meets
+    // a stale container stops there, because a stale container's container ancestors are stale too.
+    internal static void Reflow(Entity? from)
+    {
+        while (from is ScreenEntity { Layout: { } tracks } container && tracks.Invalidate())
+        {
+            from = container.Parent;
+        }
+    }
+
+    // Returns the top-left corner of the slot `child` is placed in, in this entity's units, and writes the
+    // slot's extent. `extent` is this entity's own. A container's layout picks the slot, and any other
+    // entity's slot is its padded inside.
+    internal Vector2 Slot(ScreenEntity child, Vector2 extent, out Vector2 slot)
+    {
+        if (Layout is { } tracks)
+        {
+            return tracks.Slot(this, child, extent, out slot);
+        }
+
+        slot = Padding.Inside(extent);
+
+        return new Vector2(Padding.Left, Padding.Top);
+    }
+
     // The canvas point the rect's top-left corner lands on before this entity's own transform, and the
     // rect's extent. The entity's world turn and scale carry the corner about the anchor point.
     private Vector2 Origin(bool previous, out Vector2 extent)
     {
         if (Parent is not ScreenEntity parent)
         {
-            return Anchor.Place(Vector2.Zero, Canvas, Size, out extent) - Lean(previous, extent);
+            return Anchor.Place(Vector2.Zero, Canvas, Preferred, out extent) - Lean(previous, extent);
         }
 
         Vector2 above = parent.Origin(previous, out Vector2 outer);
-        Vector2 point = Anchor.Place(new Vector2(parent.Padding.Left, parent.Padding.Top), parent.Padding.Inside(outer), Size, out extent);
+        Vector2 corner = parent.Slot(this, outer, out Vector2 slot);
+        Vector2 point = Anchor.Place(corner, slot, Preferred, out extent);
 
         // The anchor point is in the parent's units. The parent's turn and scale carry it onto the canvas, and
         // the lean is already in canvas pixels.

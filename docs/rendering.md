@@ -173,9 +173,11 @@ Within a layer, what draws later has the higher sum of the entity's `ZIndex` up 
 renderer's own `ZIndex`. Ties break by file order in a document and then by attachment order. A top-down
 scene sets `Scene.YSort` to order world renderers in one band by their root entity's Y.
 
-A `ScreenEntity` is a rect placed by an `Anchor` and an offset in its parent screen entity's padded rect,
-or in the canvas for a root, and a resized canvas or parent moves everything under it. A `ColorRect`,
-`NineSlice`, `Label` or `Focusable` built without a size fills its entity's rect:
+A `ScreenEntity` is a rect placed by an `Anchor` and an offset in the slot its parent screen entity gives
+it, or in the canvas for a root, and a resized canvas or parent moves everything under it. A plain
+parent's slot is its padded rect. A `BoxContainer` or `GridContainer` gives each child a cell and fits
+itself to them. A `ColorRect`, `NineSlice`, `Label` or `Focusable` built without a size fills its
+entity's rect:
 
 ```csharp
 ScreenEntity panel = new(Anchor.Center, Vector2.Zero) { Size = new Vector2(104f, 52f), Padding = new Insets(8f) };

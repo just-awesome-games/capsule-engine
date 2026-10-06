@@ -4,13 +4,13 @@ using System.Numerics;
 namespace Capsule.UI;
 
 /// <summary>
-/// Where a <see cref="ScreenEntity"/> sits in its parent's padded rect, or in the canvas for a root, as a
-/// fraction of that rect on each axis, Y-down. (0, 0) is the top-left corner and (1, 1) the bottom-right.
+/// Where a <see cref="ScreenEntity"/> sits in the slot its parent gives it, or in the canvas for a root, as
+/// a fraction of that rect on each axis, Y-down. (0, 0) is the top-left corner and (1, 1) the bottom-right.
 /// </summary>
 /// <remarks>
-/// In the point form, the same point of the entity's own rect sits <see cref="Capsule.Scenes.Entity.Position"/>
-/// from the anchor. In the span form, the rect stretches over that share of the parent's rect from the
-/// span's near edge. A fraction outside [0, 1] names a point outside the rect and is allowed.
+/// The slot is the parent's padded rect, or the child's cell in a container. In the point form, the same
+/// point of the entity's own rect sits <see cref="Capsule.Scenes.Entity.Position"/> from the anchor. In the
+/// span form, the rect stretches over that share of the slot from the span's near edge. A fraction outside [0, 1] names a point outside the rect and is allowed.
 /// </remarks>
 public readonly record struct Anchor
 {
@@ -19,7 +19,7 @@ public readonly record struct Anchor
     private readonly float _maxX;
     private readonly float _maxY;
 
-    /// <summary>An anchor at one point of the parent's rect.</summary>
+    /// <summary>An anchor at one point of the slot.</summary>
     /// <param name="x">The fraction across, where 0 is the left edge and 1 the right.</param>
     /// <param name="y">The fraction down, where 0 is the top edge and 1 the bottom.</param>
     public Anchor(float x, float y)
@@ -28,7 +28,7 @@ public readonly record struct Anchor
     }
 
     /// <summary>
-    /// An anchor spanning a range of the parent's rect on each axis, where equal ends make that axis a point.
+    /// An anchor spanning a range of the slot on each axis, where equal ends make that axis a point.
     /// </summary>
     /// <param name="minX">The fraction across where the span starts.</param>
     /// <param name="minY">The fraction down where the span starts.</param>

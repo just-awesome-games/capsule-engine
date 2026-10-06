@@ -177,6 +177,11 @@ public partial class Entity
                 _childSlot = siblings.Count;
                 siblings.Add(this);
                 value.TrackMovement(_movementTrackers);
+
+                if (OnScreen)
+                {
+                    ScreenEntity.Reflow(value);
+                }
             }
 
             Invalidate(previous: true);
@@ -719,6 +724,9 @@ public partial class Entity
         Scenes.Scene.ThrowCleanupFailures(failures);
     }
 
+    // Follows a component whose Steps changed while attached to this entity.
+    internal void CountStepper(bool steps) => _steppers += steps ? 1 : -1;
+
     // An entity that has not started or is held does not step, and neither do its components.
     internal void RunStep(in StepContext context)
     {
@@ -874,6 +882,11 @@ public partial class Entity
             parent._children![_childSlot] = null!;
             parent._firstChildHole = parent._firstChildHole < 0 ? _childSlot : Math.Min(parent._firstChildHole, _childSlot);
             parent.TrackMovement(-_movementTrackers);
+
+            if (OnScreen)
+            {
+                ScreenEntity.Reflow(parent);
+            }
         }
     }
 

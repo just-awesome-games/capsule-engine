@@ -40,6 +40,7 @@ internal static class CollisionWorkload
         new() { Name = Platform, Cell = 1, Layer = Platform, OneWay = true },
         new() { Name = "slope-up", Cell = 0, Layer = Solid, Shape = CollisionFixtures.SlopeUpPoints },
         new() { Name = "slope-down", Cell = 0, Layer = Solid, Shape = CollisionFixtures.SlopeDownPoints },
+        new() { Name = "belt", Cell = 1, Layer = Platform, SurfaceVelocity = new Vector2(-30f, 0f) },
     ];
 
     /// <summary>The starting box of the mover: a character-sized body on the floor.</summary>
@@ -174,13 +175,13 @@ internal static class CollisionWorkload
         private readonly KinematicBody2D _mover;
         private readonly float _walk;
 
-        internal Hauled(Vector2 position, float walk)
+        internal Hauled(Vector2 position, float walk, BodyMode mode = BodyMode.Floating)
             : base(position)
         {
             _walk = walk;
             BoxCollider2D collider = new(new Vector2(12f, 12f));
             Add(collider);
-            _mover = new KinematicBody2D(collider);
+            _mover = new KinematicBody2D(collider) { Mode = mode };
             _mover.BlockedBy = new(Solid, Platform);
             _mover.MovedBy = new(Platform);
             _mover.Crushed += _ => Crushes++;
