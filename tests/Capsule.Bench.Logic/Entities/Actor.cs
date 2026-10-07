@@ -28,7 +28,7 @@ public sealed class Actor : Entity
         Add(_animator);
 
         Add(new BoxCollider2D(Size) { Layer = CollisionLayers.Actor });
-        Add(new VisibleOnScreenNotifier2D(Size));
+        Add(new VisibleOnScreenNotifier2D { Rect = new Rect(Vector2.Zero, Size) });
         Add(new Regen(100) { Value = index % 100 });
         Add(new Blinker(renderer, 8 + (index % 5)));
     }

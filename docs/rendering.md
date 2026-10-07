@@ -244,6 +244,17 @@ emits its own per-glyph sprites.
 ## Visibility
 
 A `VisibleOnScreenNotifier2D` raises `ScreenEntered` and `ScreenExited` as a rect on its entity meets the
-camera's visible region. It is how a bullet despawns when it leaves the screen.
+camera's visible region. It is how a bullet despawns when it leaves the screen. Its `Rect` is in the
+entity's own units, and a plain notifier watches the entity's position as a point. `Margin` grows the
+region in world units, horizontally by its X and vertically by its Y. A point or a line is on screen only
+strictly inside the grown region. While the camera's region is empty, nothing is on screen, whatever the
+margin. A spawner that starts an enemy just before its spot scrolls into view watches that spot with a
+margin:
+
+```csharp
+Add(new VisibleOnScreenNotifier2D { Rect = new Rect(new Vector2(-6f, -12f), new Vector2(12f, 12f)) });
+Add(new VisibleOnScreenNotifier2D { Margin = new Vector2(32f) });
+```
+
 The rect follows scale up its ancestry as a `BoxCollider2D` does. A shot facing left with a scale of
-`(-1, 1)` mirrors its sprite, its box and its notifier together.
+`(-1, 1)` mirrors its sprite, its box and its notifier together. The margin never scales.

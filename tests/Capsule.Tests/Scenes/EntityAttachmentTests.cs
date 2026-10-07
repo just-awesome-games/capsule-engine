@@ -39,7 +39,7 @@ public sealed class EntityAttachmentTests
         Entity child = new(turned);
         InvalidOperationException attach = Assert.Throws<InvalidOperationException>(() => child.Add(new BoxCollider2D(new Vector2(4f, 4f))));
         Assert.Contains("Node carries a rotation of 0.5", attach.Message, StringComparison.Ordinal);
-        Assert.Throws<InvalidOperationException>(() => child.Add(new VisibleOnScreenNotifier2D(new Vector2(4f, 4f))));
+        Assert.Throws<InvalidOperationException>(() => child.Add(new VisibleOnScreenNotifier2D()));
         Assert.Throws<InvalidOperationException>(() => child.Add(new Label(BitmapFont.Default, "hi")));
 
         Node collides = new(Vector2.Zero);

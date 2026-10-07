@@ -59,6 +59,10 @@ public sealed class DebugPanel
     [Conditional(Development.Symbol)]
     public void Field(string label, Vector2 value) => Write(label, Format(value));
 
+    /// <summary>Writes <paramref name="value"/> under <paramref name="label"/> as its corners, <c>(left, top) to (right, bottom)</c>.</summary>
+    [Conditional(Development.Symbol)]
+    public void Field(string label, Rect value) => Write(label, Format(value));
+
     /// <summary>Writes <paramref name="value"/> under <paramref name="label"/> as <see cref="Transform2D.ToString"/> spells it.</summary>
     [Conditional(Development.Symbol)]
     public void Field(string label, Transform2D value) => Write(label, value.ToString());
@@ -124,6 +128,10 @@ public sealed class DebugPanel
     // The shared spelling of a position, used by the overlay's own rows too.
     internal static string Format(Vector2 value) =>
         string.Create(CultureInfo.InvariantCulture, $"({value.X}, {value.Y})");
+
+    // The shared spelling of a rect, as its top-left and bottom-right corners.
+    internal static string Format(in Rect value) =>
+        string.Create(CultureInfo.InvariantCulture, $"({value.Left}, {value.Top}) to ({value.Right}, {value.Bottom})");
 }
 
 // What a panel row is: a section heading, a value to read, or a row that runs something.

@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using Capsule.Diagnostics;
+using Capsule.Rendering;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -32,6 +33,7 @@ public sealed class DebugPanelTests
             panel.Field("Ratio", 0.1);
             panel.Field("Count", 12);
             panel.Field("At", new Vector2(120f, 64.5f));
+            panel.Field("Area", new Rect(-8f, 0.5f, 16f, 32f));
             panel.Field("Mood", Mood.Alert);
             panel.Field("Target", (string?)null);
             panel.Field("Grounded", true);
@@ -42,6 +44,7 @@ public sealed class DebugPanelTests
                     ("Ratio", "0.1"),
                     ("Count", "12"),
                     ("At", "(120, 64.5)"),
+                    ("Area", "(-8, 0.5) to (16, 32)"),
                     ("Mood", "Alert"),
                     ("Target", "null"),
                     ("Grounded", "True"),

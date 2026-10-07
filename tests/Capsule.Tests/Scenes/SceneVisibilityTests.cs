@@ -194,10 +194,10 @@ public sealed class SceneVisibilityTests
     }
 
     [Fact]
-    public void ANotifiersOffset_PlacesTheRectItWatches()
+    public void ANotifiersRect_PlacesWhatItWatches()
     {
         List<string> log = [];
-        Watched marker = new(new Vector2(20f, 0f), log) { Notifier = { Offset = new Vector2(-16f, 0f) } };
+        Watched marker = new(new Vector2(20f, 0f), log) { Notifier = { Rect = new Rect(new Vector2(-16f, 0f), Vector2.One) } };
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
         scene.Add(marker);
@@ -205,7 +205,7 @@ public sealed class SceneVisibilityTests
         SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
 
-        // The entity stands well outside the region; the offset rect at 4..5 does not.
+        // The entity stands well outside the region. The rect, at 4..5, does not.
         Assert.Equal(["entered"], log);
     }
 
@@ -214,7 +214,7 @@ public sealed class SceneVisibilityTests
     {
         List<string> log = [];
         EntityHierarchyFixtures.Node facingLeft = new(new Vector2(6f, 0f)) { Scale = new Vector2(-1f, 1f) };
-        Watched marker = new(Vector2.Zero, log) { Notifier = { Offset = new Vector2(2f, 0f) }, Parent = facingLeft };
+        Watched marker = new(Vector2.Zero, log) { Notifier = { Rect = new Rect(new Vector2(2f, 0f), Vector2.One) }, Parent = facingLeft };
 
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
         scene.Add(facingLeft);
@@ -257,28 +257,28 @@ public sealed class SceneVisibilityTests
 
     // A handler sees the new state and may not reconfigure the notifier it is running for.
     [Fact]
-    public void AHandlerThatResizesOrMovesItsOwnNotifier_IsRefused()
+    public void AHandlerThatChangesItsOwnNotifier_IsRefused()
     {
         List<string> log = [];
         Watched watched = new(Vector2.Zero, log);
         SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
         scene.Add(watched);
 
-        Exception? sizeFailure = null;
-        Exception? offsetFailure = null;
+        Exception? rectFailure = null;
+        Exception? marginFailure = null;
         watched.Notifier.ScreenEntered += () =>
         {
-            sizeFailure = Record.Exception(() => watched.Notifier.Size = new Vector2(2f, 2f));
-            offsetFailure = Record.Exception(() => watched.Notifier.Offset = new Vector2(1f, 0f));
+            rectFailure = Record.Exception(() => watched.Notifier.Rect = new Rect(Vector2.One, Vector2.One));
+            marginFailure = Record.Exception(() => watched.Notifier.Margin = Vector2.One);
         };
 
         SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
 
-        Assert.IsType<InvalidOperationException>(sizeFailure);
-        Assert.IsType<InvalidOperationException>(offsetFailure);
-        Assert.Equal(Vector2.One, watched.Notifier.Size);
-        Assert.Equal(Vector2.Zero, watched.Notifier.Offset);
+        Assert.IsType<InvalidOperationException>(rectFailure);
+        Assert.IsType<InvalidOperationException>(marginFailure);
+        Assert.Equal(new Rect(Vector2.Zero, Vector2.One), watched.Notifier.Rect);
+        Assert.Equal(Vector2.Zero, watched.Notifier.Margin);
         Assert.Equal(["entered"], log);
     }
 
@@ -306,11 +306,61 @@ public sealed class SceneVisibilityTests
         Assert.True(marker.Notifier.IsOnScreen);
     }
 
-    [Fact]
-    public void ANotifierSizedToNothing_IsRefused()
+    // An axis with no extent is a line, on screen only strictly inside the region. The default rect is a point.
+    [Theory]
+    [InlineData(4.5f, 0f, true)]
+    [InlineData(5f, 0f, false)]
+    [InlineData(-5f, 0f, false)]
+    [InlineData(4.5f, 20f, true)]
+    [InlineData(5f, 20f, false)]
+    public void AnAxisWithNoExtent_IsOnScreenOnlyStrictlyInside(float x, float height, bool onScreen)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new VisibleOnScreenNotifier2D(new Vector2(1f, 0f)));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new VisibleOnScreenNotifier2D(new Vector2(float.NaN, 1f)));
+        VisibleOnScreenNotifier2D notifier = new();
+        if (height > 0f)
+        {
+            notifier.Rect = new Rect(new Vector2(0f, -height / 2f), new Vector2(0f, height));
+        }
+
+        Assert.Equal(onScreen, Settles(new Vector2(x, 0f), notifier, Span));
+    }
+
+    // The margin grows the region in world units, by its X on the left and right and its Y above and below. It never
+    // scales with the entity, and it never makes an empty region visible.
+    [Theory]
+    [InlineData(-8f, 0f, 3f, 0f, 1f, 10f, false)]
+    [InlineData(-8f, 0f, 3.5f, 0f, 1f, 10f, true)]
+    [InlineData(-8f, 0f, 0f, 10f, 1f, 10f, false)]
+    [InlineData(0f, -8f, 0f, 3.5f, 1f, 10f, true)]
+    [InlineData(-8f, 0f, 2f, 0f, 2f, 10f, false)]
+    [InlineData(0f, 0f, 100f, 100f, 1f, 0f, false)]
+    public void AMargin_GrowsTheRegionTheRectMeets(float x, float y, float horizontal, float vertical, float scale, float view, bool onScreen)
+    {
+        VisibleOnScreenNotifier2D notifier = new() { Margin = new Vector2(horizontal, vertical) };
+
+        Assert.Equal(onScreen, Settles(new Vector2(x, y), notifier, new Vector2(view), scale));
+    }
+
+    [Fact]
+    public void ACrossedOrNonFiniteRect_OrANegativeMargin_IsRefused()
+    {
+        VisibleOnScreenNotifier2D notifier = new();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Rect = new Rect(1f, 0f, 0f, 1f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Rect = new Rect(float.NaN, 0f, 1f, 1f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Margin = new Vector2(0f, -1f));
+    }
+
+    // Whether the notifier is on screen after one step, on an entity at at under the scale given, framed by a
+    // camera at the origin spanning view.
+    private static bool Settles(Vector2 at, VisibleOnScreenNotifier2D notifier, Vector2 view, float scale = 1f)
+    {
+        EntityHierarchyFixtures.Node entity = new(at) { Scale = new Vector2(scale) };
+        entity.Add(notifier);
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, view));
+        scene.Add(entity);
+        new SceneSimulation(scene).Step(SceneFixtures.Step());
+
+        return notifier.IsOnScreen;
     }
 
     private static SceneSimulation Run(Action<Scene> open, Vector2 output = default)
@@ -325,7 +375,7 @@ public sealed class SceneVisibilityTests
         internal Watched(Vector2 position, List<string> log)
             : base(position)
         {
-            Notifier = new VisibleOnScreenNotifier2D(Vector2.One);
+            Notifier = new VisibleOnScreenNotifier2D { Rect = new Rect(Vector2.Zero, Vector2.One) };
             Notifier.ScreenEntered += () => log.Add("entered");
             Notifier.ScreenExited += () => log.Add("exited");
             Add(Notifier);

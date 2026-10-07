@@ -114,7 +114,7 @@ public sealed class PoolAllocationTests
         {
             _box.Detects = new("solid", "hazard", "pickup");
             Add(_box);
-            Add(new VisibleOnScreenNotifier2D(new Vector2(8f, 8f)));
+            Add(new VisibleOnScreenNotifier2D { Rect = new Rect(Vector2.Zero, new Vector2(8f, 8f)) });
         }
 
         internal Probe Launch(Spawner spawner, Vector2 position, long tick)

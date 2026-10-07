@@ -231,7 +231,7 @@ public sealed class ParallaxTests
         Assert.Throws<InvalidOperationException>(() => scrolled.Add(box));
         Assert.Null(box.Entity);
         Assert.Throws<InvalidOperationException>(() => scrolled.Add(new KinematicBody2D(box)));
-        Assert.Throws<InvalidOperationException>(() => scrolled.Add(new VisibleOnScreenNotifier2D(new Vector2(8, 8))));
+        Assert.Throws<InvalidOperationException>(() => scrolled.Add(new VisibleOnScreenNotifier2D()));
         Assert.Empty(scrolled.Components.ToArray());
 
         SceneFixtures.Body body = new(Vector2.Zero);
@@ -239,7 +239,7 @@ public sealed class ParallaxTests
         Assert.Equal(Vector2.One, body.ScrollFactor);
 
         SceneFixtures.Drifter watching = new(Vector2.Zero);
-        watching.Add(new VisibleOnScreenNotifier2D(new Vector2(8, 8)));
+        watching.Add(new VisibleOnScreenNotifier2D());
         Assert.Throws<InvalidOperationException>(() => watching.ScrollFactor = Half);
 
         // One on both axes is the world, which every component is at home in.

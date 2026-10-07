@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Numerics;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
@@ -306,8 +305,8 @@ public partial class Camera
         panel.Field("ViewportSize", ViewportSize);
         panel.Field("Fit", Fit);
         panel.Field("Offset", Offset);
-        panel.Field("Bounds", Bounds is { } bounds ? Format(bounds) : null);
-        panel.Field("VisibleRegion", Format(VisibleRegion));
+        panel.Field("Bounds", Bounds is { } bounds ? DebugPanel.Format(bounds) : null);
+        panel.Field("VisibleRegion", VisibleRegion);
 
         if (_started)
         {
@@ -420,9 +419,6 @@ public partial class Camera
     private Vector2 Canvas => _scene?.RunOrNull?.Canvas ?? Run.StandardCanvas;
 
     private static int Pixels(float extent) => Math.Max(1, (int)MathF.Round(extent));
-
-    private static string Format(in Rect rect) =>
-        string.Create(CultureInfo.InvariantCulture, $"({rect.Left}, {rect.Top}) to ({rect.Right}, {rect.Bottom})");
 
     // A canvas point c lands on the world at Origin + c * Scale. Origin is the world point under the
     // canvas's top-left corner, Scale the world units one canvas pixel spans, and Parallax the settled

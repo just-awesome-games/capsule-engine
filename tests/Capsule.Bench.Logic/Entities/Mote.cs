@@ -12,7 +12,7 @@ public sealed class Mote : Entity
         : base(Vector2.Zero)
     {
         Add(new SpriteRenderer(Frame));
-        Add(new VisibleOnScreenNotifier2D(new Vector2(4f, 4f)));
+        Add(new VisibleOnScreenNotifier2D { Rect = new Rect(Vector2.Zero, new Vector2(4f, 4f)) });
     }
 
     public long DiesAt { get; set; }

@@ -92,7 +92,7 @@ public sealed class SceneWorldTests
         RemovalFailureEntity entity = new() { Fail = entityFails };
         RemovalFailureComponent component = new() { Fail = componentFails };
         BoxCollider2D collider = new(new Vector2(4f));
-        VisibleOnScreenNotifier2D notifier = new(new Vector2(4f));
+        VisibleOnScreenNotifier2D notifier = new() { Rect = new Rect(Vector2.Zero, new Vector2(4f)) };
         entity.Add(component);
         entity.Add(collider);
         entity.Add(notifier);
