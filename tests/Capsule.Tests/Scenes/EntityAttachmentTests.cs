@@ -29,6 +29,54 @@ public sealed class EntityAttachmentTests
         Assert.Equal(canvas + new Vector2(-36f, -16f), drawn.Position);
     }
 
+    // A notifier joining between steps settles as the next step begins, never inside its entity's attach, so an arrival
+    // handler that removes the entity leaves every component attached and then detached whole.
+    [Fact]
+    public void AnArrivalHandlerThatRemovesItsEntity_LeavesTheEntityWhole()
+    {
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, new Vector2(10f)));
+        using SimulationHost host = new(scene);
+        host.Step();
+
+        Node entity = new(Vector2.Zero);
+        VisibleOnScreenNotifier2D notifier = new();
+        BoxCollider2D box = new(new Vector2(2f));
+        notifier.ScreenEntered += () => scene.Remove(entity);
+        entity.Add(notifier);
+        entity.Add(box);
+
+        scene.Add(entity);
+        Assert.Same(scene, entity.SceneOrNull);
+
+        host.Step();
+        Assert.Null(entity.SceneOrNull);
+        Assert.Same(entity, box.Entity);
+    }
+
+    // A notifier joining between steps while the scene is paused settles as its entity's first running step begins, so
+    // that step reads the frame the camera showed.
+    [Fact]
+    public void ANotifierJoiningWhilePaused_SettlesBeforeItsEntitysFirstRunningStep()
+    {
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, new Vector2(10f)));
+        using SimulationHost host = new(scene);
+        host.Step();
+
+        List<bool> seen = [];
+        VisibleOnScreenNotifier2D notifier = new();
+        Node entity = new(Vector2.Zero);
+        entity.Add(notifier);
+        entity.Add(new StepRecorder(() => seen.Add(notifier.IsOnScreen)));
+
+        scene.Paused = true;
+        scene.Add(entity);
+        host.Step();
+        scene.Paused = false;
+        host.Step();
+
+        Assert.Equal([true], seen);
+    }
+
     // The attach, the parent write and the transform write each refuse. The message names the entity
     // carrying the value. A collider cannot turn, a circle or a body's box cannot scale either, and a
     // label or panel scales but cannot turn.
@@ -135,5 +183,10 @@ public sealed class EntityAttachmentTests
                 ("Remove", null),
             ],
             panel.Rows.ToArray().Select(row => (row.Label, row.Value)).ToArray());
+    }
+
+    private sealed class StepRecorder(Action record) : Component
+    {
+        protected internal override void OnStep(in StepContext context) => record();
     }
 }

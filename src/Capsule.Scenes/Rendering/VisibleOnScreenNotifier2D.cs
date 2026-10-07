@@ -15,8 +15,9 @@ namespace Capsule.Rendering;
 /// watches its entity's position as a point. An axis with no extent is tested as a line. A line is on screen only
 /// strictly inside the region. Sharing an edge with the region is not being on screen.
 /// <para>
-/// This is simulation state, settled once per step after the step's deferred adds land. From its entity's first
-/// step, <see cref="IsOnScreen"/> and the events describe that step's frame. While the camera's region is empty,
+/// This is simulation state, settled once per step after the step's deferred adds land. A notifier that joins
+/// between steps settles as the next step begins, against the last frame, before any entity steps. From its entity's first step,
+/// <see cref="IsOnScreen"/> and the events describe that step's frame. While the camera's region is empty,
 /// nothing is on screen, whatever the margin.
 /// </para>
 /// <para>

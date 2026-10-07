@@ -55,6 +55,9 @@ public class Scene
 
     private readonly SettleList<VisibleOnScreenNotifier2D> _screenNotifiers = new();
 
+    // Notifiers that joined between steps, settled as the next step begins.
+    private readonly List<VisibleOnScreenNotifier2D> _arrivals = [];
+
     // The frame's visible region, held so notifiers settle against it.
     private Rect _settledRegion;
 
@@ -1046,6 +1049,23 @@ public class Scene
 
             entity.SavePrevious();
         }
+
+        // Notifiers that joined between steps settle against the last frame before any entity steps, so each first
+        // step reads that frame as one landing with a step's deferred adds does. A held one waits for the step its
+        // entity first runs. The walk restarts after each settle, as a handler may detach another.
+        for (int index = 0; index < _arrivals.Count;)
+        {
+            VisibleOnScreenNotifier2D notifier = _arrivals[index];
+            if (notifier.Entity!.Held)
+            {
+                index++;
+                continue;
+            }
+
+            _arrivals.RemoveAt(index);
+            notifier.SettleVisibility(_settledRegion);
+            index = 0;
+        }
     }
 
     // Makes the next step resolve every entity's hold again.
@@ -1123,9 +1143,22 @@ public class Scene
         _settledRegion = Camera.VisibleRegion;
     }
 
-    internal void TrackVisibility(VisibleOnScreenNotifier2D notifier) => _screenNotifiers.Add(notifier);
+    // A notifier joining between steps waits for the next step to begin. One landing with a step's deferred adds
+    // settles after the drain.
+    internal void TrackVisibility(VisibleOnScreenNotifier2D notifier)
+    {
+        _screenNotifiers.Add(notifier);
+        if (!_stepping)
+        {
+            _arrivals.Add(notifier);
+        }
+    }
 
-    internal void UntrackVisibility(VisibleOnScreenNotifier2D notifier) => _screenNotifiers.Remove(notifier);
+    internal void UntrackVisibility(VisibleOnScreenNotifier2D notifier)
+    {
+        _screenNotifiers.Remove(notifier);
+        _arrivals.Remove(notifier);
+    }
 
     // Draw the scene, camera, and entities in step order after the step settles and deferred adds land.
     internal void RunDebugDraw()

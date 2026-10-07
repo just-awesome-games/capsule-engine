@@ -116,11 +116,13 @@ public sealed class SceneVisibilityTests
         Assert.Equal([false, false, true], seen);
     }
 
-    // The entity is drawn by the frame the step it landed in drew. Its first step reads that frame.
+    // Its first step reads the frame the step it landed in drew, or the last one when it joins between steps.
     [Theory]
-    [InlineData(0f, true)]
-    [InlineData(200f, false)]
-    public void ANotifierLandingWithTheStepsDeferredAdds_AnswersForTheFrameThatStepDrew(float x, bool onScreen)
+    [InlineData(0f, true, false)]
+    [InlineData(200f, false, false)]
+    [InlineData(0f, true, true)]
+    [InlineData(200f, false, true)]
+    public void ANotifierLandingWithTheStepsDeferredAdds_AnswersForTheFrameThatStepDrew(float x, bool onScreen, bool betweenSteps)
     {
         List<string> log = [];
         List<bool> seen = [];
@@ -128,7 +130,7 @@ public sealed class SceneVisibilityTests
 
         void Spawn(Scene host, in StepContext context)
         {
-            if (context.Tick == 0)
+            if (context.Tick == 0 && !betweenSteps)
             {
                 host.Add(marker);
             }
@@ -139,9 +141,14 @@ public sealed class SceneVisibilityTests
 
         string[] entered = onScreen ? ["entered"] : [];
 
-        // It attaches after the step's settle. The arrival settle is what enters it.
+        // Its arrival settle enters it, after the step's drain or as the next step begins.
         run.Step();
-        Assert.Equal(entered, log);
+        if (betweenSteps)
+        {
+            scene.Add(marker);
+        }
+
+        Assert.Equal(betweenSteps ? [] : entered, log);
         Assert.Empty(seen);
 
         run.Step();
@@ -306,7 +313,7 @@ public sealed class SceneVisibilityTests
         Assert.True(marker.Notifier.IsOnScreen);
     }
 
-    // An axis with no extent is a line, on screen only strictly inside the region. The default rect is a point.
+    // A rect with no extent on an axis is a line there, a point on both, on screen only strictly inside the region.
     [Theory]
     [InlineData(4.5f, 0f, true)]
     [InlineData(5f, 0f, false)]
@@ -315,11 +322,7 @@ public sealed class SceneVisibilityTests
     [InlineData(5f, 20f, false)]
     public void AnAxisWithNoExtent_IsOnScreenOnlyStrictlyInside(float x, float height, bool onScreen)
     {
-        VisibleOnScreenNotifier2D notifier = new();
-        if (height > 0f)
-        {
-            notifier.Rect = new Rect(new Vector2(0f, -height / 2f), new Vector2(0f, height));
-        }
+        VisibleOnScreenNotifier2D notifier = new() { Rect = new Rect(new Vector2(0f, -height / 2f), new Vector2(0f, height)) };
 
         Assert.Equal(onScreen, Settles(new Vector2(x, 0f), notifier, Span));
     }
@@ -350,8 +353,7 @@ public sealed class SceneVisibilityTests
         Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Margin = new Vector2(0f, -1f));
     }
 
-    // Whether the notifier is on screen after one step, on an entity at at under the scale given, framed by a
-    // camera at the origin spanning view.
+    // Whether the notifier is on screen after a step on an entity at at, scaled, under a camera at the origin.
     private static bool Settles(Vector2 at, VisibleOnScreenNotifier2D notifier, Vector2 view, float scale = 1f)
     {
         EntityHierarchyFixtures.Node entity = new(at) { Scale = new Vector2(scale) };
