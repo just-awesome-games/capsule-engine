@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Numerics;
 using System.Reflection;
 using Capsule.Assets;
+using Capsule.Physics;
 using Capsule.Scenes;
 using Capsule.Scenes.Documents;
 using Capsule.Tiles;
@@ -53,6 +54,27 @@ public sealed class TileMapEntryTests
         Assert.True(map.TryGet<TileMapCollider2D>(out _));
         Assert.Equal(new Vector2(32f, 16f), scene.Size);
         Assert.Equal([new TextureHandle("textures/frost", ".png")], scene.CollectAssetPreloads().Textures);
+    }
+
+    // Every map composed from one document shares its cells until it edits one. The edit stays in its own scene,
+    // and a scene composed from the document afterwards draws and collides as authored.
+    [Fact]
+    public void AnEditToOneComposedMap_LeavesTheNextCompositionAsAuthored()
+    {
+        SceneDocument document = SceneDocument.Parse(Document(string.Empty));
+        Scene first = Registry.Value.Create(new SceneKey("scenes/rink"), document);
+        using SimulationHost running = new(first);
+        TileMap edited = Assert.IsType<TileMap>(Assert.Single(first.Entities.ToArray()));
+        edited.RemoveTile(0, 0);
+
+        Scene second = Registry.Value.Create(new SceneKey("scenes/rink"), document);
+        using SimulationHost restarted = new(second);
+        TileMap authored = Assert.IsType<TileMap>(Assert.Single(second.Entities.ToArray()));
+
+        Assert.Equal(TileGrid.EmptyTileName, edited.TileAt(0, 0).Name);
+        Assert.Equal(("slick", TileTransform.FlipX), (authored.TileAt(0, 0).Name, authored.TransformAt(0, 0)));
+        Assert.False(first.Collision.Raycast(new Vector2(8f, -8f), Vector2.UnitY, 32f, CollisionFilter.Everything, out _));
+        Assert.True(second.Collision.Raycast(new Vector2(8f, -8f), Vector2.UnitY, 32f, CollisionFilter.Everything, out _));
     }
 
     // Every defect fails the load naming the entry, whichever of the reader, the palette or the grid finds it.

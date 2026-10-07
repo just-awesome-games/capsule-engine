@@ -8,6 +8,10 @@ namespace Capsule.Scenes;
 // nothing of T, can hold one.
 internal interface IEntityPool
 {
+    int Capacity { get; }
+
+    bool Shared { get; }
+
     void Return(Entity entity);
 
     void CollectAssets(AssetCollection assets);
@@ -139,7 +143,8 @@ public sealed class EntityPool<T> : IEntityPool
     /// <remarks>
     /// Call it from the <c>CollectAssets</c> override of the entity or scene that declares the pool.
     /// A pool nothing forwards preloads nothing, and its entities' textures and sounds load on first
-    /// use mid-play.
+    /// use mid-play. A scene's preload also reserves room for every entity a forwarded pool holds. Its
+    /// first takes then attach and leave without allocating.
     /// </remarks>
     /// <example>
     /// <code>
@@ -173,15 +178,20 @@ public sealed class EntityPool<T> : IEntityPool
         }
     }
 
-    // Builds idle entities until the pool holds capacity, as a scene's shared pool does for each declaration.
+    // Builds idle entities until the pool holds capacity. Never shrinks.
     internal void Reserve(int capacity)
     {
         _sizedCapacity = Math.Max(_sizedCapacity, capacity);
+
+        // A taken entity returns to the idle stack, which then holds every entity at once without growing.
+        _idle.EnsureCapacity(capacity);
         while (_built.Count < capacity)
         {
             _idle.Push(Build());
         }
     }
+
+    bool IEntityPool.Shared => Shared;
 
     void IEntityPool.Return(Entity entity)
     {

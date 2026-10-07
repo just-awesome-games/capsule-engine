@@ -46,6 +46,39 @@ internal sealed class DynamicTree2D
 
     internal int UserDataOf(int proxyId) => _nodes[proxyId].UserData;
 
+    // Grows the node pool to hold proxies leaves and their branches. The added nodes queue behind the
+    // free ones, so nodes are handed out in the order growing on demand would hand them out.
+    internal void Reserve(int proxies)
+    {
+        int previous = _nodes.Length;
+        int length = previous;
+        while (length < proxies * 2)
+        {
+            length *= 2;
+        }
+
+        if (length == previous)
+        {
+            return;
+        }
+
+        Array.Resize(ref _nodes, length);
+        Chain(previous);
+        if (_freeList == NullNode)
+        {
+            _freeList = previous;
+            return;
+        }
+
+        int tail = _freeList;
+        while (_nodes[tail].Parent != NullNode)
+        {
+            tail = _nodes[tail].Parent;
+        }
+
+        _nodes[tail].Parent = previous;
+    }
+
     internal Aabb2D FatBoxOf(int proxyId) => _nodes[proxyId].Box;
 
     internal int CreateProxy(in Aabb2D tight, int userData, ulong mask)
@@ -212,6 +245,13 @@ internal sealed class DynamicTree2D
 
     private void FreeFrom(int first)
     {
+        Chain(first);
+        _freeList = first;
+    }
+
+    // Links the nodes from first to the end into a free chain, in ascending order.
+    private void Chain(int first)
+    {
         for (int index = first; index < _nodes.Length - 1; index++)
         {
             _nodes[index].Parent = index + 1;
@@ -220,7 +260,6 @@ internal sealed class DynamicTree2D
 
         _nodes[^1].Parent = NullNode;
         _nodes[^1].Height = -1;
-        _freeList = first;
     }
 
     // Branch-and-bound descent on the surface-area heuristic. Descend while that costs less than

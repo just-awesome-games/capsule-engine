@@ -37,6 +37,10 @@ internal sealed class SceneHost : ISimulation, IDisposable
     // Null until the device is ready, and for a run with none.
     internal Action<AssetCollection>? PrefetchAssets { get; set; }
 
+    // Runs once a transition's incoming scene has started and the outgoing one is gone, before the incoming
+    // scene steps or draws. Null for a run without a device.
+    internal Action? SceneEntered { get; set; }
+
     // Whether the last step's transition failed to bring its incoming scene up, because resolving,
     // preparing or starting it threw. The run stays on the scene it was on and steps as before. The
     // exception still propagated, and this reports where it came from. A step's own failure, after
@@ -297,6 +301,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
         _current = incoming;
         _target = target;
+        SceneEntered?.Invoke();
     }
 
     // Resolves, prepares and starts the incoming scene ahead of the outgoing one's teardown, so a

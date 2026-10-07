@@ -29,6 +29,13 @@ internal sealed class SceneRenderIndex
 
     internal void Invalidate() => _renderersStale = true;
 
+    // Sizes the order for renderers held at once, so a rebuild after pooled entities attach grows nothing.
+    internal void Reserve(int renderers)
+    {
+        _renderers.EnsureCapacity(renderers);
+        _keys.EnsureCapacity(renderers);
+    }
+
     internal void Clear()
     {
         _renderers.Clear();

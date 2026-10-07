@@ -17,8 +17,9 @@ public sealed class CollisionGridTests
         Assert.Throws<ArgumentOutOfRangeException>(() => world.AddGrid(0, 1, 1, [0], CollisionFixtures.Profiles(world)));
     }
 
+    // The grid reads its owner's cells in place. A written cell collides as written once it is refreshed.
     [Fact]
-    public void AddGrid_OwnsItsCellsAfterRegistration()
+    public void AGridReadsItsOwnersCells_AndARefreshedCellCollidesAsWritten()
     {
         CollisionWorld2D world = new();
         int[] cells = [0, 1];
@@ -26,12 +27,15 @@ public sealed class CollisionGridTests
         CollisionGrid2D grid = world.AddGrid(16, 2, 1, cells, CollisionFixtures.Profiles(world));
         cells[0] = 1;
         cells[1] = 0;
+        grid.Refresh(0, 0);
+        grid.Refresh(1, 0);
 
-        Assert.Null(grid.LayerAt(0, 0));
-        Assert.Equal(world.Layer(CollisionFixtures.Solid), grid.LayerAt(1, 0));
+        Assert.Equal(world.Layer(CollisionFixtures.Solid), grid.LayerAt(0, 0));
+        Assert.Null(grid.LayerAt(1, 0));
 
-        Assert.True(world.Raycast(new Vector2(24f, -8f), Vector2.UnitY, 32f, CollisionFilter.Everything, out RayHit2D hit));
-        Assert.Equal((1, 0), (hit.Target.CellX, hit.Target.CellY));
+        Assert.True(world.Raycast(new Vector2(8f, -8f), Vector2.UnitY, 32f, CollisionFilter.Everything, out RayHit2D hit));
+        Assert.Equal((0, 0), (hit.Target.CellX, hit.Target.CellY));
+        Assert.False(world.Raycast(new Vector2(24f, -8f), Vector2.UnitY, 32f, CollisionFilter.Everything, out _));
     }
 
     // A cell is on one layer, and a filter reaches it by naming that layer and no other.

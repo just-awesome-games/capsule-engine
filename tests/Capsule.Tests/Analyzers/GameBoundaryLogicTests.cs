@@ -255,6 +255,24 @@ public sealed class GameBoundaryLogicTests
         Assert.EndsWith("Call " + replacement, diagnostic.GetMessage(), StringComparison.Ordinal);
     }
 
+    // Reflection is refused on its own terms, not as I/O, and the report names what to write instead.
+    [Fact]
+    public async Task Logic_rejects_reflection_and_names_the_fix()
+    {
+        const string source = """
+            public static class Logic
+            {
+                public static string Name(object scene) => scene.GetType().Name;
+            }
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
+
+        Diagnostic diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("CAP109", diagnostic.Id);
+        Assert.Contains("nameof", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
     // The rule names only functions with a DeterministicMath twin, so every report names its replacement.
     [Fact]
     public async Task Logic_accepts_deterministic_math_and_platform_functions_without_a_twin()

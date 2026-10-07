@@ -48,4 +48,19 @@ public sealed class SceneDocumentRoundTripTests
 
         Assert.Equal(Json, SceneDocument.Parse(Json).ToJson());
     }
+
+    // A key written twice keeps its first place and its last value, for the document, its entry list and each
+    // entry alike. The public members, the applier's read and the written document all see it once.
+    [Fact]
+    public void ARepeatedKey_ReadsAndWritesItsLastValueOnce()
+    {
+        SceneDocument document = SceneDocument.Parse(
+            """{"size":1,"entities":[{"type":"gem","value":5},{"type":"gem"}],"music":"a","entities":[{"type":"coin","value":1,"value":2}],"size":3}""");
+        SceneDocumentEntry coin = Assert.Single(document.Entries.ToArray());
+
+        Assert.Equal(3, document.Members?.GetProperty("size").GetInt32());
+        Assert.Equal(2, new AuthoredMembers(coin, 0).Int("value"));
+        Assert.Equal("""{"value":2}""", coin.Members?.GetRawText());
+        Assert.Equal("""{"size":3,"music":"a","entities":[{"type":"coin","value":2}]}""", document.ToJson());
+    }
 }

@@ -52,9 +52,10 @@ public sealed class Bolt : Entity
         return this;
     }
 
-    // Every live bolt can end at once, and each bursts into sparks from the scene's shared pool.
+    // Each bolt bursts into sparks from the scene's shared pool once per life. Its life outlasts a
+    // burst, so one burst per bolt is its worst case.
     /// <inheritdoc/>
-    protected override void CollectAssets(AssetCollection assets) => assets.Pool<SparkBurst>(capacity: 8);
+    protected override void CollectAssets(AssetCollection assets) => assets.Pool<SparkBurst>(capacity: 1);
 
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)

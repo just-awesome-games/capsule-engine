@@ -8,16 +8,20 @@ internal interface IAudioBackend : IDisposable
 {
     // A resident clip's file read whole into memory, on any thread. Throws when the shipped file is
     // missing, which is a build fault and not a device one.
-    MemoryStream Read(in AudioClip clip);
+    ResidentFile Read(in AudioClip clip);
 
-    // The sound for a resident clip from the bytes Read returned, on the game thread. Throws when the
-    // file is unreadable.
-    IResidentSound Load(in AudioClip clip, MemoryStream file);
+    // The sound for a resident clip from what Read returned, on the game thread. Throws when the file
+    // is unreadable.
+    IResidentSound Load(in AudioClip clip, ResidentFile file);
 
     // A voice decoding its clip as it plays, beginning at startSeconds. Nothing is resident, so the
     // clip is opened per play and closed when the voice ends.
     IAudioVoice Stream(in AudioClip clip, float gain, float pitch, float pan, bool loop, double startSeconds);
 }
+
+// A resident clip's bytes, plus its samples decoded on the same thread when its loop region means a
+// looping voice will stream them. Samples is null for a clip with no region.
+internal readonly record struct ResidentFile(MemoryStream Bytes, PcmAudio? Samples);
 
 // One clip held in memory for as long as a scene or a live voice wants it.
 internal interface IResidentSound : IDisposable

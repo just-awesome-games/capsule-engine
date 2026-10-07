@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using Capsule.Assets;
 using Capsule.Audio;
 using Capsule.Scenes;
@@ -39,6 +40,9 @@ public sealed class AuthorableArrayTests
         {
             [Authorable]
             public Vector2[] Path { get; private set; } = [];
+
+            [Authorable]
+            public ReadOnlyMemory<float> Weights { get; private set; }
 
             [Authorable]
             public Kinds Kinds { get; set; }
@@ -98,13 +102,35 @@ public sealed class AuthorableArrayTests
         Assert.Equal([new AudioClip("audio/chime", ".wav", 0.5)], preload.Clips);
     }
 
+    // An array member gets an array of its own in every scene. A ReadOnlyMemory member shares one read of the document.
+    [Fact]
+    public void AnArrayIsEachScenesOwn_AndAMemoryIsSharedByEveryScene()
+    {
+        SceneDocument document = SceneDocument.Parse(Document(
+            """{"id": 1, "type": "lift"}, {"type": "gate", "path": [[0, 0], [48, -8]], "weights": [0.5, 2], "lifts": [1]}"""));
+        SceneRegistry registry = Registry();
+        Entity first = registry.Create(new SceneKey("scenes/room"), document).Entities.ToArray()[1];
+        Entity second = registry.Create(new SceneKey("scenes/room"), document).Entities.ToArray()[1];
+
+        Vector2[] path = (Vector2[])Member(first, "Path")!;
+        Assert.Equal(path, (Vector2[])Member(second, "Path")!);
+        Assert.NotSame(path, Member(second, "Path"));
+        Assert.True(MemoryMarshal.TryGetArray((ReadOnlyMemory<float>)Member(first, "Weights")!, out ArraySegment<float> weights));
+        Assert.True(MemoryMarshal.TryGetArray((ReadOnlyMemory<float>)Member(second, "Weights")!, out ArraySegment<float> again));
+        Assert.Equal([0.5f, 2f], weights);
+        Assert.Same(weights.Array, again.Array);
+    }
+
     // A collection is written as an array. A converter type or a game interface that is also enumerable keeps
-    // its own form, so the collection refusal comes after every form a single member accepts.
+    // its own form, so the collection refusal comes after every form a single member accepts. A ReadOnlyMemory
+    // is shared by every scene, so it holds only values whose read takes nothing from the scene.
     [Theory]
     [InlineData("System.Collections.Generic.List<int> Stops { get; set; } = [];", "Declare 'int[]'")]
     [InlineData("System.Collections.Generic.IReadOnlyList<int> Stops { get; set; } = [];", "Declare 'int[]'")]
     [InlineData("Route Stops { get; set; } = new();", null)]
     [InlineData("ITrack Stops { get; set; } = null!;", null)]
+    [InlineData("System.ReadOnlyMemory<int> Stops { get; set; }", null)]
+    [InlineData("System.ReadOnlyMemory<Capsule.Assets.TextureHandle> Stops { get; set; }", "Declare 'Capsule.Assets.TextureHandle[]'")]
     public void OnlyACollectionNoOtherFormTakes_IsRefusedForAnArray(string member, string? fix)
     {
         string source = $$"""
@@ -171,17 +197,19 @@ public sealed class AuthorableArrayTests
     private static string Document(string entries) =>
         "{\"entities\": [" + entries + "]}";
 
-    // Composes the room through the generated registry, compiled against the declared assets.
-    private static Scene Composed(string entries)
+    // Composes the room through the generated registry.
+    private static Scene Composed(string entries) =>
+        Registry().Create(new SceneKey("scenes/room"), SceneDocument.Parse(Document(entries)));
+
+    // The generated registry, compiled against the declared assets.
+    private static SceneRegistry Registry()
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(Game, logic: true, Declared);
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
         Assembly game = GeneratorHarness.Loaded(compiled);
-        SceneRegistry registry = (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!
-            .GetProperty("Registry")!.GetValue(null)!;
 
-        return registry.Create(new SceneKey("scenes/room"), SceneDocument.Parse(Document(entries)));
+        return (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;
     }
 
     private static object? Member(Entity entity, string name) => entity.GetType().GetProperty(name)!.GetValue(entity);

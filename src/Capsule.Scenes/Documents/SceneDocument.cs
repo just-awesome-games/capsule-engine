@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using System.Text;
 using System.Text.Json;
 using Capsule.Assets;
 using Capsule.Scenes.Spawning;
@@ -18,6 +19,12 @@ public sealed class SceneDocument
 
     private readonly SceneDocumentEntry[] _entries;
 
+    /// <summary>The key of the abstract <see cref="Scene"/> subclass the composed scene derives from, or null.</summary>
+    public string? BaseScene { get; }
+
+    // The document's members, or null when it authors none.
+    internal AuthoredObject? Authored { get; }
+
     /// <summary>A validated document over <paramref name="entries"/>.</summary>
     /// <param name="entries">Every entry, in composition order.</param>
     /// <param name="members">
@@ -34,11 +41,15 @@ public sealed class SceneDocument
     /// </code>
     /// </example>
     public SceneDocument(IReadOnlyList<SceneDocumentEntry> entries, JsonElement? members = null, string? baseScene = null)
+        : this([.. entries ?? throw new ArgumentNullException(nameof(entries))], ObjectOf(members), baseScene)
     {
-        ArgumentNullException.ThrowIfNull(entries);
+    }
 
-        _entries = [.. entries];
-        Members = members;
+    // A document over entries, which it keeps.
+    internal SceneDocument(SceneDocumentEntry[] entries, AuthoredObject? members, string? baseScene)
+    {
+        _entries = entries;
+        Authored = members;
         BaseScene = baseScene;
 
         ValidateRoot();
@@ -49,10 +60,8 @@ public sealed class SceneDocument
     public ReadOnlySpan<SceneDocumentEntry> Entries => _entries;
 
     /// <summary>The document's other top-level keys as one JSON object, or null when it authors none.</summary>
-    public JsonElement? Members { get; }
-
-    /// <summary>The key of the abstract <see cref="Scene"/> subclass the composed scene derives from, or null.</summary>
-    public string? BaseScene { get; }
+    /// <remarks>Each read builds a new object, which holds every key once.</remarks>
+    public JsonElement? Members => Authored?.ToElement();
 
     /// <summary>Reads a document from its JSON form.</summary>
     /// <exception cref="SceneDocumentFormatException">The JSON is malformed or the document breaks the format.</exception>
@@ -65,9 +74,16 @@ public sealed class SceneDocument
     {
         ArgumentNullException.ThrowIfNull(json);
 
+        return ParseUtf8(Encoding.UTF8.GetBytes(json));
+    }
+
+    // Reads a document from its JSON form as UTF-8. The document keeps utf8 as its members' bytes. The caller
+    // never changes them afterwards.
+    internal static SceneDocument ParseUtf8(byte[] utf8)
+    {
         try
         {
-            return SceneDocumentJson.Read(json).ToDocument();
+            return SceneDocumentJson.Read(utf8);
         }
         catch (ArgumentException ex)
         {
@@ -96,15 +112,14 @@ public sealed class SceneDocument
                 throw Malformed($"entities[{i}] has no type. Name the type key of the entity class it places.");
             }
 
-            string named = Describe(entry, i);
             if (entry.Id is < 1)
             {
-                throw Malformed(string.Create(CultureInfo.InvariantCulture, $"{named} has id {entry.Id}. Make it positive, or omit it."));
+                throw Malformed(string.Create(CultureInfo.InvariantCulture, $"{Describe(entry, i)} has id {entry.Id}. Make it positive, or omit it."));
             }
 
             if (entry.Id is { } id && !seen.Add(id))
             {
-                throw Malformed(string.Create(CultureInfo.InvariantCulture, $"{named} has id {id}, which an earlier entry has. Give every entry a unique id."));
+                throw Malformed(string.Create(CultureInfo.InvariantCulture, $"{Describe(entry, i)} has id {id}, which an earlier entry has. Give every entry a unique id."));
             }
 
             // NaN and the infinities have no JSON number, so such a document could not be written out.
@@ -112,7 +127,7 @@ public sealed class SceneDocument
             Vector2 factor = spawn.ScrollFactor ?? Vector2.One;
             if (!float.IsFinite(spawn.Position.X + spawn.Position.Y + spawn.Rotation + factor.X + factor.Y))
             {
-                throw Malformed($"{named} places with a number that is not finite. Make its position, rotation and scroll factor finite.");
+                throw Malformed($"{Describe(entry, i)} places with a number that is not finite. Make its position, rotation and scroll factor finite.");
             }
 
             // A scale of zero or less has no size, and a non-finite one has no JSON number.
@@ -120,18 +135,18 @@ public sealed class SceneDocument
             {
                 throw Malformed(string.Create(
                     CultureInfo.InvariantCulture,
-                    $"{named} is scaled ({spawn.Scale.X}, {spawn.Scale.Y}), which is not a scale. Make both factors finite and greater than zero."));
+                    $"{Describe(entry, i)} is scaled ({spawn.Scale.X}, {spawn.Scale.Y}), which is not a scale. Make both factors finite and greater than zero."));
             }
 
             // What each key means is the claiming class's contract, checked when the entry spawns.
-            if (entry.Members is { ValueKind: not JsonValueKind.Object })
+            if (entry.NotAnObject is not null)
             {
-                throw Malformed($"{named} has members that are not an object. Write them as {{ \"name\": value }}, or omit them.");
+                throw Malformed($"{Describe(entry, i)} has members that are not an object. Write them as {{ \"name\": value }}, or omit them.");
             }
 
-            if (Reserved(entry.Members, SceneDocumentKeys.Entry.Contains) is { } entryKey)
+            if (Array.Find(entry.Authored?.Keys ?? [], SceneDocumentKeys.Entry.Contains) is { } entryKey)
             {
-                throw Malformed($"{named} has a member '{entryKey}', which the format reserves for the entry itself. Set it on the entry.");
+                throw Malformed($"{Describe(entry, i)} has a member '{entryKey}', which the format reserves for the entry itself. Set it on the entry.");
             }
         }
     }
@@ -143,22 +158,19 @@ public sealed class SceneDocument
             throw Malformed($"baseScene is '{baseScene}', which is not a key. {KeyForm}", "baseScene");
         }
 
-        if (Members is { ValueKind: not JsonValueKind.Object })
-        {
-            throw Malformed("the scene's members are not an object. Write them as { \"name\": value }, or omit them.", "members");
-        }
-
-        if (Reserved(Members, SceneDocumentKeys.Document.Contains) is { } rootKey)
+        if (Array.Find(Authored?.Keys ?? [], SceneDocumentKeys.Document.Contains) is { } rootKey)
         {
             throw Malformed($"the scene's members include '{rootKey}', which the format reserves for the document itself.", "members");
         }
     }
 
-    // The first of keys the object authors, which the writer would write a second time.
-    private static string? Reserved(JsonElement? members, Func<string, bool> reserved) =>
-        members is { ValueKind: JsonValueKind.Object } authored
-            ? authored.EnumerateObject().Select(static member => member.Name).FirstOrDefault(reserved)
-            : null;
+    // The members an importer handed in.
+    private static AuthoredObject? ObjectOf(JsonElement? members) => members switch
+    {
+        null => null,
+        { ValueKind: JsonValueKind.Object } authored => AuthoredObject.From(authored),
+        _ => throw Malformed("the scene's members are not an object. Write them as { \"name\": value }, or omit them.", "members"),
+    };
 
     private static bool IsScale(float factor) => float.IsFinite(factor) && factor > 0f;
 

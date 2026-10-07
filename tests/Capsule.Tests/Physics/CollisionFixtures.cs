@@ -51,6 +51,19 @@ internal static class CollisionFixtures
         return world.AddGrid(TileSize, width, rows.Length, cells, Profiles(world));
     }
 
+    /// <summary>Adds a grid whose cells are each a profile index. The grid reads cells in place.</summary>
+    internal static CollisionGrid2D AddGrid(
+        this CollisionWorld2D world, int cellSize, int width, int height, int[] cells, ReadOnlySpan<CellProfile2D> profiles)
+    {
+        int[] identity = new int[profiles.Length];
+        for (int index = 0; index < identity.Length; index++)
+        {
+            identity[index] = index;
+        }
+
+        return world.AddGrid(cellSize, width, height, cells, new byte[cells.Length], identity, 1, profiles);
+    }
+
     internal static CellProfile2D[] Profiles(CollisionWorld2D world) =>
     [
         new(null),

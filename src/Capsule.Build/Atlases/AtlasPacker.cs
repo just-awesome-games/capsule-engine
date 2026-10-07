@@ -1,11 +1,15 @@
 namespace Capsule.Build.Atlases;
 
 /// <summary>
-/// MaxRects, best short side fit, no rotation. Input is sorted by height, then width, then key, and
-/// ties break on the first free rectangle found. One input packs the same way on every machine.
-/// Every open page is tried before a new one opens. A small cell late in the order can fill a hole
-/// an earlier page left.
+/// MaxRects, bottom-left fit, no rotation, searched for the smallest page that holds each page's cells.
 /// </summary>
+/// <remarks>
+/// One input packs the same way on every machine. Cells are sorted by height, then width, then key,
+/// and fill full-size pages. Every open page is tried before a new one opens. Each page's cells are
+/// then packed again in the same order into strips of up to <see cref="WidthsTried"/> widths. The
+/// smallest page wins, then the squarer one, then the earlier attempt. The full-size layout is the
+/// first attempt, and no page comes out larger than it.
+/// </remarks>
 internal static class AtlasPacker
 {
     /// <summary>Texels kept clear between one cell and the next on either axis.</summary>
@@ -13,6 +17,9 @@ internal static class AtlasPacker
 
     /// <summary>A page's extent is rounded up to this.</summary>
     private const int ExtentGranularity = 4;
+
+    // More widths gain under half a percent of area on 600-cell pages and cost time in proportion.
+    private const int WidthsTried = 32;
 
     /// <param name="items">The cells to place, each a key and its extent in texels.</param>
     /// <param name="maxSize">The largest extent a page may reach on either axis.</param>
@@ -24,8 +31,10 @@ internal static class AtlasPacker
         Array.Sort(ordered, static (a, b) =>
             (b.Height, b.Width).CompareTo((a.Height, a.Width)) is var bySize and not 0 ? bySize : string.CompareOrdinal(a.Key, b.Key));
 
-        List<Bin> pages = [];
-        Placement[] placements = new Placement[ordered.Length];
+        List<Bin> bins = [];
+        int[] pageOf = new int[ordered.Length];
+        int[] xs = new int[ordered.Length];
+        int[] ys = new int[ordered.Length];
 
         for (int i = 0; i < ordered.Length; i++)
         {
@@ -38,17 +47,16 @@ internal static class AtlasPacker
             int page = 0;
             while (true)
             {
-                if (page == pages.Count)
+                if (page == bins.Count)
                 {
                     // The page is Spacing wider on both axes so every cell carries its trailing
                     // gap, and the gap of a cell on the far edge falls off the page.
-                    pages.Add(new Bin(maxSize + Spacing, maxSize + Spacing));
+                    bins.Add(new Bin(maxSize + Spacing, maxSize + Spacing));
                 }
 
-                if (pages[page].TryInsert(width + Spacing, height + Spacing, out int x, out int y))
+                if (bins[page].TryInsert(width + Spacing, height + Spacing, out xs[i], out ys[i]))
                 {
-                    placements[i] = new Placement(key, page, x, y);
-                    pages[page].Cover(x + width, y + height);
+                    pageOf[i] = page;
                     break;
                 }
 
@@ -56,13 +64,99 @@ internal static class AtlasPacker
             }
         }
 
-        // Rounding never passes maxSize, since a cell ends at or before it and maxSize is a
-        // multiple of the granularity.
-        return (placements, [.. pages.Select(static page => (RoundUp(page.UsedWidth), RoundUp(page.UsedHeight)))]);
+        Placement[] placements = new Placement[ordered.Length];
+        (int Width, int Height)[] pages = new (int, int)[bins.Count];
+
+        for (int page = 0; page < bins.Count; page++)
+        {
+            // The page's cells, still in sorted order.
+            int[] members = [.. Enumerable.Range(0, ordered.Length).Where(i => pageOf[i] == page)];
+            (string Key, int Width, int Height)[] cells = [.. members.Select(i => ordered[i])];
+            int[] cellX = [.. members.Select(i => xs[i])];
+            int[] cellY = [.. members.Select(i => ys[i])];
+
+            // Rounding never passes maxSize, since a cell ends at or before it and maxSize is a
+            // multiple of the granularity.
+            (int Width, int Height) extent = (RoundUp(members.Max(i => xs[i] + ordered[i].Width)), RoundUp(members.Max(i => ys[i] + ordered[i].Height)));
+            Compact(cells, maxSize, ref extent, cellX, cellY);
+
+            for (int m = 0; m < members.Length; m++)
+            {
+                placements[members[m]] = new Placement(cells[m].Key, page, cellX[m], cellY[m]);
+            }
+
+            pages[page] = extent;
+        }
+
+        return (placements, pages);
     }
 
     private static int RoundUp(int extent) =>
         (extent + ExtentGranularity - 1) / ExtentGranularity * ExtentGranularity;
+
+    // Packs one page's cells into strips of fixed width and open height, and keeps any layout
+    // better than the one held in extent, x and y.
+    private static void Compact((string Key, int Width, int Height)[] cells, int maxSize, ref (int Width, int Height) extent, int[] x, int[] y)
+    {
+        int[] tryX = new int[cells.Length];
+        int[] tryY = new int[cells.Length];
+        Bin bin = new(0, 0);
+
+        // Every cell carries its trailing gap, and so does the strip, whose padded height is the page's.
+        int paddedHeight = maxSize + Spacing;
+        long paddedArea = cells.Sum(static cell => (long)(cell.Width + Spacing) * (cell.Height + Spacing));
+        long row = cells.Sum(static cell => (long)cell.Width + Spacing) - Spacing;
+
+        // The narrowest strip holds the widest cell and has the area of every padded cell at full height.
+        int minimumPaddedWidth = (int)((paddedArea + paddedHeight - 1) / paddedHeight);
+        int narrowest = RoundUp(Math.Max(cells.Max(static cell => cell.Width), minimumPaddedWidth - Spacing));
+        int widest = RoundUp((int)Math.Min(row, maxSize));
+
+        // WidthsTried widths span this many intervals. Rounding the step up tries no more widths than that.
+        int widthIntervals = WidthsTried - 1;
+        int unroundedStep = (widest - narrowest + widthIntervals - 1) / widthIntervals;
+        int step = Math.Max(ExtentGranularity, RoundUp(unroundedStep));
+
+        for (int width = narrowest; width <= widest; width += step)
+        {
+            if (TryStrip(bin, cells, width, maxSize, extent, tryX, tryY, out int usedWidth, out int usedHeight))
+            {
+                extent = (usedWidth, usedHeight);
+                Array.Copy(tryX, x, x.Length);
+                Array.Copy(tryY, y, y.Length);
+            }
+        }
+    }
+
+    // Fills a strip width texels wide and maxSize tall, and succeeds only when its page is smaller
+    // than best or as large and squarer. An attempt stops as soon as its page outgrows best.
+    private static bool TryStrip(Bin bin, (string Key, int Width, int Height)[] cells, int width, int maxSize, (int Width, int Height) best, int[] x, int[] y, out int usedWidth, out int usedHeight)
+    {
+        bin.Reset(width + Spacing, maxSize + Spacing);
+        usedWidth = 0;
+        usedHeight = 0;
+
+        for (int i = 0; i < cells.Length; i++)
+        {
+            (_, int cellWidth, int cellHeight) = cells[i];
+            if (!bin.TryInsert(cellWidth + Spacing, cellHeight + Spacing, out x[i], out y[i]))
+            {
+                return false;
+            }
+
+            usedWidth = Math.Max(usedWidth, RoundUp(x[i] + cellWidth));
+            usedHeight = Math.Max(usedHeight, RoundUp(y[i] + cellHeight));
+            if ((long)usedWidth * usedHeight > (long)best.Width * best.Height)
+            {
+                return false;
+            }
+        }
+
+        long area = (long)usedWidth * usedHeight;
+        long bestArea = (long)best.Width * best.Height;
+
+        return area < bestArea || (area == bestArea && Math.Max(usedWidth, usedHeight) < Math.Max(best.Width, best.Height));
+    }
 
     private readonly record struct Rect(int X, int Y, int Width, int Height)
     {
@@ -77,25 +171,25 @@ internal static class AtlasPacker
             other.X < Right && other.Right > X && other.Y < Bottom && other.Bottom > Y;
     }
 
-    private sealed class Bin(int width, int height)
+    private sealed class Bin
     {
-        private readonly List<Rect> _free = [new Rect(0, 0, width, height)];
+        private readonly List<Rect> _free = [];
+        private readonly List<Rect> _cut = [];
 
-        internal int UsedWidth { get; private set; }
+        internal Bin(int width, int height) => Reset(width, height);
 
-        internal int UsedHeight { get; private set; }
-
-        internal void Cover(int right, int bottom)
+        internal void Reset(int width, int height)
         {
-            UsedWidth = Math.Max(UsedWidth, right);
-            UsedHeight = Math.Max(UsedHeight, bottom);
+            _free.Clear();
+            _free.Add(new Rect(0, 0, width, height));
         }
 
+        // Places at the free rectangle whose placement ends highest, then leftmost.
         internal bool TryInsert(int width, int height, out int x, out int y)
         {
             int best = -1;
-            int bestShort = int.MaxValue;
-            int bestLong = int.MaxValue;
+            int bestBottom = int.MaxValue;
+            int bestX = int.MaxValue;
 
             for (int i = 0; i < _free.Count; i++)
             {
@@ -105,13 +199,12 @@ internal static class AtlasPacker
                     continue;
                 }
 
-                int shortSide = Math.Min(candidate.Width - width, candidate.Height - height);
-                int longSide = Math.Max(candidate.Width - width, candidate.Height - height);
-                if (shortSide < bestShort || (shortSide == bestShort && longSide < bestLong))
+                int bottom = candidate.Y + height;
+                if (bottom < bestBottom || (bottom == bestBottom && candidate.X < bestX))
                 {
                     best = i;
-                    bestShort = shortSide;
-                    bestLong = longSide;
+                    bestBottom = bottom;
+                    bestX = candidate.X;
                 }
             }
 
@@ -132,9 +225,11 @@ internal static class AtlasPacker
         }
 
         // Each free rectangle the placement cuts is replaced by the up to four maximal rectangles
-        // around it. Then any free rectangle contained in another is dropped.
+        // around it. A new rectangle contained in any other is dropped. An untouched rectangle
+        // never lies inside a new one, since each new one lies inside a rectangle that was cut.
         private void Split(in Rect placed)
         {
+            _cut.Clear();
             for (int i = _free.Count - 1; i >= 0; i--)
             {
                 Rect free = _free[i];
@@ -147,41 +242,44 @@ internal static class AtlasPacker
 
                 if (placed.X > free.X)
                 {
-                    _free.Add(new Rect(free.X, free.Y, placed.X - free.X, free.Height));
+                    _cut.Add(new Rect(free.X, free.Y, placed.X - free.X, free.Height));
                 }
 
                 if (placed.Right < free.Right)
                 {
-                    _free.Add(new Rect(placed.Right, free.Y, free.Right - placed.Right, free.Height));
+                    _cut.Add(new Rect(placed.Right, free.Y, free.Right - placed.Right, free.Height));
                 }
 
                 if (placed.Y > free.Y)
                 {
-                    _free.Add(new Rect(free.X, free.Y, free.Width, placed.Y - free.Y));
+                    _cut.Add(new Rect(free.X, free.Y, free.Width, placed.Y - free.Y));
                 }
 
                 if (placed.Bottom < free.Bottom)
                 {
-                    _free.Add(new Rect(free.X, placed.Bottom, free.Width, free.Bottom - placed.Bottom));
+                    _cut.Add(new Rect(free.X, placed.Bottom, free.Width, free.Bottom - placed.Bottom));
                 }
             }
 
-            for (int i = 0; i < _free.Count; i++)
+            int kept = _free.Count;
+            for (int i = 0; i < _cut.Count; i++)
             {
-                for (int j = i + 1; j < _free.Count; j++)
+                Rect cut = _cut[i];
+                bool covered = false;
+                for (int j = 0; j < kept && !covered; j++)
                 {
-                    if (_free[j].Contains(_free[i]))
-                    {
-                        _free.RemoveAt(i);
-                        i--;
-                        break;
-                    }
+                    covered = _free[j].Contains(cut);
+                }
 
-                    if (_free[i].Contains(_free[j]))
-                    {
-                        _free.RemoveAt(j);
-                        j--;
-                    }
+                // Of two equal new rectangles only the first survives.
+                for (int j = 0; j < _cut.Count && !covered; j++)
+                {
+                    covered = j != i && _cut[j].Contains(cut) && (j < i || !cut.Contains(_cut[j]));
+                }
+
+                if (!covered)
+                {
+                    _free.Add(cut);
                 }
             }
         }

@@ -637,17 +637,45 @@ public partial class Entity
 
     internal void CollectAssetPreloads(AssetCollection assets)
     {
-        CollectAssets(assets);
-
-        foreach (Component component in Components)
+        Scene? scene = assets.GatheringScene as Scene;
+        if (scene is not null && !scene.FirstCollected(this))
         {
-            component.CollectAssets(assets);
+            return;
+        }
 
-            if (component is Renderer { Material: { } material })
+        IEntityPool? previous = scene?.EnterDeclaringPool(OwningSharedPool());
+        try
+        {
+            CollectAssets(assets);
+
+            foreach (Component component in Components)
             {
-                assets.Add(material);
+                component.CollectAssets(assets);
+
+                if (component is Renderer { Material: { } material })
+                {
+                    assets.Add(material);
+                }
             }
         }
+        finally
+        {
+            scene?.RestoreDeclaringPool(previous);
+        }
+    }
+
+    // The scene's shared pool holding this entity or its nearest ancestor a shared pool holds, or null.
+    private IEntityPool? OwningSharedPool()
+    {
+        for (Entity? entity = this; entity is not null; entity = entity._parent)
+        {
+            if (entity.Pool is { Shared: true } pool)
+            {
+                return pool;
+            }
+        }
+
+        return null;
     }
 
     // Adjusts the movement-collider count on this entity and every ancestor.

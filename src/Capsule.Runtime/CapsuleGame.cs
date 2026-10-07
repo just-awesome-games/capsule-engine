@@ -1,3 +1,4 @@
+using System.Runtime;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Input;
@@ -138,7 +139,9 @@ internal sealed class CapsuleGame : Game
         SceneHost scenes = _scenes;
         scenes.PrepareAssets = PrepareAssets;
         scenes.PrefetchAssets = PrefetchAssets;
+        scenes.SceneEntered = CollectAtBoundary;
         scenes.PrepareInitialAssets();
+        CollectAtBoundary();
 
         if (_audio is { } audio)
         {
@@ -350,6 +353,13 @@ internal sealed class CapsuleGame : Game
     {
         _textures.ChangeScene(preloads, () => _sounds?.ChangeScene(preloads));
         _effects.Load(preloads.Shaders);
+    }
+
+    // Gameplay starts on an empty young generation whatever the machine's GC budget is.
+    private static void CollectAtBoundary()
+    {
+        GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+        GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
     }
 
     private void PrefetchAssets(AssetCollection preloads)

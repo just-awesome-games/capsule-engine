@@ -15,9 +15,9 @@ namespace Capsule.Tiles;
 /// report the tiles they touch, and the grid raises no contacts of its own. The map keeps a
 /// <see cref="Entity.ScrollFactor"/> of one while the component is attached.
 /// <para>
-/// The grid is built from the map's current cells each time it registers. Disabling it, removing it or
-/// taking the map out of the scene unregisters it at once, and a body touching the removed cells exits
-/// them on its next settle. Re-enabling it registers a new grid, which collides as the map now draws.
+/// The grid reads the map's cells in place and collides as the map draws, an edit included. Disabling
+/// it, removing it or taking the map out of the scene unregisters it at once, and a body touching the
+/// removed cells exits them on its next settle. Re-enabling it registers a new grid.
 /// </para>
 /// </remarks>
 /// <example>
@@ -28,19 +28,18 @@ namespace Capsule.Tiles;
 /// </example>
 public sealed class TileMapCollider2D : Component
 {
+    // How many riders the list holds from construction on. A larger crowd doubles it.
+    private const int StartingRiders = 4;
+
     private bool _enabled = true;
 
     // The map this collider is attached to, and the scene's world while the map is in a scene.
     private TileMap? _map;
     private CollisionWorld2D? _world;
 
-    // The grid's profile index for each palette entry and transform, at (palette * Count) + transform.
-    // Only a shaped entry has a profile per transform. Null while no grid is registered.
-    private int[]? _profiles;
-
     // The bodies riding a cell whose tile has a surface velocity, grown once and never shrunk. A slot
     // empties to null while this collider is carrying, and is compacted once the carry is done.
-    private KinematicBody2D?[] _riders = [];
+    private KinematicBody2D?[] _riders = new KinematicBody2D?[StartingRiders];
     private int _riderCount;
     private bool _ridersEmptied;
     private bool _carrying;
@@ -117,21 +116,17 @@ public sealed class TileMapCollider2D : Component
         _map = null;
     }
 
-    // Forwards a painted cell to the registered grid. A collider with no grid reads the cell when it next
-    // registers.
-    internal void SetCell(int x, int y, int palette, TileTransform transform)
-    {
-        if (Grid is { } grid)
-        {
-            grid.SetCell(x, y, _profiles![(palette * TileTransforms.Count) + (int)transform]);
-        }
-    }
+    // Re-derives a cell the map painted. A collider with no grid reads the cell when it next registers.
+    internal void Refresh(int x, int y) => Grid?.Refresh(x, y);
+
+    // Points the registered grid at the map's own copy of its cells.
+    internal void Rebind(int[] cells, byte[] facings) => Grid?.Rebind(cells, facings);
 
     internal void AddRider(KinematicBody2D body)
     {
         if (_riderCount == _riders.Length)
         {
-            Array.Resize(ref _riders, Math.Max(4, _riders.Length * 2));
+            Array.Resize(ref _riders, _riders.Length * 2);
         }
 
         _riders[_riderCount++] = body;
@@ -283,8 +278,8 @@ public sealed class TileMapCollider2D : Component
         }
     }
 
-    // Builds the grid from the map's current cells. A collider re-enabled after SetTile collides as the
-    // map now draws.
+    // Builds the grid over the map's current cells, which it reads in place. A cell's profile is the lookup
+    // entry its palette index and facing name.
     private void Register()
     {
         TileMap map = _map!;
@@ -328,17 +323,7 @@ public sealed class TileMapCollider2D : Component
             }
         }
 
-        // The grid keeps its own profile indices. The map's cells stay palette indices.
-        ReadOnlySpan<int> painted = map.Cells;
-        ReadOnlySpan<TileTransform> facings = map.Facings;
-        int[] cells = new int[painted.Length];
-        for (int index = 0; index < cells.Length; index++)
-        {
-            cells[index] = lookup[(painted[index] * TileTransforms.Count) + (int)facings[index]];
-        }
-
-        _profiles = lookup;
-        Grid = world.AddGrid(tiles.TileSize, tiles.Width, tiles.Height, cells, profiles, this);
+        Grid = world.AddGrid(tiles.TileSize, tiles.Width, tiles.Height, map.Cells, map.Facings, lookup, TileTransforms.Count, profiles, this);
     }
 
     private void Unregister()
@@ -349,7 +334,6 @@ public sealed class TileMapCollider2D : Component
         }
 
         Grid = null;
-        _profiles = null;
         ReleaseRiders();
     }
 

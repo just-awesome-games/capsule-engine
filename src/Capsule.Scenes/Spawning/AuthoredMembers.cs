@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Numerics;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Capsule.Assets;
@@ -24,6 +23,11 @@ namespace Capsule.Scenes.Spawning;
 /// reading a nullable one. <see cref="Array{T}"/> hands each element to the applier's read as a
 /// value of its own, whose reads take the array's key. Once the owner is composed, a key no read asked for
 /// at any level fails the same way.
+/// <para>
+/// A scene document keeps what <see cref="Shared{T}"/> reads and the keys of each object <see cref="Object(string)"/>
+/// visits outside an array. Every later composition of the same document reuses them instead of reading its JSON
+/// again. A repeated key reads its last value.
+/// </para>
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public readonly struct AuthoredMembers
@@ -36,13 +40,13 @@ public readonly struct AuthoredMembers
     // What every level of one owner's values shares, or null for a spawn built in code.
     private readonly Owner? _owner;
 
-    private readonly JsonElement? _members;
+    private readonly AuthoredObject? _members;
 
     // The key path from the owner to these values, as "exit." or "items[2].", and empty at the top.
     private readonly string _path;
 
     // One element of an authored array and its index, or an index of -1 for the members themselves.
-    private readonly JsonElement _element;
+    private readonly ReadOnlyMemory<byte> _element;
     private readonly int _index;
 
     // Every key a read asked for, shared by each copy, or null when the members carry no key.
@@ -50,23 +54,23 @@ public readonly struct AuthoredMembers
 
     // An entry's members. References resolve against placed once every entry is constructed.
     internal AuthoredMembers(SceneDocumentEntry entry, int index, Dictionary<int, Entity>? placed = null, AssetCollection? assets = null)
-        : this(new Owner(string.Create(CultureInfo.InvariantCulture, $"entities[{index}] ('{entry.Type}')"), "the entry", placed, assets), entry.Members, string.Empty)
+        : this(new Owner(string.Create(CultureInfo.InvariantCulture, $"entities[{index}] ('{entry.Type}')"), "the entry", placed, assets), entry.Authored, string.Empty)
     {
     }
 
     // The scene document's own members, read once every entry is constructed.
-    internal AuthoredMembers(JsonElement? scene, Dictionary<int, Entity> placed, AssetCollection assets)
-        : this(new Owner("the scene document", "the document", placed, assets), scene, string.Empty)
+    internal AuthoredMembers(SceneDocument scene, Dictionary<int, Entity> placed, AssetCollection assets)
+        : this(new Owner("the scene document", "the document", placed, assets), scene.Authored, string.Empty)
     {
     }
 
-    private AuthoredMembers(Owner owner, JsonElement? members, string path)
+    private AuthoredMembers(Owner owner, AuthoredObject? members, string path)
     {
         _owner = owner;
         _members = members;
         _path = path;
         _index = -1;
-        _asked = members is { ValueKind: JsonValueKind.Object } authored && authored.EnumerateObject().Any() ? [] : null;
+        _asked = members is { Keys.Length: > 0 } ? [] : null;
         if (_asked is not null)
         {
             owner.Levels.Add(this);
@@ -74,7 +78,7 @@ public readonly struct AuthoredMembers
     }
 
     // One element of an authored array, read by the array's key.
-    private AuthoredMembers(AuthoredMembers array, JsonElement element, int index)
+    private AuthoredMembers(AuthoredMembers array, ReadOnlyMemory<byte> element, int index)
     {
         this = array;
         _element = element;
@@ -85,10 +89,10 @@ public readonly struct AuthoredMembers
     public bool Has(string key) => Find(key, out _);
 
     /// <summary>Whether the members author <paramref name="key"/> as a JSON null.</summary>
-    public bool IsNull(string key) => Find(key, out JsonElement value) && value.ValueKind == JsonValueKind.Null;
+    public bool IsNull(string key) => Find(key, out ReadOnlyMemory<byte> value) && AuthoredValue.Kind(value.Span) == JsonValueKind.Null;
 
     /// <summary>Reads a <see langword="bool"/>, written <c>true</c> or <c>false</c>.</summary>
-    public bool Bool(string key) => Authored(key).ValueKind switch
+    public bool Bool(string key) => AuthoredValue.Kind(Authored(key).Span) switch
     {
         JsonValueKind.True => true,
         JsonValueKind.False => false,
@@ -97,57 +101,55 @@ public readonly struct AuthoredMembers
 
     /// <summary>Reads an <see langword="int"/>, written as a whole number in range.</summary>
     public int Int(string key) =>
-        Authored(key) is { ValueKind: JsonValueKind.Number } value && value.TryGetInt32(out int read)
+        AuthoredValue.TryInt(Authored(key).Span, out int read)
             ? read
             : throw Mismatch(key, "int", "a whole number from -2147483648 to 2147483647");
 
     /// <summary>Reads a <see langword="float"/>, written as a finite number.</summary>
     public float Float(string key) =>
-        TryFloat(Authored(key), out float read) ? read : throw Mismatch(key, "float", "a finite number");
+        AuthoredValue.TryFloat(Authored(key).Span, out float read) ? read : throw Mismatch(key, "float", "a finite number");
 
     /// <summary>Reads a <see langword="string"/>.</summary>
     public string String(string key) =>
-        Authored(key) is { ValueKind: JsonValueKind.String } value
-            ? value.GetString()!
-            : throw Mismatch(key, "string", "a string in quotes");
+        AuthoredValue.String(Authored(key).Span) ?? throw Mismatch(key, "string", "a string in quotes");
 
     /// <summary>Reads a <see cref="System.Numerics.Vector2"/>, written <c>[x, y]</c> with both finite.</summary>
-    public Vector2 Vector2(string key) =>
-        Authored(key) is { ValueKind: JsonValueKind.Array } value
-        && value.GetArrayLength() == 2
-        && TryFloat(value[0], out float x)
-        && TryFloat(value[1], out float y)
-            ? new Vector2(x, y)
+    public Vector2 Vector2(string key)
+    {
+        Span<float> read = stackalloc float[2];
+
+        return AuthoredValue.TryFloats(Authored(key), read)
+            ? new Vector2(read[0], read[1])
             : throw Mismatch(key, "Vector2", "[x, y] with both numbers finite");
+    }
 
     /// <summary>
     /// Reads a <see cref="Capsule.Rendering.Rect"/>, written <c>[left, top, right, bottom]</c> with all four finite
     /// and neither pair of edges crossed.
     /// </summary>
-    public Rect Rect(string key) =>
-        Authored(key) is { ValueKind: JsonValueKind.Array } value
-        && value.GetArrayLength() == 4
-        && TryFloat(value[0], out float left)
-        && TryFloat(value[1], out float top)
-        && TryFloat(value[2], out float right)
-        && TryFloat(value[3], out float bottom)
-        && right >= left
-        && bottom >= top
-            ? new Rect(left, top, right, bottom)
+    public Rect Rect(string key)
+    {
+        Span<float> read = stackalloc float[4];
+
+        return AuthoredValue.TryFloats(Authored(key), read)
+            && read[2] >= read[0]
+            && read[3] >= read[1]
+            ? new Rect(read[0], read[1], read[2], read[3])
             : throw Mismatch(key, "Rect", "[left, top, right, bottom] with all four finite, right no less than left and bottom no less than top");
+    }
 
     /// <summary>Reads a <see cref="ColorRgba"/>, written <c>"#rrggbb"</c> or <c>"#rrggbbaa"</c>.</summary>
     public ColorRgba Color(string key)
     {
         const string Form = "\"#rrggbb\" or \"#rrggbbaa\"";
-        if (Authored(key) is not { ValueKind: JsonValueKind.String } value)
+        if (AuthoredValue.String(Authored(key).Span) is not { } value)
         {
             throw Mismatch(key, "ColorRgba", Form);
         }
 
         try
         {
-            return ColorRgba.FromHex(value.GetString()!);
+            return ColorRgba.FromHex(value);
         }
         catch (FormatException)
         {
@@ -157,9 +159,7 @@ public readonly struct AuthoredMembers
 
     /// <summary>Reads the enum member or definition the members name, which the applier then matches.</summary>
     public string Name(string key) =>
-        Authored(key) is { ValueKind: JsonValueKind.String } value
-            ? value.GetString()!
-            : throw Mismatch(key, "a name", "a name in quotes");
+        AuthoredValue.String(Authored(key).Span) ?? throw Mismatch(key, "a name", "a name in quotes");
 
     /// <summary>The failure for a name that matches none of <paramref name="names"/>.</summary>
     /// <param name="key">The member's key.</param>
@@ -177,12 +177,12 @@ public readonly struct AuthoredMembers
     public ulong Flags(string key, Func<string, ulong?> member, string names)
     {
         ArgumentNullException.ThrowIfNull(member);
-        if (Authored(key) is not { ValueKind: JsonValueKind.String } value)
+        ReadOnlyMemory<byte> value = Authored(key);
+        if (AuthoredValue.String(value.Span) is not { } text)
         {
             throw Mismatch(key, "flags", "member names in quotes, joined by commas");
         }
 
-        string text = value.GetString()!;
         ulong flags = 0;
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -252,16 +252,44 @@ public readonly struct AuthoredMembers
     public T[] Array<T>(string key, Func<AuthoredMembers, T> element)
     {
         ArgumentNullException.ThrowIfNull(element);
-        JsonElement value = Authored(key);
-        if (value.ValueKind != JsonValueKind.Array)
+        ReadOnlyMemory<byte> value = Authored(key);
+        if (AuthoredValue.Kind(value.Span) != JsonValueKind.Array)
         {
             throw Mismatch(key, typeof(T).Name + "[]", "an array, [a, b, c]");
         }
 
-        T[] read = new T[value.GetArrayLength()];
-        for (int i = 0; i < read.Length; i++)
+        T[] read = new T[AuthoredValue.Count(value)];
+        AuthoredValue.Elements elements = new(value);
+        for (int i = 0; elements.Next(out ReadOnlyMemory<byte> item); i++)
         {
-            read[i] = element(new AuthoredMembers(this, value[i], i));
+            read[i] = element(new AuthoredMembers(this, item, i));
+        }
+
+        return read;
+    }
+
+    /// <summary>
+    /// Reads an array of plain values, written <c>[a, b, c]</c>, once per scene document. Every scene composed from
+    /// the document receives the same elements.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="element"/> must read only what the element authors. A read that resolves an asset or an
+    /// entity reference goes through <see cref="Array{T}"/>.
+    /// </remarks>
+    /// <param name="key">The member's key.</param>
+    /// <param name="element">Reads one element from the value it is handed, by the same key.</param>
+    public ReadOnlyMemory<T> Shared<T>(string key, Func<AuthoredMembers, T> element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        _ = Authored(key);
+        if (_index >= 0)
+        {
+            return Array(key, element);
+        }
+
+        if (_members!.Kept(key) is not T[] read)
+        {
+            read = (T[])_members.Keep(key, Array(key, element));
         }
 
         return read;
@@ -274,15 +302,15 @@ public readonly struct AuthoredMembers
     public T Read<T, TConverter>(string key)
         where TConverter : JsonConverter<T>, new()
     {
-        JsonElement value = Authored(key);
-        if (value.ValueKind == JsonValueKind.Null)
+        ReadOnlyMemory<byte> value = Authored(key);
+        if (AuthoredValue.Kind(value.Span) == JsonValueKind.Null)
         {
             throw Mismatch(key, typeof(T).Name, "the form " + typeof(TConverter).Name + " reads");
         }
 
         try
         {
-            Utf8JsonReader reader = new(JsonMarshal.GetRawUtf8Value(value));
+            Utf8JsonReader reader = new(value.Span);
             reader.Read();
 
             return new TConverter().Read(ref reader, typeof(T), ConverterOptions)!;
@@ -305,8 +333,7 @@ public readonly struct AuthoredMembers
     public T Entity<T>(string key)
         where T : class
     {
-        JsonElement value = Authored(key);
-        if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int id))
+        if (!AuthoredValue.TryInt(Authored(key).Span, out int id))
         {
             throw Mismatch(key, typeof(T).Name, "an entity id, a whole number");
         }
@@ -327,28 +354,34 @@ public readonly struct AuthoredMembers
     /// </summary>
     public AuthoredMembers Object(string key)
     {
-        JsonElement value = Authored(key);
-        if (value.ValueKind != JsonValueKind.Object)
+        ReadOnlyMemory<byte> value = Authored(key);
+        if (AuthoredValue.Kind(value.Span) != JsonValueKind.Object)
         {
             throw Mismatch(key, "an object", "{ \"member\": value }");
         }
 
-        string path = _index < 0 ? $"{_path}{key}." : string.Create(CultureInfo.InvariantCulture, $"{_path}{key}[{_index}].");
+        if (_index >= 0)
+        {
+            return new AuthoredMembers(_owner!, AuthoredObject.Parse(value), string.Create(CultureInfo.InvariantCulture, $"{_path}{key}[{_index}]."));
+        }
 
-        return new AuthoredMembers(_owner!, value, path);
+        if (_members!.Kept(key) is not AuthoredObject nested)
+        {
+            nested = (AuthoredObject)_members.Keep(key, AuthoredObject.Parse(value));
+        }
+
+        return new AuthoredMembers(_owner!, nested, $"{_path}{key}.");
     }
 
     /// <summary>The key of the class an object's <c>type</c> names, or null when it names none.</summary>
     public string? Type()
     {
-        if (!Find(TypeKey, out JsonElement value))
+        if (!Find(TypeKey, out ReadOnlyMemory<byte> value))
         {
             return null;
         }
 
-        return value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : throw new SceneDocumentFormatException($"{OwnerName} sets '{_path}{TypeKey}' to {Found(value)}. Write the key of a class in quotes.");
+        return AuthoredValue.String(value.Span) ?? throw new SceneDocumentFormatException($"{OwnerName} sets '{_path}{TypeKey}' to {Found(value)}. Write the key of a class in quotes.");
     }
 
     /// <summary>The failure for an object whose <c>type</c> names no class the member takes, or that needs a type and names none.</summary>
@@ -407,7 +440,7 @@ public readonly struct AuthoredMembers
     private string Sets(string key) =>
         _index < 0 ? $"{OwnerName} sets '{_path}{key}'" : string.Create(CultureInfo.InvariantCulture, $"{OwnerName} sets '{_path}{key}' element {_index}");
 
-    private bool Find(string key, out JsonElement value)
+    private bool Find(string key, out ReadOnlyMemory<byte> value)
     {
         value = default;
         if (_asked is { } asked && !asked.Contains(key))
@@ -415,13 +448,13 @@ public readonly struct AuthoredMembers
             asked.Add(key);
         }
 
-        return _members is { } members && members.TryGetProperty(key, out value);
+        return _members is { } members && members.TryGetValue(key, out value);
     }
 
     // The applier reads an optional member only after Has, so an absent key here is a required member.
-    private JsonElement Authored(string key) =>
+    private ReadOnlyMemory<byte> Authored(string key) =>
         _index >= 0 ? _element
-        : Find(key, out JsonElement value)
+        : Find(key, out ReadOnlyMemory<byte> value)
             ? value
             : throw new SceneDocumentFormatException(
                 $"{OwnerName} omits '{_path}{key}', which its class requires. Add \"{key}\" to {(_path.Length == 0 ? _owner?.Holder : $"'{_path.TrimEnd('.')}'")}.");
@@ -429,12 +462,22 @@ public readonly struct AuthoredMembers
     private void RefuseUnread()
     {
         List<string> asked = _asked!;
+        string[] keys = _members!.Keys;
         string path = _path;
-        string[] unread = [.. _members!.Value.EnumerateObject().Select(static member => member.Name).Where(name => !asked.Contains(name))];
-        if (unread.Length == 0)
+
+        // A valid document reads every key, which this checks without allocating.
+        int read = 0;
+        while (read < keys.Length && asked.Contains(keys[read]))
+        {
+            read++;
+        }
+
+        if (read == keys.Length)
         {
             return;
         }
+
+        string[] unread = [.. keys.Where(name => !asked.Contains(name))];
 
         // A nested object takes a type only through a member it can be assigned to.
         if (_path.Length > 0 && unread.Contains(TypeKey))
@@ -452,9 +495,9 @@ public readonly struct AuthoredMembers
 
     private SceneDocumentFormatException Mismatch(string key, string expected, string form)
     {
-        JsonElement value = Authored(key);
+        ReadOnlyMemory<byte> value = Authored(key);
 
-        return new(value.ValueKind == JsonValueKind.Null && _index < 0
+        return new(AuthoredValue.Kind(value.Span) == JsonValueKind.Null && _index < 0
             ? $"{Sets(key)} to null, which only a nullable member accepts. The member takes {expected}. Write {form}, or make the member nullable."
             : $"{Sets(key)} to {Found(value)}, but the member takes {expected}. Write {form}.");
     }
@@ -465,7 +508,7 @@ public readonly struct AuthoredMembers
         where T : struct
     {
         ArgumentNullException.ThrowIfNull(find);
-        string authored = Authored(key) is { ValueKind: JsonValueKind.String } value ? value.GetString()! : throw Mismatch(key, typeof(T).Name, form);
+        string authored = AuthoredValue.String(Authored(key).Span) ?? throw Mismatch(key, typeof(T).Name, form);
         string? keyed = normalize(authored);
         T asset = keyed is not null && find(keyed) is { } found
             ? found
@@ -478,19 +521,12 @@ public readonly struct AuthoredMembers
         return asset;
     }
 
-    private static bool TryFloat(JsonElement value, out float read)
-    {
-        read = value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out double number) ? (float)number : float.NaN;
-
-        return float.IsFinite(read);
-    }
-
     // What the document wrote, short enough for one line of a message.
-    private static string Found(JsonElement value) => value.ValueKind switch
+    private static string Found(ReadOnlyMemory<byte> value) => AuthoredValue.Kind(value.Span) switch
     {
-        JsonValueKind.String => $"the string \"{value.GetString()}\"",
-        JsonValueKind.Number => string.Create(CultureInfo.InvariantCulture, $"the number {value.GetRawText()}"),
-        JsonValueKind.True or JsonValueKind.False => value.GetRawText(),
+        JsonValueKind.String => $"the string \"{AuthoredValue.String(value.Span)}\"",
+        JsonValueKind.Number => $"the number {AuthoredValue.Text(value.Span)}",
+        JsonValueKind.True or JsonValueKind.False => AuthoredValue.Text(value.Span),
         JsonValueKind.Array => "an array",
         JsonValueKind.Object => "an object",
         _ => "null",

@@ -3,9 +3,11 @@ using System.Numerics;
 namespace Capsule.Physics;
 
 // A grid of layered cells with cell (0, 0) at the world origin. Each cell sits on the layer its
-// palette entry names and collides as that entry's shape. A query visits only the cells it crosses. A
+// profile names and collides as that profile's shape. A query visits only the cells it crosses. A
 // tile map's collider builds one, and CollisionWorld2D.GridOf finds it from a query's
 // CollisionTarget.Collider.
+// The grid reads its owner's cells in place and never writes them. A cell's profile is the lookup entry its
+// value and variant name. The owner writes a cell and then calls Refresh.
 internal sealed class CollisionGrid2D
 {
     // The most edges one palette entry derives. A polygon holds at most Shape2D.MaxPoints corners.
@@ -15,7 +17,12 @@ internal sealed class CollisionGrid2D
     // surface blocks only there.
     internal const float UpFacing = 1e-4f;
 
-    private readonly int[] _cells;
+    // The owner's cell values and variants, and the profile each pair names at (value * _stride) + variant.
+    private readonly int[] _lookup;
+    private readonly int _stride;
+    private int[] _cells;
+    private byte[] _variants;
+
     private readonly CollisionLayer?[] _layers;
 
     // Per palette entry. A solid full-cell box takes the closed-form path and derives no edges. Every
@@ -44,16 +51,15 @@ internal sealed class CollisionGrid2D
     // out re-decides it through NeighbourAdmits.
     private readonly CellState2D[] _state;
 
-    // Derived alongside _state, giving a query the layer of a colliding cell in one indirection.
-    // Entries for cells that collide as nothing are never read.
-    private readonly CollisionLayer[] _cellLayers;
-
     internal CollisionGrid2D(
         ColliderHandle handle,
         int cellSize,
         int width,
         int height,
         int[] cells,
+        byte[] variants,
+        int[] lookup,
+        int stride,
         ReadOnlySpan<CellProfile2D> profiles)
     {
         Handle = handle;
@@ -61,6 +67,9 @@ internal sealed class CollisionGrid2D
         Width = width;
         Height = height;
         _cells = cells;
+        _variants = variants;
+        _lookup = lookup;
+        _stride = stride;
 
         int count = profiles.Length;
         _layers = new CollisionLayer?[count];
@@ -79,8 +88,7 @@ internal sealed class CollisionGrid2D
             DerivePalette(index, profiles[index]);
         }
 
-        _state = new CellState2D[cells.Length];
-        _cellLayers = new CollisionLayer[cells.Length];
+        _state = new CellState2D[width * height];
 
         Bounds = new Aabb2D(Vector2.Zero, new Vector2(width * (float)cellSize, height * (float)cellSize));
 
@@ -111,7 +119,7 @@ internal sealed class CollisionGrid2D
     {
         RequireOnGrid(x, y);
 
-        return _layers[_cells[(y * Width) + x]];
+        return _layers[Profile((y * Width) + x)];
     }
 
     // The world-space box of the cell at (x, y).
@@ -130,18 +138,18 @@ internal sealed class CollisionGrid2D
 
     // The layer of a cell the caller already found to collide. A cell whose palette entry names no
     // layer derives to CellState2D.None and never reaches a query.
-    internal CollisionLayer LayerOf(int x, int y) => _cellLayers[(y * Width) + x];
+    internal CollisionLayer LayerOf(int x, int y) => _layers[Profile((y * Width) + x)].GetValueOrDefault();
 
     // The edges of an edge cell in cell space, live or culled. StateAt says which are live.
     internal ReadOnlySpan<CellEdge2D> EdgesAt(int x, int y)
     {
-        int palette = _cells[(y * Width) + x];
+        int profile = Profile((y * Width) + x);
 
-        return _edges.AsSpan(palette * MaxEdges, _edgeCounts[palette]);
+        return _edges.AsSpan(profile * MaxEdges, _edgeCounts[profile]);
     }
 
     // The solid polygon of an edge cell in cell space. Only a cell without the OneWay bit has one.
-    internal Shape2D PolygonAt(int x, int y) => _polygons[_cells[(y * Width) + x]];
+    internal Shape2D PolygonAt(int x, int y) => _polygons[Profile((y * Width) + x)];
 
     // The world position of a cell's top-left corner, the origin of its cell space.
     internal Vector2 CellCorner(int x, int y) => new(x * (float)CellSize, y * (float)CellSize);
@@ -212,26 +220,24 @@ internal sealed class CollisionGrid2D
         return cell < int.MinValue ? int.MinValue : cell >= int.MaxValue ? int.MaxValue : (int)cell;
     }
 
-    // Writes one cell's palette index and re-derives it and its four neighbours, whose culling reads
-    // it. The layer union only widens. A superset still skips no query it should answer.
-    internal void SetCell(int x, int y, int palette)
+    // Re-derives one cell the owner wrote and its four neighbours, whose culling reads it. The layer union only
+    // widens. A superset still skips no query it should answer.
+    internal void Refresh(int x, int y)
     {
         RequireOnGrid(x, y);
-        ArgumentOutOfRangeException.ThrowIfNegative(palette);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(palette, _layers.Length);
 
-        int index = (y * Width) + x;
-        if (_cells[index] == palette)
-        {
-            return;
-        }
-
-        _cells[index] = palette;
         DeriveCell(x, y);
         DeriveCell(x - 1, y);
         DeriveCell(x + 1, y);
         DeriveCell(x, y - 1);
         DeriveCell(x, y + 1);
+    }
+
+    // Points the grid at new arrays holding the owner's cells.
+    internal void Rebind(int[] cells, byte[] variants)
+    {
+        _cells = cells;
+        _variants = variants;
     }
 
     private static CellState2D Opposite(CellState2D face) => face switch
@@ -342,7 +348,7 @@ internal sealed class CollisionGrid2D
         }
 
         int index = (y * Width) + x;
-        int palette = _cells[index];
+        int palette = Profile(index);
         if (_layers[palette] is not { } layer)
         {
             _state[index] = CellState2D.None;
@@ -375,7 +381,6 @@ internal sealed class CollisionGrid2D
         }
 
         _state[index] = state;
-        _cellLayers[index] = layer;
         Layers = Layers.With(layer);
     }
 
@@ -389,7 +394,7 @@ internal sealed class CollisionGrid2D
     // ask here.
     private CollisionLayer? CoverAcross(int x, int y, CellState2D face, float low, float high)
     {
-        bool solidSides = _solidSides[_cells[(y * Width) + x]];
+        bool solidSides = _solidSides[Profile((y * Width) + x)];
         Vector2 step = FaceNormal(face);
         x += (int)step.X;
         y += (int)step.Y;
@@ -399,11 +404,13 @@ internal sealed class CollisionGrid2D
             return null;
         }
 
-        int cell = _cells[(y * Width) + x];
+        int cell = Profile((y * Width) + x);
         int slot = (cell * 4) + SideIndex(Opposite(face));
 
         return _covers[slot].Covers(low, high) || (solidSides && _walls[slot].Covers(low, high)) ? _layers[cell] : null;
     }
+
+    private int Profile(int index) => _lookup[(_cells[index] * _stride) + _variants[index]];
 
     private void RequireOnGrid(int x, int y)
     {

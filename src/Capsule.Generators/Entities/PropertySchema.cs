@@ -158,10 +158,24 @@ internal static class PropertySchema
             nullable = true;
         }
 
-        // An array is its element type written as a JSON array. Only the array itself may be null.
+        // An array is its element type written as a JSON array. Only the array itself may be null. A
+        // ReadOnlyMemory<T> is written the same way, and every composition of one document shares its elements.
         string? elementRefusal = null;
         IArrayTypeSymbol? array = type as IArrayTypeSymbol;
-        if (array is not null)
+        INamedTypeSymbol? memory = type is INamedTypeSymbol { IsGenericType: true } generic
+            && SymbolEqualityComparer.Default.Equals(generic.OriginalDefinition, compilation.GetTypeByMetadataName(MetadataNames.ReadOnlyMemory))
+                ? generic
+                : null;
+        if (memory is not null)
+        {
+            type = memory.TypeArguments[0];
+            if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T }
+                || (type.IsReferenceType && memory.TypeArgumentNullableAnnotations[0] == NullableAnnotation.Annotated))
+            {
+                elementRefusal = $"has type '{declared.ToDisplayString()}', whose elements may be null. Make the elements non-nullable, or make the memory itself nullable";
+            }
+        }
+        else if (array is not null)
         {
             type = array.ElementType;
             if (array.Rank != 1 || type is IArrayTypeSymbol)
@@ -175,8 +189,14 @@ internal static class PropertySchema
             }
         }
 
+        bool many = array is not null || memory is not null;
         (PropertyKind kind, string? converter, EquatableArray<(string, string)> names, string? unsupported) =
-            Classify(type, array is null && nullable && type.IsValueType, compilation, (array is null ? type : declared).ToDisplayString());
+            Classify(type, !many && nullable && type.IsValueType, compilation, (many ? declared : type).ToDisplayString());
+        if (memory is not null && unsupported is null && kind is not (PropertyKind.BuiltIn or PropertyKind.Named or PropertyKind.Flags))
+        {
+            unsupported = $"has type '{declared.ToDisplayString()}'. Every scene composed from one document shares a ReadOnlyMemory member's elements, so it holds only a built-in type, an enum or a definition. Declare '{type.ToDisplayString()}[]'";
+        }
+
         unsupported = elementRefusal ?? unsupported;
         bool reference = kind == PropertyKind.Reference;
 
@@ -225,7 +245,8 @@ internal static class PropertySchema
             string.Concat(owners.Select(static owner => Constraints(owner.OriginalDefinition))),
             type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             nullable,
-            array is not null,
+            many,
+            memory is not null,
             names,
             converter,
             refusal,

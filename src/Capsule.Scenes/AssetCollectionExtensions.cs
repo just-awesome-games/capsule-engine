@@ -6,12 +6,15 @@ namespace Capsule.Scenes;
 public static class AssetCollectionExtensions
 {
     /// <summary>
-    /// Declares that the caller takes from its scene's shared pool of <typeparamref name="T"/>, built
-    /// with at least <paramref name="capacity"/> entities and preloaded before the scene starts.
+    /// Declares that the caller takes up to <paramref name="capacity"/> entities from its scene's shared
+    /// pool of <typeparamref name="T"/>, which is preloaded before the scene starts.
     /// </summary>
     /// <remarks>
-    /// The scene's pool holds the largest capacity any declaration asks for. A declaration into a
-    /// collection no scene gathers builds nothing.
+    /// The scene's pool holds the sum of every declaration made by what the scene holds when it collects
+    /// its preloads, and never shrinks. Each declarer states its own worst case. A pooled entity's
+    /// declaration of its own pool, or of a pool its pool grew from through any chain of declarations,
+    /// counts once as the largest such declaration. A declaration into a collection no scene gathers
+    /// builds nothing.
     /// </remarks>
     /// <example>
     /// <code>

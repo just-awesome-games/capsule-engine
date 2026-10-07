@@ -82,13 +82,13 @@ internal sealed class SoundStore : IDisposable
         return sound;
     }
 
-    private sealed class PendingClip(IAudioBackend backend, AudioClip clip, MemoryStream file) : IPendingAsset<RetainedSound>
+    private sealed class PendingClip(IAudioBackend backend, AudioClip clip, ResidentFile file) : IPendingAsset<RetainedSound>
     {
         public bool Advance(ref long budget) => true;
 
         public RetainedSound Finish() => new(backend.Load(clip, file));
 
-        public void Discard() => file.Dispose();
+        public void Discard() => file.Bytes.Dispose();
     }
 
     // One resident sound plus the count of live voices playing it. The scene's release and the last

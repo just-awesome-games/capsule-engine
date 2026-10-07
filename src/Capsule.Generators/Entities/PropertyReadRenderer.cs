@@ -44,12 +44,13 @@ internal static class PropertyReadRenderer
     }
 
     // The read expression for a member whose statement starts at indent. A nullable member tests for a
-    // JSON null first. An array reads each element with the same read, off the element's own value.
+    // JSON null first. An array reads each element with the same read, off the element's own value. A memory
+    // shares the elements one read of the document produced.
     private static string Read(PropertyModel property, string target, string from, string indent)
     {
         string key = CodeText.Literal(property.Key);
         string read = property.Array
-            ? $"{from}.Array<{property.Type}>({key}, static element => {Element(property, "element", key, "null", indent)})"
+            ? $"{from}.{(property.Shared ? "Shared" : "Array")}<{property.Type}>({key}, static element => {Element(property, "element", key, "null", indent)})"
             : Element(property, from, key, property.Kind == PropertyKind.Object ? Current(property, target) : string.Empty, indent);
 
         return property.Nullable ? $"{from}.IsNull({key}) ? null : {read}" : read;

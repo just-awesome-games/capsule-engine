@@ -101,4 +101,6 @@ if (!Run.Audio.IsFading(Music))
 ## Formats and streaming
 
 The host holds a `.wav` clip resident for every scene that uses it. An `.ogg` clip decodes on one background worker as it plays. A looping voice whose clip
-carries a loop region streams the same way in either format and repeats the region gaplessly.
+carries a loop region streams the same way in either format and repeats the region gaplessly. A `.wav` clip with a loop region
+is decoded when it loads, so its first looping play reads no file. A region-less `.wav` played from an offset decodes on that
+first play.

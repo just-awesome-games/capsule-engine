@@ -56,7 +56,11 @@ namespace Capsule.Scenes;
 /// <see langword="required"/> is refused on its members and <see cref="Required"/> marks a nullable reference.
 /// </description>
 /// </item>
-/// <item><term><c>T[]</c> of any of these</term><description><c>[a, b, c]</c></description></item>
+/// <item><term><c>T[]</c> of any of these</term><description><c>[a, b, c]</c>, a new array for each scene</description></item>
+/// <item>
+/// <term><see cref="ReadOnlyMemory{T}"/> of a built-in type, an enum or a definition</term>
+/// <description><c>[a, b, c]</c>, read once per document and shared by every scene composed from it</description>
+/// </item>
 /// <item><term>a nullable of any of these</term><description>also <c>null</c></description></item>
 /// </list>
 /// </remarks>

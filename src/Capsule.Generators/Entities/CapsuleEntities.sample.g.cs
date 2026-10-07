@@ -75,10 +75,10 @@ namespace Capsule.Generated
                             SetColumns(entity, members.Int("columns"));
                         }
                         SetTileTypes(entity, members.Array<global::Capsule.Tiles.TileType>("tileTypes", static element => Object_Capsule_Tiles_TileType(null, element.Object("tileTypes"), replaces: true)));
-                        SetTiles(entity, members.Array<int>("tiles", static element => element.Int("tiles")));
+                        SetTiles(entity, members.Shared<int>("tiles", static element => element.Int("tiles")));
                         if (members.Has("transforms"))
                         {
-                            SetTransforms(entity, members.IsNull("transforms") ? null : members.Array<int>("transforms", static element => element.Int("transforms")));
+                            SetTransforms(entity, members.IsNull("transforms") ? null : members.Shared<int>("transforms", static element => element.Int("transforms")));
                         }
                         if (members.Has("collider"))
                         {
@@ -228,10 +228,10 @@ namespace Capsule.Generated
         private static extern void SetTileTypes(global::Capsule.Tiles.TileMap owner, global::Capsule.Tiles.TileType[] value);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Tiles")]
-        private static extern void SetTiles(global::Capsule.Tiles.TileMap owner, int[] value);
+        private static extern void SetTiles(global::Capsule.Tiles.TileMap owner, global::System.ReadOnlyMemory<int> value);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Transforms")]
-        private static extern void SetTransforms(global::Capsule.Tiles.TileMap owner, int[]? value);
+        private static extern void SetTransforms(global::Capsule.Tiles.TileMap owner, global::System.ReadOnlyMemory<int>? value);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Collider")]
         private static extern void SetCollider(global::Capsule.Tiles.TileMap owner, bool value);

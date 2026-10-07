@@ -102,6 +102,21 @@ public class Scene
     private readonly Dictionary<Type, IEntityPool> _pools = [];
     private readonly List<IEntityPool> _poolOrder = [];
 
+    // The running collection's state, cleared when it ends. Each collection sums declarations afresh. A
+    // pool never shrinks, and holds the most any one collection declared.
+    private readonly Dictionary<Type, PoolDeclarations> _declared = [];
+
+    // Every entity the running collection has reached. An entity reached twice, live in the scene and
+    // held by the pool that forwards it, declares once.
+    private readonly HashSet<Entity> _collected = [];
+
+    // For each shared pool, the pools whose entities declared it in the running collection.
+    private readonly Dictionary<IEntityPool, HashSet<IEntityPool>> _grownBy = [];
+
+    // The shared pool whose entity is declaring now, or null when the scene or an entity outside every
+    // shared pool declares. Something a pooled entity forwards declares as that entity.
+    private IEntityPool? _declaringPool;
+
     // Handed out one at a time to each particle emitter added, so every emitter in a scene draws its
     // own randomness stream. A new scene instance starts at 0.
     private ulong _nextParticleStream;
@@ -166,7 +181,7 @@ public class Scene
         }
 
         // The scene's own members land once every entry is built, before a subclass constructor body runs.
-        AuthoredMembers members = new(content.Document.Members, placed, _authoredAssets);
+        AuthoredMembers members = new(content.Document, placed, _authoredAssets);
         content.Apply?.Invoke(this, members);
         members.Finish();
     }
@@ -486,13 +501,14 @@ public class Scene
 
     /// <summary>
     /// The pool of <typeparamref name="T"/> that every spawner in this scene shares. The scene builds it
-    /// with the largest capacity any declaration asks for, preloads it before it starts, and returns its
-    /// entities when they leave or the scene stops.
+    /// from its declarations, preloads it before it starts, and returns its entities when they leave or
+    /// the scene stops.
     /// </summary>
     /// <remarks>
     /// What takes from the pool declares it with <see cref="AssetCollectionExtensions.Pool{T}"/> from its
-    /// <c>CollectAssets</c>. A pool no declaration reached builds one entity at its first call, and its
-    /// first take logs once at <see cref="Log.Info"/> that its assets were not preloaded.
+    /// <c>CollectAssets</c>, which states how declarations add up. A pool no declaration reached builds
+    /// one entity at its first call, and its first take logs once at <see cref="Log.Info"/> that its
+    /// assets were not preloaded.
     /// <para>
     /// A taken entity is a new life. Everything per-life, tuning included, is set after <c>Take</c>.
     /// </para>
@@ -521,17 +537,73 @@ public class Scene
         return BuildPool<T>(capacity: 1);
     }
 
-    // A declaration from a CollectAssets hook. The pool grows to the largest capacity declared.
+    // A declaration from a CollectAssets hook. A pool holds the sum of one collection's declarations.
+    // A pooled entity's declaration of its own pool, or of a pool its pool grew from, is ancestral. The
+    // ancestral declarations count once, as the largest of them. A cycle of declarations then settles.
     internal void DeclarePool<T>(int capacity)
         where T : Entity, new()
     {
-        if (_pools.TryGetValue(typeof(T), out IEntityPool? pool))
+        _pools.TryGetValue(typeof(T), out IEntityPool? existing);
+        IEntityPool? declarer = _declaringPool;
+        bool ancestral = existing is not null && declarer is not null && GrewFrom(declarer, existing);
+
+        _declared.TryGetValue(typeof(T), out PoolDeclarations declared);
+        declared = ancestral
+            ? declared with { Ancestral = Math.Max(declared.Ancestral, capacity) }
+            : declared with { Summed = declared.Summed + capacity };
+        _declared[typeof(T)] = declared;
+
+        int total = declared.Summed + declared.Ancestral;
+        EntityPool<T> pool = existing as EntityPool<T> ?? BuildPool<T>(total);
+        pool.Reserve(total);
+
+        if (declarer is not null && !ancestral)
         {
-            ((EntityPool<T>)pool).Reserve(capacity);
-            return;
+            if (!_grownBy.TryGetValue(pool, out HashSet<IEntityPool>? growers))
+            {
+                growers = [];
+                _grownBy.Add(pool, growers);
+            }
+
+            growers.Add(declarer);
+        }
+    }
+
+    // Whether this is the running collection's first reach of entity.
+    internal bool FirstCollected(Entity entity) => _collected.Add(entity);
+
+    // Names the shared pool whose entity declares next, or keeps the current one for an entity outside
+    // every shared pool. Returns the one it replaces for RestoreDeclaringPool.
+    internal IEntityPool? EnterDeclaringPool(IEntityPool? shared)
+    {
+        IEntityPool? previous = _declaringPool;
+        _declaringPool = shared ?? previous;
+        return previous;
+    }
+
+    internal void RestoreDeclaringPool(IEntityPool? previous) => _declaringPool = previous;
+
+    // Whether pool is target or grew from target through the declarations recorded so far. The recursion
+    // ends because the graph has no cycle: DeclarePool adds an edge only where this returned false.
+    private bool GrewFrom(IEntityPool pool, IEntityPool target)
+    {
+        if (ReferenceEquals(pool, target))
+        {
+            return true;
         }
 
-        BuildPool<T>(capacity);
+        if (_grownBy.TryGetValue(pool, out HashSet<IEntityPool>? growers))
+        {
+            foreach (IEntityPool grower in growers)
+            {
+                if (GrewFrom(grower, target))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private EntityPool<T> BuildPool<T>(int capacity)
@@ -676,16 +748,92 @@ public class Scene
                 entity.CollectAssetPreloads(assets);
             }
 
-            // Indexed because a pooled entity can declare a further pool as it is collected.
-            for (int index = 0; index < _poolOrder.Count; index++)
+            // A pooled entity's declaration can build a pool or grow one already walked. The walk repeats
+            // until a pass builds nothing. It ends because each entity declares only on its first reach.
+            int built;
+            do
             {
-                _poolOrder[index].CollectAssets(assets);
+                built = PooledEntityCount();
+                for (int index = 0; index < _poolOrder.Count; index++)
+                {
+                    _poolOrder[index].CollectAssets(assets);
+                }
+            }
+            while (PooledEntityCount() != built);
+
+            if (!assets.IsProbe)
+            {
+                ReservePooled();
             }
         }
         finally
         {
             assets.GatheringScene = null;
+            _declared.Clear();
+            _collected.Clear();
+            _grownBy.Clear();
+            _declaringPool = null;
         }
+    }
+
+    private int PooledEntityCount()
+    {
+        int count = 0;
+        foreach (IEntityPool pool in _poolOrder)
+        {
+            count += pool.Capacity;
+        }
+
+        return count;
+    }
+
+    // Sizes what the scene grows as entities attach and leave for every collected entity held at once.
+    // A pooled entity's first attach and removal then allocate nothing.
+    private void ReservePooled()
+    {
+        int entities = _entities.Count;
+        int reporters = _contactReporters.Count;
+        int notifiers = _screenNotifiers.Count;
+        int colliders = Collision.ColliderCount;
+        int grids = Collision.Grids.Length;
+        int renderers = 0;
+        foreach (Entity entity in _collected)
+        {
+            // The counts above hold what the scene holds already. The draw order counts every renderer.
+            bool joins = entity.SceneOrNull != this;
+            entities += joins ? 1 : 0;
+            foreach (Component component in entity.Components)
+            {
+                switch (component)
+                {
+                    case Renderer:
+                        renderers++;
+                        break;
+                    case Collider2D collider when joins:
+                        colliders++;
+                        reporters += collider.ReportsContacts ? 1 : 0;
+                        break;
+                    case TileMapCollider2D when joins:
+                        colliders++;
+                        grids++;
+                        break;
+                    case VisibleOnScreenNotifier2D when joins:
+                        notifiers++;
+                        break;
+                }
+            }
+        }
+
+        _entities.EnsureCapacity(entities);
+        _pendingAdds.EnsureCapacity(entities);
+        _pendingAddSet.EnsureCapacity(entities);
+        _pendingStarts.EnsureCapacity(entities);
+        _pendingRemoves.EnsureCapacity(entities);
+        _pendingRemoveSet.EnsureCapacity(entities);
+        _contactReporters.Reserve(reporters);
+        _screenNotifiers.Reserve(notifiers);
+        Collision.Reserve(colliders, grids);
+        _renderIndex.Reserve(renderers);
     }
 
     internal void Start(object? entryPayload)
@@ -1445,8 +1593,12 @@ public class Scene
         private int _next;
         private int _end;
 
+        internal int Count => _items.Count;
+
         // Callers pair Add with Remove, so duplicates cannot build up.
         internal void Add(T item) => _items.Add(item);
+
+        internal void Reserve(int capacity) => _items.EnsureCapacity(capacity);
 
         internal void Remove(T item)
         {
@@ -1503,4 +1655,8 @@ public class Scene
             End();
         }
     }
+
+    // One shared pool's declarations in a collection: the sum of those that are not ancestral, and the
+    // largest that is.
+    private readonly record struct PoolDeclarations(int Summed, int Ancestral);
 }

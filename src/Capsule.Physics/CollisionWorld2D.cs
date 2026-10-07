@@ -30,13 +30,17 @@ public sealed partial class CollisionWorld2D
     /// <summary>How many distinct layers one world may intern.</summary>
     public const int MaxLayers = 64;
 
+    // How many candidates a collider's list holds from registration on. A larger crowd doubles it.
+    private const int StartingCandidates = 8;
+
     // Worlds are numbered from one. A default handle or layer carries world zero and belongs to no
     // world. The interlock covers test hosts that build worlds on several threads.
     private static int WorldsCreated;
 
     private readonly int _id = Interlocked.Increment(ref WorldsCreated);
-    private readonly Dictionary<string, int> _layerIndices = new(StringComparer.Ordinal);
-    private readonly List<string> _layerNames = [];
+    // Sized for every layer a world can intern, so interning never grows them.
+    private readonly Dictionary<string, int> _layerIndices = new(MaxLayers, StringComparer.Ordinal);
+    private readonly List<string> _layerNames = new(MaxLayers);
     private readonly List<CollisionGrid2D> _grids = [];
     private readonly List<int> _freeSlots = [];
     private readonly DynamicTree2D _tree = new();
@@ -177,6 +181,7 @@ public sealed partial class CollisionWorld2D
 
         int index = AllocateSlot();
         ref ColliderSlot slot = ref _slots[index];
+        slot.Candidates ??= new ColliderHandle[StartingCandidates];
         slot.Local = shape;
         slot.Position = position;
         slot.World = placed;
@@ -219,6 +224,30 @@ public sealed partial class CollisionWorld2D
         ArgumentNullException.ThrowIfNull(grid);
 
         Remove(grid.Handle);
+    }
+
+    // Sizes the slot table, each slot's candidate list and the tree for colliders held at once, and the
+    // grid list for grids held at once. Adding, moving and removing up to that many then allocates
+    // nothing. Never shrinks.
+    internal void Reserve(int colliders, int grids)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(colliders);
+        ArgumentOutOfRangeException.ThrowIfNegative(grids);
+
+        _grids.EnsureCapacity(grids);
+        if (colliders > _slots.Length)
+        {
+            Array.Resize(ref _slots, colliders);
+        }
+
+        for (int index = 0; index < colliders; index++)
+        {
+            _slots[index].Candidates ??= new ColliderHandle[StartingCandidates];
+        }
+
+        _freeSlots.EnsureCapacity(_slots.Length);
+        _moved.EnsureCapacity(colliders);
+        _tree.Reserve(colliders);
     }
 
     // Whether the handle still names a live collider of this world.
@@ -349,17 +378,25 @@ public sealed partial class CollisionWorld2D
         return TryIndexOf(handle, out int index) ? _slots[index].UserData : null;
     }
 
-    // Adds a grid of collidable cells anchored at the world origin. The cell array is copied.
+    // Adds a grid anchored at the world origin whose cell i collides as profile
+    // lookup[(cells[i] * stride) + variants[i]]. The grid reads cells and variants without copying them, and
+    // variants may run past the grid's area. A caller that writes a cell then calls the grid's Refresh.
     internal CollisionGrid2D AddGrid(
         int cellSize,
         int width,
         int height,
         int[] cells,
+        byte[] variants,
+        int[] lookup,
+        int stride,
         ReadOnlySpan<CellProfile2D> profiles,
         object? userData = null)
     {
         ArgumentNullException.ThrowIfNull(cells);
+        ArgumentNullException.ThrowIfNull(variants);
+        ArgumentNullException.ThrowIfNull(lookup);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellSize);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stride);
 
         if (width <= 0 || height <= 0)
         {
@@ -407,12 +444,33 @@ public sealed partial class CollisionWorld2D
             }
         }
 
-        for (int index = 0; index < cells.Length; index++)
+        if (variants.Length < area)
         {
-            if ((uint)cells[index] >= (uint)profiles.Length)
+            throw new ArgumentException($"variants has {variants.Length} entries but {width}x{height} requires {area}.", nameof(variants));
+        }
+
+        if (lookup.Length % stride != 0)
+        {
+            throw new ArgumentException($"lookup has {lookup.Length} entries, which is not a whole number of rows of {stride}.", nameof(lookup));
+        }
+
+        for (int index = 0; index < lookup.Length; index++)
+        {
+            if ((uint)lookup[index] >= (uint)profiles.Length)
             {
                 throw new ArgumentException(
-                    $"cells[{index}] is {cells[index]}, which is not a profile index (0..{profiles.Length - 1}).",
+                    $"lookup[{index}] is {lookup[index]}, which is not a profile index (0..{profiles.Length - 1}).",
+                    nameof(lookup));
+            }
+        }
+
+        int values = lookup.Length / stride;
+        for (int index = 0; index < cells.Length; index++)
+        {
+            if ((uint)cells[index] >= (uint)values || variants[index] >= stride)
+            {
+                throw new ArgumentException(
+                    $"cells[{index}] is {cells[index]} with variant {variants[index]}, which names no lookup entry ({values} values of {stride} variants).",
                     nameof(cells));
             }
         }
@@ -428,7 +486,10 @@ public sealed partial class CollisionWorld2D
             cellSize,
             width,
             height,
-            (int[])cells.Clone(),
+            cells,
+            variants,
+            lookup,
+            stride,
             profiles);
 
         slot.Grid = grid;
@@ -826,7 +887,7 @@ public sealed partial class CollisionWorld2D
     // stale one.
     private static void AddCandidate(ref ColliderSlot slot, ColliderHandle handle)
     {
-        slot.Candidates ??= new ColliderHandle[8];
+        slot.Candidates ??= new ColliderHandle[StartingCandidates];
         int count = slot.CandidateCount;
         int position = count;
         while (position > 0 && slot.Candidates[position - 1].Index > handle.Index)
@@ -996,6 +1057,7 @@ public sealed partial class CollisionWorld2D
             if (_slotsUsed == _slots.Length)
             {
                 Array.Resize(ref _slots, _slots.Length * 2);
+                _freeSlots.EnsureCapacity(_slots.Length);
             }
 
             index = _slotsUsed++;

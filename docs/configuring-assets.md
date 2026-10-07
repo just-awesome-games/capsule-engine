@@ -64,9 +64,10 @@ Assets/.config.json              { "texture": { "atlas": "game" } }
 Adding, splitting or removing an atlas changes no C# and no document. The runtime serves a packed
 handle from its page.
 
-One input packs byte-identically on every machine. Two texels stay clear between placements, and each
-member's outer texel is duplicated one texel outward on every side. Linear sampling, scaling and tiling at
-a region's edge then read no neighbour. A page holds one format and one sampling, and members differing in
+One input packs byte-identically on every machine. Each page takes the smallest extent the build finds
+for its members, rounded up to four texels, and no member is rotated. Two texels stay clear between
+placements, and each member's outer texel is duplicated one texel outward on every side. Linear
+sampling, scaling and tiling at a region's edge then read no neighbour. A page holds one format and one sampling, and members differing in
 either pack onto separate pages. Pages ship under `assets/atlases/`, and `assets/textures.json` maps each
 packed key to its page. A packed member does not ship on its own. Editing a texture, its config or an
 atlas file repacks only the atlases it touches.

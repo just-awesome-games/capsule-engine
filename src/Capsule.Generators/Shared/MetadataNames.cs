@@ -36,4 +36,5 @@ internal static class MetadataNames
     internal const string JsonConverterAttribute = "System.Text.Json.Serialization.JsonConverterAttribute";
     internal const string JsonConverter = "System.Text.Json.Serialization.JsonConverter`1";
     internal const string FlagsAttribute = "System.FlagsAttribute";
+    internal const string ReadOnlyMemory = "System.ReadOnlyMemory`1";
 }

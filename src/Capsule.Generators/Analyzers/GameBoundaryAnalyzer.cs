@@ -17,6 +17,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
             Diagnostics.AmbientTime,
             Diagnostics.AmbientRandom,
             Diagnostics.PlatformMath,
+            Diagnostics.Reflection,
         ];
 
     public override void Initialize(AnalysisContext context)
@@ -169,6 +170,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         IsAmbientTime(subject) ? Diagnostics.AmbientTime
         : IsAmbientRandom(subject) ? Diagnostics.AmbientRandom
         : IsExternalIo(subject) || IsExternalState(subject) ? Diagnostics.ExternalIo
+        : subject.Under("System.Reflection") ? Diagnostics.Reflection
         : IsConcurrency(subject) ? Diagnostics.Concurrency
         : IsPlatformMath(subject) ? Diagnostics.PlatformMath
         : null;
@@ -298,8 +300,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     private static bool IsExternalState(in Subject subject) =>
         subject.IsSystem("Console")
         || subject.IsSystem("Environment")
-        || (subject.Type?.Name == "Process" && subject.In("System.Diagnostics"))
-        || subject.Under("System.Reflection");
+        || (subject.Type?.Name == "Process" && subject.In("System.Diagnostics"));
 
     private static string Display(ISymbol symbol) => symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
 

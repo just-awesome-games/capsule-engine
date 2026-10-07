@@ -24,14 +24,14 @@ internal static class ShippedSceneDocument
     }
 
     // Throws SceneDocumentFormatException when the file is not gzip or the inflated JSON breaks the format.
+    // The document keeps the inflated bytes as the bytes of its members.
     internal static SceneDocument Read(Stream content)
     {
-        string json;
-
+        using MemoryStream json = new();
         try
         {
-            using StreamReader reader = new(new GZipStream(content, CompressionMode.Decompress));
-            json = reader.ReadToEnd();
+            using GZipStream inflated = new(content, CompressionMode.Decompress);
+            inflated.CopyTo(json);
         }
         catch (InvalidDataException exception)
         {
@@ -40,6 +40,6 @@ internal static class ShippedSceneDocument
                 exception);
         }
 
-        return SceneDocument.Parse(json);
+        return SceneDocument.ParseUtf8(json.ToArray());
     }
 }

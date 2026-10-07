@@ -179,6 +179,11 @@ internal static class Diagnostics
         "Game logic cannot call a platform transcendental that DeterministicMath replaces",
         "'{0}' differs between operating systems. Call {1}");
 
+    internal static readonly DiagnosticDescriptor Reflection = Rule(
+        "CAP109", ArchitectureCategory, LogicBoundaryPage,
+        "Game logic cannot use reflection, which NativeAOT trims and deterministic logic cannot rely on",
+        "'{0}' uses reflection. NativeAOT trims the metadata it reads, and its results can change from one build of the logic to the next. Use nameof for a name, a virtual or abstract member for behaviour, or a type pattern to test a type");
+
     internal static readonly SuppressionDescriptor UnassignedAuthorableField = new(
         "CAP108", "CS0649", "A scene document placement writes this [Authorable] field.");
 

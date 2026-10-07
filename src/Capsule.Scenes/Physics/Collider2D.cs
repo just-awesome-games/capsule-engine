@@ -28,6 +28,9 @@ namespace Capsule.Physics;
 /// </remarks>
 public abstract class Collider2D : Component
 {
+    // How many riders the list holds from construction on. A larger crowd doubles it.
+    private const int StartingRiders = 4;
+
     private Shape2D _shape;
 
     // The shape at its offset under the world scale. This is the form the world holds.
@@ -79,7 +82,7 @@ public abstract class Collider2D : Component
 
     // The bodies whose last move stopped on this collider, grown once and never shrunk. A slot empties
     // to null while this collider is carrying, and is compacted once the carry is done.
-    private KinematicBody2D?[] _riders = [];
+    private KinematicBody2D?[] _riders = new KinematicBody2D?[StartingRiders];
     private int _riderCount;
     private bool _ridersEmptied;
 
@@ -750,7 +753,7 @@ public abstract class Collider2D : Component
     {
         if (_riderCount == _riders.Length)
         {
-            Array.Resize(ref _riders, Math.Max(4, _riders.Length * 2));
+            Array.Resize(ref _riders, _riders.Length * 2);
         }
 
         _riders[_riderCount++] = body;

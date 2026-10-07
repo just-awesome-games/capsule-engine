@@ -40,8 +40,12 @@ internal sealed class PcmAudio(float[] samples, int channels, int sampleRate)
             }
         }
 
-        ReadOnlySpan<byte> bytes = file;
+        return FromWav(file, clipName);
+    }
 
+    // Decodes a WAV file already in memory, which leaves the bytes with the caller.
+    internal static PcmAudio FromWav(ReadOnlySpan<byte> bytes, string clipName)
+    {
         if (bytes.Length < 12 || !Is(bytes[..4], "RIFF") || !Is(bytes[8..12], "WAVE"))
         {
             throw new InvalidDataException($"Audio clip '{clipName}' is no RIFF/WAVE file.");

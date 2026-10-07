@@ -3,8 +3,8 @@ using Capsule.Build.Atlases;
 namespace Capsule.Tests.Build;
 
 // The packer's contract: one input packs the same way whatever order it arrives in, every cell
-// keeps its gap from every other and stays on its page, and a page that is full hands the next
-// cell to the next page.
+// keeps its gap from every other and stays on its page, a page comes out close to the area its
+// cells cover, and a page that is full hands the next cell to the next page.
 public sealed class AtlasPackerTests
 {
     [Fact]
@@ -47,6 +47,20 @@ public sealed class AtlasPackerTests
                 Assert.True(apartX || apartY, $"{a.Key} and {b.Key} are closer than {AtlasPacker.Spacing} texels");
             }
         }
+    }
+
+    // A page with room to spare still comes out near the area its cells and their gaps cover, not
+    // as a strip along its top edge.
+    [Fact]
+    public void Pack_FitsAPageWithinATenthOfTheAreaItsCellsCover()
+    {
+        (string Key, int Width, int Height)[] items = Synthetic(60);
+        long covered = items.Sum(static item => (long)(item.Width + AtlasPacker.Spacing) * (item.Height + AtlasPacker.Spacing));
+
+        (_, (int Width, int Height)[] pages) = AtlasPacker.Pack(items, 4096);
+
+        (int width, int height) = Assert.Single(pages);
+        Assert.True((long)width * height <= covered * 11 / 10, $"a {width}x{height} page holds {covered} covered texels");
     }
 
     // Four 30-texel cells and their gaps fill a 64-texel page exactly; the fifth opens the next.

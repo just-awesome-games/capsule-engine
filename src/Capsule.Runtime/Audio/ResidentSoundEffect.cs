@@ -7,15 +7,20 @@ namespace Capsule.Runtime.Audio;
 // player holds, pooled as one object. A clip heard one at a time allocates a single voice for the life
 // of the scene, a second appears when a second voice wants it at the same moment, and a play the pool
 // can serve allocates nothing.
-internal sealed class ResidentSoundEffect(SoundEffect effect, AudioClip clip, AudioStreamer streamer, HostPlatform platform) : IResidentSound
+internal sealed class ResidentSoundEffect(
+    SoundEffect effect,
+    AudioClip clip,
+    PcmAudio? samples,
+    AudioStreamer streamer,
+    HostPlatform platform) : IResidentSound
 {
     private readonly Stack<PooledVoice> _pooled = new();
 
-    // Read on the first play the device cannot queue whole and kept for as long as the sound is. It
-    // sits beside the SoundEffect, so a plain one-shot of the same clip is still queued whole and a
-    // clip only played that way never pays the samples' memory. Every later streamed play reads no
-    // file.
-    private PcmAudio? _samples;
+    // The decoded clip, for plays the device cannot queue whole. A clip with a loop region arrives
+    // decoded, and any other decodes on its first such play. It sits beside the SoundEffect, so a plain
+    // one-shot is still queued whole. A clip without a region that only plays that way never pays the
+    // samples' memory.
+    private PcmAudio? _samples = samples;
 
     public IAudioVoice Play(float gain, float pitch, float pan, bool loop, Action ended)
     {

@@ -30,7 +30,8 @@ public static class SceneDocumentKeys
         /// <summary>Every entry the scene places, in composition order.</summary>
         public const string Entities = "entities";
 
-        private static readonly string[] Keys = [Schema, BaseScene, Entities];
+        // Every key the document object reserves. The reader skips these when it collects members.
+        internal static string[] Keys { get; } = [Schema, BaseScene, Entities];
 
         /// <summary>Whether the document object reserves <paramref name="key"/>, compared ordinally.</summary>
         public static bool Contains(string key) => Keys.AsSpan().Contains(key);
@@ -63,7 +64,8 @@ public static class SceneDocumentKeys
         /// <summary>How far the entity moves with the camera, written <c>[x, y]</c>.</summary>
         public const string ScrollFactor = "scrollFactor";
 
-        private static readonly string[] Keys = [Type, Id, X, Y, Rotation, Scale, ZIndex, ScrollFactor];
+        // Every key an entry reserves.
+        internal static string[] Keys { get; } = [Type, Id, X, Y, Rotation, Scale, ZIndex, ScrollFactor];
 
         /// <summary>Whether an entry reserves <paramref name="key"/>, compared ordinally.</summary>
         public static bool Contains(string key) => Keys.AsSpan().Contains(key);

@@ -109,8 +109,9 @@ protected override void CollectAssets(AssetCollection assets) => assets.Add(_tex
 
 The engine's renderers, audio sources, labels and materials declare what they hold. An entity that
 attaches its components in its constructor is preloaded with them. An `EntityPool<T>` is forwarded from
-its owner's hook, and a scene's shared pool is declared with `assets.Pool<T>(capacity)`. A resource the scene did not collect loads on first use, logs that at info, and stays
-cached for the rest of the scene.
+its owner's hook, and a scene's shared pool is declared with `assets.Pool<T>(capacity)`, sized as
+[Pooling](entities.md#pooling) describes. A resource the scene did not collect loads on first use, logs
+that at info, and stays cached for the rest of the scene.
 
 The outgoing scene's resources are released at transition or exit, except those the incoming preload also
 uses. A packed texture is resident as its atlas page. A headless run collects the same way and loads no

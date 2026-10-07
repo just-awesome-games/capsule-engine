@@ -20,13 +20,14 @@ namespace Capsule.Tiles;
 /// <see cref="Entity.ScrollFactor"/>. The map collides only through a <see cref="TileMapCollider2D"/>
 /// added to it, and a palette entry's layer still reaches <see cref="TileAt"/> on a map without one.
 /// <para>
-/// The map copies the grid's cells when it is built, and <see cref="SetTile"/> changes that copy.
-/// The <see cref="TileGrid"/> handed in is never written. A scene rebuilt from it starts as
+/// The map reads the grid's cells until the first <see cref="SetTile"/> that changes one, which copies
+/// them into the map. The <see cref="TileGrid"/> is never written. A scene rebuilt from it starts as
 /// authored.
 /// </para>
 /// <para>
 /// A scene document places one by the type key <c>tile-map</c>. Its authorable members hold the grid the
-/// document describes, and the map is built from them before a subclass constructor body runs.
+/// document describes, and the map is built from them before a subclass constructor body runs. Every map
+/// composed from one document shares that document's cells until it edits one.
 /// </para>
 /// </remarks>
 [TypeKey(Key)]
@@ -37,10 +38,10 @@ public class TileMap : Entity
 
     private TileGrid _grid;
 
-    // The map's own palette indices and transforms, row-major. Drawing, reading and SetTile all use
-    // this copy.
+    // The palette indices and TileTransform bytes, row-major, which drawing, reading and the collider all
+    // use. They are the grid's own until the first edit copies them into the map.
     private int[] _cells;
-    private TileTransform[] _transforms;
+    private byte[] _facings;
 
     private VisibleTiles _tiles;
 
@@ -79,9 +80,12 @@ public class TileMap : Entity
     [Authorable(Required = true)]
     protected TileType[] TileTypes { get; set; } = [];
 
-    /// <summary>Every tile's palette index, <see cref="Width"/> * <see cref="Height"/> of them, row by row from the top-left.</summary>
+    /// <summary>
+    /// Every tile's palette index, <see cref="Width"/> * <see cref="Height"/> of them, row by row from the top-left.
+    /// Every map composed from one document shares them.
+    /// </summary>
     [Authorable(Required = true)]
-    protected int[] Tiles { get; set; } = [];
+    protected ReadOnlyMemory<int> Tiles { get; set; }
 
     /// <summary>
     /// How each tile in <see cref="Tiles"/> is mirrored or turned, as its <see cref="TileTransform"/> value, or
@@ -89,7 +93,7 @@ public class TileMap : Entity
     /// either, and the sum combines them.
     /// </summary>
     [Authorable]
-    protected int[]? Transforms { get; set; }
+    protected ReadOnlyMemory<int>? Transforms { get; set; }
 
     /// <summary>
     /// Whether the map is built with a <see cref="TileMapCollider2D"/>, false by default. The palette must then
@@ -125,7 +129,7 @@ public class TileMap : Entity
         }
 
         Anchored = true;
-        Build(new TileGrid(TileSize, Width, Height, TileTypes, Tiles, Texture, Columns, Facing(Transforms)));
+        Build(new TileGrid(TileSize, Width, Height, TileTypes, Tiles, Texture, Columns, Transforms));
         if (Collider)
         {
             Add(new TileMapCollider2D());
@@ -149,9 +153,10 @@ public class TileMap : Entity
 
     internal TileGrid Grid => _grid;
 
-    internal ReadOnlySpan<int> Cells => _cells;
+    // The arrays a collision grid reads in place.
+    internal int[] Cells => _cells;
 
-    internal ReadOnlySpan<TileTransform> Facings => _transforms;
+    internal byte[] Facings => _facings;
 
     /// <summary>
     /// Returns the palette entry at a tile coordinate, and the entry named <see cref="TileGrid.EmptyTileName"/>
@@ -166,7 +171,7 @@ public class TileMap : Entity
     public TileType TileAt(int x, int y) => _grid.TileTypes[_cells[IndexOf(x, y)]];
 
     /// <summary>Returns how the tile at a tile coordinate is mirrored or turned.</summary>
-    public TileTransform TransformAt(int x, int y) => _transforms[IndexOf(x, y)];
+    public TileTransform TransformAt(int x, int y) => (TileTransform)_facings[IndexOf(x, y)];
 
     // The surface velocity of the tile a cell holds now, turned the way the cell faces.
     internal Vector2 SurfaceVelocityAt(int x, int y)
@@ -174,7 +179,7 @@ public class TileMap : Entity
         int index = IndexOf(x, y);
 
         // A direction maps as a point in a tile of size 0, where each flip negates its axis.
-        return TileTransforms.Apply(_grid.TileTypes[_cells[index]].SurfaceVelocity, 0f, _transforms[index]);
+        return TileTransforms.Apply(_grid.TileTypes[_cells[index]].SurfaceVelocity, 0f, (TileTransform)_facings[index]);
     }
 
     /// <summary>
@@ -232,14 +237,20 @@ public class TileMap : Entity
 
         int index = IndexOf(x, y);
         int palette = PaletteIndexOf(name);
-        if (_cells[index] == palette && _transforms[index] == transform)
+        if (_cells[index] == palette && _facings[index] == (byte)transform)
         {
             return;
         }
 
+        // The map edits its own copy of the cells, never the grid's.
+        if (_cells == _grid.SharedTiles)
+        {
+            OwnCells();
+        }
+
         _cells[index] = palette;
-        _transforms[index] = transform;
-        AttachedCollider?.SetCell(x, y, palette, transform);
+        _facings[index] = (byte)transform;
+        AttachedCollider?.Refresh(x, y);
     }
 
     /// <inheritdoc/>
@@ -253,34 +264,13 @@ public class TileMap : Entity
         }
     }
 
-    // Each authored transform as the enum it stands for. A byte cast alone would wrap an out-of-range value.
-    private static TileTransform[]? Facing(int[]? transforms)
-    {
-        if (transforms is null)
-        {
-            return null;
-        }
-
-        TileTransform[] facing = new TileTransform[transforms.Length];
-        for (int i = 0; i < facing.Length; i++)
-        {
-            facing[i] = transforms[i] is >= 0 and < TileTransforms.Count
-                ? (TileTransform)transforms[i]
-                : throw new ArgumentException(
-                    $"transforms[{i}] is {transforms[i]}. Use 0 for a tile as authored, or add 1 to mirror it left to right, 2 to mirror it top to bottom and 4 to swap its axes, up to {TileTransforms.Count - 1}.",
-                    nameof(transforms));
-        }
-
-        return facing;
-    }
-
     // A map with animated entries draws from its own copy of the table. Two maps may share a grid and step apart.
-    [MemberNotNull(nameof(_grid), nameof(_cells), nameof(_transforms), nameof(_tiles))]
+    [MemberNotNull(nameof(_grid), nameof(_cells), nameof(_facings), nameof(_tiles))]
     private void Build(TileGrid grid)
     {
         _grid = grid;
-        _cells = grid.Tiles.ToArray();
-        _transforms = grid.Transforms.ToArray();
+        _cells = grid.SharedTiles;
+        _facings = grid.SharedFacings;
         TileSize = grid.TileSize;
         Width = grid.Width;
         Height = grid.Height;
@@ -293,8 +283,16 @@ public class TileMap : Entity
             Add(new TileAnimator(grid.Animations, own));
         }
 
-        _tiles = new VisibleTiles(grid, _cells, _transforms, sprites);
+        _tiles = new VisibleTiles(this, grid, sprites);
         Add(_tiles);
+    }
+
+    // Copies the grid's cells into the map before its first edit. The collider's grid reads the copy from then on.
+    private void OwnCells()
+    {
+        _cells = [.. _cells];
+        _facings = [.. _facings];
+        AttachedCollider?.Rebind(_cells, _facings);
     }
 
     private int IndexOf(int x, int y)
@@ -341,19 +339,21 @@ public class TileMap : Entity
         }
     }
 
-    // The sprite table is indexed by palette.
-    private sealed class VisibleTiles(TileGrid grid, int[] cells, TileTransform[] transforms, ReadOnlyMemory<Sprite?> sprites)
+    // The sprite table is indexed by palette. The map's cells are read on each draw, since an edit replaces them.
+    private sealed class VisibleTiles(TileMap map, TileGrid grid, ReadOnlyMemory<Sprite?> sprites)
         : Renderer
     {
         internal override bool Steps => false;
 
+        // Draws only the cells the camera's swept bounds reach. Every one of them meets the bounds the view culls
+        // against, so the view's own test is skipped.
         protected internal override void Draw(FrameView view)
         {
             ArgumentNullException.ThrowIfNull(view);
 
             (int minX, int minY, int maxX, int maxY) = VisibleBounds(view.Camera);
-            ReadOnlySpan<int> tiles = cells;
-            ReadOnlySpan<TileTransform> facings = transforms;
+            ReadOnlySpan<int> tiles = map._cells;
+            ReadOnlySpan<byte> facings = map._facings;
             ReadOnlySpan<Sprite?> table = sprites.Span;
             Vector2 size = new(grid.TileSize, grid.TileSize);
             float half = grid.TileSize / 2f;
@@ -371,8 +371,8 @@ public class TileMap : Entity
                     // Terrain never moves, and its frames pivot on their centre. The cell's centre serves
                     // as both ends of the interpolation, and a mirror or turn stays inside the cell.
                     Vector2 centre = new((x * grid.TileSize) + half, (y * grid.TileSize) + half);
-                    ref readonly TileTransforms.Pose pose = ref TileTransforms.PoseOf(facings[row + x]);
-                    view.Add(new SpriteIntent(
+                    ref readonly TileTransforms.Pose pose = ref TileTransforms.PoseOf((TileTransform)facings[row + x]);
+                    view.AddUnculled(new SpriteIntent(
                         sprite,
                         centre,
                         centre,

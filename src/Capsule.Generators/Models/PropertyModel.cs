@@ -46,7 +46,8 @@ internal enum PropertyKind
 /// <param name="Constraints">The <c>where</c> clauses on those parameters, fully qualified, or empty.</param>
 /// <param name="Type">The fully qualified type, or an array's element type, without the <c>?</c> of a nullable one.</param>
 /// <param name="Nullable">Whether a JSON null is accepted.</param>
-/// <param name="Array">Whether the member is an array of <paramref name="Type"/>, written as a JSON array.</param>
+/// <param name="Array">Whether the member is an array or a memory of <paramref name="Type"/>, written as a JSON array.</param>
+/// <param name="Shared">Whether the member is a <c>ReadOnlyMemory</c>, whose elements every composition of one document shares.</param>
 /// <param name="Names">An enum's members or a type's definitions, each with its JSON name.</param>
 /// <param name="Converter">The fully qualified converter a converted type declares.</param>
 /// <param name="Refusal">Why a placement cannot set the member and the fix, or null when it can.</param>
@@ -69,6 +70,7 @@ internal readonly record struct PropertyModel(
     string Type,
     bool Nullable,
     bool Array,
+    bool Shared,
     EquatableArray<(string Json, string Member)> Names,
     string? Converter,
     string? Refusal,
@@ -78,7 +80,7 @@ internal readonly record struct PropertyModel(
     internal bool Settable => Refusal is null && Clash is null;
 
     /// <summary>The member's type as C# declares it, fully qualified.</summary>
-    internal string Declared => Type + (Array ? "[]" : string.Empty) + (Nullable ? "?" : string.Empty);
+    internal string Declared => (Shared ? $"global::System.ReadOnlyMemory<{Type}>" : Type + (Array ? "[]" : string.Empty)) + (Nullable ? "?" : string.Empty);
 
     // C#'s required on anything but an [Authorable] entity reference or array of them, which only code can satisfy.
     internal bool CodeOnly => RequiredKeyword && !(Authorable && Kind == PropertyKind.Reference);

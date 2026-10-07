@@ -75,13 +75,17 @@ A pool lives as far up as its entities reach and no further. One spawner holds i
 pool, it belongs to the scene. Each spawner declares it in `CollectAssets` and takes from `Scene.Pool<T>()`:
 
 ```csharp
-protected override void CollectAssets(AssetCollection assets) => assets.Pool<SparkBurst>(capacity: 8);
+protected override void CollectAssets(AssetCollection assets) => assets.Pool<SparkBurst>(capacity: 1);
 
 Scene.Add(Scene.Pool<SparkBurst>().Take().Burst(Position));
 ```
 
-The scene builds each shared pool before it starts, with the largest capacity any declaration asks for, and
-preloads it. A shared pool's type builds with no arguments, and everything per-life, tuning included, is
-set after `Take`. A pool that must span scenes lives on `Run.State<T>()`. A pool builds its entities where
+The scene builds each shared pool before it starts and preloads it. Each declaration states that one
+declarer's worst case, and the pool holds their sum over what the scene holds at that point. Six turrets
+that each declare 2 shots share a pool of 12. A pooled entity declaring its own pool, or a pool its pool
+grew from through any chain of declarations, counts once as the largest such declaration. At preload the
+scene also reserves room for every entity of each shared or forwarded pool. A pool's first takes then
+attach, touch and leave without allocating. A shared pool's type builds with no arguments, and everything
+per-life, tuning included, is set after `Take`. A pool that must span scenes lives on `Run.State<T>()`. A pool builds its entities where
 it lives. One that lives higher than its entities reach builds them before anything can use them. An effect that never moves is better off as one long-lived `ParticleEmitter` fed
 by `Emit(count, at)`.

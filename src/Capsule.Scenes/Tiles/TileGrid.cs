@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Capsule.Animation;
 using Capsule.Assets;
 using Capsule.Physics;
@@ -13,9 +15,17 @@ public sealed class TileGrid
     /// <summary>The name of the palette entry at index 0, meaning "no tile here". Reserved, and not available to a game's own tile types.</summary>
     public const string EmptyTileName = "empty";
 
+    // Each authored transforms array as the facings it stands for, built once per array. Every scene composed
+    // from one document reads the same authored array, and so the same facings.
+    private static readonly ConditionalWeakTable<int[], byte[]> AuthoredFacings = new();
+
     private readonly TileType[] _tileTypes;
+
+    // Never written. A grid built from a scene document shares its tiles with every other grid built from it.
     private readonly int[] _tiles;
-    private readonly TileTransform[] _transforms;
+
+    // A TileTransform per tile as its byte, never written. Grids built from one scene document share them.
+    private readonly byte[] _transforms;
 
     // One sprite per palette entry, cut once so drawing a cell is a table lookup instead of arithmetic
     // per tile. An entry is null when its tile type draws nothing. An animated entry holds its first
@@ -52,23 +62,60 @@ public sealed class TileGrid
         TextureHandle? texture = null,
         int columns = 0,
         IReadOnlyList<TileTransform>? transforms = null)
+        : this(
+            tileSize,
+            width,
+            height,
+            [.. tileTypes ?? throw new ArgumentNullException(nameof(tileTypes))],
+            [.. tiles ?? throw new ArgumentNullException(nameof(tiles))],
+            texture,
+            columns,
+            transforms,
+            authored: null)
     {
-        ArgumentNullException.ThrowIfNull(tileTypes);
-        ArgumentNullException.ThrowIfNull(tiles);
+    }
 
+    // A grid over a scene document's tiles and transforms, which it shares and never writes. Each authored
+    // transform is a TileTransform value, checked here.
+    internal TileGrid(
+        int tileSize,
+        int width,
+        int height,
+        TileType[] tileTypes,
+        ReadOnlyMemory<int> tiles,
+        TextureHandle? texture,
+        int columns,
+        ReadOnlyMemory<int>? transforms)
+        : this(tileSize, width, height, [.. tileTypes], Whole(tiles), texture, columns, null, transforms is { } authored ? Whole(authored) : null)
+    {
+    }
+
+    // The transforms are listed, authored or neither, and are read only once the rest of the grid is valid.
+    private TileGrid(
+        int tileSize,
+        int width,
+        int height,
+        TileType[] tileTypes,
+        int[] tiles,
+        TextureHandle? texture,
+        int columns,
+        IReadOnlyList<TileTransform>? transforms,
+        int[]? authored)
+    {
         TileSize = tileSize;
         Width = width;
         Height = height;
         Texture = texture;
         Columns = columns;
-        _tileTypes = [.. tileTypes];
-        _tiles = [.. tiles];
+        _tileTypes = tileTypes;
+        _tiles = tiles;
         _shapes = new Shape2D?[_tileTypes.Length];
 
         Validate();
 
-        // Sized after Validate, which bounds the grid's area.
-        _transforms = transforms is null ? new TileTransform[_tiles.Length] : [.. transforms];
+        _transforms = authored is not null ? AuthoredFacings.GetValue(authored, Turned)
+            : transforms is not null ? [.. transforms.Select(static transform => (byte)transform)]
+            : new byte[_tiles.Length];
         ValidateTransforms();
 
         _sprites = CutCells();
@@ -108,7 +155,12 @@ public sealed class TileGrid
     /// How each tile is mirrored or turned, parallel to <see cref="Tiles"/>. Every entry is
     /// <see cref="TileTransform.None"/> on a grid built without transforms.
     /// </summary>
-    public ReadOnlySpan<TileTransform> Transforms => _transforms;
+    public ReadOnlySpan<TileTransform> Transforms => MemoryMarshal.Cast<byte, TileTransform>(_transforms);
+
+    // The arrays behind Tiles and Transforms, which a map reads until it edits a cell. Neither is ever written.
+    internal int[] SharedTiles => _tiles;
+
+    internal byte[] SharedFacings => _transforms;
 
     // Whether any palette entry is on a layer. A grid with none needs no collider.
     internal bool Collides => Array.Exists(_tileTypes, static tileType => tileType.Layer is not null);
@@ -403,14 +455,36 @@ public sealed class TileGrid
 
         for (int i = 0; i < _transforms.Length; i++)
         {
-            if (!TileTransforms.IsDefined(_transforms[i]))
+            if (_transforms[i] >= TileTransforms.Count)
             {
                 throw Malformed(
-                    $"transforms[{i}] is {(byte)_transforms[i]}. Use a TileTransform in 0..{TileTransforms.Count - 1}.",
+                    $"transforms[{i}] is {_transforms[i]}. Use a TileTransform in 0..{TileTransforms.Count - 1}.",
                     "transforms");
             }
         }
     }
+
+    // Each authored transform as the TileTransform it stands for. A byte cast alone would wrap an out-of-range value.
+    private static byte[] Turned(int[] authored)
+    {
+        byte[] facings = new byte[authored.Length];
+        for (int i = 0; i < facings.Length; i++)
+        {
+            facings[i] = authored[i] is >= 0 and < TileTransforms.Count
+                ? (byte)authored[i]
+                : throw Malformed(
+                    $"transforms[{i}] is {authored[i]}. Use 0 for a tile as authored, or add 1 to mirror it left to right, 2 to mirror it top to bottom and 4 to swap its axes, up to {TileTransforms.Count - 1}.",
+                    "transforms");
+        }
+
+        return facings;
+    }
+
+    // The array a memory spans, or a copy when it spans part of one.
+    private static int[] Whole(ReadOnlyMemory<int> memory) =>
+        MemoryMarshal.TryGetArray(memory, out ArraySegment<int> segment) && segment.Offset == 0 && segment.Count == segment.Array!.Length
+            ? segment.Array
+            : memory.ToArray();
 
     // Each sprite pivots on its centre. A mirrored or turned tile then stays inside its cell.
     private Sprite?[] CutCells()

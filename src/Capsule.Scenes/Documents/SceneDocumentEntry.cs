@@ -23,6 +23,12 @@ namespace Capsule.Scenes.Documents;
 /// </param>
 public readonly record struct SceneDocumentEntry(string Type, EntitySpawn Spawn, JsonElement? Members = null)
 {
+    // The members as one object, or null when the entry authors none.
+    internal AuthoredObject? Authored { get; init; } = ObjectOf(Members);
+
+    // Members an importer handed in that are not an object, kept for the document to refuse naming the entry.
+    internal JsonElement? NotAnObject { get; init; } = Refused(Members);
+
     /// <summary>An entry placing its entity at the world origin, unturned and at scale one.</summary>
     /// <param name="type">The type key of the entity class the entry places.</param>
     /// <param name="members">The entry's authorable member values as one JSON object, or null when it authors none.</param>
@@ -33,4 +39,22 @@ public readonly record struct SceneDocumentEntry(string Type, EntitySpawn Spawn,
 
     /// <summary>The id an entity reference names this entry by, or null when nothing references it.</summary>
     public int? Id { get; init; }
+
+    /// <summary>The entry's authorable member values as one JSON object, or null when it authors none.</summary>
+    /// <remarks>Each read builds a new object, which holds every key once.</remarks>
+    public JsonElement? Members
+    {
+        get => Authored?.ToElement() ?? NotAnObject;
+        init
+        {
+            Authored = ObjectOf(value);
+            NotAnObject = Refused(value);
+        }
+    }
+
+    private static AuthoredObject? ObjectOf(JsonElement? members) =>
+        members is { ValueKind: JsonValueKind.Object } authored ? AuthoredObject.From(authored) : null;
+
+    private static JsonElement? Refused(JsonElement? members) =>
+        members is { ValueKind: not JsonValueKind.Object } ? members : null;
 }

@@ -37,7 +37,8 @@ The compiler refuses, in a logic assembly: a reference to `Capsule.Runtime` (`CA
 reference in any Capsule project (`CAP101`), external I/O (`CAP102`), ambient concurrency or asynchronous
 execution (`CAP103`), process or wall-clock time (`CAP104`), randomness outside the seeded
 `RandomSource`, `System.Random` included (`CAP105`), a save document property declared `init` instead
-of `set` (`CAP106`), and a platform transcendental that `DeterministicMath` replaces (`CAP107`).
+of `set` (`CAP106`), a platform transcendental that `DeterministicMath` replaces (`CAP107`), and
+reflection (`CAP109`).
 
 ## Argument validation
 
