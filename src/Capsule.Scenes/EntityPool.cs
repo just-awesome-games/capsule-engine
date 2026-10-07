@@ -23,24 +23,24 @@ internal interface IEntityPool
 /// scene stops.
 /// </summary>
 /// <remarks>
-/// The game writes no release call, and the pooled class holds no pool reference. Idle entities sit
-/// outside any scene. The pool's owner forwards it from its own <c>CollectAssets</c> through
-/// <see cref="CollectAssets"/> to preload what they draw and play. A pool several spawners share is
-/// the scene's, from <see cref="Scene.Pool{T}"/>. The first take logs once at
-/// <see cref="Log.Info"/> when no preload collection has reached the pool and its entities hold assets
-/// to preload.
+/// A spawner takes from its scene's pool of a type, <see cref="Scene.Pool{T}"/>, by default. It builds its own
+/// pool only where a type cannot name the pool: its entities take constructor arguments, or one pool of a base
+/// type is filled by several factories. The game writes no release call, and the pooled class holds no pool
+/// reference. Idle entities sit outside any scene. The pool's owner forwards it from its own
+/// <c>CollectAssets</c> through <see cref="CollectAssets"/> to preload what they draw and play. The first take
+/// logs once at <see cref="Log.Info"/> when no preload collection has reached the pool and its entities hold
+/// assets to preload.
 /// </remarks>
 /// <example>
 /// <code>
-/// private EntityPool&lt;Bolt&gt; _bolts = new(() =&gt; new Bolt(sparks), capacity: 8);
+/// private readonly EntityPool&lt;Walker&gt; _walkers;
 ///
-/// protected override void CollectAssets(AssetCollection assets) =&gt; _bolts.CollectAssets(assets);
+/// public Gate(Path path)
+///     : base(path.Start) =&gt; _walkers = new(() =&gt; new Walker(path), capacity: 4);
 ///
-/// protected override void OnLateStep(in StepContext context)
-/// {
-///     if (!ShotThisStep) return;
-///     Scene.Add(_bolts.Take().Fire(Muzzle.WorldPosition, _visual.Facing, _bolt));
-/// }
+/// protected override void CollectAssets(AssetCollection assets) =&gt; _walkers.CollectAssets(assets);
+///
+/// private void Release() =&gt; Scene.Add(_walkers.Take().Place(Position));
 /// </code>
 /// </example>
 /// <typeparam name="T">The pooled entity type.</typeparam>

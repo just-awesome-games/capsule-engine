@@ -59,26 +59,25 @@ Scene.Freeze(_tuning.HurtFreezeTicks);      // hitstop from a contact handler
 
 ## Pooling
 
-A game that spawns and despawns entities at play rate takes a ready one from an `EntityPool<T>`. A method
-called between `Take` and `Scene.Add` sets the per-life state. When that method returns the entity, a
-spawn is one line:
-
-```csharp
-Scene.Add(_bolts.Take().Fire(Muzzle.WorldPosition, _visual.Facing, _bolt));
-```
-
-The engine returns the entity to its pool when it leaves and resets its own components' per-life state.
-The game sets its own in `Fire`.
-
-A pool lives as far up as its entities reach and no further. One spawner holds its own
-`new EntityPool<T>(create, capacity)` and forwards it from its `CollectAssets`. When several spawners share a
-pool, it belongs to the scene. Each spawner declares it in `CollectAssets` and takes from `Scene.Pool<T>()`:
+A game that spawns and despawns entities at play rate takes a ready one from its scene's pool of the type. The
+spawner declares the pool in `CollectAssets` and takes from `Scene.Pool<T>()`. A method called between `Take`
+and `Scene.Add` sets the per-life state. When that method returns the entity, a spawn is one line:
 
 ```csharp
 protected override void CollectAssets(AssetCollection assets) => assets.Pool<SparkBurst>(capacity: 1);
 
 Scene.Add(Scene.Pool<SparkBurst>().Take().Burst(Position));
 ```
+
+The engine returns the entity to its pool when it leaves and resets its own components' per-life state.
+The game sets its own in `Burst`.
+
+A pooled type builds with no arguments. Each kind of pooled entity is a type of its own, which the scene's
+pool is found by and preloads. Two effects that differ only in their clip are two small types. Anything that
+varies per life, such as a material, is set after `Take`. A spawner holds its own
+`new EntityPool<T>(create, capacity)` only where a type cannot name the pool: its entities take constructor
+arguments, or one pool of a base type is filled by several factories. It forwards that pool from its
+`CollectAssets`.
 
 The scene builds each shared pool before it starts and preloads it. Each declaration states that one
 declarer's worst case, and the pool holds their sum over what the scene holds at that point. Six turrets

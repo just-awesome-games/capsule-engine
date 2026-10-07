@@ -42,8 +42,6 @@ public sealed class Player : Entity
     private readonly AudioSource _footfall;
     private readonly ParticleEmitter _dust;
     private readonly BoltTuning _bolt = BoltTuning.Default;
-    private readonly EntityPool<Puff> _puffs = new(() => new Puff(), capacity: 4);
-    private readonly EntityPool<Bolt> _bolts = new(() => new Bolt(), capacity: 8);
 
     [Authorable]
     private PlayerTuning _tuning = PlayerTuning.Default;
@@ -167,7 +165,7 @@ public sealed class Player : Entity
             {
                 _velocity.Y = -_tuning.JumpSpeed;
                 JumpedThisStep = true;
-                Scene.Add(_puffs.Take().Place(Position + new Vector2(BodyPixels / 2f, BodyPixels)));
+                Scene.Add(Scene.Pool<Puff>().Take().Place(Position + new Vector2(BodyPixels / 2f, BodyPixels)));
                 Log.Info("jumped");
             }
         }
@@ -251,7 +249,7 @@ public sealed class Player : Entity
         }
 
         Vector2 muzzle = Muzzle.WorldPosition;
-        Scene.Add(_bolts.Take().Fire(muzzle, Aim(context.Input, muzzle), _bolt));
+        Scene.Add(Scene.Pool<Bolt>().Take().Fire(muzzle, Aim(context.Input, muzzle), _bolt));
         Log.Info("shot");
     }
 
@@ -271,20 +269,20 @@ public sealed class Player : Entity
         return new Vector2(_visual.Facing, 0f);
     }
 
-    // Pooled entities sit outside the scene until taken. The player forwards its own pools to preload
-    // them and declares the sparks it shares with its bolts.
+    // The player declares what it takes from the scene's pools, which preloads them: its bolts, its puffs, and
+    // the sparks it shares with its bolts.
     /// <inheritdoc/>
     protected override void CollectAssets(AssetCollection assets)
     {
-        _bolts.CollectAssets(assets);
-        _puffs.CollectAssets(assets);
+        assets.Pool<Bolt>(capacity: 8);
+        assets.Pool<Puff>(capacity: 4);
         assets.Pool<SparkBurst>(capacity: 2);
     }
 
     protected override void OnDebugPanel(DebugPanel panel)
     {
         panel.Field("Current Health", Health);
-        panel.Field("Bolts active", _bolts.Active);
+        panel.Field("Bolts active", Scene.Pool<Bolt>().Active);
         panel.Command("Heal", () => Health++);
     }
 
