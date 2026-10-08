@@ -137,13 +137,23 @@ public partial class Entity
 
     /// <summary>The entity this one is placed by, or null for a root.</summary>
     /// <remarks>
-    /// Reparenting keeps <see cref="Position"/>, <see cref="Rotation"/> and <see cref="Scale"/>
-    /// local. An entity parented under one a scene holds joins that scene and leaves when the
-    /// parent does. <see cref="Scene.Remove"/> on this entity by itself clears the parent.
+    /// An entity in a scene keeps its world transform, and its place in the scene, when its parent changes: its
+    /// local transform is recomputed, no scene hook runs, and a screen entity's anchors resolve against the new
+    /// parent. It takes the new parent's update order and step-mode hold from the next step. Before it joins a
+    /// scene, an entity keeps its local transform, which is how a child is built, and joins with its parent.
+    /// <see cref="Scene.Remove"/> on this entity alone clears its parent.
     /// </remarks>
+    /// <example>
+    /// A thrown log leaves its stack where it is:
+    /// <code>
+    /// log.Parent = null;
+    /// </code>
+    /// </example>
     /// <exception cref="InvalidOperationException">
-    /// This entity is in a scene, the parent is this entity or a descendant, scroll factors conflict,
-    /// or rotation/scale in the ancestry conflicts with components in this subtree.
+    /// The new ancestry conflicts with this subtree, such as a cycle, a scroll factor or a turn a collider refuses;
+    /// or, for an entity in or joining a scene, the parent is not in that scene or is being removed, or the entity
+    /// cannot keep its world transform under it. The write is also refused during a draw, once this entity is
+    /// being removed, or while an ancestor waits to join a scene. The message names the fix.
     /// </exception>
     public Entity? Parent
     {
@@ -156,10 +166,25 @@ public partial class Entity
                 return;
             }
 
-            if (SceneOrNull is not null || PendingScene is not null)
+            if (Leaving)
             {
                 throw new InvalidOperationException(
-                    $"A {GetType().Name} is in a scene. Remove it from the scene before reparenting it.");
+                    $"The removal that takes this {GetType().Name} is already landing and would detach it. Reparent it before the step's removals land, or let the removal take it.");
+            }
+
+            if ((SceneOrNull ?? PendingScene) is { } scene)
+            {
+                Reparent(scene, value);
+                return;
+            }
+
+            for (Entity? above = _parent; above is not null; above = above._parent)
+            {
+                if (above.PendingScene is not null)
+                {
+                    throw new InvalidOperationException(
+                        $"A {GetType().Name} is under a {above.GetType().Name} queued to join a scene, and a parent write would leave it out. Write the parent before adding the root, or once the tree has joined.");
+                }
             }
 
             if (value is not null)
@@ -168,22 +193,7 @@ public partial class Entity
                 value.SceneOrNull?.ThrowIfDrawing("parented an entity");
             }
 
-            Unlink();
-            _parent = value;
-
-            if (value is not null)
-            {
-                List<Entity> siblings = value._children ??= [];
-                _childSlot = siblings.Count;
-                siblings.Add(this);
-                value.TrackMovement(_movementTrackers);
-
-                if (OnScreen)
-                {
-                    ScreenEntity.Reflow(value);
-                }
-            }
-
+            Link(value);
             Invalidate(previous: true);
             value?.SceneOrNull?.Enqueue(this);
         }
@@ -330,8 +340,25 @@ public partial class Entity
     // The scene queued for this entity, between deferred add and drain.
     internal Scene? PendingScene { get; set; }
 
+    // Set while the scene runs this entity's removal hooks, after it has stopped being held.
+    internal bool Leaving
+    {
+        get => (_traits & Traits.Leaving) != 0;
+        set => _traits = value ? _traits | Traits.Leaving : _traits & ~Traits.Leaving;
+    }
+
+    // This entity's index in its parent's child list, current once the parent's Children has been read.
+    internal int ChildSlot => _childSlot;
+
     // This entity's index in its scene's step-order list, kept by the scene while it holds the entity.
     internal int SceneSlot { get; set; }
+
+    // Scratch for the scene's root compaction, clear outside it.
+    internal bool Marked
+    {
+        get => (_traits & Traits.Marked) != 0;
+        set => _traits = value ? _traits | Traits.Marked : _traits & ~Traits.Marked;
+    }
 
     // The top of this entity's chain, itself for a root.
     internal Entity Root => _root;
@@ -854,6 +881,101 @@ public partial class Entity
         }
     }
 
+    private void Link(Entity? parent)
+    {
+        Unlink();
+        _parent = parent;
+
+        if (parent is not null)
+        {
+            // Children that come and go unread would otherwise grow the parent's list by a slot each time.
+            if (parent._firstChildHole >= 0)
+            {
+                parent.CompactChildren();
+            }
+
+            List<Entity> siblings = parent._children ??= [];
+            _childSlot = siblings.Count;
+            siblings.Add(this);
+            parent.TrackMovement(_movementTrackers);
+
+            if (OnScreen)
+            {
+                ScreenEntity.Reflow(parent);
+            }
+        }
+    }
+
+    // Every refusal comes before the first link.
+    private void Reparent(Scene scene, Entity? parent)
+    {
+        scene.ThrowIfDrawing("reparented an entity");
+
+        // A removal asked of an ancestor refuses only once it lands. Until then the write takes this entity out of it.
+        if (scene.IsRemovalRequested(this))
+        {
+            throw new InvalidOperationException(
+                $"Scene.Remove was called on this {GetType().Name}, so it cannot be reparented. Reparent it before requesting its removal, or let the removal take it.");
+        }
+
+        if (scene.IsDetaching(this))
+        {
+            throw new InvalidOperationException(
+                $"The removal that takes this {GetType().Name} is already landing and would detach it. Reparent it before the step's removals land, or let the removal take it.");
+        }
+
+        if (parent is not null)
+        {
+            if (!ReferenceEquals(parent.SceneOrNull, scene))
+            {
+                throw new InvalidOperationException(parent.SceneOrNull is null
+                    ? $"A {GetType().Name} is in a scene and cannot be placed by a {parent.GetType().Name} that is in none. Parent it once the {parent.GetType().Name} has joined this scene, or set the parent to null."
+                    : $"A {GetType().Name} is in one scene and cannot be placed by a {parent.GetType().Name} in another. Parent it under an entity of its own scene, or set the parent to null.");
+            }
+
+            if (scene.IsRemovalPending(parent) || scene.IsDetaching(parent))
+            {
+                throw new InvalidOperationException(
+                    $"A {parent.GetType().Name} is being removed and would take a {GetType().Name} placed by it along. Parent it under an entity that stays, or set the parent to null.");
+            }
+
+            RequireParentable(parent);
+        }
+
+        Transform2D local = _local;
+        Transform2D previousLocal = _previousLocal;
+        bool held = SceneOrNull is not null;
+        if (held)
+        {
+            local = Beneath(parent, previous: false, World);
+            previousLocal = Beneath(parent, previous: true, _previousWorld);
+            if (!IsFinite(local) || !IsFinite(previousLocal))
+            {
+                throw new InvalidOperationException(
+                    $"A {GetType().Name} cannot keep its world transform under that parent: a world scale has a zero axis, or a value is too large. Give the parent a scale on both axes, reduce the scales or positions in its ancestry, or set the parent to null.");
+            }
+        }
+
+        bool wasRoot = _parent is null;
+        Link(parent);
+        _local = local;
+        _previousLocal = previousLocal;
+        Invalidate(previous: true);
+
+        if (held)
+        {
+            scene.Reparented(this, wasRoot);
+        }
+    }
+
+    // The local transform that composes under `parent`, or under none, into `world`.
+    private static Transform2D Beneath(Entity? parent, bool previous, in Transform2D world) =>
+        parent is null ? world : Within(previous ? parent._previousWorld : parent.World, world);
+
+    private static bool IsFinite(in Transform2D transform) =>
+        float.IsFinite(transform.Position.X) && float.IsFinite(transform.Position.Y)
+        && float.IsFinite(transform.Rotation) && float.IsFinite(transform.Scale.X) && float.IsFinite(transform.Scale.Y);
+
     // Checks every reason a parent write can fail, before any link is made.
     private void RequireParentable(Entity parent)
     {
@@ -972,6 +1094,8 @@ public partial class Entity
         None = 0,
         Anchored = 1,
         Screen = 2,
+        Leaving = 4,
+        Marked = 8,
     }
 
     private struct ComponentWalk(List<Component> components)

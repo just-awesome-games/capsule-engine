@@ -99,6 +99,7 @@ public class TileMap : Entity
     /// Whether the map is built with a <see cref="TileMapCollider2D"/>, false by default. The palette must then
     /// name a layer, and the map's scroll factor stay one.
     /// </summary>
+    /// <remarks>Code finds the collider as the map's component, through <c>TryGet</c>.</remarks>
     [Authorable]
     protected bool Collider { get; set; }
 

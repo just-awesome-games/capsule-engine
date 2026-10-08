@@ -28,15 +28,7 @@ public class Scene
     internal const string NoRunYet =
         "it has no run yet. Reach the run from OnStart onward, not from a constructor.";
 
-    private readonly List<Entity> _entities = [];
-
-    // Null slots a detach left in _entities, and the lowest of them. The list compacts before it is
-    // next read in order. A batch of removals then costs one pass instead of one shift each.
-    private int _holes;
-    private int _firstHole;
-
-    // Bumped whenever an entity moves to another slot of _entities. A walk that sees it change throws.
-    private int _entitiesVersion;
+    private readonly EntityTree _tree;
     private readonly List<Entity> _pendingAdds = [];
     private readonly List<Entity> _pendingRemoves = [];
 
@@ -65,6 +57,14 @@ public class Scene
     private Run? _run;
 
     private bool _stepping;
+
+    // Set once the step's entity walks are over. A parent write after that rebuilds step order at once.
+    private bool _drained;
+
+    // The roots of the detaches landing now, nested when a removal hook starts another.
+    private readonly List<Entity> _detachingRoots = [];
+
+    private int _attaching;
     private bool _starting;
     private bool _started;
 
@@ -127,6 +127,7 @@ public class Scene
     /// <summary>An empty world, for a scene that builds itself in code.</summary>
     public Scene()
     {
+        _tree = new(this);
     }
 
     /// <summary>
@@ -141,6 +142,7 @@ public class Scene
     /// <see cref="InvalidOperationException"/>.
     /// </exception>
     public Scene(SceneContent content)
+        : this()
     {
         ArgumentNullException.ThrowIfNull(content.Document);
         ArgumentNullException.ThrowIfNull(content.Entities);
@@ -329,16 +331,9 @@ public class Scene
 
     /// <summary>
     /// Every entity held in step order: roots in addition order, each followed by its subtree. The span
-    /// is invalid once an entity is added or removed.
+    /// is invalid once an entity is added, removed or reparented.
     /// </summary>
-    public ReadOnlySpan<Entity> Entities
-    {
-        get
-        {
-            Compact();
-            return CollectionsMarshal.AsSpan(_entities);
-        }
-    }
+    public ReadOnlySpan<Entity> Entities => _tree.Held;
 
     /// <summary>
     /// Adds a root entity and its subtree. During a step the add is deferred to the end of the
@@ -476,7 +471,7 @@ public class Scene
     public EntityWalk<T> FindAll<T>()
         where T : class
     {
-        Compact();
+        _tree.Compact();
         return new(this);
     }
 
@@ -642,6 +637,20 @@ public class Scene
     /// </example>
     public Collider2D? ColliderOf(ColliderHandle handle) => Collision.UserDataOrNull(handle) as Collider2D;
 
+    /// <summary>The tile-map cell a query hit names, or null when it names anything else.</summary>
+    /// <example>
+    /// Breaking the brick a shot meets:
+    /// <code>
+    /// if (Scene.Collision.Raycast(Position, direction, reach, Solid, out RayHit2D hit)
+    ///     &amp;&amp; Scene.TileOf(hit.Target) is { Type: Brick } brick)
+    /// {
+    ///     brick.Map.RemoveTile(brick.X, brick.Y);
+    /// }
+    /// </code>
+    /// </example>
+    public TileContact2D? TileOf(in CollisionTarget target) =>
+        TileContact2D.Of(Collision.UserDataOrNull(target.Collider), target);
+
     /// <summary>
     /// Runs before the scene's first frame is built, which is when the camera opens. A scene belongs
     /// to a single <see cref="SceneSimulation"/> for its lifetime and never starts twice.
@@ -794,7 +803,7 @@ public class Scene
     // A pooled entity's first attach and removal then allocate nothing.
     private void ReservePooled()
     {
-        int entities = _entities.Count;
+        int entities = _tree.Slots.Count;
         int reporters = _contactReporters.Count;
         int notifiers = _screenNotifiers.Count;
         int colliders = Collision.ColliderCount;
@@ -827,7 +836,8 @@ public class Scene
             }
         }
 
-        _entities.EnsureCapacity(entities);
+        _tree.Reserve(entities);
+        _detachingRoots.EnsureCapacity(entities);
         _pendingAdds.EnsureCapacity(entities);
         _pendingAddSet.EnsureCapacity(entities);
         _pendingStarts.EnsureCapacity(entities);
@@ -1000,6 +1010,30 @@ public class Scene
 
     // Held and not queued for removal, by itself or with an ancestor.
     internal bool Contains(Entity entity) => ReferenceEquals(entity.SceneOrNull, this) && !IsRemovalPending(entity);
+
+    // Whether Remove was called on the entity itself this step.
+    internal bool IsRemovalRequested(Entity entity) => _pendingRemoveSet.Count > 0 && _pendingRemoveSet.Contains(entity);
+
+    internal bool IsDetaching(Entity entity)
+    {
+        if (_detachingRoots.Count == 0)
+        {
+            return false;
+        }
+
+        for (Entity? above = entity; above is not null; above = above.Parent)
+        {
+            foreach (Entity root in _detachingRoots)
+            {
+                if (ReferenceEquals(above, root))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     // Whether a removal queued this step takes the entity, directly or through an ancestor.
     internal bool IsRemovalPending(Entity entity)
@@ -1193,6 +1227,7 @@ public class Scene
     {
         try
         {
+            _drained = true;
             DrainPending();
             SettleNotifiers();
         }
@@ -1200,6 +1235,7 @@ public class Scene
         {
             // The step is over however the drain went.
             _stepping = false;
+            _drained = false;
             SteppingTick = null;
         }
     }
@@ -1207,6 +1243,11 @@ public class Scene
     // Drain queues while lifecycle hooks grow them. Dropped entities are not retried next step.
     private void DrainPending()
     {
+        if (_tree.Stale)
+        {
+            RebuildOrder();
+        }
+
         while (_pendingAdds.Count > 0 || _pendingRemoves.Count > 0 || _pendingStarts.Count > 0)
         {
             int processed = 0;
@@ -1315,27 +1356,27 @@ public class Scene
             return;
         }
 
-        AttachTree(entity);
+        _attaching++;
+        try
+        {
+            AttachTree(entity);
+        }
+        finally
+        {
+            _attaching--;
+        }
 
         // Start immediately if attached outside a step. During a step, EndStep starts all together.
-        if (_started && !_stepping)
+        // A join hook that adds more waits for the outermost attach, so the starts sort parent-first.
+        if (_started && !_stepping && _attaching == 0)
         {
             StartPending();
         }
     }
 
-    // Each entity lands after its parent's held subtree, keeping the list in step order.
     private void AttachTree(Entity entity)
     {
-        // A subtree's span is contiguous only once the holes are gone.
-        Compact();
-        int index = entity.Parent is { } parent && ReferenceEquals(parent.SceneOrNull, this)
-            ? parent.SceneSlot + HeldCount(parent)
-            : _entities.Count;
-
-        _entities.Insert(index, entity);
-        _entitiesVersion++;
-        Renumber(index);
+        _tree.Insert(entity);
         _renderIndex.Invalidate();
         entity.SceneOrNull = this;
         entity.PendingScene = null;
@@ -1354,29 +1395,39 @@ public class Scene
 
         _pendingStarts.Add(entity);
 
-        // A hook may parent another child here, so the list is re-read on every pass.
-        for (int child = 0; child < entity.Children.Length; child++)
+        // A hook may add or remove a child, so the index advances only while its slot still holds the one just visited.
+        int child = 0;
+        while (child < entity.Children.Length)
         {
             Entity next = entity.Children[child];
             if (next.SceneOrNull is null)
             {
                 AttachTree(next);
             }
+
+            if (child < entity.Children.Length && ReferenceEquals(entity.Children[child], next))
+            {
+                child++;
+            }
         }
     }
 
-    private int HeldCount(Entity entity)
+    // The step walk reads the list, so a rebuild during it waits for the drain.
+    internal void Reparented(Entity entity, bool wasRoot)
     {
-        int count = 1;
-        foreach (Entity child in entity.Children)
-        {
-            if (ReferenceEquals(child.SceneOrNull, this))
-            {
-                count += HeldCount(child);
-            }
-        }
+        InvalidateHolds();
+        _tree.Reparented(entity, wasRoot);
 
-        return count;
+        if (!_stepping || _drained)
+        {
+            RebuildOrder();
+        }
+    }
+
+    private void RebuildOrder()
+    {
+        _tree.Rebuild();
+        _renderIndex.Invalidate();
     }
 
     // OnStart may attach more, and this loop drains those too.
@@ -1392,10 +1443,22 @@ public class Scene
         try
         {
             int processed = 0;
+            int sortedVersion = -1;
             try
             {
                 while (processed < _pendingStarts.Count)
                 {
+                    // Joins, rebuilds and hooks move entities that wait, and starts run parent-first. A slot
+                    // moves only with the version, so a batch with no moves sorts once.
+                    if (sortedVersion != _tree.Version)
+                    {
+                        sortedVersion = _tree.Version;
+                        if (_pendingStarts.Count - processed > 1)
+                        {
+                            CollectionsMarshal.AsSpan(_pendingStarts)[processed..].Sort(static (left, right) => left.SceneSlot.CompareTo(right.SceneSlot));
+                        }
+                    }
+
                     Entity pending = _pendingStarts[processed];
                     processed++;
 
@@ -1446,8 +1509,16 @@ public class Scene
     // Detach the entity and release its parent so it can be reparented or added as a root.
     private void Detach(Entity entity)
     {
-        DetachTree(entity);
-        entity.Unparent();
+        _detachingRoots.Add(entity);
+        try
+        {
+            DetachTree(entity);
+            entity.Unparent();
+        }
+        finally
+        {
+            _detachingRoots.RemoveAt(_detachingRoots.Count - 1);
+        }
     }
 
     // Detach children before the entity, deepest and last-parented first. A hook may reparent, so
@@ -1470,11 +1541,10 @@ public class Scene
 
     private void DetachAt(int index)
     {
-        Entity entity = _entities[index];
-        _entities[index] = null!;
-        _firstHole = _holes++ == 0 ? index : Math.Min(_firstHole, index);
+        Entity entity = _tree.Vacate(index);
 
         _renderIndex.Invalidate();
+        entity.Leaving = true;
         entity.SceneOrNull = null;
 
         try
@@ -1483,6 +1553,8 @@ public class Scene
         }
         finally
         {
+            entity.Leaving = false;
+
             // Returns even when a removal hook throws. A hook that re-added the entity leaves it
             // taken, and it returns on its next detach.
             if (entity.Pool is { } pool && entity.SceneOrNull is null && entity.PendingScene is null)
@@ -1492,46 +1564,13 @@ public class Scene
         }
     }
 
-    // Closes the holes detaches left, keeping step order, and renumbers what moved.
-    private void Compact()
-    {
-        if (_holes == 0)
-        {
-            return;
-        }
-
-        Span<Entity> held = CollectionsMarshal.AsSpan(_entities);
-        int kept = _firstHole;
-        for (int index = kept + 1; index < held.Length; index++)
-        {
-            Entity entity = held[index];
-            if (entity is not null)
-            {
-                entity.SceneSlot = kept;
-                held[kept++] = entity;
-            }
-        }
-
-        _entities.RemoveRange(kept, _entities.Count - kept);
-        _holes = 0;
-        _entitiesVersion++;
-    }
-
-    // Restores each entity's slot from `from` on, after an insert shifted them.
-    private void Renumber(int from)
-    {
-        for (int index = from; index < _entities.Count; index++)
-        {
-            _entities[index].SceneSlot = index;
-        }
-    }
-
     private void ReleaseEntities(ref List<Exception>? failures)
     {
         // A removal hook may read the scene and compact it. Each pass re-checks the slot.
-        for (int index = _entities.Count - 1; index >= 0; index--)
+        List<Entity> slots = _tree.Slots;
+        for (int index = slots.Count - 1; index >= 0; index--)
         {
-            if (index >= _entities.Count || _entities[index] is null)
+            if (index >= slots.Count || slots[index] is null)
             {
                 continue;
             }
@@ -1546,7 +1585,7 @@ public class Scene
             }
         }
 
-        Compact();
+        _tree.Compact();
     }
 
     private void ClearPendingState()
@@ -1556,6 +1595,7 @@ public class Scene
         _pendingAddSet.Clear();
         _pendingRemoves.Clear();
         _pendingRemoveSet.Clear();
+        _tree.Reset();
         _renderIndex.Clear();
         _contactReporters.Clear();
         _screenNotifiers.Clear();
@@ -1581,12 +1621,12 @@ public class Scene
         internal EntityWalk(Scene scene)
         {
             _scene = scene;
-            _version = scene._entitiesVersion;
+            _version = scene._tree.Version;
             _index = -1;
         }
 
         /// <summary>The entity the walk stands on.</summary>
-        public readonly T Current => (T)(object)_scene._entities[_index];
+        public readonly T Current => (T)(object)_scene._tree.Slots[_index];
 
         /// <summary>The walk itself, which <see langword="foreach"/> binds to.</summary>
         public readonly EntityWalk<T> GetEnumerator() => this;
@@ -1597,14 +1637,14 @@ public class Scene
         /// </exception>
         public bool MoveNext()
         {
-            if (_version != _scene._entitiesVersion)
+            if (_version != _scene._tree.Version)
             {
                 throw new InvalidOperationException(
                     $"A {_scene.GetType().Name}'s entities moved during a walk over them, which would skip or repeat one. " +
                     "Collect the entities to add or remove, and change the scene after the walk.");
             }
 
-            List<Entity> entities = _scene._entities;
+            List<Entity> entities = _scene._tree.Slots;
             while (++_index < entities.Count)
             {
                 if (entities[_index] is T)

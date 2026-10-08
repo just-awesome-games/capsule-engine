@@ -2,15 +2,18 @@ using System.Numerics;
 using Capsule;
 using Capsule.Animation;
 using Capsule.Assets;
+using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using MinimalGame.Game.Tiles;
 
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
 /// What the <see cref="Player"/> fires: a tinted glow flying in one direction at a constant
-/// speed, turned to face that way, until its lifetime is spent, then gone.
-/// <see cref="Entity.Position"/> is its centre. It collides with nothing. Its levers live in
+/// speed, turned to face that way, until it strikes solid terrain, breaking a brick, or its
+/// lifetime is spent. <see cref="Entity.Position"/> is its centre. It has no collider: each step
+/// casts a ray. Its levers live in
 /// <see cref="BoltTuning"/>. Pooled by the player, so its per-life state is set in
 /// <see cref="Fire"/> rather than the constructor.
 /// </summary>
@@ -22,9 +25,13 @@ public sealed class Bolt : Entity
     // position rather than from a corner. It preloads through the pool the player forwards.
     private static readonly Sprite Glow = new(CapsuleAssets.Textures.GlowTexture, new TextureRegion(0, 0, GlowTexels, GlowTexels), new Vector2(GlowTexels / 2f));
 
+    // Platforms let bolts through.
+    private static readonly CollisionMask Strikes = new(CollisionLayers.Solid);
+
     private readonly SpriteRenderer _sprite;
 
-    private Vector2 _velocity;
+    private Vector2 _direction;
+    private float _speed;
     private Countdown _life;
 
     public Bolt()
@@ -43,7 +50,8 @@ public sealed class Bolt : Entity
     public Bolt Fire(Vector2 position, Vector2 direction, in BoltTuning tuning)
     {
         Position = position;
-        _velocity = direction * tuning.Speed;
+        _direction = direction;
+        _speed = tuning.Speed;
         Rotation = DeterministicMath.Atan2(direction.Y, direction.X);
         _life.Start(tuning.LifetimeTicks);
         Scale = tuning.Size / GlowTexels;
@@ -60,13 +68,30 @@ public sealed class Bolt : Entity
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
     {
-        Position += _velocity * context.DeltaSeconds;
+        float reach = _speed * context.DeltaSeconds;
+        if (Scene.Collision.Raycast(Position, _direction, reach, Strikes, out RayHit2D hit))
+        {
+            if (Scene.TileOf(hit.Target) is { Type: Brick } brick)
+            {
+                brick.Map.RemoveTile(brick.X, brick.Y);
+            }
+
+            Burst(hit.Point);
+            return;
+        }
+
+        Position += _direction * reach;
 
         _life.Step();
         if (!_life.IsRunning)
         {
-            Scene.Add(Scene.Pool<SparkBurst>().Take().Burst(Position));
-            Scene.Remove(this);
+            Burst(Position);
         }
+    }
+
+    private void Burst(Vector2 at)
+    {
+        Scene.Add(Scene.Pool<SparkBurst>().Take().Burst(at));
+        Scene.Remove(this);
     }
 }

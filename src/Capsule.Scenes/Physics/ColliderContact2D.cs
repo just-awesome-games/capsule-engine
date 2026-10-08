@@ -4,7 +4,7 @@ using Capsule.Tiles;
 
 namespace Capsule.Physics;
 
-/// <summary>One tile-map cell reached by a collider contact.</summary>
+/// <summary>One tile-map cell a collider contact or a query reached.</summary>
 /// <param name="Map">The tile map that holds the cell.</param>
 /// <param name="X">The cell's column.</param>
 /// <param name="Y">The cell's row.</param>
@@ -15,6 +15,12 @@ public readonly record struct TileContact2D(TileMap Map, int X, int Y)
 
     /// <summary>How the tile the cell holds now is mirrored or turned.</summary>
     public TileTransform Transform => Map.TransformAt(X, Y);
+
+    // The cell target names when owner, its grid's user data, is a tile map's collider.
+    internal static TileContact2D? Of(object? owner, in CollisionTarget target) =>
+        target.IsGridCell && owner is TileMapCollider2D { Entity: TileMap map }
+            ? new TileContact2D(map, target.CellX, target.CellY)
+            : null;
 }
 
 /// <summary>Something a <see cref="Collider2D"/> is touching, described in the game's own terms.</summary>

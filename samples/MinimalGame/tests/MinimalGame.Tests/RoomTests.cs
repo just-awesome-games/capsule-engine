@@ -61,6 +61,21 @@ public sealed class RoomTests
         Assert.True(highestFeet < BrickRowBottom, "the second jump never rose past the brick's row");
     }
 
+    // A bolt fired up from under the brick breaks it and bursts there, short of its range.
+    [Fact]
+    public void ABoltFiredAtTheBrick_BreaksIt_AndStopsThere()
+    {
+        using SimulationHost room = RoomFixture.Simulate();
+        TileMap map = RoomFixture.TerrainOf(room);
+        Vector2 underTheBrick = new(40f, BrickRowBottom + 8f);
+        Bolt bolt = room.Scene.Pool<Bolt>().Take().Fire(underTheBrick, -Vector2.UnitY, BoltTuning.Default);
+        room.Scene.Add(bolt);
+
+        Assert.True(room.RunUntil(() => bolt.SceneOrNull is null, StepBudget), "the bolt never ended");
+        Assert.Equal(TileGrid.EmptyTileName, map.TileAt(2, 8).Name);
+        Assert.True(bolt.Position.Y > BrickRowBottom - 1f, $"the bolt flew on to {bolt.Position.Y}");
+    }
+
     // The hurtbox reports; it blocks nothing. Health is spent on the step the contact is entered
     // and not again while it lasts. The hit freezes the room for its tuned steps, and then the walk
     // carries on through the hazard.
@@ -83,6 +98,45 @@ public sealed class RoomTests
         room.Step(DeviceSnapshot.Of(Key.D));
         Assert.True(player.Position.X > contactX, "the hazard stopped the walk");
         Assert.Equal(maxHealth - 1, player.Health);
+    }
+
+    // The first touch frees the spark from its orbit. It flies on along the tangent it was moving in at the
+    // speed it left at, and leaves the scene past the view. The box keeps hurting.
+    [Fact]
+    public void TheHazardsSpark_BreaksLooseOnTheFirstTouch_AndFliesOnAlongItsTangentUntilItLeavesTheView()
+    {
+        using SimulationHost room = RoomFixture.Simulate();
+        Player player = RoomFixture.PlayerOf(room);
+        Hazard hazard = room.Scene.FindSingle<Hazard>();
+        Entity spark = hazard.Children[1].Children[0];
+        Vector2 before = spark.WorldPosition;
+        Vector2 heading = default;
+
+        Assert.True(
+            room.RunUntil(
+                () =>
+                {
+                    heading = spark.WorldPosition - before;
+                    before = spark.WorldPosition;
+                    return spark.Parent is null;
+                },
+                StepBudget,
+                DeviceSnapshot.Of(Key.D)),
+            "the spark never broke loose");
+        Assert.Null(spark.Parent);
+
+        // The room is frozen for the hit, and the spark with it.
+        room.Step(player.Tuning.HurtFreezeTicks);
+        Vector2 first = spark.WorldPosition;
+        room.Step();
+        Vector2 second = spark.WorldPosition;
+        room.Step();
+        Vector2 third = spark.WorldPosition;
+
+        Assert.True(Vector2.Dot(Vector2.Normalize(second - first), Vector2.Normalize(heading)) > 0.99f, "the spark left its tangent");
+        Assert.Equal((second - first).Length(), (third - second).Length(), 1e-3f);
+        Assert.True(room.RunUntil(() => spark.SceneOrNull is null, StepBudget), "the spark never left the view");
+        Assert.True(hazard.Get<BoxCollider2D>().Enabled);
     }
 
     // The ledges are one-way: the same jump that passes up through one from below is stopped by it

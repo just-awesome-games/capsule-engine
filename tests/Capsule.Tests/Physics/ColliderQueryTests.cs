@@ -2,6 +2,7 @@ using System.Numerics;
 using Capsule.Physics;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
+using Capsule.Tiles;
 
 namespace Capsule.Tests.Physics;
 
@@ -177,5 +178,31 @@ public sealed class ColliderQueryTests
 
         Assert.Null(scene.ColliderOf(collider.Target.Collider));
         Assert.Null(scene.ColliderOf(ColliderHandle.None));
+    }
+
+    [Fact]
+    public void TileOf_ResolvesAHitToItsMapAndCell_AndAColliderOrARemovedMapToNull()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        TileMap map = SceneFixtures.TerrainOf(scene);
+        Prober prober = new(new Vector2(24f, 8f), "solid");
+        scene.Add(prober);
+
+        Assert.True(prober.Collider.Raycast(Vector2.UnitY, 40f, out RayHit2D floor));
+        TileContact2D tile = Assert.NotNull(scene.TileOf(floor.Target));
+        Assert.Same(map, tile.Map);
+        Assert.Equal((1, 2), (tile.X, tile.Y));
+        Assert.Same(map.TileAt(1, 2), tile.Type);
+
+        Prober blocker = new(new Vector2(24f, 20f));
+        blocker.Collider.Layer = "solid";
+        scene.Add(blocker);
+
+        Assert.True(prober.Collider.Raycast(Vector2.UnitY, 40f, out RayHit2D collider));
+        Assert.Null(scene.TileOf(collider.Target));
+
+        scene.Remove(map);
+
+        Assert.Null(scene.TileOf(floor.Target));
     }
 }

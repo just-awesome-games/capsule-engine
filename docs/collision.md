@@ -204,4 +204,4 @@ shape that starts inside it.
 
 Results never depend on how the broadphase happens to be arranged. The same colliders under the same
 handles give the same results in the same order. `Scene.ColliderOf(hit.Target.Collider)` turns a hit back
-into its `Collider2D`, or null for a tile map's cell.
+into its `Collider2D`, and `Scene.TileOf(hit.Target)` into its tile map's cell. Each is null for the other.

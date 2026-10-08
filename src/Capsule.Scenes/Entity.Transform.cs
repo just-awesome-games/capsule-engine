@@ -279,6 +279,15 @@ public partial class Entity
         }
     }
 
+    // The local transform that composes under `parent` into `world`. A mirror negates the inner turn in
+    // Compose, so the inverse negates it too.
+    private static Transform2D Within(in Transform2D parent, in Transform2D world)
+    {
+        float turn = world.Rotation - parent.Rotation;
+
+        return new(parent.InverseTransformPoint(world.Position), parent.Mirrored ? -turn : turn, world.Scale / parent.Scale);
+    }
+
     private static InvalidOperationException Turned(Component component, Entity holder, Entity carrier, float rotation)
     {
         string what = component.GetType().Name;

@@ -9,7 +9,7 @@ namespace MinimalGame.Game.Entities;
 /// </summary>
 /// <param name="Speed">How fast the bolt travels, px/s. Higher reaches the far wall sooner and reads
 /// as a lighter shot; lower makes each bolt something to watch.</param>
-/// <param name="LifetimeTicks">Fixed steps the bolt lives before it is removed, whatever it met;
+/// <param name="LifetimeTicks">Fixed steps the bolt lives before it is removed, unless it strikes terrain first;
 /// with <paramref name="Speed"/> this is its range. Raise it to cross the whole room, lower it for a
 /// short-range spit.</param>
 /// <param name="Size">The bolt's extent in world units, drawn as a soft tinted glow. Wider reads as

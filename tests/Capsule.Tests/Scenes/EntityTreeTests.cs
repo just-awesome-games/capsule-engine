@@ -147,11 +147,10 @@ public sealed class EntityTreeTests
     }
 
     [Fact]
-    public void AParent_IsRefusedInASceneOrQueued_InACycle_OnATileMap_AndWhenPlainOverAScreenEntity()
+    public void AParent_IsRefusedInACycle_OnATileMap_AndWhenPlainOverAScreenEntity()
     {
         SceneFixtures.HookScene scene = new();
         Node root = new(Vector2.Zero);
-        Node other = new(Vector2.Zero);
         Entity child = new(root);
         Entity grandchild = new(child);
 
@@ -160,26 +159,6 @@ public sealed class EntityTreeTests
         Assert.Throws<InvalidOperationException>(() => new ScreenEntity(Anchor.TopLeft, Vector2.Zero).Parent = root);
         Assert.Throws<InvalidOperationException>(() => new TileMap(SceneFixtures.RoomGrid()).Parent = root);
         Assert.Throws<InvalidOperationException>(() => scene.Add(child));
-
-        scene.Add(root);
-        scene.Add(other);
-        Assert.Throws<InvalidOperationException>(() => child.Parent = other);
-        Assert.Throws<InvalidOperationException>(() => child.Parent = null);
-
-        Node queued = new(Vector2.Zero);
-        using SceneSimulation simulation = new(scene);
-        scene.Add(new SceneFixtures.Watcher(_ =>
-        {
-            if (queued.SceneOrNull is null && queued.Parent is null)
-            {
-                queued.Parent = root;
-                Assert.Throws<InvalidOperationException>(() => queued.Parent = other);
-            }
-        }));
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.Same(scene, queued.Scene);
-        Assert.Same(root, queued.Parent);
     }
 
     // Constructed before its parent is added, and reads the parent's world position as it steps.
