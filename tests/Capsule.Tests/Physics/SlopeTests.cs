@@ -86,7 +86,7 @@ public sealed class SlopeTests
             "..............",
             "..../#\\.......",
             ".../###\\......",
-            "##############");
+            "##############").Started();
         SceneFixtures.Body body = Grounded(scene, new Vector2(8f, 40f));
 
         for (int step = 0; step < 70; step++)
@@ -112,7 +112,7 @@ public sealed class SlopeTests
     [InlineData(4f, -1f, false)]
     public void AGroundedBodyWalkingASlope_CoversItsSpeedAcross_OrAlongTheSurfaceWhenOff(float run, float way, bool keepsHorizontalSpeed)
     {
-        Scene scene = new(SceneFixtures.Content(SceneFixtures.Room(), SceneFixtures.Registry()));
+        Scene scene = new Scene(SceneFixtures.Content(SceneFixtures.Room(), SceneFixtures.Registry())).Started();
         scene.Add(new Wedge(run));
         SceneFixtures.Body body = Grounded(scene, new Vector2(124f, 20f));
         body.Mover.KeepsHorizontalSpeedOnSlopes = keepsHorizontalSpeed;
@@ -134,7 +134,7 @@ public sealed class SlopeTests
     [Fact]
     public void AGroundedBodyStandingOnASlope_DoesNotDrift()
     {
-        Scene scene = SceneFixtures.Terrain("....", "./..", "####");
+        Scene scene = SceneFixtures.Terrain("....", "./..", "####").Started();
         SceneFixtures.Body body = Grounded(scene, new Vector2(20f, 0f));
         Vector2 landed = body.Position;
         Assert.True(body.Mover.FloorNormal.X < 0f);
@@ -157,7 +157,7 @@ public sealed class SlopeTests
     [InlineData(-1f)]
     public void AGroundedBox_WalkingDownOntoAStepsCorner_StaysOnTopOfIt(float way)
     {
-        Scene scene = SceneFixtures.Terrain(StepGrid(way < 0f));
+        Scene scene = SceneFixtures.Terrain(StepGrid(way < 0f)).Started();
         SceneFixtures.Body body = new(new Vector2(way > 0f ? 8f : 120f, -1f), blocksOn: "solid");
         body.Collider.Size = new Vector2(16f, 32f);
         body.Collider.Offset = new Vector2(-8f, -32f);
@@ -196,7 +196,7 @@ public sealed class SlopeTests
     [InlineData(-1f)]
     public void AGroundedBox_WalkingOverASlopesFoot_ClimbsItsFace(float way)
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         scene.Add(new Hull(Mirrored(way, new(0f, 64f), new(160f, 64f), new(160f, 80f), new(0f, 80f))));
         scene.Add(new Hull(Mirrored(way, new(48f, 64f), new(80f, 48f), new(80f, 64f))));
         SceneFixtures.Body body = Grounded(scene, new Vector2(way > 0f ? 16f : 136f, 55f));
@@ -219,7 +219,7 @@ public sealed class SlopeTests
     [InlineData(-1f)]
     public void AGroundedBox_FallingOntoASlopesTopVertex_LandsOnIt(float way)
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         scene.Add(new Hull(Mirrored(way, new(64f, 48f), new(96f, 64f), new(64f, 64f))));
         SceneFixtures.Body body = new(new Vector2(way > 0f ? 64f : 88f, 32f), blocksOn: "solid");
         body.Mover.Mode = BodyMode.Grounded;

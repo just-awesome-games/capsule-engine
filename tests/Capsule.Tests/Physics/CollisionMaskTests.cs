@@ -58,7 +58,7 @@ public sealed class CollisionMaskTests
     public void AColliderCastByMask_StopsAtTheMaskedLayerAndPassesTheRest()
     {
         CollisionMask climbable = new(CollisionFixtures.Climb);
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Body player = new(Vector2.Zero);
         Body crate = new(new Vector2(12f, 0f));
         Body wall = new(new Vector2(30f, 0f));
@@ -92,7 +92,7 @@ public sealed class CollisionMaskTests
         Assert.ThrowsAny<ArgumentException>(() => full.OverlapColliderAll(default, climbable, contacts));
         Assert.ThrowsAny<ArgumentException>(() => full.Move(Shape2D.Circle(Vector2.Zero, 4f), Vector2.Zero, new Vector2(float.NaN, 0f), climbable, contacts));
 
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Body player = new(Vector2.Zero);
         scene.Add(player);
         int layers = scene.Collision.LayerCount;

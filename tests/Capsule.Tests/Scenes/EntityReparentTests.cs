@@ -146,6 +146,7 @@ public sealed class EntityReparentTests
         KinematicBody2D body = new(feet) { BlockedBy = new(Platform), MovedBy = new(Platform) };
         rider.Add(body);
         SceneFixtures.HookScene scene = new();
+        using SceneSimulation simulation = new(scene);
         scene.Add(holder);
         scene.Add(rider);
         body.Move(new Vector2(0f, 40f));
@@ -153,7 +154,6 @@ public sealed class EntityReparentTests
         Vector2 landed = rider.Position;
         scene.Add(new Watcher(_ => carrier.Parent = null));
 
-        using SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
 
         Assert.Null(carrier.Parent);
@@ -263,7 +263,7 @@ public sealed class EntityReparentTests
     [Fact]
     public void AChildThatLeavesItsParentDuringItsJoin_DoesNotKeepItsNextSiblingOut()
     {
-        SceneFixtures.HookScene scene = new();
+        SceneFixtures.HookScene scene = new SceneFixtures.HookScene().Started();
         Node root = new(Vector2.Zero);
         Entity leaver = null!;
         leaver = new SceneFixtures.Meddler(_ => leaver.Parent = null) { Parent = root };

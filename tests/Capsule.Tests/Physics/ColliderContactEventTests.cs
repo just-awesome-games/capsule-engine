@@ -60,9 +60,9 @@ public sealed class ColliderContactEventTests
         // An entity's own late step is between the two: what it reads there is the health a contact
         // just spent, and the scene's late step still runs after every one of them.
         scene.Add(new SceneFixtures.Recorder("entity", log));
-        log.Clear();
 
         using SceneSimulation simulation = new(scene);
+        log.Clear();
         simulation.Step(SceneFixtures.Step(0));
 
         Assert.Equal(["step", "entity", "enter", "entity.late", "late"], log);

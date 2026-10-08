@@ -124,7 +124,7 @@ public sealed class EntityTreeTests
     public void Removal_TakesTheSubtreeChildrenFirst_AndAChildAloneLetsGoOfItsParent()
     {
         List<string> log = [];
-        SceneFixtures.HookScene scene = new();
+        SceneFixtures.HookScene scene = new SceneFixtures.HookScene().Started();
         SceneFixtures.Recorder root = new("root", log);
         SceneFixtures.Recorder child = new("child", log) { Parent = root };
         SceneFixtures.Recorder grandchild = new("grandchild", log) { Parent = child };

@@ -31,7 +31,7 @@ public sealed class KinematicBodyTests
     [Fact]
     public void AnEntityAddingItsBodyBeforeItsCollider_JoinsASceneAndMoves()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         SceneFixtures.Body body = new(new Vector2(8f, 8f), blocksOn: "solid", bodyFirst: true);
 
         scene.Add(body);
@@ -46,7 +46,7 @@ public sealed class KinematicBodyTests
     [Fact]
     public void ABodyWhoseColliderIsOnAnotherEntity_IsRefusedWhenItsEntityJoinsAScene()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
 
         SceneFixtures.Drifter elsewhere = new(Vector2.Zero);
         BoxCollider2D borrowed = new(new Vector2(8f, 8f));
@@ -65,7 +65,7 @@ public sealed class KinematicBodyTests
     [Fact]
     public void ABodySteppingDownOntoAFloor_ReportsItOnTheLandingStepAndOnTheFlushOneAfter()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         SceneFixtures.Body body = new(new Vector2(24f, 8f), blocksOn: "solid");
         scene.Add(body);
 
@@ -90,7 +90,7 @@ public sealed class KinematicBodyTests
     [InlineData(-30f, 1f)]
     public void ABodyPushedSidewaysIntoAWall_ReportsAWallOnThatSide(float translation, float expectedNormalX)
     {
-        Scene scene = SceneFixtures.Terrain("#..#", "#..#", "#..#");
+        Scene scene = SceneFixtures.Terrain("#..#", "#..#", "#..#").Started();
         SceneFixtures.Body body = new(new Vector2(32f, 24f), blocksOn: "solid");
         scene.Add(body);
 
@@ -105,7 +105,7 @@ public sealed class KinematicBodyTests
     [Fact]
     public void ABodyRisingIntoACeiling_ReportsACeilingAndNothingElse()
     {
-        Scene scene = SceneFixtures.Terrain("####", "....", "....");
+        Scene scene = SceneFixtures.Terrain("####", "....", "....").Started();
         SceneFixtures.Body body = new(new Vector2(24f, 40f), blocksOn: "solid");
         scene.Add(body);
 
@@ -120,7 +120,7 @@ public sealed class KinematicBodyTests
     [Fact]
     public void ABodySteppingDiagonallyIntoACorner_ReportsBothTheFloorAndTheWall()
     {
-        Scene scene = SceneFixtures.Terrain("...#", "...#", "####");
+        Scene scene = SceneFixtures.Terrain("...#", "...#", "####").Started();
         SceneFixtures.Body body = new(new Vector2(32f, 16f), blocksOn: "solid");
         scene.Add(body);
 
@@ -139,7 +139,7 @@ public sealed class KinematicBodyTests
     [Fact]
     public void ABodyStepDownEndingFlushOnAFloor_RecordsTheContactWithoutReportingAFloor()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         SceneFixtures.Body body = new(new Vector2(24f, 8f), blocksOn: "solid");
         scene.Add(body);
 
@@ -165,7 +165,7 @@ public sealed class KinematicBodyTests
     [Fact]
     public void ABodyMovingIntoNothingAfterAMoveThatLanded_ClearsEveryFlag()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         SceneFixtures.Body body = new(new Vector2(24f, 8f), blocksOn: "solid");
         scene.Add(body);
 
@@ -184,7 +184,7 @@ public sealed class KinematicBodyTests
     [Fact]
     public void ABodyLeavingItsScene_ForgetsWhatStoppedItsLastMove()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         SceneFixtures.Body body = new(new Vector2(24f, 8f), blocksOn: "solid");
         scene.Add(body);
 
@@ -208,7 +208,7 @@ public sealed class KinematicBodyTests
     [InlineData(-4f, 4f, true)]
     public void TestMove_AnswersForABodyRestingOnAFloor(float x, float y, bool expected)
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         SceneFixtures.Body body = new(new Vector2(24f, 24f), blocksOn: "solid");
         scene.Add(body);
 
@@ -218,7 +218,7 @@ public sealed class KinematicBodyTests
     [Fact]
     public void TestMove_LeavesThePositionAndTheLastMovesFlagsAlone()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         SceneFixtures.Body body = new(new Vector2(24f, 8f), blocksOn: "solid");
         scene.Add(body);
 
@@ -241,7 +241,7 @@ public sealed class KinematicBodyTests
     [Fact]
     public void TestMove_FromAnOffsetOrigin_AnswersForThatOriginWithoutMovingTheBody()
     {
-        Scene scene = SceneFixtures.Terrain("##.#", "....", "####");
+        Scene scene = SceneFixtures.Terrain("##.#", "....", "####").Started();
         SceneFixtures.Body body = new(new Vector2(28f, 24f), blocksOn: "solid");
         scene.Add(body);
 

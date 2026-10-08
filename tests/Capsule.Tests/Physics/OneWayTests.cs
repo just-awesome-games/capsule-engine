@@ -15,13 +15,13 @@ public sealed class OneWayTests
     [InlineData(true)]
     public void AOneWaySurface_PassesFromBelow_LandsFromAbove_AndDropsThrough(bool collider)
     {
-        Scene scene = SceneFixtures.Terrain(
+        Scene scene = (SceneFixtures.Terrain(
             "....",
             "....",
             collider ? "...." : "----",
             "....",
             "....",
-            "####");
+            "####")).Started();
         if (collider)
         {
             scene.Add(new Slab(new Vector2(0f, 32f)));
@@ -59,7 +59,7 @@ public sealed class OneWayTests
             run,
             "........",
             "........",
-            "########");
+            "########").Started();
         if (collider)
         {
             scene.Add(new Slab(new Vector2(32f, 32f), new Vector2(48f, 16f), solidSides: true));
@@ -159,7 +159,7 @@ public sealed class OneWayTests
     [InlineData(true)]
     public void AShapeCastStartingInsideAOneWaySurface_PassesIt(bool collider)
     {
-        Scene scene = SceneFixtures.Terrain("....", collider ? "...." : "----", "####");
+        Scene scene = SceneFixtures.Terrain("....", collider ? "...." : "----", "####").Started();
         if (collider)
         {
             scene.Add(new Slab(new Vector2(0f, 16f)));

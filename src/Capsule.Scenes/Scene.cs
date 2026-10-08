@@ -28,6 +28,9 @@ public class Scene
     internal const string NoRunYet =
         "it has no run yet. Reach the run from OnStart onward, not from a constructor.";
 
+    internal const string NotJoinedYet =
+        "nothing has joined it yet. Query its collision world from OnStart onward, not from a constructor.";
+
     private readonly EntityTree _tree;
     private readonly List<Entity> _pendingAdds = [];
     private readonly List<Entity> _pendingRemoves = [];
@@ -46,6 +49,9 @@ public class Scene
     private readonly int[] _movedByCounts = new int[CollisionWorld2D.MaxLayers];
 
     private readonly SettleList<VisibleOnScreenNotifier2D> _screenNotifiers = new();
+
+    // Read through Collision once the scene starts. The preload sizes it before then.
+    private readonly CollisionWorld2D _collision = new();
 
     // Notifiers that joined between steps, settled as the next step begins.
     private readonly List<VisibleOnScreenNotifier2D> _arrivals = [];
@@ -133,6 +139,10 @@ public class Scene
     /// <summary>
     /// The world a scene document describes: one entity per entry, in authored order. The document is construction data and is not retained.
     /// </summary>
+    /// <remarks>
+    /// The entities are composed into the scene and join it as it starts. None of their hooks has run when
+    /// this constructor returns.
+    /// </remarks>
     /// <exception cref="SpawnException">
     /// A placement's type key is claimed by no entity, or its class returned no entity.
     /// </exception>
@@ -227,7 +237,9 @@ public class Scene
     /// <see cref="TileMapCollider2D"/> registers here when its entity joins the scene.
     /// </summary>
     /// <remarks>Game code queries this world directly for rays, sweeps and overlaps.</remarks>
-    public CollisionWorld2D Collision { get; } = new();
+    /// <exception cref="InvalidOperationException">The scene has not started, so nothing has joined its world.</exception>
+    public CollisionWorld2D Collision =>
+        _started ? _collision : throw new InvalidOperationException($"A {GetType().Name} has not started, so {NotJoinedYet}");
 
     /// <summary>
     /// The run that owns this scene's lifetime state and requests. It is installed before the scene
@@ -342,6 +354,11 @@ public class Scene
     /// <remarks>
     /// An entity with a parent joins through that parent and is refused here.
     /// <para>
+    /// Before the scene starts the add only composes. The entity and its subtree are in
+    /// <see cref="Entities"/>, the searches and <see cref="Entity.SceneOrNull"/> see them, and no
+    /// component or entity hook has run. The scene joins everything composed as it starts.
+    /// </para>
+    /// <para>
     /// A component may refuse the scene from its entry hook. The entity stays in the scene with the
     /// components before it registered and the rest unregistered. If the add was deferred, the
     /// refusal surfaces at the queue drain instead of from this call.
@@ -369,7 +386,8 @@ public class Scene
     /// </summary>
     /// <remarks>
     /// An entity still queued for addition attaches and detaches in the same drain, with matching
-    /// hooks. Children detach first, deepest and last-parented first. A child removed by itself
+    /// hooks. An entity composed before the scene started leaves with no hook, as it never joined.
+    /// Children detach first, deepest and last-parented first. A child removed by itself
     /// releases its <see cref="Entity.Parent"/> and becomes a root. Every removal hook runs, and
     /// failures propagate once detachment finishes. The entity reads <see cref="Entity.IsRemovalPending"/>
     /// until the remove lands.
@@ -806,14 +824,15 @@ public class Scene
         int entities = _tree.Slots.Count;
         int reporters = _contactReporters.Count;
         int notifiers = _screenNotifiers.Count;
-        int colliders = Collision.ColliderCount;
-        int grids = Collision.Grids.Length;
+        int colliders = _collision.ColliderCount;
+        int grids = _collision.Grids.Length;
         int renderers = 0;
         foreach (Entity entity in _collected)
         {
-            // The counts above hold what the scene holds already. The draw order counts every renderer.
-            bool joins = entity.SceneOrNull != this;
-            entities += joins ? 1 : 0;
+            // The counts above hold what the scene has slotted and joined already. An entity joined to another
+            // scene, from a pool both share, still joins this one. The draw order counts every renderer.
+            bool joins = !entity.Joined || entity.SceneOrNull != this;
+            entities += entity.SceneOrNull != this ? 1 : 0;
             foreach (Component component in entity.Components)
             {
                 switch (component)
@@ -845,7 +864,7 @@ public class Scene
         _pendingRemoveSet.EnsureCapacity(entities);
         _contactReporters.Reserve(reporters);
         _screenNotifiers.Reserve(notifiers);
-        Collision.Reserve(colliders, grids);
+        _collision.Reserve(colliders, grids);
         _renderIndex.Reserve(renderers);
     }
 
@@ -870,7 +889,8 @@ public class Scene
             CollectAssetPreloads();
         }
 
-        // Attach everything composed at construction before any of it starts.
+        // Join everything composed before the scene started, then start it as a batch.
+        JoinComposed();
         StartPending();
 
         // Install the camera after starts so it finds entities that have started.
@@ -915,8 +935,7 @@ public class Scene
         ThrowCleanupFailures(failures);
     }
 
-    // Release a composed scene that was rejected before it started. Structural removal hooks run,
-    // temporal ones do not.
+    // Release a composed scene that was rejected before it started. Nothing joined, so no hook runs.
     internal void Abandon()
     {
         if (_started)
@@ -1356,6 +1375,13 @@ public class Scene
             return;
         }
 
+        // A scene that has not started composes. It joins what it holds as it starts.
+        if (!_started)
+        {
+            Compose(entity);
+            return;
+        }
+
         _attaching++;
         try
         {
@@ -1374,12 +1400,69 @@ public class Scene
         }
     }
 
-    private void AttachTree(Entity entity)
+    // Puts the entity and its subtree in the tree and the scene's reach, and runs no hook.
+    private void Compose(Entity entity)
+    {
+        Place(entity);
+        foreach (Entity child in entity.Children)
+        {
+            if (child.SceneOrNull is null)
+            {
+                Compose(child);
+            }
+        }
+    }
+
+    private void Place(Entity entity)
     {
         _tree.Insert(entity);
-        _renderIndex.Invalidate();
         entity.SceneOrNull = this;
         entity.PendingScene = null;
+    }
+
+    // Joins every entity composed before the scene started, in tree order. A hook that adds attaches
+    // that entity at once, and one that removes a composed entity before its turn leaves it unjoined.
+    private void JoinComposed()
+    {
+        _tree.Compact();
+        _attaching++;
+        try
+        {
+            List<Entity> slots = _tree.Slots;
+            int index = 0;
+            while (index < slots.Count)
+            {
+                if (slots[index] is not { Joined: false } composed)
+                {
+                    index++;
+                    continue;
+                }
+
+                int version = _tree.Version;
+                JoinTree(composed);
+
+                // A hook that moved entities may have shifted ones still waiting to an earlier slot.
+                index = version == _tree.Version ? index + 1 : 0;
+            }
+        }
+        finally
+        {
+            _attaching--;
+        }
+    }
+
+    private void AttachTree(Entity entity)
+    {
+        Place(entity);
+        JoinTree(entity);
+    }
+
+    // Joins an entity the scene already holds, then its children. A child is placed first if the scene
+    // does not hold it yet.
+    private void JoinTree(Entity entity)
+    {
+        entity.Joined = true;
+        _renderIndex.Invalidate();
 
         // Resolved against this step's state, so a join during the step settles its screen notifiers
         // as the rest of the tree does.
@@ -1396,13 +1479,19 @@ public class Scene
         _pendingStarts.Add(entity);
 
         // A hook may add or remove a child, so the index advances only while its slot still holds the one just visited.
+        // A hook that removed this entity, or an ancestor, ends the walk. The children left with it.
         int child = 0;
-        while (child < entity.Children.Length)
+        while (ReferenceEquals(entity.SceneOrNull, this) && child < entity.Children.Length)
         {
             Entity next = entity.Children[child];
-            if (next.SceneOrNull is null)
+            if (!next.Joined)
             {
-                AttachTree(next);
+                if (next.SceneOrNull is null)
+                {
+                    Place(next);
+                }
+
+                JoinTree(next);
             }
 
             if (child < entity.Children.Length && ReferenceEquals(entity.Children[child], next))
@@ -1544,12 +1633,18 @@ public class Scene
         Entity entity = _tree.Vacate(index);
 
         _renderIndex.Invalidate();
+        bool joined = entity.Joined;
         entity.Leaving = true;
         entity.SceneOrNull = null;
+        entity.Joined = false;
 
         try
         {
-            entity.LeaveScene();
+            // An entity composed before the scene started and never joined has no hook to run.
+            if (joined)
+            {
+                entity.LeaveScene();
+            }
         }
         finally
         {

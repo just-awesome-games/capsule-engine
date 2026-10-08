@@ -21,7 +21,7 @@ public sealed class CenterRestTests
     [Fact]
     public void OnAFlatFloor_ABodyMovesExactlyAsItWouldWithTheModeOff()
     {
-        Scene scene = SceneFixtures.Terrain("................", "................", "################");
+        Scene scene = SceneFixtures.Terrain("................", "................", "################").Started();
         SceneFixtures.Body resting = Rest(scene, new Vector2(40f, 0f));
         SceneFixtures.Body plain = Rest(scene, new Vector2(40f, 0f), restsOnCenter: false);
 
@@ -42,7 +42,7 @@ public sealed class CenterRestTests
     [InlineData(2, 61f)]
     public void ABodyLandingOnAnUnevenFloor_StandsWithItsBottomCenterOnItInThatMove(int floor, float x)
     {
-        Scene scene = floor == 0 ? SceneFixtures.Terrain("....", "./..", "####") : new Scene();
+        Scene scene = (floor == 0 ? SceneFixtures.Terrain("....", "./..", "####") : new Scene()).Started();
         if (floor > 0)
         {
             scene.Add(floor == 1
@@ -64,7 +64,7 @@ public sealed class CenterRestTests
     [InlineData(true)]
     public void AWallAtTheFootOfASlope_StopsTheWholeBox(bool leaning)
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         scene.Add(new Block([new(0f, 16f), new(48f, 64f), new(0f, 64f)]));
         scene.Add(new Block([new(0f, 64f), new(160f, 64f), new(160f, 80f), new(0f, 80f)]));
         scene.Add(leaning
@@ -86,7 +86,7 @@ public sealed class CenterRestTests
     [Fact]
     public void ABodyLandingBesideALipAtTheFootOfASlope_StandsClearOfIt()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         scene.Add(new Block([new(0f, 16f), new(48f, 64f), new(0f, 64f)]));
         scene.Add(new Block([new(48f, 60f), new(80f, 60f), new(80f, 64f), new(48f, 64f)], "wall"));
         SceneFixtures.Body body = Rest(scene, new Vector2(42f, 0f));
@@ -109,7 +109,7 @@ public sealed class CenterRestTests
     [InlineData(1f, true)]
     public void AtALedge_TheBoxNeverSinksIntoIt(float way, bool oneWay)
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         scene.Add(new Block([new(0f, 62f), new(64f, 62f), new(64f, 80f), new(0f, 80f)], oneWay: oneWay));
         scene.Add(new Block([new(64f, 64f), new(128f, 64f), new(128f, 80f), new(64f, 80f)]));
         SceneFixtures.Body body = Rest(scene, new Vector2(way > 0f ? 44f : 76f, 0f));
@@ -137,7 +137,7 @@ public sealed class CenterRestTests
             new string('.', 50),
             "....../#\\......./\\".PadRight(50, '.'),
             "...../###\\...../##\\..../###\\/###\\".PadRight(50, '.'),
-            new string('#', 50));
+            new string('#', 50)).Started();
         scene.Add(new Block([new(640f, 64f), new(672f, 48f), new(680f, 48f), new(680f, 64f)]));
         scene.Add(new Block([new(680f, 48f), new(704f, 60f), new(704f, 64f), new(680f, 64f)]));
         SceneFixtures.Body body = Rest(scene, new Vector2(8f, 0f));
@@ -183,7 +183,7 @@ public sealed class CenterRestTests
             new string('.', 24),
             new string('.', 24),
             "..../\\./#\\/#..#\\........",
-            new string('#', 24));
+            new string('#', 24)).Started();
         scene.Add(new Block([new(192f, 32f), new(208f, 48f), new(192f, 48f)]));
         scene.Add(new Block([new(208f, 48f), new(224f, 32f), new(224f, 48f)]));
         SceneFixtures.Body body = Rest(scene, new Vector2(way > 0f ? 40f : 300f, 0f), restsOnCenter);
@@ -220,7 +220,7 @@ public sealed class CenterRestTests
     [Fact]
     public void ARiseSmallerThanTheSink_LeavesTheFloor()
     {
-        Scene scene = SceneFixtures.Terrain("....", "./..", "####");
+        Scene scene = SceneFixtures.Terrain("....", "./..", "####").Started();
         SceneFixtures.Body body = Rest(scene, new Vector2(20f, 0f));
         Vector2 standing = body.Position;
 
@@ -234,7 +234,7 @@ public sealed class CenterRestTests
     [Fact]
     public void OnAOneWaySlope_TheCenterRestsOnIt_AndDropThroughStillDrops()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         scene.Add(new Block([new(0f, 64f), new(64f, 32f), new(64f, 64f)], oneWay: true));
         SceneFixtures.Body body = Rest(scene, new Vector2(36f, 0f));
         AssertOnCenterFloor(scene, body);
@@ -252,7 +252,7 @@ public sealed class CenterRestTests
     [Fact]
     public void ABodyRidingASlopedPlatform_KeepsItsCenterOnTheFace()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Block platform = new([new(0f, 64f), new(64f, 32f), new(64f, 64f)], "platform");
         scene.Add(platform);
         SceneFixtures.Body body = new(new Vector2(36f, 0f), blocksOn: "platform");
@@ -280,7 +280,7 @@ public sealed class CenterRestTests
         float[] reached = new float[2];
         for (int mode = 0; mode < 2; mode++)
         {
-            Scene scene = new();
+            Scene scene = new Scene().Started();
             scene.Add(new Block([new(0f, 0f), new(64f, 64f), new(0f, 64f)]));
             Block pusher = new([new(31f, 28.5f), new(35f, 28.5f), new(35f, 29.5f), new(31f, 29.5f)], "pusher");
             scene.Add(pusher);
@@ -304,7 +304,7 @@ public sealed class CenterRestTests
     [Fact]
     public void SettingThePosition_ClearsTheSink()
     {
-        Scene scene = SceneFixtures.Terrain("........", "./......", "########");
+        Scene scene = SceneFixtures.Terrain("........", "./......", "########").Started();
         scene.Add(new Block([new(64f, 0f), new(128f, 0f), new(128f, 18f), new(64f, 18f)]));
         SceneFixtures.Body body = Rest(scene, new Vector2(20f, 0f));
         AssertOnCenterFloor(scene, body);

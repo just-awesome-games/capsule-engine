@@ -171,11 +171,12 @@ public sealed class SurfaceVelocityTests
     // Adds the body and lands it once.
     private static SceneSimulation Start(Scene scene, Walker walker)
     {
+        SceneSimulation simulation = new(scene);
         scene.Add(walker);
         walker.Mover.Move(new Vector2(0f, 64f));
         Assert.True(walker.Mover.IsOnFloor);
 
-        return new SceneSimulation(scene);
+        return simulation;
     }
 
     private static void Advance(SceneSimulation simulation, int from, int steps)

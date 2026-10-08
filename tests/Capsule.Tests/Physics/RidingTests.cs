@@ -21,7 +21,7 @@ public sealed class RidingTests
     [InlineData(false, 1.5f, 0f)]
     public void ARider_EndsEveryStepFlushOnItsPlatform_InEitherStepOrder(bool platformFirst, float x, float y)
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Slab platform = new(new Vector2(0f, 40f), Platform);
         Rider rider = new(new Vector2(12f, 20f), Platform);
         scene.Add(platform);
@@ -51,7 +51,7 @@ public sealed class RidingTests
     [Fact]
     public void RidersStackedOnARider_AreCarriedExactly()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Rider upper = new(new Vector2(12f, 0f), Platform, Crate);
         Rider lower = new(new Vector2(10f, 20f), Platform) { Collider = { Layer = Crate } };
         Slab platform = new(new Vector2(0f, 40f), Platform);
@@ -80,7 +80,7 @@ public sealed class RidingTests
     [Fact]
     public void ABodyNotMovedByAPlatformsLayer_IsNeitherCarriedNorShoved_AndMovedByAloneBlocksCarriesAndShoves()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Slab platform = new(new Vector2(0f, 40f), Platform);
         Rider bystander = new(new Vector2(12f, 20f));
         Rider rider = new(new Vector2(2f, 20f), Platform);
@@ -108,7 +108,7 @@ public sealed class RidingTests
     [Fact]
     public void ChangingMovedByInPlay_EndsTheRideAtOnce_AndTheNextMoveRidesAgain()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Slab platform = new(new Vector2(0f, 40f), Platform);
         Rider rider = new(new Vector2(12f, 20f), Platform);
         scene.Add(platform);
@@ -130,7 +130,7 @@ public sealed class RidingTests
     [Fact]
     public void AWall_StopsACarry()
     {
-        Scene scene = SceneFixtures.Terrain("....#", "....#", "....#");
+        Scene scene = SceneFixtures.Terrain("....#", "....#", "....#").Started();
         Slab platform = new(new Vector2(8f, 40f), Platform);
         Rider rider = new(new Vector2(30f, 20f), Platform);
         scene.Add(platform);
@@ -149,7 +149,7 @@ public sealed class RidingTests
     [Fact]
     public void AShove_ClearsABodyFromThePushersPath_AndABodyPinnedAgainstAWallIsCrushed()
     {
-        Scene scene = SceneFixtures.Terrain("#....", "#....", "#....");
+        Scene scene = SceneFixtures.Terrain("#....", "#....", "#....").Started();
         Slab pusher = new(new Vector2(60f, 20f), Platform, new Vector2(8f, 16f));
         Rider body = new(new Vector2(50f, 24f), Platform);
         List<ColliderContact2D> crushes = [];
@@ -196,7 +196,7 @@ public sealed class RidingTests
     [InlineData(true)]
     public void AShove_PushesBodiesInHandleOrder_WhateverShapeTheBroadphaseIsIn(bool reshuffled)
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Slab pusher = new(new Vector2(60f, 20f), Platform, new Vector2(8f, 16f));
         Rider near = new(new Vector2(reshuffled ? 1000f : 50f, 24f), Platform) { Collider = { Layer = Crate } };
         Rider far = new(new Vector2(40f, 24f), Platform) { Collider = { Layer = Crate } };

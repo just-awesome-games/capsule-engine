@@ -124,7 +124,7 @@ public sealed class EntityAttachmentTests
     [Fact]
     public void CollidersBeneath_FollowTheWorldPositionAndLeaveNoRegistrationBehind()
     {
-        SceneFixtures.HookScene scene = new();
+        SceneFixtures.HookScene scene = new SceneFixtures.HookScene().Started();
         Node root = new(new Vector2(10f, 10f));
         Entity middle = new(root, new Vector2(5f, 0f));
         Entity leaf = new(middle, new Vector2(0f, 5f));

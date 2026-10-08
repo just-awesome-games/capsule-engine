@@ -42,7 +42,7 @@ public sealed class StepTests
     public void AGroundedBodyWalkingIntoALip_ClimbsItWithinStepHeightAndHeadroom_OrIsStoppedByIt(
         float lip, float stepHeight, float headroom, bool tiles, bool climbs)
     {
-        Scene scene = tiles ? LipGrid(lip) : new Scene();
+        Scene scene = (tiles ? LipGrid(lip) : new Scene()).Started();
         if (!tiles)
         {
             scene.Add(new Block(new Vector2(0f, GroundTop), new Vector2(128f, 16f)));
@@ -80,7 +80,7 @@ public sealed class StepTests
     [InlineData(true, GroundTop - Edge, -1f)]
     public void ABodyAirborneOrRising_NeverStepsUp(bool grounded, float y, float rise)
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         scene.Add(new Block(new Vector2(0f, GroundTop), new Vector2(128f, 16f)));
         scene.Add(new Block(new Vector2(48f, GroundTop - 4f), new Vector2(16f, 4f)));
         SceneFixtures.Body body = new(new Vector2(40f - CollisionTolerance.LinearSlop, y), blocksOn: "solid");
@@ -109,7 +109,7 @@ public sealed class StepTests
     [InlineData(6.25f, 6f, false, false)]
     public void AGroundedBodyWalkingOffADrop_KeepsToTheLowerFloorWithinStepHeight(float drop, float stepHeight, bool oneWay, bool keeps)
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         scene.Add(new Block(new Vector2(0f, GroundTop), new Vector2(64f, 32f)));
         scene.Add(new Block(new Vector2(64f, GroundTop + drop), new Vector2(64f, 16f), oneWay: oneWay));
         SceneFixtures.Body body = Grounded(scene, 48f, stepHeight);
@@ -135,7 +135,7 @@ public sealed class StepTests
     [Fact]
     public void AOneWayLip_IsWalkedThroughFromTheSide_AndDropThroughStillDrops()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         scene.Add(new Block(new Vector2(0f, GroundTop), new Vector2(128f, 16f)));
         scene.Add(new Block(new Vector2(48f, GroundTop - 4f), new Vector2(80f, 2f), oneWay: true));
         SceneFixtures.Body walker = Grounded(scene, 36f, 8f);
@@ -162,7 +162,7 @@ public sealed class StepTests
     [Fact]
     public void ABodySteppingOntoAMovingLip_RidesIt()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         scene.Add(new Block(new Vector2(0f, GroundTop), new Vector2(128f, 16f)));
         Block lip = new(new Vector2(48f, GroundTop - 4f), new Vector2(16f, 4f), "platform");
         scene.Add(lip);
@@ -186,7 +186,7 @@ public sealed class StepTests
     [InlineData(false)]
     public void AStep_ComposesWithASlope_AtItsFootOrItsTop(bool lipAtFoot)
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         scene.Add(new Block(new Vector2(0f, GroundTop), new Vector2(160f, 16f)));
         if (lipAtFoot)
         {
@@ -223,7 +223,7 @@ public sealed class StepTests
     [Fact]
     public void AMoveThatStepsOffASlope_TakesItsFloorFromTheLanding()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         scene.Add(new Block(Vector2.Zero, [new(0f, 48f), new(32f, 64f), new(0f, 64f)]));
         Block rising = new(Vector2.Zero, [new(32f, 64f), new(64f, 48f), new(64f, 64f)], "platform");
         scene.Add(rising);

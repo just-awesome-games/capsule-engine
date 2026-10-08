@@ -14,7 +14,7 @@ public sealed class ColliderValidationTests
     [Fact]
     public void ARejectedSizeOrOffsetSet_LeavesTheColliderAndItsProxyExactlyAsTheyWere()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Body body = new(new Vector2(10f, 10f));
         scene.Add(body);
 
@@ -43,7 +43,7 @@ public sealed class ColliderValidationTests
     [Fact]
     public void ATypedSetterOnARegisteredCollider_ResyncsTheShapeTheWorldQueriesBy()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Body body = new(new Vector2(100f, 100f));
         scene.Add(body);
 
@@ -73,7 +73,7 @@ public sealed class ColliderValidationTests
         Assert.Throws<ArgumentException>(() => wide.Offset = new Vector2(3e38f, 0f));
         Assert.Equal(Vector2.Zero, wide.Offset);
 
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         SceneFixtures.Drifter drifter = new(Vector2.Zero);
         scene.Add(drifter);
         drifter.Add(collider);
@@ -86,7 +86,7 @@ public sealed class ColliderValidationTests
     [Fact]
     public void AMaskTheWorldHasNoRoomFor_LeavesTheColliderAndBodyFilteringAsTheyDid()
     {
-        Scene scene = SceneFixtures.Terrain("....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "####").Started();
         Body body = new(new Vector2(4f, 8f));
         CollisionMask solid = new("solid");
         body.Collider.Detects = solid;
@@ -105,7 +105,7 @@ public sealed class ColliderValidationTests
         Assert.Equal(before, body.Collider.Filter);
 
         scene.Remove(body);
-        Scene second = SceneFixtures.Terrain("....", "####");
+        Scene second = SceneFixtures.Terrain("....", "####").Started();
         second.Add(body);
 
         Assert.True(body.Collider.Filter.Matches(second.Collision.Layer("solid")));
@@ -117,7 +117,7 @@ public sealed class ColliderValidationTests
     [Fact]
     public void AColliderNeedingALayerTheWorldHasNoRoomFor_IsRefusedWhereTheNameIsInterned()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Body host = new(Vector2.Zero);
         scene.Add(host);
         Saturate(scene.Collision);
@@ -145,7 +145,7 @@ public sealed class ColliderValidationTests
     [Fact]
     public void SettingTheLayerOfARegisteredCollider_ReFiltersImmediately()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Body body = new(Vector2.Zero);
         scene.Add(body);
 

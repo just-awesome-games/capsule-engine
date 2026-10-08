@@ -168,7 +168,7 @@ public sealed class EntityReparentRefusalTests
     [Fact]
     public void AParentWrite_IsRefusedForAChildOfARemovalStillLanding_WhileANestedRemovalLands()
     {
-        SceneFixtures.HookScene scene = new();
+        SceneFixtures.HookScene scene = new SceneFixtures.HookScene().Started();
         Node outer = new(Vector2.Zero);
         Node inner = new(Vector2.Zero);
         Entity child = new(outer);

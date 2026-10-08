@@ -129,6 +129,19 @@ internal static class SceneFixtures
         return new SceneSimulation(scene);
     }
 
+    /// <summary>Starts <paramref name="scene"/> on a default run and returns it.</summary>
+    /// <remarks>
+    /// A scene joins what it holds only as it starts. A test that reads the collision world, hooks or
+    /// registrations right after an add starts its scene first.
+    /// </remarks>
+    internal static T Started<T>(this T scene)
+        where T : Scene
+    {
+        _ = new SceneSimulation(scene);
+
+        return scene;
+    }
+
     internal static StepContext Step(long tick = 0, Vector2 output = default) =>
         new(1.0 / 60.0, new InputState(new ActionBindings()), tick, output);
 

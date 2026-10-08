@@ -22,7 +22,8 @@ included, detaches neither.
 
 `OnAddedToScene` and `OnRemovedFromScene` run on every join and leave. `OnStart` runs once in an
 entity's life, on its first join. A removed and re-added entity, a pooled one included, does not run it
-again.
+again. Until a scene starts, an add or a removal runs no hook. The scene joins everything composed after
+its assets are preloaded and before any `OnStart`.
 
 Each step, `OnStep` runs on every entity in tree order: a root, then its components in the order they
 were attached, then its children the same way. Contacts then settle, and `OnLateStep` runs in that same
@@ -70,7 +71,8 @@ Scene.Add(Scene.Pool<SparkBurst>().Take().Burst(Position));
 ```
 
 The engine returns the entity to its pool when it leaves and resets its own components' per-life state.
-The game sets its own in `Burst`.
+The game sets its own in `Burst`. State an entity restores for itself, with nothing from its spawner, can
+instead go in `OnAddedToScene`, which runs as each life begins.
 
 A pooled type builds with no arguments. Each kind of pooled entity is a type of its own, which the scene's
 pool is found by and preloads. Two effects that differ only in their clip are two small types. Anything that

@@ -59,10 +59,10 @@ public sealed class RandomSourceInScenesTests
         }
     }
 
-    // The composing path the default instance hid: a document's entities are attached inside the
-    // scene's constructor, so their OnAddedToScene runs before any source exists.
+    // A document's entities are composed inside the scene's constructor and join as it starts, so their
+    // OnAddedToScene already reaches the run's source.
     [Fact]
-    public void ADocumentComposedEntityDiscoversTheRunsSourceInOnStart()
+    public void ADocumentComposedEntityReachesTheRunsSourceWhenItJoins()
     {
         RandomSource run = new(0x5EED);
         SceneFixtures.SpawnScene scene = new(
@@ -71,11 +71,11 @@ public sealed class RandomSourceInScenesTests
 
         SpawnedProber prober = Assert.IsType<SpawnedProber>(scene.Entities[0]);
 
-        Assert.NotNull(prober.AddedFailure);
-        Assert.Contains("OnStart", prober.AddedFailure!.Message, StringComparison.Ordinal);
+        Assert.Null(prober.SeenOnAdd);
 
         using SceneSimulation simulation = new(scene, run: new Run(run));
 
+        Assert.Same(run, prober.SeenOnAdd);
         Assert.Same(run, prober.SeenOnStart);
         Assert.Equal(new RandomSource(0x5EED).NextFloat(), prober.FirstDraw);
     }
@@ -105,7 +105,7 @@ public sealed class RandomSourceInScenesTests
         {
         }
 
-        internal InvalidOperationException? AddedFailure { get; private set; }
+        internal RandomSource? SeenOnAdd { get; private set; }
 
         internal RandomSource? SeenOnStart { get; private set; }
 
@@ -113,14 +113,7 @@ public sealed class RandomSourceInScenesTests
 
         protected internal override void OnAddedToScene()
         {
-            try
-            {
-                _ = Random;
-            }
-            catch (InvalidOperationException failure)
-            {
-                AddedFailure = failure;
-            }
+            SeenOnAdd = Random;
         }
 
         protected internal override void OnStart()

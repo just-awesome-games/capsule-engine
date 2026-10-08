@@ -65,7 +65,7 @@ public sealed class SceneHostAssetTests
         Assert.NotNull(resolved);
         Assert.Empty(resolved.Entities.ToArray());
         Assert.Null(resolved.Entity.SceneOrNull);
-        Assert.Equal(["component+", "entity+", "entity-", "component-"], lifecycle);
+        Assert.Empty(lifecycle);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class SceneHostAssetTests
 
         Assert.Empty(scene.Entities.ToArray());
         Assert.Null(scene.Entity.SceneOrNull);
-        Assert.Equal(["entity+", "entity-"], lifecycle);
+        Assert.Empty(lifecycle);
     }
 
     [Fact]

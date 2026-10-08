@@ -317,7 +317,7 @@ public sealed class KinematicBody2D : Component
 
             // Resolve before storing. A world with no layer slots left throws here, while the body
             // still blocks on what it did.
-            CollisionFilter filter = Collider2D.ResolveFilter(Entity?.SceneOrNull?.Collision, value);
+            CollisionFilter filter = Collider2D.ResolveFilter(_scene?.Collision, value);
             _blockedBy = value;
             if (InScene)
             {
@@ -355,7 +355,7 @@ public sealed class KinematicBody2D : Component
         {
             ArgumentNullException.ThrowIfNull(value);
 
-            CollisionFilter filter = Collider2D.ResolveFilter(Entity?.SceneOrNull?.Collision, value);
+            CollisionFilter filter = Collider2D.ResolveFilter(_scene?.Collision, value);
             _movedBy = value;
             if (InScene)
             {
@@ -1247,7 +1247,7 @@ public sealed class KinematicBody2D : Component
 
         return _collider.World
             ?? throw new InvalidOperationException(
-                "A KinematicBody2D needs its collider enabled and registered in a scene before it can sweep.");
+                "A KinematicBody2D sweeps only once its collider is enabled and its entity has joined a started scene. Sweep from OnStart onward, not from a constructor.");
     }
 
     internal override bool Steps => false;

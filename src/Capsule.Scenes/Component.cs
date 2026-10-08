@@ -26,7 +26,7 @@ public abstract class Component
     /// <summary>The entity this component is attached to, or null until it is attached.</summary>
     public Entity? Entity { get; internal set; }
 
-    /// <summary>Whether the entity holding this component is currently in a scene.</summary>
+    /// <summary>Whether the entity holding this component has joined a scene.</summary>
     protected bool InScene { get; private set; }
 
     /// <summary>The run of the scene holding this component's entity.</summary>
@@ -124,7 +124,7 @@ public abstract class Component
 
     /// <summary>
     /// Runs once the component's entity is in a scene, with <see cref="Entity"/> and its
-    /// <see cref="Scenes.Entity.Scene"/> both set. Attaching to an entity a scene already holds
+    /// <see cref="Scenes.Entity.Scene"/> both set. Attaching to an entity the scene has already joined
     /// runs this immediately.
     /// </summary>
     /// <remarks>

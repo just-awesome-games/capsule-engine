@@ -12,7 +12,7 @@ public sealed class ColliderCastTests
     [Fact]
     public void Move_LeavesTheEntityWhereTheSweepStoppedAndNamesWhatStoppedIt()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         Body body = new(new Vector2(8f, 8f));
         body.Mover.BlockedBy = new("solid");
         scene.Add(body);
@@ -71,7 +71,7 @@ public sealed class ColliderCastTests
     [Fact]
     public void Move_WithABlockingFilter_HonoursItOverBlockedByAndLeavesTheStandingFilterAlone()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         Body body = new(new Vector2(8f, 8f));
         body.Mover.BlockedBy = new("solid");
         scene.Add(body);
@@ -97,7 +97,7 @@ public sealed class ColliderCastTests
     [Fact]
     public void Cast_MeetsTheSurfaceItDrivesIntoAndNotTheOnesItRunsAlong()
     {
-        Scene scene = SceneFixtures.Terrain("..#.", "..#.", "####");
+        Scene scene = SceneFixtures.Terrain("..#.", "..#.", "####").Started();
         Prober prober = new(new Vector2(24f, 24f), new Vector2(8f, 8f), "solid");
         scene.Add(prober);
 
@@ -119,7 +119,7 @@ public sealed class ColliderCastTests
     [Fact]
     public void Cast_OfARoundedColliderAlongAFloorItRestsOn_MeetsNothing()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         RoundProber prober = new(new Vector2(24f, 24f), 8f, "solid");
         scene.Add(prober);
 
@@ -133,7 +133,7 @@ public sealed class ColliderCastTests
     [Fact]
     public void Cast_MeetsAnotherColliderAndNeverItself()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Prober prober = new(Vector2.Zero, new Vector2(8f, 8f), CollisionWorld2D.DefaultLayerName);
         Prober other = new(new Vector2(20f, 0f), new Vector2(8f, 8f), CollisionWorld2D.DefaultLayerName);
         scene.Add(prober);
@@ -178,7 +178,7 @@ public sealed class ColliderCastTests
     [Fact]
     public void Cast_UsesTheCollidersOwnFilterUnlessGivenAnother()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         Prober prober = new(new Vector2(24f, 8f), new Vector2(8f, 8f));
         scene.Add(prober);
 

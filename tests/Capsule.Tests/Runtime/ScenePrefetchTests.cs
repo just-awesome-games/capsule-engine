@@ -32,6 +32,7 @@ public sealed class ScenePrefetchTests
 
         host.Step(Step(0));
 
+        // The built scene composed an entity whose hooks never ran, as it never joined.
         Assert.Equal(["resolve Lobby", "lobby step", "resolve Arena", "arena built"], log);
         Assert.IsType<Lobby>(host.Scene);
         Assert.Equal(device ? ["shared,enemies/bat"] : [], warmed);
@@ -109,7 +110,11 @@ public sealed class ScenePrefetchTests
 
     private sealed class Arena : Scene
     {
-        public Arena(List<string> log) => log.Add("arena built");
+        public Arena(List<string> log)
+        {
+            Add(new Recorder("arena entity", log));
+            log.Add("arena built");
+        }
 
         protected internal override void CollectAssets(AssetCollection assets) => assets.Add([Shared, Bat]);
 

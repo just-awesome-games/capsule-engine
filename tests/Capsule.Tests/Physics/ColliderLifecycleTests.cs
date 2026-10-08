@@ -13,7 +13,7 @@ public sealed class ColliderLifecycleTests
     [Fact]
     public void ACollider_RegistersWhenItsEntityJoinsAndUnregistersWhenItLeaves()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Body body = new(new Vector2(10f, 10f));
 
         Assert.Null(body.Collider.World);
@@ -34,7 +34,7 @@ public sealed class ColliderLifecycleTests
     [Fact]
     public void AColliderAttachedToAnEntityAlreadyInAScene_RegistersImmediately()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         SceneFixtures.Drifter drifter = new(Vector2.Zero);
         scene.Add(drifter);
 
@@ -51,7 +51,7 @@ public sealed class ColliderLifecycleTests
     [Fact]
     public void AColliderFollowsItsEntity_ThroughAWriteAndThroughATeleport()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Body body = new(Vector2.Zero);
         scene.Add(body);
 
@@ -117,7 +117,7 @@ public sealed class ColliderLifecycleTests
     [Fact]
     public void AColliderCarriedToAnotherScene_RebuildsItsFilterAgainstTheNewWorld()
     {
-        Scene first = SceneFixtures.Terrain("....", "####");
+        Scene first = SceneFixtures.Terrain("....", "####").Started();
         Body body = new(new Vector2(4f, 8f));
         body.Collider.Detects = new("solid");
         body.Collider.ReportsContacts = true;
@@ -130,7 +130,8 @@ public sealed class ColliderLifecycleTests
 
         // Names interned ahead of 'solid' land it on a different bit, so a filter carried over
         // would match some other tile type rather than simply matching nothing.
-        Scene second = new();
+        using SceneSimulation simulation = new(new Scene());
+        Scene second = simulation.Scene;
         second.Collision.Layer("hazard");
         second.Collision.Layer("water");
         second.Collision.Layer("ladder");
@@ -142,7 +143,6 @@ public sealed class ColliderLifecycleTests
         Assert.Throws<ArgumentException>(
             () => second.Collision.OverlapBoxAll(body.Collider.Bounds, inFirst, default));
 
-        using SceneSimulation simulation = new(second);
         simulation.Step(SceneFixtures.Step(0));
 
         Assert.Equal(["solid"], body.Collider.Touching.ToArray().Select(contact => contact.LayerName));
@@ -185,7 +185,7 @@ public sealed class ColliderLifecycleTests
         Holder held = new();
         BoxCollider2D box = new(new Vector2(2f, 4f)) { Offset = new Vector2(1f, 2f) };
         held.Add(box);
-        Scene scene = new();
+        Scene scene = new Scene().Started();
 
         if (writtenInScene)
         {

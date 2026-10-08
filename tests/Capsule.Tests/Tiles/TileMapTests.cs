@@ -234,7 +234,7 @@ public sealed class TileMapTests
     public void ADecorativeMapScrolls_AndAColliderThenRefusesIt()
     {
         TileMap map = new(SceneFixtures.TerrainGrid("#")) { ScrollFactor = new Vector2(0.5f, 1f) };
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         scene.Add(map);
         TileMapCollider2D collider = new();
 

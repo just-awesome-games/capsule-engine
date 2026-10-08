@@ -34,7 +34,8 @@ public sealed class ColliderDiagnosticsTests : IDisposable
         second.Add(configured);
         Assert.Empty(sink.Entries);
 
-        Scene scene = new();
+        using SceneSimulation simulation = new(new Scene());
+        Scene scene = simulation.Scene;
         scene.Add(first);
         LogEntry entry = Assert.Single(sink.Entries);
         Assert.Equal(LogLevel.Warning, entry.Level);
@@ -42,7 +43,6 @@ public sealed class ColliderDiagnosticsTests : IDisposable
         Assert.Contains("Set Detects to the layers it should report", entry.Message, StringComparison.Ordinal);
 
         scene.Add(second);
-        using SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step(0));
         simulation.Step(SceneFixtures.Step(1));
         Assert.Single(sink.Entries);

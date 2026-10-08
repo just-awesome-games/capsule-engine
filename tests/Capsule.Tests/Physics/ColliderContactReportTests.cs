@@ -232,7 +232,7 @@ public sealed class ColliderContactReportTests
     [Fact]
     public void ATileMapColliderRegistersOneGridWhoseCellsCarryTheAuthoredLayer()
     {
-        Scene scene = SceneFixtures.Terrain("....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "####").Started();
         TileMapCollider2D collider = scene.FindSingle<TileMap>().Get<TileMapCollider2D>();
 
         Assert.NotNull(collider.Grid);

@@ -16,7 +16,7 @@ public sealed class ColliderQueryTests
     [Fact]
     public void AColliderRay_HonoursItsOwnFilterAndTheOneAGivenCallNames()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         Prober prober = new(new Vector2(24f, 8f));
         scene.Add(prober);
 
@@ -38,7 +38,7 @@ public sealed class ColliderQueryTests
     [Fact]
     public void AColliderRay_PassesThroughTheColliderItStartsFrom()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Prober caster = new(Vector2.Zero, "default");
         Prober target = new(Vector2.Zero);
         scene.Add(caster);
@@ -51,7 +51,7 @@ public sealed class ColliderQueryTests
     [Fact]
     public void AColliderRay_ReportsTheNearestOfATileAndACollider()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         Prober prober = new(new Vector2(24f, 8f), "solid");
         Prober blocker = new(new Vector2(24f, 20f));
         blocker.Collider.Layer = "solid";
@@ -92,7 +92,7 @@ public sealed class ColliderQueryTests
     [Fact]
     public void APairOverlap_IgnoresBothCollidersFilters()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Prober first = new(Vector2.Zero);
         Prober second = new(new Vector2(4f, 0f));
         scene.Add(first);
@@ -109,7 +109,7 @@ public sealed class ColliderQueryTests
     [Fact]
     public void APairOverlap_IsFalseForCollidersApartAndForOneAgainstItself()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Prober first = new(Vector2.Zero);
         Prober second = new(new Vector2(40f, 0f));
         scene.Add(first);
@@ -123,7 +123,7 @@ public sealed class ColliderQueryTests
     [Fact]
     public void APairOverlap_DescribesTheContactAnOverlapQueryWouldReportForTheSamePair()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Prober first = new(Vector2.Zero, "default");
         Prober second = new(new Vector2(4f, 0f));
         scene.Add(first);
@@ -139,11 +139,11 @@ public sealed class ColliderQueryTests
     [Fact]
     public void APairOverlap_RefusesAColliderFromAnotherWorldAndFindsNothingInOneOutsideEveryWorld()
     {
-        Scene scene = new();
+        Scene scene = new Scene().Started();
         Prober prober = new(Vector2.Zero);
         scene.Add(prober);
 
-        Scene elsewhere = new();
+        Scene elsewhere = new Scene().Started();
         Prober foreign = new(Vector2.Zero);
         elsewhere.Add(foreign);
 
@@ -158,7 +158,7 @@ public sealed class ColliderQueryTests
     [Fact]
     public void ColliderOf_ResolvesAHitToItsColliderAndEntity_AndATileOrARemovedColliderToNull()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         Prober probe = new(new Vector2(20f, 28f), "solid", "default");
         Prober other = new(new Vector2(24f, 28f));
         scene.Add(probe);
@@ -183,7 +183,7 @@ public sealed class ColliderQueryTests
     [Fact]
     public void TileOf_ResolvesAHitToItsMapAndCell_AndAColliderOrARemovedMapToNull()
     {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         TileMap map = SceneFixtures.TerrainOf(scene);
         Prober prober = new(new Vector2(24f, 8f), "solid");
         scene.Add(prober);

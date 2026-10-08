@@ -137,10 +137,10 @@ public partial class Entity
 
     /// <summary>The entity this one is placed by, or null for a root.</summary>
     /// <remarks>
-    /// An entity in a scene keeps its world transform, and its place in the scene, when its parent changes: its
+    /// An entity a scene holds keeps its world transform, and its place in the scene, when its parent changes: its
     /// local transform is recomputed, no scene hook runs, and a screen entity's anchors resolve against the new
-    /// parent. It takes the new parent's update order and step-mode hold from the next step. Before it joins a
-    /// scene, an entity keeps its local transform, which is how a child is built, and joins with its parent.
+    /// parent. It takes the new parent's update order and step-mode hold from the next step. Before a scene holds
+    /// it, an entity keeps its local transform, which is how a child is built, and enters the scene with its parent.
     /// <see cref="Scene.Remove"/> on this entity alone clears its parent.
     /// </remarks>
     /// <example>
@@ -375,6 +375,14 @@ public partial class Entity
     // The render layer this entity draws on as a root.
     internal RenderSpace OwnSpace => OnScreen ? RenderSpace.Screen : RenderSpace.World;
 
+    // Whether the scene has joined this entity: components entered and OnAddedToScene run. A scene that
+    // has not started holds an entity composed, with SceneOrNull set and nothing joined.
+    internal bool Joined
+    {
+        get => (_traits & Traits.Joined) != 0;
+        set => _traits = value ? _traits | Traits.Joined : _traits & ~Traits.Joined;
+    }
+
     // Set by ScreenEntity alone.
     internal bool OnScreen
     {
@@ -485,16 +493,17 @@ public partial class Entity
         // Attaching to an entity a scene already holds changes that scene's renderer set.
         SceneOrNull?.InvalidateRenderers();
 
-        // OnAttached may have detached the component, which must then not enter the scene.
-        if (SceneOrNull is not null && ReferenceEquals(component.Entity, this))
+        // OnAttached may have detached the component, which must then not enter the scene. An entity
+        // composed by a scene that has not started enters its components when it joins.
+        if (Joined && ReferenceEquals(component.Entity, this))
         {
             component.EnterScene();
         }
 
         // The hooks above may have detached the component or removed this entity. An entity queued to
         // leave, by itself or with an ancestor, still steps until the drain. Its new component waits for
-        // the next add before it starts.
-        if (_started && SceneOrNull?.Contains(this) == true && ReferenceEquals(component.Entity, this))
+        // the next add before it starts. A scene that has not started starts it as the entity joins.
+        if (_started && Joined && SceneOrNull?.Contains(this) == true && ReferenceEquals(component.Entity, this))
         {
             component.RunStart();
         }
@@ -636,8 +645,13 @@ public partial class Entity
     }
 
     /// <summary>
-    /// Runs when the scene holds this entity, before children join. Peers may not exist yet.
+    /// Runs when the scene joins this entity, before children join. Peers may not exist yet.
     /// </summary>
+    /// <remarks>
+    /// A scene that has not started only composes what it is given. It joins everything composed as it
+    /// starts, after its assets are preloaded and before any <see cref="OnStart"/>. <see cref="Run"/> is
+    /// reachable here.
+    /// </remarks>
     protected internal virtual void OnAddedToScene()
     {
     }
@@ -646,6 +660,10 @@ public partial class Entity
     /// Runs when the scene releases this entity, either on removal or when the scene stops.
     /// Descendants leave first, deepest first.
     /// </summary>
+    /// <remarks>
+    /// An entity that never joined runs none. That covers one removed before its scene started and one
+    /// held by a scene released without starting.
+    /// </remarks>
     protected internal virtual void OnRemovedFromScene()
     {
     }
@@ -1096,6 +1114,7 @@ public partial class Entity
         Screen = 2,
         Leaving = 4,
         Marked = 8,
+        Joined = 16,
     }
 
     private struct ComponentWalk(List<Component> components)
