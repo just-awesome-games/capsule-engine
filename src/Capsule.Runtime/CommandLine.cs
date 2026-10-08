@@ -13,6 +13,7 @@ internal sealed class CommandLine
           --driver <Name>            drive the run from the input driver of that class name
           --headless                 run with no window, which needs a driver
           --scene <Name>             boot the scene of that class name, else of that document key
+          --seed <number>            start the random source from that seed, which a windowed run logs
           --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
           --uncapped                 present without waiting for vertical sync
 
@@ -41,6 +42,9 @@ internal sealed class CommandLine
     internal double? FramesSeconds { get; private set; }
 
     internal bool Uncapped { get; private set; }
+
+    // The run's random seed, null unless --seed was given.
+    internal ulong? Seed { get; private set; }
 
     // The saves directory, null unless --saves was given.
     internal string? SavesPath { get; private set; }
@@ -94,6 +98,13 @@ internal sealed class CommandLine
                     }
 
                     parsed.FramesSeconds = seconds;
+                    break;
+
+                case "--seed" when development:
+                    string seed = Value(args, ref index, gameName, development, "--seed needs a seed.");
+                    parsed.Seed = ulong.TryParse(seed, NumberStyles.None, CultureInfo.InvariantCulture, out ulong parsedSeed)
+                        ? parsedSeed
+                        : throw Refuse(gameName, development, $"--seed takes a whole number from 0 to {ulong.MaxValue.ToString(CultureInfo.InvariantCulture)}, not '{seed}'.");
                     break;
 
                 case "--uncapped" when development:

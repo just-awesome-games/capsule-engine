@@ -1,5 +1,8 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Globalization;
 using System.Numerics;
+using System.Security.Cryptography;
 using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Persistence;
@@ -36,7 +39,8 @@ public sealed class EngineBuilder
     private ILogSink? _logSink;
     private ConsoleLogSink? _consoleSink;
     private bool _loggingSilenced;
-    private ulong _randomSeed = RandomSource.DefaultSeed;
+    // Null until WithRandomSeed or --seed configures one. RunSeed then chooses it per run.
+    private ulong? _randomSeed;
     private string? _frameDiagnosticsPath;
     private double? _frameDiagnosticsExitAfterSeconds;
     private Action<Run>? _runStart;
@@ -309,10 +313,13 @@ public sealed class EngineBuilder
 
     /// <summary>
     /// The seed for the run's <see cref="RandomSource"/>, which game logic reaches through
-    /// <see cref="global::Capsule.Run.Random"/>. Defaults to
-    /// <see cref="RandomSource.DefaultSeed"/>.
+    /// <see cref="global::Capsule.Run.Random"/>. With none configured, a windowed run no driver plays
+    /// draws a fresh seed and a headless or driven run starts from <see cref="RandomSource.DefaultSeed"/>.
     /// </summary>
-    /// <remarks>A game that never calls this replays identically.</remarks>
+    /// <remarks>
+    /// A windowed run logs the seed it starts from, and <c>--seed</c> starts a development build from
+    /// it again. A headless or driven run with no seed configured replays identically.
+    /// </remarks>
     public EngineBuilder WithRandomSeed(ulong seed)
     {
         _randomSeed = seed;
@@ -376,7 +383,8 @@ public sealed class EngineBuilder
     /// <see cref="WithInputDriver"/> replaces it. <c>--headless</c> alongside it opens no window.
     /// <c>--scene</c> replaces the scene the <c>RunScene</c> call names and keeps that call's boot
     /// payload. It takes a registered scene class name, else a scene document key such as
-    /// <c>halls/hall</c>. A scene a document backs is opened through that document.
+    /// <c>halls/hall</c>. A scene a document backs is opened through that document. <c>--seed</c>
+    /// configures the seed as <see cref="WithRandomSeed"/> does, and a later call replaces it.
     /// </para>
     /// </remarks>
     /// <param name="args">
@@ -403,6 +411,11 @@ public sealed class EngineBuilder
         if (parsed.SavesPath is { } saves)
         {
             WithSaveDirectory(saves);
+        }
+
+        if (parsed.Seed is { } seed)
+        {
+            WithRandomSeed(seed);
         }
 
         if (parsed.DriverName is { } driverName)
@@ -517,7 +530,10 @@ public sealed class EngineBuilder
             // Installed before composing, because a scene's OnStart logs while the host is built.
             InstallLogging();
 
-            using SceneHost host = CreateHost(opening, NamedSaveStorage() ?? Platform.OpenSaveStorage(_localFolderName));
+            ulong seed = RunSeed(played: Driver is null);
+            Log.Info($"random seed {seed.ToString(CultureInfo.InvariantCulture)}");
+
+            using SceneHost host = CreateHost(opening, NamedSaveStorage() ?? Platform.OpenSaveStorage(_localFolderName), seed);
             RunHost(host);
         }
         catch (Exception exception) when (_writesCrashLog)
@@ -568,7 +584,7 @@ public sealed class EngineBuilder
         InstallLogging();
 
         // No medium unless one was named, which keeps a developer's local folder out of the run.
-        using SceneHost host = CreateHost(initialTarget, NamedSaveStorage());
+        using SceneHost host = CreateHost(initialTarget, NamedSaveStorage(), RunSeed(played: false));
         FixedStepScheduler scheduler = new(StepSeconds, MaxStepsPerFrame, Input.Bindings, driver, host);
         _consoleSink?.Tick = () => scheduler.Tick;
 
@@ -597,11 +613,31 @@ public sealed class EngineBuilder
         }
     }
 
-    private SceneHost CreateHost(in SceneTransition opening, ISaveStorage? storage) =>
+    // The configured seed, else a fresh one for a run a person plays. A headless or driven run is a
+    // test or a replay and starts from the default.
+    internal ulong RunSeed(bool played)
+    {
+        if (_randomSeed is { } configured)
+        {
+            return configured;
+        }
+
+        if (!played)
+        {
+            return RandomSource.DefaultSeed;
+        }
+
+        Span<byte> entropy = stackalloc byte[sizeof(ulong)];
+        RandomNumberGenerator.Fill(entropy);
+
+        return BinaryPrimitives.ReadUInt64LittleEndian(entropy);
+    }
+
+    private SceneHost CreateHost(in SceneTransition opening, ISaveStorage? storage, ulong seed) =>
         new(
             opening,
             new SceneComposer(Scenes, Platform).Resolve,
-            new Run(new RandomSource(_randomSeed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, RenderResolution = RenderResolution },
+            new Run(new RandomSource(seed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, RenderResolution = RenderResolution },
             storage,
             _runStart);
 

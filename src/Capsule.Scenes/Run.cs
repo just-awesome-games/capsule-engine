@@ -80,7 +80,7 @@ public sealed class Run
     /// </summary>
     /// <remarks>
     /// A scene transition neither reseeds nor rewinds it. In a shell-built run it is stream 0 of the seed
-    /// the shell configured. A domain whose draws must not disturb another takes its own stream, as
+    /// <c>EngineBuilder.WithRandomSeed</c> describes. A domain whose draws must not disturb another takes its own stream, as
     /// <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
     /// </remarks>
     public RandomSource Random { get; }

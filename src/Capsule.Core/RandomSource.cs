@@ -17,7 +17,7 @@ namespace Capsule;
 /// </remarks>
 public sealed class RandomSource
 {
-    /// <summary>The seed a run uses unless the host configures one. An unconfigured game still replays.</summary>
+    /// <summary>The seed a source starts from when none is given, and the seed of a headless or driven run that configures none.</summary>
     public const ulong DefaultSeed = 1;
 
     // Distinct odd constants. The seed and stream pair that zeroes the first two state words leaves the

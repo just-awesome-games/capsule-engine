@@ -87,6 +87,23 @@ public sealed class EngineBuilderTests
         return seen;
     }
 
+    // Two launches a person plays must not repeat, and a test or replay must. Two fresh 64-bit seeds
+    // match with probability 2^-64.
+    [Fact]
+    public void AnUnconfiguredSeed_IsFreshForAPlayedRunAndTheDefaultForAHeadlessOrDrivenOne()
+    {
+        Assert.NotEqual(SceneBuilder().RunSeed(played: true), SceneBuilder().RunSeed(played: true));
+        Assert.Equal(RandomSource.DefaultSeed, SceneBuilder().RunSeed(played: false));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AConfiguredSeed_StartsEveryRun(bool played)
+    {
+        Assert.Equal(7UL, SceneBuilder().WithRandomSeed(7).RunSeed(played));
+    }
+
     [Fact]
     public void RunScene_ForAClassTheRegistryDoesNotHold_NamesWhatItDoesHold()
     {

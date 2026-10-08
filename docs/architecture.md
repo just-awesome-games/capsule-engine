@@ -64,7 +64,9 @@ extents, a simulation produces the same state transitions and render intents.
 - A handler sees the new state. Reconfiguring the object whose handler is running throws, across colliders,
   focus navigators and screen notifiers.
 - `StepContext.TotalSeconds` is derived from its tick. Randomness comes from `Run`'s seeded `RandomSource`,
-  which persists across scene transitions.
+  which persists across scene transitions. A windowed run no driver plays draws a fresh seed unless the shell
+  configures one, and it logs the seed. A headless or driven run with no configured seed starts from
+  `RandomSource.DefaultSeed`.
 - Simulation arithmetic is IEEE-exact. Transcendental functions differ between operating systems, and
   simulation code calls `DeterministicMath` in place of `MathF`.
 - A frame runs at most the configured number of fixed steps. Reaching the limit drops the remaining

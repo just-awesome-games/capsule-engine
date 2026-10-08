@@ -121,6 +121,15 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
+    public void Seed_StartsEveryRunFromTheNamedSeed()
+    {
+        EngineBuilder builder = Builder().WithCommandLine(["--seed", "18446744073709551615"]);
+
+        Assert.Equal(ulong.MaxValue, builder.RunSeed(played: true));
+        Assert.Equal(ulong.MaxValue, builder.RunSeed(played: false));
+    }
+
+    [Fact]
     public void Help_PrintsTheUsageAndStops()
     {
         StringWriter stdout = new();
@@ -162,18 +171,21 @@ public sealed class CommandLineTests : IDisposable
         ["--driver", "--headless"],
         ["--frames", "frames.csv", "0"],
         ["--frames", "frames.csv", "NaN"],
+        ["--seed", "-1"],
+        ["--seed", "18446744073709551616"],
         ["--rewind", "Idler"],
         ["--headless", "--headless"],
     ];
 
-    // A shipping build declares no development flag, so a player cannot drive, probe or reroute the
-    // game from its command line; the portable-saves lever and help stay.
+    // A shipping build declares no development flag. A player cannot drive, probe, reroute or reseed the
+    // game from its command line. The portable-saves lever and help stay.
     [Theory]
     [InlineData("--scene", "Selected")]
     [InlineData("--driver", "Idler")]
     [InlineData("--headless")]
     [InlineData("--frames", "frames.csv")]
     [InlineData("--uncapped")]
+    [InlineData("--seed", "42")]
     public void AShippingBuild_RefusesADevelopmentFlagAsUnknown(params string[] args)
     {
         CommandLineException refused = Assert.Throws<CommandLineException>(
@@ -200,6 +212,7 @@ public sealed class CommandLineTests : IDisposable
         Assert.DoesNotContain("--scene", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--frames", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--uncapped", usage, StringComparison.Ordinal);
+        Assert.DoesNotContain("--seed", usage, StringComparison.Ordinal);
     }
 
     // The defect and the usage block as the shell prints them, with the exit code it returns.

@@ -176,7 +176,7 @@ parser of its own:
 dotnet run --project src/MyGame.Shell -- --scene Room --driver Walkthrough --headless
 ```
 
-`--driver`, `--headless`, `--scene`, `--frames`, `--uncapped`, `--saves` and `--help` are the flags, as
+`--driver`, `--headless`, `--scene`, `--seed`, `--frames`, `--uncapped`, `--saves` and `--help` are the flags, as
 `EngineBuilder.WithCommandLine` documents. A shipping build keeps `--saves` and `--help`. The shell reports
 `--help` and a refused flag through `CommandLineException`, as
 [`getting-started.md`](getting-started.md#the-shell) shows.
