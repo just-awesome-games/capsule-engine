@@ -18,17 +18,22 @@ namespace MinimalGame.Game.Entities;
 /// The walking, falling, jumping body the <c>player</c> document entries spawn.
 /// <see cref="Entity.Position"/> is the top-left corner of the 8x8 body. The body collider is what
 /// the <see cref="KinematicBody2D"/> sweeps and blocks on; the inset hurtbox blocks nothing and
-/// reports <c>hazard</c> contacts alone. The body rides and is shoved by anything on the
-/// <c>platform</c> layer, and being crushed kills. Everything visual hangs on the nested <see cref="Visual"/>
-/// child, which reads the facts this root publishes; a shot leaves from the muzzle socket of the
-/// frame that child draws, so the root fires in its late step, once the frame has settled. On
-/// keyboard and mouse a shot aims at the pointer, and on a pad it flies along the facing. Its
-/// levers live in <see cref="PlayerTuning"/>, the bolt's in <see cref="BoltTuning"/>.
+/// reports <c>hazard</c> contacts alone. The one-unit probe at the body's centre decides which trigger
+/// areas the player stands in, because a body flush against a wall still touches what lies behind it.
+/// The body rides and is shoved by anything on the <c>platform</c> layer, and being crushed kills.
+/// Everything visual hangs on the nested <see cref="Visual"/> child, which reads the facts this root
+/// publishes; a shot leaves from the muzzle socket of the frame that child draws, so the root fires
+/// in its late step, once the frame has settled. On keyboard and mouse a shot aims at the pointer,
+/// and on a pad it flies along the facing. Its levers live in <see cref="PlayerTuning"/>, the
+/// bolt's in <see cref="BoltTuning"/>.
 /// </summary>
 public sealed class Player : Entity
 {
     /// <summary>The body's edge in world units, and the frame's in texels: one texel per unit.</summary>
     private const int BodyPixels = 8;
+
+    // The probe's edge in world units: a point as far as any room's layout can tell.
+    private const float ProbeEdge = 1f;
 
     private static readonly Vector2 Body = new(BodyPixels, BodyPixels);
 
@@ -39,6 +44,7 @@ public sealed class Player : Entity
     private readonly Visual _visual;
     private readonly KinematicBody2D _body;
     private readonly BoxCollider2D _hurtbox;
+    private readonly BoxCollider2D _probe;
     private readonly AudioSource _footfall;
     private readonly ParticleEmitter _dust;
     private readonly BoltTuning _bolt = BoltTuning.Default;
@@ -96,6 +102,15 @@ public sealed class Player : Entity
         _hurtbox.ContactExited += OnHurtboxExited;
         Add(_hurtbox);
 
+        _probe = new BoxCollider2D(new Vector2(ProbeEdge, ProbeEdge))
+        {
+            Layer = CollisionLayers.Probe,
+            Offset = new Vector2((BodyPixels - ProbeEdge) / 2f),
+            ReportsContacts = true,
+            Detects = new(CollisionLayers.Trigger),
+        };
+        Add(_probe);
+
         _footfall = new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx };
         Add(_footfall);
 
@@ -118,6 +133,13 @@ public sealed class Player : Entity
 
     /// <summary>The levers this player runs on, fixed for its lifetime. A placement names one as <c>"tuning": "default"</c>.</summary>
     public PlayerTuning Tuning => _tuning;
+
+    /// <summary>
+    /// The collider at the body's centre that touches the trigger areas the player stands in. The owner of
+    /// what several areas drive, such as the camera's bounds, subscribes to its contacts; an area whose
+    /// effect is its own detects it instead.
+    /// </summary>
+    public Collider2D Probe => _probe;
 
     /// <summary>The velocity the body moves at, in world units per second, as of the last step.</summary>
     public Vector2 Velocity => _velocity;

@@ -6,13 +6,13 @@ using MinimalGame.Game.Scenes;
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// Leaves for another room when the player walks into its doorway, arriving at the entrance there that its
-/// arrival key names.
+/// Leaves for another room when the player's probe walks into its doorway, arriving at the entrance there that
+/// its arrival key names.
 /// </summary>
 /// <param name="size">The doorway, from its entity's corner.</param>
 public sealed class SceneExit(Vector2 size) : Component
 {
-    private readonly BoxCollider2D _doorway = new(size) { ReportsContacts = true, Detects = new(CollisionLayers.Player) };
+    private readonly BoxCollider2D _doorway = new(size) { ReportsContacts = true, Detects = new(CollisionLayers.Probe) };
     private bool _leaving;
 
     /// <summary>The room to leave for.</summary>

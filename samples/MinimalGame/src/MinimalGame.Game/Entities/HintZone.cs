@@ -9,8 +9,8 @@ using Capsule.Scenes.Spawning;
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// An invisible area that shows one line of text across its top while the player stands in it.
-/// Each placement sizes its own area and writes its own line.
+/// An invisible area that shows one line of text across its top while the player's probe stands in it.
+/// Each placement sizes its own area and writes its own line. The line is its own, so it reacts itself.
 /// </summary>
 public sealed class HintZone : Entity
 {
@@ -38,7 +38,7 @@ public sealed class HintZone : Entity
         };
         Add(_hint);
 
-        BoxCollider2D area = new(Size) { ReportsContacts = true, Detects = new(CollisionLayers.Player) };
+        BoxCollider2D area = new(Size) { ReportsContacts = true, Detects = new(CollisionLayers.Probe) };
         area.ContactEntered += OnPlayerEntered;
         area.ContactExited += OnPlayerExited;
         Add(area);

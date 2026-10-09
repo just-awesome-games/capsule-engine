@@ -190,8 +190,8 @@ public sealed class RoomTests
         Assert.True(room.RunUntil(() => player.Velocity.X == 0f, StepBudget), "the slide never came to a stop");
     }
 
-    // A room torn down with the player inside the camera zone ends the zone's contact after the zone has
-    // left the scene, as walking out through the east door does.
+    // A room torn down with the player inside the camera zone ends the probe's contact after the camera
+    // has left the scene, as walking out through the east door does.
     [Fact]
     public void TearingDownTheRoomWithThePlayerInTheCameraZone_Succeeds()
     {
@@ -209,7 +209,7 @@ public sealed class RoomTests
     {
         Rect zoneA = new(160f, 0f, 400f, 192f);
         Rect zoneB = new(320f, 0f, 560f, 192f);
-        using SimulationHost room = ZonedRoom(zoneA, zoneB);
+        using SimulationHost room = ZonedRoom([zoneA, zoneB]);
         Player player = RoomFixture.PlayerOf(room);
         Rect? roomBounds = room.Scene.Camera.Bounds;
         Assert.NotNull(roomBounds);
@@ -226,6 +226,51 @@ public sealed class RoomTests
         Assert.Equal(zoneB, BoundsWithPlayerAt(360f));
         Assert.Equal(zoneB, BoundsWithPlayerAt(480f));
         Assert.Equal(roomBounds, BoundsWithPlayerAt(600f));
+    }
+
+    // Two zones that share an edge hold the player together on that edge. Stepping off it into one hands
+    // the bounds to that one, and leaving both in a single step brings back the room.
+    [Fact]
+    public void LeavingTwoAdjacentCameraZonesInOneStep_RestoresTheRoom_AndLeavingOneHandsTheBoundsToTheOther()
+    {
+        Rect zoneA = new(160f, 0f, 320f, 192f);
+        Rect zoneB = new(320f, 0f, 480f, 192f);
+        using SimulationHost room = ZonedRoom([zoneA, zoneB]);
+        Player player = RoomFixture.PlayerOf(room);
+        Rect? roomBounds = room.Scene.Camera.Bounds;
+        Rect?[] onEither = [zoneA, zoneB];
+
+        Rect? BoundsWithPlayerCentreAt(float x)
+        {
+            player.Position = new Vector2(x - 4f, RoomFixture.FloorTop - 8f);
+            room.Step(DeviceSnapshot.Empty);
+
+            return room.Scene.Camera.Bounds;
+        }
+
+        Assert.Contains(BoundsWithPlayerCentreAt(320f), onEither);
+        Assert.Equal(zoneA, BoundsWithPlayerCentreAt(240f));
+        Assert.Contains(BoundsWithPlayerCentreAt(320f), onEither);
+        Assert.Equal(zoneB, BoundsWithPlayerCentreAt(400f));
+        Assert.Contains(BoundsWithPlayerCentreAt(320f), onEither);
+        Assert.Equal(roomBounds, BoundsWithPlayerCentreAt(600f));
+    }
+
+    // A zone whose edge lies on the wall's near face is touched by a body pressed flush against it, within
+    // the contact skin. The player's probe sits at its centre, so the zone is not entered.
+    [Fact]
+    public void PressingAgainstAWallWithACameraZoneBehindIt_DoesNotEnterTheZone()
+    {
+        const int WallColumn = 10;
+        Rect zone = new(WallColumn * 16f, 0f, 320f, 192f);
+        using SimulationHost room = ZonedRoom([zone], WallColumn);
+        Player player = RoomFixture.PlayerOf(room);
+        Rect? roomBounds = room.Scene.Camera.Bounds;
+
+        room.Step(StepBudget / 2, DeviceSnapshot.Of(Key.D));
+
+        Assert.True(player.Position.X + 8f > (WallColumn * 16f) - 0.1f, "the player never reached the wall");
+        Assert.Equal(roomBounds, room.Scene.Camera.Bounds);
     }
 
     // The lamps draw the bolt's glow too. Without them the glow reaches the room's preload only
@@ -248,13 +293,22 @@ public sealed class RoomTests
         Assert.True(room.CollectPreloads().Contains(CapsuleAssets.Textures.GlowTexture));
     }
 
-    // A room of bare floor with the player standing west of two camera zones.
-    private static SimulationHost ZonedRoom(Rect zoneA, Rect zoneB)
+    // A room of bare floor with the player standing at its west end, the camera zones placed, and a wall
+    // one tile wide from floor to ceiling in the column given.
+    private static SimulationHost ZonedRoom(Rect[] zones, int wallColumn = -1)
     {
         const int Wide = 40;
         const int High = 12;
         int[] tiles = new int[Wide * High];
         Array.Fill(tiles, 1, (High - 1) * Wide, Wide);
+        if (wallColumn >= 0)
+        {
+            for (int row = 0; row < High - 1; row++)
+            {
+                tiles[(row * Wide) + wallColumn] = 1;
+            }
+        }
+
         SceneDocumentEntry floor = new(
             "tile-map",
             JsonSerializer.SerializeToElement(new
@@ -272,8 +326,14 @@ public sealed class RoomTests
             new EntitySpawn(area.Position),
             JsonSerializer.SerializeToElement(new { size = new[] { area.Size.X, area.Size.Y } }));
 
+        List<SceneDocumentEntry> entries = [floor, new SceneDocumentEntry("player", new EntitySpawn(new Vector2(32f, RoomFixture.FloorTop - 8f)))];
+        foreach (Rect zone in zones)
+        {
+            entries.Add(Zone(zone));
+        }
+
         SceneDocument document = new(
-            [floor, new SceneDocumentEntry("player", new EntitySpawn(new Vector2(32f, RoomFixture.FloorTop - 8f))), Zone(zoneA), Zone(zoneB)],
+            entries,
             JsonSerializer.SerializeToElement(new { camera = new { type = "game-camera" }, music = "audio/music/room.ogg" }));
 
         Run run = new();
