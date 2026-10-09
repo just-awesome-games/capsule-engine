@@ -21,6 +21,7 @@ a shipping publish drops.
 | Shift+wheel, Alt+wheel, horizontal wheel | World | Scrolls the view horizontally. |
 | Ctrl+wheel | World | Zooms about the pointer, from four times closer to eight times further than the game's camera. |
 | Middle-drag, Space+left-drag | World | Pans the view. |
+| `G` | Entity panel, open or hidden | Moves the entity to the world point last under the pointer, as one step. A camera following it or anything under it cuts with it. |
 
 `InputConfiguration.DebugOverlay(button)` moves the toggle, and `InputButton.None` removes it. World
 inputs work open or hidden, over the drawn world clear of the menu. A wheel notch scrolls a
@@ -49,15 +50,15 @@ Its keys, its mouse buttons, Ctrl, Shift, Alt and the wheel do not reach the sim
 served the overlay stays withheld from the game until it is released. A frame capture never shows the
 overlay or its camera.
 
-The first pan, scroll or zoom draws the game's frame through the overlay's own camera. The game's
-`Camera` is never written. `C`, the Game Camera row, a scene change and closing the overlay return the
-view to the game's camera. A frame capture requested meanwhile waits for the game's camera. Zoomed out, a
-declared render surface is drawn at a whole multiple of its resolution, up to the next whole scale it is
-presented at. The menu's top three lines show the scene, the tick and the world point last under the
-pointer.
+The first pan, scroll or zoom draws the game's frame through the overlay's own camera. Panning, scrolling
+and zooming never write the game's `Camera`. `C`, the Game Camera row, a scene change and closing the
+overlay return the view to the game's camera. A frame capture requested meanwhile waits for the game's
+camera. Zoomed out, a declared render surface is drawn at a whole multiple of its resolution, up to the
+next whole scale it is presented at. The menu's top three lines show the scene, the tick and the world
+point last under the pointer.
 
 Nothing reads back from the overlay. No code can learn what it shows or has switched on. A command, a
-toggle, Step, Restart, Load Scene, Remove or Exit is a host act that changes the run as input would. A run
+toggle, Step, Move, Restart, Load Scene, Remove or Exit is a host act that changes the run as input would. A run
 that took one is not reproducible from its driver alone. A time-scale change leaves a run reproducible.
 
 ## The three seams a game writes to

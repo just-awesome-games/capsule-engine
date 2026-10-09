@@ -586,6 +586,39 @@ public partial class Entity
                 $"A {GetType().Name} has no component assignable to {typeof(T).Name}.");
 
     /// <summary>
+    /// Finds the first component assignable to <typeparamref name="T"/> on this entity, then on its parent, then on each
+    /// ancestor up to the root.
+    /// </summary>
+    /// <remarks>The nearest match wins. The search does not visit siblings or <see cref="Children"/>.</remarks>
+    public bool TryGetInParent<T>([NotNullWhen(true)] out T? component)
+        where T : Component
+    {
+        for (Entity? entity = this; entity is not null; entity = entity.Parent)
+        {
+            if (entity.TryGet(out component))
+            {
+                return true;
+            }
+        }
+
+        component = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Gets the first component assignable to <typeparamref name="T"/> on this entity, then on its parent, then on each
+    /// ancestor up to the root.
+    /// </summary>
+    /// <remarks>The nearest match wins. The search does not visit siblings or <see cref="Children"/>.</remarks>
+    /// <exception cref="InvalidOperationException">No component on this entity or an ancestor is assignable to that type.</exception>
+    public T GetInParent<T>()
+        where T : Component =>
+        TryGetInParent<T>(out T? component)
+            ? component
+            : throw new InvalidOperationException(
+                $"A {GetType().Name} and its ancestors have no component assignable to {typeof(T).Name}.");
+
+    /// <summary>
     /// Advances this entity by one fixed step, before its components and its <see cref="Children"/>
     /// step. The scene steps in tree order, and a child sees the world position its parent just
     /// moved to.

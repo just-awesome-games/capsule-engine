@@ -47,6 +47,41 @@ public sealed class EntityTests
     }
 
     [Fact]
+    public void TryGetInParent_PrefersSelfThenTheNearestAncestor()
+    {
+        TestEntity root = new(Vector2.Zero);
+        TestEntity middle = new(Vector2.Zero) { Parent = root };
+        TestEntity leaf = new(Vector2.Zero) { Parent = middle };
+        TestEntity sibling = new(Vector2.Zero) { Parent = root };
+        DerivedComponent rootComponent = new();
+        DerivedComponent middleComponent = new();
+        DerivedComponent leafComponent = new();
+        root.Add(rootComponent);
+        middle.Add(middleComponent);
+        sibling.Add(new RecordingComponent([]));
+
+        Assert.Same(middleComponent, leaf.GetInParent<BaseComponent>());
+
+        leaf.Add(leafComponent);
+
+        Assert.True(leaf.TryGetInParent(out DerivedComponent? found));
+        Assert.Same(leafComponent, found);
+        Assert.Same(rootComponent, root.GetInParent<DerivedComponent>());
+        Assert.False(root.TryGetInParent<RecordingComponent>(out _));
+        Assert.False(leaf.TryGetInParent<RecordingComponent>(out _));
+    }
+
+    [Fact]
+    public void GetInParent_ThrowsWhenNoEntityInTheChainMatches()
+    {
+        TestEntity root = new(Vector2.Zero);
+        TestEntity child = new(Vector2.Zero) { Parent = root };
+        root.Add(new DerivedComponent());
+
+        Assert.Throws<InvalidOperationException>(() => child.GetInParent<SpriteRenderer>());
+    }
+
+    [Fact]
     public void ARemovedComponent_CanBeAttachedToAnotherEntity()
     {
         TestEntity first = new(Vector2.Zero);

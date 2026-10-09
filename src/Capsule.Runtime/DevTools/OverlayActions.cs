@@ -20,6 +20,7 @@ internal static class OverlayActions
     internal static readonly InputAction GameCamera = new("debug-overlay.game-camera");
     internal static readonly InputAction Exit = new("debug-overlay.exit");
     internal static readonly InputAction Click = new("debug-overlay.click");
+    internal static readonly InputAction Move = new("debug-overlay.move");
 
     // The free camera's. A pan is Pan held, or Grab held while Click goes down. Zoom and Sideways turn the
     // wheel into a zoom or a sideways scroll.
@@ -35,7 +36,7 @@ internal static class OverlayActions
     internal static readonly InputAction[] Actions =
     [
         MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, TimeScale, FramePane, ScenePage, GameCamera, Exit, Click,
-        Pan, Grab, Zoom, Sideways,
+        Move, Pan, Grab, Zoom, Sideways,
     ];
 
     // Shared by every overlay. The key is bound first because KeyName reads the first button.
@@ -56,6 +57,7 @@ internal static class OverlayActions
             .Bind(GameCamera, Key.C)
             .Bind(Exit, Key.E)
             .Bind(Click, MouseButton.Left)
+            .Bind(Move, Key.G)
             .Bind(Pan, MouseButton.Middle)
             .Bind(Grab, Key.Space)
             .Bind(Zoom, Key.LeftControl, Key.RightControl)

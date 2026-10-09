@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Numerics;
 using Capsule.Diagnostics;
 using Capsule.Input;
@@ -305,6 +306,12 @@ internal sealed class DebugOverlay : IDisposable
         SampleFrame(gameEnd);
         _draws.Alpha = _scheduler.InterpolationAlpha;
 
+        // A world tool, so it acts open or hidden.
+        if (_state != OverlayState.Closed && _input.WasPressed(OverlayActions.Move))
+        {
+            MoveSelection();
+        }
+
         bool open = _state == OverlayState.Open;
         bool menuChanged = Scene.ShowMenu(open);
         if (open)
@@ -600,6 +607,54 @@ internal sealed class DebugOverlay : IDisposable
         _cursor.Reset(_pages[^1].ReturnFocus);
         _pages.RemoveAt(_pages.Count - 1);
         _pageStale = true;
+    }
+
+    // The entity whose panel is on top moves to the world point last under the pointer, inside one stepped
+    // tick. With no entity panel on top nothing moves.
+    private void MoveSelection()
+    {
+        ForgetPointerOnSceneChange();
+        if (_pages[^1] is not { Kind: PageKind.Entity, Subject: { } entity, Name: { } name } || !_panelRows.Holds(entity))
+        {
+            SetStatus("Move needs an entity. Open its panel from the Scene page");
+
+            return;
+        }
+
+        if (entity is ScreenEntity)
+        {
+            SetStatus($"{name} is on the screen layer and has no world position");
+
+            return;
+        }
+
+        if (_pointerWorld is not { } point)
+        {
+            SetStatus("Move needs a world point. Point at the world first");
+
+            return;
+        }
+
+        // Set first, so a failure the step reports replaces it.
+        SetStatus(string.Create(CultureInfo.InvariantCulture, $"Moved {name} to {point.X:0.##}, {point.Y:0.##}"));
+        StepGameReporting("Move", () => MoveTo(entity, point));
+    }
+
+    // A camera following the entity or anything under it cuts with it, so closing shows no sweep.
+    private static void MoveTo(Entity entity, Vector2 world)
+    {
+        entity.Teleport(entity.Parent is { } parent ? parent.WorldTransform.InverseTransformPoint(world) : world);
+
+        Camera camera = entity.Scene.Camera;
+        for (Entity? carried = camera.Subject; carried is not null; carried = carried.Parent)
+        {
+            if (ReferenceEquals(carried, entity))
+            {
+                camera.Teleport(camera.Subject!.WorldPosition + camera.FollowOffset);
+
+                return;
+            }
+        }
     }
 
     private void Exit()
