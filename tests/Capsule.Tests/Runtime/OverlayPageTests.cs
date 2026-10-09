@@ -19,7 +19,7 @@ public sealed class OverlayPageTests
         rig.Open();
 
         Assert.Equal(
-            ["Scene", "Step", "Debug Draw", "Time Scale", "Restart", "Load Scene", "Game Camera", "Frame Pane", "Hide", "Exit"],
+            ["Scene", "Step", "Debug Draw", "Time Scale", "Restart", "Load Scene", "Game Camera", "Frame Pane", "Hide", "Help", "Exit"],
             rig.Rows());
         Assert.Equal(0, rig.Overlay.Focus);
         Assert.Null(rig.Overlay.Title);
@@ -59,6 +59,31 @@ public sealed class OverlayPageTests
 
         Assert.True(rig.Host.ExitRequested);
         Assert.Equal(1, rig.Scheduler.Tick);
+    }
+
+    // A control the overlay never shows is one a developer never learns.
+    [Fact]
+    public void EveryOverlayAction_IsTaughtByARootRowOrALineOfTheHelpPage()
+    {
+        using OverlayRig rig = new(CreateHost(), CreateRegistry());
+        rig.Open();
+        HashSet<InputAction> taught = [];
+        foreach (OverlayRow row in rig.Overlay.Rows)
+        {
+            if (row.Hotkey is { } hotkey)
+            {
+                taught.Add(hotkey);
+            }
+        }
+
+        rig.Press(Key.F1);
+        Assert.Equal("Help", rig.Overlay.Title);
+        foreach (HelpLine line in OverlayActions.HelpLines)
+        {
+            taught.UnionWith(line.Covers);
+        }
+
+        Assert.Equal([], OverlayActions.Actions.Where(action => !taught.Contains(action)).ToArray());
     }
 
     [Fact]

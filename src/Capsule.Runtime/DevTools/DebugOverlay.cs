@@ -157,6 +157,7 @@ internal sealed class DebugOverlay : IDisposable
         DebugDraw,
         TimeScale,
         LoadScene,
+        Help,
     }
 
     internal FrameView View => _sceneSimulation.View;
@@ -419,6 +420,7 @@ internal sealed class DebugOverlay : IDisposable
         Add("Game Camera", _freeCamera.Attach, OverlayActions.GameCamera);
         Add("Frame Pane", ToggleFramePane, OverlayActions.FramePane);
         Add("Hide", () => _state = OverlayState.Hidden, OverlayActions.Hide);
+        Add("Help", () => Open(PageKind.Help), OverlayActions.Help, opensPage: true);
         Add("Exit", Exit, OverlayActions.Exit);
 
         void Add(string label, Action activate, InputAction hotkey, bool repeats = false, bool opensPage = false) =>
@@ -520,6 +522,7 @@ internal sealed class DebugOverlay : IDisposable
             PageKind.Camera => _panelRows.CameraPanel(_rows),
             PageKind.DebugDraw => BuildDebugDraw(),
             PageKind.TimeScale => BuildTimeScale(),
+            PageKind.Help => BuildHelp(),
             _ => Copy(_loadRows, "Load Scene"),
         };
 
@@ -557,6 +560,22 @@ internal sealed class DebugOverlay : IDisposable
         }
 
         return "Debug Draw";
+    }
+
+    // Sections are set apart as the panels set theirs.
+    private string BuildHelp()
+    {
+        foreach (HelpLine line in OverlayActions.HelpLines)
+        {
+            if (line.Keys is null && _rows.Count > 0)
+            {
+                _rows.Add(new OverlayRow(string.Empty, null));
+            }
+
+            _rows.Add(line.Keys is null ? new OverlayRow($"[{line.Label}]", null) : new OverlayRow(line.Label, null, line.Keys));
+        }
+
+        return "Help";
     }
 
     // No row is marked when a game set a pace off the ladder.

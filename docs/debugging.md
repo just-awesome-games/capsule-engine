@@ -12,7 +12,7 @@ a shipping publish drops.
 | Enter, pad south | Menu | Activates the focused row. |
 | Backspace, Left, pad east, D-pad left | Menu | Returns to the previous page. |
 | Right, D-pad right | Menu | Steps the game once. Held, it repeats. |
-| `S`, `D`, `T`, `L` | Root page | Opens Scene, Debug Draw, Time Scale or Load Scene. |
+| `S`, `D`, `T`, `L`, `F1` | Root page | Opens Scene, Debug Draw, Time Scale, Load Scene or Help. |
 | `R`, `C`, `F`, `H`, `E` | Any page | Restart, Game Camera, Frame Pane, Hide or Exit. |
 | `H`, `C` | Hidden | Shows the menu again, or returns the view to the game's camera. |
 | Pointer, left click | Row | Pointing focuses the row and a click activates it. |
@@ -40,6 +40,7 @@ tenth of the view's visible span.
 | Game Camera | `C` | Returns the view to the game's camera. |
 | Frame Pane | `F` | Shows or hides the frame rate, frame times, steps per second, GC counts and heap. |
 | Hide | `H` | Withdraws the menu and keeps the run held. |
+| Help | `F1` | Lists each control no row shows by its main keys. |
 | Exit | `E` | Ends the run. |
 
 ## Holding the run

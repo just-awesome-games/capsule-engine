@@ -19,6 +19,7 @@ internal static class OverlayActions
     internal static readonly InputAction ScenePage = new("debug-overlay.scene");
     internal static readonly InputAction GameCamera = new("debug-overlay.game-camera");
     internal static readonly InputAction Exit = new("debug-overlay.exit");
+    internal static readonly InputAction Help = new("debug-overlay.help");
     internal static readonly InputAction Click = new("debug-overlay.click");
     internal static readonly InputAction Move = new("debug-overlay.move");
 
@@ -35,7 +36,7 @@ internal static class OverlayActions
     // Every button bound here is withheld from the game while the overlay holds the run.
     internal static readonly InputAction[] Actions =
     [
-        MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, TimeScale, FramePane, ScenePage, GameCamera, Exit, Click,
+        MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, TimeScale, FramePane, ScenePage, GameCamera, Exit, Help, Click,
         Move, Pan, Grab, Zoom, Sideways,
     ];
 
@@ -56,6 +57,7 @@ internal static class OverlayActions
             .Bind(ScenePage, Key.S)
             .Bind(GameCamera, Key.C)
             .Bind(Exit, Key.E)
+            .Bind(Help, Key.F1)
             .Bind(Click, MouseButton.Left)
             .Bind(Move, Key.G)
             .Bind(Pan, MouseButton.Middle)
@@ -65,7 +67,30 @@ internal static class OverlayActions
             .BindAxis(Scroll, MouseAxis.ScrollY)
             .BindAxis(ScrollSideways, MouseAxis.ScrollX);
 
+    // The Help page: each input no row shows, by its main keys as a row shows its first. A line with no keys
+    // is a heading. Covers names the actions a line teaches, and every action is taught by a root row or a
+    // line here.
+    internal static readonly HelpLine[] HelpLines =
+    [
+        new("Menu"),
+        new("Move the focus", "Up, Down, Point", MenuUp, MenuDown),
+        new("Scroll the rows", "Wheel"),
+        new("Activate the row", "Enter, Click", Confirm, Click),
+        new("Go back", "Backspace, Left", Back),
+        new("World"),
+        new("Scroll the view", "Wheel"),
+        new("Scroll sideways", "Shift+Wheel", Sideways),
+        new("Zoom", "Ctrl+Wheel", Zoom),
+        new("Pan", "Middle-drag, Space+left-drag", Pan, Grab),
+        new("Move the open entity here", "G", Move),
+        new("Hidden"),
+        new("Show the menu", "H", Hide),
+        new("Return to the game's camera", "C", GameCamera),
+    ];
+
     internal static string KeyName(InputAction action) => KeyName(Bindings.ButtonsFor(action)[0]);
 
     internal static string KeyName(InputButton button) => button == Key.Grave ? "~" : button.Name;
 }
+
+internal readonly record struct HelpLine(string Label, string? Keys = null, params InputAction[] Covers);

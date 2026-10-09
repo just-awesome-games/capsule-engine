@@ -164,6 +164,7 @@ public sealed class OverlayToggleTests
         rig.Open();
         rig.Press(Key.Up);
         rig.Press(Key.Up);
+        rig.Press(Key.Up);
         Assert.Equal("Hide", rig.Focused());
 
         rig.Press(Key.Enter);

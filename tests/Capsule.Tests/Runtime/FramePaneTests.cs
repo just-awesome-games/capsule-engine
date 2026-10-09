@@ -45,6 +45,7 @@ public sealed class FramePaneTests
         rig.Press(Key.Up);
         rig.Press(Key.Up);
         rig.Press(Key.Up);
+        rig.Press(Key.Up);
         Assert.Equal("Frame Pane", rig.Focused());
 
         for (int frame = 0; frame < 70; frame++)
@@ -78,6 +79,7 @@ public sealed class FramePaneTests
         Assert.Empty(overlay.View.ScreenSprites.ToArray());
 
         rig.Open();
+        rig.Press(Key.Up);
         rig.Press(Key.Up);
         rig.Press(Key.Up);
         rig.Press(Key.Up);
