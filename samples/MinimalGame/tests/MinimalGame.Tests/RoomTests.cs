@@ -190,8 +190,8 @@ public sealed class RoomTests
         Assert.True(room.RunUntil(() => player.Velocity.X == 0f, StepBudget), "the slide never came to a stop");
     }
 
-    // A room torn down with the player inside the camera zone ends the probe's contact after the camera
-    // has left the scene, as walking out through the east door does.
+    // A room torn down with the player inside the camera zone ends the zone's contact after the zone has
+    // left the scene, as walking out through the east door does.
     [Fact]
     public void TearingDownTheRoomWithThePlayerInTheCameraZone_Succeeds()
     {
