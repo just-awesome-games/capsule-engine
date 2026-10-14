@@ -901,6 +901,11 @@ public partial class Entity
     internal void RunDebugPanel(DebugPanel panel)
     {
         panel.Section("Entity");
+        if (_parent is not null)
+        {
+            panel.Field("Parent", _parent);
+        }
+
         if (Name is { } name)
         {
             panel.Field("Name", name);

@@ -1,12 +1,14 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
+using Capsule.Tiles;
 using Capsule.UI;
 
 namespace Capsule.Runtime.DevTools;
@@ -20,6 +22,9 @@ internal sealed class DebugOverlay : IDisposable
 
     // The share of the selection's bounds that Frame leaves clear on each side.
     internal const float FrameMargin = 0.1f;
+
+    // A click this close to the last pick's, in back-buffer pixels, is on the same spot.
+    internal const float SameSpotPixels = 3f;
 
     // Slowest first. 4x is the top because the default frame budget is eight steps.
     internal static readonly (double Scale, string Label)[] TimeScales =
@@ -57,6 +62,11 @@ internal sealed class DebugOverlay : IDisposable
     private readonly InputButton[] _overlayButtons;
     private readonly bool[] _withheld;
 
+    // The held frame's attribution, asked for at the first pick and dropped with the hold. What the last pick
+    // found is reused by the next.
+    private readonly List<DrawRun> _drawRuns = [];
+    private readonly List<Entity> _picked = [];
+
     private OverlayState _state;
     private bool _toggleDown;
     private bool _framePaneOn;
@@ -90,6 +100,13 @@ internal sealed class DebugOverlay : IDisposable
     // to the scene it was read in, and closing or a change of scene drops it.
     private Vector2? _pointerWorld;
     private Scene? _pointerScene;
+
+    // The parallax of the frame the pointer was read over, which a pick moves the point into each layer by.
+    private Vector2 _pointerParallax;
+
+    // Where this frame's click on the world asks for a pick, and where the last pick was, in back-buffer pixels.
+    private Vector2? _click;
+    private Vector2? _lastPick;
 
     private double _lastFrameMs;
 
@@ -256,9 +273,13 @@ internal sealed class DebugOverlay : IDisposable
         {
             overWorld = true;
             _pointerWorld = placement.ToWorld(window);
+            _pointerParallax = placement.Parallax;
         }
 
         _freeCamera.Read(_input, window, overWorld, world, holding);
+
+        // A click that starts a grab pan picks nothing.
+        _click = overWorld && _input.WasPressed(OverlayActions.Click) && !_input.IsHeld(OverlayActions.Grab) ? window : null;
 
         // A press that served the overlay cannot land on the resumed step.
         holding |= wasHeld;
@@ -294,6 +315,11 @@ internal sealed class DebugOverlay : IDisposable
             return;
         }
 
+        if (_state == OverlayState.Closed && _scenes.DrawRuns is not null)
+        {
+            _scenes.DrawRuns = null;
+        }
+
         _lastFrameMs = lastFrameMs;
         if (renderer is not null)
         {
@@ -326,6 +352,11 @@ internal sealed class DebugOverlay : IDisposable
         _draws.Alpha = _scheduler.InterpolationAlpha;
 
         // World tools act open or hidden.
+        if (_state != OverlayState.Closed && _click is { } click)
+        {
+            Pick(click);
+        }
+
         if (_state != OverlayState.Closed && _input.WasPressed(OverlayActions.Move))
         {
             MoveSelection();
@@ -353,7 +384,7 @@ internal sealed class DebugOverlay : IDisposable
             if (_state == OverlayState.Open)
             {
                 ForgetPointerOnSceneChange();
-                Scene.SetPointer(_pointerWorld);
+                ReadPointer();
                 BuildRows();
                 if (!_pageShown)
                 {
@@ -677,6 +708,66 @@ internal sealed class DebugOverlay : IDisposable
         {
             _draws.Emit();
         }
+    }
+
+    // A click selects the topmost entity drawn under the pointer, outermost first, and another on the same spot
+    // the next one down from the selection. The pick replaces an entity panel on top.
+    private void Pick(Vector2 window)
+    {
+        ForgetPointerOnSceneChange();
+        if (_pointerWorld is not { } point)
+        {
+            return;
+        }
+
+        bool sameSpot = _lastPick is { } last && Vector2.Distance(last, window) <= SameSpotPixels;
+        _lastPick = window;
+        PickUnder(point);
+        if (_picked.Count == 0)
+        {
+            SetStatus("Nothing is drawn here");
+
+            return;
+        }
+
+        int next = sameSpot && Selection() is { } selected ? _picked.IndexOf(selected) + 1 : 0;
+        Entity entity = _picked[next % _picked.Count];
+        SetStatus(string.Empty);
+        if (_pages[^1].Kind == PageKind.Entity)
+        {
+            Pop();
+        }
+
+        Open(entity);
+    }
+
+    // Asks the held frame for its attribution, which rebuilds it once, then reads what it draws at point.
+    private void PickUnder(Vector2 point)
+    {
+        if (!ReferenceEquals(_scenes.DrawRuns, _drawRuns))
+        {
+            _scenes.DrawRuns = _drawRuns;
+        }
+
+        Picker.Pick(_scenes.View, CollectionsMarshal.AsSpan(_drawRuns), point, _pointerParallax, _picked);
+    }
+
+    // The pointer line names the entity on top, which a first click selects, and the cell of a tile map on top.
+    private void ReadPointer()
+    {
+        Entity? under = null;
+        (int X, int Y) cell = default;
+        if (_pointerWorld is { } point)
+        {
+            PickUnder(point);
+            under = _picked.Count > 0 ? _picked[0] : null;
+            if (under is TileMap map)
+            {
+                cell = map.CellAt(ScrollLayout.InLayer(point, _pointerParallax, map.ScrollFactor));
+            }
+        }
+
+        Scene.SetPointer(_pointerWorld, under, cell);
     }
 
     // The entity whose panel is on top moves to the world point last under the pointer, inside one stepped

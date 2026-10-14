@@ -21,6 +21,7 @@ a shipping publish drops.
 | Shift+wheel, Alt+wheel, horizontal wheel | World | Scrolls the view horizontally. |
 | Ctrl+wheel | World | Zooms about the pointer, from four times closer to eight times further than the game's camera. |
 | Middle-drag, Space+left-drag | World | Pans the view. |
+| Left click | World, open or hidden | Selects the entity drawn under the pointer, outermost first, and opens its panel. Another click on the same spot selects the next one down. |
 | `G` | Entity panel, open or hidden | Moves the entity to the world point last under the pointer, as one step. A camera following it or anything under it cuts with it. |
 | `F`, pad north | Entity panel, open or hidden | Flies the view to the entity and everything under it. |
 
@@ -57,7 +58,7 @@ and zooming never write the game's `Camera`. `C`, the Game Camera row, a scene c
 overlay return the view to the game's camera. A frame capture requested meanwhile waits for the game's
 camera. Zoomed out, a declared render surface is drawn at a whole multiple of its resolution, up to the
 next whole scale it is presented at. The menu's top three lines show the scene, the tick and the world
-point last under the pointer.
+point last under the pointer, with the entity on top there, and a tile map's cell and tile.
 
 An entity's panel on top selects that entity. While the run is held, the selection outlines each renderer's
 bounds, orange on the entity and blue on what is under it. It also draws every debug draw the entity and

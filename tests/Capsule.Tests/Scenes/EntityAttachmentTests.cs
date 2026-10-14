@@ -172,6 +172,7 @@ public sealed class EntityAttachmentTests
         Assert.Equal(
             [
                 ("Entity", null),
+                ("Parent", "Node"),
                 ("Transform", "(1, 1) r 0.5 s (1, 1)"),
                 ("World Transform", "(12, 2) r 0.5 s (2, 2)"),
                 ("ZIndex", "0"),

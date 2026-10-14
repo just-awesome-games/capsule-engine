@@ -24,6 +24,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     private bool _viewBuilt;
 
     private CameraView? _viewCamera;
+    private List<DrawRun>? _drawRuns;
 
     // Set by a host that places this simulation's world layer itself, not through the scene's camera.
     // The camera's viewport is then unused. The undrawn-world warning is skipped. A new simulation starts
@@ -83,6 +84,19 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         set
         {
             _viewCamera = value;
+            _viewStale = true;
+        }
+    }
+
+    // Set by a host that picks against View. Each build then rewrites it with the entity that stored each
+    // run of View's world sprites. Setting it marks View stale. A new simulation starts with none.
+    internal List<DrawRun>? DrawRuns
+    {
+        get => _drawRuns;
+
+        set
+        {
+            _drawRuns = value;
             _viewStale = true;
         }
     }
@@ -232,7 +246,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         _building = true;
         try
         {
-            Scene.DrawFrame(_view, _viewCamera);
+            Scene.DrawFrame(_view, _viewCamera, _drawRuns);
         }
         finally
         {

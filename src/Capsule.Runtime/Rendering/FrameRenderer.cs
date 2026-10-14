@@ -496,10 +496,11 @@ internal sealed class FrameRenderer : IDisposable
         // keeps its fractional positions.
         Vector2 topLeft = new(world.Left, world.Top);
         bool snap = view.Sampling == TextureSampling.Point;
+        Vector2 parallax = ScrollLayout.Parallax(topLeft, span, view.Camera.ScrollCenter);
 
         if (present.Scale > 0f)
         {
-            _world = new WorldPlacement(topLeft, fit, present, snap);
+            _world = new WorldPlacement(topLeft, fit, present, snap, parallax);
         }
 
         _batcher.Begin(WorldToSurface(topLeft, fit.Scale), Sampler(view.Sampling));
@@ -518,7 +519,7 @@ internal sealed class FrameRenderer : IDisposable
             FrameCorner = topLeft,
         };
 
-        DrawIntents(view.Sprites, view.Lines, view.ParallaxLayers, ScrollLayout.Parallax(topLeft, span, view.Camera.ScrollCenter), view.MaterialRuns, ref pass);
+        DrawIntents(view.Sprites, view.Lines, view.ParallaxLayers, parallax, view.MaterialRuns, ref pass);
         _batcher.End();
 
         if (view.LitWorld && _lightMap is { } map)

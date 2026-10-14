@@ -25,6 +25,10 @@ internal static class ScrollLayout
     internal static Vector2 Corner(Vector2 topLeft, Vector2 parallax, Vector2 factor) =>
         topLeft + (parallax * (Vector2.One - factor));
 
+    // The position in a layer at factor that the frame draws at world point, the inverse of Place.
+    internal static Vector2 InLayer(Vector2 world, Vector2 parallax, Vector2 factor) =>
+        world + (parallax * (Vector2.One - factor));
+
     // Where an intent at position in its layer lands in the frame's world rect: the same offset from
     // the frame's corner that it has from the layer's, quantised to whole surface pixels where snap is
     // set. With the layer's corner at the frame's, this is the world's own placement.

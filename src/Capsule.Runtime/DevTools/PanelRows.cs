@@ -65,17 +65,12 @@ internal sealed class PanelRows
         return scene.GetType().Name;
     }
 
-    // The Parent row opens the parent's panel and steps nothing.
+    // A field naming an entity, such as Parent, opens that entity's panel and steps nothing.
     internal string EntityPanel(Entity entity, List<OverlayRow> rows)
     {
         _panel.Clear();
         entity.RunDebugPanel(_panel);
         AddRows(rows);
-
-        if (entity.Parent is { } parent)
-        {
-            rows.Insert(1, new OverlayRow("Parent", () => _open(parent), DisplayName(parent)));
-        }
 
         return DisplayName(entity);
     }
@@ -113,7 +108,8 @@ internal sealed class PanelRows
         return before == 0 ? name : string.Create(CultureInfo.InvariantCulture, $"{name} ({before})");
     }
 
-    // Fields, then commands and toggles under a Commands sub-heading. Only those are focusable.
+    // Fields, then commands and toggles under a Commands sub-heading. Only those and a field naming an
+    // entity in the held scene are focusable.
     private void AddRows(List<OverlayRow> rows)
     {
         ReadOnlySpan<DebugPanelRow> panel = _panel.Rows;
@@ -147,7 +143,11 @@ internal sealed class PanelRows
         bool anyCommand = false;
         foreach (DebugPanelRow row in section)
         {
-            if (row.Kind == DebugPanelRowKind.Field)
+            if (row is { Kind: DebugPanelRowKind.Field, Subject: Entity entity } && Holds(entity))
+            {
+                rows.Add(new OverlayRow(row.Label, () => _open(entity), DisplayName(entity)));
+            }
+            else if (row.Kind == DebugPanelRowKind.Field)
             {
                 rows.Add(new OverlayRow(row.Label, null, row.Value));
             }

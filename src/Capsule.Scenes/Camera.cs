@@ -291,15 +291,15 @@ public partial class Camera
     /// <summary>
     /// Fills this camera's panel in the debug overlay, as <see cref="Component.OnDebugPanel"/> describes.
     /// The engine writes <see cref="Center"/>, <see cref="Zoom"/>, <see cref="ViewportSize"/>,
-    /// <see cref="Fit"/>, <see cref="Offset"/>, <see cref="Bounds"/> and <see cref="VisibleRegion"/> before
-    /// this call.
+    /// <see cref="Fit"/>, <see cref="Offset"/>, <see cref="Bounds"/>, <see cref="VisibleRegion"/> and
+    /// <see cref="Subject"/> before this call.
     /// </summary>
     /// <remarks>The overlay opens the panel from the Camera row of its scene page.</remarks>
     /// <example>
     /// <code>
     /// protected override void OnDebugPanel(DebugPanel panel)
     /// {
-    ///     panel.Field("Subject", _subject?.Name);
+    ///     panel.Field("Lookahead", _lookahead);
     ///     panel.Command("Shake", () =&gt; Shake(1f));
     /// }
     /// </code>
@@ -327,6 +327,7 @@ public partial class Camera
         panel.Field("Offset", Offset);
         panel.Field("Bounds", Bounds is { } bounds ? DebugPanel.Format(bounds) : null);
         panel.Field("VisibleRegion", VisibleRegion);
+        panel.Field("Subject", Subject);
 
         if (_started)
         {

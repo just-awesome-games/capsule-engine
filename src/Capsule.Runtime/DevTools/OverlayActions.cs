@@ -80,6 +80,7 @@ internal static class OverlayActions
         new("Activate the row", "Enter, Click", Confirm, Click),
         new("Go back", "Backspace, Left", Back),
         new("World"),
+        new("Select what is drawn here, again to go deeper", "Click"),
         new("Scroll the view", "Wheel"),
         new("Scroll sideways", "Shift+Wheel", Sideways),
         new("Zoom", "Ctrl+Wheel", Zoom),

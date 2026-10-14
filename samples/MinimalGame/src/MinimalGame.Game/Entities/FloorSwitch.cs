@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule;
 using Capsule.Animation;
+using Capsule.Diagnostics;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -40,6 +41,9 @@ public sealed class FloorSwitch : Entity
 
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context) => _showLift.Step();
+
+    /// <inheritdoc/>
+    protected override void OnDebugPanel(DebugPanel panel) => panel.Field("Lift", Lift);
 
     private void OnPlayerEntered(ColliderContact2D contact)
     {

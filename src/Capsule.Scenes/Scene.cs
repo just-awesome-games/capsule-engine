@@ -673,6 +673,10 @@ public class Scene
     /// Runs before the scene's first frame is built, which is when the camera opens. A scene belongs
     /// to a single <see cref="SceneSimulation"/> for its lifetime and never starts twice.
     /// </summary>
+    /// <remarks>
+    /// It runs before tick 0, so a sequence or timer started here takes its first step on tick 0, and a
+    /// wait of n ticks ends on tick n - 1.
+    /// </remarks>
     protected virtual void OnStart()
     {
     }
@@ -973,9 +977,11 @@ public class Scene
 
     // Rewrites view from the scene as it stands, calling every visible renderer's Draw in draw order.
     // A change to the scene from inside Draw throws. A frame is then the same however often it is built.
-    // A host's camera, when one is passed, frames it in place of the scene's.
-    internal void DrawFrame(FrameView view, CameraView? camera = null)
+    // A host's camera, when one is passed, frames it in place of the scene's. runs, when passed, is
+    // rewritten with the entity that stored each run of the frame's world sprites.
+    internal void DrawFrame(FrameView view, CameraView? camera = null, List<DrawRun>? runs = null)
     {
+        runs?.Clear();
         view.Clear();
         view.Camera = camera ?? Camera.ToView();
         view.Canvas = Run.Canvas;
@@ -1003,6 +1009,11 @@ public class Scene
                     view.ScrollFactor = entity.ScrollFactor;
                     view.SetStyle(tint, flash);
                     view.Material = renderer.Material;
+                    if (runs is not null && (runs.Count == 0 || !ReferenceEquals(runs[^1].Entity, entity)))
+                    {
+                        runs.Add(new DrawRun(entity, view.Sprites.Length));
+                    }
+
                     renderer.Draw(view);
                 }
             }

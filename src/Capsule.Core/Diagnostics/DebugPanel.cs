@@ -116,6 +116,15 @@ public sealed class DebugPanel
 
     internal void Clear() => _rows.Clear();
 
+    // A field naming subject, which the overlay opens from the row. The overload that takes subject's type
+    // lives in the module that knows it.
+    internal void Link(string label, string? value, object? subject)
+    {
+        ArgumentNullException.ThrowIfNull(label);
+
+        _rows.Add(new DebugPanelRow(DebugPanelRowKind.Field, label, value ?? Null, null, Subject: subject));
+    }
+
     // Every overload calls this instead of the public string overload, because [Conditional] removes the
     // call site and the row would be lost wherever this assembly is built for shipping.
     private void Write(string label, string value)
@@ -144,8 +153,14 @@ internal enum DebugPanelRowKind
 }
 
 // One row a panel holds. Value is set for a field, Activate for a command or toggle, and a toggle's
-// Activate already carries the flip. On is the toggle's shown state.
-internal readonly record struct DebugPanelRow(DebugPanelRowKind Kind, string Label, string? Value, Action? Activate, bool On = false)
+// Activate already carries the flip. On is the toggle's shown state. Subject is what a linked field names.
+internal readonly record struct DebugPanelRow(
+    DebugPanelRowKind Kind,
+    string Label,
+    string? Value,
+    Action? Activate,
+    bool On = false,
+    object? Subject = null)
 {
     internal bool IsHeading => Kind == DebugPanelRowKind.Heading;
 }

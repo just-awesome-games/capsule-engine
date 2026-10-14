@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Tiles;
 using Capsule.UI;
 
 namespace Capsule.Runtime.DevTools;
@@ -36,6 +37,9 @@ internal sealed class OverlayScene : Scene
     // The pointer line is measured at its full width, blank or not, so a first point never widens the menu.
     private static readonly float PointerWidth = Font.Measure(new string('0', PointerLength)).X;
 
+    // The font is monospace. The pointer line is cut to the menu's width in these.
+    private static readonly float GlyphWidth = Font.Measure("0").X;
+
     private readonly ScreenEntity _menu;
     private readonly ColorRect _backdrop;
     private readonly ColorRect _highlight;
@@ -54,8 +58,13 @@ internal sealed class OverlayScene : Scene
 
     // The tick and pointer lines are written into these. Each holds its widest figures.
     private readonly char[] _tickText = new char[32];
-    private readonly char[] _pointerText = new char[64];
+    private readonly char[] _pointerText = new char[128];
     private Vector2? _pointerWorld;
+
+    // The entity the pointer line names, and its name read once per change.
+    private Entity? _under;
+    private string? _underName;
+    private (int X, int Y) _cell;
 
     // The last ShowPage and Place. RowAt reads them to turn a pointer into a row.
     private IReadOnlyList<OverlayRow> _page = [];
@@ -152,15 +161,24 @@ internal sealed class OverlayScene : Scene
     }
 
     // The world point the pointer line shows, or null for a blank line before the pointer has stood over
-    // the world. The figures are fixed-width, which keeps the line's width while the pointer moves.
-    internal void SetPointer(Vector2? world)
+    // the world. The figures are fixed-width, which keeps the line's width while the pointer moves. under is
+    // the entity on top there, and cell the pointer's cell when under is a tile map. The line is cut at the
+    // menu's width.
+    internal void SetPointer(Vector2? world, Entity? under, (int X, int Y) cell)
     {
-        if (world == _pointerWorld)
+        if (world == _pointerWorld && ReferenceEquals(under, _under) && cell == _cell)
         {
             return;
         }
 
+        if (!ReferenceEquals(under, _under))
+        {
+            _under = under;
+            _underName = under is null ? null : PanelRows.DisplayName(under);
+        }
+
         _pointerWorld = world;
+        _cell = cell;
         NumberText line = new(_pointerText);
         if (world is { } point)
         {
@@ -169,7 +187,25 @@ internal sealed class OverlayScene : Scene
             line.Add(point.Y, "F1", PointerFigureWidth);
         }
 
-        _pointer.SetText(line.Written);
+        if (_underName is { } name)
+        {
+            line.Add("  ");
+            line.Add(name);
+        }
+
+        if (under is TileMap map && cell.X >= 0 && cell.Y >= 0 && cell.X < map.Width && cell.Y < map.Height)
+        {
+            line.Add(" (");
+            line.Add(cell.X);
+            line.Add(", ");
+            line.Add(cell.Y);
+            line.Add(") ");
+            line.Add(map.TileAt(cell.X, cell.Y).Name);
+        }
+
+        ReadOnlySpan<char> written = line.Written;
+        int fits = _width > 0 ? Math.Max(PointerLength, (int)((_width - (Padding * 2)) / GlyphWidth)) : written.Length;
+        _pointer.SetText(written[..Math.Min(written.Length, fits)]);
     }
 
     // Whether a point on the overlay's canvas lies on the menu's backdrop.
@@ -220,6 +256,9 @@ internal sealed class OverlayScene : Scene
         }
 
         _width = (int)width + (Padding * 2);
+
+        // The pointer line is cut again at the new width.
+        _pointerWorld = null;
         int lines = _rowsAbove + _shown + RowsBelowItems;
         _backdrop.Size = new Vector2(_width, (lines * Font.LineHeight) + (Padding * 2));
         _sceneName.Offset = new Vector2(Padding, RowTop(0));

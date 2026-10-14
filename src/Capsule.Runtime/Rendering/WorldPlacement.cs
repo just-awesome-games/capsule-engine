@@ -6,7 +6,8 @@ namespace Capsule.Runtime.Rendering;
 // Where a drawn frame's world landed in the back buffer. TopLeft is the world rect's corner, where the
 // frame's pixel grid is anchored. Fit is where that rect landed on the surface, Present where the
 // surface landed in the back buffer, and Snap whether the frame quantised to the surface's pixel grid.
-internal readonly record struct WorldPlacement(Vector2 TopLeft, Letterbox Fit, ScreenPlacement Present, bool Snap)
+// Parallax is the frame's ScrollLayout.Parallax, which places each scrolled layer.
+internal readonly record struct WorldPlacement(Vector2 TopLeft, Letterbox Fit, ScreenPlacement Present, bool Snap, Vector2 Parallax)
 {
     internal float PixelsPerUnit => Fit.Scale * Present.Scale;
 

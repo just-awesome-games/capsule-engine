@@ -826,6 +826,6 @@ public sealed class FocusNavigator : Component
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
         panel.Field("Items", Items.Length);
-        panel.Field("Focused", Focused?.Entity?.GetType().Name);
+        panel.Field("Focused", Focused?.Entity);
     }
 }

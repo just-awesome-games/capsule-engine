@@ -87,6 +87,13 @@ internal sealed class SceneHost : ISimulation, IDisposable
         set => _current.ViewCamera = value;
     }
 
+    // The current simulation's draw attribution. A scene the run moves to starts with none.
+    internal List<DrawRun>? DrawRuns
+    {
+        get => _current.DrawRuns;
+        set => _current.DrawRuns = value;
+    }
+
     public void Step(in StepContext context)
     {
         if (!CanStep())
