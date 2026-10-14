@@ -576,6 +576,11 @@ public partial class Entity
         return false;
     }
 
+    /// <summary>Whether a component assignable to <typeparamref name="T"/> is attached.</summary>
+    public bool Has<T>()
+        where T : Component =>
+        TryGet<T>(out _);
+
     /// <summary>Gets the first attached component assignable to <typeparamref name="T"/>.</summary>
     /// <exception cref="InvalidOperationException">No attached component is assignable to that type.</exception>
     public T Get<T>()

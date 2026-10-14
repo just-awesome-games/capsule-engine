@@ -43,6 +43,8 @@ public sealed class EntityTests
         Assert.True(entity.TryGet(out BaseComponent? found));
         Assert.Same(component, found);
         Assert.Same(component, entity.Get<DerivedComponent>());
+        Assert.True(entity.Has<BaseComponent>());
+        Assert.False(entity.Has<SpriteRenderer>());
         Assert.Throws<InvalidOperationException>(() => entity.Get<SpriteRenderer>());
     }
 
@@ -92,7 +94,7 @@ public sealed class EntityTests
         first.Remove(component);
         second.Add(component);
 
-        Assert.False(first.TryGet<DerivedComponent>(out _));
+        Assert.False(first.Has<DerivedComponent>());
         Assert.Same(component, second.Get<DerivedComponent>());
         Assert.Same(second, component.Entity);
     }
@@ -230,7 +232,7 @@ public sealed class EntityTests
         Assert.Throws<InvalidOperationException>(() => entity.Add(refusing));
 
         Assert.Null(refusing.Entity);
-        Assert.False(entity.TryGet<Refusing>(out _));
+        Assert.False(entity.Has<Refusing>());
     }
 
     private sealed class TestEntity(Vector2 position) : Entity(position);
