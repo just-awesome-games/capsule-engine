@@ -22,6 +22,10 @@ namespace Capsule.Rendering;
 /// </remarks>
 public sealed class FrameView
 {
+    // A rect that overlaps nothing, which an empty one does not guarantee: a crossed rect still overlaps
+    // a rect that straddles it.
+    private static readonly Rect Nothing = new(float.PositiveInfinity, float.PositiveInfinity, float.NegativeInfinity, float.NegativeInfinity);
+
     private readonly Layer _world = new();
     private readonly Layer _screen = new();
     private readonly List<ParallaxLayer> _parallax = [];
@@ -88,7 +92,8 @@ public sealed class FrameView
     /// The screen layer's extent in canvas pixels, with the origin at its top-left corner.
     /// </summary>
     /// <remarks>
-    /// Screen intent is culled against it. A non-positive canvas disables that culling.
+    /// Screen intent is culled against it. A non-positive canvas disables that culling. Inside a renderer
+    /// under a <c>ClipRect</c>, screen intent is also culled against the region that clip shows.
     /// </remarks>
     public Vector2 Canvas
     {
@@ -96,9 +101,45 @@ public sealed class FrameView
         internal set
         {
             _canvas = value;
-            _screen.Bounds = new Rect(Vector2.Zero, value);
-            _screen.Culls = !_screen.Bounds.IsEmpty;
+            UpdateScreenBounds();
         }
+    }
+
+    // Clips the screen intent stored from here on until the next BeginClip or ClearClip. A clip is the
+    // intersection of its levels, one per nested ClipRect, each a rect in canvas pixels that moves from
+    // previous to current across the step. BeginClip starts one, AddClipLevel adds a level, and EndClip
+    // closes it. An unchanged clip between two renderers is never set again. Each change opens a run in
+    // ScreenClipRuns once something is stored, and narrows the screen layer's cull bounds to the canvas and
+    // the clip's reach.
+    internal void BeginClip()
+    {
+        _screen.ClipStart = _screen.ClipLevels.Count;
+        _screen.ClipCount = 0;
+    }
+
+    internal void AddClipLevel(in Rect previous, in Rect current)
+    {
+        _screen.ClipLevels.Add(new ClipRegion(previous, current));
+        _screen.ClipCount++;
+    }
+
+    internal void EndClip()
+    {
+        _screen.ClipSerial++;
+        UpdateScreenBounds();
+    }
+
+    // Ends the clip. The screen intent stored from here on is cut by none.
+    internal void ClearClip()
+    {
+        if (_screen.ClipCount == 0)
+        {
+            return;
+        }
+
+        _screen.ClipCount = 0;
+        _screen.ClipSerial++;
+        UpdateScreenBounds();
     }
 
     // The running renderer's material, and null for the engine's own shader outside a renderer. A
@@ -193,6 +234,15 @@ public sealed class FrameView
     internal ReadOnlySpan<MaterialRun> MaterialRuns => CollectionsMarshal.AsSpan(_world.Runs);
 
     internal ReadOnlySpan<MaterialRun> ScreenMaterialRuns => CollectionsMarshal.AsSpan(_screen.Runs);
+
+    // The runs of ScreenSprites and ScreenLines drawn under one clip, in list order and back-to-back. A
+    // run opens where the clip changed and closes where the next one opens. The world layer has none.
+    // Invalidated by the next mutation.
+    internal ReadOnlySpan<ClipRun> ScreenClipRuns => CollectionsMarshal.AsSpan(_screen.ClipRuns);
+
+    // The levels the runs of ScreenClipRuns name, back-to-back, in the order they were added. Invalidated
+    // by the next mutation.
+    internal ReadOnlySpan<ClipRegion> ScreenClipLevels => CollectionsMarshal.AsSpan(_screen.ClipLevels);
 
     /// <summary>
     /// Submission counts from the current rewrite, across both layers, lines included.
@@ -389,6 +439,11 @@ public sealed class FrameView
             return;
         }
 
+        if (layer.ClipSerial != layer.RunClipSerial)
+        {
+            OpenClipRun(layer);
+        }
+
         layer.Lines.Add(_tinted ? line with { Color = ColorRgba.Multiply(line.Color, _tint) } : line);
     }
 
@@ -538,7 +593,18 @@ public sealed class FrameView
             layer.RunMaterial = Material;
         }
 
+        if (layer.ClipSerial != layer.RunClipSerial)
+        {
+            OpenClipRun(layer);
+        }
+
         layer.Sprites.Add(_styled ? Styled(in sprite) : sprite);
+    }
+
+    private static void OpenClipRun(Layer layer)
+    {
+        layer.ClipRuns.Add(new ClipRun(layer.Sprites.Count, layer.Lines.Count, layer.ClipStart, layer.ClipCount));
+        layer.RunClipSerial = layer.ClipSerial;
     }
 
     private SpriteIntent Styled(in SpriteIntent sprite) => sprite with
@@ -562,6 +628,7 @@ public sealed class FrameView
         LitWorld = false;
         _ambient = ColorRgba.White;
         UpdateCullBounds();
+        UpdateScreenBounds();
     }
 
     private Layer Of(RenderSpace space) => space == RenderSpace.Screen ? _screen : _world;
@@ -581,6 +648,36 @@ public sealed class FrameView
         _world.Culls = camera.Size.X > 0f && camera.Size.Y > 0f && !_world.Bounds.IsEmpty;
     }
 
+    // The region screen intent is culled against: the canvas, and inside a clip also the intersection over
+    // its levels of each level's union of its two ends. That region holds whatever any interpolated frame of
+    // the step shows. A clip culls even where the canvas is unset, and one that shows nothing culls
+    // everything.
+    private void UpdateScreenBounds()
+    {
+        Rect canvas = new(Vector2.Zero, _canvas);
+        bool bounded = !canvas.IsEmpty;
+
+        if (_screen.ClipCount == 0)
+        {
+            _screen.Bounds = canvas;
+            _screen.Culls = bounded;
+
+            return;
+        }
+
+        Rect reach = bounded ? canvas : new Rect(float.NegativeInfinity, float.NegativeInfinity, float.PositiveInfinity, float.PositiveInfinity);
+        ReadOnlySpan<ClipRegion> levels = CollectionsMarshal.AsSpan(_screen.ClipLevels).Slice(_screen.ClipStart, _screen.ClipCount);
+        for (int i = 0; i < levels.Length; i++)
+        {
+            ClipRegion level = levels[i];
+            Rect span = level.Previous.IsEmpty && level.Current.IsEmpty ? Nothing : Rect.Union(level.Previous, level.Current);
+            reach = Rect.Intersection(reach, span);
+        }
+
+        _screen.Bounds = reach.IsEmpty ? Nothing : reach;
+        _screen.Culls = true;
+    }
+
     // One of the frame's two layers: the intent drawn in that space and the region it culls against.
     private sealed class Layer
     {
@@ -589,6 +686,24 @@ public sealed class FrameView
         internal List<LineIntent> Lines { get; } = [];
 
         internal List<MaterialRun> Runs { get; } = [];
+
+        internal List<ClipRun> ClipRuns { get; } = [];
+
+        // Every level of every clip set this frame, and the levels of the clip the layer's intent is stored
+        // under, which are ClipCount from ClipStart. Zero is no clip.
+        internal List<ClipRegion> ClipLevels { get; } = [];
+
+        internal int ClipStart { get; set; }
+
+        internal int ClipCount { get; set; }
+
+        // A count of the clip's changes. A store opens a run where the count differs from the one the last
+        // run was opened for. The test is one integer comparison. The world layer is never clipped and
+        // both counts stay zero.
+
+        internal int ClipSerial { get; set; }
+
+        internal int RunClipSerial { get; set; }
 
         // The material of the last run opened, null before the first.
         internal Material? RunMaterial { get; set; }
@@ -602,6 +717,12 @@ public sealed class FrameView
             Sprites.Clear();
             Lines.Clear();
             Runs.Clear();
+            ClipRuns.Clear();
+            ClipLevels.Clear();
+            ClipStart = 0;
+            ClipCount = 0;
+            ClipSerial = 0;
+            RunClipSerial = 0;
             RunMaterial = null;
         }
     }

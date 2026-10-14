@@ -256,6 +256,35 @@ public sealed class RoomTests
         Assert.Equal(roomBounds, BoundsWithPlayerCentreAt(600f));
     }
 
+    // The zone's first slide-in holds the player until the view lands on it. Stepping back in slides the
+    // view again and leaves the player in control.
+    [Fact]
+    public void EnteringACameraZoneTheFirstTime_HoldsThePlayerUntilTheViewLands()
+    {
+        using SimulationHost room = ZonedRoom([new Rect(160f, 0f, 400f, 192f)]);
+        Player player = RoomFixture.PlayerOf(room);
+        Camera camera = room.Scene.Camera;
+        room.Step(DeviceSnapshot.Empty);
+
+        void StandAt(float x)
+        {
+            player.Position = new Vector2(x, RoomFixture.FloorTop - 8f);
+            room.Step(DeviceSnapshot.Empty);
+        }
+
+        StandAt(200f);
+        Assert.False(player.HasControl);
+        Assert.True(room.RunUntil(() => !camera.IsTransitioning, StepBudget), "the view never landed");
+        Assert.False(player.HasControl);
+        room.Step(DeviceSnapshot.Empty);
+        Assert.True(player.HasControl);
+
+        StandAt(32f);
+        StandAt(200f);
+        Assert.True(camera.IsTransitioning);
+        Assert.True(player.HasControl);
+    }
+
     // A zone whose edge lies on the wall's near face is touched by a body pressed flush against it, within
     // the contact skin. The player's probe sits at its centre, so the zone is not entered.
     [Fact]

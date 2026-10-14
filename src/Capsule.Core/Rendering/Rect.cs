@@ -77,4 +77,20 @@ public readonly record struct Rect(float Left, float Top, float Right, float Bot
 
     // The same sweep where the box is centred on the point.
     internal static Rect Sweep(Vector2 from, Vector2 to, Vector2 reach) => Sweep(from, to, -reach, reach);
+
+    // The rect both cover, empty where they do not overlap.
+    internal static Rect Intersection(in Rect first, in Rect second) =>
+        new(
+            MathF.Max(first.Left, second.Left),
+            MathF.Max(first.Top, second.Top),
+            MathF.Min(first.Right, second.Right),
+            MathF.Min(first.Bottom, second.Bottom));
+
+    // The smallest rect covering both.
+    internal static Rect Union(in Rect first, in Rect second) =>
+        new(
+            MathF.Min(first.Left, second.Left),
+            MathF.Min(first.Top, second.Top),
+            MathF.Max(first.Right, second.Right),
+            MathF.Max(first.Bottom, second.Bottom));
 }

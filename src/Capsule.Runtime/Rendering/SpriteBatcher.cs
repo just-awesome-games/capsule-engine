@@ -30,6 +30,13 @@ internal sealed class SpriteBatcher : IDisposable
 
     private static readonly int Stride = SpriteVertex.VertexDeclaration.VertexStride;
 
+    // The batch's default culling with the scissor test on, cached so a clip change allocates nothing.
+    private static readonly RasterizerState Scissored = new()
+    {
+        CullMode = CullMode.CullCounterClockwiseFace,
+        ScissorTestEnable = true,
+    };
+
     private readonly GraphicsDevice _device;
     private readonly EffectStore _effects;
     private readonly DynamicVertexBuffer _vertices;
@@ -56,6 +63,9 @@ internal sealed class SpriteBatcher : IDisposable
 
     // The material the next sprite draws with. Null is Capsule's own sprite shader.
     private Material? _material;
+
+    // The surface rect the next sprite is cut to, or null for none.
+    private Rectangle? _clip;
 
     // The material whose effect the device has applied since Begin, and the transform every effect
     // applied in this batch maps by: the caller's transform, then the viewport's projection.
@@ -134,6 +144,40 @@ internal sealed class SpriteBatcher : IDisposable
 
         _texture = null;
         _material = null;
+        _clip = null;
+    }
+
+    // Cuts the sprites drawn next to a rect of the bound surface, in its pixels. A change flushes what is
+    // staged. The scissor is device state and applies to a draw call whole.
+    internal void SetClip(int x, int y, int width, int height)
+    {
+        Rectangle clip = new(x, y, width, height);
+        if (_clip == clip)
+        {
+            return;
+        }
+
+        Flush();
+        if (_clip is null)
+        {
+            _device.RasterizerState = Scissored;
+        }
+
+        _clip = clip;
+        _device.ScissorRectangle = clip;
+    }
+
+    // Draws the sprites after this with no clip.
+    internal void ClearClip()
+    {
+        if (_clip is null)
+        {
+            return;
+        }
+
+        Flush();
+        _clip = null;
+        _device.RasterizerState = RasterizerState.CullCounterClockwise;
     }
 
     // The material the sprites drawn next use, null for Capsule's own sprite shader. Begin resets it to
@@ -246,7 +290,12 @@ internal sealed class SpriteBatcher : IDisposable
         Stage(in quad, color, BlendMode.Alpha, default);
     }
 
-    internal void End() => Flush();
+    // Flushes the batch and leaves the device unclipped.
+    internal void End()
+    {
+        Flush();
+        ClearClip();
+    }
 
     // Flushes the chunk if this sprite would not fit, then opens a run or keeps the open one. A
     // texture change, compared by reference, closes the run, and so does a material change.

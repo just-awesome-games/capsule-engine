@@ -88,7 +88,10 @@ public sealed class MenuItem : ScreenEntity
         _bar.Visible = false;
     }
 
+    /// <summary>The width in canvas pixels an item captioned <paramref name="text"/> takes.</summary>
+    public static float WidthFor(string text) =>
+        Math.Max(MinWidth, CapsuleAssets.Fonts.MenuFont.Measure(text).X + (2f * HorizontalPadding));
+
     // The box grows with the caption, so focused ink never runs off the bar.
-    private void Fit(string text) =>
-        Size = new Vector2(Math.Max(MinWidth, CapsuleAssets.Fonts.MenuFont.Measure(text).X + (2f * HorizontalPadding)), BoxHeight);
+    private void Fit(string text) => Size = new Vector2(WidthFor(text), BoxHeight);
 }

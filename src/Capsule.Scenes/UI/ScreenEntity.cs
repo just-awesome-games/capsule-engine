@@ -86,6 +86,9 @@ public class ScreenEntity : Entity
     // This entity's cell in its container parent's last solve, or -1 while it is hidden and takes none.
     internal int Cell { get; set; }
 
+    // The nearest clip on this entity or above, as Entity.ResolveClip last composed it.
+    internal ClipRect? TreeClip { get; set; }
+
     /// <param name="anchor">Where this entity sits in the slot its parent gives it, or in the canvas for a root.</param>
     /// <param name="offset">
     /// Canvas pixels from the anchor to the same point of this entity's rect. A negative component
@@ -109,7 +112,7 @@ public class ScreenEntity : Entity
                 return Anchor.Extent(Canvas, Preferred);
             }
 
-            parent.Slot(this, parent.Extent, out Vector2 slot);
+            parent.Slot(this, parent.Extent, previous: false, out Vector2 slot);
 
             return Anchor.Extent(slot, Preferred);
         }
@@ -159,13 +162,19 @@ public class ScreenEntity : Entity
     }
 
     // Returns the top-left corner of the slot `child` is placed in, in this entity's units, and writes the
-    // slot's extent. `extent` is this entity's own. A container's layout picks the slot, and any other
-    // entity's slot is its padded inside.
-    internal Vector2 Slot(ScreenEntity child, Vector2 extent, out Vector2 slot)
+    // slot's extent. `extent` is this entity's own, and `previous` reads the scroll offset of the step
+    // before. A container's layout picks the slot, a scroll container's is its padded inside grown to the
+    // child and moved back by the offset, and any other entity's slot is its padded inside.
+    internal Vector2 Slot(ScreenEntity child, Vector2 extent, bool previous, out Vector2 slot)
     {
         if (Layout is { } tracks)
         {
             return tracks.Slot(this, child, extent, out slot);
+        }
+
+        if (this is ScrollContainer scroll)
+        {
+            return scroll.Place(child, extent, previous, out slot);
         }
 
         slot = Padding.Inside(extent);
@@ -183,7 +192,7 @@ public class ScreenEntity : Entity
         }
 
         Vector2 above = parent.Origin(previous, out Vector2 outer);
-        Vector2 corner = parent.Slot(this, outer, out Vector2 slot);
+        Vector2 corner = parent.Slot(this, outer, previous, out Vector2 slot);
         Vector2 point = Anchor.Place(corner, slot, Preferred, out extent);
 
         // The anchor point is in the parent's units. The parent's turn and scale carry it onto the canvas, and

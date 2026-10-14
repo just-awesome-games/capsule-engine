@@ -159,7 +159,7 @@ internal sealed class FrameRenderer : IDisposable
             }
 
             DrawWorld(view, alpha, world, layout.Span, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity);
-            DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns, surfaceFactor: 1);
+            DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ScreenClipLevels, surfaceFactor: 1);
         }
         else
         {
@@ -180,7 +180,7 @@ internal sealed class FrameRenderer : IDisposable
             // centred in it on whole pixels, so nothing lands on a grid the world did not use.
             if (layout.ScreenOnSurface)
             {
-                DrawScreen(view, alpha, drawn.OnSurface, target.Width, target.Height, view.Sampling, view.ScreenMaterialRuns, factor);
+                DrawScreen(view, alpha, drawn.OnSurface, target.Width, target.Height, view.Sampling, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ScreenClipLevels, factor);
             }
 
             _device.SetRenderTarget(null);
@@ -188,7 +188,7 @@ internal sealed class FrameRenderer : IDisposable
 
             if (!layout.ScreenOnSurface)
             {
-                DrawScreen(view, alpha, layout.Layer, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns, surfaceFactor: 1);
+                DrawScreen(view, alpha, layout.Layer, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ScreenClipLevels, surfaceFactor: 1);
             }
         }
 
@@ -234,6 +234,8 @@ internal sealed class FrameRenderer : IDisposable
             height,
             TextureSampling.Point,
             materials: default,
+            clips: default,
+            clipLevels: default,
             surfaceFactor: 1);
     }
 
@@ -270,7 +272,7 @@ internal sealed class FrameRenderer : IDisposable
             FrameCorner = world.TopLeft,
         };
 
-        DrawIntents(view.Sprites, view.Lines, default, default, default, ref pass);
+        DrawIntents(view.Sprites, view.Lines, default, default, default, default, default, ref pass);
         _batcher.End();
     }
 
@@ -519,7 +521,7 @@ internal sealed class FrameRenderer : IDisposable
             FrameCorner = topLeft,
         };
 
-        DrawIntents(view.Sprites, view.Lines, view.ParallaxLayers, parallax, view.MaterialRuns, ref pass);
+        DrawIntents(view.Sprites, view.Lines, view.ParallaxLayers, parallax, view.MaterialRuns, default, default, ref pass);
         _batcher.End();
 
         if (view.LitWorld && _lightMap is { } map)
@@ -542,6 +544,8 @@ internal sealed class FrameRenderer : IDisposable
         int surfaceHeight,
         TextureSampling sampling,
         ReadOnlySpan<MaterialRun> materials,
+        ReadOnlySpan<ClipRun> clips,
+        ReadOnlySpan<ClipRegion> clipLevels,
         int surfaceFactor)
     {
         ReadOnlySpan<SpriteIntent> sprites = view.ScreenSprites;
@@ -568,26 +572,34 @@ internal sealed class FrameRenderer : IDisposable
             Scale = grid,
             SnapLines = snap,
             LineScale = grid,
+            Placement = placement,
+            SurfaceWidth = surfaceWidth,
+            SurfaceHeight = surfaceHeight,
         };
 
-        DrawIntents(sprites, lines, default, default, materials, ref pass);
+        DrawIntents(sprites, lines, default, default, materials, clips, clipLevels, ref pass);
         _batcher.End();
     }
 
     // Draws the sprites, then the lines, each scrolled run from its own layer's corner, formed as the
-    // run opens, and each material run with its material. The runs are in list order, and one cursor
-    // walks each kind. Lines draw with Capsule's own shader.
+    // run opens, each material run with its material, and each clip run cut to its rect. The runs are in
+    // list order, and one cursor walks each kind. A clip run opens at both a sprite and a line index, and
+    // the lines walk it again from the start. Lines draw with Capsule's own shader.
     private void DrawIntents(
         ReadOnlySpan<SpriteIntent> sprites,
         ReadOnlySpan<LineIntent> lines,
         ReadOnlySpan<ParallaxLayer> layers,
         Vector2 parallax,
         ReadOnlySpan<MaterialRun> materials,
+        ReadOnlySpan<ClipRun> clips,
+        ReadOnlySpan<ClipRegion> clipLevels,
         ref Pass pass)
     {
         Vector2 frameCorner = pass.FrameCorner;
         int next = 0;
         int nextMaterial = 0;
+        int nextClip = 0;
+        bool hidden = false;
         for (int index = 0; index < sprites.Length; index++)
         {
             while (next < layers.Length && layers[next].FirstSprite <= index)
@@ -602,12 +614,24 @@ internal sealed class FrameRenderer : IDisposable
                 nextMaterial++;
             }
 
-            DrawSprite(in sprites[index], ref pass);
+            while (nextClip < clips.Length && clips[nextClip].FirstSprite <= index)
+            {
+                hidden = ApplyClip(clips[nextClip], clipLevels, in pass);
+                nextClip++;
+            }
+
+            if (!hidden)
+            {
+                DrawSprite(in sprites[index], ref pass);
+            }
         }
 
         _batcher.SetMaterial(null);
+        _batcher.ClearClip();
         pass.LayerCorner = frameCorner;
         next = 0;
+        nextClip = 0;
+        hidden = false;
         for (int index = 0; index < lines.Length; index++)
         {
             while (next < layers.Length && layers[next].FirstLine <= index)
@@ -616,8 +640,39 @@ internal sealed class FrameRenderer : IDisposable
                 next++;
             }
 
-            DrawLine(in lines[index], in pass);
+            while (nextClip < clips.Length && clips[nextClip].FirstLine <= index)
+            {
+                hidden = ApplyClip(clips[nextClip], clipLevels, in pass);
+                nextClip++;
+            }
+
+            if (!hidden)
+            {
+                DrawLine(in lines[index], in pass);
+            }
         }
+    }
+
+    // Cuts the batch to the run's clip, each level moved by alpha between its two ends, intersected, and
+    // placed on the surface. Returns true when nothing of the surface is left to draw on.
+    private bool ApplyClip(in ClipRun run, ReadOnlySpan<ClipRegion> clipLevels, in Pass pass)
+    {
+        if (run.Levels == 0)
+        {
+            _batcher.ClearClip();
+
+            return false;
+        }
+
+        Rect shown = ClipScissor.Shown(clipLevels.Slice(run.FirstLevel, run.Levels), pass.Alpha);
+        if (!ClipScissor.TryMap(in shown, in pass.Placement, pass.SurfaceWidth, pass.SurfaceHeight, out int x, out int y, out int width, out int height))
+        {
+            return true;
+        }
+
+        _batcher.SetClip(x, y, width, height);
+
+        return false;
     }
 
     // The white texel stretched to the segment's length and thickness and turned along it, from the
@@ -663,6 +718,13 @@ internal sealed class FrameRenderer : IDisposable
 
         internal Vector2 LayerCorner;
         internal Vector2 FrameCorner;
+
+        // Where the canvas lands on the surface, and the surface's extent, which a clip is placed by. Set
+        // on a screen pass only, where the clip runs are.
+        internal ScreenPlacement Placement;
+        internal int SurfaceWidth;
+        internal int SurfaceHeight;
+
         internal TextureHandle Resolved;
         internal TextureSlice Slice;
     }

@@ -30,6 +30,10 @@ namespace Capsule.UI;
 /// an item this navigator does not hold moves nothing.
 /// </para>
 /// <para>
+/// A focus that lands on an item by a direction, a <see cref="Focus"/> call, the start or a repair scrolls the
+/// item into view in each <see cref="ScrollContainer"/> above it. A pointer hover or click does not.
+/// </para>
+/// <para>
 /// A focus change applies immediately, and handlers read the new focus. Changing this navigator's
 /// items or its focus from inside one of its own focus events throws
 /// <see cref="InvalidOperationException"/>.
@@ -288,6 +292,7 @@ public sealed class FocusNavigator : Component
 
         if (Focused is { } landing)
         {
+            Reveal(landing);
             Raise(left: null, landing);
         }
     }
@@ -309,7 +314,8 @@ public sealed class FocusNavigator : Component
     /// A pointer that moved this step and lies inside an item's bounds focuses that item. A mouse
     /// resting on the menu does not fight a player on a gamepad. Items are hit-tested in list order
     /// and the first one containing the pointer wins. An item with empty bounds is never under the
-    /// pointer. Both the pointer and the click only reach items on a <see cref="ScreenEntity"/>. A
+    /// pointer. Both the pointer and the click only reach items on a <see cref="ScreenEntity"/>, and
+    /// only where its <see cref="ClipRect"/> shows it. The directions ignore a clip. A
     /// click presses the item under the pointer whether or not the pointer moved, and does nothing
     /// over empty space. A step that finds no live focus spends itself moving to one and reads
     /// nothing else but <see cref="FocusActions.Cancel"/>. The item it lands on cannot be pressed by an action aimed at the previously
@@ -364,6 +370,7 @@ public sealed class FocusNavigator : Component
 
         Focusable target = focused;
         bool press = false;
+        bool fromPointer = false;
 
         // One hit test per step. Pointer focusing requires the pointer to have moved, but a click does
         // not, so clicking without nudging the mouse still picks the item under it.
@@ -374,6 +381,7 @@ public sealed class FocusNavigator : Component
         if (hovering && under is not null)
         {
             target = under;
+            fromPointer = true;
         }
 
         Focusable? adjusting = null;
@@ -389,6 +397,7 @@ public sealed class FocusNavigator : Component
             else if (Reached(target, side) is { } moved)
             {
                 target = moved;
+                fromPointer = false;
             }
         }
 
@@ -396,12 +405,13 @@ public sealed class FocusNavigator : Component
         {
             target = under;
             press = true;
+            fromPointer = true;
         }
 
         press |= input.WasPressed(_actions.Confirm);
 
         // Move first. A press handler then finds this navigator already focused on the pressed item.
-        Move(target);
+        Move(target, fromPointer);
 
         bool dragStarted = clicking && under is not null && ReferenceEquals(Focused, under);
 
@@ -450,7 +460,7 @@ public sealed class FocusNavigator : Component
         }
 
         if (Focused is not { Adjusts: { } axis } item || !Live(item) || item.Entity is not ScreenEntity ||
-            !item.Bounds.Contains(input.Pointer))
+            !item.Bounds.Contains(input.Pointer) || !ClipRect.Admits(item.Entity, input.Pointer))
         {
             _notches = 0f;
 
@@ -706,21 +716,22 @@ public sealed class FocusNavigator : Component
     // An entity queued to leave, by itself or with an ancestor, drops out of focus in the same step
     // instead of one step later. An entity queued to join counts as live, which lets a menu
     // rebuilt during a step focus the row it just added when that step's queue drains.
-    private static bool Live(Focusable item) =>
+    internal static bool Live(Focusable item) =>
         item.Entity is { } entity &&
         (entity.SceneOrNull is not null || entity.PendingScene is not null) &&
         !entity.IsRemovalPending &&
         entity.ShownInTree;
 
     // Returns the first screen item containing the pointer, or null. World items are skipped, because
-    // the pointer is in canvas pixels and their bounds are in world units.
+    // the pointer is in canvas pixels and their bounds are in world units. A clip above an item cuts
+    // it from the pointer where it cuts it from view, and a direction still reaches it.
     private Focusable? Under(Vector2 pointer)
     {
         for (int i = 0; i < _items.Count; i++)
         {
             Focusable item = _items[i];
 
-            if (Live(item) && item.Entity is ScreenEntity && item.Bounds.Contains(pointer))
+            if (Live(item) && item.Entity is ScreenEntity && item.Bounds.Contains(pointer) && ClipRect.Admits(item.Entity, pointer))
             {
                 return item;
             }
@@ -758,8 +769,10 @@ public sealed class FocusNavigator : Component
         }
     }
 
-    // Applies the move before raising anything. A handler then reads the focus it landed on.
-    private void Move(Focusable? landing)
+    // Applies the move before raising anything. A handler then reads the focus it landed on. A landing
+    // that did not come from the pointer scrolls its item into view first. A resting mouse never has
+    // rows slide under it.
+    private void Move(Focusable? landing, bool fromPointer = false)
     {
         _focusDeparted = false;
 
@@ -775,7 +788,30 @@ public sealed class FocusNavigator : Component
 
         if (_started)
         {
+            if (landing is not null && !fromPointer)
+            {
+                Reveal(landing);
+            }
+
             Raise(left, landing);
+        }
+    }
+
+    // Scrolls `item` into view in each scroll container above it, innermost first. A scroll moves the
+    // item. Each container reads its bounds afresh.
+    private static void Reveal(Focusable item)
+    {
+        if (item.Entity is not ScreenEntity)
+        {
+            return;
+        }
+
+        for (Entity? above = item.Entity.Parent; above is not null; above = above.Parent)
+        {
+            if (above is ScrollContainer scroller)
+            {
+                scroller.Reveal(item.Bounds);
+            }
         }
     }
 

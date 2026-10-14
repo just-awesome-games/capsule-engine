@@ -70,6 +70,25 @@ public partial class Camera
     public BoundsTransition BoundsTransition { get; set; }
 
     /// <summary>
+    /// Whether a change of <see cref="Bounds"/> is still carrying the view. It reads false from the step the
+    /// view lands.
+    /// </summary>
+    /// <remarks>
+    /// A change carried by a transition reads true as soon as it is made. A snap, null bounds, a
+    /// <see cref="Teleport"/> and the camera's first step in a scene land at once and never read true.
+    /// </remarks>
+    /// <example>
+    /// A door that hands control back once the next room has scrolled into view:
+    /// <code>
+    /// Scene.Camera.SetBounds(nextRoom, BoundsTransition.AtSpeed(120f));
+    /// yield return Wait.Until(() => !Scene.Camera.IsTransitioning);
+    /// player.HasControl = true;
+    /// </code>
+    /// </example>
+    public bool IsTransitioning =>
+        _bounds is { } target && _settled && !_cut && (_easing || _carry.IsChase) && _confine != target;
+
+    /// <summary>
     /// Changes <see cref="Bounds"/> to <paramref name="bounds"/>, carried by <paramref name="transition"/>
     /// in place of the standing <see cref="BoundsTransition"/>.
     /// </summary>

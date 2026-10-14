@@ -1153,6 +1153,7 @@ public partial class Entity
         Leaving = 4,
         Marked = 8,
         Joined = 16,
+        ClipFresh = 32,
     }
 
     private struct ComponentWalk(List<Component> components)

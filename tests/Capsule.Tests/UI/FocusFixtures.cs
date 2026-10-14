@@ -269,7 +269,10 @@ internal static class FocusFixtures
         }
 
         /// <summary>Steps with the vertical wheel turned <paramref name="notches"/>, positive away from the user.</summary>
-        internal Menu Wheel(float notches) => Advance(_held.WithScroll(new Vector2(0f, notches)));
+        internal Menu Wheel(float notches) => Wheel(new Vector2(0f, notches));
+
+        /// <summary>Steps with the wheel turned <paramref name="notches"/> on each axis, positive right and away from the user.</summary>
+        internal Menu Wheel(Vector2 notches) => Advance(_held.WithScroll(notches));
 
         /// <summary>Steps with nothing new: the held state exactly as it stands.</summary>
         internal Menu Rest() => Advance(_held);
@@ -333,7 +336,12 @@ internal static class FocusFixtures
             item.Adjusted += step => _log.Add($"adjusted {index} {step}");
 
             _items.Add(item);
-            _scene.Add(item.Entity!.Root);
+
+            // Items under one tree share its root, which the scene takes once.
+            if (item.Entity!.Root.SceneOrNull is null)
+            {
+                _scene.Add(item.Entity.Root);
+            }
 
             return item;
         }

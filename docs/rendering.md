@@ -189,6 +189,10 @@ title.Add(new Label(font, "Paused") { HorizontalAlignment = HorizontalAlignment.
 Menus are `Focusable` components under one `FocusNavigator`, which moves focus from the game's own focus
 actions and the pointer.
 
+A `ClipRect` on a `ScreenEntity` cuts that entity and everything beneath it to the entity's rect, for the
+pointer as well as the eye. A `ScrollContainer` clips its children and moves them back by `ScrollOffset` on
+each axis their content overflows. The wheel and a focus moved by a direction scroll it. A hover never does.
+
 ## Parallax
 
 An entity's `ScrollFactor` scales how far it moves with the camera about `Camera.ScrollCenter`. Zero on

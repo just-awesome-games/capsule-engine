@@ -10,6 +10,7 @@ using Capsule.Rendering;
 using Capsule.Scenes.Documents;
 using Capsule.Scenes.Spawning;
 using Capsule.Tiles;
+using Capsule.UI;
 
 namespace Capsule.Scenes;
 
@@ -993,6 +994,7 @@ public class Scene
         try
         {
             ReadOnlySpan<Renderer> renderers = _renderIndex.GetDrawOrder(Entities, YSort);
+            ClipRect? clip = null;
             for (int index = 0; index < renderers.Length; index++)
             {
                 Renderer renderer = renderers[index];
@@ -1009,6 +1011,24 @@ public class Scene
                     view.ScrollFactor = entity.ScrollFactor;
                     view.SetStyle(tint, flash);
                     view.Material = renderer.Material;
+
+                    // A clip is per renderer state, and only the screen layer has one. A world renderer
+                    // between two clipped ones leaves it alone, and a subtree computes its region once.
+                    if (view.Space == RenderSpace.Screen && !ReferenceEquals(entity.NearestClip, clip))
+                    {
+                        clip = entity.NearestClip;
+                        if (clip is null)
+                        {
+                            view.ClearClip();
+                        }
+                        else
+                        {
+                            view.BeginClip();
+                            ClipRect.AddLevels(clip, view);
+                            view.EndClip();
+                        }
+                    }
+
                     if (runs is not null && (runs.Count == 0 || !ReferenceEquals(runs[^1].Entity, entity)))
                     {
                         runs.Add(new DrawRun(entity, view.Sprites.Length));
@@ -1024,6 +1044,7 @@ public class Scene
             view.ScrollFactor = Vector2.One;
             view.SetStyle(ColorRgba.White, default);
             view.Material = null;
+            view.ClearClip();
             _drawing = false;
         }
     }

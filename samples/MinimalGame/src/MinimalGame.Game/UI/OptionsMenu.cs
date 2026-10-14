@@ -8,11 +8,18 @@ using MinimalGame.Game.Scenes;
 namespace MinimalGame.Game.UI;
 
 /// <summary>
-/// The options screen's menu: a column of Jump and Shoot rebinding, the music and effects levels and
-/// Back, over one <see cref="FocusNavigator"/>.
+/// The options screen's menu: a panel showing three and a half rows of a scrolling column of Jump and Shoot
+/// rebinding, the music and effects levels and Back, with a <see cref="ScrollBar"/> beside it, over one
+/// <see cref="FocusNavigator"/>.
 /// </summary>
-public sealed class OptionsMenu : BoxContainer
+public sealed class OptionsMenu : ScreenEntity
 {
+    // Canvas pixels between the list and its scroll bar.
+    private const float BarGap = 4f;
+
+    // The longest caption a row shows, which the panel is sized for.
+    private const string ShootPrompt = "Shoot: press a button";
+
     private readonly MenuItem _jump = new("");
     private readonly MenuItem _shoot = new("");
     private readonly VolumeSlider _music = new("Music");
@@ -31,15 +38,23 @@ public sealed class OptionsMenu : BoxContainer
     private InputDevice _shownDevice;
 
     public OptionsMenu()
-        : base(Axis.Vertical, Anchor.Center, Vector2.Zero)
+        : base(Anchor.Center, Vector2.Zero)
     {
-        Spacing = MenuItem.Spacing;
+        // Wide enough for the longest caption a capture shows, and only half of the fourth row shows, which
+        // tells the player there is more below.
+        float listWidth = Math.Max(Math.Max(_music.Size.X, _effects.Size.X), MenuItem.WidthFor(ShootPrompt));
+        Size = new Vector2(listWidth + BarGap + ScrollBar.Width, 3.5f * (MenuItem.BoxHeight + MenuItem.Spacing));
 
-        _jump.Parent = this;
-        _shoot.Parent = this;
-        _music.Parent = this;
-        _effects.Parent = this;
-        _back.Parent = this;
+        ScrollContainer list = new(Anchor.Fill, Vector2.Zero) { Parent = this, Padding = new Insets(0f, 0f, ScrollBar.Width + BarGap, 0f) };
+        BoxContainer column = new(Axis.Vertical, Anchor.TopWide, Vector2.Zero) { Parent = list, Spacing = MenuItem.Spacing };
+
+        _jump.Parent = column;
+        _shoot.Parent = column;
+        _music.Parent = column;
+        _effects.Parent = column;
+        _back.Parent = column;
+
+        _ = new ScrollBar(list) { Parent = this };
 
         _navigator = new FocusNavigator(GameInput.MenuFocus);
         Add(_navigator);
@@ -92,7 +107,7 @@ public sealed class OptionsMenu : BoxContainer
     {
         _listening = item;
         _navigator.Interactable = false;
-        item.Caption = item == _jump ? "Jump: press a button" : "Shoot: press a button";
+        item.Caption = item == _jump ? "Jump: press a button" : ShootPrompt;
     }
 
     private void EndListening(InputDevice device)
