@@ -44,7 +44,6 @@ public sealed class Player : Entity
     private readonly Visual _visual;
     private readonly KinematicBody2D _body;
     private readonly BoxCollider2D _hurtbox;
-    private readonly BoxCollider2D _probe;
     private readonly AudioSource _footfall;
     private readonly ParticleEmitter _dust;
     private readonly BoltTuning _bolt = BoltTuning.Default;
@@ -102,14 +101,11 @@ public sealed class Player : Entity
         _hurtbox.ContactExited += OnHurtboxExited;
         Add(_hurtbox);
 
-        _probe = new BoxCollider2D(new Vector2(ProbeEdge, ProbeEdge))
+        Add(new BoxCollider2D(new Vector2(ProbeEdge, ProbeEdge))
         {
             Layer = CollisionLayers.Probe,
             Offset = new Vector2((BodyPixels - ProbeEdge) / 2f),
-            ReportsContacts = true,
-            Detects = new(CollisionLayers.Trigger),
-        };
-        Add(_probe);
+        });
 
         _footfall = new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx };
         Add(_footfall);
@@ -133,13 +129,6 @@ public sealed class Player : Entity
 
     /// <summary>The levers this player runs on, fixed for its lifetime. A placement names one as <c>"tuning": "default"</c>.</summary>
     public PlayerTuning Tuning => _tuning;
-
-    /// <summary>
-    /// The collider at the body's centre that touches the trigger areas the player stands in. The owner of
-    /// what several areas drive, such as the camera's bounds, subscribes to its contacts; an area whose
-    /// effect is its own detects it instead.
-    /// </summary>
-    public Collider2D Probe => _probe;
 
     /// <summary>The velocity the body moves at, in world units per second, as of the last step.</summary>
     public Vector2 Velocity => _velocity;

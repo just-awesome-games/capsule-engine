@@ -237,8 +237,28 @@ public partial class Camera
     /// <summary>
     /// Cuts to <paramref name="center"/>. The frame this step draws interpolates no centre, zoom or offset.
     /// </summary>
-    /// <remarks>The follow's deadzone recentres on <paramref name="center"/> and its lead restarts at zero.</remarks>
+    /// <remarks>
+    /// The follow's deadzone recentres on <paramref name="center"/> and its lead restarts at zero. Then
+    /// <see cref="OnTeleported"/> runs.
+    /// </remarks>
     public void Teleport(Vector2 center)
+    {
+        Cut(center);
+        OnTeleported();
+    }
+
+    /// <summary>
+    /// Runs after <see cref="Teleport"/> cuts, whoever called it, but not for the cut a scene opens on.
+    /// </summary>
+    /// <remarks>
+    /// A camera holding state that its subject's old place implied, such as bounds an area set, lets
+    /// it go here.
+    /// </remarks>
+    protected virtual void OnTeleported()
+    {
+    }
+
+    private void Cut(Vector2 center)
     {
         _cutToSubject = false;
         Center = center;

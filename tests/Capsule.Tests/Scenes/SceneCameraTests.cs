@@ -46,6 +46,24 @@ public sealed class SceneCameraTests
         Assert.Equal(camera.Center, camera.PreviousCenter);
     }
 
+    // Only a teleport says the subject's place changed; the cut a scene opens on lands the follow.
+    [Fact]
+    public void ATeleport_RunsOnTeleported_ButTheCutASceneOpensOnDoesNot()
+    {
+        TeleportCountingCamera camera = new();
+        SceneFixtures.HookScene scene = new(start: Install(camera));
+        scene.Add(new SceneFixtures.Drifter(new Vector2(40, 0)));
+
+        SceneSimulation simulation = new(scene);
+        Assert.Equal(new Vector2(40, 0), simulation.View.Camera.Center);
+        simulation.Step(SceneFixtures.Step());
+        Assert.Equal(0, camera.Teleports);
+
+        camera.Teleport(new Vector2(900, 900));
+
+        Assert.Equal(1, camera.Teleports);
+    }
+
     [Fact]
     public void ACameraAimedInTheLateStep_FramesWhereItsSubjectEndedThisStep()
     {
@@ -279,6 +297,15 @@ public sealed class SceneCameraTests
     private sealed class FollowCamera(Entity subject) : Camera
     {
         protected internal override void OnLateStep(in StepContext context) => Center = subject.Position;
+    }
+
+    private sealed class TeleportCountingCamera : Camera
+    {
+        internal int Teleports { get; private set; }
+
+        protected internal override void OnStart() => Follow(Scene!.FindSingle<SceneFixtures.Drifter>());
+
+        protected override void OnTeleported() => Teleports++;
     }
 
     private sealed class RecordingCamera(List<string> log) : Camera

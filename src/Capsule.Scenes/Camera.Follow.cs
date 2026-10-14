@@ -160,7 +160,7 @@ public partial class Camera
 
         if (Subject is { } subject && (subject.SceneOrNull is null || ReferenceEquals(subject.SceneOrNull, _scene)))
         {
-            Teleport(subject.WorldPosition + FollowOffset);
+            Cut(subject.WorldPosition + FollowOffset);
         }
     }
 
