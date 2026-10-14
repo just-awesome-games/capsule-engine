@@ -8,7 +8,9 @@ namespace Capsule.Animation;
 /// A sequence holds whenever its owner does, through a pause or a freeze. Beats that pause the scene
 /// belong to the scene or to an entity whose step mode keeps it stepping. A sequence whose owner leaves
 /// the scene simply stops being stepped, and an owner that must release something calls
-/// <see cref="Stop"/>. Calling the iterator method allocates it once, and stepping allocates nothing.
+/// <see cref="Stop"/>. Starting one allocates its iterator. Stepping allocates nothing beyond what the
+/// beats do. Behaviour a pooled entity restarts on every spawn is a state machine stepping
+/// <see cref="Countdown"/> values instead.
 /// <para>
 /// The beats include their conditions and the <c>finally</c> blocks a stop runs. An exception they
 /// throw leaves the sequence stopped and propagates from the call that ran them.
