@@ -1219,9 +1219,19 @@ public class Scene
         OnDebugDraw();
         Camera.OnDebugDraw();
 
-        foreach (Entity entity in Entities)
+        // Each entity's pass owns what it draws, its components' included. The stamp clears on a throw as well.
+        // A later step's draws stay unowned.
+        try
         {
-            entity.RunDebugDraw();
+            foreach (Entity entity in Entities)
+            {
+                DebugDraw.Own(entity);
+                entity.RunDebugDraw();
+            }
+        }
+        finally
+        {
+            DebugDraw.Own(null);
         }
     }
 

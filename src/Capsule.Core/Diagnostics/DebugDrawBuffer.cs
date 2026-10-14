@@ -7,22 +7,25 @@ namespace Capsule.Diagnostics;
 // One straight segment a DebugDraw call decomposed to. A null Color takes the channel's colour, resolved
 // when drawn. Motion is how far the followed thing moved this step, so the host can place the segment
 // where that thing is drawn between steps. A segment is kept until the settled tick passes ExpiresAtTick.
+// Owner is what the host stamped while it ran the draw's hook, or null for a draw from anywhere else.
 internal readonly record struct DebugDrawSegment(
     string Channel,
     Vector2 A,
     Vector2 B,
     ColorRgba? Color,
     long ExpiresAtTick,
-    Vector2 Motion);
+    Vector2 Motion,
+    object? Owner);
 
-// One label with its top-left corner at Position. Color, Motion and expiry work as a segment's do.
+// One label with its top-left corner at Position. Color, Motion, expiry and Owner work as a segment's do.
 internal readonly record struct DebugDrawLabel(
     string Channel,
     Vector2 Position,
     string Text,
     ColorRgba? Color,
     long ExpiresAtTick,
-    Vector2 Motion);
+    Vector2 Motion,
+    object? Owner);
 
 // Where DebugDraw calls land once a host attaches it: the live segments and labels, the channels that
 // have emitted so far, and the tick a new draw expires against. The host settles it once per frame at the
@@ -34,6 +37,10 @@ internal sealed class DebugDrawBuffer
     private readonly List<DebugDrawLabel> _labels = [];
     private readonly HashSet<string> _channels = new(StringComparer.Ordinal);
     private long _tick;
+
+    // The host stamps the owner of the draws that follow, typed as an object because Core does not know the
+    // scene's types. Game code cannot read it.
+    internal object? Owner { get; set; }
 
     internal ReadOnlySpan<DebugDrawSegment> Segments => CollectionsMarshal.AsSpan(_segments);
 
@@ -51,14 +58,14 @@ internal sealed class DebugDrawBuffer
     {
         _channels.Add(channel);
         EmittedTick = _tick;
-        _segments.Add(new DebugDrawSegment(channel, a, b, color, ExpiryFor(steps), motion));
+        _segments.Add(new DebugDrawSegment(channel, a, b, color, ExpiryFor(steps), motion, Owner));
     }
 
     internal void Label(string channel, Vector2 position, string text, ColorRgba? color, int steps, Vector2 motion)
     {
         _channels.Add(channel);
         EmittedTick = _tick;
-        _labels.Add(new DebugDrawLabel(channel, position, text, color, ExpiryFor(steps), motion));
+        _labels.Add(new DebugDrawLabel(channel, position, text, color, ExpiryFor(steps), motion, Owner));
     }
 
     // tick is the scheduler's settled tick, which the next step will run. A draw emitted during step N

@@ -13,7 +13,7 @@ a shipping publish drops.
 | Backspace, Left, pad east, D-pad left | Menu | Returns to the previous page. |
 | Right, D-pad right | Menu | Steps the game once. Held, it repeats. |
 | `S`, `D`, `T`, `L`, `F1` | Root page | Opens Scene, Debug Draw, Time Scale, Load Scene or Help. |
-| `R`, `C`, `F`, `H`, `E` | Any page | Restart, Game Camera, Frame Pane, Hide or Exit. |
+| `R`, `C`, `P`, `H`, `E` | Any page | Restart, Game Camera, Frame Pane, Hide or Exit. |
 | `H`, `C` | Hidden | Shows the menu again, or returns the view to the game's camera. |
 | Pointer, left click | Row | Pointing focuses the row and a click activates it. |
 | Wheel | Menu | Scrolls the rows, with or without a modifier. |
@@ -22,6 +22,7 @@ a shipping publish drops.
 | Ctrl+wheel | World | Zooms about the pointer, from four times closer to eight times further than the game's camera. |
 | Middle-drag, Space+left-drag | World | Pans the view. |
 | `G` | Entity panel, open or hidden | Moves the entity to the world point last under the pointer, as one step. A camera following it or anything under it cuts with it. |
+| `F`, pad north | Entity panel, open or hidden | Flies the view to the entity and everything under it. |
 
 `InputConfiguration.DebugOverlay(button)` moves the toggle, and `InputButton.None` removes it. World
 inputs work open or hidden, over the drawn world clear of the menu. A wheel notch scrolls a
@@ -38,7 +39,7 @@ tenth of the view's visible span.
 | Restart | `R` | Restarts the scene. |
 | Load Scene | `L` | Loads a registered scene. The row shows only when scenes are registered. |
 | Game Camera | `C` | Returns the view to the game's camera. |
-| Frame Pane | `F` | Shows or hides the frame rate, frame times, steps per second, GC counts and heap. |
+| Frame Pane | `P` | Shows or hides the frame rate, frame times, steps per second, GC counts and heap. |
 | Hide | `H` | Withdraws the menu and keeps the run held. |
 | Help | `F1` | Lists each control no row shows by its main keys. |
 | Exit | `E` | Ends the run. |
@@ -57,6 +58,13 @@ overlay return the view to the game's camera. A frame capture requested meanwhil
 camera. Zoomed out, a declared render surface is drawn at a whole multiple of its resolution, up to the
 next whole scale it is presented at. The menu's top three lines show the scene, the tick and the world
 point last under the pointer.
+
+An entity's panel on top selects that entity. While the run is held, the selection outlines each renderer's
+bounds, orange on the entity and blue on what is under it. It also draws every debug draw the entity and
+what is under it made, over the rest, whatever the Debug Draw page has switched on. `F` flies the view to the
+union of the renderer and collider bounds under the selection, with a margin, at no closer than the game
+camera's span. It never writes the game's `Camera`, and a pan, scroll or zoom ends the flight where it stands.
+Popping the panel, a scene change and closing the overlay end the selection.
 
 Nothing reads back from the overlay. No code can learn what it shows or has switched on. A command, a
 toggle, Step, Move, Restart, Load Scene, Remove or Exit is a host act that changes the run as input would. A run

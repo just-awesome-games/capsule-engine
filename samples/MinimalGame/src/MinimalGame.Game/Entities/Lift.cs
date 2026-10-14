@@ -28,6 +28,9 @@ public sealed class Lift : Entity
     [Authorable]
     public bool Running { get; set; } = true;
 
+    /// <summary>Whether the lift has reached the top of its first climb.</summary>
+    public bool HasRisen => _swing.Passes > 0;
+
     public Lift(EntitySpawn spawn)
         : base(spawn)
     {

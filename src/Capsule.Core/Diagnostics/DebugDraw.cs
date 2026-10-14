@@ -15,8 +15,8 @@ namespace Capsule.Diagnostics;
 /// Positions are world units at the settled step. A draw stays for <c>steps</c> fixed steps counted
 /// by the scheduler's tick, and a <c>steps</c> below one counts as one. Draws are dropped until the
 /// host attaches a buffer, which the debug overlay does. A headless run draws nothing. A draw
-/// is shown while its channel is switched on in the overlay, in the colour <see cref="SetColor"/>
-/// gave it.
+/// is shown while its channel is switched on in the overlay, or while the overlay has selected the
+/// entity whose hook drew it, in the colour <see cref="SetColor"/> gave it.
 /// </para>
 /// </remarks>
 public static class DebugDraw
@@ -69,6 +69,17 @@ public static class DebugDraw
 
     // Attaches buffer, replacing whatever was there. Null drops every draw again.
     internal static void UseBuffer(DebugDrawBuffer? buffer) => Buffer = buffer;
+
+    // Stamps the draws that follow with owner, and clears the stamp with null. A call with no buffer attached
+    // does nothing.
+    [Conditional(Development.Symbol)]
+    internal static void Own(object? owner)
+    {
+        if (Buffer is { } buffer)
+        {
+            buffer.Owner = owner;
+        }
+    }
 
     // Whether a call would land anywhere, letting an engine pass skip the walk that feeds it. A trimmed
     // shipping publish folds it to false.

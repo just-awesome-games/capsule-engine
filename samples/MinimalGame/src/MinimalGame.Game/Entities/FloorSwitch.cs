@@ -1,4 +1,6 @@
 using System.Numerics;
+using Capsule;
+using Capsule.Animation;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -6,12 +8,19 @@ using Capsule.Scenes.Spawning;
 
 namespace MinimalGame.Game.Entities;
 
-/// <summary>A plate on the floor that starts the lift its placement names when the player steps on it.</summary>
+/// <summary>
+/// A plate on the floor that starts the lift its placement names when the player steps on it, and shows
+/// the player the lift rising.
+/// </summary>
 public sealed class FloorSwitch : Entity
 {
     private static readonly Vector2 Size = new(16f, 4f);
 
+    // Steps the camera takes to ease between the player and the lift.
+    private const int PanTicks = 45;
+
     private readonly ColorRect _plate;
+    private readonly Sequence _showLift = new();
 
     /// <summary>The lift this plate starts. room.scene.json names it by its entry id.</summary>
     [Authorable]
@@ -29,9 +38,30 @@ public sealed class FloorSwitch : Entity
         Add(plate);
     }
 
+    /// <inheritdoc/>
+    protected override void OnStep(in StepContext context) => _showLift.Step();
+
     private void OnPlayerEntered(ColliderContact2D contact)
     {
-        Lift.Running = true;
+        if (Lift.Running || _showLift.IsRunning)
+        {
+            return;
+        }
+
         _plate.Color = ColorRgba.FromHex("#5aa85a");
+        _showLift.Start(ShowLift(Scene.FindSingle<Player>()));
+    }
+
+    // The player stands still while the camera visits the lift, watches it rise, and comes back.
+    private IEnumerable<Wait> ShowLift(Player player)
+    {
+        player.HasControl = false;
+        Scene.Camera.Follow(Lift);
+        yield return Wait.Ticks(PanTicks);
+        Lift.Running = true;
+        yield return Wait.Until(() => Lift.HasRisen);
+        Scene.Camera.Follow(player);
+        yield return Wait.Ticks(PanTicks);
+        player.HasControl = true;
     }
 }

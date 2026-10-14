@@ -18,6 +18,9 @@ internal sealed class DebugOverlay : IDisposable
     internal const int RepeatDelayFrames = 60;
     internal const int RepeatIntervalFrames = 10;
 
+    // The share of the selection's bounds that Frame leaves clear on each side.
+    internal const float FrameMargin = 0.1f;
+
     // Slowest first. 4x is the top because the default frame budget is eight steps.
     internal static readonly (double Scale, string Label)[] TimeScales =
         [(0.25, "0.25x"), (0.5, "0.5x"), (1, "1x"), (2, "2x"), (4, "4x")];
@@ -89,6 +92,10 @@ internal sealed class DebugOverlay : IDisposable
     private Scene? _pointerScene;
 
     private double _lastFrameMs;
+
+    // Wall-clock seconds from the previous frame's start to this one's. A flight spends them. They are zero
+    // for a first frame and for an Update that no Intercept preceded.
+    private double _frameSeconds;
     private bool _exited;
     private bool _disposed;
 
@@ -301,16 +308,32 @@ internal sealed class DebugOverlay : IDisposable
             float pixelsPerUnit = renderer.WorldPixelsPerUnit;
             _draws.TextScale = pixelsPerUnit > 0f ? scale / pixelsPerUnit : 1f;
             _lastFrameMs = renderer.LastFrameMs;
-            renderer.WorldZoomOut = _freeCamera.ZoomOut;
         }
 
         SampleFrame(gameEnd);
+
+        // A flight places the view for this frame, and the renderer reads the zoom it reached.
+        if (_state != OverlayState.Closed)
+        {
+            _freeCamera.Advance(_frameSeconds);
+        }
+
+        if (renderer is not null)
+        {
+            renderer.WorldZoomOut = _freeCamera.ZoomOut;
+        }
+
         _draws.Alpha = _scheduler.InterpolationAlpha;
 
-        // A world tool, so it acts open or hidden.
+        // World tools act open or hidden.
         if (_state != OverlayState.Closed && _input.WasPressed(OverlayActions.Move))
         {
             MoveSelection();
+        }
+
+        if (_state != OverlayState.Closed && _input.WasPressed(OverlayActions.Frame))
+        {
+            FrameSelection();
         }
 
         bool open = _state == OverlayState.Open;
@@ -345,11 +368,19 @@ internal sealed class DebugOverlay : IDisposable
                 Scene.ShowMenu(false);
             }
 
+            Highlight();
             _sceneSimulation.RewriteView();
         }
-        else if (menuChanged || _draws.AnyEnabled || _framePaneOn)
+        else
         {
-            _sceneSimulation.RewriteView();
+            bool highlighted = _draws.Selected is not null;
+            Highlight();
+
+            // The frame that ends a highlight is written too. Otherwise its lines stand.
+            if (menuChanged || _draws.AnyEnabled || _framePaneOn || highlighted || _draws.Selected is not null)
+            {
+                _sceneSimulation.RewriteView();
+            }
         }
     }
 
@@ -628,6 +659,26 @@ internal sealed class DebugOverlay : IDisposable
         _pageStale = true;
     }
 
+    // The entity the overlay is highlighting: the world entity whose panel is on top while the run is held.
+    private Entity? Selection() =>
+        _state != OverlayState.Closed
+        && _pages[^1] is { Kind: PageKind.Entity, Subject: { } entity }
+        && _panelRows.Holds(entity)
+        && entity is not ScreenEntity
+            ? entity
+            : null;
+
+    // Hands the selection to the draws. The held scene emits too. A selection made before any step has no
+    // draws yet.
+    private void Highlight()
+    {
+        _draws.Selected = Selection();
+        if (_draws.Selected is not null)
+        {
+            _draws.Emit();
+        }
+    }
+
     // The entity whose panel is on top moves to the world point last under the pointer, inside one stepped
     // tick. With no entity panel on top nothing moves.
     private void MoveSelection()
@@ -673,6 +724,35 @@ internal sealed class DebugOverlay : IDisposable
 
                 return;
             }
+        }
+    }
+
+    // The view flies to the union of the open entity's renderer and collider bounds, grown by a margin. An
+    // entity with none is centred at the span the view has. The game's camera is not written.
+    private void FrameSelection()
+    {
+        if (_pages[^1] is not { Kind: PageKind.Entity, Subject: { } entity, Name: { } name } || !_panelRows.Holds(entity))
+        {
+            SetStatus("Frame needs an entity. Open its panel from the Scene page");
+
+            return;
+        }
+
+        if (entity is ScreenEntity)
+        {
+            SetStatus($"{name} is on the screen layer and has no world position");
+
+            return;
+        }
+
+        if (SelectionBounds.TryUnion(entity, out Rect bounds))
+        {
+            Vector2 size = bounds.Size;
+            _freeCamera.Frame(bounds.Position + (size / 2f), size * (1f + (2f * FrameMargin)));
+        }
+        else
+        {
+            _freeCamera.Frame(entity.WorldPosition, null);
         }
     }
 
@@ -742,6 +822,7 @@ internal sealed class DebugOverlay : IDisposable
     // The first frame has no interval. An Update with no Intercept before it is not a frame.
     private void SampleFrame(long gameEnd)
     {
+        _frameSeconds = 0;
         long frameStart = _frameStart;
         if (frameStart < 0)
         {
@@ -751,6 +832,11 @@ internal sealed class DebugOverlay : IDisposable
         _frameStart = -1;
         long previous = _previousFrameStart;
         _previousFrameStart = frameStart;
+        if (previous >= 0)
+        {
+            _frameSeconds = (frameStart - previous) / (double)Stopwatch.Frequency;
+        }
+
         int steps = _scheduler.StepsThisFrame + _ticksSteppedByHand;
         _ticksSteppedByHand = 0;
         if (!_framePaneOn || previous < 0)

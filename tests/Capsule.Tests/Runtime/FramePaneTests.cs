@@ -20,7 +20,7 @@ public sealed class FramePaneTests
         DebugOverlay overlay = rig.Overlay;
 
         rig.Open();
-        rig.Press(Key.F);
+        rig.Press(Key.P);
         Assert.True(overlay.IsFramePaneOn);
 
         rig.Press(Key.Grave);
@@ -83,7 +83,7 @@ public sealed class FramePaneTests
         rig.Press(Key.Up);
         rig.Press(Key.Up);
         rig.Press(Key.Up);
-        rig.Press(Key.F);
+        rig.Press(Key.P);
         Assert.Equal(1, overlay.Depth);
         Assert.Equal("Frame Pane", rig.Focused());
 

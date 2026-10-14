@@ -26,6 +26,18 @@ internal sealed class FreeCamera
     // world too small to read.
     internal const float MaxZoomOut = 8f;
 
+    // The flight path's shape. A higher value zooms out further to cross a distance.
+    internal const double FlightRho = 1.42;
+
+    // Seconds a flight takes per unit of path length, before the clamp to the minimum and maximum below.
+    internal const double FlightSecondsPerLength = 0.4;
+    internal const double FlightMinSeconds = 0.2;
+    internal const double FlightMaxSeconds = 0.6;
+
+    // A centre closer than this share of the wider end's span counts as the same centre. The flight is then a
+    // pure zoom.
+    private const double PureZoomShare = 1e-6;
+
     private readonly SceneHost _scenes;
     private readonly FixedStepScheduler _scheduler;
 
@@ -39,6 +51,9 @@ internal sealed class FreeCamera
     private InputAction? _panAction;
     private Vector2 _lastWindow;
 
+    // The flight to a framed target. It holds only value types. Its spans are visible widths in world units.
+    private Flight _flight;
+
     internal FreeCamera(SceneHost scenes, FixedStepScheduler scheduler)
     {
         _scenes = scenes;
@@ -46,6 +61,8 @@ internal sealed class FreeCamera
     }
 
     internal bool Detached => _detached;
+
+    internal bool Flying => _flight.Active;
 
     // How many times wider than the game camera's span at detach the view spans, and 1 while attached.
     internal float ZoomOut => _detached ? _view.Size.X / _detachSize.X : 1f;
@@ -145,6 +162,60 @@ internal sealed class FreeCamera
     {
         _detached = false;
         _panAction = null;
+        _flight = default;
+    }
+
+    // Detaches if need be, then flies the view to centre at the span that shows extent whole. The span is never
+    // closer than the game camera's current span and never further than MaxZoomOut. A null extent keeps the
+    // span the view has. A flight already under way restarts from the view as it stands.
+    internal void Frame(Vector2 center, Vector2? extent)
+    {
+        if (!_detached)
+        {
+            Detach();
+        }
+
+        // A held step or command may have resized the game camera since the detach. The span floor and the
+        // zoom ratio read its current size.
+        _detachSize = _scenes.Scene.Camera.ToView().Size;
+
+        // The visible span at the game camera's size on this output. Every zoom scales it. A camera that shows
+        // nothing leaves nothing to frame.
+        Vector2 unit = Span(_view with { Size = _detachSize }, _scenes.View.Canvas);
+        if (!(unit.X > 0f) || !(unit.Y > 0f))
+        {
+            return;
+        }
+
+        float zoom = ZoomOut;
+        if (extent is { } wanted)
+        {
+            zoom = Math.Clamp(MathF.Max(1f, MathF.Max(wanted.X / unit.X, wanted.Y / unit.Y)), 1f, MaxZoomOut);
+        }
+
+        _flight = Flight.Begin(_view.Center, ZoomOut * unit.X, center, zoom * unit.X, unit.X, MaxZoomOut * unit.X);
+        if (!_flight.Active)
+        {
+            Place(center, _detachSize * zoom);
+        }
+    }
+
+    // Moves the flight on by the frame's wall-clock seconds and places the view where it has reached.
+    internal void Advance(double seconds)
+    {
+        if (!_flight.Active)
+        {
+            return;
+        }
+
+        (Vector2 center, float width) = _flight.Step(seconds);
+        Place(center, _detachSize * (width / _flight.UnitWidth));
+    }
+
+    private void Place(Vector2 center, Vector2 size)
+    {
+        _view = new CameraView(center, center, size, _view.Fit, Bounds: null, _view.ScrollCenter);
+        _scenes.ViewCamera = _view;
     }
 
     // Pans by the pointer's travel and the scrolled notches, then zooms about the world point under the
@@ -155,6 +226,9 @@ internal sealed class FreeCamera
         {
             Detach();
         }
+
+        // A gesture takes the view where the flight has left it.
+        _flight = default;
 
         Vector2 center = _view.Center;
         Vector2 size = _view.Size;
@@ -182,8 +256,7 @@ internal sealed class FreeCamera
             return;
         }
 
-        _view = new CameraView(center, center, size, _view.Fit, Bounds: null, _view.ScrollCenter);
-        _scenes.ViewCamera = _view;
+        Place(center, size);
     }
 
     // Seeds the stand-in from the game's view at the held alpha of 1, centred where the game's frame is

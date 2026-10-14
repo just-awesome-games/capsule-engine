@@ -66,6 +66,9 @@ public sealed class Player : Entity
     /// <summary>Whether the last step fired a bolt; cleared as each step begins.</summary>
     public bool ShotThisStep { get; private set; }
 
+    /// <summary>Whether input moves, jumps and shoots, defaulting to true. A cutscene clears it while it plays.</summary>
+    public bool HasControl { get; set; } = true;
+
     public Player(EntitySpawn spawn)
         : base(spawn)
     {
@@ -155,17 +158,17 @@ public sealed class Player : Entity
         // The edges are this step's facts: the visual, stepping after this root, reads them once.
         JumpedThisStep = false;
         LandedThisStep = false;
-        ShotThisStep = context.Input.WasPressed(GameInput.Shoot);
+        ShotThisStep = HasControl && context.Input.WasPressed(GameInput.Shoot);
 
         // The body applies no forces: velocity is the game's, every step.
-        float move = context.Input.Axis(GameInput.Move);
+        float move = HasControl ? context.Input.Axis(GameInput.Move) : 0f;
         float target = move * WalkSpeed(move);
         _velocity.X = IceUnderfoot() is { } ice ? MoveTowards(_velocity.X, target, ice.Friction * delta) : target;
         _velocity.Y += _tuning.Gravity * delta;
 
         // IsOnFloor is state as of the last Move, so this reads the previous step's landing.
         bool wasOnFloor = _body.IsOnFloor;
-        if (wasOnFloor && context.Input.WasPressed(GameInput.Jump))
+        if (HasControl && wasOnFloor && context.Input.WasPressed(GameInput.Jump))
         {
             if (context.Input.IsHeld(GameInput.Drop))
             {
