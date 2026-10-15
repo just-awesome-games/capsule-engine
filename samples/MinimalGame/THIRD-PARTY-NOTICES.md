@@ -194,3 +194,9 @@ given a different name.
 
 $Id$
 ```
+
+## Kenney Input Prompts Pixel 16x
+
+`src/MinimalGame.Game/Assets/Textures/ui/prompts.png` is cut from Input Prompts Pixel 16x 1.0 by
+Kenney (www.kenney.nl), released under Creative Commons CC0 1.0 Universal
+(https://creativecommons.org/publicdomain/zero/1.0/). No attribution is required.

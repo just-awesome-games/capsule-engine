@@ -230,7 +230,8 @@
       "x": 16,
       "y": 96,
       "size": [96, 80],
-      "text": "Space: jump"
+      "text": "[color=#ffd060]Jump[/color]",
+      "prompt": "jump"
     },
     {
       "type": "floor-switch",

@@ -51,7 +51,7 @@ public sealed class TileMapEntryTests
         Assert.Equal(("Game.Ice", (object?)0.5f), (tile.GetType().FullName, tile.GetType().GetProperty("Grip")!.GetValue(tile)));
         Assert.Equal(("slick", "solid"), (tile.Name, tile.Layer));
         Assert.Equal(TileTransform.FlipX, map.TransformAt(0, 0));
-        Assert.True(map.TryGet<TileMapCollider2D>(out _));
+        Assert.True(map.Has<TileMapCollider2D>());
         Assert.Equal(new Vector2(32f, 16f), scene.Size);
         Assert.Equal([new TextureHandle("textures/frost", ".png")], scene.CollectAssetPreloads().Textures);
     }

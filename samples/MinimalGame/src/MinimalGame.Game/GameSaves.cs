@@ -33,9 +33,6 @@ public readonly record struct Binding(InputButton Key, InputButton Pad)
     /// <summary>This pair with the slot for <paramref name="button"/>'s device replaced.</summary>
     public Binding With(InputButton button) =>
         button.Device == InputDevice.Gamepad ? this with { Pad = button } : this with { Key = button };
-
-    /// <summary>The slot a prompt shows for <paramref name="device"/>.</summary>
-    public InputButton For(InputDevice device) => device == InputDevice.Gamepad ? Pad : Key;
 }
 
 /// <summary>The game's save documents, declared once beside the rest of its declarations.</summary>

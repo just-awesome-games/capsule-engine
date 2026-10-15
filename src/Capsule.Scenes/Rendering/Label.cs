@@ -47,6 +47,12 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     private ReadOnlyMemory<char> _memory = text.AsMemory();
     private char[] _buffer = [];
 
+    // Counts every write to the text, so the cached layout can tell the characters changed.
+    private int _textVersion;
+
+    // The run laid out, built on the first draw or bounds read and kept until something it depends on changes.
+    private LabelLayout? _layout;
+
     /// <summary>The text to draw. Empty draws nothing.</summary>
     /// <remarks>
     /// A <c>\n</c> starts a new line, and a codepoint <see cref="Font"/> has no glyph for draws
@@ -63,6 +69,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
 
             _text = value;
             _memory = value.AsMemory();
+            _textVersion++;
         }
     }
 
@@ -83,6 +90,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         text.CopyTo(_buffer);
         _memory = _buffer.AsMemory(0, text.Length);
         _text = null;
+        _textVersion++;
     }
 
     /// <summary>
@@ -137,6 +145,21 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// </remarks>
     public int? VisibleCharacters { get; set; }
 
+    /// <summary>Whether <see cref="Text"/> is read as markup, defaulting to false to draw it exactly as written.</summary>
+    /// <remarks>
+    /// <c>[color=#rrggbb]...[/color]</c> tints the glyphs between the tags, and <c>#rrggbbaa</c> adds an
+    /// alpha. Spans nest, the innermost wins, and an unclosed span runs to the end. A glyph's colour is its
+    /// span's multiplied by <see cref="Color"/>. <c>[[</c> draws one <c>[</c>. Any other bracketed text
+    /// draws as written, including an unknown tag, a malformed colour and a stray <c>[/color]</c>.
+    /// <see cref="VisibleCharacters"/> counts no tag.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// new Label(font, "Press [color=#ffd060]Jump[/color]") { RichText = true };
+    /// </code>
+    /// </example>
+    public bool RichText { get; set; }
+
     /// <summary>A tint multiplied into every texel. White by default, which draws the font pages unchanged.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
 
@@ -150,10 +173,48 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// position plus <see cref="Offset"/>.
     /// </summary>
     /// <remarks>
-    /// Each read lays the text out again, in the space and under the rules
-    /// <see cref="Renderer.Bounds"/> states.
+    /// The layout is kept until the text, the font, the box width, <see cref="Wrap"/>,
+    /// <see cref="HorizontalAlignment"/> or <see cref="RichText"/> changes, in the space and under the
+    /// rules <see cref="Renderer.Bounds"/> states.
     /// </remarks>
-    public override Rect Bounds => Entity is null ? default : Intent().Bounds;
+    public override Rect Bounds
+    {
+        get
+        {
+            if (Entity is null)
+            {
+                return default;
+            }
+
+            Transform2D current = RenderTransform;
+            LabelLayout layout = Laid(current.Scale, out Vector2 box, out Vector2 size);
+
+            return layout.IsEmpty ? default : Place(layout, current.TransformPoint(Offset), current.Scale, box, size, out _);
+        }
+    }
+
+    /// <summary>
+    /// The laid-out text's extent in the entity's units, its widest line by its lines' total height, or zero
+    /// when it draws nothing.
+    /// </summary>
+    /// <remarks>
+    /// It ignores the box, so a parent can fit itself to what a label filling it draws, or place something
+    /// where the text ends.
+    /// </remarks>
+    public Vector2 ContentSize
+    {
+        get
+        {
+            if (Entity is null)
+            {
+                return default;
+            }
+
+            LabelLayout layout = Laid(RenderTransform.Scale, out _, out _);
+
+            return layout.IsEmpty ? default : new Vector2(layout.Width, layout.Height);
+        }
+    }
 
     /// <inheritdoc/>
     protected internal override void CollectAssets(AssetCollection assets)
@@ -168,26 +229,84 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     {
         ArgumentNullException.ThrowIfNull(view);
 
-        view.Add(Intent());
+        Transform2D current = RenderTransform;
+        Vector2 scale = current.Scale;
+        LabelLayout layout = Laid(scale, out Vector2 box, out Vector2 size);
+        if (layout.IsEmpty)
+        {
+            return;
+        }
+
+        Vector2 position = current.TransformPoint(Offset);
+        Vector2 previous = PreviousRenderTransform.TransformPoint(Offset);
+        Rect placed = Place(layout, position, scale, box, size, out Vector2 origin);
+
+        if (view.Rejects(TextBox.Reach(previous, position, size, scale, Font.Overhang, placed), view.Space))
+        {
+            return;
+        }
+
+        ReadOnlySpan<TextureHandle> pages = Font.Pages;
+
+        // The run is laid out in full whatever the visible count, so revealing it never moves a glyph.
+        int visible = VisibleCharacters ?? int.MaxValue;
+
+        // The box is the same shape at both ends of the step, so the previous origin differs by travel.
+        Vector2 travel = previous - position;
+
+        foreach (LabelGlyph glyph in layout.Glyphs)
+        {
+            if (glyph.Index >= visible)
+            {
+                return;
+            }
+
+            Sprite sprite = new(pages[glyph.Page], glyph.Region);
+            Vector2 at = origin + (new Vector2(glyph.X, glyph.Y) * scale);
+
+            view.Add(
+                new SpriteIntent(
+                    sprite,
+                    at + travel,
+                    at,
+                    PreviousRotation: 0f,
+                    Rotation: 0f,
+                    new Vector2(sprite.Region.Width, sprite.Region.Height) * scale,
+                    FlipX: false,
+                    FlipY: false,
+                    glyph.Tint == ColorRgba.White ? Color : ColorRgba.Multiply(glyph.Tint, Color)));
+        }
     }
 
-    private TextIntent Intent()
+    // Brings the layout up to date for the scale it will draw at. box is what the entity gives the label in
+    // its own units, and size the same in the drawn space's.
+    private LabelLayout Laid(Vector2 scale, out Vector2 box, out Vector2 size)
     {
-        Transform2D previous = PreviousRenderTransform;
-        Transform2D current = RenderTransform;
-        Vector2 box = ScreenEntity.Fill(Entity, Size);
+        box = ScreenEntity.Fill(Entity, Size);
+        size = box * scale;
 
-        return new TextIntent(Font, _memory, previous.TransformPoint(Offset), current.TransformPoint(Offset), current.Scale, Color)
-        {
-            Size = box * current.Scale,
+        LabelLayoutKey key = new(
+            _textVersion,
+            Font,
+            size.X > 0f ? TextBox.WrapWidth(size.X, scale.X) : -1,
+            Wrap,
+            HorizontalAlignment,
+            RichText);
 
-            // An axis the fill changed is the screen entity's rect, which starts at the entity's position.
-            Pivot = new Pivot(box.X != Size.X ? 0f : Pivot.X, box.Y != Size.Y ? 0f : Pivot.Y),
-            Wrap = Wrap,
-            HorizontalAlignment = HorizontalAlignment,
-            VerticalAlignment = VerticalAlignment,
-            VisibleCharacters = VisibleCharacters,
-        };
+        _layout ??= new LabelLayout();
+        _layout.Update(_memory.Span, in key);
+
+        return _layout;
+    }
+
+    private Rect Place(LabelLayout layout, Vector2 position, Vector2 scale, Vector2 box, Vector2 size, out Vector2 origin)
+    {
+        Vector2 measured = new Vector2(layout.Width, layout.Height) * scale;
+
+        // An axis the fill changed is the screen entity's rect, which starts at the entity's position.
+        Pivot pivot = new(box.X != Size.X ? 0f : Pivot.X, box.Y != Size.Y ? 0f : Pivot.Y);
+
+        return TextBox.Place(position, pivot, TextBox.Extent(size, measured), measured, VerticalAlignment, out origin);
     }
 
     /// <inheritdoc/>
@@ -195,6 +314,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     {
         base.OnDebugPanel(panel);
         panel.Field("Text", Text);
+        panel.Field("RichText", RichText);
         panel.Field("Font", string.Create(CultureInfo.InvariantCulture, $"{Font.LineHeight}px line"));
         panel.Field("Pivot", new Vector2(Pivot.X, Pivot.Y));
         panel.Field("Offset", Offset);

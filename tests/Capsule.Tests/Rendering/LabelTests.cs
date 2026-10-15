@@ -108,6 +108,64 @@ public sealed class LabelTests
         Assert.Equal(FontFixtures.A.Region, Assert.Single(simulation.View.Sprites.ToArray()).Sprite.Region);
     }
 
+    // The label caches its layout and draws from the cache, so it is held to what FrameView.Add(TextIntent)
+    // lays out: every sprite, with the interpolation across a step.
+    [Theory]
+    [InlineData("AB AB A", TextWrap.None, HorizontalAlignment.Left, 0f, 0f, null)]
+    [InlineData("AB AB A", TextWrap.Word, HorizontalAlignment.Left, 15f, 0f, null)]
+    [InlineData("AB AB\nA", TextWrap.Word, HorizontalAlignment.Center, 22f, 40f, null)]
+    [InlineData("AB AB\nA", TextWrap.None, HorizontalAlignment.Right, 0f, 40f, null)]
+    [InlineData("AB\nA AB", TextWrap.Word, HorizontalAlignment.Center, 0f, 0f, null)]
+    [InlineData("AB AB A", TextWrap.Word, HorizontalAlignment.Right, 17f, 0f, 4)]
+    [InlineData("AB\nA \uD83D\uDE00B", TextWrap.None, HorizontalAlignment.Left, 30f, 12f, 3)]
+    public void APlainLabel_DrawsExactlyWhatTheTextIntentDraws(
+        string text,
+        TextWrap wrap,
+        HorizontalAlignment alignment,
+        float width,
+        float height,
+        int? visible)
+    {
+        Holder entity = Prompt(text);
+        entity.Scale = new Vector2(2f, 3f);
+        entity.Drift = new Vector2(5f, -8f);
+        Label label = entity.Text;
+        label.Size = new Vector2(width, height);
+        label.Wrap = wrap;
+        label.HorizontalAlignment = alignment;
+        label.VerticalAlignment = VerticalAlignment.Middle;
+        label.Pivot = Pivot.Center;
+        label.VisibleCharacters = visible;
+        label.Color = new ColorRgba(200, 100, 50, 180);
+
+        Scene scene = new();
+        scene.Add(entity);
+        using SceneSimulation simulation = new(scene);
+        Vector2 before = entity.Position;
+        simulation.Step(SceneFixtures.Step());
+
+        // The label's offset turns with the entity's scale, and the box is sized in the entity's units.
+        FrameView expected = new();
+        expected.Add(new TextIntent(
+            FontFixtures.Font(),
+            text,
+            before + (label.Offset * entity.Scale),
+            entity.Position + (label.Offset * entity.Scale),
+            entity.Scale,
+            label.Color)
+        {
+            Size = label.Size * entity.Scale,
+            Pivot = label.Pivot,
+            Wrap = wrap,
+            HorizontalAlignment = alignment,
+            VerticalAlignment = label.VerticalAlignment,
+            VisibleCharacters = visible,
+        });
+
+        Assert.NotEmpty(expected.Sprites.ToArray());
+        Assert.Equal(expected.Sprites.ToArray(), simulation.View.Sprites.ToArray());
+    }
+
     [Fact]
     public void ALabelOnNoEntity_OccupiesNoBox()
     {
@@ -155,5 +213,10 @@ public sealed class LabelTests
         }
 
         internal Label Text { get; }
+
+        // Moves the entity each step, so the label has somewhere to interpolate from.
+        internal Vector2 Drift { get; set; }
+
+        protected internal override void OnStep(in StepContext context) => Position += Drift;
     }
 }

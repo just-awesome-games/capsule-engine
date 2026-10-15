@@ -17,11 +17,15 @@ public sealed class OptionsMenu : ScreenEntity
     // Canvas pixels between the list and its scroll bar.
     private const float BarGap = 4f;
 
+    // What a row shows at rest, before the prompt that follows the active device and a rebind on its own.
+    private const string JumpCaption = "Jump:";
+    private const string ShootCaption = "Shoot:";
+
     // The longest caption a row shows, which the panel is sized for.
     private const string ShootPrompt = "Shoot: press a button";
 
-    private readonly MenuItem _jump = new("");
-    private readonly MenuItem _shoot = new("");
+    private readonly MenuItem _jump = new(JumpCaption, GameInput.Jump);
+    private readonly MenuItem _shoot = new(ShootCaption, GameInput.Shoot);
     private readonly VolumeSlider _music = new("Music");
     private readonly VolumeSlider _effects = new("Effects");
     private readonly MenuItem _back = new("Back");
@@ -34,8 +38,6 @@ public sealed class OptionsMenu : ScreenEntity
 
     // The item a capture is listening for, or null while not capturing.
     private MenuItem? _listening;
-
-    private InputDevice _shownDevice;
 
     public OptionsMenu()
         : base(Anchor.Center, Vector2.Zero)
@@ -73,7 +75,6 @@ public sealed class OptionsMenu : ScreenEntity
         _settings = Run.Saves.Read(GameSaves.Settings);
         _music.Value = _settings.MusicVolume;
         _effects.Value = _settings.EffectsVolume;
-        Refresh(InputDevice.KeyboardMouse);
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.TitleSound);
     }
 
@@ -82,24 +83,19 @@ public sealed class OptionsMenu : ScreenEntity
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
     {
-        if (_listening is { } item)
+        if (_listening is not { } item)
         {
-            if (context.Input.WasPressed(GameInput.Back))
-            {
-                EndListening(context.Input.ActiveDevice);
-            }
-            else if (context.Input.WasAnyPressed(out InputButton button))
-            {
-                Capture(item, button);
-                EndListening(context.Input.ActiveDevice);
-            }
-
             return;
         }
 
-        if (context.Input.ActiveDevice != _shownDevice)
+        if (context.Input.WasPressed(GameInput.Back))
         {
-            Refresh(context.Input.ActiveDevice);
+            EndListening(item);
+        }
+        else if (context.Input.WasAnyPressed(out InputButton button))
+        {
+            Capture(item, button);
+            EndListening(item);
         }
     }
 
@@ -108,13 +104,15 @@ public sealed class OptionsMenu : ScreenEntity
         _listening = item;
         _navigator.Interactable = false;
         item.Caption = item == _jump ? "Jump: press a button" : ShootPrompt;
+        item.ShowsPrompt = false;
     }
 
-    private void EndListening(InputDevice device)
+    private void EndListening(MenuItem item)
     {
+        item.Caption = item == _jump ? JumpCaption : ShootCaption;
+        item.ShowsPrompt = true;
         _listening = null;
         _navigator.Interactable = true;
-        Refresh(device);
     }
 
     // A save moment: the document is written where the player changed it, and the bind is applied
@@ -150,16 +148,4 @@ public sealed class OptionsMenu : ScreenEntity
     }
 
     private void Leave() => Run.RequestScene<MainMenu>();
-
-    private void Refresh(InputDevice device)
-    {
-        _shownDevice = device;
-
-        _jump.Caption = $"Jump: {DisplayName(_settings.Input.Jump.For(device))}";
-        _shoot.Caption = $"Shoot: {DisplayName(_settings.Input.Shoot.For(device))}";
-    }
-
-    // A mouse button is prefixed, since a player does not read "Left" alone as a device.
-    private static string DisplayName(InputButton button) =>
-        button.ToString().StartsWith($"{nameof(MouseButton)}.", StringComparison.Ordinal) ? $"Mouse {button.Name}" : button.Name;
 }

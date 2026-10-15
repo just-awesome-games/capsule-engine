@@ -1,0 +1,77 @@
+{
+  "$schema": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/sheet.schema.json",
+  "formatVersion": 1,
+  "texture": "textures/ui/prompts.png",
+  "frames": [
+    {
+      "name": "pad-south",
+      "x": 0,
+      "y": 0,
+      "width": 16,
+      "height": 16
+    },
+    {
+      "name": "pad-east",
+      "x": 16,
+      "y": 0,
+      "width": 16,
+      "height": 16
+    },
+    {
+      "name": "pad-west",
+      "x": 32,
+      "y": 0,
+      "width": 16,
+      "height": 16
+    },
+    {
+      "name": "pad-north",
+      "x": 48,
+      "y": 0,
+      "width": 16,
+      "height": 16
+    },
+    {
+      "name": "pad-start",
+      "x": 64,
+      "y": 0,
+      "width": 16,
+      "height": 16
+    },
+    {
+      "name": "key-escape",
+      "x": 80,
+      "y": 0,
+      "width": 16,
+      "height": 16
+    },
+    {
+      "name": "key-space",
+      "x": 96,
+      "y": 0,
+      "width": 16,
+      "height": 16
+    },
+    {
+      "name": "key-enter",
+      "x": 112,
+      "y": 0,
+      "width": 16,
+      "height": 16
+    },
+    {
+      "name": "mouse-left",
+      "x": 128,
+      "y": 0,
+      "width": 16,
+      "height": 16
+    },
+    {
+      "name": "mouse-right",
+      "x": 144,
+      "y": 0,
+      "width": 16,
+      "height": 16
+    }
+  ]
+}

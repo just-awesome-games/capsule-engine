@@ -24,18 +24,33 @@ public readonly partial record struct ColorRgba(byte R, byte G, byte B, byte A)
     {
         ArgumentNullException.ThrowIfNull(hex);
 
+        if (TryReadHex(hex, out ColorRgba color))
+        {
+            return color;
+        }
+
+        throw new FormatException(
+            $"\"{hex}\" is not a colour. Write it as \"#rrggbb\" or as \"#rrggbbaa\" with the alpha last.");
+    }
+
+    // The two forms FromHex reads, without the exception, for markup that falls back to literal text.
+    internal static bool TryReadHex(ReadOnlySpan<char> hex, out ColorRgba color)
+    {
+        color = default;
+
         if ((hex.Length == 7 || hex.Length == 9) && hex[0] == '#'
             && TryReadByte(hex, 1, out byte r) && TryReadByte(hex, 3, out byte g) && TryReadByte(hex, 5, out byte b))
         {
             byte a = byte.MaxValue;
             if (hex.Length == 7 || TryReadByte(hex, 7, out a))
             {
-                return new ColorRgba(r, g, b, a);
+                color = new ColorRgba(r, g, b, a);
+
+                return true;
             }
         }
 
-        throw new FormatException(
-            $"\"{hex}\" is not a colour. Write it as \"#rrggbb\" or as \"#rrggbbaa\" with the alpha last.");
+        return false;
     }
 
     /// <summary>
@@ -73,7 +88,7 @@ public readonly partial record struct ColorRgba(byte R, byte G, byte B, byte A)
     // of 255 returns the other channel unchanged.
     internal static byte Multiply(byte a, byte b) => (byte)(((a * b) + 127) / 255);
 
-    private static bool TryReadByte(string hex, int start, out byte value)
+    private static bool TryReadByte(ReadOnlySpan<char> hex, int start, out byte value)
     {
         char high = hex[start];
         char low = hex[start + 1];

@@ -46,6 +46,6 @@ public static class RoomFixture
     {
         ArgumentNullException.ThrowIfNull(room);
 
-        return room.Scene.FindFirst<TileMap>(static map => map.TryGet<TileMapCollider2D>(out _))!;
+        return room.Scene.FindFirst<TileMap>(static map => map.Has<TileMapCollider2D>())!;
     }
 }

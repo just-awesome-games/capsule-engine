@@ -86,40 +86,23 @@ public readonly record struct TextIntent(
             return false;
         }
 
-        // Only a positive scale converts a box in space units back into the font pixels layout wants. A
-        // degenerate scale still submits its glyphs, which cull on their own extent.
-        static int WrapWidth(float extent, float scale) => scale > 0f && extent > 0f ? (int)(extent / scale) : 0;
+        Vector2 measured = TextBox.NeedsMeasure(Size, VerticalAlignment)
+            ? font.Measure(Text.Span, Wrap == TextWrap.Word ? TextBox.WrapWidth(Size.X, Scale.X) : 0) * Scale
+            : Vector2.Zero;
 
-        // Measuring the run costs a pass over the text, so it is skipped when the box is given on both
-        // axes and the run sits at its top. Nothing then reads the extent.
-        float share = Share(VerticalAlignment);
-        Vector2 measured = Size.X > 0f && Size.Y > 0f && share == 0f
-            ? Vector2.Zero
-            : font.Measure(Text.Span, Wrap == TextWrap.Word ? WrapWidth(Size.X, Scale.X) : 0) * Scale;
-
-        Vector2 box = new(
-            Size.X > 0f ? Size.X : measured.X,
-            Size.Y > 0f ? Size.Y : measured.Y);
-
-        Vector2 topLeft = Position - Pivot.On(box);
+        Vector2 extent = TextBox.Extent(Size, measured);
+        Rect box = TextBox.Place(Position, Pivot, extent, measured, VerticalAlignment, out Vector2 origin);
 
         placement = new TextPlacement(
             font,
-            new Vector2(topLeft.X, topLeft.Y + ((box.Y - measured.Y) * share)),
-            new Rect(topLeft.X, topLeft.Y, topLeft.X + box.X, topLeft.Y + box.Y),
-            WrapWidth(box.X, Scale.X),
+            origin,
+            box,
+            TextBox.WrapWidth(extent.X, Scale.X),
             Wrap,
             HorizontalAlignment);
 
         return true;
     }
-
-    private static float Share(VerticalAlignment alignment) => alignment switch
-    {
-        VerticalAlignment.Middle => 0.5f,
-        VerticalAlignment.Bottom => 1f,
-        _ => 0f,
-    };
 }
 
 // A text intent's resolved box: where its first line's pen starts, the box around it, and what the glyph

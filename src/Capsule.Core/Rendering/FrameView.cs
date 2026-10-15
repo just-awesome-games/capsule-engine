@@ -460,8 +460,8 @@ public sealed class FrameView
     /// <summary>Lays <paramref name="text"/> out onto <paramref name="space"/>'s list.</summary>
     public void Add(in TextIntent text, RenderSpace space)
     {
-        Layer layer = Of(space);
-        if (!text.TryPlace(out TextPlacement placed) || (layer.Culls && !Reach(text, placed).Intersects(layer.Bounds)))
+        if (!text.TryPlace(out TextPlacement placed)
+            || Rejects(TextBox.Reach(text.PreviousPosition, text.Position, text.Size, text.Scale, placed.Font.Overhang, placed.Box), space))
         {
             return;
         }
@@ -503,17 +503,13 @@ public sealed class FrameView
         }
     }
 
-    // Where a run's glyphs can draw across the step: its box grown by the font's overhang, and by one
-    // font pixel that the box width loses to whole pixels. An axis the caller sized can overflow the
-    // box and bounds nothing.
-    private static Rect Reach(in TextIntent text, in TextPlacement placed)
+    // Whether space's list culls and reach lies wholly outside what it keeps. A run is rejected whole,
+    // before any of its glyphs is built.
+    internal bool Rejects(in Rect reach, RenderSpace space)
     {
-        Vector2 pad = new Vector2(placed.Font.Overhang + 1) * text.Scale;
-        pad.X = text.Size.X > 0f ? float.PositiveInfinity : pad.X;
-        pad.Y = text.Size.Y > 0f ? float.PositiveInfinity : pad.Y;
-        Rect box = placed.Box;
+        Layer layer = Of(space);
 
-        return Rect.Sweep(text.PreviousPosition, text.Position, box.Position - text.Position - pad, new Vector2(box.Right, box.Bottom) - text.Position + pad);
+        return layer.Culls && !reach.Intersects(layer.Bounds);
     }
 
     /// <summary>

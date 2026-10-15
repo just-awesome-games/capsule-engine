@@ -57,7 +57,8 @@ public sealed class RebindingTests
         host.Step();
         host.Step(DeviceSnapshot.Of(Key.Space));
 
-        // The Jump row is the first item the menu adds. Its caption is the capture's state.
-        Assert.Equal("Jump: Space", host.Scene.FindFirst<MenuItem>()!.Caption);
+        // The Jump row is the first item the menu adds. Its caption and prompt are the capture's state.
+        MenuItem jump = host.Scene.FindFirst<MenuItem>()!;
+        Assert.Equal(("Jump:", true), (jump.Caption, jump.ShowsPrompt));
     }
 }

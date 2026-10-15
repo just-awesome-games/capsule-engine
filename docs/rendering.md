@@ -71,7 +71,7 @@ entity's position, a `Color`, and a `ZIndex` of its own within the entity's band
 | --- | --- |
 | `SpriteRenderer` | One `Sprite`. `Socket(name)` returns a child entity the drawn frame places, and `Box(name)` a collider it places. |
 | `ColorRect` | A flat rect of `Size`. |
-| `Label` | A run of a `BitmapFont`, wrapped and aligned inside `Size`. |
+| `Label` | A run of a `BitmapFont`, wrapped and aligned inside `Size`. `RichText` adds colour spans. |
 | `NineSlice` | A sprite stretched to `Size` with its `Insets` corners kept. |
 | `ParticleEmitter` | A fixed pool of sprite particles stepped on the fixed tick. |
 
