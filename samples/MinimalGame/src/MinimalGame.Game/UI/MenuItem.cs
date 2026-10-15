@@ -75,6 +75,13 @@ public sealed class MenuItem : ScreenEntity
         remove => Focusable.Pressed -= value;
     }
 
+    /// <summary>Raised with the action when one of the menu's secondary actions presses this item.</summary>
+    public event Action<InputAction>? SecondaryPressed
+    {
+        add => Focusable.SecondaryPressed += value;
+        remove => Focusable.SecondaryPressed -= value;
+    }
+
     /// <summary>The label drawn inside the box.</summary>
     public string Caption
     {

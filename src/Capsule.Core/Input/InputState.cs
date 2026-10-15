@@ -119,6 +119,11 @@ public sealed class InputState
     public bool WasPressed(InputAction action) =>
         _bindings.IsAnyDown(action, _current) && !_bindings.IsAnyDown(action, _previous);
 
+    internal bool WasPressed(InputAction action, bool mouse) =>
+        _bindings.IsAnyDown(action, _current, mouse) && !_bindings.IsAnyDown(action, _previous, mouse);
+
+    internal bool IsHeld(InputAction action, bool mouse) => _bindings.IsAnyDown(action, _current, mouse);
+
     /// <summary>Whether <paramref name="action"/> came up on the edge into this step.</summary>
     public bool WasReleased(InputAction action) =>
         !_bindings.IsAnyDown(action, _current) && _bindings.IsAnyDown(action, _previous);

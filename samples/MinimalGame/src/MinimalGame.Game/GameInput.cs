@@ -35,11 +35,8 @@ public static class GameInput
     /// <summary>Moves the menu focus to the item to the right.</summary>
     public static readonly InputAction MenuRight = new("menu-right");
 
-    /// <summary>Accepts the menu.</summary>
+    /// <summary>Presses the focused menu item, or the one under the pointer when clicked.</summary>
     public static readonly InputAction Confirm = new("confirm");
-
-    /// <summary>Picks the menu item under the pointer.</summary>
-    public static readonly InputAction Click = new("click");
 
     /// <summary>Leaves the game from the title screen.</summary>
     public static readonly InputAction Quit = new("quit");
@@ -50,11 +47,15 @@ public static class GameInput
     /// <summary>Cancels a rebinding capture, or leaves the options screen.</summary>
     public static readonly InputAction Back = new("back");
 
+    /// <summary>Returns the options row it presses to its default.</summary>
+    public static readonly InputAction Reset = new("reset");
+
     /// <summary>
     /// What drives a menu's focus, declared here beside the actions it names so every menu the game
     /// opens is navigated the same way.
     /// </summary>
-    public static readonly FocusActions MenuFocus = new(MenuUp, MenuDown, MenuLeft, MenuRight, Confirm, Click, Back);
+    public static readonly FocusActions MenuFocus =
+        new(MenuUp, MenuDown, MenuLeft, MenuRight, Confirm, Cancel: Back, Secondary: [Reset]);
 
     /// <summary>Binds every action to the devices the game supports.</summary>
     public static void Configure(InputConfiguration input, GameSettings settings)
@@ -79,9 +80,8 @@ public static class GameInput
         // The same keys the Move axis takes: no scene reads both, so one device can serve either.
         bindings.Bind(MenuLeft, Key.Left, Key.A, PadButton.DPadLeft, StickDirection.LeftStickLeft);
         bindings.Bind(MenuRight, Key.Right, Key.D, PadButton.DPadRight, StickDirection.LeftStickRight);
-        bindings.Bind(Confirm, Key.Enter, Key.Space, PadButton.South);
-
-        bindings.Bind(Click, MouseButton.Left);
+        bindings.Bind(Confirm, Key.Enter, Key.Space, PadButton.South, MouseButton.Left);
+        bindings.Bind(Reset, Key.Delete, Key.Backspace, PadButton.North, MouseButton.Right);
 
         // Quit, Pause and Back share Escape. The title screen reads Quit, play reads Pause and the
         // options screen reads Back, and no scene reads two of them.

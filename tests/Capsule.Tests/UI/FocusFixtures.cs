@@ -19,11 +19,11 @@ internal static class FocusFixtures
 
     internal static readonly InputAction Confirm = new("Confirm");
 
-    internal static readonly InputAction Click = new("Click");
-
     internal static readonly InputAction Cancel = new("Cancel");
 
-    internal static readonly FocusActions Actions = new(Up, Down, Left, Right, Confirm, Click, Cancel);
+    internal static readonly InputAction Reset = new("Reset");
+
+    internal static readonly FocusActions Actions = new(Up, Down, Left, Right, Confirm, Cancel, [Reset]);
 
     internal static readonly Vector2 Box = new(20f, 10f);
 
@@ -313,9 +313,9 @@ internal static class FocusFixtures
                 .Bind(Down, Key.Down)
                 .Bind(Left, Key.Left)
                 .Bind(Right, Key.Right)
-                .Bind(Confirm, Key.Enter)
-                .Bind(Click, MouseButton.Left)
-                .Bind(Cancel, Key.Escape);
+                .Bind(Confirm, Key.Enter, MouseButton.Left)
+                .Bind(Cancel, Key.Escape)
+                .Bind(Reset, Key.Delete, MouseButton.Right);
 
         private Menu Advance(in DeviceSnapshot snapshot)
         {
@@ -333,6 +333,7 @@ internal static class FocusFixtures
             item.Focused += () => _log.Add($"focused {index}");
             item.Unfocused += () => _log.Add($"unfocused {index}");
             item.Pressed += () => _log.Add($"pressed {index}");
+            item.SecondaryPressed += action => _log.Add($"{action.Name} {index}");
             item.Adjusted += step => _log.Add($"adjusted {index} {step}");
 
             _items.Add(item);

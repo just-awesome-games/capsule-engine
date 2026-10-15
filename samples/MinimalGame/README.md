@@ -35,3 +35,4 @@ The gate is `sh hooks/pre-commit` from the sample root.
 - Change rooms: walk into the dark doorway at the room's far right, past the belt that pushes back.
 
 Jump and shoot can be rebound under Options on the title menu, where the list scrolls with the wheel or its bar.
+Delete, the north pad button or a right-click on a binding's row puts its default back.

@@ -64,6 +64,8 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
         (uint)_padButton < DeviceSnapshot.PadCapacity &&
         (uint)_mouseButton < DeviceSnapshot.MouseCapacity;
 
+    internal bool IsMouseButton => _mouseButton != MouseButton.None;
+
     /// <summary>
     /// Whether <paramref name="snapshot"/> holds this button down. A stick direction is down while
     /// its axis is at or past <see cref="StickPressPoint"/> in that direction.

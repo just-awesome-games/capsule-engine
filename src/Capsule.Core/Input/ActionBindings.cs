@@ -119,14 +119,14 @@ public sealed class ActionBindings
     /// <summary>Buttons bound to <paramref name="action"/>. Empty when the action is unbound.</summary>
     public ReadOnlySpan<InputButton> ButtonsFor(InputAction action) => Bound(_buttons, action.Index);
 
-    // Whether any button bound to action is held in snapshot.
-    internal bool IsAnyDown(InputAction action, in DeviceSnapshot snapshot)
+    // Whether any button bound to action is held in snapshot, or any of only its mouse buttons or only the rest.
+    internal bool IsAnyDown(InputAction action, in DeviceSnapshot snapshot, bool? mouse = null)
     {
         ReadOnlySpan<InputButton> buttons = Bound(_buttons, action.Index);
 
         for (int i = 0; i < buttons.Length; i++)
         {
-            if (buttons[i].IsDown(snapshot))
+            if ((mouse is not { } only || buttons[i].IsMouseButton == only) && buttons[i].IsDown(snapshot))
             {
                 return true;
             }

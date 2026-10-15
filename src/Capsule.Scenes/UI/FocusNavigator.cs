@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Capsule.Diagnostics;
@@ -43,6 +44,9 @@ public sealed class FocusNavigator : Component
 {
     private readonly List<Focusable> _items = [];
     private readonly FocusActions _actions;
+
+    // Confirm first, then the secondary actions.
+    private readonly InputAction[] _presses;
 
     // Whether this navigator collects the items in its entity's subtree.
     private readonly bool _gathers;
@@ -160,9 +164,11 @@ public sealed class FocusNavigator : Component
     /// work.
     /// </remarks>
     /// <param name="actions">The actions that drive this navigator for its whole life.</param>
+    /// <exception cref="ArgumentException"><see cref="FocusActions.Secondary"/> holds confirm.</exception>
     public FocusNavigator(FocusActions actions)
     {
         _actions = actions;
+        _presses = Presses(actions);
         _gathers = true;
     }
 
@@ -177,9 +183,11 @@ public sealed class FocusNavigator : Component
     /// </remarks>
     /// <param name="actions">The actions that drive this navigator for its whole life.</param>
     /// <param name="items">The items the focus moves between. Each must be non-null and listed once.</param>
+    /// <exception cref="ArgumentException"><see cref="FocusActions.Secondary"/> holds confirm.</exception>
     public FocusNavigator(FocusActions actions, params ReadOnlySpan<Focusable> items)
     {
         _actions = actions;
+        _presses = Presses(actions);
 
         foreach (Focusable item in items)
         {
@@ -308,23 +316,24 @@ public sealed class FocusNavigator : Component
     /// pressed this step. A step holding two directions uses the first of up, down, left and right. A
     /// direction on the focused item's <see cref="Focusable.Adjusts"/> axis adjusts that item in place of
     /// moving the focus.
-    /// <see cref="FocusActions.Confirm"/> and <see cref="FocusActions.Click"/> are read on their
-    /// press edge only.
+    /// The press actions are read on their press edge only.
     /// <para>
     /// A pointer that moved this step and lies inside an item's bounds focuses that item. A mouse
     /// resting on the menu does not fight a player on a gamepad. Items are hit-tested in list order
     /// and the first one containing the pointer wins. An item with empty bounds is never under the
-    /// pointer. Both the pointer and the click only reach items on a <see cref="ScreenEntity"/>, and
-    /// only where its <see cref="ClipRect"/> shows it. The directions ignore a clip. A
-    /// click presses the item under the pointer whether or not the pointer moved, and does nothing
-    /// over empty space. A step that finds no live focus spends itself moving to one and reads
-    /// nothing else but <see cref="FocusActions.Cancel"/>. The item it lands on cannot be pressed by an action aimed at the previously
-    /// focused item. A handler that takes the landing item out of its scene drops the press.
+    /// pointer. Both the pointer and its buttons only reach items on a <see cref="ScreenEntity"/>, and
+    /// only where its <see cref="ClipRect"/> shows it. The directions ignore a clip. A mouse button
+    /// bound to a press action presses the item under the pointer whether or not the pointer moved,
+    /// and does nothing over empty space. A step that finds no live focus spends itself moving to one
+    /// and reads nothing else but <see cref="FocusActions.Cancel"/>. The item it lands on cannot be
+    /// pressed by an action aimed at the previously focused item. A handler that takes the landing
+    /// item out of its scene drops the press.
     /// </para>
     /// <para>
-    /// A click that presses an item captures the pointer for it. While the click is held the pointer
-    /// focuses nothing, and the item raises <see cref="Focusable.Dragged"/> on the press and on each
-    /// move. The capture ends when the click is released or the focus leaves the item.
+    /// A mouse button bound to confirm that presses an item captures the pointer for it. While the
+    /// button is held the pointer focuses nothing, and the item raises <see cref="Focusable.Dragged"/>
+    /// on the press and on each move. The capture ends when the button is released or the focus leaves
+    /// the item.
     /// </para>
     /// <para>
     /// The wheel adjusts the focused item when that item has an <see cref="Focusable.Adjusts"/> axis and
@@ -361,7 +370,7 @@ public sealed class FocusNavigator : Component
             return;
         }
 
-        if (_dragging is not null && (_actions.Click is not { } held || !input.IsHeld(held)))
+        if (_dragging is not null && !input.IsHeld(_actions.Confirm, mouse: true))
         {
             _dragging = null;
         }
@@ -369,12 +378,11 @@ public sealed class FocusNavigator : Component
         bool captured = _dragging is not null;
 
         Focusable target = focused;
-        bool press = false;
         bool fromPointer = false;
 
         // One hit test per step. Pointer focusing requires the pointer to have moved, but a click does
         // not, so clicking without nudging the mouse still picks the item under it.
-        bool clicking = _actions.Click is { } click && input.WasPressed(click);
+        bool clicking = Clicked(input);
         bool hovering = input.PointerMoved && !captured;
         Focusable? under = hovering || clicking ? Under(input.Pointer) : null;
 
@@ -401,19 +409,18 @@ public sealed class FocusNavigator : Component
             }
         }
 
-        if (clicking && under is not null)
+        InputAction? pressing = Pressing(input, under, out bool clicked);
+
+        if (clicked)
         {
-            target = under;
-            press = true;
+            target = under!;
             fromPointer = true;
         }
-
-        press |= input.WasPressed(_actions.Confirm);
 
         // Move first. A press handler then finds this navigator already focused on the pressed item.
         Move(target, fromPointer);
 
-        bool dragStarted = clicking && under is not null && ReferenceEquals(Focused, under);
+        bool dragStarted = clicked && pressing == _actions.Confirm && ReferenceEquals(Focused, under);
 
         if (dragStarted)
         {
@@ -421,16 +428,16 @@ public sealed class FocusNavigator : Component
             _dragStart = input.Pointer;
         }
 
-        if (adjusting is not null && ReferenceEquals(Focused, adjusting) && Live(adjusting))
+        if (adjusting is not null && Reading && ReferenceEquals(Focused, adjusting) && Live(adjusting))
         {
             adjusting.Adjust(adjust);
         }
 
         Wheel(input);
 
-        if (press && Focused is { } pressed && Live(pressed))
+        if (pressing is { } action && Reading && Focused is { } pressed && Live(pressed))
         {
-            pressed.Press();
+            pressed.Press(action, _actions.Confirm);
         }
 
         if (_dragging is { } dragged)
@@ -446,6 +453,46 @@ public sealed class FocusNavigator : Component
         }
 
         Cancel(input);
+    }
+
+    private static InputAction[] Presses(FocusActions actions)
+    {
+        ImmutableArray<InputAction> secondary = actions.Secondary.IsDefault ? [] : actions.Secondary;
+
+        return secondary.Contains(actions.Confirm)
+            ? throw new ArgumentException($"{nameof(FocusActions.Secondary)} holds the confirm action. List only the other actions that press an item.", nameof(actions))
+            : [actions.Confirm, .. secondary];
+    }
+
+    private bool Clicked(InputState input)
+    {
+        foreach (InputAction action in _presses)
+        {
+            if (input.WasPressed(action, mouse: true))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // A click over empty space falls through to the action's other buttons.
+    private InputAction? Pressing(InputState input, Focusable? under, out bool clicked)
+    {
+        foreach (InputAction action in _presses)
+        {
+            clicked = under is not null && input.WasPressed(action, mouse: true);
+
+            if (clicked || input.WasPressed(action, mouse: false))
+            {
+                return action;
+            }
+        }
+
+        clicked = false;
+
+        return null;
     }
 
     // Raises one adjust per whole notch the wheel turned over the focused adjusting item. A turn

@@ -82,17 +82,23 @@ public sealed class FocusInteractableTests
         Assert.Equal(["unfocused 1", "canceled"], menu.Log);
     }
 
-    // A press that opens a rebinding prompt owns the input from then on. The cancel pressed with it in
-    // the same step does not leave the menu.
+    // A handler that opens a rebinding prompt owns the input from then on. Nothing pressed with it in the
+    // same step presses the item or leaves the menu.
     [Fact]
-    public void APressHandlerTurningInteractableOff_DropsThatStepsCancel()
+    public void AHandlerTurningInteractableOff_DropsThatStepsPressAndCancel()
     {
         using Menu menu = Column().Open();
-        menu.At(0).Pressed += () => menu.Navigator.Interactable = false;
+        menu.At(0).Adjusts = Axis.Horizontal;
+        menu.At(0).Adjusted += _ => menu.Navigator.Interactable = false;
 
-        menu.Tap(Key.Enter, Key.Escape);
+        menu.Tap(Key.Right, Key.Enter);
 
-        Assert.Equal(["pressed 0"], menu.Log);
+        Assert.Equal(["adjusted 0 1"], menu.Log);
+
+        menu.Navigator.Interactable = true;
+        menu.Rest().Tap(Key.Right, Key.Escape);
+
+        Assert.Equal(["adjusted 0 1"], menu.Log);
     }
 
     // Sits where a menu item would, so it steps before the navigator, and arms Interactable on the

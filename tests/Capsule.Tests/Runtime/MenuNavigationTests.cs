@@ -29,9 +29,7 @@ public sealed class MenuNavigationTests
     private static readonly InputAction Left = new("Left");
     private static readonly InputAction Right = new("Right");
     private static readonly InputAction Confirm = new("Confirm");
-    private static readonly InputAction Click = new("Click");
-
-    private static readonly FocusActions Actions = new(Up, Down, Left, Right, Confirm, Click);
+    private static readonly FocusActions Actions = new(Up, Down, Left, Right, Confirm);
 
     [Fact]
     public void AGamepadAndAPointer_PressTheSameItemOfTheSameMenu()
@@ -93,8 +91,7 @@ public sealed class MenuNavigationTests
             .Bind(Down, Key.Down, PadButton.DPadDown)
             .Bind(Left, Key.Left, PadButton.DPadLeft)
             .Bind(Right, Key.Right, PadButton.DPadRight)
-            .Bind(Confirm, Key.Enter, PadButton.South)
-            .Bind(Click, MouseButton.Left);
+            .Bind(Confirm, Key.Enter, PadButton.South, MouseButton.Left);
 
     // The shape a game's menu takes: the scene instantiates its items in its constructor and the items
     // own what pressing them means.

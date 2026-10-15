@@ -63,6 +63,11 @@ public sealed class OptionsMenu : ScreenEntity
 
         _jump.Pressed += () => Listen(_jump);
         _shoot.Pressed += () => Listen(_shoot);
+
+        // Reset is the menu's only secondary action.
+        _jump.SecondaryPressed += _ => Apply(_jump, new InputSettings().Jump);
+        _shoot.SecondaryPressed += _ => Apply(_shoot, new InputSettings().Shoot);
+
         _music.Changed += SetMusic;
         _effects.Changed += SetEffects;
         _back.Pressed += Leave;
@@ -94,7 +99,7 @@ public sealed class OptionsMenu : ScreenEntity
         }
         else if (context.Input.WasAnyPressed(out InputButton button))
         {
-            Capture(item, button);
+            Apply(item, (item == _jump ? _settings.Input.Jump : _settings.Input.Shoot).With(button));
             EndListening(item);
         }
     }
@@ -117,17 +122,17 @@ public sealed class OptionsMenu : ScreenEntity
 
     // A save moment: the document is written where the player changed it, and the bind is applied
     // from the same value so the run does not wait for a restart.
-    private void Capture(MenuItem item, InputButton button)
+    private void Apply(MenuItem item, Binding binding)
     {
         if (item == _jump)
         {
-            _settings.Input.Jump = _settings.Input.Jump.With(button);
-            Run.Input.Bindings.Rebind(GameInput.Jump, _settings.Input.Jump.Key, _settings.Input.Jump.Pad);
+            _settings.Input.Jump = binding;
+            Run.Input.Bindings.Rebind(GameInput.Jump, binding.Key, binding.Pad);
         }
         else
         {
-            _settings.Input.Shoot = _settings.Input.Shoot.With(button);
-            Run.Input.Bindings.Rebind(GameInput.Shoot, _settings.Input.Shoot.Key, _settings.Input.Shoot.Pad);
+            _settings.Input.Shoot = binding;
+            Run.Input.Bindings.Rebind(GameInput.Shoot, binding.Key, binding.Pad);
         }
 
         Run.Saves.Write(GameSaves.Settings, _settings);

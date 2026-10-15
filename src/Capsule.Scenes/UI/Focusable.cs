@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Diagnostics;
+using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
 
@@ -117,11 +118,14 @@ public sealed class Focusable(Vector2 size) : Component
     public event Action? Unfocused;
 
     /// <summary>
-    /// Raised when this item is pressed. Only the focused item is pressed, and the press comes
-    /// after that step's focus events.
+    /// Raised when <see cref="FocusActions.Confirm"/> presses this item. The press comes after that step's
+    /// focus events, which have already moved the focus here.
     /// </summary>
-    /// <remarks>At most once per step, however many actions asked for it.</remarks>
+    /// <remarks>At most one press per step: confirm first, then the secondary actions in order.</remarks>
     public event Action? Pressed;
+
+    /// <summary>Raised with the action when one of <see cref="FocusActions.Secondary"/> presses this item.</summary>
+    public event Action<InputAction>? SecondaryPressed;
 
     /// <summary>
     /// Raised with +1 for right or up and -1 for left or down when a direction on the <see cref="Adjusts"/>
@@ -135,11 +139,11 @@ public sealed class Focusable(Vector2 size) : Component
     public event Action<int>? Adjusted;
 
     /// <summary>
-    /// Raised on the step a click presses this item, and on each step the pointer moves while the
-    /// click stays held, after that step's press.
+    /// Raised on the step a mouse button bound to <see cref="FocusActions.Confirm"/> presses this item, and on
+    /// each step the pointer moves while that button stays held, after that step's press.
     /// </summary>
     /// <remarks>
-    /// While the click is held the pointer focuses no other item. The drag ends when the click is
+    /// While the button is held the pointer focuses no other item. The drag ends when the button is
     /// released or the focus leaves this item, and the release raises nothing.
     /// </remarks>
     public event Action<PointerDrag>? Dragged;
@@ -158,7 +162,17 @@ public sealed class Focusable(Vector2 size) : Component
         Unfocused?.Invoke();
     }
 
-    internal void Press() => Pressed?.Invoke();
+    internal void Press(InputAction action, InputAction confirm)
+    {
+        if (action == confirm)
+        {
+            Pressed?.Invoke();
+        }
+        else
+        {
+            SecondaryPressed?.Invoke(action);
+        }
+    }
 
     internal void Adjust(int step) => Adjusted?.Invoke(step);
 

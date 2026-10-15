@@ -57,18 +57,6 @@ public sealed class FocusPointerTests
         Assert.Empty(menu.Log);
     }
 
-    // A click reaches the item under the pointer and nothing else, so a navigator whose actions name no
-    // click is deaf to the mouse button however the game bound it.
-    [Fact]
-    public void AClick_DoesNothingWhereTheActionsNameNoClick()
-    {
-        using Menu menu = new(new FocusActions(Up, Down, Left, Right, Confirm), Item(Vector2.Zero), Item(new Vector2(0f, 40f)));
-
-        menu.Open().Pointer(InFirst).Tap(MouseButton.Left);
-
-        Assert.Empty(menu.Log);
-    }
-
     // Whether items overlap is the game's business; which one the pointer picks is not. The second item
     // here has no extent, so it is never under the pointer, and a direction still reaches it: its centre
     // is its position, which is the nearest one below the first item.
@@ -151,6 +139,21 @@ public sealed class FocusPointerTests
 
         Assert.Equal(1, menu.FocusedIndex);
         Assert.Equal(2, drags.Count);
+    }
+
+    // Confirm's keys share its action with the mouse button, and must not hold a drag the button let go.
+    [Fact]
+    public void AConfirmKeyHeldThroughADrag_DoesNotKeepItPastTheButtonsRelease()
+    {
+        using Menu menu = Column().Open();
+        int drags = 0;
+        menu.At(0).Dragged += _ => drags++;
+
+        menu.Pointer(InFirst).Hold(MouseButton.Left).Hold(Key.Enter).Release(MouseButton.Left);
+        menu.Pointer(InSecond).Rest();
+
+        Assert.Equal(1, menu.FocusedIndex);
+        Assert.Equal(1, drags);
     }
 
     // A direction that moves the focus mid-drag must take the drag with it, or the item left behind keeps sliding.

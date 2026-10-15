@@ -13,7 +13,6 @@ public sealed class MenuAllocationTests
     private static readonly InputAction Left = new("Left");
     private static readonly InputAction Right = new("Right");
     private static readonly InputAction Confirm = new("Confirm");
-    private static readonly InputAction Click = new("Click");
 
     // A menu is stepped every step it is open, pointer hit test and all, so it is on the step budget
     // like anything else the simulation runs.
@@ -22,7 +21,7 @@ public sealed class MenuAllocationTests
     {
         Scene scene = new();
         Focusable[] items = new Focusable[8];
-        FocusNavigator focus = new(new FocusActions(Up, Down, Left, Right, Confirm, Click));
+        FocusNavigator focus = new(new FocusActions(Up, Down, Left, Right, Confirm));
 
         // Subscribed, so the measured steps raise through live handlers rather than past null ones.
         int focused = 0;
@@ -56,8 +55,7 @@ public sealed class MenuAllocationTests
             .Bind(Down, Key.Down)
             .Bind(Left, Key.Left)
             .Bind(Right, Key.Right)
-            .Bind(Confirm, Key.Enter)
-            .Bind(Click, MouseButton.Left));
+            .Bind(Confirm, Key.Enter, MouseButton.Left));
 
         // Starting the run starts the navigator, which is where its first item takes the focus. The
         // steps are then driven straight into the component, so what is measured is its own work.
