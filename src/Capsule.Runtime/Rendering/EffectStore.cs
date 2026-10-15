@@ -45,6 +45,8 @@ internal sealed class EffectStore : IDisposable
     // engine's textures and the scene's.
     internal Func<TextureHandle, Texture2D>? WholeTexture { get; set; }
 
+    internal ShaderGlobals Globals { get; set; } = new();
+
     // Loads the shaders a scene boundary collected that no earlier scene loaded.
     internal void Load(IReadOnlyList<Shader> shaders)
     {
@@ -81,35 +83,48 @@ internal sealed class EffectStore : IDisposable
         ReadOnlySpan<ShaderParameter> parameters = material.Shader.Parameters;
         for (int i = 0; i < parameters.Length; i++)
         {
-            EffectParameter parameter = binding.Parameters[i];
-            System.Numerics.Vector4 value = material.Value(i);
-            switch (parameters[i].Kind)
+            if (parameters[i].Global)
             {
-                case ShaderParameterKind.Float:
-                    parameter.SetValue(value.X);
-                    break;
-                case ShaderParameterKind.Vector2:
-                    parameter.SetValue(new Vector2(value.X, value.Y));
-                    break;
-                case ShaderParameterKind.Vector3:
-                    parameter.SetValue(new Vector3(value.X, value.Y, value.Z));
-                    break;
-                case ShaderParameterKind.Vector4:
-                    parameter.SetValue(new Vector4(value.X, value.Y, value.Z, value.W));
-                    break;
-                default:
-                    // The build binds a shader's textures from slot 1 in table order, the sprite's at 0,
-                    // and the shader carries no sampler state of its own.
-                    Texture2D? bound = material.TryGetTexture(i, out TextureHandle texture) ? WholeTexture!(texture) : null;
-                    parameter.SetValue(bound);
-                    binding.Sizes[slot]?.SetValue(bound is null ? Vector2.Zero : new Vector2(bound.Width, bound.Height));
-                    _device.SamplerStates[slot++] = bound?.Tag as SamplerState ?? sampler;
-                    break;
+                continue;
             }
+
+            EffectParameter parameter = binding.Parameters[i];
+            if (parameters[i].Kind != ShaderParameterKind.Texture)
+            {
+                SetValue(parameter, parameters[i].Kind, material.Value(i));
+                continue;
+            }
+
+            // The build binds a shader's textures from slot 1 in table order, the sprite's at 0,
+            // and the shader carries no sampler state of its own.
+            Texture2D? bound = material.TryGetTexture(i, out TextureHandle texture) ? WholeTexture!(texture) : null;
+            parameter.SetValue(bound);
+            binding.Sizes[slot]?.SetValue(bound is null ? Vector2.Zero : new Vector2(bound.Width, bound.Height));
+            _device.SamplerStates[slot++] = bound?.Tag as SamplerState ?? sampler;
         }
 
+        binding.ApplyGlobals(Globals);
         binding.Pass.Apply();
         return binding.Sizes[0] is not null;
+    }
+
+    private static void SetValue(EffectParameter parameter, ShaderParameterKind kind, System.Numerics.Vector4 value)
+    {
+        switch (kind)
+        {
+            case ShaderParameterKind.Float:
+                parameter.SetValue(value.X);
+                break;
+            case ShaderParameterKind.Vector2:
+                parameter.SetValue(new Vector2(value.X, value.Y));
+                break;
+            case ShaderParameterKind.Vector3:
+                parameter.SetValue(new Vector3(value.X, value.Y, value.Z));
+                break;
+            default:
+                parameter.SetValue(new Vector4(value.X, value.Y, value.Z, value.W));
+                break;
+        }
     }
 
     private Binding Get(Shader shader)
@@ -151,12 +166,14 @@ internal sealed class EffectStore : IDisposable
     }
 
     // One loaded effect and its parameters in the shader's table order. Several materials share one
-    // effect, so each application writes every parameter.
+    // effect, so each application writes every parameter. The scene globals it reads are resolved to
+    // indices into a scene's values once, and again when the scene or its set of names changes.
     private sealed class Binding
     {
         internal Binding(Effect effect, Shader? shader)
         {
             Effect = effect;
+            Globals = shader is null ? null : new GlobalSlots(shader);
             Pass = effect.CurrentTechnique.Passes[0];
             Transform = effect.Parameters["MatrixTransform"];
             Coverage = effect.Parameters[CoverageParameter]
@@ -194,5 +211,23 @@ internal sealed class EffectStore : IDisposable
 
         // By texture slot, null where the shader never reads that texture's size.
         internal EffectParameter?[] Sizes { get; }
+
+        // Null for the engine's own shader, which declares none.
+        internal GlobalSlots? Globals { get; }
+
+        // Writes each scene global the shader declares: the scene's value, or zero where it set none.
+        internal void ApplyGlobals(ShaderGlobals globals)
+        {
+            if (Globals is not { Count: > 0 } slots)
+            {
+                return;
+            }
+
+            ReadOnlySpan<int> sources = slots.Resolve(globals);
+            for (int g = 0; g < sources.Length; g++)
+            {
+                SetValue(Parameters[slots.Parameter(g)], slots.Kind(g), sources[g] < 0 ? default : globals.ValueAt(sources[g]));
+            }
+        }
     }
 }

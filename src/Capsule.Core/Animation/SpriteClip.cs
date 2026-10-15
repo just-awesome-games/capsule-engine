@@ -25,6 +25,9 @@ public sealed class SpriteClip
     /// <summary>Whether the clip wraps from its last frame back to its first.</summary>
     public bool Loop { get; }
 
+    /// <summary>The fixed steps one pass of the clip takes: the sum of <see cref="FrameTicks"/>.</summary>
+    public int Duration { get; }
+
     /// <summary>Creates a clip from copies of <paramref name="frames"/>, <paramref name="frameTicks"/> and <paramref name="frameEvents"/>.</summary>
     /// <param name="frames">The frames in play order. At least one.</param>
     /// <param name="frameTicks">How many fixed steps each frame is held for, one per frame and each positive.</param>
@@ -51,10 +54,17 @@ public sealed class SpriteClip
                 nameof(frameTicks));
         }
 
-        AnimationPlayback.ValidatedTotal(frameTicks);
+        long total = AnimationPlayback.ValidatedTotal(frameTicks);
+        if (total > int.MaxValue)
+        {
+            throw new ArgumentException(
+                $"The frames are held for {total} ticks in all, past the {int.MaxValue} a clip's Duration holds. Shorten the holds or split the clip.",
+                nameof(frameTicks));
+        }
 
         _frames = frames.ToArray();
         _frameTicks = frameTicks.ToArray();
+        Duration = (int)total;
         Loop = loop;
 
         if (frameEvents.IsEmpty)

@@ -23,6 +23,9 @@ internal static class MgfxWriter
     /// <summary>The uniform array the pixel stage's parameters are packed into.</summary>
     internal const string PixelBuffer = "ps_uniforms_vec4";
 
+    /// <summary>The uniform array the pixel stage's scene globals are packed into.</summary>
+    internal const string GlobalsBuffer = "ps_uniforms_vec4_1";
+
     // EffectParameterClass and EffectParameterType as the reader casts them.
     private const byte ScalarClass = 0;
     private const byte VectorClass = 1;
@@ -47,14 +50,18 @@ internal static class MgfxWriter
     /// </summary>
     /// <param name="source">The file name the shaders record, for a driver's compile error.</param>
     /// <param name="pixelGlsl">The pixel stage, reading <see cref="PixelBuffer"/> and <see cref="SamplerName"/>.</param>
-    /// <param name="constants">The parameters the pixel stage reads from <see cref="PixelBuffer"/>.</param>
+    /// <param name="constants">
+    /// The parameters the pixel stage reads, each from <see cref="GlobalsBuffer"/> when global and else from <see cref="PixelBuffer"/>.
+    /// </param>
     /// <param name="pixelBufferSize">The pixel buffer's extent in bytes, a multiple of 16.</param>
+    /// <param name="globalsBufferSize">The globals buffer's extent in bytes, a multiple of 16.</param>
     /// <param name="textures">The texture parameters beyond the sprite's, in slot order.</param>
     internal static byte[] Write(
         string source,
         string pixelGlsl,
         IReadOnlyList<PixelConstant> constants,
         int pixelBufferSize,
+        int globalsBufferSize,
         IReadOnlyList<string> textures)
     {
         using MemoryStream body = new();
@@ -65,20 +72,15 @@ internal static class MgfxWriter
             const int Coverage = 2;
             const int FirstConstant = 3;
             int firstTexture = FirstConstant + constants.Count;
-            bool pixelBuffer = constants.Count > 0;
 
-            // Constant buffers: the pixel stage's first when it has one, then the vertex stage's.
-            writer.Write(pixelBuffer ? 2 : 1);
-            if (pixelBuffer)
+            // Constant buffers: the pixel stage's material buffer when it has one, then its globals buffer
+            // when it has one, then the vertex stage's.
+            (string Name, int Size, bool Global)[] buffers = [(PixelBuffer, pixelBufferSize, false), (GlobalsBuffer, globalsBufferSize, true)];
+            buffers = [.. buffers.Where(buffer => constants.Any(constant => constant.Global == buffer.Global))];
+            writer.Write(buffers.Length + 1);
+            foreach ((string name, int size, bool global) in buffers)
             {
-                writer.Write(PixelBuffer);
-                writer.Write((short)pixelBufferSize);
-                writer.Write(constants.Count);
-                for (int i = 0; i < constants.Count; i++)
-                {
-                    writer.Write(FirstConstant + i);
-                    writer.Write((ushort)constants[i].Offset);
-                }
+                WriteBuffer(writer, name, size, constants, FirstConstant, global);
             }
 
             writer.Write(VertexBuffer);
@@ -100,10 +102,10 @@ internal static class MgfxWriter
                 WriteSampler(writer, i + 1, firstTexture + i);
             }
 
-            writer.Write((byte)(pixelBuffer ? 1 : 0));
-            if (pixelBuffer)
+            writer.Write((byte)buffers.Length);
+            for (int i = 0; i < buffers.Length; i++)
             {
-                writer.Write((byte)0);
+                writer.Write((byte)i);
             }
 
             writer.Write((byte)0);
@@ -111,7 +113,7 @@ internal static class MgfxWriter
             WriteShader(writer, vertex: true, source, "CapsuleVertex", VertexGlsl);
             writer.Write((byte)0);
             writer.Write((byte)1);
-            writer.Write((byte)(pixelBuffer ? 1 : 0));
+            writer.Write((byte)buffers.Length);
             writer.Write((byte)4);
             WriteAttribute(writer, "vs_v0", PositionUsage, 0);
             WriteAttribute(writer, "vs_v1", ColorUsage, 0);
@@ -207,6 +209,29 @@ internal static class MgfxWriter
 
     /// <summary>The varyings the pixel stage reads, by input location.</summary>
     internal static readonly string[] Varyings = ["vTint", "vFlash", "vUV", "vCoverage"];
+
+    // One constant buffer: its name, size and the parameters packed into it, each at its offset in the
+    // buffer. A parameter's index is its place in the full table.
+    private static void WriteBuffer(BinaryWriter writer, string name, int size, IReadOnlyList<PixelConstant> constants, int firstConstant, bool global)
+    {
+        List<(int Index, int Offset)> members = [];
+        for (int i = 0; i < constants.Count; i++)
+        {
+            if (constants[i].Global == global)
+            {
+                members.Add((firstConstant + i, constants[i].Offset));
+            }
+        }
+
+        writer.Write(name);
+        writer.Write((short)size);
+        writer.Write(members.Count);
+        foreach ((int index, int offset) in members)
+        {
+            writer.Write(index);
+            writer.Write((ushort)offset);
+        }
+    }
 
     private static void WriteShader(BinaryWriter writer, bool vertex, string source, string entryPoint, string glsl)
     {

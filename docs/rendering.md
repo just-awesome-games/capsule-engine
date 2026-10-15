@@ -153,7 +153,7 @@ float4 Fragment(SpritePixel pixel)
 | `SampleSprite(uv)` | Reads the sprite's texture at another point. |
 | `TextureSize(texture)` | A texture parameter's size in texels. |
 
-A parameter is a global `float`, `float2`, `float3`, `float4` or `Texture2D`. Names starting with
+A parameter is a `float`, `float2`, `float3`, `float4` or `Texture2D` declared at file scope. Names starting with
 `Capsule` are the engine's. A construct OpenGL 2.1 lacks, such as `Load` or `GetDimensions`, fails the
 build naming the fix.
 
@@ -162,6 +162,26 @@ A `Material` binds a shader with its parameter values. `Renderer.Material` draws
 declares it from `CollectAssets` ([`assets.md`](assets.md#loading-and-residency)). Draw order never
 changes for a material. Lines, the light map and the debug overlay draw with the engine's own
 shader.
+
+A value every material of a shader shares is a scene global. The shader declares it in a
+`cbuffer SceneGlobals` block, and the scene sets it:
+
+```hlsl
+cbuffer SceneGlobals
+{
+    float3 WorldAdd;
+};
+```
+
+```csharp
+Scene.ShaderGlobals.Set("WorldAdd", new Vector3(0.4f, 0.4f, 0.4f));
+```
+
+Every material that draws the shader in that scene reads the value, and `Material.Set` refuses a name in the
+block. A global is a `float`, `float2`, `float3` or `float4`, and a texture stays a material parameter. A
+global never set reads zero. Each scene owns its globals. A name keeps the kind it was first set with, and
+drawing throws when the shader declares it as another. A global splits no batch and costs no allocation per
+frame.
 
 ## Two layers, and draw order
 

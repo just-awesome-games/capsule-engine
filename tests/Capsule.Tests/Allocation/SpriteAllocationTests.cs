@@ -45,4 +45,30 @@ public sealed class SpriteAllocationTests
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
         Assert.True(reached > 0 && contacts > 0);
     }
+
+    // A Play reports into the buffer the next step makes readable, and the two buffers alternate.
+    [Fact]
+    public void APlayReportingAnEventOnEitherBuffer_AllocatesNothingAfterConstruction()
+    {
+        SpriteBoxTests.Fighter fighter = new();
+        SimulationHost run = SpriteBoxTests.Simulate(fighter);
+        Sprite bare = SpriteBoxTests.Frame(2, null);
+        SpriteClip silent = new([bare, bare], [1, 1], loop: true);
+        SpriteClip loud = new([bare, bare], [1, 1], loop: true, [["a"], ["b"]]);
+        for (int warm = 0; warm < 4; warm++)
+        {
+            fighter.Animator.Play(silent, restart: true);
+            run.Step();
+        }
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        for (int play = 0; play < 4; play++)
+        {
+            fighter.Animator.Play(loud, restart: true);
+            run.Step();
+        }
+
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
 }

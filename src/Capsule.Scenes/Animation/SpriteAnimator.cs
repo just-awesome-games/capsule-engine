@@ -22,6 +22,9 @@ namespace Capsule.Animation;
 /// <param name="renderer">The renderer whose frame this animator writes.</param>
 public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
 {
+    // Both event buffers start at this many names, and a step reporting more doubles them.
+    private const int InitialEvents = 4;
+
     private readonly SpriteRenderer _renderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
 
     private AnimationPlayback _playback;
@@ -33,11 +36,11 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     private float _carry;
 
     // What the animator's most recent step reported, each name once. Reached reads only this set.
-    private string[] _readable = [];
+    private string[] _readable = new string[InitialEvents];
     private int _readableCount;
 
     // What a Play or the removal rewind reported since that step. The animator's next step makes it readable.
-    private string[] _pending = [];
+    private string[] _pending = new string[InitialEvents];
     private int _pendingCount;
 
     /// <summary>The clip playing, or null until one is played.</summary>
@@ -417,7 +420,7 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         long steps = 1;
         if (ticks > 1f)
         {
-            long total = AnimationPlayback.ValidatedTotal(frameTicks);
+            int total = clip.Duration;
             if (clip.Loop && ticks >= total)
             {
                 for (int frame = 0; frame < frameTicks.Length; frame++)

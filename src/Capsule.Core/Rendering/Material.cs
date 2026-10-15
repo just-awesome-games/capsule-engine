@@ -9,7 +9,9 @@ namespace Capsule.Rendering;
 /// so share one material across the renderers that look alike. A parameter never set reads zero,
 /// whatever the shader source initializes it to. A texture set here is bound whole and must not be
 /// packed into an atlas. <c>Set</c> throws when the shader declares no parameter of that name, or
-/// declares it as another kind, and the message lists what it declares.
+/// declares it as another kind, and the message lists what it declares. It also throws for a
+/// parameter the shader declares in its <c>SceneGlobals</c> block, which the scene sets for every
+/// material.
 /// </remarks>
 /// <example>
 /// <code>
@@ -56,14 +58,14 @@ public sealed class Material
     public void Set(string name, Vector3 value)
     {
         Vector4 widened = new(value, 0f);
-        Finite(widened);
+        Guard.Finite(widened, nameof(value));
         _values[Slot(name, ShaderParameterKind.Vector3)] = widened;
     }
 
     /// <summary>Sets the <c>float4</c> parameter <paramref name="name"/>.</summary>
     public void Set(string name, Vector4 value)
     {
-        Finite(value);
+        Guard.Finite(value, nameof(value));
         _values[Slot(name, ShaderParameterKind.Vector4)] = value;
     }
 
@@ -72,7 +74,7 @@ public sealed class Material
     /// alpha, each channel from 0 to 1.
     /// </summary>
     public void Set(string name, ColorRgba value) =>
-        _values[Slot(name, ShaderParameterKind.Vector4)] = new Vector4(value.R, value.G, value.B, value.A) / 255f;
+        _values[Slot(name, ShaderParameterKind.Vector4)] = VectorOf(value);
 
     /// <summary>
     /// Sets the <c>Texture2D</c> parameter <paramref name="name"/>, which the shader reads with the
@@ -93,6 +95,40 @@ public sealed class Material
         _textures[Slot(name, ShaderParameterKind.Texture)] = value;
     }
 
+    /// <summary>Reads the <c>float</c> parameter <paramref name="name"/>, zero until it is set.</summary>
+    public float GetFloat(string name) => _values[Slot(name, ShaderParameterKind.Float)].X;
+
+    /// <summary>Reads the <c>float2</c> parameter <paramref name="name"/>, zero until it is set.</summary>
+    public Vector2 GetVector2(string name)
+    {
+        Vector4 value = _values[Slot(name, ShaderParameterKind.Vector2)];
+
+        return new Vector2(value.X, value.Y);
+    }
+
+    /// <summary>Reads the <c>float3</c> parameter <paramref name="name"/>, zero until it is set.</summary>
+    public Vector3 GetVector3(string name)
+    {
+        Vector4 value = _values[Slot(name, ShaderParameterKind.Vector3)];
+
+        return new Vector3(value.X, value.Y, value.Z);
+    }
+
+    /// <summary>Reads the <c>float4</c> parameter <paramref name="name"/>, zero until it is set.</summary>
+    public Vector4 GetVector4(string name) => _values[Slot(name, ShaderParameterKind.Vector4)];
+
+    /// <summary>
+    /// Reads the <c>float4</c> parameter <paramref name="name"/> as a straight-alpha colour, each channel
+    /// clamped to 0 to 1 and rounded to the nearest byte. Transparent black until it is set.
+    /// </summary>
+    public ColorRgba GetColor(string name) => ColorOf(_values[Slot(name, ShaderParameterKind.Vector4)]);
+
+    /// <summary>
+    /// Reads the <c>Texture2D</c> parameter <paramref name="name"/>. A texture never set reads as a
+    /// default handle, whose <c>Name</c> is null.
+    /// </summary>
+    public TextureHandle GetTexture(string name) => _textures[Slot(name, ShaderParameterKind.Texture)];
+
     // The value of parameter index, zero until set. A vector of fewer than four components fills the
     // rest with zero.
     internal Vector4 Value(int index) => _values[index];
@@ -100,14 +136,18 @@ public sealed class Material
     // The texture set on parameter index, or false when none was. Set refuses a default handle.
     internal bool TryGetTexture(int index, out TextureHandle texture) => (texture = _textures[index]).Name is not null;
 
-    private static void Finite(Vector4 value)
+    // The float4 Set(ColorRgba) stores for a colour: straight alpha, each channel from 0 to 1.
+    internal static Vector4 VectorOf(ColorRgba value) => new Vector4(value.R, value.G, value.B, value.A) / 255f;
+
+    // The straight-alpha colour of a float4 holding 0 to 1 channels, the inverse of VectorOf.
+    internal static ColorRgba ColorOf(Vector4 value)
     {
-        if (!float.IsFinite(value.X) || !float.IsFinite(value.Y) || !float.IsFinite(value.Z) || !float.IsFinite(value.W))
-        {
-            throw new ArgumentOutOfRangeException(nameof(value), value, "Expected finite components.");
-        }
+        static byte Channel(float channel) => (byte)MathF.Round(Math.Clamp(channel, 0f, 1f) * 255f);
+
+        return new ColorRgba(Channel(value.X), Channel(value.Y), Channel(value.Z), Channel(value.W));
     }
 
+    // The index of parameter name when it is a material parameter of the given kind.
     private int Slot(string name, ShaderParameterKind kind)
     {
         ArgumentNullException.ThrowIfNull(name);
@@ -120,11 +160,18 @@ public sealed class Material
                 nameof(name));
         }
 
+        if (Shader.Parameters[index].Global)
+        {
+            throw new ArgumentException(
+                $"Shader '{Shader.Name}' declares '{name}' in its {ShaderGlobals.Block} block, so a material neither sets nor reads it. Use scene.ShaderGlobals.Set or the Get of its kind.",
+                nameof(name));
+        }
+
         ShaderParameterKind declared = Shader.Parameters[index].Kind;
         if (declared != kind)
         {
             throw new ArgumentException(
-                $"Shader '{Shader.Name}' declares '{name}' as a {Spelling(declared)}. Pass it {Argument(declared)}.",
+                $"Shader '{Shader.Name}' declares '{name}' as a {Spelling(declared)}. Pass it {Argument(declared)}, or read it with {Reading(declared)}.",
                 nameof(name));
         }
 
@@ -134,21 +181,19 @@ public sealed class Material
     private string Declared()
     {
         ReadOnlySpan<ShaderParameter> parameters = Shader.Parameters;
-        if (parameters.IsEmpty)
+        List<string> names = [];
+        for (int i = 0; i < parameters.Length; i++)
         {
-            return "no parameters";
+            if (!parameters[i].Global)
+            {
+                names.Add($"'{parameters[i].Name}' ({Spelling(parameters[i].Kind)})");
+            }
         }
 
-        string[] names = new string[parameters.Length];
-        for (int i = 0; i < names.Length; i++)
-        {
-            names[i] = $"'{parameters[i].Name}' ({Spelling(parameters[i].Kind)})";
-        }
-
-        return string.Join(", ", names);
+        return names.Count == 0 ? "no parameters" : string.Join(", ", names);
     }
 
-    private static string Spelling(ShaderParameterKind kind) => kind switch
+    internal static string Spelling(ShaderParameterKind kind) => kind switch
     {
         ShaderParameterKind.Float => "float",
         ShaderParameterKind.Vector2 => "float2",
@@ -157,7 +202,16 @@ public sealed class Material
         _ => "texture",
     };
 
-    private static string Argument(ShaderParameterKind kind) => kind switch
+    internal static string Reading(ShaderParameterKind kind) => kind switch
+    {
+        ShaderParameterKind.Float => "GetFloat",
+        ShaderParameterKind.Vector2 => "GetVector2",
+        ShaderParameterKind.Vector3 => "GetVector3",
+        ShaderParameterKind.Vector4 => "GetVector4 or GetColor",
+        _ => "GetTexture",
+    };
+
+    internal static string Argument(ShaderParameterKind kind) => kind switch
     {
         ShaderParameterKind.Float => "a float",
         ShaderParameterKind.Vector2 => "a Vector2",

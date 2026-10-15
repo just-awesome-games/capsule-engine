@@ -39,6 +39,7 @@ internal sealed class FrameRenderer : IDisposable
 
     private readonly GraphicsDevice _device;
     private readonly SpriteBatcher _batcher;
+    private readonly EffectStore _effects;
     private readonly TextureStore _textures;
 
     // One white texel, tinted and stretched across the camera to draw the clear colour.
@@ -90,6 +91,7 @@ internal sealed class FrameRenderer : IDisposable
     {
         _device = device;
         _batcher = new SpriteBatcher(device, effects);
+        _effects = effects;
         _textures = textures;
         effects.WholeTexture = WholeTexture;
         _white = new Texture2D(device, 1, 1);
@@ -139,6 +141,7 @@ internal sealed class FrameRenderer : IDisposable
     internal void Draw(FrameView view, float alpha)
     {
         long started = Stopwatch.GetTimestamp();
+        _effects.Globals = view.ShaderGlobals;
 
         // The scheduler leaves a whole step in the accumulator when a game exits mid-catch-up.
         alpha = Math.Clamp(alpha, 0f, 1f);

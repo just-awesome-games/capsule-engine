@@ -354,6 +354,13 @@ public sealed class AudioMixer
     }
 
     /// <summary>
+    /// This voice's own linear amplitude in [0, 1], as last set by <see cref="Play(in AudioPlayback)"/> or
+    /// <see cref="SetVolume(Voice, float)"/>. A voice that is not live reads 0.
+    /// </summary>
+    /// <remarks>A voice a ramp is moving reads the ramp's current value.</remarks>
+    public float GetVolume(Voice voice) => TryResolve(voice, out int index) ? _slots[index].Volume : 0f;
+
+    /// <summary>
     /// Ramps this voice's own linear amplitude from where it is to <paramref name="volume"/> over
     /// <paramref name="seconds"/> on <paramref name="ease"/>, replacing any ramp already on the voice,
     /// including a pending fade-stop. A voice that resolves to nothing does nothing, and a duration of
@@ -410,6 +417,12 @@ public sealed class AudioMixer
 
         Raise(AudioCommandKind.SetPitch, index, in slot, 0f, pitch);
     }
+
+    /// <summary>
+    /// This voice's playback rate, as last set by <see cref="Play(in AudioPlayback)"/> or
+    /// <see cref="SetPitch(Voice, float)"/>. A voice that is not live reads 0.
+    /// </summary>
+    public float GetPitch(Voice voice) => TryResolve(voice, out int index) ? _slots[index].Pitch : 0f;
 
     /// <summary>Sets where this voice sits between the speakers.</summary>
     /// <param name="pan">Stereo position in [-1, 1]: -1 hard left, 0 centred, 1 hard right.</param>

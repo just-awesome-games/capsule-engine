@@ -23,6 +23,9 @@ internal static partial class ShaderCompiler
     // The parameter block SPIRV-Cross flattens the global constants into.
     private const string GlobalBlock = "type_Globals";
 
+    // The block a fragment declares its scene globals in, as SPIRV-Cross flattens it.
+    private const string SceneGlobalsBlock = "type_" + ShaderTemplate.SceneGlobalsBlock;
+
     /// <summary>Compiles the composed source at <paramref name="sourcePath"/>.</summary>
     /// <param name="tools">The downloaded tools.</param>
     /// <param name="sourcePath">The composed pixel-stage source. Intermediate files are written beside it.</param>
@@ -65,7 +68,7 @@ internal static partial class ShaderCompiler
                 return Failed("the shader cross-compiler could not reflect it: " + Flatten(output + errors), diagnostics);
             }
 
-            if (Reflect(output, out List<PixelConstant> constants, out int bufferSize, out List<string> textures) is { } refused)
+            if (Reflect(output, out List<PixelConstant> constants, out int bufferSize, out int globalsSize, out List<string> textures) is { } refused)
             {
                 return Failed(refused, diagnostics);
             }
@@ -91,9 +94,9 @@ internal static partial class ShaderCompiler
                 return Failed(unsupported, diagnostics);
             }
 
-            byte[] effect = MgfxWriter.Write(Path.GetFileName(source), glsl, [.. constants, .. sizes], bufferSize, textures);
+            byte[] effect = MgfxWriter.Write(Path.GetFileName(source), glsl, [.. constants, .. sizes], bufferSize, globalsSize, textures);
 
-            List<ShaderParameter> parameters = [.. constants.Select(static constant => new ShaderParameter(constant.Name, constant.Kind))];
+            List<ShaderParameter> parameters = [.. constants.Select(static constant => new ShaderParameter(constant.Name, constant.Kind, constant.Global))];
             parameters.AddRange(textures.Select(static texture => new ShaderParameter(texture, ShaderParameterKind.Texture)));
 
             return new ShaderCompilation(effect, parameters, diagnostics, null);
@@ -106,7 +109,8 @@ internal static partial class ShaderCompiler
 
     // Binds each texture to its slot. The combined sampler SPIRV-Cross names after a texture and the
     // engine's sampler takes the slot's name. A read through the size probe becomes a size parameter
-    // appended to the pixel buffer. The flattened parameter block takes the pixel buffer's name.
+    // appended to the pixel buffer. The flattened parameter block takes the pixel buffer's name, and the
+    // scene globals block the globals buffer's.
     // Returns why the stage would not compile on OpenGL 2.1, or null.
     private static string? Bind(ref string glsl, List<string> textures, ref int bufferSize, out List<PixelConstant> sizes)
     {
@@ -144,6 +148,7 @@ internal static partial class ShaderCompiler
         }
 
         glsl = Replace(glsl, GlobalBlock, MgfxWriter.PixelBuffer);
+        glsl = Replace(glsl, SceneGlobalsBlock, MgfxWriter.GlobalsBuffer);
 
         if (BuiltInCall(glsl, "texelFetch"))
         {
@@ -176,13 +181,15 @@ internal static partial class ShaderCompiler
     private static string Replace(string glsl, string name, string replacement) =>
         Regex.Replace(glsl, $@"\b{Regex.Escape(name)}\b", replacement);
 
-    // The parameter table from SPIRV-Cross's reflection: the global block's members with their
-    // offsets, and every texture beyond the sprite's. Returns why a parameter cannot be set, or null.
-    private static string? Reflect(string json, out List<PixelConstant> constants, out int bufferSize, out List<string> textures)
+    // The parameter table from SPIRV-Cross's reflection: the members of the global block and of the
+    // scene globals block with their offsets in their own block, and every texture beyond the
+    // sprite's. Returns why a parameter cannot be set, or null.
+    private static string? Reflect(string json, out List<PixelConstant> constants, out int bufferSize, out int globalsSize, out List<string> textures)
     {
         constants = [];
         textures = [];
         bufferSize = 0;
+        globalsSize = 0;
 
         using JsonDocument document = JsonDocument.Parse(json);
         JsonElement root = document.RootElement;
@@ -191,12 +198,28 @@ internal static partial class ShaderCompiler
         {
             foreach (JsonElement block in blocks.EnumerateArray())
             {
-                if (block.GetProperty("name").GetString() != "type.$Globals")
+                string blockName = block.GetProperty("name").GetString()!;
+                bool scene = blockName == "type." + ShaderTemplate.SceneGlobalsBlock;
+                if (!scene && blockName != "type.$Globals")
                 {
-                    return $"declares the constant buffer '{block.GetProperty("name").GetString()}'. Declare a shader parameter as a global instead.";
+                    return $"declares the constant buffer '{blockName}'. Declare a shader parameter outside any buffer, or in a cbuffer named {ShaderTemplate.SceneGlobalsBlock} for one set on the scene.";
                 }
 
-                bufferSize = (block.GetProperty("block_size").GetInt32() + 15) / 16 * 16;
+                if (scene && globalsSize > 0)
+                {
+                    return $"declares the cbuffer {ShaderTemplate.SceneGlobalsBlock} twice. Declare it once, holding every scene global.";
+                }
+
+                int size = (block.GetProperty("block_size").GetInt32() + 15) / 16 * 16;
+                if (scene)
+                {
+                    globalsSize = size;
+                }
+                else
+                {
+                    bufferSize = size;
+                }
+
                 JsonElement type = root.GetProperty("types").GetProperty(block.GetProperty("type").GetString()!);
 
                 foreach (JsonElement member in type.GetProperty("members").EnumerateArray())
@@ -220,10 +243,12 @@ internal static partial class ShaderCompiler
 
                     if (kind is not { } settable)
                     {
-                        return $"declares parameter '{name}', which a Material cannot set. A shader parameter is a float, float2, float3, float4 or Texture2D, and no array.";
+                        return scene
+                            ? $"declares scene global '{name}', which a scene cannot set. A scene global is a float, float2, float3 or float4, and no array."
+                            : $"declares parameter '{name}', which a Material cannot set. A shader parameter is a float, float2, float3, float4 or Texture2D, and no array.";
                     }
 
-                    constants.Add(new PixelConstant(name, settable, member.GetProperty("offset").GetInt32()));
+                    constants.Add(new PixelConstant(name, settable, member.GetProperty("offset").GetInt32(), scene));
                 }
             }
         }

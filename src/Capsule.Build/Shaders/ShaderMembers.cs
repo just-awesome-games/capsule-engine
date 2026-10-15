@@ -17,11 +17,8 @@ internal static class ShaderMembers
         }
         else
         {
-            code.Append(", setting ");
-            for (int i = 0; i < parameters.Count; i++)
-            {
-                code.Append(i == 0 ? string.Empty : ", ").Append("<c>").Append(parameters[i].Name).Append("</c>");
-            }
+            AppendNames(code, ", setting ", parameters, global: false);
+            AppendNames(code, parameters.Any(static parameter => !parameter.Global) ? " and reading the scene globals " : ", reading the scene globals ", parameters, global: true);
         }
 
         code.AppendLine(".</summary>");
@@ -31,9 +28,26 @@ internal static class ShaderMembers
         foreach (ShaderParameter parameter in parameters)
         {
             code.Append(", new ").Append(GeneratedTypes.ShaderParameter).Append('(').Append(Literal.Of(parameter.Name))
-                .Append(", ").Append(GeneratedTypes.ShaderParameterKind).Append('.').Append(parameter.Kind).Append(')');
+                .Append(", ").Append(GeneratedTypes.ShaderParameterKind).Append('.').Append(parameter.Kind)
+                .Append(parameter.Global ? ", true)" : ")");
         }
 
         code.AppendLine(");");
+    }
+
+    // The parameters of one scope, as a prefixed list. Nothing when the shader has none of that scope.
+    private static void AppendNames(StringBuilder code, string prefix, IReadOnlyList<ShaderParameter> parameters, bool global)
+    {
+        bool first = true;
+        foreach (ShaderParameter parameter in parameters)
+        {
+            if (parameter.Global != global)
+            {
+                continue;
+            }
+
+            code.Append(first ? prefix : ", ").Append("<c>").Append(parameter.Name).Append("</c>");
+            first = false;
+        }
     }
 }

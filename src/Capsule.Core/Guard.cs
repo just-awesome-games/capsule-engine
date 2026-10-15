@@ -23,6 +23,14 @@ internal static class Guard
         }
     }
 
+    internal static void Finite(Vector4 value, string parameterName)
+    {
+        if (!float.IsFinite(value.X) || !float.IsFinite(value.Y) || !float.IsFinite(value.Z) || !float.IsFinite(value.W))
+        {
+            throw new ArgumentOutOfRangeException(parameterName, value, "Expected finite components.");
+        }
+    }
+
     internal static void NonNegative(Vector2 value, string parameterName)
     {
         if (!(value.X >= 0f) || !(value.Y >= 0f) || float.IsInfinity(value.X) || float.IsInfinity(value.Y))

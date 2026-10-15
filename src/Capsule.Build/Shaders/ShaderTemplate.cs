@@ -41,6 +41,12 @@ internal static class ShaderTemplate
     /// </summary>
     internal const string TextureSize = "CapsuleTextureSize";
 
+    /// <summary>
+    /// The one constant buffer a fragment may declare. Every parameter in it is a scene global, set on
+    /// the scene and shared by every material of the shader. Parameters outside it are the material's.
+    /// </summary>
+    internal const string SceneGlobalsBlock = "SceneGlobals";
+
     /// <summary>The pixel stage's entry point.</summary>
     internal const string EntryPoint = "CapsulePixel";
 

@@ -297,6 +297,11 @@ public class Scene
     }
 
     /// <summary>
+    /// The values of the shader parameters this scene sets for every material, which start at zero.
+    /// </summary>
+    public ShaderGlobals ShaderGlobals { get; } = new();
+
+    /// <summary>
     /// Whether world-layer renderers in the same draw band draw in order of their root entity's Y, lower
     /// first. Off by default.
     /// </summary>
@@ -989,6 +994,7 @@ public class Scene
         view.ClearColor = ClearColor;
         view.Ambient = Ambient;
         view.Sampling = Sampling;
+        view.ShaderGlobals = ShaderGlobals;
 
         _drawing = true;
         try

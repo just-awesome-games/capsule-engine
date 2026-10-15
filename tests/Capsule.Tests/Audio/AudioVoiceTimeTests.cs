@@ -42,6 +42,46 @@ public sealed class AudioVoiceTimeTests
     }
 
     [Fact]
+    public void GetPitchAndGetVolume_ReadWhatPlayAndTheSettersLeft_AndZeroOnceTheVoiceIsGone()
+    {
+        AudioMixer mixer = new();
+        mixer.SetVolume(Sfx, 0.5f);
+        mixer.SetVolume(AudioBus.Master, 0.5f);
+        mixer.UnfocusedVolume = 0.5f;
+        Voice voice = mixer.Play(new AudioPlayback(Theme) { Bus = Sfx, Pitch = 1.5f, Volume = 0.4f, Loop = true });
+
+        Assert.Equal(1.5f, mixer.GetPitch(voice));
+        Assert.Equal(0.4f, mixer.GetVolume(voice));
+
+        mixer.SetPitch(voice, 0.75f);
+        mixer.SetVolume(voice, 0.8f);
+        Assert.Equal(0.75f, mixer.GetPitch(voice));
+        Assert.Equal(0.8f, mixer.GetVolume(voice));
+
+
+        mixer.Stop(voice);
+        Assert.Equal(0f, mixer.GetPitch(voice));
+        Assert.Equal(0f, mixer.GetVolume(voice));
+        Assert.Equal(0f, mixer.GetPitch(Voice.None));
+    }
+
+    [Fact]
+    public void GetVolume_OfARampingVoice_ReadsTheCurrentValue()
+    {
+        AudioMixer mixer = new();
+        Voice voice = mixer.Play(new AudioPlayback(Theme) { Volume = 0f, Loop = true });
+
+        mixer.FadeVolume(voice, 1f, 1f);
+        Advance(mixer, 30);
+        float midway = mixer.GetVolume(voice);
+
+        Assert.InRange(midway, 0.1f, 0.9f);
+
+        Advance(mixer, 60);
+        Assert.Equal(1f, mixer.GetVolume(voice));
+    }
+
+    [Fact]
     public void GetTime_AdvancesAtTheVoicesPitchFromTheStartItWasPlayedAt()
     {
         AudioMixer mixer = new();

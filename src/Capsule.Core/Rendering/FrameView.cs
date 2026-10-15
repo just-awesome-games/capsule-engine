@@ -146,6 +146,10 @@ public sealed class FrameView
     // sprite stored under a material other than its layer's last opens a run in MaterialRuns.
     internal Material? Material { get; set; }
 
+    // The scene's shader globals, which the host reads when it applies a material. A view built outside
+    // a scene holds an empty set.
+    internal ShaderGlobals ShaderGlobals { get; set; } = new();
+
     // The layer the Add overloads draw onto when none is named. The scene sets it to the running
     // renderer's entity's layer before each Draw, and to the world outside a renderer.
     internal RenderSpace Space { get; set; }
