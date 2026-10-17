@@ -227,7 +227,7 @@ public sealed class Run
     /// current step.
     /// </summary>
     /// <param name="payload">State offered to the scene that opens.</param>
-    public void RequestScene<TScene>(object? payload = null)
+    public void RequestScene<TScene>(IScenePayload? payload = null)
         where TScene : Scene =>
         TryRequest(SceneTransition.ToScene(typeof(TScene), payload));
 
@@ -237,7 +237,7 @@ public sealed class Run
     /// </summary>
     /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
     /// <param name="payload">State offered to the scene that opens.</param>
-    public void RequestScene(SceneKey scene, object? payload = null) =>
+    public void RequestScene(SceneKey scene, IScenePayload? payload = null) =>
         TryRequest(SceneTransition.ToName(scene.Required(nameof(scene)), payload));
 
     /// <summary>Starts loading the media <typeparamref name="TScene"/> preloads after the current step.</summary>
@@ -262,7 +262,7 @@ public sealed class Run
     /// current step.
     /// </summary>
     /// <param name="payload">State supplied to the reconstructed scene. Passing null supplies null.</param>
-    public void RequestRestart(object? payload) => TryRequest(SceneTransition.Restart(payload, true));
+    public void RequestRestart(IScenePayload? payload) => TryRequest(SceneTransition.Restart(payload, true));
 
     /// <summary>
     /// Asks the host to shut down after the current step. The exit replaces any pending transition

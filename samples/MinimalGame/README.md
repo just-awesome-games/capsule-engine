@@ -11,6 +11,7 @@ From the engine repository root, against engine source:
 ```sh
 dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 dotnet run --project samples/MinimalGame/src/MinimalGame.Shell -- --scene scenes/room --driver Walkthrough --headless
+dotnet run --project samples/MinimalGame/src/MinimalGame.Shell -- --scene scenes/halls/hall --payload WestArrival --driver Walkthrough --headless
 dotnet test samples/MinimalGame/MinimalGame.slnx
 ```
 

@@ -85,6 +85,10 @@ public sealed class GeneratorSampleTests
                 return false;
             }
         }
+
+        public record Arrival(string Entrance) : IScenePayload;
+
+        public sealed record WestArrival() : Arrival("west");
         """;
 
     private const string Shell = """
@@ -125,6 +129,7 @@ public sealed class GeneratorSampleTests
     [InlineData("Entities/CapsuleAuthorable", false)]
     [InlineData("Scenes/CapsuleScenes", false)]
     [InlineData("Drivers/CapsuleInputDrivers", false)]
+    [InlineData("Payloads/CapsuleScenePayloads", false)]
     [InlineData("Boot/CapsuleRegistryProvider", false)]
     [InlineData("Boot/CapsuleBoot", true)]
     [InlineData("Pipeline/CapsuleGlobalUsings", false)]

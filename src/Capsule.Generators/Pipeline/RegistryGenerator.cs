@@ -38,6 +38,7 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         IncrementalValueProvider<EquatableArray<EntityModel>> entities = Collected(candidates, static candidate => candidate.Entity);
         IncrementalValueProvider<EquatableArray<SceneModel>> scenes = Collected(candidates, static candidate => candidate.Scene);
         IncrementalValueProvider<EquatableArray<InputDriverModel>> drivers = Collected(candidates, static candidate => candidate.Driver);
+        IncrementalValueProvider<EquatableArray<ScenePayloadModel>> payloads = Collected(candidates, static candidate => candidate.Payload);
 
         // The engine's own Scene, whose members every document's top-level keys may set, and its tile map, which
         // every document may place.
@@ -99,9 +100,12 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         IncrementalValueProvider<InputDriverPlan> driverPlan = drivers
             .Select(static (models, _) => InputDriverResolver.Resolve(models))
             .WithTrackingName("InputDriverPlan");
+        IncrementalValueProvider<ScenePayloadPlan> payloadPlan = payloads
+            .Select(static (models, _) => ScenePayloadResolver.Resolve(models))
+            .WithTrackingName("ScenePayloadPlan");
         IncrementalValueProvider<BootPlan> bootPlan = boot
-            .Combine(driverPlan)
-            .Select(static (input, _) => BootResolver.Resolve(input.Left, input.Right))
+            .Combine(driverPlan).Combine(payloadPlan)
+            .Select(static (input, _) => BootResolver.Resolve(input.Left.Left, input.Left.Right, input.Right))
             .WithTrackingName("BootPlan");
 
         // Every file and every check, one per row.
@@ -111,6 +115,7 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(scenePlan.Combine(providerName), SceneRenderer.Emit);
         context.RegisterSourceOutput(scenePlan.Combine(documents), DocumentClaimCheck.Run);
         context.RegisterSourceOutput(driverPlan.Combine(isLogicAssembly), InputDriverRenderer.Emit);
+        context.RegisterSourceOutput(payloadPlan.Combine(isLogicAssembly), ScenePayloadRenderer.Emit);
         context.RegisterSourceOutput(providerName, RegistryProviderRenderer.Emit);
         context.RegisterSourceOutput(bootPlan, BootRenderer.Emit);
         context.RegisterSourceOutput(project, GlobalUsingsRenderer.Emit);
@@ -137,7 +142,8 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         return new RegistryCandidate(
             EntityDescriber.Describe(type, declaration, context.SemanticModel),
             SceneDescriber.Describe(type, declaration, compilation),
-            InputDriverDescriber.Describe(type, declaration, compilation));
+            InputDriverDescriber.Describe(type, declaration, compilation),
+            ScenePayloadDescriber.Describe(type, declaration, compilation));
     }
 
     // Keys are measured against the declared root namespace, or the assembly name when the project

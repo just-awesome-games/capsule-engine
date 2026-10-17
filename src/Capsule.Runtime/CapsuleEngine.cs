@@ -15,7 +15,13 @@ public static class CapsuleEngine
     /// <param name="platform">Where content, saves and the crash log are, and the window policy.</param>
     /// <param name="scenes">Every scene the game declares. The host resolves a class or document name through it without reflection.</param>
     /// <param name="drivers">Every input driver the game declares. <c>--driver</c> resolves a name through it. Null registers none.</param>
+    /// <param name="payloads">Every scene payload the game declares. <c>--payload</c> resolves a name through it. Null registers none.</param>
     /// <exception cref="ArgumentException">The name slugs to no safe directory name.</exception>
-    public static EngineBuilder Configure(string gameName, HostPlatform platform, SceneRegistry scenes, InputDriverRegistry? drivers = null) =>
-        new(gameName, platform, scenes, drivers ?? InputDriverRegistry.Empty);
+    public static EngineBuilder Configure(
+        string gameName,
+        HostPlatform platform,
+        SceneRegistry scenes,
+        InputDriverRegistry? drivers = null,
+        ScenePayloadRegistry? payloads = null) =>
+        new(gameName, platform, scenes, drivers ?? InputDriverRegistry.Empty, payloads ?? ScenePayloadRegistry.Empty);
 }

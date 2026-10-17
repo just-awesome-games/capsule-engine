@@ -13,6 +13,7 @@ internal sealed class CommandLine
           --driver <Name>            drive the run from the input driver of that class name
           --headless                 run with no window, which needs a driver
           --scene <Name>             boot the scene of that class name, else of that document key
+          --payload <Name>           boot the opening scene with a new payload of that class name
           --seed <number>            start the random source from that seed, which a windowed run logs
           --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
           --uncapped                 present without waiting for vertical sync
@@ -33,6 +34,8 @@ internal sealed class CommandLine
     internal string? DriverName { get; private set; }
 
     internal string? SceneName { get; private set; }
+
+    internal string? PayloadName { get; private set; }
 
     internal bool Headless { get; private set; }
 
@@ -88,6 +91,10 @@ internal sealed class CommandLine
 
                 case "--scene" when development:
                     parsed.SceneName = Value(args, ref index, gameName, development, "--scene needs a scene class name or a scene document key.");
+                    break;
+
+                case "--payload" when development:
+                    parsed.PayloadName = Value(args, ref index, gameName, development, "--payload needs a payload class name.");
                     break;
 
                 case "--frames" when development:

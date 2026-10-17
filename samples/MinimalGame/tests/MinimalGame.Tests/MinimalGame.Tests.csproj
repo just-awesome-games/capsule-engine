@@ -10,7 +10,7 @@
   </ItemGroup>
 
   <!-- The shell is referenced for its CapsuleBoot. A headless run boots through the registries a
-       windowed run does. The runtime is referenced for CapsuleEngine.RunHeadless. -->
+       windowed run does. The runtime is referenced for EngineBuilder.RunHeadless. -->
   <ItemGroup>
     <PackageReference Include="JAG.Capsule.Runtime.Desktop" Version="[$(CapsuleVersion)]" />
     <ProjectReference Include="../../src/MinimalGame.Game/MinimalGame.Game.csproj" />

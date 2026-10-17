@@ -139,6 +139,11 @@ internal static class Diagnostics
         "An [Authorable] member must be one a placement can set",
         "'{0}' {1}");
 
+    internal static readonly DiagnosticDescriptor DuplicateScenePayloadName = Rule(
+        "CAP042", ScenesCategory, ScenesPage,
+        "Two scene payloads claim one name",
+        "'{0}' and '{1}' are both named '{2}' on a command line. --payload takes a class name, so rename one");
+
     internal static readonly DiagnosticDescriptor RuntimeBoundary = Rule(
         "CAP100", ArchitectureCategory, LogicBoundaryPage,
         "Game logic cannot reference the runtime",

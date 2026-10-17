@@ -17,6 +17,7 @@ internal static class MetadataNames
     internal const string Camera = "Capsule.Scenes.Camera";
     internal const string TileMap = "Capsule.Tiles.TileMap";
     internal const string InputDriver = "Capsule.Input.IInputDriver";
+    internal const string ScenePayload = "Capsule.Scenes.IScenePayload";
     internal const string CapsuleEngine = "Capsule.Runtime.CapsuleEngine";
     internal const string SaveKey = "Capsule.Persistence.SaveKey`1";
 

@@ -104,7 +104,7 @@ projects also state their role, which the build and the generators read:
 
 The build project's `Program.cs` runs `CapsuleBuild` ([The build project](#the-build-project)). A shell is
 a console app, and a Windows-subsystem app in Release, where a double-click opens no console. Tests
-reference the logic project and take no role. A test driving `CapsuleEngine.RunHeadless` also references
+reference the logic project and take no role. A test driving `EngineBuilder.RunHeadless` also references
 `JAG.Capsule.Runtime.Desktop`.
 
 To build against clones instead, one git-ignored `Directory.Build.local.props` names them and imports the

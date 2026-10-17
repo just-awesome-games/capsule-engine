@@ -27,7 +27,7 @@ public readonly record struct SceneTransition
         SceneTransitionKind kind,
         Type? sceneType,
         string? documentName,
-        object? payload,
+        IScenePayload? payload,
         bool hasPayload)
     {
         Kind = kind;
@@ -47,7 +47,7 @@ public readonly record struct SceneTransition
     public string? DocumentName { get; }
 
     /// <summary>State offered to the next scene. It may be null while <see cref="HasPayload"/> is true.</summary>
-    public object? Payload { get; }
+    public IScenePayload? Payload { get; }
 
     /// <summary>
     /// Whether a restart replaces the payload that opened the current scene. Every other kind carries
@@ -58,15 +58,15 @@ public readonly record struct SceneTransition
     internal static SceneTransition Exit() =>
         new(SceneTransitionKind.Exit, null, null, null, false);
 
-    internal static SceneTransition Restart(object? payload, bool hasPayload) =>
+    internal static SceneTransition Restart(IScenePayload? payload, bool hasPayload) =>
         new(SceneTransitionKind.Restart, null, null, payload, hasPayload);
 
-    internal static SceneTransition ToScene(Type sceneType, object? payload) =>
+    internal static SceneTransition ToScene(Type sceneType, IScenePayload? payload) =>
         new(SceneTransitionKind.Scene, sceneType, null, payload, true);
 
-    internal static SceneTransition ToName(string documentName, object? payload) =>
+    internal static SceneTransition ToName(string documentName, IScenePayload? payload) =>
         new(SceneTransitionKind.Named, null, documentName, payload, true);
 
-    internal SceneTransition WithPayload(object? payload) =>
+    internal SceneTransition WithPayload(IScenePayload? payload) =>
         new(Kind, SceneType, DocumentName, payload, true);
 }

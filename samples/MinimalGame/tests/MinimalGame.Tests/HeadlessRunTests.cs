@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Audio;
 using Capsule.Generated;
 using Capsule.Input;
@@ -6,11 +7,12 @@ using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
 using MinimalGame.Game;
 using MinimalGame.Game.Drivers;
+using MinimalGame.Game.Entities;
 using MinimalGame.Game.Scenes;
 
 namespace MinimalGame.Tests;
 
-// The whole game through CapsuleEngine.RunHeadless: the shell's own CapsuleBoot builder, minus
+// The whole game through EngineBuilder.RunHeadless: the shell's own CapsuleBoot builder, minus
 // the window, so scene transitions and the exit request are the game's own. A driver that reads
 // the scene stands in for the player; InputScript cannot, because what it presses depends on which
 // scene is up.
@@ -77,6 +79,22 @@ public sealed class HeadlessRunTests
         Assert.True(driver.ExactlyOneVoiceIsLive, "the jump left two room voices alive, or none");
         Assert.True(result.ExitRequested, "the run ended on the driver's budget, not on Quit");
         Assert.True(result.Steps < JumpsFromPlayToMenuAndBack.Budget);
+    }
+
+    // The shell's command line with a preset arrival. The hall opens with the player on its west
+    // entrance, not its own spawn, before the first step. The probe replaces the --driver it names.
+    [Fact]
+    public void ANamedPayload_BootsTheHallWithThePlayerAtItsEntrance()
+    {
+        ArrivalProbe probe = new();
+
+        Boot()
+            .WithCommandLine(["--scene", "scenes/halls/hall", "--payload", nameof(WestArrival), "--driver", "Walkthrough", "--headless"])
+            .WithInputDriver(probe)
+            .RunScene<MainMenu>();
+
+        Assert.NotNull(probe.EntranceAt);
+        Assert.Equal(probe.EntranceAt, probe.PlayerAt);
     }
 
     private static EngineBuilder Boot() =>
@@ -238,6 +256,23 @@ public sealed class HeadlessRunTests
             snapshot = DeviceSnapshot.Empty;
 
             return tick < Budget;
+        }
+    }
+
+    // Reads where the player and the west entrance stand as the first step is asked for, then ends the run.
+    private sealed class ArrivalProbe : IInputDriver
+    {
+        public Vector2? PlayerAt { get; private set; }
+
+        public Vector2? EntranceAt { get; private set; }
+
+        public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
+        {
+            PlayerAt = scene.FindSingle<Player>().Position;
+            EntranceAt = scene.FindFirst<Entrance>(entrance => entrance.Key == "west")?.Position;
+            snapshot = DeviceSnapshot.Empty;
+
+            return false;
         }
     }
 

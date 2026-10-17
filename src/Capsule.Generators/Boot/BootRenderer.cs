@@ -25,6 +25,8 @@ internal static class BootRenderer
         string createScenes = RegistryProviderRenderer.SceneRegistryBody(plan.Providers.Items.Select(static provider => provider.QualifiedName), Statement);
         string addDrivers = string.Concat(plan.Providers.Items.Select(static provider => $"{Statement}{provider.QualifiedName}.AddDrivers(drivers);\n"))
             + string.Concat(plan.Drivers.Items.Select(static driver => $"{Statement}drivers.Add({InputDriverRenderer.Registration(driver)});\n"));
+        string addPayloads = string.Concat(plan.Providers.Items.Select(static provider => $"{Statement}{provider.QualifiedName}.AddPayloads(payloads);\n"))
+            + string.Concat(plan.Payloads.Items.Select(static payload => $"{Statement}payloads.Add({ScenePayloadRenderer.Registration(payload)});\n"));
 
         return GeneratedFile.Write([], $$"""
                 /// <summary>This game's entry point. Generated code. Do not edit.</summary>
@@ -35,11 +37,13 @@ internal static class BootRenderer
 
                     private static global::Capsule.Input.InputDriverRegistry Drivers { get; } = CreateDrivers();
 
+                    private static global::Capsule.Scenes.ScenePayloadRegistry Payloads { get; } = CreatePayloads();
+
                     /// <summary>Begins the engine's configuration with every registry this game generates.</summary>
                     /// <param name="gameName">The game's display name. It titles the window, and its slug names the local folder that holds the saves and the crash log.</param>
                     /// <param name="platform">The platform module for the host family this shell targets.</param>
                     public static global::Capsule.Runtime.EngineBuilder Configure(string gameName, global::Capsule.Runtime.HostPlatform platform) =>
-                        global::Capsule.Runtime.CapsuleEngine.Configure(gameName, platform, Scenes, Drivers);
+                        global::Capsule.Runtime.CapsuleEngine.Configure(gameName, platform, Scenes, Drivers, Payloads);
 
                     private static global::Capsule.Scenes.SceneRegistry CreateScenes()
                     {
@@ -49,6 +53,12 @@ internal static class BootRenderer
                     {
                         var drivers = new global::System.Collections.Generic.List<global::Capsule.Input.InputDriverRegistration>();
             {{addDrivers}}            return new global::Capsule.Input.InputDriverRegistry(drivers);
+                    }
+
+                    private static global::Capsule.Scenes.ScenePayloadRegistry CreatePayloads()
+                    {
+                        var payloads = new global::System.Collections.Generic.List<global::Capsule.Scenes.ScenePayloadRegistration>();
+            {{addPayloads}}            return new global::Capsule.Scenes.ScenePayloadRegistry(payloads);
                     }
                 }
             """);

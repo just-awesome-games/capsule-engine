@@ -6,7 +6,7 @@ and a game chooses its own test framework. Pick the boundary by what the test is
 | Test subject | Entry point |
 | --- | --- |
 | Scene behaviour over time | `SimulationHost`, which owns ticks, input state and teardown. |
-| Scene transitions, boot configuration or exit results | `CapsuleEngine.RunHeadless`, from `JAG.Capsule.Runtime`, with a platform module. |
+| Scene transitions, boot configuration or exit results | `EngineBuilder.RunHeadless`, from `JAG.Capsule.Runtime`, with a platform module. |
 
 Input is `DeviceSnapshot` values, an `InputScript`, or an `IInputDriver` that reads the scene
 ([`input.md`](input.md)). Audio mixing is simulation state, asserted through `Run.Audio` without playback
@@ -16,6 +16,8 @@ Input is `DeviceSnapshot` values, an `InputScript`, or an `IInputDriver` that re
 A test composes a shipped scene document through the generated `CapsuleScenes.Registry` in `Capsule.Generated`,
 as `Registry.Create(CapsuleAssets.Scenes.RoomScene)`. One test catches every placement a run would refuse
 ([Validating every document](scenes.md#validating-every-document)).
+A headless test references the shell and begins with its generated `CapsuleBoot.Configure`, which hands
+`CapsuleEngine.Configure` every generated registry, the input drivers and `IScenePayload` classes included.
 
 [`samples/MinimalGame/tests/MinimalGame.Tests/`](../samples/MinimalGame/tests/MinimalGame.Tests/) is the
 worked example at both boundaries.

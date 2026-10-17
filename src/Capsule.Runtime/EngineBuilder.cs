@@ -29,6 +29,7 @@ public sealed class EngineBuilder
     // The boot trace's first stage, taken before any configuration runs.
     private readonly long _builderEntered = Stopwatch.GetTimestamp();
     private readonly InputDriverRegistry _drivers;
+    private readonly ScenePayloadRegistry _payloads;
     private readonly string _gameName;
 
     private (int Width, int Height)? _canvas;
@@ -46,22 +47,25 @@ public sealed class EngineBuilder
     private Action<Run>? _runStart;
 
     // What the command line asked for: the scene class to boot in place of the RunScene call's, the
-    // document to compose it from (or the only thing named, for a document no class claims), and
-    // whether to run with no window.
+    // document to compose it from (or the only thing named, for a document no class claims), the
+    // payload to boot it with, and whether to run with no window.
     private Type? _commandLineScene;
     private string? _commandLineDocument;
+    private IScenePayload? _commandLinePayload;
     private bool _headless;
 
-    internal EngineBuilder(string gameName, HostPlatform platform, SceneRegistry scenes, InputDriverRegistry drivers)
+    internal EngineBuilder(string gameName, HostPlatform platform, SceneRegistry scenes, InputDriverRegistry drivers, ScenePayloadRegistry payloads)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
         ArgumentNullException.ThrowIfNull(platform);
         ArgumentNullException.ThrowIfNull(scenes);
         ArgumentNullException.ThrowIfNull(drivers);
+        ArgumentNullException.ThrowIfNull(payloads);
 
         Platform = platform;
         Scenes = scenes;
         _drivers = drivers;
+        _payloads = payloads;
         _gameName = gameName;
         WindowTitle = gameName;
         _localFolderName = SafeName.Slug(gameName)
@@ -383,7 +387,11 @@ public sealed class EngineBuilder
     /// <see cref="WithInputDriver"/> replaces it. <c>--headless</c> alongside it opens no window.
     /// <c>--scene</c> replaces the scene the <c>RunScene</c> call names and keeps that call's boot
     /// payload. It takes a registered scene class name, else a scene document key such as
-    /// <c>halls/hall</c>. A scene a document backs is opened through that document. <c>--seed</c>
+    /// <c>halls/hall</c>. A scene a document backs is opened through that document.
+    /// <c>--payload</c> replaces that call's payload with a new instance of the
+    /// <see cref="IScenePayload"/> class it names, with or without <c>--scene</c>. Only
+    /// <c>RunScene</c> applies <c>--scene</c> and <c>--payload</c>, windowed or under
+    /// <c>--headless</c>. <c>RunHeadless</c> boots the scene and payload it is given. <c>--seed</c>
     /// configures the seed as <see cref="WithRandomSeed"/> does, and a later call replaces it.
     /// </para>
     /// </remarks>
@@ -391,7 +399,7 @@ public sealed class EngineBuilder
     /// The process arguments, holding standard flags only. Capsule refuses a flag it does not
     /// declare, and a game strips its own flags first.
     /// </param>
-    /// <exception cref="CommandLineException">The command line is malformed, names a driver or scene nothing registered, asks for a headless run with no driver, or asked for <c>--help</c>.</exception>
+    /// <exception cref="CommandLineException">The command line is malformed, names a driver, scene or payload nothing registered, asks for a headless run with no driver, or asked for <c>--help</c>.</exception>
     public EngineBuilder WithCommandLine(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -436,6 +444,13 @@ public sealed class EngineBuilder
             }
         }
 
+        if (parsed.PayloadName is { } payloadName)
+        {
+            _commandLinePayload = _payloads.TryCreate(payloadName, out IScenePayload? payload)
+                ? payload
+                : throw CommandLine.Refuse(_gameName, $"no payload is named '{payloadName}'. Registered: {_payloads.RegisteredNames()}.");
+        }
+
         Uncapped = parsed.Uncapped;
 
         _headless = parsed.Headless;
@@ -455,29 +470,35 @@ public sealed class EngineBuilder
     /// Every setting except the window's applies, and scene transitions are honoured.
     /// <paramref name="driver"/> replaces any driver <see cref="WithInputDriver"/> set. A headless run
     /// writes no crash log, and an escaping exception propagates to the caller. It persists nothing
-    /// unless <see cref="WithSaveDirectory"/> or <see cref="WithSaveStorage"/> named a medium.
+    /// unless <see cref="WithSaveDirectory"/> or <see cref="WithSaveStorage"/> named a medium. It
+    /// boots <typeparamref name="TScene"/> with <paramref name="payload"/> and ignores
+    /// <c>--scene</c> and <c>--payload</c>.
     /// </remarks>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
     /// <param name="driver">The run's input, one snapshot per fixed step.</param>
-    /// <param name="payload">Boot state, as <see cref="RunScene{TScene}(object?)"/> takes it.</param>
+    /// <param name="payload">The opening scene's payload, as <see cref="RunScene{TScene}(IScenePayload?)"/> takes it.</param>
     /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's type key is claimed by no entity.</exception>
-    public HeadlessRunResult RunHeadless<TScene>(IInputDriver driver, object? payload = null)
+    public HeadlessRunResult RunHeadless<TScene>(IInputDriver driver, IScenePayload? payload = null)
         where TScene : Scene
         => RunHeadless(SceneTransition.ToScene(typeof(TScene), payload), driver);
 
     /// <summary>
     /// Runs the scene the named document backs from <paramref name="driver"/>, as
-    /// <see cref="RunHeadless{TScene}(IInputDriver, object?)"/> runs a class.
+    /// <see cref="RunHeadless{TScene}(IInputDriver, IScenePayload?)"/> runs a class.
     /// </summary>
+    /// <remarks>
+    /// It boots <paramref name="scene"/> with <paramref name="payload"/> and ignores <c>--scene</c>
+    /// and <c>--payload</c>.
+    /// </remarks>
     /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
     /// <param name="driver">The run's input, one snapshot per fixed step.</param>
-    /// <param name="payload">Boot state, as <see cref="RunScene(SceneKey, object?)"/> takes it.</param>
+    /// <param name="payload">The opening scene's payload, as <see cref="RunScene(SceneKey, IScenePayload?)"/> takes it.</param>
     /// <exception cref="ArgumentException">The key is not '/'-joined safe segments.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's type key is claimed by no entity.</exception>
-    public HeadlessRunResult RunHeadless(SceneKey scene, IInputDriver driver, object? payload = null) =>
+    public HeadlessRunResult RunHeadless(SceneKey scene, IInputDriver driver, IScenePayload? payload = null) =>
         RunHeadless(SceneTransition.ToName(scene.Required(nameof(scene)), payload), driver);
 
     /// <summary>
@@ -487,13 +508,13 @@ public sealed class EngineBuilder
     /// </summary>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
     /// <param name="payload">
-    /// Boot state. It reaches the scene as its <c>EntryPayload</c>, like a payload given to
-    /// <see cref="global::Capsule.Run.RequestScene{TScene}(object?)"/>.
+    /// The opening scene's <see cref="IScenePayload"/>. It reaches the scene as its <c>EntryPayload</c>,
+    /// like a payload given to <see cref="global::Capsule.Run.RequestScene{TScene}(IScenePayload?)"/>.
     /// </param>
     /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's type key is claimed by no entity.</exception>
-    public int RunScene<TScene>(object? payload = null)
+    public int RunScene<TScene>(IScenePayload? payload = null)
         where TScene : Scene
         => RunWindowed(SceneTransition.ToScene(typeof(TScene), payload));
 
@@ -503,11 +524,11 @@ public sealed class EngineBuilder
     /// reading the file again.
     /// </summary>
     /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
-    /// <param name="payload">Boot state, as <see cref="RunScene{TScene}(object?)"/> takes it.</param>
+    /// <param name="payload">The opening scene's payload, as <see cref="RunScene{TScene}(IScenePayload?)"/> takes it.</param>
     /// <exception cref="ArgumentException">The key is not '/'-joined safe segments.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's type key is claimed by no entity.</exception>
-    public int RunScene(SceneKey scene, object? payload = null) =>
+    public int RunScene(SceneKey scene, IScenePayload? payload = null) =>
         RunWindowed(SceneTransition.ToName(scene.Required(nameof(scene)), payload));
 
     // Opens the window, or plays the driver with no window under --headless, and runs until the game
@@ -545,11 +566,16 @@ public sealed class EngineBuilder
         return 0;
     }
 
-    // The scene the run opens: what --scene named, keeping the call's payload, or else the call's own.
-    private SceneTransition Opening(in SceneTransition target) =>
-        _commandLineDocument is { } document ? SceneTransition.ToName(document, target.Payload)
-        : _commandLineScene is { } scene ? SceneTransition.ToScene(scene, target.Payload)
-        : target;
+    // The scene the run opens: what --scene named, else the call's own, with the payload --payload
+    // named, else the call's own.
+    private SceneTransition Opening(in SceneTransition target)
+    {
+        IScenePayload? payload = _commandLinePayload ?? target.Payload;
+
+        return _commandLineDocument is { } document ? SceneTransition.ToName(document, payload)
+            : _commandLineScene is { } scene ? SceneTransition.ToScene(scene, payload)
+            : target.WithPayload(payload);
+    }
 
     // Builds the window host and runs the scenes until they request exit.
     private void RunHost(SceneHost scenes)

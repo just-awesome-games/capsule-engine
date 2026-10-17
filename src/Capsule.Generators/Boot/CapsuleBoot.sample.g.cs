@@ -11,11 +11,13 @@ namespace Capsule.Generated
 
         private static global::Capsule.Input.InputDriverRegistry Drivers { get; } = CreateDrivers();
 
+        private static global::Capsule.Scenes.ScenePayloadRegistry Payloads { get; } = CreatePayloads();
+
         /// <summary>Begins the engine's configuration with every registry this game generates.</summary>
         /// <param name="gameName">The game's display name. It titles the window, and its slug names the local folder that holds the saves and the crash log.</param>
         /// <param name="platform">The platform module for the host family this shell targets.</param>
         public static global::Capsule.Runtime.EngineBuilder Configure(string gameName, global::Capsule.Runtime.HostPlatform platform) =>
-            global::Capsule.Runtime.CapsuleEngine.Configure(gameName, platform, Scenes, Drivers);
+            global::Capsule.Runtime.CapsuleEngine.Configure(gameName, platform, Scenes, Drivers, Payloads);
 
         private static global::Capsule.Scenes.SceneRegistry CreateScenes()
         {
@@ -30,6 +32,13 @@ namespace Capsule.Generated
             global::Capsule.Generated.CapsuleRegistryProvider_GameSpecs_85683739.AddDrivers(drivers);
             drivers.Add(new global::Capsule.Input.InputDriverRegistration("Replay", static () => new global::Shell.Replay()));
             return new global::Capsule.Input.InputDriverRegistry(drivers);
+        }
+
+        private static global::Capsule.Scenes.ScenePayloadRegistry CreatePayloads()
+        {
+            var payloads = new global::System.Collections.Generic.List<global::Capsule.Scenes.ScenePayloadRegistration>();
+            global::Capsule.Generated.CapsuleRegistryProvider_GameSpecs_85683739.AddPayloads(payloads);
+            return new global::Capsule.Scenes.ScenePayloadRegistry(payloads);
         }
     }
 }

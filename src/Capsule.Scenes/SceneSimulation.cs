@@ -41,7 +41,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     /// <exception cref="AggregateException">Starting the scene failed and stopping it then failed too. Both are inner exceptions.</exception>
     public SceneSimulation(
         Scene scene,
-        object? entryPayload = null,
+        IScenePayload? entryPayload = null,
         Run? run = null)
     {
         ArgumentNullException.ThrowIfNull(scene);

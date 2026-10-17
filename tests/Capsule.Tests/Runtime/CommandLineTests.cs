@@ -120,6 +120,28 @@ public sealed class CommandLineTests : IDisposable
         Assert.Contains("--scene <Name>", reported, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Payload_ReplacesTheOpeningScenesPayload(bool withScene)
+    {
+        string[] args = ["--headless", "--driver", "Idler", "--payload", nameof(Westward)];
+        EngineBuilder builder = Builder().WithCommandLine(withScene ? [.. args, "--scene", nameof(Greeted)] : args);
+
+        Assert.Equal(0, withScene ? builder.RunScene<Idle>(new CallsOwn()) : builder.RunScene<Greeted>(new CallsOwn()));
+        Assert.IsType<Westward>(Greeted.Received);
+    }
+
+    [Fact]
+    public void APayloadNoRegistryHolds_IsReportedWithTheNamesThatAreRegistered()
+    {
+        string reported = Refused(["--payload", "Northward"]);
+
+        Assert.Contains("'Northward'", reported, StringComparison.Ordinal);
+        Assert.Contains("Eastward, Westward", reported, StringComparison.Ordinal);
+        Assert.Contains("--payload <Name>", reported, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Seed_StartsEveryRunFromTheNamedSeed()
     {
@@ -141,6 +163,7 @@ public sealed class CommandLineTests : IDisposable
         Assert.Equal(0, asked.Report());
         Assert.Contains("--headless", stdout.ToString(), StringComparison.Ordinal);
         Assert.Contains("--saves <dir>", stdout.ToString(), StringComparison.Ordinal);
+        Assert.Contains("--payload <Name>", stdout.ToString(), StringComparison.Ordinal);
     }
 
     // The flag is applied as eagerly as --frames, so the headless run persists into the directory it
@@ -171,6 +194,9 @@ public sealed class CommandLineTests : IDisposable
         ["--driver", "--headless"],
         ["--frames", "frames.csv", "0"],
         ["--frames", "frames.csv", "NaN"],
+        ["--payload"],
+        ["--payload", "--headless"],
+        ["--payload", "Westward", "--payload", "Eastward"],
         ["--seed", "-1"],
         ["--seed", "18446744073709551616"],
         ["--rewind", "Idler"],
@@ -181,6 +207,7 @@ public sealed class CommandLineTests : IDisposable
     // game from its command line. The portable-saves lever and help stay.
     [Theory]
     [InlineData("--scene", "Selected")]
+    [InlineData("--payload", "Westward")]
     [InlineData("--driver", "Idler")]
     [InlineData("--headless")]
     [InlineData("--frames", "frames.csv")]
@@ -210,6 +237,7 @@ public sealed class CommandLineTests : IDisposable
         Assert.DoesNotContain("--driver", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--headless", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--scene", usage, StringComparison.Ordinal);
+        Assert.DoesNotContain("--payload", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--frames", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--uncapped", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--seed", usage, StringComparison.Ordinal);
@@ -237,6 +265,7 @@ public sealed class CommandLineTests : IDisposable
                         SceneRegistration.Plain(typeof(Idle), static _ => new Idle()),
                         SceneRegistration.Plain(typeof(Selected), static _ => new Selected()),
                         SceneRegistration.Plain(typeof(Saver), static _ => new Saver()),
+                        SceneRegistration.Plain(typeof(Greeted), static _ => new Greeted()),
                         SceneRegistration.DocumentOnly(HallKey, static content => new Hall(content!.Value)),
                         .. documentKey is null
                             ? Array.Empty<SceneRegistration>()
@@ -246,6 +275,11 @@ public sealed class CommandLineTests : IDisposable
                     [
                         new InputDriverRegistration("Idler", static () => new InputScript().Wait(3).Build()),
                         new InputDriverRegistration("Presser", static () => new InputScript().Tap(Key.Space).Build()),
+                    ]),
+                new ScenePayloadRegistry(
+                    [
+                        new ScenePayloadRegistration(nameof(Westward), static () => new Westward()),
+                        new ScenePayloadRegistration(nameof(Eastward), static () => new Eastward()),
                     ]))
             .WithFixedStep(10)
             .WithoutCrashLog()
@@ -270,6 +304,22 @@ public sealed class CommandLineTests : IDisposable
         internal static int Openings { get; private set; }
 
         protected override void OnStart() => Openings++;
+
+        protected override void OnStep(in StepContext context) => Run.RequestExit();
+    }
+
+    private sealed class Westward : IScenePayload;
+
+    private sealed class Eastward : IScenePayload;
+
+    private sealed record CallsOwn : IScenePayload;
+
+    // Keeps the payload it opened with, so a test can see what --payload delivered.
+    private sealed class Greeted : Scene
+    {
+        internal static IScenePayload? Received { get; private set; }
+
+        protected override void OnStart() => Received = EntryPayload;
 
         protected override void OnStep(in StepContext context) => Run.RequestExit();
     }

@@ -238,7 +238,7 @@ public class Scene
     /// <see cref="TileMapCollider2D"/> registers here when its entity joins the scene.
     /// </summary>
     /// <remarks>Game code queries this world directly for rays, sweeps and overlaps.</remarks>
-    /// <exception cref="InvalidOperationException">The scene has not started, so nothing has joined its world.</exception>
+    /// <exception cref="InvalidOperationException">The scene has not started. Query it from <see cref="OnStart"/> onward, not from a constructor.</exception>
     public CollisionWorld2D Collision =>
         _started ? _collision : throw new InvalidOperationException($"A {GetType().Name} has not started, so {NotJoinedYet}");
 
@@ -345,7 +345,7 @@ public class Scene
     public bool Paused { get; set; }
 
     /// <summary>State supplied by the transition that opened this scene.</summary>
-    protected object? EntryPayload { get; private set; }
+    protected IScenePayload? EntryPayload { get; private set; }
 
     /// <summary>
     /// Every entity held in step order: roots in addition order, each followed by its subtree. The span
@@ -878,7 +878,7 @@ public class Scene
         _renderIndex.Reserve(renderers);
     }
 
-    internal void Start(object? entryPayload)
+    internal void Start(IScenePayload? entryPayload)
     {
         if (_started)
         {

@@ -167,7 +167,7 @@ part of every ordinary build and of no publish
 
 The build registers every driver with a public parameterless constructor under its class name,
 wherever the game declares it. One that takes constructor arguments registers under no name and
-reaches a run through `EngineBuilder.WithInputDriver` or `CapsuleEngine.RunHeadless`.
+reaches a run through `EngineBuilder.WithInputDriver` or `EngineBuilder.RunHeadless`.
 
 `WithCommandLine(args)` gives the shell the engine's standard command line, and a game writes no
 parser of its own:
@@ -176,10 +176,14 @@ parser of its own:
 dotnet run --project src/MyGame.Shell -- --scene Room --driver Walkthrough --headless
 ```
 
-`--driver`, `--headless`, `--scene`, `--seed`, `--frames`, `--uncapped`, `--saves` and `--help` are the flags, as
+`--driver`, `--headless`, `--scene`, `--payload`, `--seed`, `--frames`, `--uncapped`, `--saves` and `--help` are the flags, as
 `EngineBuilder.WithCommandLine` documents. A shipping build keeps `--saves` and `--help`. The shell reports
 `--help` and a refused flag through `CommandLineException`, as
 [`getting-started.md`](getting-started.md#the-shell) shows.
 
-From a test, the same driver plays under `SimulationHost.Play` or `CapsuleEngine.RunHeadless`
+`--payload <Name>` boots the opening scene with a new instance of that `IScenePayload` class in place of
+the `RunScene` call's payload. The build registers each payload class with a public parameterless constructor,
+as it registers drivers.
+
+From a test, the same driver plays under `SimulationHost.Play` or `EngineBuilder.RunHeadless`
 ([`testing.md`](testing.md)).

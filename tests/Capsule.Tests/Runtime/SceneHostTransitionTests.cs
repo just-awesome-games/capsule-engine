@@ -22,7 +22,7 @@ public sealed class SceneHostTransitionTests
         host.Step(Step(0));
 
         SecondScene second = Assert.IsType<SecondScene>(host.Scene);
-        Assert.Equal("handoff", second.ReceivedPayload);
+        Assert.Equal(new Tag("handoff"), second.ReceivedPayload);
         Assert.Equal(["first.start", "first.step", "second.start", "first.stop"], log);
 
         host.Step(Step(1));
@@ -36,17 +36,17 @@ public sealed class SceneHostTransitionTests
     {
         SecondScene first = new([]);
 
-        using SceneHost host = new(ToScene<SecondScene>("boot"), (in SceneTransition _) => first, new Run());
+        using SceneHost host = new(ToScene<SecondScene>(new Tag("boot")), (in SceneTransition _) => first, new Run());
         host.Step(Step(0));
 
         Assert.Same(first, host.Scene);
-        Assert.Equal("boot", first.ReceivedPayload);
+        Assert.Equal(new Tag("boot"), first.ReceivedPayload);
     }
 
     [Fact]
     public void Restart_ReconstructsTheCurrentTargetAndKeepsItsEntryPayload()
     {
-        object checkpoint = new();
+        Tag checkpoint = new("checkpoint");
         int instances = 0;
 
         Scene Resolve(in SceneTransition target) => new RestartingScene(++instances);
@@ -66,7 +66,7 @@ public sealed class SceneHostTransitionTests
 
         Scene Resolve(in SceneTransition target) => new PayloadReplacingScene(++instances);
 
-        using SceneHost host = new(ToScene<PayloadReplacingScene>(new object()), Resolve, new Run());
+        using SceneHost host = new(ToScene<PayloadReplacingScene>(new Tag("replaced")), Resolve, new Run());
         host.Step(Step(0));
 
         PayloadReplacingScene restarted = Assert.IsType<PayloadReplacingScene>(host.Scene);
@@ -152,7 +152,7 @@ public sealed class SceneHostTransitionTests
     {
         internal int Instance => instance;
 
-        internal object? ReceivedPayload { get; private set; }
+        internal IScenePayload? ReceivedPayload { get; private set; }
 
         protected override void OnStart() => ReceivedPayload = EntryPayload;
 
@@ -167,7 +167,7 @@ public sealed class SceneHostTransitionTests
 
     private sealed class PayloadReplacingScene(int instance) : Scene
     {
-        internal object? ReceivedPayload { get; private set; }
+        internal IScenePayload? ReceivedPayload { get; private set; }
 
         protected override void OnStart() => ReceivedPayload = EntryPayload;
 
