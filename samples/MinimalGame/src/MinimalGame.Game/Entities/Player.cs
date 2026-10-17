@@ -18,9 +18,10 @@ namespace MinimalGame.Game.Entities;
 /// The walking, falling, jumping body the <c>player</c> document entries spawn.
 /// <see cref="Entity.Position"/> is the top-left corner of the 8x8 body. The body collider is what
 /// the <see cref="KinematicBody2D"/> sweeps and blocks on; the inset hurtbox blocks nothing and
-/// reports <c>hazard</c> contacts alone. The one-unit probe at the body's centre decides which trigger
-/// areas the player stands in, because a body flush against a wall still touches what lies behind it.
-/// The body rides and is shoved by anything on the <c>platform</c> layer, and being crushed kills.
+/// reports <c>hazard</c> contacts alone. A trigger area detects the body and reacts itself, such as the
+/// <see cref="Gust"/> that sets its <see cref="Wind"/> and the <see cref="Waterfall"/> that sets its
+/// <see cref="GravityOverride"/>. The body rides and is shoved by anything on the <c>platform</c> layer,
+/// keeps a moving floor's sideways speed after leaving it until it lands, and being crushed kills.
 /// Everything visual hangs on the nested <see cref="Visual"/> child, which reads the facts this root
 /// publishes; a shot leaves from the muzzle socket of the frame that child draws, so the root fires
 /// in its late step, once the frame has settled. On keyboard and mouse a shot aims at the pointer,
@@ -31,9 +32,6 @@ public sealed class Player : Entity
 {
     /// <summary>The body's edge in world units, and the frame's in texels: one texel per unit.</summary>
     private const int BodyPixels = 8;
-
-    // The probe's edge in world units: a point as far as any room's layout can tell.
-    private const float ProbeEdge = 1f;
 
     private static readonly Vector2 Body = new(BodyPixels, BodyPixels);
 
@@ -52,7 +50,13 @@ public sealed class Player : Entity
     private PlayerTuning _tuning = PlayerTuning.Default;
 
     private Vector2 _velocity;
+
+    // The sideways speed of the floor the player last left, which it keeps until it lands.
+    private float _drift;
+
     private Countdown _invulnerable;
+    private Countdown _coyote;
+    private Countdown _jumpBuffer;
 
     /// <summary>What is left of <see cref="PlayerTuning.MaxHealth"/>: one spent per hazard contact, never below zero.</summary>
     public int Health { get; private set; }
@@ -68,6 +72,12 @@ public sealed class Player : Entity
 
     /// <summary>Whether input moves, jumps and shoots, defaulting to true. A cutscene clears it while it plays.</summary>
     public bool HasControl { get; set; } = true;
+
+    /// <summary>The push, in world units per second, that the move adds to the player's own velocity, such as a gust's.</summary>
+    public Vector2 Wind { get; set; }
+
+    /// <summary>The gravity the player falls by in place of its tuning's, such as a waterfall's, or null for its own.</summary>
+    public float? GravityOverride { get; set; }
 
     public Player(EntitySpawn spawn)
         : base(spawn)
@@ -103,12 +113,6 @@ public sealed class Player : Entity
         _hurtbox.ContactEntered += OnHurtboxEntered;
         _hurtbox.ContactExited += OnHurtboxExited;
         Add(_hurtbox);
-
-        Add(new BoxCollider2D(new Vector2(ProbeEdge, ProbeEdge))
-        {
-            Layer = CollisionLayers.Probe,
-            Offset = new Vector2((BodyPixels - ProbeEdge) / 2f),
-        });
 
         _footfall = new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx };
         Add(_footfall);
@@ -154,6 +158,8 @@ public sealed class Player : Entity
         float delta = context.DeltaSeconds;
 
         _invulnerable.Step();
+        _coyote.Step();
+        _jumpBuffer.Step();
 
         // The edges are this step's facts: the visual, stepping after this root, reads them once.
         JumpedThisStep = false;
@@ -164,19 +170,37 @@ public sealed class Player : Entity
         float move = HasControl ? context.Input.Axis(GameInput.Move) : 0f;
         float target = move * WalkSpeed(move);
         _velocity.X = IceUnderfoot() is { } ice ? MoveTowards(_velocity.X, target, ice.Friction * delta) : target;
-        _velocity.Y += _tuning.Gravity * delta;
 
-        // IsOnFloor is state as of the last Move, so this reads the previous step's landing.
+        _velocity.Y += (GravityOverride ?? _tuning.Gravity) * delta;
+
+        // IsOnFloor is state as of the last Move, so this reads the previous step's landing. The floor's
+        // speed is read before the move that may leave it.
         bool wasOnFloor = _body.IsOnFloor;
-        if (HasControl && wasOnFloor && context.Input.WasPressed(GameInput.Jump))
+        Vector2 platform = _body.PlatformVelocity;
+        bool pressed = HasControl && context.Input.WasPressed(GameInput.Jump);
+        bool dropped = false;
+        if (pressed && context.Input.IsHeld(GameInput.Drop))
         {
-            if (context.Input.IsHeld(GameInput.Drop))
+            // Through the one-way ledge or platform underfoot. On solid ground it changes nothing.
+            if (wasOnFloor)
             {
-                // Through the one-way ledge or platform underfoot. On solid ground it changes nothing.
                 _body.DropThrough();
+                dropped = true;
             }
-            else
+        }
+        else
+        {
+            // A press is kept a few steps for the landing after it, and a ledge walked off keeps a few steps
+            // of floor. The step that starts either spends none of it.
+            if (pressed)
             {
+                _jumpBuffer.Start(_tuning.JumpBufferTicks + 1);
+            }
+
+            if (HasControl && _jumpBuffer.IsRunning && (wasOnFloor || _coyote.IsRunning))
+            {
+                _jumpBuffer.Stop();
+                _coyote.Stop();
                 _velocity.Y = -_tuning.JumpSpeed;
                 JumpedThisStep = true;
                 Scene.Add(Scene.Pool<Puff>().Take().Place(Position + new Vector2(BodyPixels / 2f, BodyPixels)));
@@ -184,11 +208,13 @@ public sealed class Player : Entity
             }
         }
 
-        _body.Move(_velocity * delta);
+        // The drift and the wind push on top of the player's own velocity, which keeps neither.
+        _body.Move((_velocity + new Vector2(_drift, 0f) + Wind) * delta);
 
         if (_body.IsOnFloor)
         {
             _velocity.Y = 0f;
+            _drift = 0f;
 
             if (!wasOnFloor)
             {
@@ -196,6 +222,16 @@ public sealed class Player : Entity
                 _footfall.Play();
                 Run.Rumble.Play(_tuning.LandRumbleLow, _tuning.LandRumbleHigh, _tuning.LandRumbleSeconds);
                 _dust.Emit(6);
+            }
+        }
+        else if (wasOnFloor)
+        {
+            // Leaving a moving floor keeps its speed: all of a sideways ride, and only the rise of a lift.
+            _drift = platform.X;
+            _velocity.Y += MathF.Min(platform.Y, 0f);
+            if (!JumpedThisStep && !dropped)
+            {
+                _coyote.Start(_tuning.CoyoteTicks + 1);
             }
         }
 

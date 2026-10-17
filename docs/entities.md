@@ -38,7 +38,7 @@ after a component goes in a later component, or in the late step when the compon
 A parented entity's position, rotation and scale are local. Its world transform is the parent's applied
 to them: position through the parent's scale, rotation and offset, rotation summed, scale multiplied per
 axis, no shear. Renderers under the entity are placed, turned and sized by it. Colliders follow world
-position alone ([`collision.md`](collision.md#colliders)). A subtree shares its root's scene, draw layer
+position alone. A subtree shares its root's scene, draw layer
 and scroll factor, and enters and leaves the scene with it.
 
 ## Interpolation

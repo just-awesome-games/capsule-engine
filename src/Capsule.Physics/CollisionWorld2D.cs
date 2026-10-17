@@ -12,7 +12,8 @@ namespace Capsule.Physics;
 /// component is <c>TileMapCollider2D</c>. A world detects collision only. It has no dynamics and
 /// no solver. Shape colliders sit in a bounding-volume tree, and terrain sits in grids of layered
 /// cells. A world is single-threaded, and no query allocates once
-/// its colliders exist.
+/// its colliders exist. Results never depend on how the tree happens to be arranged. The same
+/// colliders under the same handles give the same results in the same order.
 /// <para>
 /// A world accepts only the handles, layers and filters it issued. Every query takes the filter it
 /// matches by. A collider's stored filter does not decide what a query finds.

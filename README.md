@@ -31,7 +31,7 @@ Four packages ship, and [`PACKAGE.md`](PACKAGE.md) says what each holds. Every p
 - [`docs/input.md`](docs/input.md): actions, axes, the pointer, rumble, the cursor, input drivers, the standard command line.
 - [`docs/rendering.md`](docs/rendering.md): the canvas, cameras, draw order, sprites, text, parallax.
 - [`docs/audio.md`](docs/audio.md): clips, buses, sources, the mixer.
-- [`docs/collision.md`](docs/collision.md): colliders, layers, contacts, kinematic movement, queries.
+- [`docs/collision.md`](docs/collision.md): which collision piece answers which need, and triggers.
 - [`docs/assets.md`](docs/assets.md): asset keys, textures, sprite sheets, audio, fonts, preloading.
 - [`docs/configuring-assets.md`](docs/configuring-assets.md): config files, texture settings, atlases.
 - [`docs/scenes.md`](docs/scenes.md): the scene authoring model and the `*.scene.json` format.

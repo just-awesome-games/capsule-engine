@@ -94,6 +94,9 @@ public class Scene
     // The current stepping tick, or null if not stepping.
     internal long? SteppingTick { get; private set; }
 
+    // The length in seconds of the step that last ran, or zero before the first.
+    internal float StepSeconds { get; private set; }
+
     // One bit per layer some body in this scene is moved by. A collider on none of them shoves nothing.
     internal ulong MovedByLayers { get; private set; }
 
@@ -1165,6 +1168,7 @@ public class Scene
     internal void RunStep(in StepContext context)
     {
         SteppingTick = context.Tick;
+        StepSeconds = context.DeltaSeconds;
         OnStep(context);
     }
 

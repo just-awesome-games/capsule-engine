@@ -20,6 +20,10 @@ namespace MinimalGame.Game.Entities;
 /// shorter arc; lower floats.</param>
 /// <param name="JumpSpeed">Upward speed at take-off, px/s; an apex of about 40px against the default
 /// <paramref name="Gravity"/>, clearing a two-tile ledge. Higher raises the ceiling.</param>
+/// <param name="CoyoteTicks">Steps after walking off a ledge in which a jump still takes off, the grace
+/// that forgives a press a hair late. At 0 a jump needs the floor underfoot.</param>
+/// <param name="JumpBufferTicks">Steps a jump pressed in the air is kept for. A landing within them
+/// takes off at once. At 0 a press in the air does nothing.</param>
 /// <param name="JumpStretch">The scale the sprite snaps to on take-off: tall and thin, the classic
 /// platformer stretch. Tune the pair together: the product is what reads as volume, and nothing
 /// enforces it.</param>
@@ -62,6 +66,8 @@ public sealed record class PlayerTuning(
     float StepHeight,
     float Gravity,
     float JumpSpeed,
+    int CoyoteTicks,
+    int JumpBufferTicks,
     Vector2 JumpStretch,
     Vector2 LandSquash,
     float ScaleRecovery,
@@ -85,6 +91,8 @@ public sealed record class PlayerTuning(
         StepHeight: 5f,
         Gravity: 600f,
         JumpSpeed: 220f,
+        CoyoteTicks: 6,
+        JumpBufferTicks: 6,
         JumpStretch: new Vector2(0.6f, 1.4f),
         LandSquash: new Vector2(1.4f, 0.6f),
         ScaleRecovery: 1.6f,

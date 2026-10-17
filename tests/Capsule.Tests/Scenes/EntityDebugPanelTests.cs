@@ -121,6 +121,7 @@ public sealed class EntityDebugPanelTests
                 ("IsOnCeiling", "False"),
                 ("FloorNormal", "(0, -1)"),
                 ("WallNormal", "(0, 0)"),
+                ("PlatformVelocity", "(0, 0)"),
                 ("MoveContacts", "1"),
             ],
             rows[(heading + 1)..]);

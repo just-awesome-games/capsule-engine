@@ -63,6 +63,15 @@
       "phase": 40
     },
     {
+      "type": "gust",
+      "x": 48,
+      "y": -40,
+      "size": [64, 56],
+      "velocity": [-40, 0],
+      "blowTicks": 90,
+      "calmTicks": 60
+    },
+    {
       "type": "entrance",
       "x": 24,
       "y": 8,

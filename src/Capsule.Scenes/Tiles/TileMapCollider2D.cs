@@ -13,7 +13,13 @@ namespace Capsule.Tiles;
 /// the palette entry says. It is not a <see cref="Collider2D"/>, because each cell takes its layer and
 /// shape from the palette and the component has no single shape, offset or layer of its own. Bodies
 /// report the tiles they touch, and the grid raises no contacts of its own. The map keeps a
-/// <see cref="Entity.ScrollFactor"/> of one while the component is attached.
+/// <see cref="Entity.ScrollFactor"/> of one while the component is attached. A map holds at most
+/// one, and a map whose palette names no layer refuses it.
+/// <para>
+/// An edge a solid neighbour lies flush against is no surface. A run of tiles reads as one floor, and a
+/// slope joins the ground beside it without a bump. A one-way tile keeps only the edges that face up, and a
+/// run of solid-sided tiles is walled only at its two ends.
+/// </para>
 /// <para>
 /// The grid reads the map's cells in place and collides as the map draws, an edit included. Disabling
 /// it, removing it or taking the map out of the scene unregisters it at once, and a body touching the

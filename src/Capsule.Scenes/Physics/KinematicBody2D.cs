@@ -136,6 +136,12 @@ public sealed class KinematicBody2D : Component
     // The map collider that lists this body while it rides one of the map's cells.
     private TileMapCollider2D? _floorGrid;
 
+    // What the ridden floor carried this body by during the step Scene.StepsBegun counted as _carriedStep,
+    // before any wall stopped it, and during the step before that one. A new floor clears both.
+    private Vector2 _carriedMotion;
+    private Vector2 _priorMotion;
+    private int _carriedStep;
+
     // The tick of the step that last surface-carried this body in its current scene. A later surface in the
     // same step skips it.
     private long _surfaceTick = -1;
@@ -293,6 +299,36 @@ public sealed class KinematicBody2D : Component
 
     /// <summary>The floor contact's normal, or zero when <see cref="IsOnFloor"/> is false.</summary>
     public Vector2 FloorNormal { get; private set; }
+
+    /// <summary>
+    /// The velocity, in units per second, at which the floor this body rides carried it over the last finished
+    /// step, or zero when it rides none.
+    /// </summary>
+    /// <remarks>
+    /// It counts every carry of that step, the floor's own motion and its surface velocity, whether or not a
+    /// wall stopped it. A read during a step sees the step before, whichever of the floor and the body steps
+    /// first. A floor that held still through that step reads zero. Only a floor on a <see cref="MovedBy"/>
+    /// layer is ridden. The move that leaves the floor ends the ride. A controller reads this before that move
+    /// and keeps what it chooses. The body never applies it.
+    /// </remarks>
+    public Vector2 PlatformVelocity
+    {
+        get
+        {
+            if ((_floor is null && _floorGrid is null) || _scene is not { StepSeconds: > 0f } scene)
+            {
+                return Vector2.Zero;
+            }
+
+            // Between steps the last one has finished. During a step only the one before it has.
+            int finished = scene.SteppingTick is null ? scene.StepsBegun : unchecked(scene.StepsBegun - 1);
+            Vector2 motion = finished == _carriedStep ? _carriedMotion
+                : finished == unchecked(_carriedStep - 1) ? _priorMotion
+                : Vector2.Zero;
+
+            return motion / scene.StepSeconds;
+        }
+    }
 
     /// <summary>
     /// The wall contact's normal, or zero when <see cref="IsOnWall"/> is false. The sign of X says which
@@ -1022,6 +1058,8 @@ public sealed class KinematicBody2D : Component
             return;
         }
 
+        RecordCarry(motion);
+
         CollisionWorld2D world = _collider.World!;
         Entity entity = Entity!;
         MoveResult2D result = world.Move(
@@ -1064,10 +1102,26 @@ public sealed class KinematicBody2D : Component
         }
 
         _surfaceTick = tick;
+        RecordCarry(motion);
         CollisionWorld2D world = _collider.World!;
         Entity entity = Entity!;
         Travel(world, entity, motion, Filter, false, out _);
         Refind(world, entity);
+    }
+
+    // Adds a carry to the step's sum. A new step keeps the last sum as the prior one when the two steps are
+    // consecutive.
+    private void RecordCarry(Vector2 motion)
+    {
+        int step = _scene!.StepsBegun;
+        if (step != _carriedStep)
+        {
+            _priorMotion = step == unchecked(_carriedStep + 1) ? _carriedMotion : Vector2.Zero;
+            _carriedStep = step;
+            _carriedMotion = Vector2.Zero;
+        }
+
+        _carriedMotion += motion;
     }
 
     // Finds the floor under the body after a carry, by a probe down the contact skin, and rides it when it
@@ -1202,6 +1256,8 @@ public sealed class KinematicBody2D : Component
     {
         if (!ReferenceEquals(_floor, floor))
         {
+            _carriedMotion = Vector2.Zero;
+            _priorMotion = Vector2.Zero;
             LeaveFloor();
             if (floor is not null)
             {
@@ -1213,6 +1269,8 @@ public sealed class KinematicBody2D : Component
         TileMapCollider2D? grid = cell?.Map.AttachedCollider;
         if (!ReferenceEquals(_floorGrid, grid))
         {
+            _carriedMotion = Vector2.Zero;
+            _priorMotion = Vector2.Zero;
             _floorGrid?.RemoveRider(this);
             grid?.AddRider(this);
             _floorGrid = grid;
@@ -1277,6 +1335,7 @@ public sealed class KinematicBody2D : Component
         panel.Field("IsOnCeiling", IsOnCeiling);
         panel.Field("FloorNormal", FloorNormal);
         panel.Field("WallNormal", WallNormal);
+        panel.Field("PlatformVelocity", PlatformVelocity);
         panel.Field("MoveContacts", MoveContacts.Length);
     }
 

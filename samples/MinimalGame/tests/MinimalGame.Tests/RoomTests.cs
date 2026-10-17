@@ -202,6 +202,60 @@ public sealed class RoomTests
         room.Dispose();
     }
 
+    // The waterfall holds the player to its gravity while the player is in it and lets go on leaving. A room
+    // torn down with the player inside ends that contact too.
+    [Fact]
+    public void TheWaterfall_SetsThePlayersGravityWhileThePlayerIsInIt()
+    {
+        SimulationHost room = RoomFixture.Simulate();
+        Player player = RoomFixture.PlayerOf(room);
+        Waterfall falls = room.Scene.FindSingle<Waterfall>();
+        Vector2 inside = falls.Position + new Vector2(4f, 8f);
+
+        player.Position = inside;
+        room.Step(DeviceSnapshot.Empty);
+        Assert.Equal(falls.Gravity, player.GravityOverride);
+
+        player.Position = new Vector2(100f, inside.Y);
+        room.Step(DeviceSnapshot.Empty);
+        Assert.Null(player.GravityOverride);
+
+        player.Position = inside;
+        room.Step(DeviceSnapshot.Empty);
+        room.Dispose();
+    }
+
+    // The hall's gust blows for 90 steps and falls calm for 60. It pushes the player held in it while it
+    // blows, and stops on the player leaving.
+    [Fact]
+    public void TheHallsGust_PushesThePlayerInItWhileItBlows()
+    {
+        Run run = new();
+        GameBoot.Start(run);
+        using SimulationHost hall = new(CapsuleScenes.Registry.Create(CapsuleAssets.Scenes.Halls.HallScene), run: run);
+        Player player = hall.Scene.FindSingle<Player>();
+        Gust gust = hall.Scene.FindSingle<Gust>();
+
+        void StandAt(Vector2 position, int steps)
+        {
+            for (int step = 0; step < steps; step++)
+            {
+                player.Position = position;
+                hall.Step(DeviceSnapshot.Empty);
+            }
+        }
+
+        Vector2 inside = gust.Position + new Vector2(28f, 4f);
+        StandAt(inside, 1);
+        Assert.Equal(gust.Velocity, player.Wind);
+        StandAt(inside, 89);
+        Assert.Equal(Vector2.Zero, player.Wind);
+        StandAt(inside, 60);
+        Assert.Equal(gust.Velocity, player.Wind);
+        StandAt(gust.Position + new Vector2(gust.Size.X + 8f, 4f), 1);
+        Assert.Equal(Vector2.Zero, player.Wind);
+    }
+
     // Leaving one camera zone for an overlapping one hands the bounds to the zone still held. Leaving
     // that one too brings back the bounds held before the first.
     [Fact]
@@ -285,23 +339,6 @@ public sealed class RoomTests
         Assert.True(player.HasControl);
     }
 
-    // A zone whose edge lies on the wall's near face is touched by a body pressed flush against it, within
-    // the contact skin. The player's probe sits at its centre, so the zone is not entered.
-    [Fact]
-    public void PressingAgainstAWallWithACameraZoneBehindIt_DoesNotEnterTheZone()
-    {
-        const int WallColumn = 10;
-        Rect zone = new(WallColumn * 16f, 0f, 320f, 192f);
-        using SimulationHost room = ZonedRoom([zone], WallColumn);
-        Player player = RoomFixture.PlayerOf(room);
-        Rect? roomBounds = room.Scene.Camera.Bounds;
-
-        room.Step(StepBudget / 2, DeviceSnapshot.Of(Key.D));
-
-        Assert.True(player.Position.X + 8f > (WallColumn * 16f) - 0.1f, "the player never reached the wall");
-        Assert.Equal(roomBounds, room.Scene.Camera.Bounds);
-    }
-
     // The lamps draw the bolt's glow too. Without them the glow reaches the room's preload only
     // through the player's forwarded bolt pool.
     [Fact]
@@ -322,21 +359,13 @@ public sealed class RoomTests
         Assert.True(room.CollectPreloads().Contains(CapsuleAssets.Textures.GlowTexture));
     }
 
-    // A room of bare floor with the player standing at its west end, the camera zones placed, and a wall
-    // one tile wide from floor to ceiling in the column given.
-    private static SimulationHost ZonedRoom(Rect[] zones, int wallColumn = -1)
+    // A room of bare floor with the player standing at its west end and the camera zones placed.
+    private static SimulationHost ZonedRoom(Rect[] zones)
     {
         const int Wide = 40;
         const int High = 12;
         int[] tiles = new int[Wide * High];
         Array.Fill(tiles, 1, (High - 1) * Wide, Wide);
-        if (wallColumn >= 0)
-        {
-            for (int row = 0; row < High - 1; row++)
-            {
-                tiles[(row * Wide) + wallColumn] = 1;
-            }
-        }
 
         SceneDocumentEntry floor = new(
             "tile-map",

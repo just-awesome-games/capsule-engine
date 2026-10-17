@@ -92,8 +92,8 @@ public void EveryScenePlacementIsValid() => CapsuleScenes.Registry.ComposeAll();
 
 `tile-map` places the engine's `TileMap`, whose members are its grid and each of whose `tileTypes` is a
 `TileType` object. A document may carry any number, interleaved with game entities, all anchored at the world
-origin and drawn by their `zIndex` bands. A scene that authors no `size` spans its largest map. How tiles
-collide is [`collision.md`](collision.md#terrain).
+origin and drawn by their `zIndex` bands. A scene that authors no `size` spans its largest map. A
+`TileMapCollider2D` makes a map collide.
 
 ### Entries and composition
 
