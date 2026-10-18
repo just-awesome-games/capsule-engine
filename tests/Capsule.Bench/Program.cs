@@ -62,7 +62,9 @@ internal static class Program
         {
             engine = CapsuleBoot.Configure("Capsule Bench", new DesktopPlatform())
                 .WithCommandLine(args)
-                .WithoutCrashLog();
+                .WithoutCrashLog()
+                // A measured window paces the same whether or not it holds focus.
+                .WithUnfocusedMaxFrameRate(0);
         }
         catch (CommandLineException failure)
         {

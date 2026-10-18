@@ -37,6 +37,11 @@ internal sealed class FixedStepScheduler
     // driver scripts input, the host still owns the output.
     internal Vector2 Output { get; set; }
 
+    // The seconds the window's frame cap holds frames apart, 0 when uncapped. A capped frame covers
+    // its whole period. It may run every step the period buys at the run's pace and spend the period
+    // stepping, and a cap never slows the simulation.
+    internal double FramePeriodSeconds { get; set; }
+
     // Raised after each step completes, before the next is scheduled. A step rewrites what the host
     // acts on and a frame may run several, and a per-frame call would lose all but the last. Null
     // unless the host set one.
@@ -139,8 +144,7 @@ internal sealed class FixedStepScheduler
             return _driverFinished || simulation.ExitRequested;
         }
 
-        // Under a driver the sampled device is not input. The host samples it for the fullscreen
-        // chord, and none of it reaches the simulation.
+        // Under a driver the sampled device is not input, and none of it reaches the simulation.
         if (_driver is null)
         {
             _latch.Observe(snapshot);
@@ -155,14 +159,18 @@ internal sealed class FixedStepScheduler
         double stepEpsilon = _stepSeconds * 1e-12;
         int stepsRun = 0;
         long started = _timestamp();
+
+        // One step past the steps the period buys, for a frame that woke a little late.
+        int maxSteps = Math.Max(_maxStepsPerFrame, (int)Math.Ceiling(FramePeriodSeconds * _timeScale / _stepSeconds) + 1);
+        long budgetTicks = Math.Max(_budgetTicks, (long)(FramePeriodSeconds * Stopwatch.Frequency));
         while (_accumulatorSeconds >= _stepSeconds ||
                Math.Abs(_accumulatorSeconds - _stepSeconds) <= stepEpsilon)
         {
             // A frame stops catching up at the step bound, or once its steps have taken a step length
-            // of real time. Steps that cost more than they cover only lengthen the next frame and
-            // grow its backlog. The first due step always runs. An overloaded game slows down
-            // and keeps its frame rate.
-            if (stepsRun == _maxStepsPerFrame || (stepsRun > 0 && _timestamp() - started >= _budgetTicks))
+            // of real time, each widened to a capped frame's period. Steps that cost more than they
+            // cover only lengthen the next frame and grow its backlog. The first due step always
+            // runs. An overloaded game slows down and keeps its frame rate.
+            if (stepsRun == maxSteps || (stepsRun > 0 && _timestamp() - started >= budgetTicks))
             {
                 _accumulatorSeconds = 0;
                 StepsThisFrame = stepsRun;

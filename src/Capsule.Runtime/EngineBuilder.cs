@@ -20,8 +20,6 @@ namespace Capsule.Runtime;
 /// <remarks>Every setting has a default.</remarks>
 public sealed class EngineBuilder
 {
-    private const int DefaultWindowWidth = 1280;
-    private const int DefaultWindowHeight = 720;
     private const int DefaultMaxStepsPerFrame = 8;
 
     // The boot trace's first stage, taken before any configuration runs.
@@ -61,15 +59,13 @@ public sealed class EngineBuilder
 
     internal string WindowTitle { get; private set; }
 
-    internal int WindowWidth { get; private set; } = DefaultWindowWidth;
-
-    internal int WindowHeight { get; private set; } = DefaultWindowHeight;
+    // Where the run's display starts. The run holds this instance, and its settings screen changes it.
+    internal Display Display { get; } = new();
 
     internal bool Resizable { get; private set; } = true;
 
-    internal bool Fullscreen { get; private set; }
-
-    // Set only by the development flag --uncapped. The host then presents without waiting for vertical sync.
+    // Set only by the development flag --uncapped. The host then presents without vertical sync or a
+    // frame cap, whatever the run asks for.
     internal bool Uncapped { get; private set; }
 
     internal (int Width, int Height)? RenderResolution { get; private set; }
@@ -121,9 +117,12 @@ public sealed class EngineBuilder
     {
         get
         {
-            (int width, int height) = _canvas ?? RenderResolution ?? (WindowWidth, WindowHeight);
+            if ((_canvas ?? RenderResolution) is { } declared)
+            {
+                return new Vector2(declared.Width, declared.Height);
+            }
 
-            return new Vector2(width, height);
+            return Display.WindowSize;
         }
     }
 
@@ -136,24 +135,44 @@ public sealed class EngineBuilder
     }
 
     /// <summary>
-    /// The windowed-mode window size in client pixels. The window opens at this size unless the
-    /// game boots fullscreen, and returns to it whenever fullscreen is left.
+    /// The window's starting client size in pixels, which <see cref="Display.WindowSize"/> starts at, and
+    /// whether the player may resize it.
     /// </summary>
     /// <remarks>Defaults to 1280x720, resizable.</remarks>
     public EngineBuilder WithWindow(int width, int height, bool resizable = true)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-        WindowWidth = width;
-        WindowHeight = height;
+        Display.WindowSize = new Vector2(width, height);
         Resizable = resizable;
         return this;
     }
 
-    /// <summary>Boots borderless fullscreen at the desktop's resolution. Alt+Enter toggles from there.</summary>
+    /// <summary>Starts <see cref="Display.Fullscreen"/> on. The window opens covering its display.</summary>
     public EngineBuilder WithFullscreen()
     {
-        Fullscreen = true;
+        Display.Fullscreen = true;
+        return this;
+    }
+
+    /// <summary>Starts <see cref="Display.VSync"/> off.</summary>
+    public EngineBuilder WithoutVSync()
+    {
+        Display.VSync = false;
+        return this;
+    }
+
+    /// <summary>The value <see cref="Display.MaxFrameRate"/> starts at, 0 for no cap.</summary>
+    public EngineBuilder WithMaxFrameRate(int framesPerSecond)
+    {
+        Display.MaxFrameRate = framesPerSecond;
+        return this;
+    }
+
+    /// <summary>The value <see cref="Display.UnfocusedMaxFrameRate"/> starts at, 30 unless set, or 0 to keep the focused rate.</summary>
+    public EngineBuilder WithUnfocusedMaxFrameRate(int framesPerSecond)
+    {
+        Display.UnfocusedMaxFrameRate = framesPerSecond;
         return this;
     }
 
@@ -205,7 +224,8 @@ public sealed class EngineBuilder
     /// <remarks>
     /// A frame also stops catching up once its steps have taken one step length of real time. Steps
     /// that cost more than their length then run one a frame, and the game slows down at the frame rate
-    /// they allow. A bound of 1 slows down at any stall.
+    /// they allow. A bound of 1 slows down at any stall. A frame cap widens the bound and the time to
+    /// what its period covers.
     /// </remarks>
     public EngineBuilder WithMaxStepsPerFrame(int steps)
     {
@@ -370,7 +390,6 @@ public sealed class EngineBuilder
     /// driver is asked once per fixed step whatever the frame rate, and the run exits itself once
     /// the driver reports it is finished.
     /// </summary>
-    /// <remarks>The fullscreen chord stays the host's.</remarks>
     public EngineBuilder WithInputDriver(IInputDriver driver)
     {
         ArgumentNullException.ThrowIfNull(driver);
@@ -682,7 +701,7 @@ public sealed class EngineBuilder
         new(
             opening,
             new SceneComposer(Scenes, Platform).Resolve,
-            new Run(new RandomSource(seed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, RenderResolution = RenderResolution },
+            new Run(new RandomSource(seed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, Display = Display, RenderResolution = RenderResolution },
             storage,
             _runStart);
 

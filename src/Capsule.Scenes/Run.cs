@@ -113,6 +113,12 @@ public sealed class Run
     public Cursor Cursor { get; }
 
     /// <summary>
+    /// The run's window and frame pacing, the one the shell configured through its builder. A settings
+    /// screen changes it, and the host applies each change after the frame's steps.
+    /// </summary>
+    public Display Display { get; init; } = new();
+
+    /// <summary>
     /// The run's save documents, one store shared by every scene it opens. The host restores it before
     /// the first scene composes, and settings are readable from the first start hook.
     /// </summary>

@@ -57,6 +57,10 @@ public abstract class HostPlatform
     /// </remarks>
     protected internal virtual bool HasInputFocus(WindowHandle window) => true;
 
+    /// <summary>Whether the window is minimized, sampled every frame. False by default.</summary>
+    /// <remarks>A minimized window draws nothing and wakes at most once a step.</remarks>
+    protected internal virtual bool IsMinimized(WindowHandle window) => false;
+
     /// <summary>Holds the pointer inside the window, or releases it. Does nothing by default.</summary>
     /// <remarks>
     /// Called on the game thread when the run's cursor changes. The platform releases the hold while

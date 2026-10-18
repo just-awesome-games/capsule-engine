@@ -164,8 +164,14 @@ internal sealed class FrameDiagnostics : IDisposable
             _count = 0;
         }
 
-        return _exitAfterTicks > 0 && now - _stages[^1] >= _exitAfterTicks;
+        return Spent(now);
     }
+
+    // Whether the run's time budget is spent, asked by a frame that draws nothing. The budget runs
+    // from the first drawn frame.
+    internal bool Expired => Spent(_timestamp());
+
+    private bool Spent(long now) => _exitAfterTicks > 0 && _stages[^1] >= 0 && now - _stages[^1] >= _exitAfterTicks;
 
     // Every full buffer is written before the partial one. A graceful exit loses nothing and the rows
     // stay in frame order.

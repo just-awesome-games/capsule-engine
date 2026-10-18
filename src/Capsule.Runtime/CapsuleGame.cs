@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Runtime;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Input;
+using Capsule.Rendering;
 using Capsule.Runtime.Assets;
 using Capsule.Runtime.Audio;
 using Capsule.Runtime.DevTools;
@@ -9,6 +11,7 @@ using Capsule.Runtime.Input;
 using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Capsule.Runtime;
 
@@ -23,6 +26,7 @@ internal sealed class CapsuleGame : Game
     private readonly GamepadSampler _pad = new();
     private readonly FixedStepScheduler _scheduler;
     private readonly GamepadRumble _rumble = new(GamepadRumble.WriteToPad);
+    private readonly FramePacer _pacer = new();
 
     // Null unless the builder opted in. The builder owns it.
     private readonly FrameDiagnostics? _diagnostics;
@@ -54,13 +58,18 @@ internal sealed class CapsuleGame : Game
     private bool _windowRaised;
     private bool _focusSeen;
     private bool _deviceSeeded;
+    private bool _minimized;
+
+    // When the current frame started, from which the next frame's elapsed time is measured.
+    private long _frameStarted;
+
+    // The run's display as the window last applied it.
+    private WindowRequest _applied;
 
     // Whether the host is inside a device operation of its own. The resize watch fires for the
     // window events such an operation raises. It stands off instead of reaching a half-applied
     // device or recursing.
     private bool _deviceHeld;
-    private bool _fullscreenChordHeld;
-    private bool _fullscreenChordQuarantined;
 
     internal CapsuleGame(EngineBuilder builder, SceneHost scenes, FrameDiagnostics? diagnostics)
     {
@@ -96,18 +105,25 @@ internal sealed class CapsuleGame : Game
             };
         }
 
+        // The run has started by now, and the window opens as its start left the display.
+        Display display = scenes.Run.Display;
+        _applied = new WindowRequest(display.Fullscreen, display.WindowSize, display.VSync);
+        DisplayMode desktop = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+        (int width, int height) = display.WindowPixels(desktop.Width, desktop.Height);
         _graphics = new GraphicsDeviceManager(this)
         {
-            PreferredBackBufferWidth = builder.WindowWidth,
-            PreferredBackBufferHeight = builder.WindowHeight,
+            PreferredBackBufferWidth = width,
+            PreferredBackBufferHeight = height,
             // Borderless. The preferred size is ignored while fullscreen. Leaving fullscreen
-            // restores the configured window.
+            // restores the windowed size.
             HardwareModeSwitch = false,
-            IsFullScreen = builder.Fullscreen,
-            SynchronizeWithVerticalRetrace = !builder.Uncapped,
+            IsFullScreen = display.Fullscreen,
+            SynchronizeWithVerticalRetrace = display.VSync && !builder.Uncapped,
         };
 
+        // The frame pacer owns every wait, focused or not.
         IsFixedTimeStep = false;
+        InactiveSleepTime = TimeSpan.Zero;
         Window.Title = builder.WindowTitle;
         Window.AllowUserResizing = builder.Resizable;
 
@@ -184,8 +200,21 @@ internal sealed class CapsuleGame : Game
         base.LoadContent();
     }
 
+    protected override void BeginRun()
+    {
+        _frameStarted = Stopwatch.GetTimestamp();
+
+        base.BeginRun();
+    }
+
     protected override void Update(GameTime gameTime)
     {
+        // The wait comes before the frame reads input. A capped frame then samples what the player did
+        // while it waited. The period is the one the last frame settled.
+        long frameStarted = _pacer.Wait(_scheduler.FramePeriodSeconds);
+        double elapsedSeconds = (double)(frameStarted - _frameStarted) / Stopwatch.Frequency;
+        _frameStarted = frameStarted;
+
         _diagnostics?.BeginUpdate();
 
         // Sampled every frame, including one that drains no step, and the latch carries that frame's
@@ -213,13 +242,6 @@ internal sealed class CapsuleGame : Game
             _scheduler.SeedDevice(_builder.Driver is null && _pad.IsConnected ? InputDevice.Gamepad : InputDevice.KeyboardMouse);
         }
 
-        // Alt+Enter belongs to the host and is not bindable. It is withheld for the whole gesture,
-        // or a game that binds Enter reads a press out of it.
-        if (ConsumeFullscreenChord(sampled))
-        {
-            sampled = sampled.Without(Key.Enter).Without(Key.LeftAlt).Without(Key.RightAlt);
-        }
-
         if (_interceptOverlay is { } intercept)
         {
             sampled = intercept(sampled, _renderer);
@@ -229,7 +251,7 @@ internal sealed class CapsuleGame : Game
         // intercept, which may move it, and before the frame's elapsed time is spent.
         _scheduler.TimeScale = _scenes.Run.TimeScale;
         _scheduler.Output = new System.Numerics.Vector2(GraphicsDevice.PresentationParameters.BackBufferWidth, GraphicsDevice.PresentationParameters.BackBufferHeight);
-        bool exiting = _scheduler.Advance(gameTime.ElapsedGameTime.TotalSeconds, sampled, _scenes);
+        bool exiting = _scheduler.Advance(elapsedSeconds, sampled, _scenes);
 
         _updateOverlay?.Invoke(_renderer);
 
@@ -239,7 +261,7 @@ internal sealed class CapsuleGame : Game
 
         // Every frame, including one that drained no step. The device follows the system's default
         // output, and a streamed voice hands it the next buffers.
-        _device?.Update(gameTime.ElapsedGameTime.TotalSeconds);
+        _device?.Update(elapsedSeconds);
 
         // Every frame, after the steps: the level is the run's settled output, and the live window
         // focus, the hold and the pad's slot are the host's. The applier rests the motors while the
@@ -252,7 +274,7 @@ internal sealed class CapsuleGame : Game
             _scheduler.ActiveDevice == InputDevice.Gamepad,
             _scheduler.Held,
             _pad.ConnectedPlayer,
-            gameTime.ElapsedGameTime.TotalSeconds);
+            elapsedSeconds);
 
         // Every frame, after the steps. The pointer follows the settled run and the overlay.
         _cursor.Apply(
@@ -260,6 +282,15 @@ internal sealed class CapsuleGame : Game
             _scheduler.ActiveDevice == InputDevice.Gamepad,
             _overlayHeld?.Invoke() ?? false,
             _renderer.ScreenLayer.Scale);
+
+        // Every frame, after the steps. The window follows the settled display, and the next frame
+        // waits the period it asks for now.
+        _minimized = _builder.Platform.IsMinimized(new WindowHandle(Window.Handle));
+        ApplyDisplay(_scenes.Run.Display);
+        _scheduler.FramePeriodSeconds = FramePacer.PeriodSeconds(_scenes.Run.Display, active, _minimized, _builder.StepSeconds, _builder.Uncapped);
+
+        // A drawn frame ends a timed diagnostics run in Draw. A minimized one never reaches it.
+        exiting |= _minimized && _diagnostics is { Expired: true };
 
         _audio?.Update();
 
@@ -274,6 +305,9 @@ internal sealed class CapsuleGame : Game
 
         _diagnostics?.EndUpdate(_scheduler.StepsThisFrame);
     }
+
+    // A minimized window shows nothing. Its frames build and draw nothing.
+    protected override bool BeginDraw() => !_minimized && base.BeginDraw();
 
     protected override void Draw(GameTime gameTime)
     {
@@ -388,8 +422,8 @@ internal sealed class CapsuleGame : Game
         try
         {
             // The preferred extent is the windowed one, while fullscreen uses the desktop's.
-            // Writing the monitor's extent here would make it the window Alt+Enter returns to. A
-            // fullscreen transition still changes the fit. The frame is redrawn.
+            // Writing the monitor's extent here would make it the window leaving fullscreen returns
+            // to. A fullscreen transition still changes the fit. The frame is redrawn.
             if (!_graphics.IsFullScreen
                 && width > 0
                 && height > 0
@@ -412,44 +446,52 @@ internal sealed class CapsuleGame : Game
         }
     }
 
-    // Enters or leaves borderless fullscreen. The preferred back buffer is left alone, since it
-    // holds the windowed extent that leaving fullscreen restores.
-    private void ToggleFullscreen()
+    // Only a change the run asks for reaches the window. A window the player resized keeps the
+    // player's size until the run asks for another.
+    private void ApplyDisplay(Display display)
     {
-        // Held across the transition, which raises the window events the resize watch answers. A
-        // redraw landing inside it would reach a half-applied device.
+        WindowRequest requested = new(display.Fullscreen, display.WindowSize, display.VSync);
+        if (requested == _applied)
+        {
+            return;
+        }
+
+        // Held across the change, which raises the window events the resize watch answers. A redraw
+        // landing inside it would reach a half-applied device.
         _deviceHeld = true;
 
         try
         {
-            _graphics.IsFullScreen = !_graphics.IsFullScreen;
+            (int Width, int Height) windowed = (_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
+            if (requested.WindowSize != _applied.WindowSize)
+            {
+                DisplayMode desktop = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+                windowed = display.WindowPixels(desktop.Width, desktop.Height);
+            }
+
+            // A reset gives the back buffer the preferred extent, and only a window that changes size
+            // raises the event that sizes it back to the window. A window that stays fullscreen raises
+            // none. It keeps its back buffer through the reset and takes the windowed extent after.
+            bool staysFullscreen = requested.Fullscreen && _graphics.IsFullScreen;
+            PresentationParameters shown = GraphicsDevice.PresentationParameters;
+            (_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight) =
+                staysFullscreen ? (shown.BackBufferWidth, shown.BackBufferHeight) : windowed;
+            _graphics.IsFullScreen = requested.Fullscreen;
+            _graphics.SynchronizeWithVerticalRetrace = requested.VSync && !_builder.Uncapped;
             _graphics.ApplyChanges();
+
+            if (staysFullscreen)
+            {
+                (_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight) = windowed;
+            }
         }
         finally
         {
             _deviceHeld = false;
         }
+
+        _applied = requested;
     }
 
-    // Toggles the window on the chord's leading edge. Returns whether Alt and Enter are still
-    // quarantined from the simulation.
-    private bool ConsumeFullscreenChord(in DeviceSnapshot snapshot)
-    {
-        bool alt = snapshot.IsDown(Key.LeftAlt) || snapshot.IsDown(Key.RightAlt);
-        bool enter = snapshot.IsDown(Key.Enter);
-        bool held = alt && enter;
-
-        if (held && !_fullscreenChordHeld)
-        {
-            ToggleFullscreen();
-        }
-
-        _fullscreenChordHeld = held;
-
-        // The quarantine ends once both keys are up. Releasing one first would hand the other to
-        // the simulation as a fresh press.
-        _fullscreenChordQuarantined = held || (_fullscreenChordQuarantined && (alt || enter));
-
-        return _fullscreenChordQuarantined;
-    }
+    private readonly record struct WindowRequest(bool Fullscreen, System.Numerics.Vector2 WindowSize, bool VSync);
 }

@@ -4,8 +4,8 @@ namespace MinimalGame.Game.UI;
 
 /// <summary>
 /// The options screen's menu: a panel showing three and a half rows of a scrolling column of Jump and Shoot
-/// rebinding, the music and effects levels and Back, with a <see cref="ScrollBar"/> beside it, over one
-/// <see cref="FocusNavigator"/>.
+/// rebinding, the music and effects levels, the display settings and Back, with a <see cref="ScrollBar"/>
+/// beside it, over one <see cref="FocusNavigator"/>.
 /// </summary>
 public sealed class OptionsMenu : ScreenEntity
 {
@@ -20,10 +20,22 @@ public sealed class OptionsMenu : ScreenEntity
     private const string JumpPrompt = "Jump: press a button";
     private const string ShootPrompt = "Shoot: press a button";
 
+    // The display rows' widest caption, which sizes the panel with the prompts.
+    private const string WidestDisplayCaption = "Display: Fullscreen";
+
+    // What the Window and Frame cap rows step through. A press moves to the next and wraps.
+    private const int SmallestWindowScale = 2;
+    private const int LargestWindowScale = 6;
+    private static readonly int[] FrameCaps = [0, 30, 60, 120, 144, 240];
+
     private readonly MenuItem _jump = new(JumpCaption, GameInput.Jump);
     private readonly MenuItem _shoot = new(ShootCaption, GameInput.Shoot);
     private readonly VolumeSlider _music = new("Music");
     private readonly VolumeSlider _effects = new("Effects");
+    private readonly MenuItem _fullscreen = new(WidestDisplayCaption);
+    private readonly MenuItem _windowSize = new(WidestDisplayCaption);
+    private readonly MenuItem _vsync = new(WidestDisplayCaption);
+    private readonly MenuItem _frameCap = new(WidestDisplayCaption);
     private readonly MenuItem _back = new("Back");
 
     private readonly FocusNavigator _navigator;
@@ -40,7 +52,9 @@ public sealed class OptionsMenu : ScreenEntity
     {
         // Wide enough for the longest caption a capture shows, and only half of the fourth row shows, which
         // tells the player there is more below.
-        float listWidth = Math.Max(Math.Max(_music.Size.X, _effects.Size.X), Math.Max(MenuItem.WidthFor(JumpPrompt), MenuItem.WidthFor(ShootPrompt)));
+        float listWidth = Math.Max(
+            Math.Max(_music.Size.X, _effects.Size.X),
+            Math.Max(Math.Max(MenuItem.WidthFor(JumpPrompt), MenuItem.WidthFor(ShootPrompt)), MenuItem.WidthFor(WidestDisplayCaption)));
         Size = new Vector2(listWidth + BarGap + ScrollBar.Width, 3.5f * (MenuItem.BoxHeight + MenuItem.Spacing));
 
         ScrollContainer list = new(Anchor.Fill, Vector2.Zero) { Parent = this, Padding = new Insets(0f, 0f, ScrollBar.Width + BarGap, 0f) };
@@ -50,6 +64,10 @@ public sealed class OptionsMenu : ScreenEntity
         _shoot.Parent = column;
         _music.Parent = column;
         _effects.Parent = column;
+        _fullscreen.Parent = column;
+        _windowSize.Parent = column;
+        _vsync.Parent = column;
+        _frameCap.Parent = column;
         _back.Parent = column;
 
         _ = new ScrollBar(list) { Parent = this };
@@ -66,6 +84,10 @@ public sealed class OptionsMenu : ScreenEntity
 
         _music.Changed += _ => SetVolume(AudioBuses.Music, _music);
         _effects.Changed += _ => SetVolume(AudioBuses.Sfx, _effects);
+        _fullscreen.Pressed += () => ChangeDisplay(static settings => settings.Fullscreen = !settings.Fullscreen);
+        _windowSize.Pressed += () => ChangeDisplay(static settings => settings.WindowScale = settings.WindowScale >= LargestWindowScale ? SmallestWindowScale : settings.WindowScale + 1);
+        _vsync.Pressed += () => ChangeDisplay(static settings => settings.VSync = !settings.VSync);
+        _frameCap.Pressed += () => ChangeDisplay(static settings => settings.MaxFrameRate = FrameCaps[(Array.IndexOf(FrameCaps, settings.MaxFrameRate) + 1) % FrameCaps.Length]);
         _back.Pressed += Leave;
         _navigator.Canceled += Leave;
     }
@@ -76,6 +98,7 @@ public sealed class OptionsMenu : ScreenEntity
         _settings = Run.Saves.Read(GameSaves.Settings);
         _music.Value = _settings.MusicVolume;
         _effects.Value = _settings.EffectsVolume;
+        ShowDisplay();
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.TitleSound);
     }
 
@@ -142,6 +165,24 @@ public sealed class OptionsMenu : ScreenEntity
         _settings.EffectsVolume = _effects.Value;
         Run.Saves.Write(GameSaves.Settings, _settings);
         Run.Audio.SetVolume(bus, slider.Value);
+    }
+
+    // A save moment like Apply: the run takes the changed display from the same document it is
+    // written from.
+    private void ChangeDisplay(Action<GameSettings> change)
+    {
+        change(_settings);
+        _settings.ApplyDisplay(Run.Display);
+        Run.Saves.Write(GameSaves.Settings, _settings);
+        ShowDisplay();
+    }
+
+    private void ShowDisplay()
+    {
+        _fullscreen.Caption = _settings.Fullscreen ? "Display: Fullscreen" : "Display: Window";
+        _windowSize.Caption = $"Window: {_settings.WindowScale}x";
+        _vsync.Caption = _settings.VSync ? "VSync: On" : "VSync: Off";
+        _frameCap.Caption = _settings.MaxFrameRate == 0 ? "Frame cap: Off" : $"Frame cap: {_settings.MaxFrameRate}";
     }
 
     private void Leave() => Run.RequestScene<MainMenu>();

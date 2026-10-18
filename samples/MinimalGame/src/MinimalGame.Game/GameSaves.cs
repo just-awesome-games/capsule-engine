@@ -13,6 +13,27 @@ public sealed record GameSettings
 
     /// <summary>The bindings the player may change.</summary>
     public InputSettings Input { get; set; } = new();
+
+    /// <summary>Whether the window covers the display.</summary>
+    public bool Fullscreen { get; set; }
+
+    /// <summary>The window's size as a whole multiple of the view, 4 by default.</summary>
+    public int WindowScale { get; set; } = 4;
+
+    /// <summary>Whether each frame waits for the display's refresh, true by default.</summary>
+    public bool VSync { get; set; } = true;
+
+    /// <summary>The most frames a second, 0 for no cap.</summary>
+    public int MaxFrameRate { get; set; }
+
+    /// <summary>Hands the display choices to the run, at boot and whenever the options screen changes one.</summary>
+    public void ApplyDisplay(Display display)
+    {
+        display.Fullscreen = Fullscreen;
+        display.WindowSize = World.ViewportSize * WindowScale;
+        display.VSync = VSync;
+        display.MaxFrameRate = MaxFrameRate;
+    }
 }
 
 /// <summary>One pair per rebindable action, its two devices edited and saved as one thing.</summary>

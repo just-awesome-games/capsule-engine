@@ -16,7 +16,7 @@ internal sealed class CommandLine
           --payload <Name>           boot the opening scene with a new payload of that class name
           --seed <number>            start the random source from that seed, which a windowed run logs
           --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
-          --uncapped                 present without waiting for vertical sync
+          --uncapped                 present without vertical sync or a frame cap
 
         """;
 

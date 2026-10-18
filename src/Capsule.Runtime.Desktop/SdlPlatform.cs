@@ -11,6 +11,7 @@ internal static class SdlPlatform
 {
     private const string LibraryName = "SDL2";
 
+    private const uint MinimizedFlag = 0x00000040;
     private const uint InputFocusFlag = 0x00000200;
     private const uint WindowEventType = 0x200;
     private const byte WindowExposed = 3;
@@ -32,6 +33,8 @@ internal static class SdlPlatform
     // IsActive reports true from construction until the first focus event, and a window that never
     // gained focus would claim the global mouse and play at full volume.
     internal static bool HasInputFocus(nint window) => (SDL_GetWindowFlags(window) & InputFocusFlag) != 0;
+
+    internal static bool IsMinimized(nint window) => (SDL_GetWindowFlags(window) & MinimizedFlag) != 0;
 
     // SDL releases the grab while the window is unfocused and takes it again on focus return.
     internal static void ConfineCursor(nint window, bool confined) => SDL_SetWindowMouseGrab(window, confined ? 1 : 0);

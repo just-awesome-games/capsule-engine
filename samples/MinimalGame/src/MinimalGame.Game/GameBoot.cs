@@ -9,6 +9,8 @@ public static class GameBoot
 
         GameSettings settings = run.Saves.Read(GameSaves.Settings);
 
+        // The window has not opened yet. It opens as the player left it.
+        settings.ApplyDisplay(run.Display);
         GameInput.Configure(run.Input, settings);
         run.Audio.SetVolume(AudioBuses.Sfx, settings.EffectsVolume);
         run.Audio.SetVolume(AudioBuses.Music, settings.MusicVolume);

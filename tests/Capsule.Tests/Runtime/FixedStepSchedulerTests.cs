@@ -53,6 +53,26 @@ public sealed class FixedStepSchedulerTests
         Assert.Equal(10 * stepsPerFrame, scheduler.Tick);
     }
 
+    // A frame cap below the step rate must not slow the simulation at any pace. A capped frame runs
+    // every step its period buys past a bound of five, and steps costing half their length fit the
+    // frame's time.
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Advance_RunsEveryStepACappedFramesPeriodBuys(double timeScale)
+    {
+        RecordingSimulation simulation = new(Jump);
+        long now = 0;
+        FixedStepScheduler scheduler = CreateScheduler(timestamp: () => now);
+        scheduler.StepCompleted = () => now += (long)(0.5 * StepSeconds * Stopwatch.Frequency);
+        scheduler.FramePeriodSeconds = StepSeconds * 10;
+        scheduler.TimeScale = timeScale;
+
+        scheduler.Advance(StepSeconds * 10, DeviceSnapshot.Empty, simulation);
+
+        Assert.Equal((int)(10 * timeScale), simulation.Recorded.Count);
+    }
+
     [Fact]
     public void Advance_SuppliesContiguousTicksAndDerivedTime()
     {

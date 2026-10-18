@@ -124,6 +124,21 @@ public sealed class FrameDiagnosticsTests
         Assert.True(capture.Frame());
     }
 
+    // A minimized window draws nothing and asks between frames instead. The budget still runs from the
+    // first drawn frame.
+    [Fact]
+    public void Expired_ReportsTheBudgetSpentWithoutADrawOnceTheFirstFrameHasDrawn()
+    {
+        ManualClock clock = new();
+        using Capture capture = new(exitAfterSeconds: 0.05, clock);
+
+        clock.Advance(0.05);
+        Assert.False(capture.Expired);
+        capture.Frame();
+        clock.Advance(0.05);
+        Assert.True(capture.Expired);
+    }
+
     private static bool IsRow(string line) => line.Length > 0 && char.IsAsciiDigit(line[0]);
 
     /// <summary>One capture in a temp file, driven the way the host drives it.</summary>
@@ -167,6 +182,8 @@ public sealed class FrameDiagnosticsTests
 
             return diagnostics.EndDraw();
         }
+
+        internal bool Expired => (_diagnostics ?? throw new InvalidOperationException("The capture is closed.")).Expired;
 
         internal void Close()
         {

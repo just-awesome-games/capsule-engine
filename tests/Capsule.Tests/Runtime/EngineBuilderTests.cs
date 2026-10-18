@@ -33,6 +33,8 @@ public sealed class EngineBuilderTests
         yield return [new Action<EngineBuilder>(b => b.WithMaxStepsPerFrame(-1))];
         yield return [new Action<EngineBuilder>(b => b.WithWindowTitle("  "))];
         yield return [new Action<EngineBuilder>(b => b.WithSampling((TextureSampling)99))];
+        yield return [new Action<EngineBuilder>(b => b.WithMaxFrameRate(-1))];
+        yield return [new Action<EngineBuilder>(b => b.WithUnfocusedMaxFrameRate(-1))];
     }
 
     [Theory]
@@ -156,6 +158,9 @@ public sealed class EngineBuilderTests
             .WithWindowTitle("Spec")
             .WithWindow(1280, 720, resizable: false)
             .WithFullscreen()
+            .WithoutVSync()
+            .WithMaxFrameRate(144)
+            .WithUnfocusedMaxFrameRate(0)
             .WithRenderResolution(320, 180)
             .WithSampling(TextureSampling.Point)
             .WithRandomSeed(7)
