@@ -23,10 +23,12 @@ internal sealed record WorkloadRecord(
     int? Steps,
     int? Frames,
     Percentiles? DrawMs,
+    Percentiles? UpdateMs,
     StepTiming? StepMs,
     StepTiming? ViewMs,
     long? StepBytes,
     long? ViewBytes,
+    long? FrameBytes,
     Percentiles? IntervalMs,
     int Gen0Collections,
     string? CaptureSha256);

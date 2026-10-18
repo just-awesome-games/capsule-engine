@@ -285,8 +285,8 @@ internal sealed class CapsuleGame : Game
             _builder.Platform.RaiseWindow(new WindowHandle(Window.Handle));
         }
 
-        // The first read since the last step builds the view. It is read ahead of the timed section,
-        // which then covers the submission alone.
+        // The first read since the last step builds the view, timed apart from the submission.
+        _diagnostics?.BeginView();
         Capsule.Rendering.FrameView view = _scenes.View;
 
         _diagnostics?.BeginDraw();

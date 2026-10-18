@@ -423,9 +423,10 @@ internal sealed class SpriteBatcher : IDisposable
         _device.SetVertexBuffer(_vertices);
         _device.Indices = _indices;
 
-        // The index pattern starts at vertex zero for every quad, and a run starting part-way into
-        // the chunk draws from its first vertex as the base. An effect is applied only where the
-        // material, the texture's format or, for a shader reading it, the texture's size changes.
+        // Every run draws from the chunk's first vertex as the base and starts at its own first quad's
+        // indices. The device re-points each vertex attribute whenever the base moves, and one base a
+        // flush keeps that to once per chunk instead of once per run. An effect is applied only where
+        // the material, the texture's format or, for a shader reading it, the texture's size changes.
         // Applying one rebinds slot 0. The run's texture is bound after. A texture's Tag holds the
         // sampler its own sampling asks for.
         for (int i = 0; i < _runCount; i++)
@@ -451,7 +452,7 @@ internal sealed class SpriteBatcher : IDisposable
             }
 
             _device.Textures[0] = run.Texture;
-            _device.DrawIndexedPrimitives(PrimitiveType.TriangleList, _cursor + (run.First * 4), 0, (last - run.First) * 2);
+            _device.DrawIndexedPrimitives(PrimitiveType.TriangleList, _cursor, run.First * IndicesPerSprite, (last - run.First) * 2);
         }
 
         _cursor += vertices;

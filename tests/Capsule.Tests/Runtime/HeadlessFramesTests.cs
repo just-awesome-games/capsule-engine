@@ -34,8 +34,8 @@ public sealed class HeadlessFramesTests
         builder.RunHeadless<SceneFixtures.Idle>(new Overrunning(clock));
 
         string[] lines = File.ReadAllLines(path);
-        int header = Array.IndexOf(lines, "intervalMs,updateMs,drawMs,steps,gen0");
-        int[] steps = [.. lines[(header + 1)..].Select(static row => int.Parse(row.Split(',')[3], CultureInfo.InvariantCulture))];
+        int header = Array.IndexOf(lines, "intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes");
+        int[] steps = [.. lines[(header + 1)..].Select(static row => int.Parse(row.Split(',')[4], CultureInfo.InvariantCulture))];
 
         Assert.Equal(["builderEntered", "hostConstructed", "firstUpdate", "firstDraw"], lines[1..header].Select(static line => line[2..].Split(',')[0]));
         Assert.Contains(1, steps);

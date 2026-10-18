@@ -333,10 +333,12 @@ public sealed class EngineBuilder
     /// Writes host timing to a CSV at <paramref name="path"/>. Off by default.
     /// </summary>
     /// <remarks>
-    /// The file holds a boot trace in milliseconds from process start, then one row per frame. Its
-    /// directory is created and an existing file is overwritten. A headless run paces its frames to the
-    /// fixed step's rate. Its draw column times the frame's build, and its trace has no device or media
-    /// stages.
+    /// The file holds a boot trace in milliseconds from process start, then one row per frame: the
+    /// interval since the previous frame began, the update, the view's build and the submission in
+    /// milliseconds, the fixed steps run, the gen-0 collections so far, and the bytes the frame's thread
+    /// allocated over the interval. Its directory is created and an existing file is overwritten. A
+    /// headless run paces its frames to the fixed step's rate and submits nothing, and its trace has no
+    /// device or media stages.
     /// </remarks>
     /// <param name="path">The CSV to write.</param>
     /// <param name="exitAfterSeconds">
@@ -622,8 +624,8 @@ public sealed class EngineBuilder
     }
 
     // Frames as a window presenting once per fixed step runs them. Each frame advances by the wall
-    // time since the last one began, and the scheduler decides how much of it to catch up. The draw
-    // column times the frame's build, as nothing is submitted.
+    // time since the last one began, and the scheduler decides how much of it to catch up. The view
+    // column times the frame's build. Nothing is submitted, and the draw section is empty.
     private void PaceFrames(FixedStepScheduler scheduler, SceneHost host, FrameDiagnostics diagnostics)
     {
         long period = (long)(StepSeconds * Stopwatch.Frequency);
@@ -637,8 +639,9 @@ public sealed class EngineBuilder
             previous = start;
             diagnostics.EndUpdate(scheduler.StepsThisFrame);
 
-            diagnostics.BeginDraw();
+            diagnostics.BeginView();
             _ = host.View;
+            diagnostics.BeginDraw();
             if (diagnostics.EndDraw() || exiting)
             {
                 return;

@@ -53,6 +53,10 @@ public sealed partial class CollisionWorld2D
     // the slot table, which no gather outgrows.
     private readonly List<int> _near = new(StartingSlots);
 
+    // The slot of each contact a query sorts, the keys its contacts move with. It is sized with the slot
+    // table, which no query's colliders outnumber.
+    private int[] _sortKeys = new int[StartingSlots];
+
     // Every layer any contact filter has named, and every layer a collider with a contact filter has
     // been on. Both only grow, which keeps them supersets for the pair query's mask.
     private ulong _detected;
@@ -253,6 +257,11 @@ public sealed partial class CollisionWorld2D
 
         _freeSlots.EnsureCapacity(_slots.Length);
         _near.EnsureCapacity(_slots.Length);
+        if (_sortKeys.Length < _slots.Length)
+        {
+            _sortKeys = new int[_slots.Length];
+        }
+
         _moved.EnsureCapacity(colliders);
         _tree.Reserve(colliders);
     }
@@ -1091,6 +1100,7 @@ public sealed partial class CollisionWorld2D
                 Array.Resize(ref _slots, _slots.Length * 2);
                 _freeSlots.EnsureCapacity(_slots.Length);
                 _near.EnsureCapacity(_slots.Length);
+                _sortKeys = new int[_slots.Length];
             }
 
             index = _slotsUsed++;

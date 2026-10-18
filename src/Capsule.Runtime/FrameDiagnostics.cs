@@ -5,7 +5,9 @@ using System.Globalization;
 namespace Capsule.Runtime;
 
 // Host timing capture written as the CSV EngineBuilder.WithFrameDiagnostics documents. The gen-0
-// count is cumulative, and a window of rows reads its own collections as a difference.
+// count is cumulative, and a window of rows reads its own collections as a difference. A row's
+// interval and bytes cover the same span, from the previous frame's start to this one's, on the
+// thread that runs the frames.
 internal sealed class FrameDiagnostics : IDisposable
 {
     // Rows fill one of two buffers. A full buffer is handed to the writer thread and the other takes
@@ -43,8 +45,11 @@ internal sealed class FrameDiagnostics : IDisposable
     private int _count;
     private long _sectionStart;
     private long _previousUpdateStart = -1;
+    private long _previousAllocated;
     private double _intervalMs;
     private double _updateMs;
+    private double _viewMs;
+    private long _bytes;
     private int _steps;
 
     // builderEntered is the GetTimestamp taken when the builder was created, the trace's first stage.
@@ -97,37 +102,51 @@ internal sealed class FrameDiagnostics : IDisposable
     internal void BeginUpdate()
     {
         long now = _timestamp();
+        long allocated = GC.GetAllocatedBytesForCurrentThread();
 
         if (_previousUpdateStart < 0)
         {
             // The first frame has no predecessor to measure an interval against, and its update is the
             // trace's last stage before the draw it feeds.
             _intervalMs = 0;
+            _bytes = 0;
             _stages[(int)Stage.FirstUpdate] = now;
         }
         else
         {
             _intervalMs = Milliseconds(now - _previousUpdateStart);
+            _bytes = allocated - _previousAllocated;
         }
 
         _previousUpdateStart = now;
+        _previousAllocated = allocated;
         _sectionStart = now;
     }
 
     // steps: The fixed steps the update ran, zero on a frame that had not accumulated one.
     internal void EndUpdate(int steps)
     {
-        _updateMs = Milliseconds(_timestamp() - _sectionStart);
+        long now = _timestamp();
+        _updateMs = Milliseconds(now - _sectionStart);
         _steps = steps;
+        _sectionStart = now;
     }
 
-    internal void BeginDraw() => _sectionStart = _timestamp();
+    // Opens the frame's build, the first read of the view after a step, which BeginDraw closes.
+    internal void BeginView() => _sectionStart = _timestamp();
+
+    internal void BeginDraw()
+    {
+        long now = _timestamp();
+        _viewMs = Milliseconds(now - _sectionStart);
+        _sectionStart = now;
+    }
 
     // Closes the frame's row and returns whether the run's time budget is spent.
     internal bool EndDraw()
     {
         long now = _timestamp();
-        _rows[_count++] = new Row(_intervalMs, _updateMs, Milliseconds(now - _sectionStart), _steps, GC.CollectionCount(0));
+        _rows[_count++] = new Row(_intervalMs, _updateMs, _viewMs, Milliseconds(now - _sectionStart), _steps, GC.CollectionCount(0), _bytes);
 
         if (_stages[^1] < 0)
         {
@@ -205,7 +224,7 @@ internal sealed class FrameDiagnostics : IDisposable
             _writer.WriteLine(stage.Written);
         }
 
-        _writer.WriteLine("intervalMs,updateMs,drawMs,steps,gen0");
+        _writer.WriteLine("intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes");
         _writer.Flush();
     }
 
@@ -219,16 +238,20 @@ internal sealed class FrameDiagnostics : IDisposable
             line.Add(",");
             line.Add(row.UpdateMs, "F3");
             line.Add(",");
+            line.Add(row.ViewMs, "F3");
+            line.Add(",");
             line.Add(row.DrawMs, "F3");
             line.Add(",");
             line.Add(row.Steps);
             line.Add(",");
             line.Add(row.Gen0);
+            line.Add(",");
+            line.Add(row.Bytes);
             _writer.WriteLine(line.Written);
         }
 
         _writer.Flush();
     }
 
-    private readonly record struct Row(double IntervalMs, double UpdateMs, double DrawMs, int Steps, int Gen0);
+    private readonly record struct Row(double IntervalMs, double UpdateMs, double ViewMs, double DrawMs, int Steps, int Gen0, long Bytes);
 }

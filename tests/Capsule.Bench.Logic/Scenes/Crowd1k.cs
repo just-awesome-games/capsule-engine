@@ -10,6 +10,7 @@ namespace Capsule.Bench.Logic.Scenes;
 /// </remarks>
 [Workload(WorkloadKind.Simulation)]
 [Workload(WorkloadKind.Paced)]
+[Workload(WorkloadKind.Rendering)]
 [Workload(WorkloadKind.Simulation, Row = Stacked)]
 [Workload(WorkloadKind.Paced, Row = Stacked)]
 public sealed class Crowd1k : Scene

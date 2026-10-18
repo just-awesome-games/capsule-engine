@@ -106,9 +106,18 @@ public sealed partial class CollisionWorld2D
         written++;
     }
 
-    // Slots are unique within a query. The unstable sort then yields one order.
-    private static void SortByHandle(Span<Contact2D> contacts) =>
-        contacts.Sort(static (left, right) => left.Target.Collider.Index.CompareTo(right.Target.Collider.Index));
+    // Slots are unique within a query. The unstable sort then yields one order. Sorting the slots as keys
+    // compares ints, where a comparison of contacts would copy two of them each call.
+    private void SortByHandle(Span<Contact2D> contacts)
+    {
+        Span<int> slots = _sortKeys.AsSpan(0, contacts.Length);
+        for (int index = 0; index < contacts.Length; index++)
+        {
+            slots[index] = contacts[index].Target.Collider.Index;
+        }
+
+        slots.Sort(contacts);
+    }
 
     // Tiles before colliders, then by slot, then by cell.
     private static bool TargetPrecedes(in CollisionTarget left, in CollisionTarget right)
@@ -1201,7 +1210,7 @@ public sealed partial class CollisionWorld2D
         {
             if (!_full)
             {
-                SortByHandle(_contacts[_first.._written]);
+                world.SortByHandle(_contacts[_first.._written]);
             }
         }
 
@@ -1232,7 +1241,7 @@ public sealed partial class CollisionWorld2D
 
             if (!_full)
             {
-                SortByHandle(_contacts[_first.._written]);
+                world.SortByHandle(_contacts[_first.._written]);
                 _full = true;
             }
 

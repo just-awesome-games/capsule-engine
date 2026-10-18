@@ -20,7 +20,7 @@ public sealed class FrameDiagnosticsTests
         Assert.False(capture.Frame());
 
         string[] lines = capture.ReadLines();
-        int header = Array.IndexOf(lines, "intervalMs,updateMs,drawMs,steps,gen0");
+        int header = Array.IndexOf(lines, "intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes");
 
         Assert.InRange(header, 1, lines.Length - 1);
         Assert.All(lines[..header], line => Assert.StartsWith("# ", line, StringComparison.Ordinal));
@@ -45,6 +45,7 @@ public sealed class FrameDiagnosticsTests
         {
             diagnostics.BeginUpdate();
             diagnostics.EndUpdate(steps: 1);
+            diagnostics.BeginView();
             diagnostics.BeginDraw();
             diagnostics.EndDraw();
         }
@@ -69,12 +70,33 @@ public sealed class FrameDiagnosticsTests
         string[] rows = capture.ReadLines().Where(IsRow).ToArray();
 
         Assert.Equal(frames, rows.Length);
-        Assert.Equal(Enumerable.Range(0, frames).Select(i => i % 5), rows.Select(row => int.Parse(row.Split(',')[3], CultureInfo.InvariantCulture)));
-        Assert.All(rows, row => Assert.Equal(5, row.Split(',').Length));
+        Assert.Equal(Enumerable.Range(0, frames).Select(i => i % 5), rows.Select(row => int.Parse(row.Split(',')[4], CultureInfo.InvariantCulture)));
+        Assert.All(rows, row => Assert.Equal(7, row.Split(',').Length));
 
-        int[] gen0 = rows.Select(row => int.Parse(row.Split(',')[4], CultureInfo.InvariantCulture)).ToArray();
+        int[] gen0 = rows.Select(row => int.Parse(row.Split(',')[5], CultureInfo.InvariantCulture)).ToArray();
         Assert.Equal(gen0.Order(), gen0);
         Assert.InRange(gen0[0], 0, int.MaxValue);
+    }
+
+    // A row times the update, the view's build and the submission apart. Its interval and its bytes
+    // both run from the previous frame's start, and the first frame has no predecessor for either.
+    [Fact]
+    public void ARow_TimesEachSectionApartAndCountsTheBytesAllocatedOverItsInterval()
+    {
+        ManualClock clock = new();
+        using Capture capture = new(clock: clock);
+
+        capture.Frame(updateSeconds: 0.001, viewSeconds: 0.002, drawSeconds: 0.004);
+        byte[] allocated = new byte[100_000];
+        capture.Frame();
+        GC.KeepAlive(allocated);
+
+        string[][] rows = [.. capture.ReadLines().Where(IsRow).Select(static row => row.Split(','))];
+
+        Assert.Equal(["0.000", "1.000", "2.000", "4.000"], rows[0][..4]);
+        Assert.Equal("0", rows[0][6]);
+        Assert.Equal("7.000", rows[1][0]);
+        Assert.InRange(long.Parse(rows[1][6], CultureInfo.InvariantCulture), allocated.Length, long.MaxValue);
     }
 
     [Fact]
@@ -109,12 +131,14 @@ public sealed class FrameDiagnosticsTests
     {
         private readonly TempWorkspace _workspace = new("capsule-diagnostics-");
         private readonly string _path;
+        private readonly ManualClock? _clock;
 
         private FrameDiagnostics? _diagnostics;
 
         internal Capture(double? exitAfterSeconds = null, ManualClock? clock = null)
         {
             _path = _workspace.PathTo("frames.csv");
+            _clock = clock;
             _diagnostics = clock is null
                 ? new FrameDiagnostics(_path, Stopwatch.GetTimestamp(), exitAfterSeconds)
                 : new FrameDiagnostics(_path, clock.Timestamp, exitAfterSeconds, clock.GetTimestamp);
@@ -125,14 +149,21 @@ public sealed class FrameDiagnosticsTests
             _diagnostics.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
         }
 
-        /// <summary>Runs one frame that stepped <paramref name="steps"/> times and returns whether the run's time budget is spent.</summary>
-        internal bool Frame(int steps = 1)
+        /// <summary>
+        /// Runs one frame that stepped <paramref name="steps"/> times, spending the given seconds of a manual clock in
+        /// each section, and returns whether the run's time budget is spent.
+        /// </summary>
+        internal bool Frame(int steps = 1, double updateSeconds = 0, double viewSeconds = 0, double drawSeconds = 0)
         {
             FrameDiagnostics diagnostics = _diagnostics ?? throw new InvalidOperationException("The capture is closed.");
 
             diagnostics.BeginUpdate();
+            _clock?.Advance(updateSeconds);
             diagnostics.EndUpdate(steps);
+            diagnostics.BeginView();
+            _clock?.Advance(viewSeconds);
             diagnostics.BeginDraw();
+            _clock?.Advance(drawSeconds);
 
             return diagnostics.EndDraw();
         }

@@ -3,8 +3,8 @@
 The engine's performance harness, run by hand and never by CI or the commit hook. It is a Capsule game laid out as [`docs/build-and-publish.md`](../../docs/build-and-publish.md) describes, and each top-level scene is a workload. A scene declares its lane with `[Workload(...)]`, and the suite refuses one without it. A scene that declares several lanes is measured once in each. A lane's row is named for its class unless `Row` names a variant, which the class builds on its own document when `Workloads.Running` holds that name. `--scene` takes a row's name. A nested scene is part of the workload that declares it.
 
 - `WorkloadKind.Simulation` runs headless with no window, device or media. It times 600 fixed steps after 180 warm-up steps. Between steps the driver builds the frame a presenting host would and times it apart.
-- `WorkloadKind.Rendering` runs windowed for six real seconds on the attribute's surface: `Surface.Canvas360` (640x360 point-sampled, the default) or `Surface.Hd1080` (1920x1080 linear). It drops the first 120 frames and measures submission and frame interval.
-- `WorkloadKind.Paced` runs headless through the host's frame loop for six real seconds, paced to the step rate as a window presenting once a step would be. Each frame runs the steps its wall time bought, within the step bound and the step budget. A step that overruns its length shows in the frame interval a player would see. It drops the first second and measures frame interval, steps run and the frame's build.
+- `WorkloadKind.Rendering` runs windowed for six real seconds on the attribute's surface: `Surface.Canvas360` (640x360 point-sampled, the default) or `Surface.Hd1080` (1920x1080 linear). It drops the first 120 frames and measures each frame's update, build and submission, its interval, and the bytes it allocates.
+- `WorkloadKind.Paced` runs headless through the host's frame loop for six real seconds, paced to the step rate as a window presenting once a step would be. Each frame runs the steps its wall time bought, within the step bound and the step budget. A step that overruns its length shows in the frame interval a player would see. It drops the first second and measures frame interval, steps run, each frame's update and build, and the bytes it allocates.
 
 The bench runs with `TieredCompilation=false`. Its absolute numbers differ from a tiered game's.
 
@@ -19,8 +19,8 @@ dotnet run -c Release --project tests/Capsule.Bench -- suite --label <text> [--l
 A record is a header (`timestamp`, `label`, `lane`, `uncapped`, `commit`, `configuration`, `os`, `cpu`, `gpu`, `engineVersion`) and one row per workload. A row has `name`, `mode`, `surface`, `gen0Collections` over the measured window, and its lane's columns. The other lanes' columns are null.
 
 - Headless: `steps`, `stepMs` {median, p95} for the fixed step alone, `viewMs` {median, p95} for building the frame after it, and `stepBytes` and `viewBytes`, the exact bytes the measured steps and builds allocated on their thread. A row that allocates by design says so in its workload's summary. Every other row reads 0.
-- Windowed: `frames`, `drawMs` {median, p95, max} for `FrameRenderer.Draw` alone, and `intervalMs` {median, p95, max} from frame start to frame start. `captureSha256` appears on `Still` rows and changes only when the renderer's output did.
-- Paced: `frames`, `steps` for the fixed steps those frames ran, one a frame while the workload keeps pace, `intervalMs` {median, p95, max} from frame start to frame start, and `viewMs` {median, p95} for the frame's build.
+- Windowed: `frames`, `drawMs` {median, p95, max} for `FrameRenderer.Draw` alone, `updateMs` {median, p95, max} for the frame's input, steps and host upkeep, `viewMs` {median, p95} for the frame's build over the frames that ran a step, `frameBytes`, the bytes the frame thread allocated over the measured frames, and `intervalMs` {median, p95, max} from frame start to frame start. `captureSha256` appears on `Still` rows and changes only when the renderer's output did.
+- Paced: `frames`, `steps` for the fixed steps those frames ran, one a frame while the workload keeps pace, `updateMs` {median, p95, max}, `viewMs` {median, p95} for the frame's build over the frames that ran a step, `frameBytes`, and `intervalMs` {median, p95, max} from frame start to frame start.
 
 Changing a workload's definition resets its history. Compare by label and commit. Compare an uncapped record only with another uncapped record. Older records differ:
 
@@ -29,6 +29,7 @@ Changing a workload's definition resets its history. Compare by label and commit
 - Headless rows before `alloc-check` carry no `stepBytes` or `viewBytes`.
 - Headless rows before `perf-lazy-view` carry no `viewMs`, and their `stepMs` includes the frame build.
 - Records before `shove-mask` carry no paced rows.
+- Windowed and paced rows before `frame-columns` carry no `updateMs` or `frameBytes`. Their windowed rows carry no `viewMs`, and a paced row's `viewMs` covers every frame.
 
 To add a workload, add a scene class with a `[Workload]` attribute under `Capsule.Bench.Logic/Scenes/`, composed from `Entities/`, `Components/`, `Cameras/` and `UI/` as a game would be. A level an editor would export is a `*.scene.json` under `Assets/Scenes/`, as `Stage` claims `stage.scene.json`. Commit a large generated grid as data, one row per line. Frame a workload with `ParkedCamera` unless camera travel is the point, and keep anything captured static.
 
@@ -43,7 +44,7 @@ dotnet-trace collect --profile dotnet-sampled-thread-time -o artifacts/bench/tra
 dotnet-trace report artifacts/bench/traces/Crowd1k.nettrace topN -n 30 [--inclusive]
 ```
 
-`dotnet-trace` creates no directory and needs the shell's absolute path. `topN` ranks by exclusive time, and `--inclusive` by time with the method anywhere on the stack. A small inlined method shows up as its caller's time. To find what allocates, collect with `--profile gc-verbose` and read the `GC/AllocationTick` stacks in PerfView. `--format Speedscope` writes a flame graph for speedscope.app. Traces stay under `artifacts/bench/`.
+`dotnet-trace` creates no directory and needs the shell's absolute path. `topN` ranks by exclusive time, and `--inclusive` by time with the method anywhere on the stack. A small inlined method shows up as its caller's time. The sampler's own pauses show up as `Thread.PollGC` time and count toward every method above it on the stack, such as a long `Array.Copy` of references. A method whose inclusive time is mostly `PollGC` needs a before-and-after `StepTimer` run before it counts as a cost. To find what allocates, collect with `--profile gc-verbose` and read the `GC/AllocationTick` stacks in PerfView. `--format Speedscope` writes a flame graph for speedscope.app. Traces stay under `artifacts/bench/`.
 
 ## Asset build
 

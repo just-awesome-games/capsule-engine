@@ -5,6 +5,7 @@ namespace Capsule.Bench.Logic.Scenes;
 
 /// <summary>3 000 wandering roots in one band with <see cref="Scene.YSort"/> on: the per-frame Y refresh and re-sort of the draw order.</summary>
 [Workload(WorkloadKind.Simulation)]
+[Workload(WorkloadKind.Rendering)]
 public sealed class YSort : Scene
 {
     private const int Count = 3_000;
