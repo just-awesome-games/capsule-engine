@@ -27,7 +27,7 @@ public sealed class PolygonCollider2D : Collider2D
     protected internal override void OnDebugDraw()
     {
         Shape2D shape = WorldShape;
-        Span<Vector2> points = stackalloc Vector2[Shape2D.MaxPoints];
+        Span<Vector2> points = stackalloc Vector2[shape.PointCount];
         for (int index = 0; index < shape.PointCount; index++)
         {
             points[index] = shape.Point(index);

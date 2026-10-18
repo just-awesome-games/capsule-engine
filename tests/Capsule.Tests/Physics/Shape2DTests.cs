@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Physics;
+using Capsule.Physics.Internal;
 
 namespace Capsule.Tests.Physics;
 
@@ -86,7 +87,9 @@ public sealed class Shape2DTests
         Assert.Throws<ArgumentException>(() => Shape2D.Box(new Aabb2D(Vector2.Zero, new Vector2(8f, 0f))));
         Assert.Throws<ArgumentException>(() => Shape2D.Polygon([Vector2.Zero, Vector2.One]));
         Assert.Throws<ArgumentException>(() => Shape2D.Polygon(
-            [new Vector2(0f, 0f), new Vector2(8f, 0f), new Vector2(8f, 8f), new Vector2(4f, 10f), new Vector2(0f, 8f)]));
+            [new Vector2(0f, 0f), new Vector2(8f, 0f), new Vector2(8f, 8f), new Vector2(4f, 4f), new Vector2(0f, 8f)]));
+        Assert.Throws<ArgumentException>(() => Shape2D.Polygon(
+            [new Vector2(0f, -10f), new Vector2(6f, 8f), new Vector2(-9f, -3f), new Vector2(9f, -3f), new Vector2(-6f, 8f)]));
         Assert.Throws<ArgumentException>(() => Shape2D.Polygon(
             [new Vector2(0f, 0f), new Vector2(8f, 0f), new Vector2(4f, 4f), new Vector2(8f, 8f)]));
         Assert.Throws<ArgumentException>(() => Shape2D.Polygon([new Vector2(0f, 0f), new Vector2(4f, 0f), new Vector2(8f, 0f)]));
@@ -113,6 +116,39 @@ public sealed class Shape2DTests
 
             return (hit.Distance, hit.Normal);
         }
+    }
+
+    // A polygon past four corners shares one stored outline between every copy. Moving or scaling a
+    // copy never reaches the outline the others read.
+    [Fact]
+    public void APolygonPastFourCorners_MovesAndScalesAsItsCorners_AndLeavesTheOriginalAsBuilt()
+    {
+        Vector2[] corners = [new(0f, 0f), new(8f, -4f), new(16f, 0f), new(16f, 8f), new(8f, 12f), new(0f, 8f)];
+        Shape2D hexagon = Shape2D.Polygon(corners);
+
+        Shape2D moved = hexagon.Translated(new Vector2(4f, 2f)).Translated(new Vector2(1f, 1f));
+        Shape2D scaled = hexagon.Scaled(new Vector2(2f, 2f));
+
+        Assert.Equal(corners.ToHashSet(), Enumerable.Range(0, 6).Select(hexagon.Point).ToHashSet());
+        for (int index = 0; index < 6; index++)
+        {
+            Assert.Equal(hexagon.Point(index) + new Vector2(5f, 3f), moved.Point(index));
+            Assert.Equal(hexagon.Point(index) * 2f, scaled.Point(index));
+        }
+
+        Assert.Equal(hexagon.Bounds.Translated(new Vector2(5f, 3f)), moved.Bounds);
+    }
+
+    // The store never frees an outline. Building the same polygon again must not grow it.
+    [Fact]
+    public void HullStore_KeepsEachDistinctOutlineOnce()
+    {
+        Vector2[] outline = [new(-3f, 1f), new(5f, -7f), new(13f, 1f), new(13f, 9f), new(5f, 17f), new(-3f, 9f)];
+
+        int stored = HullStore2D.Add(outline);
+
+        Assert.Equal(stored, HullStore2D.Add([.. outline]));
+        Assert.NotEqual(stored, HullStore2D.Add(outline.AsSpan(1)));
     }
 
     [Fact]

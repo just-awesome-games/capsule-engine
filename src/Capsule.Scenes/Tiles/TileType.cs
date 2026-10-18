@@ -49,8 +49,8 @@ public class TileType
     public string? Layer { get; init; }
 
     /// <summary>
-    /// The convex polygon this tile type collides as, three or four points in world units from the tile's
-    /// top-left corner with Y down, or null for the whole tile. A grid rejects a shape on a tile with no
+    /// The convex polygon this tile type collides as, three to <see cref="Physics.Shape2D.MaxPoints"/> points in
+    /// world units from the tile's top-left corner with Y down, or null for the whole tile. A grid rejects a shape on a tile with no
     /// layer, and one reaching outside the tile.
     /// </summary>
     /// <example>

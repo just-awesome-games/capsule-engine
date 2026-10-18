@@ -806,7 +806,7 @@ public sealed partial class CollisionWorld2D
         {
             CellEdge2D edge = edges[index];
             if (Vector2.Dot(unit, edge.Normal) >= 0f
-                || !grid.EdgeLive(x, y, state, index, edge, filter, admitsEvery))
+                || !grid.EdgeLive(x, y, state, edge, filter, admitsEvery))
             {
                 continue;
             }
@@ -978,7 +978,7 @@ public sealed partial class CollisionWorld2D
         for (int index = 0; index < edges.Length; index++)
         {
             CellEdge2D edge = edges[index];
-            if (!grid.EdgeLive(x, y, state, index, edge, filter, admitsEvery))
+            if (!grid.EdgeLive(x, y, state, edge, filter, admitsEvery))
             {
                 continue;
             }
@@ -1231,7 +1231,7 @@ public sealed partial class CollisionWorld2D
             Vector2 end = corner + edge.End;
             if (Vector2.Dot(translation, outward) >= accumulator.Lean
                 || (dropping && outward.Y < -CollisionGrid2D.UpFacing)
-                || !grid.EdgeLive(x, y, state, index, edge, filter, admitsEvery)
+                || !grid.EdgeLive(x, y, state, edge, filter, admitsEvery)
                 || (topOnly
                     ? DepthPast(moving, start, outward) > CollisionTolerance.LinearSlop
                     : StartedPast(moving, start, end, outward)))

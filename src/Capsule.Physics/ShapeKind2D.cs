@@ -1,7 +1,7 @@
 namespace Capsule.Physics;
 
 /// <summary>Which member of the fixed shape union a <see cref="Shape2D"/> is.</summary>
-public enum ShapeKind2D
+public enum ShapeKind2D : byte
 {
     /// <summary>One point and a positive radius.</summary>
     Circle,
@@ -12,7 +12,7 @@ public enum ShapeKind2D
     /// <summary>An axis-aligned rectangle with no radius, cheaper to test than a polygon.</summary>
     Box,
 
-    /// <summary>A convex polygon of three or four points, optionally rounded by a radius.</summary>
+    /// <summary>A convex polygon of three to <see cref="Shape2D.MaxPoints"/> points, optionally rounded by a radius.</summary>
     Polygon,
 
     /// <summary>

@@ -320,7 +320,7 @@ public sealed class TileGrid
         }
         catch (ArgumentException ex)
         {
-            throw Malformed($"{Palette(tileType, index)}.shape is not a convex polygon of 3 or {Shape2D.MaxPoints} points. {ex.Message}", "tileTypes");
+            throw Malformed($"{Palette(tileType, index)}.shape is not a convex polygon of 3 to {Shape2D.MaxPoints} points. {ex.Message}", "tileTypes");
         }
 
         Aabb2D bounds = shape.Bounds;

@@ -153,4 +153,23 @@ public sealed class CollisionGridTests
             out _,
             floor.Handle));
     }
+
+    // A cell shape past four corners has an edge on at most each side of its cell, and only those edges
+    // cull. The mound's right side lies flush against solid ground and is culled. Its left side and
+    // underside stay surfaces, and its chamfered top lands what falls on it.
+    [Fact]
+    public void ACellShapePastFourCorners_CullsOnlyTheSideItShares()
+    {
+        CollisionWorld2D world = new();
+        CollisionLayer solid = world.Layer(CollisionFixtures.Solid);
+        Shape2D mound = Shape2D.Polygon([new(0f, 16f), new(0f, 12f), new(6f, 9f), new(10f, 9f), new(16f, 12f), new(16f, 16f)]);
+        CollisionGrid2D grid = world.AddGrid(16, 2, 3, [0, 0, 2, 1, 0, 0], [new(null), new(solid), new(solid, mound)]);
+
+        Assert.Equal(CellState2D.Edges | CellState2D.FaceMinX | CellState2D.FaceMaxY, grid.StateAt(0, 1));
+
+        Assert.True(world.Raycast(new Vector2(8f, 0f), Vector2.UnitY, 64f, CollisionFilter.Everything, out RayHit2D top));
+        Assert.Equal(25f, top.Distance, 3);
+        Assert.True(world.Raycast(new Vector2(8f, 48f), -Vector2.UnitY, 64f, CollisionFilter.Everything, out RayHit2D under));
+        Assert.Equal(16f, under.Distance, 3);
+    }
 }

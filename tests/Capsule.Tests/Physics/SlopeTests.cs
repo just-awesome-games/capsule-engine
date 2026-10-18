@@ -62,7 +62,7 @@ public sealed class SlopeTests
         CollisionWorld2D world = new();
         CollisionGrid2D grid = CollisionFixtures.Paint(world, "/=", "##");
 
-        Assert.Equal(CellState2D.Edges | CollisionGrid2D.EdgeBit(0), grid.StateAt(0, 0));
+        Assert.Equal(CellState2D.Edges, grid.StateAt(0, 0));
         Assert.Equal(CellState2D.None, grid.StateAt(1, 0) & CellState2D.FaceMinX);
 
         Assert.True(world.Raycast(
@@ -78,15 +78,24 @@ public sealed class SlopeTests
 
     // Up a two-tile slope, across the top and down the far side. Every step ends on a floor and covers
     // its whole speed across, including the steps that turn onto a new surface or follow a crest down.
-    [Fact]
-    public void AGroundedBody_WalksOverAHill_OnTheFloorEveryStep_AtOneSpeedAcross()
+    // The same hill as one six-cornered collider standing on the ground walks the same.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AGroundedBody_WalksOverAHill_OnTheFloorEveryStep_AtOneSpeedAcross(bool collider)
     {
-        Scene scene = SceneFixtures.Terrain(
+        Scene scene = collider ? new Scene().Started() : SceneFixtures.Terrain(
             "..............",
             "..............",
             "..../#\\.......",
             ".../###\\......",
             "##############").Started();
+        if (collider)
+        {
+            scene.Add(new Hull([new(0f, 64f), new(224f, 64f), new(224f, 80f), new(0f, 80f)]));
+            scene.Add(new Hull([new(48f, 64f), new(80f, 32f), new(96f, 32f), new(128f, 64f), new(128f, 80f), new(48f, 80f)]));
+        }
+
         SceneFixtures.Body body = Grounded(scene, new Vector2(8f, 40f));
 
         for (int step = 0; step < 70; step++)

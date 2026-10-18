@@ -266,11 +266,11 @@ public sealed class TileMapCollider2D : Component
     {
         ReadOnlySpan<CellEdge2D> edges = grid.EdgesAt(x, y);
         Vector2 corner = grid.CellCorner(x, y);
-        for (int index = 0; index < edges.Length; index++)
+        foreach (CellEdge2D edge in edges)
         {
-            if ((state & CollisionGrid2D.EdgeBit(index)) != 0)
+            if (CollisionGrid2D.Live(state, edge))
             {
-                DebugDraw.Line(DebugDraw.Colliders, corner + edges[index].Start, corner + edges[index].End);
+                DebugDraw.Line(DebugDraw.Colliders, corner + edge.Start, corner + edge.End);
             }
         }
     }

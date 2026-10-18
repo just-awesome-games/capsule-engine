@@ -10,9 +10,6 @@ namespace Capsule.Physics;
 // value and variant name. The owner writes a cell and then calls Refresh.
 internal sealed class CollisionGrid2D
 {
-    // The most edges one palette entry derives. A polygon holds at most Shape2D.MaxPoints corners.
-    internal const int MaxEdges = Shape2D.MaxPoints;
-
     // How far below zero the Y of an outward normal must reach for the edge to face up. A one-way
     // surface blocks only there.
     internal const float UpFacing = 1e-4f;
@@ -26,10 +23,12 @@ internal sealed class CollisionGrid2D
     private readonly CollisionLayer?[] _layers;
 
     // Per palette entry. A solid full-cell box takes the closed-form path and derives no edges. Every
-    // other colliding entry is MaxEdges slots of _edges, of which _edgeCounts says how many are used.
+    // other colliding entry has a slot in _edges per corner from _edgeStarts on, of which _edgeCounts says
+    // how many are used.
     private readonly bool[] _boxes;
     private readonly bool[] _oneWay;
     private readonly bool[] _solidSides;
+    private readonly int[] _edgeStarts;
     private readonly int[] _edgeCounts;
     private readonly CellEdge2D[] _edges;
 
@@ -76,8 +75,16 @@ internal sealed class CollisionGrid2D
         _boxes = new bool[count];
         _oneWay = new bool[count];
         _solidSides = new bool[count];
+        _edgeStarts = new int[count];
         _edgeCounts = new int[count];
-        _edges = new CellEdge2D[count * MaxEdges];
+        int edgeSlots = 0;
+        for (int index = 0; index < count; index++)
+        {
+            _edgeStarts[index] = edgeSlots;
+            edgeSlots += profiles[index].Shape?.PointCount ?? 4;
+        }
+
+        _edges = new CellEdge2D[edgeSlots];
         _polygons = new Shape2D[count];
         _covers = new SideSpan2D[count * 4];
         _walls = new SideSpan2D[count * 4];
@@ -145,7 +152,7 @@ internal sealed class CollisionGrid2D
     {
         int profile = Profile((y * Width) + x);
 
-        return _edges.AsSpan(profile * MaxEdges, _edgeCounts[profile]);
+        return _edges.AsSpan(_edgeStarts[profile], _edgeCounts[profile]);
     }
 
     // The solid polygon of an edge cell in cell space. Only a cell without the OneWay bit has one.
@@ -163,13 +170,14 @@ internal sealed class CollisionGrid2D
     internal bool NeighbourAdmits(int x, int y, CellState2D face, CollisionFilter filter) =>
         CoverAcross(x, y, face, 0f, CellSize) is { } layer && filter.Admits(layer);
 
-    // Whether edge `index` of an edge cell is a surface this query can meet. An edge culled against a
-    // neighbour the filter excludes is live again.
-    internal bool EdgeLive(int x, int y, CellState2D state, int index, in CellEdge2D edge, CollisionFilter filter, bool admitsEvery) =>
-        (state & EdgeBit(index)) != 0
-        || (!admitsEvery
-            && edge.Side != CellState2D.None
-            && !(CoverAcross(x, y, edge.Side, edge.Low, edge.High) is { } layer && filter.Admits(layer)));
+    // Whether an edge of an edge cell is a surface this query can meet. Only an edge on a cell side is
+    // ever culled, and an edge culled against a neighbour the filter excludes is live again.
+    internal bool EdgeLive(int x, int y, CellState2D state, in CellEdge2D edge, CollisionFilter filter, bool admitsEvery) =>
+        Live(state, edge)
+        || (!admitsEvery && !(CoverAcross(x, y, edge.Side, edge.Low, edge.High) is { } layer && filter.Admits(layer)));
+
+    // Whether an edge survived the culling derived over every cell of the grid.
+    internal static bool Live(CellState2D state, in CellEdge2D edge) => edge.Side == CellState2D.None || (state & edge.Side) != 0;
 
     internal Aabb2D CellBox(int x, int y) => new(CellCorner(x, y), CellCorner(x + 1, y + 1));
 
@@ -186,10 +194,6 @@ internal sealed class CollisionGrid2D
             _ => new Aabb2D(new Vector2(cell.Min.X, cell.Max.Y), cell.Max),
         };
     }
-
-    // The bit of an edge cell's state that marks edge `index` live. It shares the face bits, which
-    // only a box cell reads.
-    internal static CellState2D EdgeBit(int index) => (CellState2D)(2 << index);
 
     // The unit direction a face points away from its cell, and the normal a query meeting it reports.
     internal static Vector2 FaceNormal(CellState2D face) => face switch
@@ -299,7 +303,7 @@ internal sealed class CollisionGrid2D
                 _walls[(index * 4) + SideIndex(side)] = span;
             }
 
-            _edges[(index * MaxEdges) + count] = new CellEdge2D(start, end, normal, side, span.Low, span.High);
+            _edges[_edgeStarts[index] + count] = new CellEdge2D(start, end, normal, side, span.Low, span.High);
             count++;
         }
 
@@ -369,13 +373,11 @@ internal sealed class CollisionGrid2D
             state = !_oneWay[palette] ? CellState2D.Edges
                 : _solidSides[palette] ? CellState2D.Edges | CellState2D.OneWay | CellState2D.SolidSides
                 : CellState2D.Edges | CellState2D.OneWay;
-            ReadOnlySpan<CellEdge2D> edges = _edges.AsSpan(palette * MaxEdges, _edgeCounts[palette]);
-            for (int edge = 0; edge < edges.Length; edge++)
+            foreach (CellEdge2D edge in _edges.AsSpan(_edgeStarts[palette], _edgeCounts[palette]))
             {
-                CellEdge2D derived = edges[edge];
-                if (derived.Side == CellState2D.None || CoverAcross(x, y, derived.Side, derived.Low, derived.High) is null)
+                if (edge.Side != CellState2D.None && CoverAcross(x, y, edge.Side, edge.Low, edge.High) is null)
                 {
-                    state |= EdgeBit(edge);
+                    state |= edge.Side;
                 }
             }
         }
@@ -423,7 +425,8 @@ internal sealed class CollisionGrid2D
 
 // What a derived cell collides as. A solid box carries Solid and the sides a query can meet. Any other
 // colliding cell carries Edges, OneWay when it blocks only from above, SolidSides when it also blocks
-// from the sides, and EdgeBit(i) for each live edge, which reuses the face bits.
+// from the sides, and the face bit of each side whose edge is live. A strictly convex shape has at most
+// one edge on each side.
 [Flags]
 internal enum CellState2D : byte
 {

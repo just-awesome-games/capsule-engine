@@ -15,20 +15,27 @@ namespace Capsule.Physics;
 public readonly struct Shape2D : IEquatable<Shape2D>
 {
     /// <summary>The most points a shape may hold.</summary>
-    public const int MaxPoints = 4;
+    public const int MaxPoints = 64;
+
+    // How many points a shape holds in place.
+    private const int InlinePoints = 4;
 
     // Points closer together than this, and corners flatter than its square, have no well-defined
     // outward direction and are refused.
     internal const float PointTolerance = CollisionTolerance.LinearSlop;
 
+    // A polygon of more than InlinePoints corners keeps them in HullStore2D, in the space it was built
+    // in, and holds their index here. Its _points[0] holds how far it has been moved from that space.
+    private readonly int _hull;
     private readonly PointBuffer _points;
-    private readonly int _count;
+    private readonly byte _count;
 
-    private Shape2D(ShapeKind2D kind, in PointBuffer points, int count, float radius, in Aabb2D bounds)
+    private Shape2D(ShapeKind2D kind, in PointBuffer points, int count, float radius, in Aabb2D bounds, int hull = 0)
     {
         Kind = kind;
+        _hull = hull;
         _points = points;
-        _count = count;
+        _count = (byte)count;
         Radius = radius;
         Bounds = bounds;
     }
@@ -40,8 +47,8 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     public float Radius { get; }
 
     /// <summary>
-    /// How many points the shape holds. One for a circle, two for a capsule, three or four
-    /// otherwise, and zero for the default value.
+    /// How many points the shape holds. One for a circle, two for a capsule, three to
+    /// <see cref="MaxPoints"/> otherwise, and zero for the default value.
     /// </summary>
     public int PointCount => _count;
 
@@ -58,7 +65,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         PointBuffer points = default;
         points[0] = center;
 
-        return new Shape2D(ShapeKind2D.Circle, points, 1, radius, Bounded(points, 1, radius, nameof(radius)));
+        return new Shape2D(ShapeKind2D.Circle, points, 1, radius, Bounded(points[..1], radius, nameof(radius)));
     }
 
     /// <summary>Everything within <paramref name="radius"/> of the segment from <paramref name="start"/> to <paramref name="end"/>.</summary>
@@ -75,7 +82,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
 
         RequireApart(points, nameof(end));
 
-        return new Shape2D(ShapeKind2D.Capsule, points, 2, radius, Bounded(points, 2, radius, nameof(radius)));
+        return new Shape2D(ShapeKind2D.Capsule, points, 2, radius, Bounded(points[..2], radius, nameof(radius)));
     }
 
     /// <summary>An axis-aligned rectangle covering <paramref name="box"/>.</summary>
@@ -105,14 +112,15 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     /// <exception cref="ArgumentException">The box it describes is one <see cref="Box(in Aabb2D)"/> refuses.</exception>
     public static Shape2D Box(Vector2 corner, Vector2 size) => Box(Aabb2D.FromCorner(corner, size));
 
-    /// <summary>A convex polygon of three or four points, rounded by <paramref name="radius"/> when one is given.</summary>
+    /// <summary>A convex polygon of three to <see cref="MaxPoints"/> points, rounded by <paramref name="radius"/> when one is given.</summary>
     /// <remarks>
     /// Four points on the corners of an axis-aligned rectangle with a zero radius return a shape of
-    /// kind <see cref="ShapeKind2D.Box"/>.
+    /// kind <see cref="ShapeKind2D.Box"/>. The points of a polygon past four are kept once per distinct
+    /// polygon for the life of the process. Build a changing polygon once, not every step.
     /// </remarks>
     /// <param name="points">The hull's corners, convex and in either winding order.</param>
     /// <param name="radius">How far the polygon extends beyond that hull. Zero for a plain polygon.</param>
-    /// <exception cref="ArgumentException">There are not three or four points, two of them nearly coincide, they are not strictly convex, or the bounds they and the radius describe are not a box a float can measure.</exception>
+    /// <exception cref="ArgumentException">There are fewer than three points or more than <see cref="MaxPoints"/>, two of them nearly coincide, they are not strictly convex, or the bounds they and the radius describe are not a box a float can measure.</exception>
     public static Shape2D Polygon(ReadOnlySpan<Vector2> points, float radius = 0f)
     {
         Guard.Finite(radius, nameof(radius));
@@ -124,22 +132,25 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         }
 
         PointBuffer buffer = default;
+        Span<Vector2> corners = points.Length > InlinePoints ? stackalloc Vector2[points.Length] : buffer[..points.Length];
         for (int index = 0; index < points.Length; index++)
         {
             Guard.Finite(points[index], nameof(points));
-            buffer[index] = points[index];
+            corners[index] = points[index];
         }
 
-        RequireDistinct(buffer, points.Length, nameof(points));
-        NormaliseWinding(ref buffer, points.Length);
-        RequireConvex(buffer, points.Length, nameof(points));
+        RequireDistinct(corners, nameof(points));
+        NormaliseWinding(corners);
+        RequireConvex(corners, nameof(points));
 
-        Aabb2D bounds = Bounded(buffer, points.Length, radius, nameof(radius));
-        ShapeKind2D kind = radius == 0f && points.Length == 4 && IsCornersOf(buffer, bounds)
+        Aabb2D bounds = Bounded(corners, radius, nameof(radius));
+        ShapeKind2D kind = radius == 0f && points.Length == 4 && IsCornersOf(corners, bounds)
             ? ShapeKind2D.Box
             : ShapeKind2D.Polygon;
 
-        return new Shape2D(kind, buffer, points.Length, radius, bounds);
+        int hull = points.Length > InlinePoints ? HullStore2D.Add(corners) : 0;
+
+        return new Shape2D(kind, buffer, points.Length, radius, bounds, hull);
     }
 
     // A grid cell or one of its faces. The grid already validated these coordinates, so the bounds
@@ -172,7 +183,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         ArgumentOutOfRangeException.ThrowIfNegative(index);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, _count);
 
-        return _points[index];
+        return PointAt(index);
     }
 
     /// <summary>This shape with every point moved by <paramref name="offset"/>.</summary>
@@ -182,9 +193,14 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         Guard.Finite(offset, nameof(offset));
 
         // Unrolled over constant indices, which need no bounds checks. Every mover translates its shape
-        // on each sweep pass.
+        // on each sweep pass. A stored hull moves only its offset. Its points after two moves round as one
+        // move by their sum.
         PointBuffer moved = _points;
-        if (_count > 0)
+        if (_hull != 0)
+        {
+            moved[0] += offset;
+        }
+        else if (_count > 0)
         {
             moved[0] += offset;
             if (_count > 1)
@@ -201,7 +217,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
             }
         }
 
-        return new Shape2D(Kind, moved, _count, Radius, Finite(Bounds.Translated(offset), nameof(offset)));
+        return new Shape2D(Kind, moved, _count, Radius, Finite(Bounds.Translated(offset), nameof(offset)), _hull);
     }
 
     /// <summary>
@@ -221,10 +237,11 @@ public readonly struct Shape2D : IEquatable<Shape2D>
                 nameof(scale));
         }
 
-        PointBuffer scaled = _points;
+        PointBuffer buffer = default;
+        Span<Vector2> scaled = _hull != 0 ? stackalloc Vector2[_count] : buffer[.._count];
         for (int index = 0; index < _count; index++)
         {
-            scaled[index] *= scale;
+            scaled[index] = PointAt(index) * scale;
         }
 
         // The scale is uniform whenever the radius is non-zero, so either component works.
@@ -242,11 +259,11 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         }
         else if (_count >= 3)
         {
-            RequireDistinct(scaled, _count, nameof(scale));
-            RequireConvex(scaled, _count, nameof(scale));
+            RequireDistinct(scaled, nameof(scale));
+            RequireConvex(scaled, nameof(scale));
         }
 
-        return new Shape2D(Kind, scaled, _count, radius, Bounded(scaled, _count, radius, nameof(scale)));
+        return new Shape2D(Kind, buffer, _count, radius, Bounded(scaled, radius, nameof(scale)), _hull != 0 ? HullStore2D.Add(scaled) : 0);
     }
 
     /// <inheritdoc/>
@@ -259,7 +276,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
 
         for (int index = 0; index < _count; index++)
         {
-            if (_points[index] != other._points[index])
+            if (PointAt(index) != other.PointAt(index))
             {
                 return false;
             }
@@ -279,7 +296,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         hash.Add(Radius);
         for (int index = 0; index < _count; index++)
         {
-            hash.Add(_points[index]);
+            hash.Add(PointAt(index));
         }
 
         return hash.ToHashCode();
@@ -292,12 +309,17 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     public static bool operator !=(Shape2D left, Shape2D right) => !left.Equals(right);
 
     // The furthest point along a direction.
-    internal Vector2 Support(Vector2 direction) => _points[SupportIndex(direction)];
+    internal Vector2 Support(Vector2 direction) => PointAt(SupportIndex(direction));
 
     // The index of the furthest point along a direction. Ties go to the lowest index so identical
     // inputs walk the same simplex.
     internal int SupportIndex(Vector2 direction)
     {
+        if (_hull != 0)
+        {
+            return HullSupportIndex(direction);
+        }
+
         int best = 0;
         float bestDot = Vector2.Dot(_points[0], direction);
 
@@ -314,14 +336,34 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         return best;
     }
 
-    internal Vector2 PointAt(int index) => _points[index];
+    internal Vector2 PointAt(int index) => _hull == 0 ? _points[index] : HullStore2D.Get(_hull)[index] + _points[0];
 
     // The outward unit normal of the edge leaving point index.
     internal Vector2 EdgeNormal(int index)
     {
-        Vector2 edge = _points[(index + 1) % _count] - _points[index];
+        Vector2 edge = PointAt((index + 1) % _count) - PointAt(index);
 
         return Vector2.Normalize(new Vector2(edge.Y, -edge.X));
+    }
+
+    private int HullSupportIndex(Vector2 direction)
+    {
+        Vector2[] hull = HullStore2D.Get(_hull);
+        Vector2 offset = _points[0];
+        int best = 0;
+        float bestDot = Vector2.Dot(hull[0] + offset, direction);
+
+        for (int index = 1; index < hull.Length; index++)
+        {
+            float dot = Vector2.Dot(hull[index] + offset, direction);
+            if (dot > bestDot)
+            {
+                bestDot = dot;
+                best = index;
+            }
+        }
+
+        return best;
     }
 
     // A box's four corners, in the winding every polygon is normalised to.
@@ -336,7 +378,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         return new Shape2D(ShapeKind2D.Box, points, 4, 0f, box);
     }
 
-    private static void RequireApart(in PointBuffer points, string parameterName)
+    private static void RequireApart(ReadOnlySpan<Vector2> points, string parameterName)
     {
         if (Vector2.DistanceSquared(points[0], points[1]) <= PointTolerance * PointTolerance)
         {
@@ -346,8 +388,9 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         }
     }
 
-    private static void RequireDistinct(in PointBuffer points, int count, string parameterName)
+    private static void RequireDistinct(ReadOnlySpan<Vector2> points, string parameterName)
     {
+        int count = points.Length;
         for (int i = 0; i < count; i++)
         {
             for (int j = i + 1; j < count; j++)
@@ -364,8 +407,9 @@ public readonly struct Shape2D : IEquatable<Shape2D>
 
     // Normalises to cross-positive winding, so the outward normal of the edge from p[i] to p[i+1] is
     // (e.Y, -e.X). Reversing here lets a caller author either order.
-    private static void NormaliseWinding(ref PointBuffer points, int count)
+    private static void NormaliseWinding(Span<Vector2> points)
     {
+        int count = points.Length;
         float twiceArea = 0f;
         for (int index = 0; index < count; index++)
         {
@@ -383,8 +427,9 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         }
     }
 
-    private static void RequireConvex(in PointBuffer points, int count, string parameterName)
+    private static void RequireConvex(ReadOnlySpan<Vector2> points, string parameterName)
     {
+        int count = points.Length;
         for (int index = 0; index < count; index++)
         {
             Vector2 current = points[(index + 1) % count];
@@ -395,10 +440,28 @@ public readonly struct Shape2D : IEquatable<Shape2D>
                     parameterName);
             }
         }
+
+        // Corners that all turn one way still admit a star, whose outline winds round more than once. Every
+        // corner of a simple convex outline lies inside every edge.
+        for (int edge = 0; edge < count; edge++)
+        {
+            Vector2 start = points[edge];
+            Vector2 along = points[(edge + 1) % count] - start;
+            for (int corner = 0; corner < count; corner++)
+            {
+                if (corner != edge && corner != (edge + 1) % count && Math2D.Cross(along, points[corner] - start) <= 0f)
+                {
+                    throw new ArgumentException(
+                        "Polygon points wind round the hull more than once. List the corners in order around it.",
+                        parameterName);
+                }
+            }
+        }
     }
 
-    private static Aabb2D Bounded(in PointBuffer points, int count, float radius, string parameterName)
+    private static Aabb2D Bounded(ReadOnlySpan<Vector2> points, float radius, string parameterName)
     {
+        int count = points.Length;
         Vector2 min = points[0];
         Vector2 max = min;
         for (int index = 1; index < count; index++)
@@ -418,7 +481,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
             ? bounds
             : throw new ArgumentException("The shape's bounds are not a box a float can measure.", parameterName);
 
-    private static bool IsCornersOf(in PointBuffer points, in Aabb2D bounds)
+    private static bool IsCornersOf(ReadOnlySpan<Vector2> points, in Aabb2D bounds)
     {
         int seen = 0;
         for (int index = 0; index < 4; index++)
@@ -437,7 +500,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         return seen == 0b1111;
     }
 
-    [InlineArray(MaxPoints)]
+    [InlineArray(InlinePoints)]
     private struct PointBuffer
     {
         private Vector2 _element0;
