@@ -14,7 +14,7 @@ public sealed class BlendModeTests
         Assert.Equal(104, Unsafe.SizeOf<SpriteIntent>());
     }
 
-    // Additive premultiplies by alpha, so a glow fades as its alpha falls. Opaque adds the colour exactly.
+    // Additive premultiplies by alpha. A glow fades as its alpha falls. Opaque adds the colour exactly.
     [Fact]
     public void Additive_PacksTheColourScaledByItsAlphaWithZeroAlpha()
     {
@@ -34,7 +34,7 @@ public sealed class BlendModeTests
         Assert.Equal((color.R, color.G, color.B, color.A), (r, g, b, a));
     }
 
-    // The flash colour fades with the sprite's tint alpha and the amount passes through, so a fading
+    // The flash colour fades with the sprite's tint alpha and the amount passes through. A fading
     // sprite's flash fades with it under either blend. An unflashed sprite packs zero, which the shader
     // leaves exactly as the fragment returned it.
     [Fact]

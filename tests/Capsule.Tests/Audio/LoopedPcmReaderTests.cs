@@ -44,7 +44,7 @@ public sealed class LoopedPcmReaderTests
         Assert.Equal(expected, Read(reader, expected.Length, buffer: 3));
     }
 
-    // A start offset is where the first read begins. The region is unaffected by it, so a loop still
+    // A start offset is where the first read begins. The region is unaffected by it. A loop still
     // reaches the region's end once and repeats from its start. A start inside the region reads on
     // from it rather than rewinding first, which is where the mixer folds a start past the region's
     // end.
@@ -78,7 +78,7 @@ public sealed class LoopedPcmReaderTests
         Assert.Equal(0, reader.Read(new float[8]));
     }
 
-    // Both bounds are a whole sample count over the file's own rate, so a region at no round second
+    // Both bounds are a whole sample count over the file's own rate. A region at no round second
     // still lands on the sample the file named.
     [Fact]
     public void ARegionInSeconds_ResolvesToTheSampleTheFileNamed()
@@ -107,14 +107,16 @@ public sealed class LoopedPcmReaderTests
     }
 
     [Theory]
-    [InlineData(1, 8)]
-    [InlineData(1, 16)]
-    [InlineData(1, 24)]
-    [InlineData(3, 32)]
-    public void TheWavReader_NormalisesEveryWidthItAdmits(int tag, int bits)
+    [InlineData(1, 8, false)]
+    [InlineData(1, 16, false)]
+    [InlineData(1, 24, false)]
+    [InlineData(3, 32, false)]
+    [InlineData(1, 16, true)]
+    [InlineData(3, 32, true)]
+    public void TheWavReader_NormalisesEveryWidthItAdmits(int tag, int bits, bool extensible)
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        File.WriteAllBytes("clip.wav", Wav(tag, bits));
+        File.WriteAllBytes("clip.wav", Wav(tag, bits, extensible: extensible));
 
         PcmAudio samples = PcmAudio.FromWav(File.OpenRead("clip.wav"), "clip");
         float[] read = new float[3];
@@ -126,16 +128,21 @@ public sealed class LoopedPcmReaderTests
         Assert.Equal(expected, read);
     }
 
-    [Fact]
-    public void AWavWiderThanStereo_IsRefused()
+    // A format the reader does not decode, plain or extensible, is refused and never misread as float.
+    // So is a channel layout wider than stereo. Each refusal names the clip.
+    [Theory]
+    [InlineData(2, 1, false)]
+    [InlineData(2, 1, true)]
+    [InlineData(1, 6, false)]
+    public void AWavOfAnotherFormatOrWiderThanStereo_IsRefused(int tag, int channels, bool extensible)
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        File.WriteAllBytes("clip.wav", Wav(1, 16, channels: 6));
+        File.WriteAllBytes("clip.wav", Wav(tag, 16, channels, extensible));
 
         NotSupportedException refused =
-            Assert.Throws<NotSupportedException>(() => PcmAudio.FromWav(File.OpenRead("clip.wav"), "surround"));
+            Assert.Throws<NotSupportedException>(() => PcmAudio.FromWav(File.OpenRead("clip.wav"), "refused"));
 
-        Assert.Contains("surround", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("refused", refused.Message, StringComparison.Ordinal);
     }
 
     private static AudioLoopRegion Region(int start, int end) => new(start / (double)Rate, end / (double)Rate);
@@ -181,8 +188,8 @@ public sealed class LoopedPcmReaderTests
 
     // One 'fmt ' chunk and one 'data' chunk holding silence, half scale and minus half scale at the
     // width the format declares: 8-bit unsigned, 16- and 24-bit signed, or IEEE float at tag 3.
-    private static byte[] Wav(int tag, int bits, int channels = 1) =>
-        WavFixtures.Wav(Rate, bits, channels, Samples(bits), formatTag: tag);
+    private static byte[] Wav(int tag, int bits, int channels = 1, bool extensible = false) =>
+        WavFixtures.Wav(Rate, bits, channels, Samples(bits), formatTag: tag, extensible: extensible);
 
     private static byte[] Samples(int bits)
     {

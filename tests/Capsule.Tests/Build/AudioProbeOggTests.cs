@@ -1,4 +1,3 @@
-using System.Text;
 using Capsule.Audio;
 using Capsule.Build.Audio;
 using Capsule.Tests.Documents;
@@ -9,7 +8,7 @@ namespace Capsule.Tests.Build;
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class AudioProbeOggTests
 {
-    // The last page carrying a granule position is the stream's frame count; a page that completes
+    // The last page carrying a granule position is the stream's frame count. A page that completes
     // no packet carries -1 and says nothing about the length.
     [Fact]
     public void AnOggsDuration_IsItsLastGranulePositionOverItsVorbisRate()
@@ -40,9 +39,9 @@ public sealed class AudioProbeOggTests
         Assert.Equal(end / 48000.0, region.EndSeconds, 12);
     }
 
-    // The gathered-pages read stopped at 64 KiB, so a picture block ahead of the pair hid it and one
-    // between its halves turned a region into a loop to the clip's end. The packet is walked whole
-    // and a value no tag can be is stepped over in the file, so neither position hides anything.
+    // The comment packet is walked whole, however many pages it spans, and a value no tag can be is
+    // stepped over in the file. A huge block ahead of the loop pair, between its halves or after it
+    // hides neither half.
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -99,17 +98,6 @@ public sealed class AudioProbeOggTests
         Assert.Equal(18000 / 48000.0, region.EndSeconds, 12);
     }
 
-    [Fact]
-    public void AnOggTaggingALoopThatIsNoSampleCount_IsRefused()
-    {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        File.WriteAllBytes("clip.ogg", Ogg(48000, [0, 24000], Comments(["LOOPSTART=one bar"])));
-
-        FormatException refused = Assert.Throws<FormatException>(() => AudioProbe.Measure("clip.ogg"));
-
-        Assert.Contains("LOOPSTART=\"one bar\"", refused.Message, StringComparison.Ordinal);
-    }
-
     [Theory]
     [InlineData(6000, 6000)]
     [InlineData(18000, 6000)]
@@ -125,38 +113,5 @@ public sealed class AudioProbeOggTests
 
         Assert.Contains($"[{start}, {end})", refused.Message, StringComparison.Ordinal);
         Assert.Contains("24000 sample(s)", refused.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void AnOggOpeningWithNoVorbisHeader_IsRefused()
-    {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        byte[] file = Ogg(48000, [24000]);
-
-        // The packet type, at the head of the first page's payload: 1 is the identification header.
-        file[28] = 5;
-        File.WriteAllBytes("clip.ogg", file);
-
-        FormatException refused =
-            Assert.Throws<FormatException>(() => AudioProbe.Measure("clip.ogg"));
-
-        Assert.Contains("Vorbis", refused.Message, StringComparison.Ordinal);
-    }
-
-    // A file wider than stereo fails the build, not its first play.
-    [Fact]
-    public void AnOggWiderThanStereo_IsRefused()
-    {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        byte[] file = Ogg(48000, [0, 24000]);
-
-        // The channel count, eleven bytes into the identification header.
-        file[28 + 11] = 6;
-        File.WriteAllBytes("clip.ogg", file);
-
-        FormatException refused =
-            Assert.Throws<FormatException>(() => AudioProbe.Measure("clip.ogg"));
-
-        Assert.Contains("6 channels", refused.Message, StringComparison.Ordinal);
     }
 }

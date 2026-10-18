@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Reflection;
-using Capsule.Scenes.Spawning;
 
 namespace Capsule.Scenes;
 
@@ -45,7 +44,7 @@ public sealed class SceneRegistryBuilder
     }
 
     /// <summary>The registry over everything added.</summary>
-    /// <exception cref="ArgumentException">Two assemblies register the same type key, scene class, scene document or applier.</exception>
+    /// <exception cref="ArgumentException">Two assemblies register the same type key, scene class or scene document.</exception>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public SceneRegistry Build()
     {

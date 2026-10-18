@@ -9,8 +9,11 @@ namespace Capsule.Tests.Physics;
 /// </summary>
 public sealed class ShapeUnionTests
 {
+    // The one union member ShapeKind2D does not name: a polygon with a radius.
+    private const string RoundedPolygon = nameof(RoundedPolygon);
+
     public static TheoryData<string> Union =>
-        [nameof(ShapeKind2D.Circle), nameof(ShapeKind2D.Capsule), nameof(ShapeKind2D.Box), nameof(ShapeKind2D.Polygon), "RoundedPolygon"];
+        [nameof(ShapeKind2D.Circle), nameof(ShapeKind2D.Capsule), nameof(ShapeKind2D.Box), nameof(ShapeKind2D.Polygon), RoundedPolygon];
 
     [Theory]
     [MemberData(nameof(Union))]
@@ -29,6 +32,18 @@ public sealed class ShapeUnionTests
         Assert.Equal(target, contacts[0].Target.Layer);
     }
 
+    // The ray runs through the shape's centre, where its leftmost point is its bounds' left edge.
+    [Theory]
+    [MemberData(nameof(Union))]
+    public void EveryShape_StopsARayAtItsNearSide(string kind)
+    {
+        CollisionWorld2D world = new();
+        Shape2D shape = Of(kind);
+        world.Add(shape, new Vector2(50f, 50f), world.Layer("target"));
+
+        Assert.True(world.Raycast(new Vector2(0f, 50f), Vector2.UnitX, 100f, CollisionFilter.Everything, out RayHit2D hit));
+        Assert.Equal(50f + shape.Bounds.Min.X, hit.Distance, 3);
+    }
 
     [Theory]
     [MemberData(nameof(Union))]
@@ -62,8 +77,9 @@ public sealed class ShapeUnionTests
         nameof(ShapeKind2D.Box) => Shape2D.Box(new Vector2(-10f, -10f), new Vector2(20f, 20f)),
         nameof(ShapeKind2D.Polygon) => Shape2D.Polygon(
             [new Vector2(-10f, 0f), new Vector2(0f, -10f), new Vector2(10f, 0f), new Vector2(0f, 10f)]),
-        _ => Shape2D.Polygon(
+        RoundedPolygon => Shape2D.Polygon(
             [new Vector2(-8f, 0f), new Vector2(0f, -8f), new Vector2(8f, 0f), new Vector2(0f, 8f)],
             3f),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "The kind names no shape in Union. Add the shape to Union and to Of together."),
     };
 }

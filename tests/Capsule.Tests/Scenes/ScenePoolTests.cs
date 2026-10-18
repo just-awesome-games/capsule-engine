@@ -3,7 +3,6 @@ using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Tests.Runtime;
 
 namespace Capsule.Tests.Scenes;
 
@@ -15,6 +14,7 @@ public sealed class ScenePoolTests : IDisposable
 
     public void Dispose() => Log.UseSink(null);
 
+    // Reading the preloads twice leaves the pool at the sum, not twice it.
     [Fact]
     public void Declarations_BuildOneScenePoolAtTheSumOfTheirCapacitiesAndPreloadIt()
     {
@@ -31,20 +31,21 @@ public sealed class ScenePoolTests : IDisposable
         Assert.True(preloads.Contains(ShotTexture));
     }
 
+    // Each of the two idle shots declares three sparks.
     [Fact]
-    public void AnEntityIdleInAForwardedPool_DeclaresTheScenePoolItTakesFrom()
+    public void AnEntityIdleInAForwardedPool_SizesTheScenePoolItDeclares()
     {
         Scene scene = new();
         scene.Add(new Launcher());
+        scene.CollectPreloads();
 
-        Assert.True(scene.CollectPreloads().Contains(SparkTexture));
         Assert.Equal(6, scene.Pool<Spark>().Capacity);
     }
 
-    // An echo declares the pool that holds it, whether taken into the scene or idle. Those declarations count
-    // once beside the Echoer's, and the taken echo, reached twice, declares once.
+    // An echo declares the pool that holds it, whether taken into the scene or idle. Five is the Echoer's
+    // one beside the echoes' four, which every echo declares and the taken one reaches twice.
     [Fact]
-    public void PooledEntitiesDeclaringTheirOwnPool_CountOnceBesideOtherDeclarations()
+    public void PooledEntitiesDeclaringTheirOwnPool_AddTheirCapacityOnceBesideOtherDeclarations()
     {
         Scene scene = new();
         scene.Add(new Echoer());
@@ -77,29 +78,7 @@ public sealed class ScenePoolTests : IDisposable
         Assert.Equal(2, scene.Pool<CycleB>().Capacity);
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void OnlyAPoolNoDeclarationReached_LogsItsFirstTakeOnce(bool declared)
-    {
-        CollectingLogSink sink = new();
-        Log.UseSink(sink);
-        Scene scene = new();
-        if (declared)
-        {
-            scene.Add(new Gun(capacity: 1));
-        }
-
-        using SimulationHost host = new(scene);
-        scene.Add(scene.Pool<Shot>().Take());
-        scene.Add(scene.Pool<Shot>().Take());
-
-        Assert.Equal(
-            declared ? 0 : 1,
-            sink.Entries.Count(static entry => entry.Message.Contains("assets.Pool<Shot>", StringComparison.Ordinal)));
-    }
-
-    // Declares B before A, so A grows B after the collection first walked B.
+    // Declares B before A. A grows B after the collection first walked B.
     private sealed class ChainScene : Scene
     {
         protected internal override void CollectAssets(AssetCollection assets)

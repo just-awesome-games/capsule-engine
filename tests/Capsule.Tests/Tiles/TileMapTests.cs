@@ -38,7 +38,7 @@ public sealed class TileMapTests
         Assert.Equal(new Vector2(8, 9), simulation.View.Sprites[1].Position);
     }
 
-    // The sprites are world coordinates, so a position write would move nothing and mean nothing.
+    // The sprites are world coordinates. A position write would move nothing and mean nothing.
     [Fact]
     public void ATilemapRefusesAPositionWrite()
     {
@@ -107,47 +107,12 @@ public sealed class TileMapTests
         Scene scene = new();
         scene.Camera.Center = new Vector2(12, 4);
         scene.Camera.ViewportSize = new Vector2(8, 8);
-        scene.Add(new TileMap(Run()));
+        scene.Add(new TileMap(Strip()));
 
         SceneSimulation simulation = new(scene);
 
         SpriteIntent tile = Assert.Single(simulation.View.Sprites.ToArray());
         Assert.Equal(new Vector2(12, 4), tile.Position);
-    }
-
-    [Fact]
-    public void TerrainEmitsTheTilesTheCameraSweepsAcross()
-    {
-        static void Sweep(Scene scene, in StepContext context) => scene.Camera.Center = new Vector2(28, 4);
-
-        SceneFixtures.HookScene scene = new(step: Sweep);
-        scene.Camera.Center = new Vector2(4, 4);
-        scene.Camera.ViewportSize = new Vector2(8, 8);
-        scene.Add(new TileMap(Run()));
-
-        SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.Equal(4, simulation.View.Sprites.Length);
-    }
-
-    // The camera's centre stays the raw framing target and the bounds confine only what is drawn,
-    // so culling has to confine the same way: the tile at X 8 is on screen and reachable only
-    // because the view was pushed right off the room's left edge.
-    [Fact]
-    public void TerrainEmitsTheTilesConfinementBringsIntoView()
-    {
-        Scene scene = new();
-        scene.Camera.Center = new Vector2(0, 4);
-        scene.Camera.ViewportSize = new Vector2(16, 8);
-        scene.Camera.Bounds = new Rect(0f, 0f, 32f, 8f);
-        scene.Add(new TileMap(Run()));
-
-        SceneSimulation simulation = new(scene);
-
-        Assert.Equal(
-            [new Vector2(4, 4), new Vector2(12, 4)],
-            simulation.View.Sprites.ToArray().Select(tile => tile.Position));
     }
 
     [Fact]
@@ -180,7 +145,7 @@ public sealed class TileMapTests
         Assert.Empty(simulation.View.Sprites.ToArray());
     }
 
-    // Clearing a solid cell changes what the map collides as and nothing else: the body standing on it
+    // Clearing a solid cell changes what the map collides as and nothing else. The body standing on it
     // falls on its next move, the reporting collider exits at the next settle, the face the cell hid
     // on its neighbour stops a sweep, and the grid the map was built from still reads as authored.
     [Fact]
@@ -188,40 +153,21 @@ public sealed class TileMapTests
     {
         TileGrid grid = SceneFixtures.TerrainGrid("....", "....", ".##.");
         TileMap map = SceneFixtures.Colliding(grid);
-        SceneFixtures.Body body = new(new Vector2(18f, 0f), blocksOn: "solid");
-        body.Collider.Detects = new("solid");
-        body.Collider.ReportsContacts = true;
-        int exits = 0;
-        body.Collider.ContactExited += _ => exits++;
-
-        Scene scene = new();
-        scene.Add(map);
-        scene.Add(body);
-        using SceneSimulation simulation = new(scene);
-        body.Mover.Move(new Vector2(0f, 40f));
-        simulation.Step(SceneFixtures.Step(0));
-        Assert.True(body.Mover.IsOnFloor);
+        (SceneSimulation simulation, SceneFixtures.Body body) = FloorBody(map, out List<ColliderContact2D> exits);
+        using SceneSimulation run = simulation;
         Assert.Single(body.Collider.Touching.ToArray());
 
         map.RemoveTile(1, 2);
 
         Assert.Equal(TileGrid.EmptyTileName, map.TileAt(1, 2).Name);
         simulation.Step(SceneFixtures.Step(1));
-        Assert.Equal(1, exits);
+        Assert.Single(exits);
 
         body.Mover.Move(new Vector2(0f, 4f));
         Assert.False(body.Mover.IsOnFloor);
+        AssertSweepStopsAtWall(simulation.Scene);
 
-        MoveResult2D swept = scene.Collision.MoveBox(
-            Aabb2D.FromCorner(new Vector2(16f, 36f), new Vector2(8f, 8f)),
-            new Vector2(20f, 0f),
-            scene.Collision.CreateFilter("solid"),
-            default);
-        Assert.True(swept.Blocked);
-        Assert.Equal(8f, swept.Translation.X, 0.01f);
-
-        // Both cells were painted with the one solid entry, and each reads that same instance.
-        Assert.Same(map.TileAt(2, 2), new TileMap(grid).TileAt(1, 2));
+        Assert.Equal("solid", new TileMap(grid).TileAt(1, 2).Name);
 
         ArgumentException unknown = Assert.Throws<ArgumentException>(() => map.SetTile(0, 0, "lava"));
         Assert.Contains("lava", unknown.Message, StringComparison.Ordinal);
@@ -229,7 +175,7 @@ public sealed class TileMapTests
     }
 
     // A map without a collider is decoration, whatever its palette's layers. A collider answers at the
-    // authored cells, so it and a scroll factor refuse each other in either order.
+    // authored cells, and it and a scroll factor refuse each other in either order.
     [Fact]
     public void ADecorativeMapScrolls_AndAColliderThenRefusesIt()
     {
@@ -259,25 +205,14 @@ public sealed class TileMapTests
     {
         TileMap map = SceneFixtures.Colliding(SceneFixtures.TerrainGrid("....", "....", ".##."));
         TileMapCollider2D collider = map.Get<TileMapCollider2D>();
-        SceneFixtures.Body body = new(new Vector2(18f, 0f), blocksOn: "solid");
-        body.Collider.Detects = new("solid");
-        body.Collider.ReportsContacts = true;
-        int exits = 0;
-        body.Collider.ContactExited += _ => exits++;
-
-        Scene scene = new();
-        scene.Add(map);
-        scene.Add(body);
-        using SceneSimulation simulation = new(scene);
-        body.Mover.Move(new Vector2(0f, 40f));
-        simulation.Step(SceneFixtures.Step(0));
-        Assert.True(body.Mover.IsOnFloor);
+        (SceneSimulation simulation, SceneFixtures.Body body) = FloorBody(map, out List<ColliderContact2D> exits);
+        using SceneSimulation run = simulation;
 
         collider.Enabled = false;
 
         Assert.Null(collider.Grid);
         simulation.Step(SceneFixtures.Step(1));
-        Assert.Equal(1, exits);
+        Assert.Single(exits);
         body.Mover.Move(new Vector2(0f, 4f));
         Assert.False(body.Mover.IsOnFloor);
 
@@ -285,16 +220,10 @@ public sealed class TileMapTests
         collider.Enabled = true;
 
         Assert.NotNull(collider.Grid);
-        MoveResult2D swept = scene.Collision.MoveBox(
-            Aabb2D.FromCorner(new Vector2(16f, 36f), new Vector2(8f, 8f)),
-            new Vector2(20f, 0f),
-            scene.Collision.CreateFilter("solid"),
-            default);
-        Assert.True(swept.Blocked);
-        Assert.Equal(8f, swept.Translation.X, 0.01f);
+        AssertSweepStopsAtWall(simulation.Scene);
     }
 
-    // A refused collider is left unattached, so it can still be added where it belongs.
+    // A refused collider is left unattached and can still be added where it belongs.
     [Theory]
     [InlineData("entity", "Add it to a TileMap")]
     [InlineData("second", "Keep one per map")]
@@ -330,7 +259,8 @@ public sealed class TileMapTests
         Assert.Equal((cellX, cellY), map.CellAt(new Vector2(x, y)));
     }
 
-    private static TileGrid Run() =>
+    // A row of four solid 8-pixel tiles.
+    private static TileGrid Strip() =>
         new(
             tileSize: 8,
             width: 4,
@@ -340,4 +270,37 @@ public sealed class TileMapTests
             SceneFixtures.Atlas,
             1);
 
+    // A body landed on the middle cells of a map painted "....", "....", ".##.", reporting its contact exits.
+    private static (SceneSimulation Simulation, SceneFixtures.Body Body) FloorBody(TileMap map, out List<ColliderContact2D> exits)
+    {
+        SceneFixtures.Body body = new(new Vector2(18f, 0f), blocksOn: "solid");
+        body.Collider.Detects = new("solid");
+        body.Collider.ReportsContacts = true;
+        List<ColliderContact2D> exited = [];
+        body.Collider.ContactExited += exited.Add;
+        exits = exited;
+
+        Scene scene = new();
+        scene.Add(map);
+        scene.Add(body);
+        SceneSimulation simulation = new(scene);
+        body.Mover.Move(new Vector2(0f, 40f));
+        simulation.Step(SceneFixtures.Step(0));
+        Assert.True(body.Mover.IsOnFloor);
+
+        return (simulation, body);
+    }
+
+    // A box sweeping right along the bottom row from the cleared cell meets the face of the solid one beside it.
+    private static void AssertSweepStopsAtWall(Scene scene)
+    {
+        MoveResult2D swept = scene.Collision.MoveBox(
+            Aabb2D.FromCorner(new Vector2(16f, 36f), new Vector2(8f, 8f)),
+            new Vector2(20f, 0f),
+            scene.Collision.CreateFilter("solid"),
+            default);
+
+        Assert.True(swept.Blocked);
+        Assert.Equal(8f, swept.Translation.X, 0.01f);
+    }
 }

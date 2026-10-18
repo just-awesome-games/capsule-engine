@@ -32,7 +32,7 @@ public static class AssetCollectionExtensions
 
         if (assets.GatheringScene is Scene scene)
         {
-            scene.DeclarePool<T>(capacity);
+            scene.Pools.Declare<T>(capacity);
         }
     }
 }

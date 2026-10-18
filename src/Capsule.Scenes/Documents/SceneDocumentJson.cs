@@ -7,14 +7,13 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Capsule.Assets;
-using Capsule.Scenes.Spawning;
 
-namespace Capsule.Scenes.Documents;
+namespace Capsule.Scenes;
 
-// The file shape, mapped one to one onto the JSON. Declaration order is the written order, so reordering a
+// The file shape, mapped one to one onto the JSON. Declaration order is the written order. Reordering a
 // member here changes every written document's bytes.
-// Every member is nullable where the reader must tell an omitted field from a present one, so it can
-// name the defect instead of reading a default. Each object's undeclared keys are its class's
+// Every member is nullable where the reader must tell an omitted field from a present one. The reader
+// then names the defect instead of reading a default. Each object's undeclared keys are its class's
 // [Authorable] members, which the generated applier reads and refuses when no member takes one.
 [Description("A scene document: every entity a scene places. Any other key sets the member the composing scene class marks [Authorable], the engine's own Scene members among them.")]
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Skip)]
@@ -23,7 +22,7 @@ internal sealed class SceneDocumentJson
     // The serializer reads only the declared fields. ReadMembers collects every other key in one walk of the bytes.
     private static readonly JsonTypeInfo<SceneDocumentJson> Declared = DeclaredFieldsOnly();
 
-    // Read and ignored. The writer never sets it, so no written or shipped document carries it.
+    // Read and ignored. The writer never sets it, and no written or shipped document carries it.
     [JsonPropertyName(SceneDocumentKeys.Document.Schema)]
     [JsonConverter(typeof(SchemaKeyConverter))]
     public string? Schema { get; set; }
@@ -72,7 +71,7 @@ internal sealed class SceneDocumentJson
         return document.ToDocument(utf8);
     }
 
-    // The serializer's view of the file with no extension data, so it builds no element per member.
+    // The serializer's view of the file with no extension data. It builds no element per member.
     private static JsonTypeInfo<SceneDocumentJson> DeclaredFieldsOnly()
     {
         JsonSerializerOptions options = new(SceneDocumentJsonContext.Default.Options)
@@ -104,7 +103,7 @@ internal sealed class SceneDocumentJson
             SceneDocumentEntry entry = placed[i];
             EntitySpawn spawn = entry.Spawn;
 
-            // An absent position or rotation is 0 and an absent scale is identity, so each is skipped at its default.
+            // An absent position or rotation is 0 and an absent scale is identity. Each is skipped at its default.
             entries[i] = new SceneEntryJson
             {
                 Id = entry.Id,
@@ -160,7 +159,7 @@ internal sealed class SceneDocumentJson
             documentEntries[i] = new SceneDocumentEntry(entry.Type ?? string.Empty, spawn) { Id = entry.Id, Authored = members[i + 1] };
         }
 
-        return new SceneDocument(documentEntries, members[0], BaseScene);
+        return new SceneDocument(documentEntries, members[0], BaseScene, parsed: true);
     }
 
     // The undeclared keys of the document and of each entry, or null where there are none: the document's at 0
@@ -287,7 +286,7 @@ internal sealed class SceneEntryJson
     [Range(0d, double.MaxValue, MinimumIsExclusive = true)]
     public float[]? Scale { get; set; }
 
-    // An authored 0 is an ordinary band and is written back, so it stays distinct from an absent field.
+    // An authored 0 is an ordinary band and is written back. It stays distinct from an absent field.
     [JsonPropertyName(SceneDocumentKeys.Entry.ZIndex)]
     [Description("The entry's draw band. Absent keeps the band the entity's class sets.")]
     public int? ZIndex { get; set; }

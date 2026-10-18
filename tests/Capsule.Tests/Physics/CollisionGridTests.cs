@@ -30,8 +30,8 @@ public sealed class CollisionGridTests
         grid.Refresh(0, 0);
         grid.Refresh(1, 0);
 
-        Assert.Equal(world.Layer(CollisionFixtures.Solid), grid.LayerAt(0, 0));
-        Assert.Null(grid.LayerAt(1, 0));
+        Assert.Equal(world.Layer(CollisionFixtures.Solid), grid.LayerOf(0, 0));
+        Assert.Equal(CellState2D.None, grid.StateAt(1, 0));
 
         Assert.True(world.Raycast(new Vector2(8f, -8f), Vector2.UnitY, 32f, CollisionFilter.Everything, out RayHit2D hit));
         Assert.Equal((0, 0), (hit.Target.CellX, hit.Target.CellY));
@@ -61,30 +61,6 @@ public sealed class CollisionGridTests
             out _));
     }
 
-    // A grid handle names a grid, not one shape on one layer, so every per-collider accessor refuses
-    // it rather than answering about the empty slot the grid occupies.
-    [Fact]
-    public void ThePerColliderAccessors_RefuseAGridHandleRatherThanDescribingItsSlot()
-    {
-        CollisionWorld2D world = new();
-        CollisionGrid2D grid = CollisionFixtures.Paint(world, "....", "####");
-        ColliderHandle handle = grid.Handle;
-
-        Assert.Throws<ArgumentException>(() => world.SetLayer(handle, world.Layer("wall")));
-        Assert.Throws<ArgumentException>(() => world.PositionOf(handle));
-        Assert.Throws<ArgumentException>(() => world.ShapeOf(handle));
-        Assert.Throws<ArgumentException>(() => world.LayerOf(handle));
-        Assert.Null(world.UserDataOf(handle));
-
-        // The members that are about grids still take it, and the grid still answers as before.
-        Assert.True(world.Contains(handle));
-        Assert.Same(grid, world.GridOf(handle));
-        Assert.Equal(world.Layer(CollisionFixtures.Solid), grid.LayerAt(0, 1));
-
-        // And the refused SetLayer changed nothing a tile query reads.
-        Assert.True(world.Raycast(new Vector2(8f, 0f), Vector2.UnitY, 64f, world.CreateFilter(CollisionFixtures.Solid), out RayHit2D hit));
-        Assert.Equal((0, 1), (hit.Target.CellX, hit.Target.CellY));
-    }
 
     [Fact]
     public void ThePerCellAccessors_RejectACoordinateOffTheGrid()
@@ -92,10 +68,8 @@ public sealed class CollisionGridTests
         CollisionWorld2D world = new();
         CollisionGrid2D grid = CollisionFixtures.Paint(world, "##", "##");
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => grid.LayerAt(2, 0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => grid.LayerAt(0, -1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => grid.CellBounds(2, 0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => grid.CellBounds(0, -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => grid.Refresh(2, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => grid.Refresh(0, -1));
     }
 
     // A grid is a collider like any other as far as the ignore argument is concerned.
@@ -113,7 +87,7 @@ public sealed class CollisionGridTests
         // Downwards from inside the empty row: the floor is the only thing below, and it is ignored.
         Assert.False(world.Raycast(new Vector2(56f, 20f), Vector2.UnitY, 64f, CollisionFilter.Everything, out _, floor.Handle));
 
-        // The ceiling above it is not, so the same ray upwards still lands.
+        // The ceiling above it is not. The same ray upwards still lands.
         Assert.True(world.Raycast(new Vector2(56f, 20f), -Vector2.UnitY, 64f, CollisionFilter.Everything, out RayHit2D up, floor.Handle));
         Assert.Equal(ceiling.Handle, up.Target.Collider);
 

@@ -6,7 +6,7 @@
        built on Capsule compiles out of a game's publish as the game's own does. -->
 
   <!-- The compile symbol Capsule's [Conditional] development calls answer to. Defined for every
-       ordinary build and absent from a publish, so those calls and their arguments compile out. -->
+       ordinary build and absent from a publish, where those calls and their arguments compile out. -->
   <PropertyGroup Condition="'$(CapsuleShipping)' != 'true'">
     <DefineConstants>$(DefineConstants);CAPSULE_DEVELOPMENT</DefineConstants>
   </PropertyGroup>

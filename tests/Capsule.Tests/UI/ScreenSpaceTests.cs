@@ -3,6 +3,7 @@ using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 using Capsule.UI;
+using static Capsule.Tests.UI.FocusFixtures;
 
 namespace Capsule.Tests.UI;
 
@@ -27,7 +28,7 @@ public sealed class ScreenSpaceTests
     [Fact]
     public void AWorldEntity_DrawsOnTheWorldList()
     {
-        using SimulationHost run = Run(new WorldHolder(new Vector2(4f, 5f)));
+        using SimulationHost run = Run(new SceneFixtures.Holder(new Vector2(4f, 5f), Square()));
         run.Step();
 
         FrameView view = run.Simulation.View;
@@ -39,7 +40,7 @@ public sealed class ScreenSpaceTests
     [Fact]
     public void AScreenEntity_DrawsOnTheScreenListFromItsAnchor()
     {
-        using SimulationHost run = Run(new ScreenHolder(Anchor.BottomRight, new Vector2(-10f, -20f)));
+        using SimulationHost run = Run(new ScreenHolder(Anchor.BottomRight, new Vector2(-10f, -20f), Square()));
         run.Step();
 
         FrameView view = run.Simulation.View;
@@ -54,21 +55,21 @@ public sealed class ScreenSpaceTests
     [InlineData(1f, 1f, 80f, 30f)]
     public void EveryAnchor_IsThatFractionOfTheCanvas(float x, float y, float left, float top)
     {
-        // Measured from the anchor, so a far-edge anchor is reached by a negative offset.
+        // Measured from the anchor. A far-edge anchor is reached by a negative offset.
         Vector2 offset = x + y > 1f ? new Vector2(-20f, -20f) : new Vector2(10f, 10f);
 
-        using SimulationHost run = Run(new ScreenHolder(new Anchor(x, y), offset));
+        using SimulationHost run = Run(new ScreenHolder(new Anchor(x, y), offset, Square()));
         run.Step();
 
         Assert.Equal(new Vector2(left, top), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
     }
 
-    // A UI-scale option moves the run's canvas mid-run; nothing caches the old one, so the next step
+    // A UI-scale option moves the run's canvas mid-run. Nothing caches the old one. The next step
     // anchors every screen entity against the new extent.
     [Fact]
     public void ACanvasSetDuringTheRun_IsWhatAScreenEntityAnchorsAgainstOnTheNextStep()
     {
-        using SimulationHost run = Run(new ScreenHolder(Anchor.BottomRight, new Vector2(-10f, -20f)));
+        using SimulationHost run = Run(new ScreenHolder(Anchor.BottomRight, new Vector2(-10f, -20f), Square()));
         run.Step();
         Assert.Equal(new Vector2(90f, 30f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
 
@@ -78,12 +79,12 @@ public sealed class ScreenSpaceTests
         Assert.Equal(new Vector2(190f, 80f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
     }
 
-    // Anchors resolve on every read, so a nested element follows a new canvas and a resized parent.
+    // Anchors resolve on every read. A nested element follows a new canvas and a resized parent.
     [Fact]
     public void ANestedEntity_TracksACanvasResizeAndAParentResize()
     {
         ScreenEntity panel = new(Anchor.Center, Vector2.Zero) { Size = new Vector2(40f, 20f) };
-        _ = new ScreenHolder(Anchor.BottomRight, new Vector2(-2f, -3f)) { Parent = panel, Size = new Vector2(4f, 4f) };
+        _ = new ScreenHolder(Anchor.BottomRight, new Vector2(-2f, -3f), Square()) { Parent = panel, Size = new Vector2(4f, 4f) };
 
         using SimulationHost run = Run(panel);
         run.Step();
@@ -114,7 +115,7 @@ public sealed class ScreenSpaceTests
         run.Step();
 
         // The inside is (10, 5) to (80, 35). X spans its right half and ignores the size, and Y is a point on its bottom edge.
-        Assert.Equal(new Rect(46f, 29f, 81f, 33f), rect.Bounds);
+        Assert.Equal(Rect.FromEdges(46f, 29f, 81f, 33f), rect.Bounds);
     }
 
     // Nested, the parent's uneven scale stretches the anchor point but never shears the turned rect.
@@ -160,7 +161,7 @@ public sealed class ScreenSpaceTests
     [Fact]
     public void EveryRendererAScreenEntityHolds_FollowsItWithNoFlagOfItsOwn()
     {
-        ScreenHolder holder = new(Anchor.TopLeft, new Vector2(1f, 2f));
+        ScreenHolder holder = new(Anchor.TopLeft, new Vector2(1f, 2f), Square());
         holder.Add(new ColorRect(new Vector2(4f, 4f)) { Offset = new Vector2(10f, 0f) });
 
         using SimulationHost run = Run(holder);
@@ -174,14 +175,14 @@ public sealed class ScreenSpaceTests
     public void ABandedScreenEntity_StillDrawsOverEveryWorldEntity()
     {
         Scene scene = new();
-        scene.Add(new WorldHolder(Vector2.Zero) { ZIndex = 100 });
-        scene.Add(new ScreenHolder(Anchor.TopLeft, Vector2.Zero) { ZIndex = -100 });
+        scene.Add(new SceneFixtures.Holder(Vector2.Zero, Square()) { ZIndex = 100 });
+        scene.Add(new ScreenHolder(Anchor.TopLeft, Vector2.Zero, Square()) { ZIndex = -100 });
 
         using SimulationHost run = new(scene, run: new Run { Canvas = Canvas });
         run.Step();
 
         // Two lists, never one ordering: the screen layer is drawn after the world whatever the bands
-        // say, so a high world band cannot reach over it.
+        // say. A high world band cannot reach over it.
         Assert.Single(run.Simulation.View.Sprites.ToArray());
         Assert.Single(run.Simulation.View.ScreenSprites.ToArray());
     }
@@ -194,31 +195,9 @@ public sealed class ScreenSpaceTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new Anchor(1f, 0f, 0f, 1f));
     }
 
-    private static SimulationHost Run(Entity holder)
-    {
-        Scene scene = new();
-        scene.Add(holder);
+    private static SimulationHost Run(Entity holder) => SceneFixtures.Simulate(new Run { Canvas = Canvas }, holder);
 
-        return new SimulationHost(scene, run: new Run { Canvas = Canvas });
-    }
-
-    private sealed class WorldHolder : Entity
-    {
-        internal WorldHolder(Vector2 position)
-            : base(position)
-        {
-            Add(new ColorRect(new Vector2(8f, 8f)));
-        }
-    }
-
-    private sealed class ScreenHolder : ScreenEntity
-    {
-        internal ScreenHolder(Anchor anchor, Vector2 offset)
-            : base(anchor, offset)
-        {
-            Add(new ColorRect(new Vector2(8f, 8f)));
-        }
-    }
+    private static ColorRect Square() => new(new Vector2(8f, 8f));
 
     private sealed class Mover() : ScreenEntity(Anchor.TopLeft, Vector2.Zero)
     {

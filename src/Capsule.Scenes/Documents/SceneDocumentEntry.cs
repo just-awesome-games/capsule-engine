@@ -1,8 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
-using Capsule.Scenes.Spawning;
 
-namespace Capsule.Scenes.Documents;
+namespace Capsule.Scenes;
 
 /// <summary>One entry in a scene document's ordered list: the entity class it places, where, and the members it authors.</summary>
 /// <example>
@@ -29,6 +28,9 @@ public readonly record struct SceneDocumentEntry(string Type, EntitySpawn Spawn,
     // Members an importer handed in that are not an object, kept for the document to refuse naming the entry.
     internal JsonElement? NotAnObject { get; init; } = Refused(Members);
 
+    /// <summary>The id an entity reference names this entry by, or null when nothing references it.</summary>
+    public int? Id { get; init; }
+
     /// <summary>An entry placing its entity at the world origin, unturned and at scale one.</summary>
     /// <param name="type">The type key of the entity class the entry places.</param>
     /// <param name="members">The entry's authorable member values as one JSON object, or null when it authors none.</param>
@@ -36,9 +38,6 @@ public readonly record struct SceneDocumentEntry(string Type, EntitySpawn Spawn,
         : this(type, new EntitySpawn(Vector2.Zero), members)
     {
     }
-
-    /// <summary>The id an entity reference names this entry by, or null when nothing references it.</summary>
-    public int? Id { get; init; }
 
     /// <summary>The entry's authorable member values as one JSON object, or null when it authors none.</summary>
     /// <remarks>Each read builds a new object, which holds every key once.</remarks>

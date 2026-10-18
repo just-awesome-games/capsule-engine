@@ -1,6 +1,7 @@
+using System.ComponentModel;
 using Capsule.Assets;
 
-namespace Capsule.Scenes.Documents;
+namespace Capsule.Scenes;
 
 /// <summary>The keys a scene document reserves for its own structure, grouped by the object that holds them.</summary>
 /// <remarks>
@@ -72,12 +73,10 @@ public static class SceneDocumentKeys
     }
 
     /// <summary>The keys of an object a member holds, at any depth below the document or an entry.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static class MemberObject
     {
         /// <summary>The type key of the subclass to construct in place of the member's own class.</summary>
         public const string Type = Entry.Type;
-
-        /// <summary>Whether a member's object reserves <paramref name="key"/>, compared ordinally.</summary>
-        public static bool Contains(string key) => key == Type;
     }
 }

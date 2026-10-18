@@ -1,8 +1,3 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.UI;
-
 namespace MinimalGame.Game.UI;
 
 /// <summary>
@@ -26,7 +21,7 @@ public sealed class PauseMenu : ScreenEntity
     public PauseMenu()
         : base(Anchor.Fill, Vector2.Zero)
     {
-        // Steps only while the scene is paused, so its focus never reads the player's input.
+        // Steps only while the scene is paused. Its focus never reads the player's input.
         StepMode = StepMode.WhenPaused;
         Add(new ColorRect { Color = DimColor });
 

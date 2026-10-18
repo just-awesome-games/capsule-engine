@@ -44,8 +44,8 @@ internal static class PropertyForms
         $"Use {string.Join(", ", BuiltIns.Select(static form => form.Type).Concat(Assets.Select(static asset => asset.Type)).Select(static type => type.Replace("global::", string.Empty)))}, "
         + "an enum or a nullable of one of those, an Entity class or an interface, a class declaring [Authorable] members, "
         + "an array of any type here but a nullable or an array, a ReadOnlyMemory of a built-in type, an enum or a definition, "
-        + "declare [JsonConverter(typeof(...))] on the type, or give a readonly struct, or a record class without settable members, "
-        + "public static readonly fields of its own type for a document to name";
+        + "a type declaring [JsonConverter(typeof(...))], or a readonly struct or a record class without settable members "
+        + "whose public static readonly fields of its own type a document names";
 
     internal static BuiltInForm? BuiltIn(string type) => Array.Find(BuiltIns, form => form.Type == type);
 

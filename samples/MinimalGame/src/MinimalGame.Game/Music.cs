@@ -1,5 +1,3 @@
-using Capsule.Audio;
-
 namespace MinimalGame.Game;
 
 /// <summary>The one music voice, kept on the run so every scene declares its track and none holds a voice.</summary>
@@ -25,7 +23,7 @@ public sealed class Music(AudioMixer mixer)
             return;
         }
 
-        // After Stop the old voice is still fading on its own tail; the new track fades in beside it.
+        // After Stop the old voice is still fading on its own tail. The new track fades in beside it.
         Voice from = _clip == default ? Voice.None : _voice;
         _voice = mixer.CrossFade(from, new AudioPlayback(clip) { Bus = AudioBuses.Music, Loop = true }, seconds);
         _clip = clip;

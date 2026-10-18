@@ -1,8 +1,8 @@
 using Capsule.Input;
-using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
+using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Runtime;
 
@@ -134,11 +134,9 @@ public sealed class SchedulerHoldTests
 
     private static SceneHost CreateHost() =>
         new(
-            SceneTransition.ToScene(typeof(DriverScene), null),
-            static (in SceneTransition _) => new DriverScene(),
+            SceneTransition.ToScene(typeof(SceneFixtures.Idle), null),
+            static (in SceneTransition _) => new SceneFixtures.Idle(),
             new Run());
-
-    private sealed class DriverScene : Scene;
 
     private sealed class RecordingDriver : IInputDriver
     {

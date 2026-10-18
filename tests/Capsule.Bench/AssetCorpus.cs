@@ -12,7 +12,7 @@ namespace Capsule.Bench;
 internal sealed class AssetCorpus
 {
     // Bump it whenever what the generator writes changes. The next run deletes the corpus and writes it
-    // again, and records name it, so a new corpus reads as one and not as a jump in the history.
+    // again, and records name it. A new corpus reads as one and not as a jump in the history.
     internal const int Version = 3;
 
     private const string VersionFile = "corpus.version";
@@ -69,7 +69,7 @@ internal sealed class AssetCorpus
         Console.WriteLine($"bench: generating the asset corpus under {corpus.Root}");
         corpus.Generate();
 
-        // Written last, so a generation that stopped part way is generated again.
+        // Written last. A generation that stopped part way is generated again.
         File.WriteAllText(stamp, Version.ToString(CultureInfo.InvariantCulture));
 
         return corpus;

@@ -8,12 +8,12 @@ namespace Capsule.Assets;
 //   a key is a document's place under Assets/, without extensions: "scenes/stage-1/room-01".
 //
 // Neither can reach outside the directory the build owns. This file is also compiled into
-// Capsule.Generators, which references no engine assembly, so nothing here may use a type
+// Capsule.Generators, which references no engine assembly. Nothing here may use a type
 // netstandard2.0 lacks.
 internal static class AssetPaths
 {
-    // Windows resolves these as devices from any directory, matching on the stem before the first dot, so
-    // a directory or file with one of these names does not behave as a file.
+    // Windows resolves these as devices from any directory, matching on the stem before the first dot. A
+    // directory or file with one of these names does not behave as a file.
     private static readonly string[] ReservedDeviceNames =
     [
         "CON", "PRN", "AUX", "NUL",
@@ -21,7 +21,7 @@ internal static class AssetPaths
         "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
     ];
 
-    // A key is the path a file is written at, so its segments admit only the characters a file name can
+    // A key is the path a file is written at. Its segments admit only the characters a file name can
     // carry on every platform Capsule targets.
     internal static bool IsKey(string key)
     {
@@ -76,9 +76,9 @@ internal static class AssetPaths
         return false;
     }
 
-    // Reduces every '/'-joined segment to the kebab form of the identifier it names, so
-    // "Enemies/Bat", "enemies/bat" and "enemies/Bat" are one key. Idempotent, since the kebab form
-    // of an identifier names that identifier again. Returns null when a segment names no
+    // Reduces every '/'-joined segment to the kebab form of the identifier it names. "Enemies/Bat",
+    // "enemies/bat" and "enemies/Bat" are one key. The kebab form of an identifier names that
+    // identifier again, and reducing a key twice changes nothing. Returns null when a segment names no
     // identifier, and hands that segment back in rejected. The build, the generator and a scene's
     // load all key through this one rule.
     internal static string? NormalizeKey(string key, out string? rejected)

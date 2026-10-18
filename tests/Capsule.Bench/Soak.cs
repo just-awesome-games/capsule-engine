@@ -13,8 +13,6 @@ namespace Capsule.Bench;
 /// </remarks>
 public class Soak : IInputDriver
 {
-    private const int WarmUpSteps = 180;
-
     private const int StepsPerClockRead = 256;
 
     // Null when the driver builds no frame.
@@ -44,10 +42,10 @@ public class Soak : IInputDriver
 
         if (_view is not null)
         {
-            scene.DrawFrame(_view);
+            scene.Drawing.DrawFrame(_view);
         }
 
-        if (tick == WarmUpSteps)
+        if (tick == StepTimer.WarmUpSteps)
         {
             _gen0AtStart = GC.CollectionCount(0);
             _gen1AtStart = GC.CollectionCount(1);
@@ -57,12 +55,12 @@ public class Soak : IInputDriver
             _threadBytesAtStart = GC.GetAllocatedBytesForCurrentThread();
             _startedAt = Stopwatch.GetTimestamp();
         }
-        else if (tick > WarmUpSteps && (tick - WarmUpSteps) % StepsPerClockRead == 0)
+        else if (tick > StepTimer.WarmUpSteps && (tick - StepTimer.WarmUpSteps) % StepsPerClockRead == 0)
         {
             _heapMax = Math.Max(_heapMax, GC.GetTotalMemory(forceFullCollection: false));
             if (Stopwatch.GetElapsedTime(_startedAt).TotalSeconds >= Seconds)
             {
-                Report(tick - WarmUpSteps);
+                Report(tick - StepTimer.WarmUpSteps);
                 return false;
             }
         }

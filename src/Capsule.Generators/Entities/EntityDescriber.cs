@@ -137,7 +137,7 @@ internal static class EntityDescriber
             Compilation compilation = declaring.Compilation;
             INamedTypeSymbol? spawnType = compilation.GetTypeByMetadataName(MetadataNames.EntitySpawn);
 
-            // Binding a fresh model per candidate would cost a game its edit loop, so reuse the
+            // Binding a fresh model per candidate would cost a game its edit loop. Reuse the
             // candidate's model unless the constructor is declared in another tree.
             SemanticModel model = declaring.SyntaxTree == syntax.SyntaxTree
                 ? declaring

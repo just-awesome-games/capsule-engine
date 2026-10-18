@@ -27,7 +27,7 @@ internal sealed class DynamicTree2D
 {
     internal const int NullNode = -1;
 
-    // World units of slack around a proxy's tight bounds, so ordinary motion costs a bounds write
+    // World units of slack around a proxy's tight bounds. Ordinary motion then costs a bounds write
     // instead of a reinsertion. The second is world units of lookahead per unit of displacement, and
     // the third caps the lookahead on each axis. A jump far past the cap is a teleport, not travel.
     private const float BoundsMargin = 2f;
@@ -36,7 +36,7 @@ internal sealed class DynamicTree2D
 
     private Node[] _nodes = new Node[16];
 
-    // A walk holds at most one waiting sibling per level below the root plus the root itself, so the
+    // A walk holds at most one waiting sibling per level below the root plus the root itself. The
     // tree's height bounds it. InsertLeaf grows it, and no walk does.
     private int[] _stack = new int[64];
     private int _root = NullNode;
@@ -47,7 +47,7 @@ internal sealed class DynamicTree2D
     internal int UserDataOf(int proxyId) => _nodes[proxyId].UserData;
 
     // Grows the node pool to hold proxies leaves and their branches. The added nodes queue behind the
-    // free ones, so nodes are handed out in the order growing on demand would hand them out.
+    // free ones and are handed out in the order growing on demand would hand them out.
     internal void Reserve(int proxies)
     {
         int previous = _nodes.Length;

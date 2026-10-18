@@ -9,7 +9,7 @@ namespace Capsule.Runtime;
 internal sealed class FrameDiagnostics : IDisposable
 {
     // Rows fill one of two buffers. A full buffer is handed to the writer thread and the other takes
-    // over, so the frame path writes the file once, for the boot trace on the first frame, and never
+    // over. The frame path writes the file once, for the boot trace on the first frame, and never
     // waits on the disk unless the writer falls a full buffer behind. An ungraceful kill loses at most
     // the buffer being filled and the buffer being written.
     private const int FlushEvery = 300;
@@ -173,7 +173,7 @@ internal sealed class FrameDiagnostics : IDisposable
     private static double Milliseconds(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
 
     // The Stopwatch timestamp the process began at. StartTime is local wall clock and the markers
-    // are a monotonic counter, so the two are anchored once.
+    // are a monotonic counter. The two are anchored once.
     private static long ProcessStartTimestamp()
     {
         using Process process = Process.GetCurrentProcess();
@@ -182,7 +182,7 @@ internal sealed class FrameDiagnostics : IDisposable
         return Stopwatch.GetTimestamp() - (long)(elapsedSeconds * Stopwatch.Frequency);
     }
 
-    // Called on the first frame, before any row reaches the writer thread, so one thread touches the
+    // Called on the first frame, before any row reaches the writer thread. One thread touches the
     // writer at a time.
     private void WriteBootTrace()
     {

@@ -93,7 +93,7 @@ public sealed class PackageTests
 
         Assert.True(pack.ExitCode == 0, $"dotnet pack of {id} failed. Build the solution in {configuration} first.{Environment.NewLine}{log.Result}{errors.Result}");
 
-        // Read whole, so the directory goes before the assertions run.
+        // Read whole. The directory goes before the assertions run.
         MemoryStream bytes = new(File.ReadAllBytes(Directory.EnumerateFiles(output, $"{id}.*.nupkg").Single()));
         Directory.Delete(output, recursive: true);
         return new ZipArchive(bytes, ZipArchiveMode.Read);

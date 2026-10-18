@@ -1,8 +1,3 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.UI;
-
 namespace MinimalGame.Game.UI;
 
 /// <summary>
@@ -23,21 +18,8 @@ public sealed class Meter : ScreenEntity
 
     private readonly ColorRect _bed = new() { Color = BedColor };
 
-    /// <param name="anchor">Where the meter sits in its display's rect.</param>
-    /// <param name="offset">Canvas pixels from that point to the same point of the meter.</param>
-    public Meter(Anchor anchor, Vector2 offset)
-        : base(anchor, offset)
-    {
-        Size = BedSize;
-        Padding = new Insets(1f);
-        Add(_bed);
-
-        _fill.Parent = this;
-        _fill.Add(new ColorRect { Color = FillColor });
-    }
-
     /// <summary>
-    /// The share of the bed the fill covers, 0 to 1; a value outside that is clamped to it. Full
+    /// The share of the bed the fill covers, 0 to 1, with a value outside that clamped to it. Full
     /// until something sets it.
     /// </summary>
     public float Fraction
@@ -50,6 +32,19 @@ public sealed class Meter : ScreenEntity
             _fill.Anchor = new Anchor(0f, 0f, field, 1f);
         }
     } = 1f;
+
+    /// <param name="anchor">Where the meter sits in its display's rect.</param>
+    /// <param name="offset">Canvas pixels from that point to the same point of the meter.</param>
+    public Meter(Anchor anchor, Vector2 offset)
+        : base(anchor, offset)
+    {
+        Size = BedSize;
+        Padding = new Insets(1f);
+        Add(_bed);
+
+        _fill.Parent = this;
+        _fill.Add(new ColorRect { Color = FillColor });
+    }
 
     /// <summary>Whether <paramref name="point"/>, in canvas pixels, lies on the bed.</summary>
     public bool Contains(Vector2 point) => _bed.Bounds.Contains(point);

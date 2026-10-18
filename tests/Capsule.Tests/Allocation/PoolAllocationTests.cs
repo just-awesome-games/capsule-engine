@@ -11,14 +11,13 @@ namespace Capsule.Tests.Allocation;
 [Collection(StageAllocationCollection.Name)]
 public sealed class PoolAllocationTests
 {
-    private const double StepSeconds = 1.0 / 60.0;
     private const int Pooled = 12;
     private const int FirstWave = 4;
     private const int Lifetime = 4;
     private const int WaveGap = 8;
 
     // One entity is out when the scene pool grows to five. Its four idle peers fill a stack doubled to
-    // four, so its return needs the room the reservation made.
+    // four. Its return needs the room the reservation made.
     private const int Lingering = 5;
 
     [Fact]
@@ -45,7 +44,7 @@ public sealed class PoolAllocationTests
         scene.Add(spawner);
         using SceneSimulation simulation = new(scene, run: StageWorkload.Defaults);
 
-        return StepMeasurement.Measure(simulation, StepSeconds, warmupSteps: FirstWave - 1, measuredSteps: WaveGap * 3);
+        return StepMeasurement.Measure(simulation, warmupSteps: FirstWave - 1, measuredSteps: WaveGap * 3);
     }
 
     private sealed class Wall : Entity

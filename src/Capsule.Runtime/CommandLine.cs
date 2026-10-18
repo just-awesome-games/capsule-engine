@@ -25,10 +25,6 @@ internal sealed class CommandLine
           --help                     print this and exit
         """;
 
-    private CommandLine()
-    {
-    }
-
     internal bool HelpRequested { get; private set; }
 
     internal string? DriverName { get; private set; }
@@ -51,6 +47,10 @@ internal sealed class CommandLine
 
     // The saves directory, null unless --saves was given.
     internal string? SavesPath { get; private set; }
+
+    private CommandLine()
+    {
+    }
 
     // `development` is the process's Development.IsSupported. It is a parameter to let a test read the
     // usage a shipping build prints.

@@ -25,7 +25,7 @@
       <Using Namespace="System.IO" />
       <Using Namespace="System.Reflection" />
       <Code Type="Fragment" Language="cs"><![CDATA[
-        // From bytes, so the build never holds the shell open. Manifest names load no reference.
+        // From bytes. The build never holds the shell open. Manifest names load no reference.
         string[] names = Assembly.Load(File.ReadAllBytes(AssemblyPath)).GetManifestResourceNames();
         if (Array.IndexOf(names, "Icon.bmp") < 0)
         {

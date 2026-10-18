@@ -1,7 +1,3 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.UI;
-
 namespace MinimalGame.Game.UI;
 
 /// <summary>One row of a menu holding a level from 0 to 1 in tenths.</summary>
@@ -41,7 +37,7 @@ public sealed class VolumeSlider : ScreenEntity
 
         _bar = new ColorRect { Visible = false };
 
-        // Components fill the outer rect, so the caption is moved in by the padding itself.
+        // Components fill the outer rect. The caption is moved in by the padding itself.
         _caption = new Label(CapsuleAssets.Fonts.MenuFont, text)
         {
             Offset = new Vector2(HorizontalPadding, 0f),
@@ -51,10 +47,9 @@ public sealed class VolumeSlider : ScreenEntity
 
         _meter.Parent = this;
 
-        // The menu's navigator gathers this row, so nothing else needs to hold it.
+        // The menu's navigator gathers this row, and nothing else needs to hold it.
         Focusable focus = new() { Adjusts = Axis.Horizontal };
-        focus.Focused += OnFocused;
-        focus.Unfocused += OnUnfocused;
+        MenuItem.Highlight(focus, _caption, _bar);
         focus.Adjusted += step => Set(Value + (step / 10f));
         focus.Dragged += drag =>
         {
@@ -65,13 +60,12 @@ public sealed class VolumeSlider : ScreenEntity
             }
         };
 
-        // The bar is attached first, so the caption draws over it.
         Add(_bar);
         Add(_caption);
         Add(focus);
     }
 
-    // Rounded to tenths, so a drag and the arrows land on the same levels.
+    // Rounded to tenths, where a drag and the arrows land on the same levels.
     private void Set(float level)
     {
         float stepped = Math.Clamp(MathF.Round(level * 10f) / 10f, 0f, 1f);
@@ -83,17 +77,5 @@ public sealed class VolumeSlider : ScreenEntity
 
         Value = stepped;
         Changed?.Invoke(stepped);
-    }
-
-    private void OnFocused()
-    {
-        _caption.Color = MenuItem.FocusedInk;
-        _bar.Visible = true;
-    }
-
-    private void OnUnfocused()
-    {
-        _caption.Color = MenuItem.RestingInk;
-        _bar.Visible = false;
     }
 }

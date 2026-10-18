@@ -85,8 +85,8 @@ public sealed class ActiveDeviceTests
     [Fact]
     public void ADrivenRun_MovesTheActiveDeviceFromTheScriptsPadPress()
     {
-        Recording scene = new();
-        using SceneHost host = new(SceneTransition.ToScene(typeof(Recording), null), (in SceneTransition _) => scene, new Run());
+        DeviceRecorder scene = new();
+        using SceneHost host = new(SceneTransition.ToScene(typeof(DeviceRecorder), null), (in SceneTransition _) => scene, new Run());
         IInputDriver driver = new InputScript().Wait(1).Tap(PadButton.South).Wait(1).Build();
         FixedStepScheduler scheduler = new(0.1, 32, new ActionBindings(), driver, host);
 
@@ -100,7 +100,7 @@ public sealed class ActiveDeviceTests
         Assert.Equal([false, true, false], scene.Changes);
     }
 
-    private sealed class Recording : Scene
+    private sealed class DeviceRecorder : Scene
     {
         internal List<InputDevice> Devices { get; } = [];
 

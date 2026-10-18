@@ -140,7 +140,7 @@ public sealed class InputScriptTests
 
     private static List<DeviceSnapshot> Steps(IInputDriver driver)
     {
-        Blank scene = new();
+        Scene scene = new();
         List<DeviceSnapshot> steps = [];
 
         for (long tick = 0; driver.TryNext(scene, tick, out DeviceSnapshot snapshot); tick++)
@@ -150,6 +150,4 @@ public sealed class InputScriptTests
 
         return steps;
     }
-
-    private sealed class Blank : Scene;
 }

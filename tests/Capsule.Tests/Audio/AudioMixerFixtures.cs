@@ -1,6 +1,5 @@
 using Capsule.Audio;
 using Capsule.Input;
-using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Audio;

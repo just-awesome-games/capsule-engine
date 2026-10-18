@@ -2,7 +2,6 @@ using System.Numerics;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Tests.Runtime;
 using Capsule.UI;
 
 namespace Capsule.Tests.Scenes;

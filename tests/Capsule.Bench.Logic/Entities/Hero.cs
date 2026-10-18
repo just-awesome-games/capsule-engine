@@ -1,8 +1,3 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace Capsule.Bench.Logic.Entities;
 
 public sealed class Hero : Entity

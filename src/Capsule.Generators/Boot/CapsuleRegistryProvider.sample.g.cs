@@ -9,26 +9,27 @@ namespace Capsule.Generated
     [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     internal sealed class CapsuleGeneratedRegistryProviderAttribute : global::System.Attribute
     {
-        public CapsuleGeneratedRegistryProviderAttribute(global::System.Type providerType) => ProviderType = providerType;
         public global::System.Type ProviderType { get; }
+        public CapsuleGeneratedRegistryProviderAttribute(global::System.Type providerType) => ProviderType = providerType;
     }
 
     [global::System.AttributeUsage(global::System.AttributeTargets.Assembly, AllowMultiple = true)]
     [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     internal sealed class CapsuleGeneratedRegistryClaimAttribute : global::System.Attribute
     {
+        public int Kind { get; }
+        public string Key { get; }
+        public global::System.Type DeclaringType { get; }
         public CapsuleGeneratedRegistryClaimAttribute(int kind, string key, global::System.Type declaringType)
         {
             Kind = kind;
             Key = key;
             DeclaringType = declaringType;
         }
-        public int Kind { get; }
-        public string Key { get; }
-        public global::System.Type DeclaringType { get; }
     }
 
-    /// <summary>This assembly's registries, read by the shell's generated <c>CapsuleBoot</c> and by <c>CapsuleScenes.Registry</c>. Generated code. Do not edit.</summary>
+    /// <summary>This assembly's registries, read by the shell's generated <c>CapsuleBoot</c> and by <c>CapsuleScenes.Registry</c>.</summary>
+    /// <remarks>Generated code. Do not edit.</remarks>
     [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]
     [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class CapsuleRegistryProvider_AssetSpecs_F172E44D

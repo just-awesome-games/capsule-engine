@@ -1,9 +1,6 @@
-using System.Numerics;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Cameras;
 
-/// <summary>Sweeps a closed path of two triangle waves with different periods, so the visible region changes every step and never settles.</summary>
+/// <summary>Sweeps a closed path of two triangle waves with different periods, and the visible region changes every step and never settles.</summary>
 public sealed class LoopCamera : Camera
 {
     private const int PeriodX = 600;

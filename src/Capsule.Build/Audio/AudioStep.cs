@@ -27,7 +27,7 @@ internal static class AudioStep
             },
             DerivationCacheJsonContext.Default.Measurement))
         {
-            pass.Assets.Beside(GeneratedAttributes.Asset);
+            pass.Assets.Beside(GeneratedAttributes.AssetDeclaration);
             pass.Declare(clip, measured, AudioMembers.Write);
         }
     }

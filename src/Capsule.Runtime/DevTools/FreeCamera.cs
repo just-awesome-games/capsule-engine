@@ -34,10 +34,6 @@ internal sealed class FreeCamera
     internal const double FlightMinSeconds = 0.2;
     internal const double FlightMaxSeconds = 0.6;
 
-    // A centre closer than this share of the wider end's span counts as the same centre. The flight is then a
-    // pure zoom.
-    private const double PureZoomShare = 1e-6;
-
     private readonly SceneHost _scenes;
     private readonly FixedStepScheduler _scheduler;
 

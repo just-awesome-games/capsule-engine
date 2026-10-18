@@ -164,7 +164,7 @@ public sealed class RumbleTests
     }
 
     // Four steps at 60 Hz spend a fifteenth of a second, the change arriving on the fourth. At 120 Hz
-    // the remaining thirtieth is four more steps, so the pulse ends on tick 8 and not on the tick 6 a
+    // the remaining thirtieth is four more steps. The pulse ends on tick 8 and not on the tick 6 a
     // plain tick count would give.
     [Fact]
     public void AChangedStepLength_KeepsAPulsesRemainingSeconds()

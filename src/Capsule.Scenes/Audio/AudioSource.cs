@@ -18,11 +18,11 @@ namespace Capsule.Audio;
 /// <param name="clip">The clip <see cref="Play()"/> starts.</param>
 /// <example>
 /// <code>
-/// _footfall = new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx };
-/// Add(_footfall);
+/// _creak = new AudioSource(CapsuleAssets.Audio.DoorCreakSound) { Bus = AudioBuses.Sfx };
+/// Add(_creak);
 ///
-/// // On the step the body lands:
-/// _footfall.Play();
+/// // On the step the door starts to open:
+/// _creak.Play();
 /// </code>
 /// </example>
 public sealed class AudioSource(AudioClip clip) : Component
@@ -35,6 +35,9 @@ public sealed class AudioSource(AudioClip clip) : Component
     private float _volume = 1f;
     private float _pitch = 1f;
     private float _pan;
+
+    // Whether OnStart has run. A later join is a pooled or moved entity's, which AutoPlay replays on.
+    private bool _started;
 
     /// <summary>The clip <see cref="Play()"/> starts and <see cref="Component.CollectAssets"/> declares. Read at each play.</summary>
     public AudioClip Clip { get; set; } = clip;
@@ -51,8 +54,7 @@ public sealed class AudioSource(AudioClip clip) : Component
         get => _volume;
         set
         {
-            Guard.InUnit(value, nameof(value));
-            _volume = value;
+            _volume = Guard.InUnit(value, nameof(value));
             _playing?.SetVolume(_voice, value);
         }
     }
@@ -85,8 +87,7 @@ public sealed class AudioSource(AudioClip clip) : Component
         get => _pitch;
         set
         {
-            Guard.Positive(value, nameof(value));
-            _pitch = value;
+            _pitch = Guard.Positive(value, nameof(value));
             _playing?.SetPitch(_voice, value);
         }
     }
@@ -105,8 +106,7 @@ public sealed class AudioSource(AudioClip clip) : Component
         get => _pan;
         set
         {
-            Guard.InRange(value, -1f, 1f, nameof(value));
-            _pan = value;
+            _pan = Guard.InRange(value, -1f, 1f, nameof(value));
             _playing?.SetPan(_voice, value);
         }
     }
@@ -129,8 +129,8 @@ public sealed class AudioSource(AudioClip clip) : Component
     /// </remarks>
     public bool Loop { get; set; }
 
-    /// <summary>Whether the source starts playing in <see cref="Component.OnStart"/>.</summary>
-    public bool PlayOnStart { get; set; }
+    /// <summary>Whether the source plays each time its entity joins a scene, a pooled entity's later joins included.</summary>
+    public bool AutoPlay { get; set; }
 
     /// <summary>
     /// Whether this source still owns a voice, either sounding or held by its own pause or its
@@ -256,10 +256,21 @@ public sealed class AudioSource(AudioClip clip) : Component
         }
     }
 
+    /// <summary>Plays a rejoining source that has <see cref="AutoPlay"/> set, as its first join's start did.</summary>
+    /// <inheritdoc/>
+    protected internal override void OnAddedToScene()
+    {
+        if (_started && AutoPlay)
+        {
+            Play();
+        }
+    }
+
     /// <inheritdoc/>
     protected internal override void OnStart()
     {
-        if (PlayOnStart)
+        _started = true;
+        if (AutoPlay)
         {
             Play();
         }
@@ -270,7 +281,7 @@ public sealed class AudioSource(AudioClip clip) : Component
 
     private AudioMixer Mixer() =>
         Entity?.SceneOrNull?.RunOrNull?.Audio
-        ?? throw new InvalidOperationException($"{nameof(AudioSource)} is on no entity in a scene, so {Scene.NoRunYet}");
+        ?? throw new InvalidOperationException($"{nameof(AudioSource)} is on no entity in a scene and has no run yet. {Scene.NoRunYet}");
 
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
@@ -285,7 +296,7 @@ public sealed class AudioSource(AudioClip clip) : Component
         panel.Field("IsPaused", IsPaused);
         panel.Field("IsFading", IsFading);
         panel.Toggle("Loop", Loop, on => Loop = on);
-        panel.Toggle("PlayOnStart", PlayOnStart, on => PlayOnStart = on);
+        panel.Toggle("AutoPlay", AutoPlay, on => AutoPlay = on);
         panel.Command("Play", Play);
         panel.Command("Stop", Stop);
         panel.Command("Pause", Pause);

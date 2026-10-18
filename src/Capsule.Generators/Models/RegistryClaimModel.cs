@@ -2,8 +2,11 @@ namespace Capsule.Generators;
 
 /// <summary>
 /// What a registry claim attribute claims a key for. A logic assembly writes the value as an int
-/// and the shell reads it back, so a member's value never changes.
+/// and the shell reads it back.
 /// </summary>
+/// <remarks>
+/// A member's value never changes.
+/// </remarks>
 internal enum RegistryClaimKind
 {
     Entity = 0,

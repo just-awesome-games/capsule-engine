@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using Capsule.Assets;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Generators;
@@ -9,12 +8,23 @@ internal static class EntityResolver
 {
     internal static EntityPlan Resolve(EntityInputs inputs)
     {
-        if (!inputs.IsLogicAssembly)
+        if (!inputs.Shared.IsLogicAssembly)
         {
             return default;
         }
 
         ImmutableArray<EntityModel> models = inputs.EngineTileMap is { } engine ? inputs.Models.Items.Add(engine) : inputs.Models.Items;
+
+        // Every class's key, faulted ones included, which a document still names as claimed.
+        Dictionary<string, string?> keys = new(StringComparer.Ordinal);
+        foreach (EntityModel model in models)
+        {
+            if (!keys.ContainsKey(model.QualifiedName))
+            {
+                keys.Add(model.QualifiedName, RegistryPass.KeyOf(model, inputs.Shared.RootNamespace));
+            }
+        }
+
         List<Diagnostic> diagnostics = [];
         List<RegisteredEntity> sound = [];
         RegistryPass.ValidateAndOrder(
@@ -26,14 +36,9 @@ internal static class EntityResolver
             static model => Reported(model.Fault),
             model =>
             {
-                string key = KeyOf(model, inputs.RootNamespace);
-                if (AssetPaths.IsKey(key))
+                if (RegistryPass.Claimed(diagnostics, model, keys[model.QualifiedName]) is { } key)
                 {
                     sound.Add(new RegisteredEntity(key, model));
-                }
-                else
-                {
-                    diagnostics.Add(Diagnostic.Create(Diagnostics.UnsafeTypeKey, model.At.Location(), model.DisplayName, key));
                 }
             });
 
@@ -51,13 +56,13 @@ internal static class EntityResolver
             static entry => entry.Model.At,
             Diagnostics.DuplicateTypeKey);
 
-        ImmutableArray<string> claimed = [.. models
-            .Select(model => KeyOf(model, inputs.RootNamespace))
+        ImmutableArray<string> claimed = [.. keys.Values
+            .OfType<string>()
             .Distinct(StringComparer.Ordinal)
             .OrderBy(static key => key, StringComparer.Ordinal)];
 
         List<EntityModel> placed = [.. registered.Where(static entry => !entry.Model.CodeOnly).Select(static entry => entry.Model)];
-        EquatableArray<KeyedObject> objects = ObjectRenderer.Keyed(placed.SelectMany(static model => model.Objects.Items), inputs.RootNamespace, diagnostics);
+        EquatableArray<KeyedObject> objects = ObjectRenderer.Keyed(placed.SelectMany(static model => model.Objects.Items), inputs.Shared.RootNamespace, diagnostics);
         IEnumerable<PropertyModel> authored = placed.SelectMany(static model => model.Authored).Concat(ObjectRenderer.Authored(objects));
 
         return new EntityPlan(
@@ -65,7 +70,7 @@ internal static class EntityResolver
             new([.. registered]),
             new(claimed),
             objects,
-            Lookups(authored, new AssetTable(inputs.Assets.Items, inputs.Documents.Items)),
+            Lookups(authored, new AssetTable(inputs.Shared.Assets.Items, inputs.Shared.Documents.Items)),
             new([.. diagnostics]));
     }
 
@@ -79,11 +84,6 @@ internal static class EntityResolver
         EntityFault.SpawnNotPassedToBase => Diagnostics.SpawnNotPassedToBase,
         _ => null,
     };
-
-    // The key comes from where the type is declared, so it is not settled until the assembly's root
-    // namespace is known. An explicit [TypeKey] names the full key under the same grammar.
-    private static string KeyOf(EntityModel model, string rootNamespace) =>
-        model.Declared ?? TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
 
     // One lookup per asset type an authored member takes, in PropertyForms.Assets order, keyed as the build declared each asset.
     internal static EquatableArray<AssetLookup> Lookups(IEnumerable<PropertyModel> authored, AssetTable assets) =>

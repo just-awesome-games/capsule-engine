@@ -50,17 +50,17 @@ public sealed class TextureMapTests
     {
         TextureMap map = Parse(Map);
         int loads = 0;
-        using SceneAssetStore<TextureHandle, FakePage> store = SyncStore.Over<TextureHandle, FakePage>(handle =>
+        using SceneAssetStore<TextureHandle, DisposalProbe> store = SyncStore.Over<TextureHandle, DisposalProbe>(handle =>
         {
             loads++;
-            return new FakePage();
+            return new DisposalProbe();
         });
         TextureHandle[] preloads = [Hero, Loose, Tiles];
         Assert.Equal([Page0, Loose, Page0], map.Residency(preloads));
         Assert.Same(preloads, TextureMap.Empty.Residency(preloads));
 
         store.ChangeScene(map.Residency([Hero, Tiles]));
-        FakePage page = store.Get(Page0);
+        DisposalProbe page = store.Get(Page0);
 
         Assert.Equal(1, loads);
 
@@ -92,7 +92,7 @@ public sealed class TextureMapTests
         Assert.Throws<InvalidDataException>(() => Parse(json));
     }
 
-    // A packed texture's page holds its neighbours' texels, so its own size bounds a region, not the page's.
+    // A packed texture's page holds its neighbours' texels. Its own size bounds a region, not the page's.
     [Fact]
     public void ARegionPastAPackedTexturesOwnSize_IsRefused()
     {
@@ -114,12 +114,5 @@ public sealed class TextureMapTests
         using MemoryStream stream = new(Encoding.UTF8.GetBytes(json));
 
         return TextureMap.Parse(stream, "textures.json");
-    }
-
-    private sealed class FakePage : IDisposable
-    {
-        internal bool Disposed { get; private set; }
-
-        public void Dispose() => Disposed = true;
     }
 }

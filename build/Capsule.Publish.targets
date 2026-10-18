@@ -39,7 +39,7 @@
       <ResolvedFileToPublish Remove="@(_CapsuleReferenceSymbol)" />
 
       <_CapsulePublishSymbol Include="@(_CapsuleReferenceSymbol)" Condition="'$(PublishAot)' != 'true'" />
-      <!-- NativeAOT empties this list, so it holds the entry pdb of a managed publish only. -->
+      <!-- NativeAOT empties this list. It holds the entry pdb of a managed publish only. -->
       <_CapsulePublishSymbol Include="@(_DebugSymbolsIntermediatePath)" Condition="'$(_DebugSymbolsProduced)' == 'true'">
         <RelativePath>%(Filename)%(Extension)</RelativePath>
       </_CapsulePublishSymbol>

@@ -1,9 +1,6 @@
-using System.Numerics;
-using Capsule.Rendering;
-
 namespace Capsule.Bench.Logic.Components;
 
-// No engine component draws a line, so the still frame's three are added here.
+// No engine component draws a line. The still frame's three are added here.
 public sealed class LineStrokes : Renderer
 {
     protected override void Draw(FrameView view)

@@ -1,15 +1,13 @@
 using System.Numerics;
 using System.Text;
-using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Rendering;
 
 public sealed class RichLabelTests
 {
-    // Every character the markup tests write has a glyph, so a literal tag shows as its own characters.
+    // Every character the markup tests write has a glyph. A literal tag shows as its own characters.
     private const string Alphabet = "[]/=#colrspiteanABf0x ";
 
     [Theory]
@@ -47,7 +45,7 @@ public sealed class RichLabelTests
         Assert.Equal("<ff0000ff>A", Describe(host, ColorRgba.White));
     }
 
-    // Each change alters what the base label draws, so a layout cached across it would fail.
+    // Each change alters what the base label draws. A layout cached across it would fail.
     [Theory]
     [InlineData("text")]
     [InlineData("font")]
@@ -73,7 +71,7 @@ public sealed class RichLabelTests
 
         Assert.Equal(freshHost.Simulation.View.Sprites.ToArray(), host.Simulation.View.Sprites.ToArray());
 
-        // Each word fills most of the 15 pixel box, so every one takes a line.
+        // Each word fills most of the 15 pixel box. Every one takes a line.
         static Label Wrapped()
         {
             Label label = RichLabel("AB [color=#ff0000]BA[/color] AB");

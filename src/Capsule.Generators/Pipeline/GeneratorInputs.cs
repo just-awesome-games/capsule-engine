@@ -16,22 +16,19 @@ internal readonly record struct ProjectConfiguration(
     internal bool IsShellAssembly => Role == GeneratorRole.Shell && RuntimeReferenced;
 }
 
-/// <summary>What the entity resolver reads.</summary>
-/// <param name="EngineTileMap">The engine's tile map, which every logic assembly registers under its key.</param>
-internal readonly record struct EntityInputs(
-    EquatableArray<EntityModel> Models,
-    EntityModel? EngineTileMap,
+/// <summary>What both registry resolvers read beside their own models: the project and what the build declared.</summary>
+/// <param name="Documents">Every scene document the build shipped.</param>
+/// <param name="Assets">Every texture and sound the build declared.</param>
+internal readonly record struct RegistryInputs(
     bool IsLogicAssembly,
     string RootNamespace,
     EquatableArray<SceneDocumentModel> Documents,
     EquatableArray<AssetModel> Assets);
 
+/// <summary>What the entity resolver reads.</summary>
+/// <param name="EngineTileMap">The engine's tile map, which every logic assembly registers under its key.</param>
+internal readonly record struct EntityInputs(EquatableArray<EntityModel> Models, EntityModel? EngineTileMap, RegistryInputs Shared);
+
 /// <summary>What the scene resolver reads.</summary>
 /// <param name="EngineScene">The engine's plain Scene, which a document naming no class composes.</param>
-internal readonly record struct SceneInputs(
-    EquatableArray<SceneModel> Models,
-    SceneModel? EngineScene,
-    bool IsLogicAssembly,
-    string RootNamespace,
-    EquatableArray<SceneDocumentModel> Documents,
-    EquatableArray<AssetModel> Assets);
+internal readonly record struct SceneInputs(EquatableArray<SceneModel> Models, SceneModel? EngineScene, RegistryInputs Shared);

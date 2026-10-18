@@ -1,20 +1,15 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Diagnostics;
-using Capsule.Input;
-using Capsule.Physics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
 using MinimalGame.Game.UI;
 
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// An invisible area that shows one line of text across its top while the player stands in it,
-/// after an optional prompt for the action the line is about. Each placement sizes its own area and writes
-/// its own line. The line is its own, so it reacts itself.
+/// An invisible area that shows one line of text across its top while the player stands in it, after an
+/// optional prompt for the action the line is about.
 /// </summary>
+/// <remarks>
+/// Each placement sizes its own area and writes its own line. The zone reacts itself because the line is
+/// its own.
+/// </remarks>
 public sealed class HintZone : Entity
 {
     private const string Channel = "Zones";
@@ -71,7 +66,7 @@ public sealed class HintZone : Entity
         panel.Field("Showing", _hint.Visible);
     }
 
-    // The prompt and the line are centred together across the top. The prompt has stepped by now, so its
+    // The prompt and the line are centred together across the top. The prompt has stepped by now, and its
     // width is this step's.
     /// <inheritdoc/>
     protected override void OnLateStep(in StepContext context)

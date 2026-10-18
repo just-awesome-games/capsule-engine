@@ -4,11 +4,11 @@ using Capsule.Build.Caching;
 namespace Capsule.Build;
 
 /// <summary>
-/// Every source an importer claims, imported under <c>imported/</c> and requested in its place. The
-/// key pass then reads each output as though it were authored at its path below the asset root. A
-/// shipping pass imports no source under a development-only directory and drops it from the requests.
+/// Every source an importer claims, imported under <c>imported/</c> and requested in its place.
 /// </summary>
 /// <remarks>
+/// The key pass then reads each output as though it were authored at its path below the asset root. A
+/// shipping pass imports no source under a development-only directory and drops it from the requests.
 /// An import is a cached derivation of its source and every file it read through its
 /// <see cref="AssetImportContext"/>. A reused import keeps the outputs it wrote. An output no import
 /// claims this run is deleted.
@@ -20,7 +20,6 @@ internal static class ImportStep
     internal static void Run(PipelinePass pass)
     {
         string requestedRoot = BuildRequests.Relative(pass.Imported.Root);
-        string[] developmentOnly = pass.Requests.Shipping ? Keys.DevelopmentOnlyDirectories(pass.Requests) : [];
         List<Request> native = [];
         List<(Request Source, IAssetImporter Importer)> claimed = [];
         foreach (Request request in pass.Requests.Sources)
@@ -29,7 +28,7 @@ internal static class ImportStep
             {
                 native.Add(request);
             }
-            else if (!Keys.IsUnder(developmentOnly, Keys.Below(request.Root ?? pass.Requests.AssetRoot, request.Path)))
+            else if (!Keys.IsUnder(pass.DevelopmentOnly, Keys.Below(request.Root ?? pass.Requests.AssetRoot, request.Path)))
             {
                 claimed.Add((request, importer));
             }

@@ -2,9 +2,7 @@ using System.Globalization;
 using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Runtime;
-using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
 using Capsule.Tests.Runtime;
 
 namespace Capsule.Tests.Diagnostics;
@@ -12,7 +10,7 @@ namespace Capsule.Tests.Diagnostics;
 [Collection(LogSinkCollection.Name)]
 public sealed class LogTests : IDisposable
 {
-    // Log's sink is write-only, so a test cannot put back what it found; silent is where a
+    // Log's sink is write-only. A test cannot put back what it found. Silent is where a
     // headless run starts.
     public void Dispose() => Log.UseSink(null);
 
@@ -77,7 +75,7 @@ public sealed class LogTests : IDisposable
 
         Assert.Equal(1, sink.Attempts);
 
-        // Nothing reaches it again, so a sink that fails once cannot go on failing.
+        // Nothing reaches it again. A sink that fails once cannot go on failing.
         Log.Info("and the one after");
         Log.Warning("and another");
 
@@ -91,8 +89,8 @@ public sealed class LogTests : IDisposable
         Assert.Single(replacement.Entries);
     }
 
-    // WithLogSink documents the shape for people reading their game's output, so the tick, the
-    // level and the message are a contract; the columns they are padded into are not.
+    // WithLogSink documents the shape for people reading their game's output. The tick, the
+    // level and the message are a contract. The columns they are padded into are not.
     [Theory]
     [InlineData(LogLevel.Debug, 0L, "debug")]
     [InlineData(LogLevel.Info, 0L, "info")]
@@ -120,7 +118,7 @@ public sealed class LogTests : IDisposable
         {
             CapsuleEngine.Configure(
                     "Logging Game",
-                    new DesktopPlatform(),
+                    new ContentPlatform(),
                     new SceneRegistry(
                         new EntityRegistry([]),
                         [SceneRegistration.Plain(typeof(Announcing), static _ => new Announcing())]))

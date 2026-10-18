@@ -7,7 +7,7 @@ namespace Capsule.Tests.Animation;
 
 public sealed class SpriteAnimatorPauseTests
 {
-    // Shoot finishes five ticks in, so twenty held steps would have finished it many times over.
+    // Shoot finishes five ticks in. Twenty held steps would have finished it many times over.
     [Fact]
     public void AHeldClipNeitherAdvancesNorFinishes()
     {
@@ -63,7 +63,7 @@ public sealed class SpriteAnimatorPauseTests
         Assert.Equal(2, animator.Tick);
         Assert.Equal(Frame(11), renderer.Sprite);
 
-        // The held steps spent the step Play would have held its frame for, so resuming advances.
+        // The held steps spent the step Play would have held its frame for. Resuming advances.
         animator.Paused = false;
         run.Step();
 

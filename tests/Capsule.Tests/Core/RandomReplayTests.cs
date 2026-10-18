@@ -1,10 +1,8 @@
-using Capsule.Tests.Scenes;
-
 namespace Capsule.Tests.Core;
 
 public sealed class RandomReplayTests
 {
-    // The raw stream is the replay contract: every other draw is derived from it, so pinning it
+    // The raw stream is the replay contract: every other draw is derived from it. Pinning it
     // pins them all. The distributions are covered by their own specs rather than by golden bits.
     [Fact]
     public void ReplayOutputsAreStable()

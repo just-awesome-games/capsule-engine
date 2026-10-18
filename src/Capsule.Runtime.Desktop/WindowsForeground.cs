@@ -50,7 +50,7 @@ internal static class WindowsForeground
         internal nuint ExtraInfo;
     }
 
-    // INPUT. The union's largest member is MOUSEINPUT, so carrying only it gives the native size.
+    // INPUT. The union's largest member is MOUSEINPUT. Carrying only it gives the native size.
     [StructLayout(LayoutKind.Sequential)]
     private struct Input
     {

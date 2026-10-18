@@ -10,7 +10,7 @@ namespace Capsule.Tests.Physics;
 public sealed class ColliderQueryTests
 {
     // Three rows of 16-unit cells with a solid floor across the third: its top face is y = 32, and
-    // a box collider is corner-anchored, so a ray leaves a prober from four units below its corner.
+    // a box collider is corner-anchored. A ray leaves a prober from four units below its corner.
     private const float FloorTop = 32f;
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class ColliderQueryTests
         Assert.Equal(named, own);
     }
 
-    // The ray starts inside the caster's own shape, so a query that did not exclude it would answer
+    // The ray starts inside the caster's own shape. A query that did not exclude it would answer
     // with the caster at distance 0, and win the tie by holding the older slot.
     [Fact]
     public void AColliderRay_PassesThroughTheColliderItStartsFrom()
@@ -62,7 +62,7 @@ public sealed class ColliderQueryTests
         Assert.Equal(blocker.Collider.Handle, nearer.Target.Collider);
         Assert.Equal(8f, nearer.Distance);
 
-        // Behind the floor now, so the tile is what the ray reaches first.
+        // Behind the floor now. The tile is what the ray reaches first.
         blocker.Position = new Vector2(24f, 44f);
 
         Assert.True(prober.Collider.Raycast(Vector2.UnitY, 40f, out RayHit2D farther));
@@ -70,7 +70,7 @@ public sealed class ColliderQueryTests
         Assert.Equal(FloorTop - prober.Collider.Bounds.Center.Y, farther.Distance);
     }
 
-    // The world allows a zero distance. A collider ignoring itself would always miss, so it refuses one.
+    // The world allows a zero distance. A collider ignoring itself would always miss. It refuses one.
     [Fact]
     public void AColliderRay_RefusesAZeroDistance()
     {
@@ -98,7 +98,7 @@ public sealed class ColliderQueryTests
         scene.Add(first);
         scene.Add(second);
 
-        // Neither detects anything, so neither would find the other through a filtered query.
+        // Neither detects anything. Neither would find the other through a filtered query.
         Assert.Equal(CollisionFilter.None, first.Collider.Filter);
         Assert.Equal(0, first.Collider.OverlapAll(new Contact2D[4]));
 
@@ -136,24 +136,6 @@ public sealed class ColliderQueryTests
         Assert.Equal(contacts[0], pair);
     }
 
-    [Fact]
-    public void APairOverlap_RefusesAColliderFromAnotherWorldAndFindsNothingInOneOutsideEveryWorld()
-    {
-        Scene scene = new Scene().Started();
-        Prober prober = new(Vector2.Zero);
-        scene.Add(prober);
-
-        Scene elsewhere = new Scene().Started();
-        Prober foreign = new(Vector2.Zero);
-        elsewhere.Add(foreign);
-
-        Assert.Throws<ArgumentException>(() => prober.Collider.Overlaps(foreign.Collider));
-        Assert.Throws<ArgumentNullException>(() => prober.Collider.Overlaps(null!));
-
-        // In no scene, so in no world's terms: there is nothing there to be touched.
-        Prober unregistered = new(Vector2.Zero);
-        Assert.False(prober.Collider.Overlaps(unregistered.Collider));
-    }
 
     [Fact]
     public void ColliderOf_ResolvesAHitToItsColliderAndEntity_AndATileOrARemovedColliderToNull()

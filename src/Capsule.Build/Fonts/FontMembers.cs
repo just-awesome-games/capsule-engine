@@ -6,7 +6,7 @@ namespace Capsule.Build.Fonts;
 /// <summary>Writes a font's member: a <c>BitmapFont</c> carrying the metrics, glyphs and kerning its <c>.fnt</c> declares.</summary>
 internal static class FontMembers
 {
-    // A font is a class, so the member hands back a single instance built once from literal data
+    // A font is a class. The member hands back a single instance built once from literal data
     // instead of rebuilding its tables per call.
     internal static void Write(StringBuilder code, string indent, string identifier, Source authored, (BmFontDescription Described, Source[] Pages) font)
     {

@@ -25,6 +25,15 @@ public readonly record struct Transform2D
     private readonly float _cos;
     private readonly float _sin;
 
+    /// <summary>The offset, in the units of the space this transform sits in.</summary>
+    public Vector2 Position { get; }
+
+    /// <summary>The turn, in radians, clockwise positive in the Y-down plane.</summary>
+    public float Rotation { get; }
+
+    /// <summary>The size per axis.</summary>
+    public Vector2 Scale { get; }
+
     /// <summary>A place and a turn at scale one.</summary>
     public Transform2D(Vector2 position, float rotation = 0f)
         : this(position, rotation, Vector2.One)
@@ -51,15 +60,6 @@ public readonly record struct Transform2D
 
     /// <summary>No offset, no turn and scale one. Placing a point through it leaves the point alone.</summary>
     public static Transform2D Identity => new(Vector2.Zero);
-
-    /// <summary>The offset, in the units of the space this transform sits in.</summary>
-    public Vector2 Position { get; }
-
-    /// <summary>The turn, in radians, clockwise positive in the Y-down plane.</summary>
-    public float Rotation { get; }
-
-    /// <summary>The size per axis.</summary>
-    public Vector2 Scale { get; }
 
     /// <summary>Whether exactly one axis of <see cref="Scale"/> is negative, flipping handedness.</summary>
     public bool Mirrored => Scale.X * Scale.Y < 0f;
@@ -93,7 +93,7 @@ public readonly record struct Transform2D
     /// </summary>
     public Transform2D Compose(Transform2D local)
     {
-        // A mirror conjugates the inner turn, so its sine flips with its rotation. Its cosine is even.
+        // A mirror conjugates the inner turn. Its sine flips with its rotation, and its cosine is even.
         float localSin = Mirrored ? -local._sin : local._sin;
         float cos = (_cos * local._cos) - (_sin * localSin);
         float sin = (_sin * local._cos) + (_cos * localSin);

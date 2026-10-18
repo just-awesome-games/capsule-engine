@@ -1,7 +1,6 @@
 using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Scenes;
 
@@ -70,7 +69,7 @@ public sealed class SceneViewTests
         Assert.Equal(new Vector2(21, 20), drifter.Position);
     }
 
-    // The pivot is in region texels and the corner math scales it with the region, so a frame
+    // The pivot is in region texels and the corner math scales it with the region. A frame
     // anchored at its centre stays centred on the entity however large it is drawn.
     [Fact]
     public void AScaledSprite_KeepsItsPivotOnTheEntitysPosition()
@@ -92,7 +91,7 @@ public sealed class SceneViewTests
         // Twice the frame, still hung from its middle: the rect straddles the swept position by
         // eight world units on every side rather than hanging off one corner of it.
         Assert.True(body.TryGetSweptBounds(out Rect swept));
-        Assert.Equal(new Rect(42f, 42f, 59f, 58f), swept);
+        Assert.Equal(Rect.FromEdges(42f, 42f, 59f, 58f), swept);
     }
 
     // The rect a pointer hit-tests a sprite against: at rest on the current position, the pivot
@@ -108,14 +107,14 @@ public sealed class SceneViewTests
 
         Assert.True(sprite.Bounds.IsEmpty);
 
-        // Pivot (6, 4) once mirrored, so two region columns and four rows of the frame hang past the
-        // position it is drawn at, each at its own axis's scale; the offset is scaled with them.
+        // Pivot (6, 4) once mirrored. Two region columns and four rows of the frame hang past the
+        // position it is drawn at, each at its own axis's scale. The offset is scaled with them.
         new SceneFixtures.Drifter(new Vector2(50, 50)) { Scale = new Vector2(2, 3) }.Add(sprite);
 
-        Assert.Equal(new Rect(40f, 38f, 56f, 50f), sprite.Bounds);
+        Assert.Equal(Rect.FromEdges(40f, 38f, 56f, 50f), sprite.Bounds);
     }
 
-    // A zero axis of the entity's scale makes an extent the frame view already refuses, so the
+    // A zero axis of the entity's scale makes an extent the frame view already refuses. The
     // sprite is culled rather than drawn inside out.
     [Fact]
     public void ASpriteScaledToNothing_DrawsNothing()
@@ -132,7 +131,7 @@ public sealed class SceneViewTests
         Assert.Empty(simulation.View.Sprites.ToArray());
     }
 
-    // A negative axis is a mirror about the pivot, exactly what a flip is, so it folds into the
+    // A negative axis is a mirror about the pivot, exactly what a flip is. It folds into the
     // flip and the frame keeps its extent.
     [Fact]
     public void ANegativeEntityScale_MirrorsTheFrameAboutItsPivot()

@@ -1,7 +1,4 @@
-using System.Numerics;
 using Capsule.Bench.Logic.Components;
-using Capsule.Rendering;
-using Capsule.UI;
 
 namespace Capsule.Bench.Logic.UI;
 

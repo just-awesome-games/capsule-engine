@@ -13,7 +13,8 @@ namespace Capsule.Generated
         }
     }
 
-    /// <summary>Every scene this assembly declares. Generated code. Do not edit.</summary>
+    /// <summary>Every scene this assembly declares.</summary>
+    /// <remarks>Generated code. Do not edit.</remarks>
     [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class CapsuleScenes
     {
@@ -44,7 +45,7 @@ namespace Capsule.Generated
             return scenes.Build();
         }
 
-        private static void Apply_Capsule_Scenes_Scene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.Spawning.AuthoredMembers members)
+        private static void Apply_Capsule_Scenes_Scene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.AuthoredMembers members)
         {
             global::Capsule.Scenes.Scene scene = (global::Capsule.Scenes.Scene)composed;
             if (members.Has("camera"))
@@ -74,7 +75,7 @@ namespace Capsule.Generated
             }
         }
 
-        private static void Apply_Game_PlayableScene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.Spawning.AuthoredMembers members)
+        private static void Apply_Game_PlayableScene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.AuthoredMembers members)
         {
             global::Game.PlayableScene scene = (global::Game.PlayableScene)composed;
             if (members.Has("camera"))
@@ -108,7 +109,7 @@ namespace Capsule.Generated
             }
         }
 
-        private static global::Capsule.Scenes.Camera Object_Capsule_Scenes_Camera(global::Capsule.Scenes.Camera? held, global::Capsule.Scenes.Spawning.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
+        private static global::Capsule.Scenes.Camera Object_Capsule_Scenes_Camera(global::Capsule.Scenes.Camera? held, global::Capsule.Scenes.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
         {
             null => held switch
             {
@@ -120,7 +121,7 @@ namespace Capsule.Generated
             _ => throw members.NotAType("game-camera"),
         };
 
-        private static global::Capsule.Scenes.Camera Fill_Capsule_Scenes_Camera(global::Capsule.Scenes.Camera target, global::Capsule.Scenes.Spawning.AuthoredMembers members)
+        private static global::Capsule.Scenes.Camera Fill_Capsule_Scenes_Camera(global::Capsule.Scenes.Camera target, global::Capsule.Scenes.AuthoredMembers members)
         {
             if (members.Has("scrollCenter"))
             {
@@ -129,7 +130,7 @@ namespace Capsule.Generated
             return target;
         }
 
-        private static global::Game.GameCamera Fill_Game_GameCamera(global::Game.GameCamera target, global::Capsule.Scenes.Spawning.AuthoredMembers members)
+        private static global::Game.GameCamera Fill_Game_GameCamera(global::Game.GameCamera target, global::Capsule.Scenes.AuthoredMembers members)
         {
             if (members.Has("scrollCenter"))
             {

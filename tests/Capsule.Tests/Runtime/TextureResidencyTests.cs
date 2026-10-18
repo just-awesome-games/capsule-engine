@@ -3,72 +3,24 @@ using Capsule.Runtime.Assets;
 
 namespace Capsule.Tests.Runtime;
 
-// Where a handle's file has to be, and how scene-owned assets load and leave memory.
+// How scene-owned assets load and leave memory.
 public sealed class TextureResidencyTests
 {
     private static readonly TextureHandle Hero = new("hero", ".png");
 
     private static readonly TextureHandle Tiles = new("tiles", ".png");
 
-    // A handle's name is the source's path under Assets/, so a nested asset resolves to a nested file,
-    // with the format's separator whatever the platform's is. What the handle names is what Open
-    // reads once the file ships there.
-    [Theory]
-    [InlineData("hero", "assets/hero.png")]
-    [InlineData("textures/enemies/bat", "assets/textures/enemies/bat.png")]
-    public void AHandle_NamesAndLocatesItsFileAtItsPath(string name, string expected)
-    {
-        TextureHandle handle = new(name, ".png");
-        using Shipped shipped = new(handle);
-
-        Assert.Equal(expected, TextureStore.RelativePathOf(handle));
-        using Stream opened = TextureStore.Open(shipped.Platform, handle);
-        Assert.Equal(System.IO.Path.GetFullPath(shipped.Path), Assert.IsType<FileStream>(opened).Name);
-    }
-
-    [Fact]
-    public void Open_FailsNamingTheHandleAndThePathItLookedIn()
-    {
-        using Shipped shipped = new();
-
-        FileNotFoundException error = Assert.Throws<FileNotFoundException>(
-            () => TextureStore.Open(shipped.Platform, Hero));
-
-        Assert.Contains("'hero'", error.Message, StringComparison.Ordinal);
-        Assert.Contains("assets/hero.png", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Open_RejectsAHandleThatWouldResolveOutsideTheContentRoot()
-    {
-        using Shipped shipped = new();
-        string outside = System.IO.Path.Combine(shipped.BaseDirectory, "outside.png");
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(outside)!);
-        File.WriteAllBytes(outside, []);
-        TextureHandle escaping = new("../outside", ".png");
-
-        Assert.Throws<ArgumentException>(() => TextureStore.Open(shipped.Platform, escaping));
-    }
-
-    [Fact]
-    public void Open_RejectsTheDefaultHandleBeforeLookingForAFile()
-    {
-        using Shipped shipped = new();
-
-        Assert.Throws<ArgumentException>(() => TextureStore.Open(shipped.Platform, default));
-    }
-
     [Fact]
     public void ChangingScene_ReusesSharedAssetsAndReleasesOldPreloadsAndLazyLoads()
     {
         TextureHandle sharedHandle = new("shared", ".png");
         TextureHandle nextHandle = new("next", ".png");
-        using SceneAssetStore<TextureHandle, FakeTexture> store = SyncStore.Over<TextureHandle, FakeTexture>(
-            static handle => new FakeTexture(handle.Name));
+        using SceneAssetStore<TextureHandle, DisposalProbe> store = SyncStore.Over<TextureHandle, DisposalProbe>(
+            static handle => new DisposalProbe(handle.Name));
         store.ChangeScene([Hero, sharedHandle]);
-        FakeTexture hero = store.Get(Hero);
-        FakeTexture shared = store.Get(sharedHandle);
-        FakeTexture lazy = store.Get(Tiles);
+        DisposalProbe hero = store.Get(Hero);
+        DisposalProbe shared = store.Get(sharedHandle);
+        DisposalProbe lazy = store.Get(Tiles);
 
         store.ChangeScene([sharedHandle, nextHandle]);
 
@@ -80,14 +32,14 @@ public sealed class TextureResidencyTests
     }
 
     // Pins that a transition leaks nothing: the store releases the outgoing scene's texture as it
-    // takes the incoming one, so residency after the first transition never grows.
+    // takes the incoming one. Residency after the first transition never grows.
     [Fact]
     public void AHundredTransitionsBetweenTwoScenes_LeaveResidencyWhereTheFirstTransitionPutIt()
     {
-        List<FakeTexture> loaded = [];
-        using SceneAssetStore<TextureHandle, FakeTexture> store = SyncStore.Over<TextureHandle, FakeTexture>(handle =>
+        List<DisposalProbe> loaded = [];
+        using SceneAssetStore<TextureHandle, DisposalProbe> store = SyncStore.Over<TextureHandle, DisposalProbe>(handle =>
         {
-            FakeTexture texture = new(handle.Name);
+            DisposalProbe texture = new(handle.Name);
             loaded.Add(texture);
 
             return texture;
@@ -111,16 +63,16 @@ public sealed class TextureResidencyTests
     public void APreloadFailure_RetainsPriorAssetsAndDisposesStagedAssets()
     {
         TextureHandle stagedHandle = new("staged", ".png");
-        FakeTexture? staged = null;
+        DisposalProbe? staged = null;
         bool fail = false;
-        using SceneAssetStore<TextureHandle, FakeTexture> store = SyncStore.Over<TextureHandle, FakeTexture>(handle =>
+        using SceneAssetStore<TextureHandle, DisposalProbe> store = SyncStore.Over<TextureHandle, DisposalProbe>(handle =>
         {
             if (fail && handle == Tiles)
             {
                 throw new InvalidDataException("decode failed");
             }
 
-            FakeTexture loaded = new(handle.Name);
+            DisposalProbe loaded = new(handle.Name);
             if (handle == stagedHandle)
             {
                 staged = loaded;
@@ -129,8 +81,8 @@ public sealed class TextureResidencyTests
             return loaded;
         });
         store.ChangeScene([Hero]);
-        FakeTexture hero = store.Get(Hero);
-        FakeTexture lazy = store.Get(new TextureHandle("lazy", ".png"));
+        DisposalProbe hero = store.Get(Hero);
+        DisposalProbe lazy = store.Get(new TextureHandle("lazy", ".png"));
         fail = true;
 
         Assert.Throws<InvalidDataException>(
@@ -146,10 +98,10 @@ public sealed class TextureResidencyTests
     [Fact]
     public void AFailureInAnotherStore_RollsBackAllStagedAssets()
     {
-        FakeTexture? staged = null;
-        using SceneAssetStore<TextureHandle, FakeTexture> textures = SyncStore.Over<TextureHandle, FakeTexture>(handle =>
+        DisposalProbe? staged = null;
+        using SceneAssetStore<TextureHandle, DisposalProbe> textures = SyncStore.Over<TextureHandle, DisposalProbe>(handle =>
         {
-            FakeTexture texture = new(handle.Name);
+            DisposalProbe texture = new(handle.Name);
             if (handle == Tiles)
             {
                 staged = texture;
@@ -157,10 +109,10 @@ public sealed class TextureResidencyTests
 
             return texture;
         });
-        using SceneAssetStore<string, FakeTexture> sounds = SyncStore.Over<string, FakeTexture>(name =>
-            name == "broken" ? throw new InvalidDataException("audio decode failed") : new FakeTexture(name));
-        FakeTexture hero = textures.Get(Hero);
-        FakeTexture sound = sounds.Get("current");
+        using SceneAssetStore<string, DisposalProbe> sounds = SyncStore.Over<string, DisposalProbe>(name =>
+            name == "broken" ? throw new InvalidDataException("audio decode failed") : new DisposalProbe(name));
+        DisposalProbe hero = textures.Get(Hero);
+        DisposalProbe sound = sounds.Get("current");
 
         Assert.Throws<InvalidDataException>(() =>
             textures.ChangeScene([Tiles], () => sounds.ChangeScene(["broken"])));
@@ -182,67 +134,15 @@ public sealed class TextureResidencyTests
     [Fact]
     public void Dispose_ReleasesEveryAssetOwnedByTheScene()
     {
-        SceneAssetStore<TextureHandle, FakeTexture> store = SyncStore.Over<TextureHandle, FakeTexture>(
-            static handle => new FakeTexture(handle.Name));
+        SceneAssetStore<TextureHandle, DisposalProbe> store = SyncStore.Over<TextureHandle, DisposalProbe>(
+            static handle => new DisposalProbe(handle.Name));
         store.ChangeScene([Hero]);
-        FakeTexture preload = store.Get(Hero);
-        FakeTexture lazy = store.Get(Tiles);
+        DisposalProbe preload = store.Get(Hero);
+        DisposalProbe lazy = store.Get(Tiles);
 
         store.Dispose();
 
         Assert.True(preload.Disposed);
         Assert.True(lazy.Disposed);
-    }
-
-    [Fact]
-    public void TheTexelPool_KeepsItsLargestBuffersUpToTheDecodeConcurrency()
-    {
-        TexelPool pool = new();
-        byte[][] pages = [.. Enumerable.Range(1, AssetDecodes.Concurrency).Select(static size => new byte[100_000 * size])];
-        foreach (byte[] page in pages)
-        {
-            pool.Return(page);
-        }
-
-        pool.Return(new byte[84_999]);
-        pool.Return(new byte[99_999]);
-        byte[] largest = new byte[1_000_000];
-        pool.Return(largest);
-
-        Assert.Equal(AssetDecodes.Concurrency, pool.Count);
-        Assert.Same(largest, pool.Rent(largest.Length));
-        Assert.NotSame(pages[0], pool.Rent(pages[0].Length));
-    }
-
-    private sealed class Shipped : IDisposable
-    {
-        private readonly TempWorkspace _workspace = new("capsule-textures-");
-
-        internal Shipped(params TextureHandle[] textures)
-        {
-            foreach (TextureHandle handle in textures)
-            {
-                Path = _workspace.PathTo(TextureStore.RelativePathOf(handle));
-                File.WriteAllBytes(Path, []);
-            }
-        }
-
-        internal string BaseDirectory => _workspace.Root;
-
-        internal ContentPlatform Platform => new(_workspace.Root);
-
-        /// <summary>The last file shipped, which is the only one the single-handle specs ship.</summary>
-        internal string Path { get; private set; } = string.Empty;
-
-        public void Dispose() => _workspace.Dispose();
-    }
-
-    private sealed class FakeTexture(string name) : IDisposable
-    {
-        internal string Name => name;
-
-        internal bool Disposed { get; private set; }
-
-        public void Dispose() => Disposed = true;
     }
 }

@@ -11,7 +11,7 @@ public sealed class AudioVoiceTimeTests
         AudioMixer mixer = new();
         Voice voice = mixer.Play(Step);
 
-        // One of five steps spent, so a little under four are left; halving the rate makes eight.
+        // One of five steps spent. A little under four are left. Halving the rate makes eight.
         Advance(mixer, 1);
         mixer.SetPitch(voice, 0.5f);
 
@@ -22,7 +22,7 @@ public sealed class AudioVoiceTimeTests
         Assert.False(mixer.IsPlaying(voice));
     }
 
-    // The steps a voice has left are rounded up from the clip time it has left, so the rounding is
+    // The steps a voice has left are rounded up from the clip time it has left. The rounding is
     // what must never be rescaled: doing that hands back more time than was taken.
     [Fact]
     public void SetPitch_ThereAndBack_ManufacturesNoPlaybackTime()
@@ -33,7 +33,7 @@ public sealed class AudioVoiceTimeTests
         mixer.SetPitch(voice, 2f);
         mixer.SetPitch(voice, 1f);
 
-        // Still the steps the clip runs for on its own; no time has passed.
+        // Still the steps the clip runs for on its own. No time has passed.
         Advance(mixer, StepEnds - 1);
         Assert.True(mixer.IsPlaying(voice));
 
@@ -113,7 +113,7 @@ public sealed class AudioVoiceTimeTests
         Assert.Equal(0.2, mixer.GetTime(voice), 6);
     }
 
-    // The reader plays the clip's head once and then the region, so the position past the region's end
+    // The reader plays the clip's head once and then the region. The position past the region's end
     // reads back inside it rather than running on to the clip's duration.
     [Fact]
     public void GetTime_OfALoop_WrapsInsideItsRegionAndAtTheClipsEndWithoutOne()
@@ -133,9 +133,9 @@ public sealed class AudioVoiceTimeTests
         Assert.Equal(3.0, mixer.GetTime(whole), 6);
     }
 
-    // The host's reader repeats the region from wherever it is handed, so a start past the region's
+    // The host's reader repeats the region from wherever it is handed. A start past the region's
     // end would sound from inside the region while every position read for the voice stayed an
-    // interval ahead of it. The fold is the mixer's, once, so the command and the position agree.
+    // interval ahead of it. The fold is the mixer's, once. The command and the position agree.
     [Fact]
     public void ALoopStartedPastItsRegionsEnd_IsFoldedIntoTheRegion()
     {
@@ -148,7 +148,7 @@ public sealed class AudioVoiceTimeTests
         Assert.Equal(3.0, mixer.GetTime(voice), 6);
     }
 
-    // A one-shot ignores the region, so its start is its own whatever the region says.
+    // A one-shot ignores the region. Its start is its own whatever the region says.
     [Fact]
     public void AOneShotStartedPastTheRegionsEnd_KeepsTheStartItWasGiven()
     {
@@ -200,7 +200,7 @@ public sealed class AudioVoiceTimeTests
         Assert.False(mixer.IsPlaying(voice));
     }
 
-    // Zero is the exception: it is where a clip plays from anyway, so a clip measured at no duration
+    // Zero is the exception: it is where a clip plays from anyway. A clip measured at no duration
     // still starts and ends on the step it started.
     [Theory]
     [InlineData(-0.001)]

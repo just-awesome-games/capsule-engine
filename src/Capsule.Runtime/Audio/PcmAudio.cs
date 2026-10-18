@@ -4,12 +4,14 @@ namespace Capsule.Runtime.Audio;
 
 // One clip's samples decoded whole and shared by every voice that streams them, and what a resident
 // clip loops a region from. Interleaved and normalised to [-1, 1], the shape the device buffer is
-// encoded from, so the widths a WAV may carry are converted once here instead of per read.
+// encoded from. The widths a WAV may carry are converted once here instead of per read.
 //
 // The build's probe reads the same container to measure the clip, but it is a build-time tool the
 // runtime does not reference. This reads what playback needs.
 internal sealed class PcmAudio(float[] samples, int channels, int sampleRate)
 {
+    private const int Extensible = 0xFFFE;
+
     // No samples. A cursor holds this once the clip it read has been let go of.
     internal static PcmAudio None { get; } = new([], 1, 1);
 
@@ -73,6 +75,12 @@ internal sealed class PcmAudio(float[] samples, int channels, int sampleRate)
                 channels = BinaryPrimitives.ReadUInt16LittleEndian(format[2..]);
                 rate = (int)BinaryPrimitives.ReadUInt32LittleEndian(format[4..]);
                 bits = BinaryPrimitives.ReadUInt16LittleEndian(format[14..]);
+
+                // An extensible chunk names its format in the first two bytes of its sub-format GUID.
+                if (tag == Extensible && length >= 26)
+                {
+                    tag = BinaryPrimitives.ReadUInt16LittleEndian(format[24..]);
+                }
             }
             else if (Is(id, "data"))
             {
@@ -94,10 +102,11 @@ internal sealed class PcmAudio(float[] samples, int channels, int sampleRate)
     private static float[] Decode(ReadOnlySpan<byte> data, int tag, int bits, string clipName)
     {
         int width = bits / 8;
-        if (width == 0 || (tag == 3 && bits != 32) || (tag == 1 && bits is not (8 or 16 or 24 or 32)))
+        bool admitted = tag == 3 ? bits == 32 : tag == 1 && bits is (8 or 16 or 24 or 32);
+        if (!admitted)
         {
             throw new NotSupportedException(
-                $"Audio clip '{clipName}' is WAVE format {tag} at {bits} bits. Capsule plays 8-, 16-, 24- and 32-bit PCM and 32-bit float.");
+                $"Audio clip '{clipName}' is WAVE format {tag} at {bits} bits. Capsule plays 8-, 16-, 24- and 32-bit PCM and 32-bit float. Re-encode it as 16-bit PCM.");
         }
 
         float[] samples = new float[data.Length / width];

@@ -1,7 +1,3 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>A gun that fires 34 pooled bullets a step from its position in a turning fan, at <c>speed</c> pixels a step.</summary>

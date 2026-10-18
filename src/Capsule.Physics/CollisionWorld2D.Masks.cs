@@ -20,8 +20,7 @@ public sealed partial class CollisionWorld2D
         out RayHit2D hit,
         ColliderHandle ignore = default)
     {
-        Vector2 unit = RequireRay(origin, direction, distance);
-        RequireIgnorable(ignore);
+        Vector2 unit = RequireRayQuery(origin, direction, distance, CollisionFilter.None, ignore);
 
         return RaycastWalk(origin, unit, distance, Resolve(mask), ignore, out hit);
     }
@@ -40,8 +39,7 @@ public sealed partial class CollisionWorld2D
         Span<RayHit2D> hits,
         ColliderHandle ignore = default)
     {
-        Vector2 unit = RequireRay(origin, direction, distance);
-        RequireIgnorable(ignore);
+        Vector2 unit = RequireRayQuery(origin, direction, distance, CollisionFilter.None, ignore);
 
         return RaycastAllWalk(origin, unit, distance, Resolve(mask), hits, ignore);
     }
@@ -60,10 +58,7 @@ public sealed partial class CollisionWorld2D
         out ShapeCastHit2D hit,
         ColliderHandle ignore = default)
     {
-        RequireShape(shape, nameof(shape));
-        Guard.Finite(origin, nameof(origin));
-        Guard.Finite(translation, nameof(translation));
-        RequireIgnorable(ignore);
+        RequireCastQuery(shape, origin, translation, CollisionFilter.None, ignore);
 
         return ShapeCastSweep(shape, origin, translation, Resolve(mask), ignore, true, out hit);
     }
@@ -72,7 +67,7 @@ public sealed partial class CollisionWorld2D
     /// Everything a shape is inside or touching, matching by <paramref name="mask"/>. All other rules
     /// of <see cref="OverlapAll(in Shape2D, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/> apply.
     /// </summary>
-    /// <returns>How many overlaps there were, of which the span holds the first.</returns>
+    /// <returns>How many overlaps were written, at most the span's length. A full span means there may have been more.</returns>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public int OverlapAll(
         in Shape2D shape,
@@ -81,9 +76,7 @@ public sealed partial class CollisionWorld2D
         Span<Contact2D> contacts,
         ColliderHandle ignore = default)
     {
-        RequireShape(shape, nameof(shape));
-        Guard.Finite(origin, nameof(origin));
-        RequireIgnorable(ignore);
+        RequireOverlapQuery(shape, origin, CollisionFilter.None, ignore);
 
         return FindContacts(shape.Translated(origin), Resolve(mask), 0f, ignore, contacts);
     }
@@ -92,7 +85,7 @@ public sealed partial class CollisionWorld2D
     /// Everything a placed box is inside or touching, matching by <paramref name="mask"/>. All other
     /// rules of <see cref="OverlapBoxAll(in Aabb2D, CollisionFilter, Span{Contact2D}, ColliderHandle)"/> apply.
     /// </summary>
-    /// <returns>How many overlaps there were, of which the span holds the first.</returns>
+    /// <returns>How many overlaps were written, at most the span's length. A full span means there may have been more.</returns>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public int OverlapBoxAll(
         in Aabb2D box,
@@ -106,7 +99,7 @@ public sealed partial class CollisionWorld2D
     /// <paramref name="mask"/>. All other rules of
     /// <see cref="OverlapPointAll(Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/> apply.
     /// </summary>
-    /// <returns>How many overlaps there were, of which the span holds the first.</returns>
+    /// <returns>How many overlaps were written, at most the span's length. A full span means there may have been more.</returns>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public int OverlapPointAll(
         Vector2 point,
@@ -114,8 +107,7 @@ public sealed partial class CollisionWorld2D
         Span<Contact2D> contacts,
         ColliderHandle ignore = default)
     {
-        Guard.Finite(point, nameof(point));
-        RequireIgnorable(ignore);
+        RequirePointQuery(point, CollisionFilter.None, ignore);
 
         return FindContacts(Shape2D.OfPoint(point), Resolve(mask), 0f, ignore, contacts);
     }
@@ -124,11 +116,11 @@ public sealed partial class CollisionWorld2D
     /// Everything a registered collider is touching, matching by <paramref name="mask"/>. All other
     /// rules of <see cref="OverlapColliderAll(ColliderHandle, CollisionFilter, Span{Contact2D})"/> apply.
     /// </summary>
-    /// <returns>How many overlaps there were, of which the span holds the first.</returns>
+    /// <returns>How many overlaps were written, at most the span's length. A full span means there may have been more.</returns>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public int OverlapColliderAll(ColliderHandle handle, CollisionMask mask, Span<Contact2D> contacts)
     {
-        int index = RequireShapeSlot(handle);
+        int index = RequireColliderQuery(handle, CollisionFilter.None);
 
         return FindContacts(_slots[index].World, Resolve(mask), CollisionTolerance.ContactSkin, handle, contacts);
     }
@@ -147,11 +139,7 @@ public sealed partial class CollisionWorld2D
         Span<Contact2D> contacts,
         ColliderHandle ignore = default)
     {
-        RequireShape(shape, nameof(shape));
-        Guard.Finite(origin, nameof(origin));
-        Guard.Finite(translation, nameof(translation));
-        Guard.Finite(origin + translation, nameof(translation));
-        RequireIgnorable(ignore);
+        RequireMoveQuery(shape, origin, translation, CollisionFilter.None, ignore);
 
         return Slide(shape, origin, translation, Resolve(mask), contacts, ignore);
     }
@@ -172,7 +160,8 @@ public sealed partial class CollisionWorld2D
 
     // The filter a mask stands for in this world. The first call per mask interns its names and
     // stores the result. Later calls read it back by index. Every query validates its other arguments
-    // first, so a refused query interns nothing.
+    // first. A refused query then interns nothing. A mask that outgrows the room left throws partway
+    // and may leave its earlier names interned.
     internal CollisionFilter Resolve(CollisionMask mask)
     {
         ArgumentNullException.ThrowIfNull(mask);

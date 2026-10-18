@@ -27,29 +27,22 @@ public sealed class ParticleAllocationTests
             Color = Gradient.Linear(ColorRgba.White, ColorRgba.Black),
         };
 
-        Root root = new(Vector2.Zero);
+        EntityHierarchyFixtures.Node root = new(Vector2.Zero);
         root.Add(emitter);
 
         SceneFixtures.HookScene scene = new(start: s => s.Add(root));
         SimulationHost host = new(scene);
 
-        for (int index = 0; index < 100; index++)
-        {
-            host.Step();
-            _ = host.Simulation.View;
-        }
+        long bytes = StepMeasurement.Bytes(
+            step =>
+            {
+                host.Step();
+                _ = host.Simulation.View;
+            },
+            warmup: 100,
+            measured: 1000);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-
-        for (int index = 0; index < 1000; index++)
-        {
-            host.Step();
-            _ = host.Simulation.View;
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, bytes);
         Assert.True(emitter.Alive > 0);
     }
-
-    private sealed class Root(Vector2 position) : Entity(position);
 }

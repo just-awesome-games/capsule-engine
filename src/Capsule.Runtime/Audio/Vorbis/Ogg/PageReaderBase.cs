@@ -245,8 +245,8 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             return false;
         }
 
-        // Network streams don't always return the requested size immediately, so this
-        // method is used to ensure we fill the buffer if it is possible.
+        // Network streams don't always return the requested size immediately. This
+        // method fills the buffer if it is possible.
         // Note that it will loop until getting a certain count of zero reads (default: 10).
         // This means in most cases, the network stream probably died by the time we return
         // a short read.

@@ -2,8 +2,6 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Reflection;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
@@ -17,7 +15,6 @@ public sealed class EntityReferenceTests
     private const string Game = """
         #nullable enable
         using Capsule.Scenes;
-        using Capsule.Scenes.Spawning;
 
         namespace Game;
 
@@ -82,10 +79,7 @@ public sealed class EntityReferenceTests
             {"id": 5, "type": "shuttle", "x": 0, "y": 0}
             """;
 
-        SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(() => Composed(entries));
-
-        Assert.StartsWith("scene document 'scenes/room': entities[0] ('floor-switch') ", failure.Message, StringComparison.Ordinal);
-        Assert.Contains(fix, failure.Message, StringComparison.Ordinal);
+        GeneratorHarness.AssertLoadRefused(() => Composed(entries), "scene document 'scenes/room': entities[0] ('floor-switch') ", fix);
     }
 
     // One spelling per kind: a mandatory reference is C#'s required, and Required = true is for every other member.

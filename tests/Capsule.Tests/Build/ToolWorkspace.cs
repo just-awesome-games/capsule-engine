@@ -24,6 +24,9 @@ internal sealed class ToolWorkspace : IDisposable
     /// <summary>The asset root every run names, relative to the workspace.</summary>
     internal string Assets { get; set; } = "Assets";
 
+    /// <summary>The shader tools every run names, which the targets would pass.</summary>
+    internal ShaderTools Tools { get; set; } = ShaderTools;
+
     /// <summary>What the game's build project configures on every run.</summary>
     internal Func<CapsuleBuild, CapsuleBuild> Configure { get; set; } = static build => build;
 
@@ -96,7 +99,7 @@ internal sealed class ToolWorkspace : IDisposable
     {
         StringWriter output = new WatchedWriter(Watch);
         StringWriter error = new();
-        int exitCode = Configure(CapsuleBuild.Configure(["--assets", Path.GetFullPath(Assets), "--out", Out, .. options, "--shader-tools", ShaderTools.Dxc, ShaderTools.SpirvCross])).Run(output, error);
+        int exitCode = Configure(CapsuleBuild.Configure(["--assets", Path.GetFullPath(Assets), "--out", Out, .. options, "--shader-tools", Tools.Dxc, Tools.SpirvCross])).Run(output, error);
         Output = output.ToString();
         Errors = error.ToString();
 

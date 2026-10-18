@@ -1,6 +1,12 @@
 namespace Capsule.Rendering;
 
 /// <summary>How a camera's world-unit span answers an output whose aspect ratio differs from it.</summary>
+/// <remarks>
+/// A declared render surface fills the output edge to edge on its binding axis, at whatever fractional
+/// scale keeps its aspect, with bars on the other axis. A point-sampled surface enlarged past a whole
+/// scale is first enlarged to the next whole scale with the nearest texel and then filtered down to fit.
+/// Its texels stay crisp and even in width. A window smaller than the surface filters it straight down.
+/// </remarks>
 public enum ViewportFit
 {
     /// <summary>

@@ -20,7 +20,7 @@ internal sealed class GamepadRumble(GamepadRumble.Writer write)
     private int _lastPlayer;
     private double _sinceWrite;
 
-    // The seam between the applier and the pad. The player is the backend's slot, 0 to 3, so a
+    // The seam between the applier and the pad. The player is the backend's slot, 0 to 3. A
     // test drives this with no pad and no substrate type.
     internal delegate void Writer(int player, RumbleLevel level);
 

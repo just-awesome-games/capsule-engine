@@ -2,7 +2,6 @@ using System.Text;
 using Capsule.Diagnostics;
 using Capsule.Persistence;
 using Capsule.Runtime.Persistence;
-using Capsule.Tests.Runtime;
 
 namespace Capsule.Tests.Persistence;
 
@@ -61,8 +60,8 @@ public sealed class DirectorySaveStorageTests : IDisposable
         Assert.Empty(_log.Entries);
     }
 
-    // A second persist keeps the previous file as the backup; a corrupt primary is set aside over
-    // an earlier set-aside and the backup restored in its place with a warning; nothing but a
+    // A second persist keeps the previous file as the backup. A corrupt primary is set aside over
+    // an earlier set-aside and the backup restored in its place with a warning. Nothing but a
     // `.json` is ever a document.
     [Fact]
     public void ACorruptPrimary_IsSetAsideAndTheBackupRestoredInItsPlace()

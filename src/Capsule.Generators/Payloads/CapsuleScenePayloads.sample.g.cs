@@ -3,7 +3,8 @@
 
 namespace Capsule.Generated
 {
-    /// <summary>Every scene payload this assembly declares. Generated code. Do not edit.</summary>
+    /// <summary>Every scene payload this assembly declares.</summary>
+    /// <remarks>Generated code. Do not edit.</remarks>
     [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     internal static class CapsuleScenePayloads
     {

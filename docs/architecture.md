@@ -1,7 +1,7 @@
 # Architecture
 
 After this page you know which module a type belongs in, what game logic may not do, and what the
-determinism contract promises.
+determinism contract promises. Each type's XML docs hold its rules.
 
 Capsule separates pure simulation from the host. Simulation modules and game logic touch no device, file,
 clock or platform. The runtime hosts them and draws, plays and samples on their behalf.
@@ -25,11 +25,24 @@ MonoGame belongs to `Capsule.Runtime` alone.
 
 ## Placement
 
-Assemblies follow layers, and namespaces and folders follow domains. A type's assembly is decided by what
-it depends on. A type that knows an operating system's locations or links a native library belongs in a
-platform module. A type's namespace is its domain whichever assembly it lives in: `Capsule` for the step,
-the run, randomness and deterministic math, then one namespace per subsystem. A new domain adds a
-namespace. A new assembly waits until the compiler must enforce a reference direction.
+Assemblies follow layers. A type's assembly is decided by what it depends on. A type that knows an
+operating system's locations or links a native library belongs in a platform module. A new assembly waits
+until the compiler must enforce a reference direction.
+
+A game-facing namespace is a feature, whichever assembly holds it. `Capsule` is the cross-cutting core of
+the step, the run, transforms, randomness and deterministic math. The features are `Capsule.Scenes`,
+`Capsule.Physics`, `Capsule.Rendering`, `Capsule.Input`, `Capsule.Audio`, `Capsule.Animation`,
+`Capsule.Particles`, `Capsule.Tiles`, `Capsule.UI`, `Capsule.Assets`, `Capsule.Persistence` and
+`Capsule.Diagnostics`, and a new feature adds one. A logic project with `ImplicitUsings` on imports every
+feature, `Capsule` and `System.Numerics`, and drops one with `<Using Remove="..." />`. In `Capsule.Core`,
+`Capsule.Physics` and `Capsule.Scenes` a folder named for a feature carries that namespace, and a folder
+that only groups files inside a feature carries its parent's. `Physics/Internal` keeps its own internal
+namespace. A folder in `Capsule.Runtime`, a platform module or `Capsule.Build` carries
+`<Assembly>.<Folder>`. `Capsule.Generators` is one namespace, and the code it emits is
+`Capsule.Generated`. A partial class file carries its class's namespace wherever it sits. A test file
+carries `Capsule.Tests.<top folder>` in folders that mirror the source's. A subject's fixtures stay in its
+folder even when another folder borrows them, and a helper with no subject that more than one folder uses
+lives in `tests/Capsule.Tests/Support/` under `Capsule.Tests`.
 
 ## Logic boundary
 
@@ -37,13 +50,14 @@ The compiler refuses, in a logic assembly: a reference to `Capsule.Runtime` (`CA
 reference in any Capsule project (`CAP101`), external I/O (`CAP102`), ambient concurrency or asynchronous
 execution (`CAP103`), process or wall-clock time (`CAP104`), randomness outside the seeded
 `RandomSource`, `System.Random` included (`CAP105`), a save document property declared `init` instead
-of `set` (`CAP106`), a platform transcendental that `DeterministicMath` replaces (`CAP107`), and
-reflection (`CAP109`).
+of `set` (`CAP106`), a platform transcendental that `DeterministicMath` replaces (`CAP107`),
+reflection (`CAP109`), and a dead method on an entity, component or scene named like a lifecycle hook
+Capsule never calls, such as `Update` (`CAP110`).
 
 ## Argument validation
 
-A null, non-finite or out-of-range argument throws from the `ArgumentException` family, and no member
-documents that per parameter. An `<exception>` tag marks a state rule a caller can violate.
+A null, non-finite or out-of-range argument throws from the `ArgumentException` family without an
+`<exception>` tag, which the XML keeps for a state rule a caller can violate.
 
 ## Determinism contract
 
@@ -63,6 +77,8 @@ extents, a simulation produces the same state transitions and render intents.
   Collision queries and contact delivery order as their public methods document.
 - A handler sees the new state. Reconfiguring the object whose handler is running throws, across colliders,
   focus navigators and screen notifiers.
+- A duration typed `int` counts fixed steps, 60 a second unless the shell calls
+  `EngineBuilder.WithFixedStep`, and a duration typed `float` counts seconds.
 - `StepContext.TotalSeconds` is derived from its tick. Randomness comes from `Run`'s seeded `RandomSource`,
   which persists across scene transitions. A windowed run no driver plays draws a fresh seed unless the shell
   configures one, and it logs the seed. A headless or driven run with no configured seed starts from
@@ -101,14 +117,12 @@ identifier, and a console is another family with a shell of its own. A platform 
 content is read from, where saves and the crash log land, how the window is raised, focused and redrawn, and
 how sound follows the default output.
 
-`Capsule.Runtime` holds no implicit location and no native binding. Its banned-API list refuses one at
-compile time (`src/Capsule.Runtime/BannedSymbols.txt`).
+`Capsule.Runtime` holds no implicit location and no native binding.
 
 `Capsule.Runtime.Desktop` is the platform module the engine ships. It uses only the neutral host's public
-surface. Writing another is [`build-and-publish.md`](build-and-publish.md#a-private-platform-module).
+surface. Writing another is [`packages.md`](packages.md#a-private-platform-module).
 
 ## NativeAOT floor
 
 Shipping assemblies remain ahead-of-time analyzable: no reflection-based discovery, runtime code generation,
-`dynamic`, AOT-unsafe package or reflection-based serialization. CI publishes the package-consuming sample
-and the source-backed headless smoke with NativeAOT on Windows, Linux and macOS, and it runs the smoke.
+`dynamic`, AOT-unsafe package or reflection-based serialization.

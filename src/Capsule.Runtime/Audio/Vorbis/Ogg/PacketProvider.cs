@@ -304,7 +304,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
                     packet.AddDataPart(contPageIdx << 8);
                 }
 
-                // we're now the first packet in the final page, so we'll act like it...
+                // we're now the first packet in the final page and act like it
                 isLastPacket = packetCount == 1;
 
                 // track the final page read
@@ -338,7 +338,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
                     // we're on the final page now
                     pageIndex = finalPage;
 
-                    // the packet index will be modified below, so set it to the end of the continued packet
+                    // the packet index is modified below. Set it to the end of the continued packet
                     packetIndex = 0;
                 }
 

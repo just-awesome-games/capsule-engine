@@ -1,5 +1,4 @@
 using Capsule.Build.Caching;
-using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
 
@@ -23,7 +22,7 @@ public sealed class DerivationCacheTests
         kerning first=65 second=66 amount=-2
         """;
 
-    // Every cached kind, so the generated code a reused run renders is rendered from every kind's kept facts.
+    // Every cached kind. The generated code a reused run renders is rendered from every kind's kept facts.
     [Fact]
     public void ARunOverAnUnchangedTree_DerivesNothingAndGeneratesWhatTheFirstRunDid()
     {

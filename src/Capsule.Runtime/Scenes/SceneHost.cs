@@ -9,7 +9,7 @@ namespace Capsule.Runtime.Scenes;
 internal delegate Scene SceneResolver(in SceneTransition target);
 
 // Keeps the runtime alive while scenes replace one another. Each requested target is resolved at the
-// host boundary, so content never enters game logic as a file operation.
+// host boundary. Content never enters game logic as a file operation.
 internal sealed class SceneHost : ISimulation, IDisposable
 {
     private readonly SceneResolver _resolve;
@@ -145,7 +145,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
                 ExitRequested = true;
                 try
                 {
-                    // Built before the scene stops, so the run's last frame stays readable after it.
+                    // Built before the scene stops. The run's last frame stays readable after it.
                     _ = _current.View;
                     _current.Dispose();
                 }
@@ -291,18 +291,10 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
         catch (Exception disposeFailure)
         {
-            try
-            {
-                incoming.Dispose();
-            }
-            catch (Exception cleanupFailure)
-            {
-                throw new AggregateException(
-                    $"Stopping {_current.Scene.GetType().Name} and then releasing {incoming.Scene.GetType().Name} both failed.",
-                    disposeFailure,
-                    cleanupFailure);
-            }
-
+            Failure.CleanUp(
+                disposeFailure,
+                incoming.Dispose,
+                $"Stopping {_current.Scene.GetType().Name} and then releasing {incoming.Scene.GetType().Name} both failed.");
             throw;
         }
 
@@ -311,7 +303,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
         SceneEntered?.Invoke();
     }
 
-    // Resolves, prepares and starts the incoming scene ahead of the outgoing one's teardown, so a
+    // Resolves, prepares and starts the incoming scene ahead of the outgoing one's teardown. A
     // failure here leaves the run on the scene it was on. A scene that fails to start was stopped by
     // its simulation.
     private SceneSimulation Bring(in SceneTransition target)
@@ -337,18 +329,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
         catch (Exception failure)
         {
-            try
-            {
-                scene.Abandon();
-            }
-            catch (Exception cleanupFailure)
-            {
-                throw new AggregateException(
-                    $"Preparing {scene.GetType().Name}'s assets and then releasing it both failed.",
-                    failure,
-                    cleanupFailure);
-            }
-
+            Failure.CleanUp(failure, scene.Abandon, $"Preparing {scene.GetType().Name}'s assets and then releasing it both failed.");
             throw;
         }
     }

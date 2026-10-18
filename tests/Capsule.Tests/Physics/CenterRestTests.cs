@@ -346,12 +346,4 @@ public sealed class CenterRestTests
 
         return body;
     }
-
-    // A convex polygon collider.
-    private sealed class Block : Entity
-    {
-        internal Block(Vector2[] points, string layer = "solid", bool oneWay = false)
-            : base(Vector2.Zero) =>
-            Add(new PolygonCollider2D(points) { Layer = layer, OneWay = oneWay });
-    }
 }

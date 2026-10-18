@@ -1,8 +1,3 @@
-using System.Numerics;
-using Capsule.Physics;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>
@@ -24,6 +19,8 @@ public sealed class Prober : Entity
     private CollisionFilter _filter;
     private float _direction = 1f;
 
+    public long Found { get; private set; }
+
     public Prober(EntitySpawn spawn)
         : base(spawn)
     {
@@ -35,8 +32,6 @@ public sealed class Prober : Entity
         _mover.BlockedBy = new(CollisionLayers.Solid, CollisionLayers.Platform);
         Add(_mover);
     }
-
-    public long Found { get; private set; }
 
     protected override void OnStart() =>
         _filter = Scene!.Collision.CreateFilter(CollisionLayers.Solid, CollisionLayers.Platform, CollisionLayers.Actor);

@@ -11,7 +11,7 @@ internal static class ClipScissor
     // intersection when an inner level moves inside an outer one.
     internal static Rect Shown(ReadOnlySpan<ClipRegion> levels, float alpha)
     {
-        Rect shown = new(float.NegativeInfinity, float.NegativeInfinity, float.PositiveInfinity, float.PositiveInfinity);
+        Rect shown = Rect.FromEdges(float.NegativeInfinity, float.NegativeInfinity, float.PositiveInfinity, float.PositiveInfinity);
         for (int i = 0; i < levels.Length; i++)
         {
             Vector2 low = StepInterpolation.Interpolate(levels[i].Previous.Position, levels[i].Current.Position, alpha);
@@ -20,7 +20,7 @@ internal static class ClipScissor
                 new Vector2(levels[i].Current.Right, levels[i].Current.Bottom),
                 alpha);
 
-            shown = Rect.Intersection(shown, new Rect(low.X, low.Y, high.X, high.Y));
+            shown = Rect.Intersection(shown, Rect.FromEdges(low.X, low.Y, high.X, high.Y));
         }
 
         return shown;

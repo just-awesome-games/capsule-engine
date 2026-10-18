@@ -36,7 +36,7 @@ public sealed class ScrollLayoutTests
     [Fact]
     public void TheCorner_TakesTheFramesOwnPlacement()
     {
-        Rect bounds = new(0, 0, 640, 180);
+        Rect bounds = Rect.FromEdges(0, 0, 640, 180);
         CameraView pinned = new(new Vector2(600, 90), new Vector2(700, 90), Span, Bounds: bounds, ScrollCenter: ScrollCenter);
         Vector2 atEdge = Layer(pinned, 0f, 0.5f);
         Assert.Equal(atEdge, Layer(pinned, 1f, 0.5f));

@@ -9,7 +9,7 @@ namespace Capsule.Tests.Scenes;
 
 public sealed class ScenePauseTests
 {
-    // A pause written mid-step settles at the top of the next one, so the step that wrote it runs
+    // A pause written mid-step settles at the top of the next one. The step that wrote it runs
     // whole. An explicit mode beats the one its parent hands down.
     [Fact]
     public void Pausing_HoldsPausableAndInheritingEntities_AndStepsTheRest_FromTheNextStep()
@@ -107,7 +107,7 @@ public sealed class ScenePauseTests
         Assert.Empty(log);
     }
 
-    // A held collider stays in the world but settles nothing, so it is owed the enter on resume.
+    // A held collider stays in the world but settles nothing. It is owed the enter on resume.
     [Fact]
     public void AHeldCollider_RaisesNoContactEvents_AndSettlesTheEnterItIsOwedOnResume()
     {

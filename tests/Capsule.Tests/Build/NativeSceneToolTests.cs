@@ -1,6 +1,5 @@
 using System.IO.Compression;
-using Capsule.Build.Scenes;
-using Capsule.Scenes.Documents;
+using Capsule.Scenes;
 using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;

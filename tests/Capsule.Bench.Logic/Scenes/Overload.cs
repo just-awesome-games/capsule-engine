@@ -1,10 +1,8 @@
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Scenes;
 
 /// <summary>
-/// Steps that each cost a few step lengths of arithmetic, so no frame can keep pace: the frame
-/// interval it keeps is the catch-up policy's under sustained overload, about one step's cost.
+/// Steps that each cost a few step lengths of arithmetic, which no frame can keep pace with. The
+/// frame interval it keeps is the catch-up policy's under sustained overload, about one step's cost.
 /// </summary>
 [Workload(WorkloadKind.Paced)]
 public sealed class Overload : Scene

@@ -34,20 +34,14 @@ namespace Capsule.Tiles;
 /// </example>
 public sealed class TileMapCollider2D : Component
 {
-    // How many riders the list holds from construction on. A larger crowd doubles it.
-    private const int StartingRiders = 4;
-
     private bool _enabled = true;
 
     // The map this collider is attached to, and the scene's world while the map is in a scene.
     private TileMap? _map;
     private CollisionWorld2D? _world;
 
-    // The bodies riding a cell whose tile has a surface velocity, grown once and never shrunk. A slot
-    // empties to null while this collider is carrying, and is compacted once the carry is done.
-    private KinematicBody2D?[] _riders = new KinematicBody2D?[StartingRiders];
-    private int _riderCount;
-    private bool _ridersEmptied;
+    // The bodies riding a cell whose tile has a surface velocity.
+    private RiderList _riders = new();
     private bool _carrying;
 
     /// <summary>Whether the grid is in the scene's world, true by default.</summary>
@@ -88,7 +82,7 @@ public sealed class TileMapCollider2D : Component
 
     internal override TransformSupport Supports => TransformSupport.Position;
 
-    // The palette is fixed per grid, so whether the map's cells carry is known when this attaches.
+    // The palette is fixed per grid. Whether the map's cells carry is known when this attaches.
     internal override bool Steps => Entity is TileMap { Grid.Carries: true };
 
     // Only a map whose palette names a layer can collide, and one grid covers the whole map.
@@ -109,7 +103,7 @@ public sealed class TileMapCollider2D : Component
         if (!map.Grid.Collides)
         {
             throw new InvalidOperationException(
-                $"This {nameof(TileMap)}'s palette names no collision layer, so a {nameof(TileMapCollider2D)} on it could never collide. Give a tile type a layer, or remove the collider.");
+                $"This {nameof(TileMap)}'s palette names no collision layer, and a {nameof(TileMapCollider2D)} on it could never collide. Give a tile type a layer, or remove the collider.");
         }
 
         map.AttachedCollider = this;
@@ -128,44 +122,15 @@ public sealed class TileMapCollider2D : Component
     // Points the registered grid at the map's own copy of its cells.
     internal void Rebind(int[] cells, byte[] facings) => Grid?.Rebind(cells, facings);
 
-    internal void AddRider(KinematicBody2D body)
-    {
-        if (_riderCount == _riders.Length)
-        {
-            Array.Resize(ref _riders, _riders.Length * 2);
-        }
+    internal void AddRider(KinematicBody2D body) => _riders.Add(body);
 
-        _riders[_riderCount++] = body;
-    }
+    internal void RemoveRider(KinematicBody2D body) => _riders.Remove(body, _carrying);
 
-    internal void RemoveRider(KinematicBody2D body)
-    {
-        for (int index = 0; index < _riderCount; index++)
-        {
-            if (!ReferenceEquals(_riders[index], body))
-            {
-                continue;
-            }
-
-            if (_carrying)
-            {
-                _riders[index] = null;
-                _ridersEmptied = true;
-                return;
-            }
-
-            _riderCount--;
-            _riders[index] = _riders[_riderCount];
-            _riders[_riderCount] = null;
-            return;
-        }
-    }
-
-    // Carries each rider by one step of its cell's surface velocity. The count is read once, so a body
+    // Carries each rider by one step of its cell's surface velocity. The count is read once. A body
     // that lands here mid-carry waits for the next step.
     internal override void OnEngineStep(in StepContext context)
     {
-        if (_riderCount == 0 || _carrying)
+        if (_riders.Count == 0 || _carrying)
         {
             return;
         }
@@ -173,7 +138,7 @@ public sealed class TileMapCollider2D : Component
         _carrying = true;
         try
         {
-            int count = _riderCount;
+            int count = _riders.Count;
             for (int index = 0; index < count && Grid is not null; index++)
             {
                 _riders[index]?.CarryOnCell(context);
@@ -182,14 +147,14 @@ public sealed class TileMapCollider2D : Component
         finally
         {
             _carrying = false;
-            CompactRiders();
+            _riders.Compact();
         }
     }
 
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()
     {
-        _world = Entity!.Scene.Collision;
+        _world = Entity!.Scene.Physics.World;
         if (_enabled)
         {
             Register();
@@ -213,8 +178,8 @@ public sealed class TileMapCollider2D : Component
 
     // Draws the grid's live edges on the Colliders channel, only for the cells the camera's view reaches
     // plus one cell of margin, which keeps a large grid cheap to draw. The derived state culls the shared
-    // sides inside a solid run, and a wall shows as its outline. The map is anchored, so its edges carry
-    // no motion.
+    // sides inside a solid run, and a wall shows as its outline. The map is anchored, and its edges
+    // carry no motion.
     /// <inheritdoc/>
     protected internal override void OnDebugDraw()
     {
@@ -299,7 +264,7 @@ public sealed class TileMapCollider2D : Component
             shaped += shape is null ? 0 : 1;
         }
 
-        // The palette's own profiles come first, so an untransformed cell's profile index is its palette
+        // The palette's own profiles come first. An untransformed cell's profile index is its palette
         // index. Each shaped entry then appends one profile per other transform. Only the shape turns,
         // and a one-way tile still passes bodies from below.
         CellProfile2D[] profiles = new CellProfile2D[palette.Length + (shaped * (TileTransforms.Count - 1))];
@@ -343,40 +308,14 @@ public sealed class TileMapCollider2D : Component
         ReleaseRiders();
     }
 
-    private void CompactRiders()
-    {
-        if (!_ridersEmptied)
-        {
-            return;
-        }
-
-        _ridersEmptied = false;
-        int kept = 0;
-        for (int index = 0; index < _riderCount; index++)
-        {
-            if (_riders[index] is { } rider)
-            {
-                _riders[kept++] = rider;
-            }
-        }
-
-        Array.Clear(_riders, kept, _riderCount - kept);
-        _riderCount = kept;
-    }
-
     // Lets go of every rider as the grid leaves the world.
     private void ReleaseRiders()
     {
-        for (int index = 0; index < _riderCount; index++)
+        for (int index = 0; index < _riders.Count; index++)
         {
-            if (_riders[index] is { } rider)
-            {
-                _riders[index] = null;
-                rider.ForgetCell(this);
-            }
+            _riders.Take(index)?.ForgetCell(this);
         }
 
-        _riderCount = 0;
-        _ridersEmptied = false;
+        _riders.Clear();
     }
 }

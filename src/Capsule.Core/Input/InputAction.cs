@@ -7,6 +7,11 @@ namespace Capsule.Input;
 /// </remarks>
 public readonly record struct InputAction
 {
+    /// <summary>The action's name.</summary>
+    public string Name { get; }
+
+    internal int Index { get; }
+
     /// <summary>Names an action.</summary>
     /// <param name="name">The action's name, which binding requires to be more than whitespace.</param>
     public InputAction(string name)
@@ -14,9 +19,4 @@ public readonly record struct InputAction
         Name = name;
         Index = ActionIndex.Of(name);
     }
-
-    /// <summary>The action's name.</summary>
-    public string Name { get; }
-
-    internal int Index { get; }
 }

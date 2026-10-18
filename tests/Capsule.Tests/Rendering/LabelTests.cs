@@ -19,7 +19,7 @@ public sealed class LabelTests
     [Fact]
     public void ALabel_DrawsItsRunFromTheEntityPositionPlusItsOffset()
     {
-        Holder entity = Prompt("AB");
+        LabelEntity entity = Prompt("AB");
         Scene scene = new();
         scene.Add(entity);
 
@@ -30,7 +30,7 @@ public sealed class LabelTests
 
         Assert.Equal(2, drawn.Length);
 
-        // The entity sits at (4, 5) and the label offsets by (1, 1); 'A' then carries its own
+        // The entity sits at (4, 5) and the label offsets by (1, 1). 'A' then carries its own
         // one-pixel bearing.
         Assert.Equal(new Vector2(6f, 8f), drawn[0].Position);
         Assert.Equal(new Vector2(8f, 8f), drawn[1].Position);
@@ -39,20 +39,18 @@ public sealed class LabelTests
     [Fact]
     public void ALabelWithNoPivot_LandsItsBoxCornerOnThatPoint()
     {
-        Holder entity = Prompt("AB");
+        LabelEntity entity = Prompt("AB");
         Scene scene = new();
         scene.Add(entity);
 
-        using SceneSimulation simulation = new(scene);
-
         // The entity at (4, 5) plus the label's (1, 1) offset, and the measured run from there.
-        Assert.Equal(new Rect(5f, 6f, 14f, 6f + FontFixtures.LineHeight), entity.Text.Bounds);
+        Assert.Equal(Rect.FromEdges(5f, 6f, 14f, 6f + FontFixtures.LineHeight), entity.Text.Bounds);
     }
 
     [Fact]
     public void ALabelBox_IsWhatTheLabelWasSized()
     {
-        Holder entity = Prompt("AB");
+        LabelEntity entity = Prompt("AB");
         entity.Text.Size = new Vector2(40f, 30f);
         entity.Text.HorizontalAlignment = HorizontalAlignment.Center;
         entity.Text.VerticalAlignment = VerticalAlignment.Middle;
@@ -60,21 +58,19 @@ public sealed class LabelTests
         Scene scene = new();
         scene.Add(entity);
 
-        using SceneSimulation simulation = new(scene);
-
         // The entity at (4, 5) plus the label's (1, 1) offset, which the default pivot hangs the box
-        // from; centring the pivot instead centres that box on the same point.
-        Assert.Equal(new Rect(5f, 6f, 45f, 36f), entity.Text.Bounds);
+        // from. Centring the pivot instead centres that box on the same point.
+        Assert.Equal(Rect.FromEdges(5f, 6f, 45f, 36f), entity.Text.Bounds);
 
         entity.Text.Pivot = Pivot.Center;
 
-        Assert.Equal(new Rect(-15f, -9f, 25f, 21f), entity.Text.Bounds);
+        Assert.Equal(Rect.FromEdges(-15f, -9f, 25f, 21f), entity.Text.Bounds);
     }
 
     [Fact]
     public void AWrappedLabel_BreaksInsideItsBoxAndDrawsEveryLine()
     {
-        Holder entity = Prompt("AB AB");
+        LabelEntity entity = Prompt("AB AB");
         entity.Text.Size = new Vector2(15f, 0f);
         entity.Text.Wrap = TextWrap.Word;
 
@@ -86,7 +82,7 @@ public sealed class LabelTests
 
         ReadOnlySpan<SpriteIntent> drawn = simulation.View.Sprites;
 
-        // Four glyphs over two lines: the space the wrap broke at draws nothing. 'A' sits two font
+        // Four glyphs over two lines, where the space the wrap broke at draws nothing. 'A' sits two font
         // pixels below its line's top edge, which is the box's top edge on the first line.
         Assert.Equal(4, drawn.Length);
         Assert.Equal(8f, drawn[0].Position.Y);
@@ -96,7 +92,7 @@ public sealed class LabelTests
     [Fact]
     public void AVisibleCount_LimitsWhatALabelDraws()
     {
-        Holder entity = Prompt("AB");
+        LabelEntity entity = Prompt("AB");
         entity.Text.VisibleCharacters = 1;
 
         Scene scene = new();
@@ -108,8 +104,8 @@ public sealed class LabelTests
         Assert.Equal(FontFixtures.A.Region, Assert.Single(simulation.View.Sprites.ToArray()).Sprite.Region);
     }
 
-    // The label caches its layout and draws from the cache, so it is held to what FrameView.Add(TextIntent)
-    // lays out: every sprite, with the interpolation across a step.
+    // The label caches its layout and draws from the cache. It is held to every sprite FrameView.Add(TextIntent)
+    // lays out, with the interpolation across a step.
     [Theory]
     [InlineData("AB AB A", TextWrap.None, HorizontalAlignment.Left, 0f, 0f, null)]
     [InlineData("AB AB A", TextWrap.Word, HorizontalAlignment.Left, 15f, 0f, null)]
@@ -126,7 +122,7 @@ public sealed class LabelTests
         float height,
         int? visible)
     {
-        Holder entity = Prompt(text);
+        LabelEntity entity = Prompt(text);
         entity.Scale = new Vector2(2f, 3f);
         entity.Drift = new Vector2(5f, -8f);
         Label label = entity.Text;
@@ -166,6 +162,31 @@ public sealed class LabelTests
         Assert.Equal(expected.Sprites.ToArray(), simulation.View.Sprites.ToArray());
     }
 
+    // A negative scale axis mirrors the placed run about the entity's position, box, wrap and alignment
+    // included. Each glyph folds the sign into its flip and keeps a positive size, which is the only size a
+    // sprite draws at. A flipped glyph's position is its mirrored left edge.
+    [Fact]
+    public void AMirroredLabel_DrawsTheMirrorImageOfItsRun()
+    {
+        SpriteIntent[] upright = DrawnBoxed(Vector2.One, out Rect uprightBounds);
+        SpriteIntent[] mirrored = DrawnBoxed(new Vector2(-1f, 1f), out Rect mirroredBounds);
+
+        // The run wraps. Its last glyph, an A, sits a line below the first.
+        Assert.True(upright[^1].Position.Y > upright[0].Position.Y);
+        Assert.Equal(upright.Length, mirrored.Length);
+        for (int index = 0; index < upright.Length; index++)
+        {
+            Assert.False(upright[index].FlipX);
+            Assert.True(mirrored[index].FlipX);
+            Assert.False(mirrored[index].FlipY);
+            Assert.Equal(upright[index].Size, mirrored[index].Size);
+            Assert.Equal(new Vector2(8f - upright[index].Position.X, upright[index].Position.Y), mirrored[index].Position);
+            Assert.True(mirrored[index].TryGetSweptBounds(out _));
+        }
+
+        Assert.Equal(Rect.FromEdges(8f - uprightBounds.Right, uprightBounds.Top, 8f - uprightBounds.Left, uprightBounds.Bottom), mirroredBounds);
+    }
+
     [Fact]
     public void ALabelOnNoEntity_OccupiesNoBox()
     {
@@ -175,8 +196,8 @@ public sealed class LabelTests
     [Fact]
     public void ASpanWrittenLabel_LaysOutAsTheStringWouldAndReadsBackAsOne()
     {
-        Holder byString = Prompt("AB\nA");
-        Holder bySpan = Prompt("");
+        LabelEntity byString = Prompt("AB\nA");
+        LabelEntity bySpan = Prompt("");
         char[] buffer = ['A', 'B', '\n', 'A', 'X'];
         bySpan.Text.SetText(buffer.AsSpan(0, 4));
         buffer[0] = 'X';
@@ -200,22 +221,40 @@ public sealed class LabelTests
         }
     }
 
-    private static Holder Prompt(string text) =>
+    // A centred label wrapping inside a box, on an entity at x = 4 under the given scale.
+    private static SpriteIntent[] DrawnBoxed(Vector2 scale, out Rect bounds)
+    {
+        LabelEntity entity = Prompt("AB AB A");
+        entity.Text.Size = new Vector2(22f, 0f);
+        entity.Text.Wrap = TextWrap.Word;
+        entity.Text.HorizontalAlignment = HorizontalAlignment.Center;
+        entity.Scale = scale;
+
+        Scene scene = new();
+        scene.Add(entity);
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step());
+        bounds = entity.Text.Bounds;
+
+        return simulation.View.Sprites.ToArray();
+    }
+
+    private static LabelEntity Prompt(string text) =>
         new(new Label(FontFixtures.Font(), text) { Offset = Vector2.One });
 
-    private sealed class Holder : Entity
+    private sealed class LabelEntity : Entity
     {
-        internal Holder(Label label)
+        internal Label Text { get; }
+
+        // Moves the entity each step, which gives the label somewhere to interpolate from.
+        internal Vector2 Drift { get; set; }
+
+        internal LabelEntity(Label label)
             : base(new Vector2(4f, 5f))
         {
             Text = label;
             Add(label);
         }
-
-        internal Label Text { get; }
-
-        // Moves the entity each step, so the label has somewhere to interpolate from.
-        internal Vector2 Drift { get; set; }
 
         protected internal override void OnStep(in StepContext context) => Position += Drift;
     }

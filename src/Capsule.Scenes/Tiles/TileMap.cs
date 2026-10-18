@@ -6,28 +6,23 @@ using Capsule.Diagnostics;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tiles;
 
 /// <summary>A tile grid anchored at the world origin, with cell (0, 0) at the top-left.</summary>
 /// <remarks>
-/// Its cells sit at fixed world coordinates. Writing <see cref="Entity.Position"/>,
-/// <see cref="Entity.Rotation"/> or <see cref="Entity.Scale"/> throws, and the map takes no
-/// <see cref="Entity.Parent"/>. It may still place children of its own, whose local values are
-/// world values. It draws every palette entry that names a cell of the grid's texture. Every tile
-/// draws in the map's own <see cref="Entity.ZIndex"/> band and follows its
+/// Writing <see cref="Entity.Position"/>, <see cref="Entity.Rotation"/> or <see cref="Entity.Scale"/>
+/// throws, and the map takes no <see cref="Entity.Parent"/>. Its own children's local values are world
+/// values. Every tile draws in the map's own <see cref="Entity.ZIndex"/> band and follows its
 /// <see cref="Entity.ScrollFactor"/>. The map collides only through a <see cref="TileMapCollider2D"/>
-/// added to it, and a palette entry's layer still reaches <see cref="TileAt"/> on a map without one.
+/// added to it.
 /// <para>
-/// The map reads the grid's cells until the first <see cref="SetTile"/> that changes one, which copies
-/// them into the map. The <see cref="TileGrid"/> is never written. A scene rebuilt from it starts as
-/// authored.
+/// The first <see cref="SetTile"/> that changes a cell copies the grid's cells into the map. The
+/// <see cref="TileGrid"/> is never written.
 /// </para>
 /// <para>
-/// A scene document places one by the type key <c>tile-map</c>. Its authorable members hold the grid the
-/// document describes, and the map is built from them before a subclass constructor body runs. Every map
-/// composed from one document shares that document's cells until it edits one.
+/// A scene document places one by the type key <c>tile-map</c>. The map is built from its authorable
+/// members before a subclass constructor body runs.
 /// </para>
 /// </remarks>
 [TypeKey(Key)]
@@ -347,7 +342,7 @@ public class TileMap : Entity
         internal override bool Steps => false;
 
         // Draws only the cells the camera's swept bounds reach. Every one of them meets the bounds the view culls
-        // against, so the view's own test is skipped.
+        // against, and the view's own test is skipped.
         protected internal override void Draw(FrameView view)
         {
             ArgumentNullException.ThrowIfNull(view);
@@ -399,13 +394,13 @@ public class TileMap : Entity
             }
 
             return (
-                (int)MathF.Floor(Cells(swept.Left, grid.Width)),
-                (int)MathF.Floor(Cells(swept.Top, grid.Height)),
-                (int)MathF.Ceiling(Cells(swept.Right, grid.Width)),
-                (int)MathF.Ceiling(Cells(swept.Bottom, grid.Height)));
+                (int)MathF.Floor(ToTiles(swept.Left, grid.Width)),
+                (int)MathF.Floor(ToTiles(swept.Top, grid.Height)),
+                (int)MathF.Ceiling(ToTiles(swept.Right, grid.Width)),
+                (int)MathF.Ceiling(ToTiles(swept.Bottom, grid.Height)));
         }
 
         // A world coordinate in tiles, clamped to the grid's extent on that axis.
-        private float Cells(float boundary, int limit) => Math.Clamp(boundary / grid.TileSize, 0f, limit);
+        private float ToTiles(float boundary, int limit) => Math.Clamp(boundary / grid.TileSize, 0f, limit);
     }
 }

@@ -1,7 +1,7 @@
 namespace Capsule.Generators;
 
 // Every engine, build and framework name the generator looks up. The generator references no engine
-// assembly, so the compiler cannot check these. The generator tests compile against the engine and do.
+// assembly. The compiler cannot check these. The generator tests compile against the engine and do.
 internal static class MetadataNames
 {
     internal const string LogicRoleProperty = "build_property.CapsuleGameLogic";
@@ -9,12 +9,12 @@ internal static class MetadataNames
     internal const string RootNamespaceProperty = "build_property.RootNamespace";
 
     internal const string Entity = "Capsule.Scenes.Entity";
-    internal const string EntitySpawn = "Capsule.Scenes.Spawning.EntitySpawn";
+    internal const string Component = "Capsule.Scenes.Component";
+    internal const string EntitySpawn = "Capsule.Scenes.EntitySpawn";
     internal const string TypeKeyAttribute = "Capsule.Scenes.TypeKeyAttribute";
     internal const string AuthorableAttribute = "Capsule.Scenes.AuthorableAttribute";
     internal const string Scene = "Capsule.Scenes.Scene";
     internal const string SceneContent = "Capsule.Scenes.SceneContent";
-    internal const string Camera = "Capsule.Scenes.Camera";
     internal const string TileMap = "Capsule.Tiles.TileMap";
     internal const string InputDriver = "Capsule.Input.IInputDriver";
     internal const string ScenePayload = "Capsule.Scenes.IScenePayload";
@@ -22,9 +22,9 @@ internal static class MetadataNames
     internal const string SaveKey = "Capsule.Persistence.SaveKey`1";
 
     // The engine's reserved scene document keys, one nested class of string constants per object.
-    internal const string DocumentKeys = "Capsule.Scenes.Documents.SceneDocumentKeys+Document";
-    internal const string EntryKeys = "Capsule.Scenes.Documents.SceneDocumentKeys+Entry";
-    internal const string MemberObjectKeys = "Capsule.Scenes.Documents.SceneDocumentKeys+MemberObject";
+    internal const string DocumentKeys = "Capsule.Scenes.SceneDocumentKeys+Document";
+    internal const string EntryKeys = "Capsule.Scenes.SceneDocumentKeys+Entry";
+    internal const string MemberObjectKeys = "Capsule.Scenes.SceneDocumentKeys+MemberObject";
 
     // What the build marks CapsuleAssets with.
     internal const string AssetAttribute = "Capsule.Generated.CapsuleGeneratedAssetAttribute";

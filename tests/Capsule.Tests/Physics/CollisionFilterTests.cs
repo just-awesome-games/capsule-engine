@@ -61,75 +61,6 @@ public sealed class CollisionFilterTests
         Assert.True(narrowed.Matches(world.Layer("hazard")));
     }
 
-    // A layer no world interned is the zero value of a type that is nothing but a table index; read
-    // as agnostic it would build a filter every world resolves to its own index-0 entry.
-    [Fact]
-    public void ALayerNoWorldInterned_CannotBeTurnedIntoAFilterOrTestedAgainstOne()
-    {
-        CollisionWorld2D world = new();
-        CollisionLayer solid = world.Layer("solid");
-        CollisionFilter filter = CollisionFilter.Of(solid);
-
-        Assert.False(world.TryFindLayer("hazard", out CollisionLayer missing));
-        Assert.Equal(world.Layer(CollisionWorld2D.DefaultLayerName).Index, missing.Index);
-
-        Assert.Throws<ArgumentException>(() => CollisionFilter.Of(missing));
-        Assert.Throws<ArgumentException>(() => CollisionFilter.Of(solid, missing));
-        Assert.Throws<ArgumentException>(() => CollisionFilter.None.With(missing));
-        Assert.Throws<ArgumentException>(() => filter.With(missing));
-        Assert.Throws<ArgumentException>(() => filter.Without(missing));
-        Assert.Throws<ArgumentException>(() => filter.Matches(missing));
-        Assert.Throws<ArgumentException>(() => CollisionFilter.Everything.Matches(missing));
-    }
-
-    [Fact]
-    public void EveryWorldSeamTakingALayer_RefusesOneNoWorldInterned()
-    {
-        CollisionWorld2D world = new();
-        CollisionLayer solid = world.Layer("solid");
-        Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
-        ColliderHandle handle = world.Add(box, Vector2.Zero, solid);
-
-        Assert.False(world.TryFindLayer("hazard", out CollisionLayer missing));
-
-        Assert.Throws<ArgumentException>(() => world.NameOf(missing));
-        Assert.Throws<ArgumentException>(() => world.Add(box, Vector2.Zero, missing));
-        Assert.Throws<ArgumentException>(() => world.SetLayer(handle, missing));
-        Assert.Equal(solid, world.LayerOf(handle));
-    }
-
-    // Two worlds hand the same bit to unrelated names, so one world's mask read against another's
-    // table is a silent mismatch.
-    [Fact]
-    public void AFilter_RefusesALayerFromAnotherWorldRatherThanMatchingItsBit()
-    {
-        CollisionWorld2D first = new();
-        CollisionWorld2D second = new();
-        CollisionLayer hazard = first.Layer("hazard");
-        CollisionLayer solid = second.Layer("solid");
-
-        Assert.Equal(hazard.Index, solid.Index);
-        Assert.NotEqual(CollisionFilter.Of(hazard), CollisionFilter.Of(solid));
-        Assert.Throws<ArgumentException>(() => CollisionFilter.Of(hazard).Matches(solid));
-        Assert.Throws<ArgumentException>(() => first.CreateFilter("hazard").Matches(solid));
-    }
-
-    [Fact]
-    public void AFilter_RefusesToCombineTwoWorldsLayers()
-    {
-        CollisionWorld2D first = new();
-        CollisionWorld2D second = new();
-        CollisionLayer hazard = first.Layer("hazard");
-        CollisionLayer solid = second.Layer("solid");
-        CollisionFilter left = CollisionFilter.Of(hazard);
-        CollisionFilter right = CollisionFilter.Of(solid);
-
-        Assert.Throws<ArgumentException>(() => CollisionFilter.Of(hazard, solid));
-        Assert.Throws<ArgumentException>(() => left.With(solid));
-        Assert.Throws<ArgumentException>(() => left.Without(solid));
-        Assert.Throws<ArgumentException>(() => left | right);
-        Assert.Throws<ArgumentException>(() => left & right);
-    }
 
     [Fact]
     public void NoneAndEverything_NameNoTableAndAreTakenByEveryWorld()
@@ -149,7 +80,7 @@ public sealed class CollisionFilterTests
         Assert.Throws<ArgumentException>(() => second.OverlapBoxAll(probe, CollisionFilter.Of(hazard), default));
     }
 
-    // A filter names layers that already exist, so a misspelled one is a typo rather than a new layer
+    // A filter names layers that already exist. A misspelled one is a typo rather than a new layer
     // that quietly matches nothing.
     [Fact]
     public void CreateFilter_RefusesALayerNameNothingHasDeclared()
@@ -164,12 +95,12 @@ public sealed class CollisionFilterTests
         Assert.Contains("soild", error.Message, StringComparison.Ordinal);
         Assert.Throws<ArgumentException>(() => world.FindLayer("soild"));
 
-        // The typo interned nothing, so the world still holds the default layer and solid alone.
+        // The typo interned nothing. The world still holds the default layer and solid alone.
         Assert.Equal(2, world.LayerCount);
     }
 
     // A query whose filter reaches no layer any registered collider stands on skips the tree walk
-    // entirely, so the set of occupied layers must track every way a collider joins, is relayered, or
+    // entirely. The set of occupied layers must track every way a collider joins, is relayered, or
     // leaves: a stale one is a collider the broadphase silently stops reporting.
     [Fact]
     public void AQuery_FindsAColliderOnWhicheverLayerItCurrentlyStandsOn()

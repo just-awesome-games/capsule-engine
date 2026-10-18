@@ -30,7 +30,7 @@
     <CapsuleDocumentedType Include="Capsule.Build.CapsuleBuild;Capsule.Build.IAssetImporter;Capsule.Build.AssetImportContext" />
   </ItemGroup>
 
-  <!-- Atlas packing decodes and encodes PNGs here and nowhere else. Both are pure managed, so the
+  <!-- Atlas packing decodes and encodes PNGs here and nowhere else. Both are pure managed. The
        build stays a plain framework-dependent process on every build host. -->
   <ItemGroup>
     <PackageReference Include="StbImageSharp" Version="2.30.16" />

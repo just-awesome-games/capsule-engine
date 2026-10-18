@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace Capsule.Scenes.Spawning;
+namespace Capsule.Scenes;
 
 /// <summary>Where and how an entity is placed, as its constructor receives it.</summary>
 /// <remarks>
@@ -13,7 +13,7 @@ namespace Capsule.Scenes.Spawning;
 /// </remarks>
 /// <example>
 /// <code>
-/// scene.Add(new Spike(new EntitySpawn(position) { Rotation = MathF.PI / 2f }));
+/// scene.Add(new Sign(new EntitySpawn(position) { Rotation = MathF.PI / 2f }));
 /// scene.Add(new Lift(new EntitySpawn(position)) { Rise = 96f });
 /// </code>
 /// </example>

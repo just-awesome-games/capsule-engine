@@ -3,8 +3,6 @@ using Capsule.Assets;
 using Capsule.Audio;
 using Capsule.Physics;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 using static Capsule.Tests.Scenes.SceneFixtures;
 
 namespace Capsule.Tests.Scenes;

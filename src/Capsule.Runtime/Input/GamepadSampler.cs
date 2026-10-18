@@ -112,7 +112,7 @@ internal sealed class GamepadSampler
         return default;
     }
 
-    // Buttons without an XNA constant are left out of the lookup, so IsButtonDown is never handed an
+    // Buttons without an XNA constant are left out of the lookup. IsButtonDown is never handed an
     // empty flag set, which every state reports as down.
     private static (PadButton, Buttons)[] BuildLookup()
     {

@@ -7,7 +7,7 @@ namespace Capsule.Build.Shaders;
 /// <summary>Writes a shader's member: a <c>Shader</c> holding the parameter table it compiled with.</summary>
 internal static class ShaderMembers
 {
-    // A property with an initializer, so every read hands back the one instance materials batch by.
+    // A property with an initializer. Every read hands back the one instance materials batch by.
     internal static void Write(StringBuilder code, string indent, string identifier, Source shader, IReadOnlyList<ShaderParameter> parameters)
     {
         code.Append(indent).Append("/// <summary><c>").Append(shader.Key).Append(shader.Extension).Append("</c>");

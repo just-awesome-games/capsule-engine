@@ -16,9 +16,9 @@ run() {
     fi
 }
 
-# Only a package restore is held to a committed lock file; a source build resolves the engine
-# through project references and locks under obj/. CapsuleSourceRoot is the evaluated property, so
-# it folds in every way the source override can be set. Every later step runs with --no-restore: an
+# Only a package restore is held to a committed lock file. A source build resolves the engine
+# through project references and locks under obj/. CapsuleSourceRoot is the evaluated property. It
+# folds in every way the source override can be set. Every later step runs with --no-restore: an
 # implicit unlocked restore would regenerate a drifted lock file locally instead of failing the way
 # CI does.
 echo "pre-commit: mode"

@@ -14,14 +14,11 @@ internal static class SymbolShape
     internal static bool IsConcreteClass(INamedTypeSymbol type) =>
         type.TypeKind == TypeKind.Class && !type.IsAbstract && !type.IsStatic && !type.IsGenericType;
 
-    internal static bool DerivesFrom(INamedTypeSymbol type, Compilation compilation, string baseTypeName)
-    {
-        INamedTypeSymbol? baseType = compilation.GetTypeByMetadataName(baseTypeName);
-        if (baseType is null)
-        {
-            return false;
-        }
+    internal static bool DerivesFrom(INamedTypeSymbol type, Compilation compilation, string baseTypeName) =>
+        compilation.GetTypeByMetadataName(baseTypeName) is { } baseType && Inherits(type, baseType);
 
+    internal static bool Inherits(INamedTypeSymbol type, INamedTypeSymbol baseType)
+    {
         for (INamedTypeSymbol? current = type.BaseType; current is not null; current = current.BaseType)
         {
             if (SymbolEqualityComparer.Default.Equals(current, baseType))
@@ -33,24 +30,9 @@ internal static class SymbolShape
         return false;
     }
 
-    internal static bool Implements(INamedTypeSymbol type, Compilation compilation, string interfaceName)
-    {
-        INamedTypeSymbol? contract = compilation.GetTypeByMetadataName(interfaceName);
-        if (contract is null)
-        {
-            return false;
-        }
-
-        foreach (INamedTypeSymbol implemented in type.AllInterfaces)
-        {
-            if (SymbolEqualityComparer.Default.Equals(implemented, contract))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    internal static bool Implements(INamedTypeSymbol type, Compilation compilation, string interfaceName) =>
+        compilation.GetTypeByMetadataName(interfaceName) is { } contract
+        && type.AllInterfaces.Contains(contract, SymbolEqualityComparer.Default);
 
     // Non-private constructors taking one parameter of the named type. The generated call site passes an
     // lvalue, which binds to any of these ref kinds.
@@ -80,11 +62,6 @@ internal static class SymbolShape
     internal static bool HasPublicParameterlessConstructor(INamedTypeSymbol type) =>
         type.InstanceConstructors.Any(static constructor => constructor.Parameters.Length == 0 && constructor.DeclaredAccessibility == Accessibility.Public);
 
-    // Generated code sits in the type's assembly but does not derive from it, so a protected constructor is out of reach.
-    internal static bool HasAccessibleParameterlessConstructor(INamedTypeSymbol type) =>
-        type.InstanceConstructors.Any(static constructor => constructor.Parameters.Length == 0
-            && constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal);
-
     internal static bool IsAccessibleFromGeneratedCode(INamedTypeSymbol type)
     {
         for (INamedTypeSymbol? current = type; current is not null; current = current.ContainingType)
@@ -99,22 +76,8 @@ internal static class SymbolShape
         return true;
     }
 
-    internal static AttributeData? Attribute(INamedTypeSymbol type, Compilation compilation, string attributeTypeName)
-    {
-        INamedTypeSymbol? marker = compilation.GetTypeByMetadataName(attributeTypeName);
-        if (marker is null)
-        {
-            return null;
-        }
-
-        foreach (AttributeData attribute in type.GetAttributes())
-        {
-            if (SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, marker))
-            {
-                return attribute;
-            }
-        }
-
-        return null;
-    }
+    internal static AttributeData? Attribute(INamedTypeSymbol type, Compilation compilation, string attributeTypeName) =>
+        compilation.GetTypeByMetadataName(attributeTypeName) is { } marker
+            ? type.GetAttributes().FirstOrDefault(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, marker))
+            : null;
 }

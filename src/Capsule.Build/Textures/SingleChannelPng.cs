@@ -4,9 +4,11 @@ using System.IO.Compression;
 namespace Capsule.Build.Textures;
 
 /// <summary>Reads the one channel an <c>r8</c> texture carries: an 8-bit greyscale PNG's values, or an indexed PNG's raw palette indices.</summary>
+/// <remarks>The palette is only an editor's preview and is never applied. Two entries of one colour stay two values.</remarks>
 internal static class SingleChannelPng
 {
-    // The palette is only an editor's preview and is never applied. Two entries of one colour stay two values.
+    // 16384 x 16384. Every buffer the read allocates stays within int range below it.
+    private const int MaxTexels = 1 << 28;
 
     private const string Fix = "An r8 texture has one channel. Export it as 8-bit greyscale or indexed colour, not interlaced.";
 
@@ -16,7 +18,7 @@ internal static class SingleChannelPng
     {
         if (!png.AsSpan().StartsWith(PngWriter.Signature))
         {
-            throw new FormatException("is not a PNG.");
+            throw new FormatException("is not a PNG. Export it as a PNG.");
         }
 
         int width = 0;
@@ -30,7 +32,7 @@ internal static class SingleChannelPng
             int length = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(at));
             if (length < 0 || at + 12 + (long)length > png.Length)
             {
-                throw new FormatException("is a truncated PNG.");
+                throw new FormatException("is a truncated PNG. Export it again.");
             }
 
             ReadOnlySpan<byte> type = png.AsSpan(at + 4, 4);
@@ -40,7 +42,7 @@ internal static class SingleChannelPng
             {
                 if (length != 13)
                 {
-                    throw new FormatException("is a PNG with a damaged header.");
+                    throw new FormatException("is a PNG with a damaged header. Export it again.");
                 }
 
                 width = BinaryPrimitives.ReadInt32BigEndian(data);
@@ -61,7 +63,12 @@ internal static class SingleChannelPng
 
                 if (width <= 0 || height <= 0)
                 {
-                    throw new FormatException("is a PNG with no texels.");
+                    throw new FormatException("is a PNG with no texels. Export the texture with at least one texel.");
+                }
+
+                if ((long)width * height > MaxTexels)
+                {
+                    throw new FormatException($"is a PNG of {width}x{height} texels, more than the {MaxTexels} an r8 texture holds. Scale it down or split it.");
                 }
             }
             else if (type.SequenceEqual("IDAT"u8))
@@ -78,10 +85,11 @@ internal static class SingleChannelPng
 
         if (depth == 0)
         {
-            throw new FormatException("is a PNG with no header.");
+            throw new FormatException("is a PNG with no header. Export it again.");
         }
 
-        int stride = ((width * depth) + 7) / 8;
+        // Widened first. The widest row the texel limit allows holds 2^31 bits.
+        int stride = (int)((((long)width * depth) + 7) / 8);
         byte[] filtered = new byte[(stride + 1) * height];
         compressed.Position = 0;
         using (ZLibStream inflate = new(compressed, CompressionMode.Decompress))
@@ -92,7 +100,7 @@ internal static class SingleChannelPng
             }
             catch (Exception ex) when (ex is EndOfStreamException or InvalidDataException)
             {
-                throw new FormatException($"is a PNG whose image data is damaged: {ex.Message}", ex);
+                throw new FormatException($"is a PNG whose image data is damaged: {ex.Message.TrimEnd('.')}. Export it again.", ex);
             }
         }
 
@@ -111,7 +119,7 @@ internal static class SingleChannelPng
         return new Texels(values, width, height, 1);
     }
 
-    // Reverses one row's filter in place. Every accepted kind is one byte a texel or less, so the
+    // Reverses one row's filter in place. Every accepted kind is one byte a texel or less. The
     // byte to the left is always one byte back.
     private static void Unfilter(byte filter, Span<byte> row, ReadOnlySpan<byte> previous)
     {
@@ -127,7 +135,7 @@ internal static class SingleChannelPng
                 2 => up,
                 3 => (left + up) / 2,
                 4 => Paeth(left, up, corner),
-                _ => throw new FormatException($"is a PNG with the unknown row filter {filter}."),
+                _ => throw new FormatException($"is a PNG with the unknown row filter {filter}. Export it again."),
             });
         }
     }

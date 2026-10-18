@@ -76,7 +76,7 @@ public sealed class NineSliceTests
     {
         ReadOnlySpan<SpriteIntent> slices = Expand(new Vector2(40f, 30f), new SliceInsets(99));
 
-        // The near inset takes the whole region, so the far slices have no texels at all.
+        // The near inset takes the whole region. The far slices have no texels at all.
         Assert.Equal(new TextureRegion(10, 20, 12, 12), Assert.Single(slices.ToArray()).Sprite.Region);
     }
 
@@ -128,7 +128,7 @@ public sealed class NineSliceTests
             new Vector2(40f, 30f),
             ColorRgba.White);
 
-        Assert.Equal(new Rect(5f, 7f, 45f, 37f), panel.Bounds);
+        Assert.Equal(Rect.FromEdges(5f, 7f, 45f, 37f), panel.Bounds);
     }
 
     [Fact]

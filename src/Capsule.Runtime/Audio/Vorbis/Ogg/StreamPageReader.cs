@@ -52,7 +52,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
                     }
                     _maxGranulePos = _reader.GranulePosition;
                 }
-                // granule position == -1, so this page doesn't complete any packets
+                // granule position == -1 means this page doesn't complete any packets
                 // we don't really care if it's a continuation itself, only that it is continued and has a single packet
                 else if (_firstDataPageIndex.HasValue && (!_reader.IsContinued || _reader.PacketCount != 1))
                 {

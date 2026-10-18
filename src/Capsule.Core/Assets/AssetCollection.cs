@@ -81,7 +81,7 @@ public sealed class AssetCollection
     /// <summary>Whether this collection declares <paramref name="shader"/>, which a renderer's material adds.</summary>
     public bool Contains(Shader shader) => _shaderSet.Contains(shader);
 
-    // Every texture and clip another collection holds, in its order.
+    // Every texture, clip and shader another collection holds, in its order.
     internal void Add(AssetCollection other)
     {
         foreach (TextureHandle texture in other._textures)
@@ -93,12 +93,19 @@ public sealed class AssetCollection
         {
             Add(clip);
         }
+
+        foreach (Shader shader in other._shaders)
+        {
+            AddShader(shader);
+        }
     }
 
     /// <summary>
-    /// Adds a material's shader and every texture set on it, ignoring any already declared. A renderer's
-    /// material is collected with its entity. This declares one the entity assigns later.
+    /// Adds a material's shader and every texture set on it, ignoring any already declared.
     /// </summary>
+    /// <remarks>
+    /// A renderer's material is collected with its entity. This declares one the entity assigns later.
+    /// </remarks>
     /// <example>
     /// <code>
     /// protected override void CollectAssets(AssetCollection assets) =&gt; assets.Add(_palette);
@@ -108,10 +115,7 @@ public sealed class AssetCollection
     {
         ArgumentNullException.ThrowIfNull(material);
 
-        if (_shaderSet.Add(material.Shader))
-        {
-            _shaders.Add(material.Shader);
-        }
+        AddShader(material.Shader);
 
         for (int i = 0; i < material.Shader.Parameters.Length; i++)
         {
@@ -149,4 +153,12 @@ public sealed class AssetCollection
     internal IReadOnlyList<Shader> Shaders => _shaders;
 
     internal IReadOnlyList<AudioClip> Clips => _clips;
+
+    private void AddShader(Shader shader)
+    {
+        if (_shaderSet.Add(shader))
+        {
+            _shaders.Add(shader);
+        }
+    }
 }

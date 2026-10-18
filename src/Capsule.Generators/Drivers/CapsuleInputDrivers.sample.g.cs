@@ -3,7 +3,8 @@
 
 namespace Capsule.Generated
 {
-    /// <summary>Every input driver this assembly declares. Generated code. Do not edit.</summary>
+    /// <summary>Every input driver this assembly declares.</summary>
+    /// <remarks>Generated code. Do not edit.</remarks>
     [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     internal static class CapsuleInputDrivers
     {

@@ -1,7 +1,3 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.UI;
-
 namespace Capsule.Bench.Logic.UI;
 
 public sealed class Caption : ScreenEntity

@@ -1,7 +1,3 @@
-using System.Numerics;
-using Capsule.Physics;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>A pooled shot that flies straight and leaves the scene on the first wall it touches, or when its time is up.</summary>

@@ -1,8 +1,3 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Input;
-using Capsule.Scenes;
-using Capsule.UI;
 using MinimalGame.Game.Scenes;
 
 namespace MinimalGame.Game.UI;
@@ -21,7 +16,8 @@ public sealed class OptionsMenu : ScreenEntity
     private const string JumpCaption = "Jump:";
     private const string ShootCaption = "Shoot:";
 
-    // The longest caption a row shows, which the panel is sized for.
+    // What a row shows while it listens for a press. The longer one sizes the panel.
+    private const string JumpPrompt = "Jump: press a button";
     private const string ShootPrompt = "Shoot: press a button";
 
     private readonly MenuItem _jump = new(JumpCaption, GameInput.Jump);
@@ -44,7 +40,7 @@ public sealed class OptionsMenu : ScreenEntity
     {
         // Wide enough for the longest caption a capture shows, and only half of the fourth row shows, which
         // tells the player there is more below.
-        float listWidth = Math.Max(Math.Max(_music.Size.X, _effects.Size.X), MenuItem.WidthFor(ShootPrompt));
+        float listWidth = Math.Max(Math.Max(_music.Size.X, _effects.Size.X), Math.Max(MenuItem.WidthFor(JumpPrompt), MenuItem.WidthFor(ShootPrompt)));
         Size = new Vector2(listWidth + BarGap + ScrollBar.Width, 3.5f * (MenuItem.BoxHeight + MenuItem.Spacing));
 
         ScrollContainer list = new(Anchor.Fill, Vector2.Zero) { Parent = this, Padding = new Insets(0f, 0f, ScrollBar.Width + BarGap, 0f) };
@@ -68,8 +64,8 @@ public sealed class OptionsMenu : ScreenEntity
         _jump.SecondaryPressed += _ => Apply(_jump, new InputSettings().Jump);
         _shoot.SecondaryPressed += _ => Apply(_shoot, new InputSettings().Shoot);
 
-        _music.Changed += SetMusic;
-        _effects.Changed += SetEffects;
+        _music.Changed += _ => SetVolume(AudioBuses.Music, _music);
+        _effects.Changed += _ => SetVolume(AudioBuses.Sfx, _effects);
         _back.Pressed += Leave;
         _navigator.Canceled += Leave;
     }
@@ -108,7 +104,7 @@ public sealed class OptionsMenu : ScreenEntity
     {
         _listening = item;
         _navigator.Interactable = false;
-        item.Caption = item == _jump ? "Jump: press a button" : ShootPrompt;
+        item.Caption = item == _jump ? JumpPrompt : ShootPrompt;
         item.ShowsPrompt = false;
     }
 
@@ -138,18 +134,14 @@ public sealed class OptionsMenu : ScreenEntity
         Run.Saves.Write(GameSaves.Settings, _settings);
     }
 
-    private void SetMusic(float volume)
+    // A save moment like Apply: the document takes both levels from their sliders, and the moved
+    // slider's bus takes its level at once.
+    private void SetVolume(AudioBus bus, VolumeSlider slider)
     {
-        _settings.MusicVolume = volume;
+        _settings.MusicVolume = _music.Value;
+        _settings.EffectsVolume = _effects.Value;
         Run.Saves.Write(GameSaves.Settings, _settings);
-        Run.Audio.SetVolume(AudioBuses.Music, volume);
-    }
-
-    private void SetEffects(float volume)
-    {
-        _settings.EffectsVolume = volume;
-        Run.Saves.Write(GameSaves.Settings, _settings);
-        Run.Audio.SetVolume(AudioBuses.Sfx, volume);
+        Run.Audio.SetVolume(bus, slider.Value);
     }
 
     private void Leave() => Run.RequestScene<MainMenu>();

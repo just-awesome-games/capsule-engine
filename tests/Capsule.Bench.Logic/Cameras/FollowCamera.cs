@@ -1,6 +1,4 @@
-using System.Numerics;
 using Capsule.Bench.Logic.Entities;
-using Capsule.Scenes;
 
 namespace Capsule.Bench.Logic.Cameras;
 

@@ -7,16 +7,15 @@ namespace Capsule.Tests.Generators;
 
 /// <summary>
 /// Each emitted file's committed sample under <c>src/Capsule.Generators/</c> against what the generator
-/// writes for one small game, so the shape of every file reads without running the generator.
+/// writes for one small game, which shows the shape of every file without running the generator.
 /// </summary>
 public sealed class GeneratorSampleTests
 {
-    private const string Logic = """
+    private const string Logic = $$"""
         #nullable enable
         using Capsule.Assets;
         using Capsule.Input;
         using Capsule.Scenes;
-        using Capsule.Scenes.Spawning;
         using Capsule.Tiles;
 
         namespace Game;
@@ -69,7 +68,7 @@ public sealed class GeneratorSampleTests
             public int Floor { get; private set; }
         }
 
-        public sealed class GameCamera : Camera;
+        {{GeneratorHarness.GameCamera}}
 
         public sealed class Ice : TileType
         {
@@ -77,14 +76,7 @@ public sealed class GeneratorSampleTests
             public float Grip { get; init; } = 0.1f;
         }
 
-        public sealed class Walkthrough : IInputDriver
-        {
-            public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
-            {
-                snapshot = DeviceSnapshot.Empty;
-                return false;
-            }
-        }
+        {{GeneratorHarness.Walkthrough}}
 
         public record Arrival(string Entrance) : IScenePayload;
 
@@ -139,7 +131,7 @@ public sealed class GeneratorSampleTests
         string file = sample.Replace('/', Path.DirectorySeparatorChar) + ".sample.g.cs";
         string committed = Path.Combine(ToolWorkspace.Metadata("CapsuleCheckout"), "src", "Capsule.Generators", file);
 
-        // Byte for byte, so a committed CRLF or BOM is stale too. The samples are UTF-8 without a BOM.
+        // Byte for byte. A committed CRLF or BOM is stale too. The samples are UTF-8 without a BOM.
         if (File.Exists(committed) && File.ReadAllBytes(committed).AsSpan().SequenceEqual(Encoding.UTF8.GetBytes(generated)))
         {
             return;
@@ -149,7 +141,7 @@ public sealed class GeneratorSampleTests
         Directory.CreateDirectory(Path.GetDirectoryName(fresh)!);
         File.WriteAllText(fresh, generated);
         Assert.Fail(
-            $"{sample}.sample.g.cs differs from what the generator writes. The sample is generated, so a hand edit or a generator "
+            $"{sample}.sample.g.cs differs from what the generator writes. The sample is generated. A hand edit or a generator "
                 + $"change alone makes it stale. Copy the fresh output from '{fresh}' over '{committed}' and commit it.");
     }
 

@@ -1,6 +1,3 @@
-using Capsule.Input;
-using Capsule.Rendering;
-
 namespace MinimalGame.Game;
 
 /// <summary>The prompt art for each button <see cref="GameInput"/> binds by default, all cut from one sheet.</summary>

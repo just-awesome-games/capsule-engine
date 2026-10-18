@@ -23,20 +23,6 @@ public enum SceneTransitionKind
 /// </summary>
 public readonly record struct SceneTransition
 {
-    private SceneTransition(
-        SceneTransitionKind kind,
-        Type? sceneType,
-        string? documentName,
-        IScenePayload? payload,
-        bool hasPayload)
-    {
-        Kind = kind;
-        SceneType = sceneType;
-        DocumentName = documentName;
-        Payload = payload;
-        HasPayload = hasPayload;
-    }
-
     /// <summary>Which operation the host is being asked to perform.</summary>
     public SceneTransitionKind Kind { get; }
 
@@ -54,6 +40,20 @@ public readonly record struct SceneTransition
     /// its payload.
     /// </summary>
     public bool HasPayload { get; }
+
+    private SceneTransition(
+        SceneTransitionKind kind,
+        Type? sceneType,
+        string? documentName,
+        IScenePayload? payload,
+        bool hasPayload)
+    {
+        Kind = kind;
+        SceneType = sceneType;
+        DocumentName = documentName;
+        Payload = payload;
+        HasPayload = hasPayload;
+    }
 
     internal static SceneTransition Exit() =>
         new(SceneTransitionKind.Exit, null, null, null, false);

@@ -3,7 +3,7 @@
   <!-- Capsule's API reference, staged at CapsuleApiReferenceDirectory before each project compiles:
        the XML documentation of every Capsule assembly the project references, and the JSON Schema
        of every authored format. A source build stages them from the engine clone, and a package
-       build from the restored packages, so both modes read them at one path. Universal: any project
+       build from the restored packages. Both modes read them at one path. Universal: any project
        written against Capsule's API reads the same reference. -->
 
   <Target Name="CapsuleStageApiReference"

@@ -8,9 +8,9 @@ namespace Capsule.Tests.Physics;
 public sealed class RidingTests
 {
     private const string Platform = "platform";
-    private const string Crate = "crate";
+    private const string Crate = CollisionFixtures.Crate;
 
-    // The platform's own position write carries its rider, so the rider sits flush on it whether
+    // The platform's own position write carries its rider. The rider sits flush on it whether
     // the platform moved before the rider's step or after it.
     [Theory]
     [InlineData(true, 0f, -1.5f)]
@@ -189,7 +189,7 @@ public sealed class RidingTests
     }
 
     // A pusher driving into two crates in a row shoves them in handle order. The nearer crate went in
-    // first, so it moves first and stops against the farther one, and the order the broadphase
+    // first. It moves first and stops against the farther one, and the order the broadphase
     // happens to hold them in changes nothing.
     [Theory]
     [InlineData(false)]
@@ -298,39 +298,5 @@ public sealed class RidingTests
     {
         float gap = lower.Position.Y - (upper.Position.Y + Rider.Edge);
         Assert.Equal(0f, gap, CollisionFixtures.Tolerance);
-    }
-
-    /// <summary>A box on a layer, moved only by writes to its position.</summary>
-    private sealed class Slab : Entity
-    {
-        internal Slab(Vector2 position, string layer, Vector2? size = null)
-            : base(position)
-        {
-            Collider = new BoxCollider2D(size ?? new Vector2(32f, 8f)) { Layer = layer };
-            Add(Collider);
-        }
-
-        internal BoxCollider2D Collider { get; }
-    }
-
-    /// <summary>An 8x8 body blocked by solid ground and platforms, moved by the layers named.</summary>
-    private sealed class Rider : Entity
-    {
-        internal const float Edge = 8f;
-
-        internal Rider(Vector2 position, params string[] movedBy)
-            : base(position)
-        {
-            Collider = new BoxCollider2D(new Vector2(Edge, Edge));
-            Add(Collider);
-            Mover = new KinematicBody2D(Collider);
-            Mover.BlockedBy = new(CollisionFixtures.Solid, Platform, Crate);
-            Mover.MovedBy = new(movedBy);
-            Add(Mover);
-        }
-
-        internal BoxCollider2D Collider { get; }
-
-        internal KinematicBody2D Mover { get; }
     }
 }

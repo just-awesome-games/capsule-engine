@@ -10,6 +10,13 @@ namespace Capsule.Persistence;
 /// </summary>
 public abstract class SaveKey
 {
+    /// <summary>The document's name, one safe file name, compared ordinally.</summary>
+    /// <remarks>
+    /// A file system that folds case maps two names differing only by case onto one file. A game
+    /// must not declare such a pair.
+    /// </remarks>
+    public string Name { get; }
+
     private protected SaveKey(string name)
     {
         if (!SafeName.IsOneSafeDirectoryName(name))
@@ -21,13 +28,6 @@ public abstract class SaveKey
 
         Name = name;
     }
-
-    /// <summary>The document's name, one safe file name, compared ordinally.</summary>
-    /// <remarks>
-    /// A file system that folds case maps two names differing only by case onto one file. A game
-    /// must not declare such a pair.
-    /// </remarks>
-    public string Name { get; }
 }
 
 /// <summary>
@@ -35,6 +35,11 @@ public abstract class SaveKey
 /// <see cref="JsonTypeInfo{T}"/>, and optionally what an absent document reads as.
 /// </summary>
 /// <typeparam name="T">The document's type, which is any type the game's context serializes.</typeparam>
+/// <remarks>
+/// A save written by an older build still loads. A field it lacks reads as its property's initializer, and a
+/// field the type no longer declares is ignored. A missing <see langword="required"/> member fails the read,
+/// and a missing positional record parameter takes the parameter's default.
+/// </remarks>
 /// <example>
 /// <code>
 /// public static readonly SaveKey&lt;GameSettings&gt; Settings =
@@ -47,6 +52,10 @@ public abstract class SaveKey
 /// </example>
 public sealed class SaveKey<T> : SaveKey
 {
+    internal JsonTypeInfo<T> TypeInfo { get; }
+
+    internal string? FallbackJson { get; }
+
     /// <summary>A key with no fallback. <see cref="SaveStore.Read{T}"/> of its absent document throws.</summary>
     /// <param name="name">One safe file name.</param>
     /// <param name="typeInfo">The game context's entry for <typeparamref name="T"/>.</param>
@@ -71,8 +80,4 @@ public sealed class SaveKey<T> : SaveKey
     {
         FallbackJson = JsonSerializer.Serialize(fallback, typeInfo);
     }
-
-    internal JsonTypeInfo<T> TypeInfo { get; }
-
-    internal string? FallbackJson { get; }
 }

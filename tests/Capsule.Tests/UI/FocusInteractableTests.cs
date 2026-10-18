@@ -101,17 +101,17 @@ public sealed class FocusInteractableTests
         Assert.Equal(["adjusted 0 1"], menu.Log);
     }
 
-    // Sits where a menu item would, so it steps before the navigator, and arms Interactable on the
+    // Sits where a menu item would. It steps before the navigator, and arms Interactable on the
     // same step Down is pressed.
     private sealed class ArmedItem : ScreenEntity
     {
-        internal ArmedItem()
-            : base(Anchor.TopLeft, Vector2.Zero) =>
-            Add(Focusable = new Focusable(Box));
-
         internal Focusable Focusable { get; }
 
         internal FocusNavigator? Navigator { get; set; }
+
+        internal ArmedItem()
+            : base(Anchor.TopLeft, Vector2.Zero) =>
+            Add(Focusable = new Focusable(Box));
 
         protected internal override void OnStep(in StepContext context)
         {

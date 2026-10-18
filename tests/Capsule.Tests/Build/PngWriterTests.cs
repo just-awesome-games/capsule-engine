@@ -6,7 +6,7 @@ namespace Capsule.Tests.Build;
 /// <summary>The build's PNG encoder against stb's decode, at both channel counts it writes.</summary>
 public sealed class PngWriterTests
 {
-    // Noise rows beside smooth rows, so each row filter wins somewhere.
+    // Noise rows beside smooth rows. Each row filter wins somewhere.
     [Theory]
     [InlineData(1)]
     [InlineData(4)]

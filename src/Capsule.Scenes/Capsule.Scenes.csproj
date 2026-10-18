@@ -26,7 +26,7 @@
   <ItemGroup>
     <!-- The serializer generator documents every member of the context it emits; the shipped
          reference lists only the public surface. -->
-    <CapsuleGeneratedInternalType Include="Capsule.Scenes.Documents.SceneDocumentJsonContext" />
+    <CapsuleGeneratedInternalType Include="Capsule.Scenes.SceneDocumentJsonContext" />
   </ItemGroup>
 
 </Project>

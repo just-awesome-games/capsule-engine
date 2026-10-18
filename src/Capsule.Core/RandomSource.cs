@@ -6,10 +6,8 @@ namespace Capsule;
 /// The deterministic random source game logic draws from, reached as a run's <c>Random</c>.
 /// </summary>
 /// <remarks>
-/// It is a xoshiro256** generator seeded from <see cref="Seed"/> and <see cref="Stream"/>. It reads
-/// no wall clock, process entropy or ambient state, and it advances only on a draw. One seed,
-/// stream and sequence of calls produce the same values on every platform. Give each independent
-/// domain its own stream of the run's seed.
+/// One seed, stream and sequence of calls produce the same values on every platform. The source
+/// advances only on a draw. Give each independent domain its own stream of the run's seed.
 /// <para>
 /// A run holds one instance for its life. Neither a transition nor a restart reseeds it. To restore
 /// a position, construct the source again and advance it by <see cref="DrawCount"/> draws.
@@ -44,7 +42,7 @@ public sealed class RandomSource
     public ulong DrawCount { get; private set; }
 
     /// <summary>Creates a source positioned at the start of a seed and stream's sequence.</summary>
-    /// <param name="seed">Any 64-bit value, including zero. Every seed yields a full-period stream.</param>
+    /// <param name="seed">Any 64-bit value, including zero, and <see cref="DefaultSeed"/> when omitted.</param>
     /// <param name="stream">
     /// The domain this source serves, as any 64-bit value. Streams of one seed are independent, and
     /// adjacent stream numbers are as far apart as distant ones.
@@ -57,12 +55,12 @@ public sealed class RandomSource
         Seed = seed;
         Stream = stream;
 
-        // Avalanche is a bijection, so s0 recovers the seed and s0 with s1 recovers the stream. Two
-        // distinct seed and stream pairs never share a state.
+        // Avalanche is a bijection. The seed is recoverable from s0 and the stream from s0 with s1, and
+        // two distinct seed and stream pairs never share a state.
         _s0 = Avalanche(seed ^ SeedConstant);
         _s1 = Avalanche(stream ^ _s0);
 
-        // The last two words fold the first two together, so no word derives from a single input. The
+        // The last two words fold the first two together. No word derives from a single input, and the
         // seed and stream pair that zeroes s0 and s1 cannot zero these. An all-zero state is xoshiro's
         // fixed point.
         _s2 = Avalanche(_s0 ^ Avalanche(_s1 + ThirdWordConstant));
@@ -170,11 +168,10 @@ public sealed class RandomSource
 
     /// <summary>
     /// Draws from an approximately normal distribution of <paramref name="mean"/> and
-    /// <paramref name="standardDeviation"/>. Always two draws, and the same result bits on every
-    /// supported platform.
+    /// <paramref name="standardDeviation"/>. Always two draws.
     /// </summary>
     /// <param name="mean">The distribution's centre. Must be finite.</param>
-    /// <param name="standardDeviation">The spread, finite and not negative. Zero draws and returns the mean.</param>
+    /// <param name="standardDeviation">The spread, finite and not negative, and 1 when omitted. Zero draws and returns the mean.</param>
     /// <returns>
     /// A finite value within six deviations of the mean. A value beyond what a float can hold
     /// saturates at <see cref="float.MaxValue"/>.
@@ -203,8 +200,8 @@ public sealed class RandomSource
     }
 
     /// <summary>
-    /// Draws a point uniformly distributed over the area of the unit disc. Each attempt costs two draws,
-    /// and about four attempts in five land inside the disc and return.
+    /// Draws a point uniformly distributed over the area of the unit disc. Each attempt costs two draws
+    /// and repeats until one lands inside the disc.
     /// </summary>
     /// <returns>A point inside or on the unit circle, with magnitude at most 1.</returns>
     public Vector2 InsideUnitCircle()
@@ -296,7 +293,7 @@ public sealed class RandomSource
         return lastPositive;
     }
 
-    // float.MaxValue is exact as a double, so this catches values the cast would round to an infinity.
+    // float.MaxValue is exact as a double. This catches values the cast would round to an infinity.
     private static float Saturate(double value) => value switch
     {
         >= float.MaxValue => float.MaxValue,

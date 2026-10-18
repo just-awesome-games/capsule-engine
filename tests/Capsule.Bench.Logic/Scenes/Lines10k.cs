@@ -1,7 +1,6 @@
 using Capsule.Bench.Logic.Cameras;
 using Capsule.Bench.Logic.Components;
 using Capsule.Bench.Logic.Entities;
-using Capsule.Scenes;
 
 namespace Capsule.Bench.Logic.Scenes;
 

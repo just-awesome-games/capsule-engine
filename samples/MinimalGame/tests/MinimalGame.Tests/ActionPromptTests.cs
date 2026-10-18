@@ -9,7 +9,7 @@ using MinimalGame.Game.UI;
 
 namespace MinimalGame.Tests;
 
-// The prompt reads the bindings and the active device each step, so a device switch and a rebind show
+// The prompt reads the bindings and the active device each step. A device switch and a rebind show
 // without anything telling it.
 public sealed class ActionPromptTests
 {

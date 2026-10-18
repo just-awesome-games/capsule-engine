@@ -1,5 +1,3 @@
-using Capsule;
-
 namespace MinimalGame.Game;
 
 /// <summary>What the game keeps for the length of one run, attached at boot.</summary>

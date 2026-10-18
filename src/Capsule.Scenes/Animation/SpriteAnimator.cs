@@ -101,14 +101,12 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// <remarks>
     /// The animator calls <see cref="Scene.Remove(Entity)"/> on its own entity in the step that finds
     /// <see cref="IsFinished"/>, and the removal lands at that step's end. The last frame draws for its
-    /// own ticks and no longer. The entity leaves with its subtree, and its parent stays. A pooled entity
-    /// returns to its <see cref="EntityPool{T}"/> as any removal returns it. Removal rewinds the clip,
-    /// and the reused entity replays it from its first frame. The setting itself survives removal.
+    /// own ticks. A pooled entity returns to its <see cref="EntityPool{T}"/> as any removal returns it,
+    /// and replays the clip from its first frame when reused. The setting survives removal.
     /// <para>
-    /// A looping clip never finishes and never removes its entity. A <see cref="Paused"/> animator keeps
-    /// its entity in the scene until it is unpaused. An entity held by <see cref="Scene.Freeze(int)"/>
-    /// or <see cref="Scene.Paused"/> does not step its animator. Its clip finishes, and the entity
-    /// leaves, as many steps later as the hold lasted.
+    /// A looping clip never removes its entity. A <see cref="Paused"/> animator keeps its entity until it
+    /// is unpaused. A hold by <see cref="Scene.Freeze(int)"/> or <see cref="Scene.Paused"/> delays the
+    /// removal by as many steps as the hold lasts.
     /// </para>
     /// </remarks>
     /// <example>
@@ -173,24 +171,20 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// </summary>
     /// <remarks>
     /// A frame's events are reported when stepping enters it. That is every frame a step crosses, and
-    /// frame 0 again on every loop wrap. A step crossing several passes of a loop reports each event
-    /// once. Any <c>Play</c> reports the frame it lands on when it lands on that frame's first tick.
-    /// Landing part-way through a frame reports nothing. Playing the clip already playing without a
-    /// restart reports nothing.
+    /// frame 0 again on every loop wrap. A step reports each event once. A <c>Play</c> reports the frame
+    /// it lands on only when it lands on that frame's first tick. Playing the clip already playing
+    /// without a restart reports nothing.
     /// <para>
-    /// Every report is readable from the animator step that makes it until the animator's next step.
-    /// A <c>Play</c> reports toward the animator's next step, which is this tick's step when the
-    /// animator has not stepped yet. A reader that steps after the animator, such as a late step or a
-    /// component attached after it, sees the event on that step. A reader that steps before the
-    /// animator sees it one step later. No reader misses it or sees it twice. An animator held by a
-    /// freeze or pause of its entity does not step, and its reports stay readable until it does.
-    /// Removal from the scene clears every report and rewinds to frame 0. The rewind reports that
-    /// frame toward the animator's first step after it rejoins a scene.
+    /// A report is readable from the animator step that makes it until the animator's next step. A
+    /// <c>Play</c> reports toward the animator's next step. A reader that steps after the animator sees
+    /// the event on that step, and a reader that steps before it sees the event one step later. A held
+    /// animator's reports stay readable until it steps. Removal from the scene clears every report, and
+    /// its rewind reports frame 0 toward the animator's first step after it rejoins a scene.
     /// </para>
     /// </remarks>
     /// <example>
     /// <code>
-    /// if (_animator.Reached(CapsuleAssets.Sprites.Actors.PlayerSheet.Events.Footstep))
+    /// if (_animator.Reached(CapsuleAssets.Sprites.Actors.WalkerSheet.Events.Footstep))
     /// {
     ///     _footstep.Play();
     /// }
@@ -272,9 +266,9 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// finishes. A variant swap landing on a frame's first tick reports that frame's events again.
     /// </remarks>
     /// <example>
-    /// Swapping a walk for its shooting variant mid-stride:
+    /// Swapping a walk for its carrying variant mid-stride:
     /// <code>
-    /// _animator.PlayAtFrame(walkShooting, _animator.FrameIndex, _animator.FrameTick);
+    /// _animator.PlayAtFrame(walkCarrying, _animator.FrameIndex, _animator.FrameTick);
     /// </code>
     /// </example>
     /// <param name="clip">The clip to play.</param>
@@ -480,7 +474,6 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         return false;
     }
 
-    // A clip has no name. Its frames' span of the sheet identifies it.
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)
     {
@@ -490,6 +483,7 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
             return;
         }
 
+        // A clip has no name. Its frames' span of the sheet identifies it.
         TextureRegion first = clip.Frames[0].Region;
         TextureRegion last = clip.Frames[^1].Region;
         panel.Field(

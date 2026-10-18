@@ -1,6 +1,3 @@
-using System.Numerics;
-using Capsule.Rendering;
-
 namespace Capsule.Bench.Logic.Components;
 
 /// <summary>10 000 lines a frame from one renderer, as a hundred fans of a hundred spokes, the way a debug-draw-heavy frame submits them.</summary>
@@ -22,7 +19,7 @@ public sealed class LineField : Renderer
 
             for (int spoke = 0; spoke < 100; spoke++)
             {
-                // The spoke's end walks the perimeter of a square about the hub, so no sine is evaluated.
+                // The spoke's end walks the perimeter of a square about the hub. No sine is evaluated.
                 float t = spoke / 25f;
                 int side = (int)t;
                 float along = ((t - side) * 2f) - 1f;

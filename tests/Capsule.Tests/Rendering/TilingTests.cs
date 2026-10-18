@@ -8,7 +8,7 @@ public sealed class TilingTests
 {
     private static readonly TextureHandle Atlas = new("atlas", ".png");
 
-    // A 16x8 frame at its corner, so a copy's position is its corner.
+    // A 16x8 frame at its corner. A copy's position is its corner.
     private static readonly Sprite Frame = new(Atlas, new TextureRegion(4, 2, 16, 8));
 
     [Fact]
@@ -23,7 +23,7 @@ public sealed class TilingTests
     }
 
     // A finite extent covers that much from the frame's low edge, cropping the copy that reaches
-    // past it to whole texels; an axis at zero draws that axis once.
+    // past it to whole texels. An axis at zero draws that axis once.
     [Fact]
     public void AFiniteExtent_RepeatsAtTheDrawnSizeAndCropsTheFarCopy()
     {
@@ -42,7 +42,7 @@ public sealed class TilingTests
         Assert.Equal(new RenderMetrics(Submitted: 3, Visible: 3), view.Metrics);
     }
 
-    // The period is the drawn extent, so a scaled frame repeats at its scaled size and the crop is
+    // The period is the drawn extent. A scaled frame repeats at its scaled size and the crop is
     // measured in its scaled texels.
     [Fact]
     public void AScaledFrame_RepeatsAtItsScaledExtent()
@@ -79,7 +79,7 @@ public sealed class TilingTests
         Assert.Equal(new TextureRegion(12, 2, 8, 8), copies[1].Sprite.Region);
         Assert.Equal(new Vector2(19, 5), copies[1].Position);
         Assert.True(copies[1].TryGetSweptBounds(out Rect far));
-        Assert.Equal(new Rect(19, 5, 27, 13), far);
+        Assert.Equal(Rect.FromEdges(19, 5, 27, 13), far);
     }
 
     // The camera passes the frame in either direction: every copy on screen is there and none
@@ -146,7 +146,7 @@ public sealed class TilingTests
         Assert.Equal(new RenderMetrics(Submitted: 0, Visible: 0), view.Metrics);
     }
 
-    // Each copy is culled on its own, so a finite run reaching past the camera costs only the copies
+    // Each copy is culled on its own. A finite run reaching past the camera costs only the copies
     // the camera can see.
     [Fact]
     public void CopiesAreCulledOneByOne()

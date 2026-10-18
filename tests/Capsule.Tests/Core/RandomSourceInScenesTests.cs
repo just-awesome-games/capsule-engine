@@ -1,7 +1,5 @@
 using System.Numerics;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Core;
@@ -37,7 +35,7 @@ public sealed class RandomSourceInScenesTests
         Assert.Equal(0ul, scene.Run.Random.Stream);
     }
 
-    // No throwaway source stands in before the run's: a scene that has not started has none, so a
+    // No throwaway source stands in before the run's: a scene that has not started has none. A
     // draw that would silently ignore the configured seed fails instead.
     [Fact]
     public void ReadingTheSourceBeforeTheSceneStartsThrows()
@@ -59,7 +57,7 @@ public sealed class RandomSourceInScenesTests
         }
     }
 
-    // A document's entities are composed inside the scene's constructor and join as it starts, so their
+    // A document's entities are composed inside the scene's constructor and join as it starts. Their
     // OnAddedToScene already reaches the run's source.
     [Fact]
     public void ADocumentComposedEntityReachesTheRunsSourceWhenItJoins()
@@ -82,16 +80,16 @@ public sealed class RandomSourceInScenesTests
 
     private sealed class Drawer : Entity
     {
+        internal ProbeComponent Probe { get; }
+
+        internal RandomSource? SeenOnStart { get; private set; }
+
         internal Drawer()
             : base(Vector2.Zero)
         {
             Probe = new ProbeComponent();
             Add(Probe);
         }
-
-        internal ProbeComponent Probe { get; }
-
-        internal RandomSource? SeenOnStart { get; private set; }
 
         protected internal override void OnStart() => SeenOnStart = Random;
     }
@@ -100,16 +98,16 @@ public sealed class RandomSourceInScenesTests
 
     private sealed class SpawnedProber : Entity
     {
-        internal SpawnedProber(EntitySpawn spawn)
-            : base(spawn)
-        {
-        }
-
         internal RandomSource? SeenOnAdd { get; private set; }
 
         internal RandomSource? SeenOnStart { get; private set; }
 
         internal float FirstDraw { get; private set; }
+
+        internal SpawnedProber(EntitySpawn spawn)
+            : base(spawn)
+        {
+        }
 
         protected internal override void OnAddedToScene()
         {

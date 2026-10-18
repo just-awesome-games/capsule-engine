@@ -15,7 +15,7 @@ public sealed class SaveStoreTests
     [Fact]
     public void ADocument_IsWrittenReadListedAndDeleted()
     {
-        using SimulationHost host = new(new Idle());
+        using SimulationHost host = new(new Scene());
         SaveStore saves = host.Run.Saves;
 
         saves.Write(Slot, 3);
@@ -26,7 +26,7 @@ public sealed class SaveStoreTests
         Assert.Equal(5, saves.Read(SettingsKey).Volume);
         Assert.Equal(["settings", "slot-1"], saves.Names.ToArray());
 
-        // A stamp is the host's; nothing under SimulationHost ever persists, so nothing is stamped.
+        // A stamp is the host's. Nothing under SimulationHost ever persists. Nothing is stamped.
         host.Step();
         Assert.Null(saves.Metadata(Slot));
 
@@ -40,18 +40,18 @@ public sealed class SaveStoreTests
     [Fact]
     public void AnAbsentDocument_ReadsAsTheFallbackOrThrowsWithoutOne()
     {
-        using SimulationHost host = new(new Idle());
+        using SimulationHost host = new(new Scene());
 
         Assert.Equal("fallback", host.Run.Saves.Read(DefaultedSettings).Name);
         Assert.Throws<KeyNotFoundException>(() => host.Run.Saves.Read(SettingsKey));
     }
 
-    // The store serializes at the write and deserializes at every read, so neither the value the
+    // The store serializes at the write and deserializes at every read. Neither the value the
     // game keeps mutating nor the key's fallback instance is ever the save.
     [Fact]
     public void AValueMutatedAfterTheWrite_ReadsBackAsWritten_AndAFallbackIsNeverSharedOut()
     {
-        using SimulationHost host = new(new Idle());
+        using SimulationHost host = new(new Scene());
         Settings settings = new() { Volume = 1, Name = "before" };
 
         host.Run.Saves.Read(DefaultedSettings).Volume = 42;
@@ -79,6 +79,4 @@ public sealed class SaveStoreTests
     {
         Assert.Throws<ArgumentException>(() => new SaveKey<int>(name, SaveTestJsonContext.Default.Int32));
     }
-
-    private sealed class Idle : Scene;
 }

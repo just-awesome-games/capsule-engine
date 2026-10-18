@@ -56,7 +56,7 @@ internal sealed class CapsuleGame : Game
     private bool _deviceSeeded;
 
     // Whether the host is inside a device operation of its own. The resize watch fires for the
-    // window events such an operation raises, so it stands off instead of reaching a half-applied
+    // window events such an operation raises. It stands off instead of reaching a half-applied
     // device or recursing.
     private bool _deviceHeld;
     private bool _fullscreenChordHeld;
@@ -100,7 +100,7 @@ internal sealed class CapsuleGame : Game
         {
             PreferredBackBufferWidth = builder.WindowWidth,
             PreferredBackBufferHeight = builder.WindowHeight,
-            // Borderless. The preferred size is ignored while fullscreen, so leaving fullscreen
+            // Borderless. The preferred size is ignored while fullscreen. Leaving fullscreen
             // restores the configured window.
             HardwareModeSwitch = false,
             IsFullScreen = builder.Fullscreen,
@@ -156,7 +156,7 @@ internal sealed class CapsuleGame : Game
                 scenes.FlushSaves();
             };
 
-            // The initial scene started before the device existed, so what its start raised is still
+            // The initial scene started before the device existed. What its start raised is still
             // on the mixer and the first BeginStep would clear it unheard. A later scene starts inside
             // the step that asked for it and is delivered with that step's commands.
             audio.Apply(scenes.Run.Audio.Commands);
@@ -174,7 +174,7 @@ internal sealed class CapsuleGame : Game
             shown => IsMouseVisible = shown,
             confined => _builder.Platform.ConfineCursor(new WindowHandle(Window.Handle), confined));
 
-        // Update samples the mouse before the first Draw places the layer, so the mapping is settled
+        // Update samples the mouse before the first Draw places the layer. The mapping is settled
         // here and the first step reads a canvas position.
         _renderer.ResolveScreenLayer(scenes.View);
 
@@ -190,7 +190,7 @@ internal sealed class CapsuleGame : Game
 
         // Sampled every frame, including one that drains no step, and the latch carries that frame's
         // input to the step that eventually runs. The pointer is mapped through the screen layer's
-        // placement, so it reaches the simulation as a canvas position. IsActive is unusable here
+        // placement. It reaches the simulation as a canvas position. IsActive is unusable here
         // because it reads true before focus is granted. An inactive window reads no device.
         bool active = _builder.Platform.HasInputFocus(new WindowHandle(Window.Handle));
         PadFilter padFilter = new(_builder.Input.StickDeadzone, _builder.Input.TriggerDeadzone);
@@ -254,7 +254,7 @@ internal sealed class CapsuleGame : Game
             _pad.ConnectedPlayer,
             gameTime.ElapsedGameTime.TotalSeconds);
 
-        // Every frame, after the steps, so the pointer follows the settled run and the overlay.
+        // Every frame, after the steps. The pointer follows the settled run and the overlay.
         _cursor.Apply(
             _scenes.Run.Cursor,
             _scheduler.ActiveDevice == InputDevice.Gamepad,
@@ -370,7 +370,7 @@ internal sealed class CapsuleGame : Game
     }
 
     // Draws the settled frame again at the window's current extent, from inside SDL's own event
-    // handling. Windows blocks the game loop for the length of a window drag, so this is where the
+    // handling. Windows blocks the game loop for the length of a window drag. This is where the
     // view refits while the edge moves. No step runs and no capture is taken, because a drag
     // advances no simulation time.
     private void RedrawWindow(int width, int height)
@@ -389,7 +389,7 @@ internal sealed class CapsuleGame : Game
         {
             // The preferred extent is the windowed one, while fullscreen uses the desktop's.
             // Writing the monitor's extent here would make it the window Alt+Enter returns to. A
-            // fullscreen transition still changes the fit, so the frame is redrawn.
+            // fullscreen transition still changes the fit. The frame is redrawn.
             if (!_graphics.IsFullScreen
                 && width > 0
                 && height > 0

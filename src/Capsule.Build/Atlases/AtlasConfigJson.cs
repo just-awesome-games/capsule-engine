@@ -16,8 +16,8 @@ internal sealed class AtlasConfigJson
     internal const int LargestMaxSize = 8192;
 
     /// <summary>What an atlas file holds, as a refusal describes it.</summary>
-    internal const string Shape = "An atlas file holds only the atlas's own settings, as {} or { \"maxSize\": 2048 }. "
-        + "\"maxSize\" is the largest page extent, a power of two up to 8192, and 4096 by default.";
+    internal static readonly string Shape = "An atlas file holds only the atlas's own settings, as {} or { \"maxSize\": 2048 }. "
+        + FormattableString.Invariant($"\"maxSize\" is the largest page extent, a power of two up to {LargestMaxSize}, and {DefaultMaxSize} by default.");
 
     // Read and ignored.
     [JsonPropertyName(SchemaKeyConverter.Key)]
@@ -25,7 +25,7 @@ internal sealed class AtlasConfigJson
     public string? Schema { get; set; }
 
     /// <summary>The largest extent a page reaches on either axis, or null for <see cref="DefaultMaxSize"/>.</summary>
-    [Description("The largest extent a page reaches on either axis, in texels. A power of two up to 8192.")]
+    [Description("The largest extent a page reaches on either axis, in texels. A power of two.")]
     [DefaultValue(DefaultMaxSize)]
     [AllowedValues(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, LargestMaxSize)]
     public int? MaxSize { get; set; }

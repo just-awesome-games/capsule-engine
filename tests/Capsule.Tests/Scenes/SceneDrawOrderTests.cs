@@ -1,8 +1,6 @@
 using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 using Capsule.Tiles;
 using static Capsule.Tests.Scenes.EntityHierarchyFixtures;
 

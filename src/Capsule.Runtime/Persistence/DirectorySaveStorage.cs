@@ -6,9 +6,13 @@ using Capsule.Persistence;
 
 namespace Capsule.Runtime.Persistence;
 
-/// <summary>
-/// Keeps each document as a file under one directory, in the layout <c>docs/persistence.md</c> gives.
-/// </summary>
+/// <summary>Keeps each document as a <c>&lt;name&gt;.save.json</c> file under one directory.</summary>
+/// <remarks>
+/// A file is UTF-8 without a byte-order mark, LF and two-space indent. It holds the engine's <c>metadata</c>
+/// and the game's JSON verbatim as <c>document</c>. A write is staged as <c>.save.json.tmp</c> and swapped in,
+/// keeping the previous file as <c>.save.json.bak</c>. At restore, a file that does not parse is set aside as
+/// <c>.save.json.corrupt</c> and its backup restored in its place, with a warning either way.
+/// </remarks>
 public sealed class DirectorySaveStorage : ISaveStorage
 {
     private const string Extension = ".save.json";
@@ -27,6 +31,9 @@ public sealed class DirectorySaveStorage : ISaveStorage
     private ArrayBufferWriter<byte>? _buffer;
     private Utf8JsonWriter? _writer;
 
+    /// <summary>The directory documents are stored in, as a full path. It is created on the first write.</summary>
+    public string Directory { get; }
+
     /// <summary>Stores documents under <paramref name="directory"/>. A relative path resolves against the working directory.</summary>
     public DirectorySaveStorage(string directory)
     {
@@ -34,9 +41,6 @@ public sealed class DirectorySaveStorage : ISaveStorage
 
         Directory = Path.GetFullPath(directory);
     }
-
-    /// <summary>The directory documents are stored in, as a full path. It is created on the first write.</summary>
-    public string Directory { get; }
 
     /// <inheritdoc/>
     /// <exception cref="IOException">A file could not be read, moved or copied. The run does not boot.</exception>
@@ -83,7 +87,7 @@ public sealed class DirectorySaveStorage : ISaveStorage
             }
             else
             {
-                Log.Warning($"save '{name}' was corrupt and is set aside as '{file}{CorruptSuffix}'. It has no usable backup, so the document is absent");
+                Log.Warning($"save '{name}' was corrupt and is set aside as '{file}{CorruptSuffix}'. It has no usable backup and reads as absent");
             }
         }
     }
@@ -107,7 +111,7 @@ public sealed class DirectorySaveStorage : ISaveStorage
         JsonSerializer.Serialize(_writer, metadata, SaveFileJsonContext.Default.SaveMetadata);
         _writer.WritePropertyName("document");
 
-        // A JSON string never holds a raw newline, so every newline in the document is between tokens
+        // A JSON string never holds a raw newline. Every newline in the document is between tokens
         // and indenting each line by the envelope's depth changes no value. The read strips the same
         // indent and hands the text back as written.
         _writer.WriteRawValue(document.Replace("\n", DocumentIndent, StringComparison.Ordinal));
@@ -195,7 +199,7 @@ public sealed class DirectorySaveStorage : ISaveStorage
 }
 
 // The envelope's `metadata` half: camel-cased ISO-8601 instants with their offsets. Reflection-based
-// serialization is off solution-wide, so this generated context reads and writes it.
+// serialization is off solution-wide. This generated context reads and writes it.
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(SaveMetadata))]
 internal sealed partial class SaveFileJsonContext : JsonSerializerContext;

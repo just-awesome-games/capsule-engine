@@ -105,7 +105,7 @@ public readonly partial record struct ColorRgba(byte R, byte G, byte B, byte A)
     // Folding to lowercase with 0x20 is safe here because the caller has already checked the digit.
     private static int HexDigit(char digit) => digit <= '9' ? digit - '0' : (digit | 0x20) - 'a' + 10;
 
-    // The result stays within [0, 255] for any t in (0, 1), so rounding is the only conversion needed.
+    // The result stays within [0, 255] for any t in (0, 1). Rounding is the only conversion needed.
     private static byte Channel(byte from, byte to, float t) =>
         (byte)MathF.Round(from + ((to - from) * t), MidpointRounding.AwayFromZero);
 }

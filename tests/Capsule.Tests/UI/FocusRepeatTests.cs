@@ -28,7 +28,7 @@ public sealed class FocusRepeatTests
     }
 
     // A held direction moves on its press, again once held past the delay, then every interval,
-    // wrapping through the column as a press would; releasing it ends the run.
+    // wrapping through the column as a press would. Releasing it ends the run.
     [Fact]
     public void AHeldDirection_RepeatsAfterTheDelayThenEveryIntervalUntilReleased()
     {
@@ -71,7 +71,7 @@ public sealed class FocusRepeatTests
         menu.Hold(Key.Down).Rest().Rest();
         Assert.Equal(1, menu.FocusedIndex);
 
-        // Up is read first of the two, so its press moves up; the counter starts over from it.
+        // Up is read first of the two. Its press moves up. The counter starts over from it.
         menu.Hold(Key.Up);
         Assert.Equal(0, menu.FocusedIndex);
 

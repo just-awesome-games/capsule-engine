@@ -98,7 +98,7 @@ public sealed class RenderIntentTests
         Assert.Equal(new RenderMetrics(Submitted: 3, Visible: 0), view.Metrics);
     }
 
-    // A region with no texels has no scale to place the pivot by, so the rect it would occupy is
+    // A region with no texels has no scale to place the pivot by. The rect it would occupy is
     // not a rect at all.
     [Fact]
     public void AView_RejectsASpriteWhoseRegionHasNoTexels()
@@ -129,7 +129,7 @@ public sealed class RenderIntentTests
         Assert.Equal(centred, Assert.Single(view.Sprites.ToArray()));
     }
 
-    // Flipping mirrors the region about the pivot, so the drawn rect moves to the other side of
+    // Flipping mirrors the region about the pivot. The drawn rect moves to the other side of
     // it: a frame anchored at its left edge just off the camera's right edge is only visible once
     // it flips back over the camera.
     [Fact]

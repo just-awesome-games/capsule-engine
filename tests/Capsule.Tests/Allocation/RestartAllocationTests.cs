@@ -1,7 +1,5 @@
 using System.Collections.Immutable;
-using System.Globalization;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
 using Capsule.Tests.Generators;
 using Microsoft.CodeAnalysis;
 using Xunit.Abstractions;
@@ -15,10 +13,10 @@ public sealed class RestartAllocationTests(ITestOutputHelper output)
     private const int Wide = 256;
     private const int High = 256;
 
-    // The map shares the document's cells and the collision grid reads the map's, so only the grid's derived
-    // state is new: one byte a cell. One more copy of the cells would cost four bytes a cell.
+    // The map shares the document's cells and the collision grid reads the map's. Only the grid's derived
+    // state is new, at one byte a cell. One more copy of the cells would cost four bytes a cell.
     [Fact]
-    public void RecomposingATileMapDocument_AllocatesOneByteACell()
+    public void RecomposingATileMapDocument_AllocatesUnderTwoBytesACell()
     {
         SceneRegistry registry = Registry();
         SceneDocument document = SceneDocument.Parse(TerrainDocument());
@@ -28,10 +26,7 @@ public sealed class RestartAllocationTests(ITestOutputHelper output)
         Compose(registry, document);
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"recompose of a {Wide}x{High} colliding map: {bytes} bytes"));
-        Assert.True(
-            bytes < Wide * High * 2,
-            FormattableString.Invariant($"Recomposing a {Wide}x{High} map allocated {bytes} bytes, more than its collision state accounts for."));
+        StepMeasurement.Report(output, $"recompose of a {Wide}x{High} colliding map", bytes, steps: 1, budget: Wide * High * 2);
     }
 
     private static void Compose(SceneRegistry registry, SceneDocument document)
@@ -59,10 +54,16 @@ public sealed class RestartAllocationTests(ITestOutputHelper output)
             """;
     }
 
+    // The registry the generator writes for a game holding the document. The probe measures the generated reader.
     private static SceneRegistry Registry()
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(
-            "namespace Game;\n\npublic sealed class Terrain;\n", logic: true);
+            """
+            namespace Game;
+
+            public sealed class Terrain;
+            """,
+            logic: true);
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
         return (SceneRegistry)GeneratorHarness.Loaded(compiled).GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;

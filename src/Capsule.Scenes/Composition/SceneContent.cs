@@ -1,6 +1,4 @@
 using System.ComponentModel;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 
 namespace Capsule.Scenes;
 

@@ -1,5 +1,4 @@
 using System.Numerics;
-using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Core;
 
@@ -155,7 +154,7 @@ public sealed class RandomDrawTests
         }
     }
 
-    // Uniform by area, not by radius: half the disc's area is outside a radius of 1/sqrt(2), so a
+    // Uniform by area, not by radius: half the disc's area is outside a radius of 1/sqrt(2). A
     // method that spread points evenly along the radius instead would fail this badly.
     [Fact]
     public void PointsInTheUnitCircleAreSpreadByArea()

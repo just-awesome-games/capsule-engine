@@ -1,16 +1,12 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Components;
 
-/// <summary>
-/// A grid of sprites over a stage from one renderer, as a tile map draws a layer: a rendering
-/// workload measures submission, so the whole field is one intent stream with no entity stepping
-/// behind it. A quarter are turned at fixed angles, some flipped, some tinted, and all drift
-/// together so every one interpolates; with <paramref name="switches"/> every fiftieth is the white
-/// texel, which is the unatlased game's texture churn.
-/// </summary>
+/// <summary>A grid of sprites over a stage from one renderer, as a tile map draws a layer.</summary>
+/// <remarks>
+/// A rendering workload measures submission, and the whole field is one intent stream with no entity
+/// stepping behind it. A quarter are turned at fixed angles, some flipped, some tinted, and all drift
+/// together for every one to interpolate. With <paramref name="switches"/> every fiftieth is the
+/// white texel, which is the unatlased game's texture churn.
+/// </remarks>
 public sealed class SpriteField(Sprite frame, float extent, Vector2 stage, int count, bool switches = false) : Renderer
 {
     public static readonly Sprite Tile = new(CapsuleAssets.Textures.TileTexture, new TextureRegion(0, 0, 32, 32), new Vector2(16f, 16f));
@@ -68,7 +64,7 @@ public sealed class SpriteField(Sprite frame, float extent, Vector2 stage, int c
         return columns;
     }
 
-    // A triangle wave over 240 ticks: successive ticks never agree, so interpolation always runs.
+    // A triangle wave over 240 ticks: successive ticks never agree. Interpolation always runs.
     private static Vector2 Drift(long tick)
     {
         long phase = ((tick % 240) + 240) % 240;

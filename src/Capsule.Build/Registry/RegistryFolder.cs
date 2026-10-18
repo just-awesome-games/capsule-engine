@@ -110,7 +110,7 @@ internal sealed class RegistryFolder(string identifier, string key)
         // A folder two files share is one class, not a collision.
         return _claimedBy.TryGetValue(name, out string? claimed)
             && !(_folders.ContainsKey(name) && string.Equals(claimed, display, StringComparison.Ordinal))
-                ? $"whose '{name}' is already declared in that folder by \"{claimed}\". Two names differing only in their separators are one C# name."
+                ? $"whose '{name}' is already declared in that folder by \"{claimed}\". Two names differing only in their separators are one C# name. Rename one of the files."
                 : null;
     }
 }

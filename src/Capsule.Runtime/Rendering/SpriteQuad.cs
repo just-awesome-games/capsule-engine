@@ -3,11 +3,9 @@ using System.Numerics;
 namespace Capsule.Runtime.Rendering;
 
 // The four corners of one drawn sprite and the texture coordinates at its top-left and bottom-right, in
-// the space the batch's transform maps to the surface. Computed operation for operation as MonoGame
-// 3.8.5.1's SpriteBatch.Draw and SpriteBatchItem.Set compute them: the same float expressions in the
-// same order, with sines and cosines from MathF. A frame the batcher draws is byte-identical to the
-// frame SpriteBatch drew from the same intent. Rearranging an expression here, including the double
-// division shape, moves the last bit of a vertex and with it pixels.
+// the space the batch's transform maps to the surface. The float expressions, their order and the sines
+// and cosines from MathF are fixed. Rearranging an expression here, including the double division
+// shape, moves the last bit of a vertex and with it the pixels the renderer's tests pin.
 internal readonly struct SpriteQuad
 {
     public readonly Vector2 TopLeft;

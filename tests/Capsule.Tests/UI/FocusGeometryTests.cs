@@ -16,7 +16,7 @@ public sealed class FocusGeometryTests
     {
         using Menu menu = Column();
 
-        // Named from the moment it was added, so a game may read it before the scene starts; the item
+        // Named from the moment it was added. A game may read it before the scene starts. The item
         // itself knows nothing yet.
         Assert.Equal(0, menu.FocusedIndex);
         Assert.False(menu.At(0).IsFocused);
@@ -53,7 +53,7 @@ public sealed class FocusGeometryTests
         Assert.Equal(["unfocused 0", "focused 1", "changed 1", "pressed 1"], menu.Log);
     }
 
-    // Up from the top edge has no item above it, so it wraps to the item farthest below: the one in the
+    // Up from the top edge has no item above it. It wraps to the item farthest below: the one in the
     // same column, because a tie on distance along the direction is broken by list order.
     [Fact]
     public void AGrid_MovesToTheItemEachDirectionReachesAndWrapsPastAnEdge()
@@ -89,7 +89,7 @@ public sealed class FocusGeometryTests
     {
         using Menu menu = Grid().Open();
 
-        // Down and right are both reachable from the top-left item; down is read.
+        // Down and right are both reachable from the top-left item. Down is read.
         Assert.Equal(2, menu.Tap(Key.Down, Key.Right).FocusedIndex);
     }
 
@@ -144,14 +144,14 @@ public sealed class FocusGeometryTests
 
         Assert.Equal(["unfocused 1", "focused 0", "changed 0"], menu.Log);
 
-        // Already focused: nothing moved, so nothing is raised.
+        // Already focused: nothing moved. Nothing is raised.
         menu.FocusOn(0);
 
         Assert.Empty(menu.Log);
     }
 
-    // A menu is commonly built and pointed at its opening item before any of it is in a scene, so
-    // before the start there is nothing for liveness to mean: the request is kept as asked for.
+    // A menu is commonly built and pointed at its opening item before any of it is in a scene.
+    // Before the start, liveness means nothing and the request is kept as asked for.
     [Fact]
     public void FocusBeforeAnyItemIsInAScene_StillOpensOnTheItemItNamed()
     {
@@ -188,8 +188,8 @@ public sealed class FocusGeometryTests
         Assert.Empty(menu.Log);
     }
 
-    // A handler cannot move the focus on: the focus it was told about is already the navigator's, so
-    // a second move from inside it would leave two items claiming the focus.
+    // A handler cannot move the focus on: the focus it was told about is already the navigator's.
+    // A second move from inside it would leave two items claiming the focus.
     [Fact]
     public void AMoveAskedForFromInsideAFocusHandler_IsRefused()
     {

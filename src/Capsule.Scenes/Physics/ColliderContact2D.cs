@@ -28,27 +28,6 @@ public readonly struct ColliderContact2D
 {
     private readonly CollisionWorld2D? _world;
 
-    internal ColliderContact2D(
-        CollisionWorld2D world,
-        CollisionTarget target,
-        Vector2 point,
-        Vector2 normal,
-        float depth,
-        Collider2D? otherCollider,
-        TileContact2D? tile)
-    {
-        _world = world;
-        Target = target;
-        Point = point;
-        Normal = normal;
-        Depth = depth;
-        OtherCollider = otherCollider;
-        Tile = tile;
-    }
-
-    /// <summary>The collision layer the touched thing is on.</summary>
-    public CollisionLayer Layer => Target.Layer;
-
     /// <summary>A world-space point on the touched surface.</summary>
     public Vector2 Point { get; }
 
@@ -71,6 +50,31 @@ public readonly struct ColliderContact2D
     /// <summary>The tile-map cell touched, or null when the contact is not a tile map's cell.</summary>
     public TileContact2D? Tile { get; }
 
+    // A stable identity that pairs an enter with its exit without exposing grid internals through the
+    // scene-level API.
+    internal CollisionTarget Target { get; }
+
+    internal ColliderContact2D(
+        CollisionWorld2D world,
+        CollisionTarget target,
+        Vector2 point,
+        Vector2 normal,
+        float depth,
+        Collider2D? otherCollider,
+        TileContact2D? tile)
+    {
+        _world = world;
+        Target = target;
+        Point = point;
+        Normal = normal;
+        Depth = depth;
+        OtherCollider = otherCollider;
+        Tile = tile;
+    }
+
+    /// <summary>The collision layer the touched thing is on.</summary>
+    public CollisionLayer Layer => Target.Layer;
+
     /// <summary>The entity behind <see cref="OtherCollider"/>, or the tile map when a tile was touched.</summary>
     /// <remarks>
     /// It is null on a default contact. It is also null once the other collider has been detached from
@@ -84,8 +88,4 @@ public readonly struct ColliderContact2D
     /// </summary>
     /// <remarks>A handler deciding what to do compares <see cref="Layer"/>, which costs no lookup.</remarks>
     public string LayerName => _world?.NameOf(Layer) ?? string.Empty;
-
-    // A stable identity that pairs an enter with its exit without exposing grid internals through the
-    // scene-level API.
-    internal CollisionTarget Target { get; }
 }

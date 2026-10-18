@@ -1,8 +1,3 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Physics;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>A crate that bobs up and down about its home, carrying a sensor box a little larger than itself.</summary>

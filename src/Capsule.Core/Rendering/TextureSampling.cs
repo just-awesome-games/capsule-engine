@@ -7,5 +7,10 @@ public enum TextureSampling
     Linear,
 
     /// <summary>Uses the nearest texel.</summary>
+    /// <remarks>
+    /// As the run's sampling it snaps each sprite to the render surface's pixel grid. An unturned sprite,
+    /// or one turned by whole quarter turns, snaps all four edges, and abutting tiles share their edges
+    /// at any zoom.
+    /// </remarks>
     Point,
 }

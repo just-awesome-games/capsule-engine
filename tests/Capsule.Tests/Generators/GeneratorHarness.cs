@@ -5,7 +5,6 @@ using Capsule.Build.Registry;
 using Capsule.Build.Scenes;
 using Capsule.Generators;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
 using Capsule.Tiles;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -26,10 +25,24 @@ internal static class GeneratorHarness
     internal const string Preamble = """
         using System.Numerics;
         using Capsule.Scenes;
-        using Capsule.Scenes.Spawning;
 
         namespace Game;
         """;
+
+    /// <summary>An input driver that presses nothing and ends at once, for a file using Capsule.Input and Capsule.Scenes.</summary>
+    internal const string Walkthrough = """
+        public sealed class Walkthrough : IInputDriver
+        {
+            public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
+            {
+                snapshot = DeviceSnapshot.Empty;
+                return false;
+            }
+        }
+        """;
+
+    /// <summary>A camera subclass a document's <c>camera</c> member names as <c>game-camera</c>.</summary>
+    internal const string GameCamera = "public sealed class GameCamera : Camera;";
 
     private static readonly ImmutableArray<MetadataReference> References =
         Referenced(null, typeof(Entity).Assembly, typeof(TileGrid).Assembly, typeof(object).Assembly);
@@ -37,11 +50,11 @@ internal static class GeneratorHarness
     internal static IEnumerable<Diagnostic> Errors(IEnumerable<Diagnostic> diagnostics) =>
         diagnostics.Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 
-    /// <summary>
-    /// Asserts every emitted line naming <paramref name="key"/> names <paramref name="type"/> too.
-    /// A pairing, so how the line is spelled is not pinned by a test. A document's key constant names
+    /// <summary>Asserts every emitted line naming <paramref name="key"/> names <paramref name="type"/> too.</summary>
+    /// <remarks>
+    /// It checks a pairing and leaves how the line is spelled unpinned. A document's key constant names
     /// the key alone and is passed over.
-    /// </summary>
+    /// </remarks>
     internal static void AssertPairs(string generated, string key, string type)
     {
         string[] lines = generated.Split((char)10)
@@ -51,6 +64,15 @@ internal static class GeneratorHarness
 
         Assert.NotEmpty(lines);
         Assert.All(lines, line => Assert.Contains(type, line, StringComparison.Ordinal));
+    }
+
+    /// <summary>Asserts the load fails with a message that starts with the entry it names and holds the fix.</summary>
+    internal static void AssertLoadRefused(Action load, string entry, string fix)
+    {
+        SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(load);
+
+        Assert.StartsWith(entry, failure.Message, StringComparison.Ordinal);
+        Assert.Contains(fix, failure.Message, StringComparison.Ordinal);
     }
 
     internal static string Emitted(Compilation compiled, string fileName)
@@ -121,14 +143,14 @@ internal static class GeneratorHarness
         return Run(Created("ShellSpecs", shellSource, references.ToImmutable()), logic: false, shell: true);
     }
 
-    /// <summary>Compiles game code against those assets, so it names what the registry declares.</summary>
+    /// <summary>Compiles game code against those assets, letting it name what the registry declares.</summary>
     internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) CompileAgainstSources(
         string source,
         bool logic,
         params (string Path, string? Content)[] assets) =>
         Run(Created("AssetSpecs", source, References, Documents(assets)), logic, shell: !logic);
 
-    /// <summary>The generated registry as the game runs it, so a member hands back what it declares.</summary>
+    /// <summary>The generated registry loaded as the game runs it, where a member hands back what it declares.</summary>
     internal static Assembly Loaded(Compilation compiled)
     {
         using MemoryStream image = new();
@@ -170,7 +192,7 @@ internal static class GeneratorHarness
                 return $"{string.Concat(attributes.Select(static attribute => $"[{attribute}]"))} public static global::Capsule.Scenes.SceneKey Document{index} => new(\"{key}\");";
             });
 
-        return $"namespace Capsule.Generated\n{{\npublic static class Documents\n{{\n{string.Join('\n', members)}\n}}\n{GeneratedAttributes.SceneDocument}{GeneratedAttributes.Asset}}}\n";
+        return $"namespace Capsule.Generated\n{{\npublic static class Documents\n{{\n{string.Join('\n', members)}\n}}\n{GeneratedAttributes.SceneDocumentDeclaration}{GeneratedAttributes.AssetDeclaration}}}\n";
     }
 
     /// <summary>
@@ -219,7 +241,7 @@ internal static class GeneratorHarness
         return image.ToArray();
     }
 
-    /// <summary>The shell as it runs beside its one logic assembly, so its CapsuleBoot builds real registries. Disposing unloads both.</summary>
+    /// <summary>The shell as it runs beside its one logic assembly, where its CapsuleBoot builds real registries. Disposing unloads both.</summary>
     internal static ShellContext LoadedShell(string shellSource, string logicSource, params (string Path, string? Content)[] assets)
     {
         byte[] logic = LogicImage("GameSpecs", logicSource, assets);
@@ -308,10 +330,10 @@ internal static class GeneratorHarness
     {
         private static readonly AnalyzerConfigOptions None = new Properties(logic: false, shell: false, rootNamespace: null);
 
+        public override AnalyzerConfigOptions GlobalOptions { get; }
+
         internal DeclaredRole(bool logic, bool shell, string? rootNamespace = null) =>
             GlobalOptions = new Properties(logic, shell, rootNamespace);
-
-        public override AnalyzerConfigOptions GlobalOptions { get; }
 
         public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => None;
 

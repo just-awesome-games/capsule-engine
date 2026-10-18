@@ -29,7 +29,8 @@ public sealed class RunTests
     {
         Run run = new() { TimeScale = 2 };
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => run.TimeScale = scale);
+        ArgumentOutOfRangeException refused = Assert.Throws<ArgumentOutOfRangeException>(() => run.TimeScale = scale);
+        Assert.Contains("set Scene.Paused", refused.Message, StringComparison.Ordinal);
         Assert.Equal(2, run.TimeScale);
     }
 
@@ -145,14 +146,14 @@ public sealed class RunTests
 
     private sealed class RunProbeEntity : Entity
     {
+        internal RunProbeComponent Probe { get; }
+
         internal RunProbeEntity()
             : base(Vector2.Zero)
         {
             Probe = new RunProbeComponent();
             Add(Probe);
         }
-
-        internal RunProbeComponent Probe { get; }
     }
 
     private sealed class RunProbeComponent : Component;

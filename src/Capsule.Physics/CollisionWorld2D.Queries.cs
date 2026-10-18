@@ -12,8 +12,8 @@ public sealed partial class CollisionWorld2D
     private const float FractionBand = 1e-4f;
 
     // How far a translation must lean into a surface, as a share of its length, to be driven into it.
-    // A slide projected along a surface keeps a rounding residue far below this, so the surface it
-    // slides along never stops it again.
+    // A slide projected along a surface keeps a rounding residue far below this. The surface it slides
+    // along then never stops it again.
     private const float Along = 1e-4f;
 
     private static void RecordRay(
@@ -53,8 +53,8 @@ public sealed partial class CollisionWorld2D
         accumulator.Target = target;
     }
 
-    // A full span gives up its farthest entry to a nearer hit, so which hits survive does not depend on
-    // the order the traversal met them.
+    // A full span gives up its farthest entry to a nearer hit. Which hits survive then does not depend
+    // on the order the traversal met them.
     private static void Insert(Span<RayHit2D> hits, ref int count, in RayHit2D hit)
     {
         if (count == hits.Length)
@@ -78,9 +78,9 @@ public sealed partial class CollisionWorld2D
         count++;
     }
 
-    // Writes a contact into the run starting at first, keeping that run ordered by collider handle. A
-    // full span gives up its last entry to a lower handle, so which contacts a short span keeps does not
-    // depend on broadphase order.
+    // Writes a contact into the run starting at first, keeping that run in slot order. A full span
+    // gives up its last entry to a lower slot. Which contacts a short span keeps then does not depend on
+    // broadphase order.
     private static void InsertByHandle(Span<Contact2D> contacts, int first, ref int written, in Contact2D contact)
     {
         int handle = contact.Target.Collider.Index;
@@ -106,7 +106,7 @@ public sealed partial class CollisionWorld2D
         written++;
     }
 
-    // Handles are unique within a query. The unstable sort then yields one order.
+    // Slots are unique within a query. The unstable sort then yields one order.
     private static void SortByHandle(Span<Contact2D> contacts) =>
         contacts.Sort(static (left, right) => left.Target.Collider.Index.CompareTo(right.Target.Collider.Index));
 
@@ -247,7 +247,7 @@ public sealed partial class CollisionWorld2D
     }
 
     // Counts one band hit and writes it if the span has room. Grid cells come first in the grids' own
-    // traversal order, and colliders follow by handle. A short span keeps the lowest handles.
+    // traversal order, and colliders follow in slot order. A short span keeps the lowest slots.
     private static void Emit(ref CastAccumulator accumulator, Span<Contact2D> contacts, in Contact2D contact)
     {
         accumulator.Found++;
@@ -288,285 +288,13 @@ public sealed partial class CollisionWorld2D
         return (state & face) != 0 || (!admitsEvery && !grid.NeighbourAdmits(x, y, face, filter));
     }
 
-    // How far a shape already reaches past the line through `point` along `normal`, measured inwards.
-    // An edge is one-sided. A shape starting more than a slop beyond it has passed through and meets
-    // nothing.
-    private static float DepthPast(in Shape2D shape, Vector2 point, Vector2 normal) =>
-        Vector2.Dot(point - shape.Support(-normal), normal) + shape.Radius;
-
-    // The normal a sweep meets an edge along. A box face meeting the end of an edge rests on that
-    // endpoint, and its face's axis is the surface there, not the edge's slope. The narrowphase normal
-    // carries rounding error, so it only chooses between the two exact candidates.
-    private static Vector2 EdgeNormal(in Shape2D moving, Vector2 swept, Vector2 outward)
+    // Whether a walk visits a grid at all, and whether the filter admits every layer the grid holds.
+    // The caller still tests the grid's bounds against its own reach.
+    private static bool Visits(CollisionGrid2D grid, CollisionFilter filter, ColliderHandle ignore, out bool admitsEvery)
     {
-        if (moving.Kind != ShapeKind2D.Box)
-        {
-            return outward;
-        }
+        admitsEvery = grid.AdmitsEveryLayer(filter);
 
-        Vector2 axis = MathF.Abs(swept.X) >= MathF.Abs(swept.Y)
-            ? new Vector2(MathF.Sign(swept.X), 0f)
-            : new Vector2(0f, MathF.Sign(swept.Y));
-
-        return Vector2.Dot(swept, axis) > Vector2.Dot(swept, outward) && Vector2.Dot(axis, outward) > 0f
-            ? axis
-            : outward;
-    }
-
-    // Whether a mover starts across an edge rather than on its outward side. Reaching past the edge's
-    // line is not enough. A box beside the top corner of a step reaches past the line of the step's
-    // slope while still standing clear of the slope itself, and that corner must stop it.
-    private static bool StartedPast(in Shape2D moving, Vector2 start, Vector2 end, Vector2 outward) =>
-        DepthPast(moving, start, outward) > CollisionTolerance.LinearSlop
-        && Separation(moving, Shape2D.Segment(start, end), out _, out _) <= 0f;
-
-    // How far a mover reaches past the far side of a one-way collider along its surface normal. A
-    // mover more than a slop past has started inside it or beyond it, and passes through.
-    private static float DepthPast(in Shape2D moving, in Shape2D target, Vector2 normal) =>
-        Vector2.Dot(target.Support(normal), normal) + target.Radius
-        - (Vector2.Dot(moving.Support(-normal), normal) - moving.Radius);
-
-    // Whether a one-way collider stops a mover meeting it with this normal. It blocks only on a surface
-    // it keeps, and only a mover that started clear of it.
-    private static bool OneWayBlocks(in Shape2D moving, in Shape2D target, Vector2 normal, bool solidSides) =>
-        CollisionGrid2D.OneWayKeeps(normal, solidSides) && DepthPast(moving, target, normal) <= CollisionTolerance.LinearSlop;
-
-    // A box and an axis-aligned segment take the closed form against a box mover. A slanted segment
-    // has no box to stand for it.
-    private static bool IsBoxLike(in Shape2D shape) =>
-        shape.Kind == ShapeKind2D.Box
-        || (shape.Kind == ShapeKind2D.Segment
-            && (shape.Bounds.Min.X == shape.Bounds.Max.X || shape.Bounds.Min.Y == shape.Bounds.Max.Y));
-
-    // How far apart two shapes are, negative when they overlap, with the surface point and the normal
-    // on the second. A box and an axis-aligned edge take the closed form against a box mover.
-    private static float Separation(in Shape2D shape, in Shape2D other, out Vector2 normal, out Vector2 point)
-    {
-        if (shape.Kind == ShapeKind2D.Box && IsBoxLike(other))
-        {
-            return Boxes2D.Separation(shape.Bounds, other.Bounds, out normal, out point);
-        }
-
-        float separation = Gjk2D.Separation(shape, other, out normal, out point);
-        if (normal == Vector2.Zero)
-        {
-            // The hulls are too close to carry a direction, so the boxes' least-penetration axis answers
-            // instead.
-            Boxes2D.Separation(shape.Bounds, other.Bounds, out normal, out _);
-            point = other.Support(normal) + (normal * other.Radius);
-        }
-
-        return separation;
-    }
-
-    // Whether a shape starts more than a skin inside another, with the shortest way out pointing from
-    // the target towards the shape. GJK measures no depth once the hulls overlap, and the least overlap
-    // across the faces of both hulls measures it there. Two circles' cores have no face, and their
-    // radii are the depth.
-    private static bool StartsInside(in Shape2D moving, in Shape2D target, out Vector2 normal)
-    {
-        normal = Vector2.Zero;
-        if (!moving.Bounds.Overlaps(target.Bounds))
-        {
-            return false;
-        }
-
-        if (moving.Kind == ShapeKind2D.Box && IsBoxLike(target))
-        {
-            return -Boxes2D.Separation(moving.Bounds, target.Bounds, out normal, out _) > CollisionTolerance.ContactSkin;
-        }
-
-        float separation = Gjk2D.Separation(moving, target, out normal, out _);
-        if (normal != Vector2.Zero)
-        {
-            return -separation > CollisionTolerance.ContactSkin;
-        }
-
-        float depth = float.PositiveInfinity;
-        LeastOverlap(moving, moving, target, ref depth, ref normal);
-        LeastOverlap(target, moving, target, ref depth, ref normal);
-        if (float.IsPositiveInfinity(depth))
-        {
-            depth = -separation;
-            Boxes2D.Separation(moving.Bounds, target.Bounds, out normal, out _);
-        }
-
-        return depth > CollisionTolerance.ContactSkin;
-    }
-
-    // The same against a grid cell, which stays an Aabb2D for a box mover. Most cells a sweep passes lie
-    // clear of where it starts, and their bounds turn them away before any shape is built.
-    private static bool StartsInside(in Shape2D moving, in Aabb2D cell, out Vector2 normal)
-    {
-        normal = Vector2.Zero;
-        if (!moving.Bounds.Overlaps(cell))
-        {
-            return false;
-        }
-
-        return moving.Kind == ShapeKind2D.Box
-            ? -Boxes2D.Separation(moving.Bounds, cell, out normal, out _) > CollisionTolerance.ContactSkin
-            : StartsInside(moving, Shape2D.OfCell(cell), out normal);
-    }
-
-    // Keeps the least overlap of two shapes along the face normals of `hull`, radii included, with the
-    // way out along it. A capsule's core is a segment with one axis, and a circle's has none.
-    private static void LeastOverlap(in Shape2D hull, in Shape2D moving, in Shape2D target, ref float depth, ref Vector2 normal)
-    {
-        int axes = hull.PointCount < 3 ? hull.PointCount - 1 : hull.PointCount;
-        for (int index = 0; index < axes; index++)
-        {
-            Vector2 axis = hull.EdgeNormal(index);
-            float forward = Vector2.Dot(target.Support(axis), axis) + target.Radius
-                - (Vector2.Dot(moving.Support(-axis), axis) - moving.Radius);
-            float backward = Vector2.Dot(moving.Support(axis), axis) + moving.Radius
-                - (Vector2.Dot(target.Support(-axis), axis) - target.Radius);
-            float overlap = MathF.Min(forward, backward);
-            if (overlap < depth)
-            {
-                depth = overlap;
-                normal = forward <= backward ? axis : -axis;
-            }
-        }
-    }
-
-    // How far a pair overlaps, from its signed separation. A pair within the skin but apart overlaps by nothing.
-    private static float DepthOf(float separation) => MathF.Max(0f, -separation);
-
-    // The same against a grid cell or one of its faces, which stays an Aabb2D for a box mover. Only the
-    // iterated routines read the hull a Shape2D carries, and building one per cell costs a tenth of a
-    // query step.
-    private static float Separation(in Shape2D shape, in Aabb2D cell, out Vector2 normal, out Vector2 point) =>
-        shape.Kind == ShapeKind2D.Box
-            ? Boxes2D.Separation(shape.Bounds, cell, out normal, out point)
-            : Separation(shape, Shape2D.OfCell(cell), out normal, out point);
-
-    // The fraction of translation at which moving first touches target, with the contact point and
-    // normal there. Conservative advancement has no time of impact to report out of an existing touch.
-    // A pair already within the skin is decided by whether the sweep drives into it.
-    private static bool Sweep(
-        in Shape2D moving,
-        Vector2 translation,
-        in Shape2D target,
-        out float fraction,
-        out Vector2 normal,
-        out Vector2 point)
-    {
-        if (moving.Kind == ShapeKind2D.Box && IsBoxLike(target))
-        {
-            return SweepBoxes(moving.Bounds, translation, target.Bounds, out fraction, out normal, out point);
-        }
-
-        if (Gjk2D.ShapeCast(target, moving, translation, out fraction, out point, out normal))
-        {
-            normal = FaceNormal(moving, translation * fraction, target, normal);
-            return true;
-        }
-
-        if (Separation(moving, target, out normal, out point) > CollisionTolerance.ContactSkin)
-        {
-            return false;
-        }
-
-        normal = FaceNormal(moving, Vector2.Zero, target, normal);
-        if (Vector2.Dot(translation, normal) >= 0f)
-        {
-            return false;
-        }
-
-        fraction = 0f;
-        point = Vector2.Clamp(moving.Bounds.Center, target.Bounds.Min, target.Bounds.Max);
-
-        return true;
-    }
-
-    // The face normal nearest `normal` among the faces of two sharp hulls that still separate them,
-    // with moving displaced by `offset` to where it touches. Two corners meeting leave GJK a direction
-    // between them that neither surface has. Hulls that already overlap take the face they overlap
-    // least along, where GJK's answer only approximates that face. A rounded shape has every such
-    // direction on its surface, and a segment has its own rule in EdgeNormal.
-    private static Vector2 FaceNormal(in Shape2D moving, Vector2 offset, in Shape2D target, Vector2 normal)
-    {
-        if (moving.Radius != 0f || target.Radius != 0f || moving.PointCount < 3 || target.PointCount < 3 || normal == Vector2.Zero)
-        {
-            return normal;
-        }
-
-        Vector2 best = normal;
-        float nearest = float.NegativeInfinity;
-        Vector2 shallowest = normal;
-        float least = float.NegativeInfinity;
-        Faces(target, moving, offset, target, 1f, normal, ref best, ref nearest, ref shallowest, ref least);
-        Faces(moving, moving, offset, target, -1f, normal, ref best, ref nearest, ref shallowest, ref least);
-
-        return nearest > float.NegativeInfinity ? best : shallowest;
-    }
-
-    // Keeps the outward normal of each face of `hull`, turned by `sign` to point from target to moving,
-    // that lies nearest `normal` and along which the pair is at most a skin into each other. It also
-    // keeps the face along which the pair reaches least far into each other.
-    private static void Faces(
-        in Shape2D hull,
-        in Shape2D moving,
-        Vector2 offset,
-        in Shape2D target,
-        float sign,
-        Vector2 normal,
-        ref Vector2 best,
-        ref float nearest,
-        ref Vector2 shallowest,
-        ref float least)
-    {
-        for (int index = 0; index < hull.PointCount; index++)
-        {
-            Vector2 face = sign * hull.EdgeNormal(index);
-            float alignment = Vector2.Dot(face, normal);
-            float separation = Vector2.Dot(moving.Support(-face) + offset - target.Support(face), face);
-            if (separation > least)
-            {
-                least = separation;
-                shallowest = face;
-            }
-
-            if (alignment > nearest && separation >= -CollisionTolerance.ContactSkin)
-            {
-                nearest = alignment;
-                best = face;
-            }
-        }
-    }
-
-    // The same against a grid cell or one of its faces, which a box mover meets without a Shape2D.
-    private static bool Sweep(
-        in Shape2D moving,
-        Vector2 translation,
-        in Aabb2D cell,
-        out float fraction,
-        out Vector2 normal,
-        out Vector2 point) =>
-        moving.Kind == ShapeKind2D.Box
-            ? SweepBoxes(moving.Bounds, translation, cell, out fraction, out normal, out point)
-            : Sweep(moving, translation, Shape2D.OfCell(cell), out fraction, out normal, out point);
-
-    // The closed-form box sweep, with the witness point from the clamp.
-    private static bool SweepBoxes(
-        in Aabb2D moving,
-        Vector2 translation,
-        in Aabb2D target,
-        out float fraction,
-        out Vector2 normal,
-        out Vector2 point)
-    {
-        if (Boxes2D.Sweep(moving, translation, target, out fraction, out normal))
-        {
-            point = Vector2.Clamp(moving.Center + (translation * fraction), target.Min, target.Max);
-
-            return true;
-        }
-
-        point = Vector2.Zero;
-
-        return false;
+        return grid.Handle != ignore && !(filter & grid.Layers).IsEmpty;
     }
 
     // The preamble every grid walk shares. Reports whether this query collides with the cell at (x, y),
@@ -623,17 +351,13 @@ public sealed partial class CollisionWorld2D
 
         foreach (CollisionGrid2D grid in Grids)
         {
-            if (grid.Handle == ignore || (filter & grid.Layers).IsEmpty)
+            if (!Visits(grid, filter, ignore, out bool admitsEvery)
+                || !Rays2D.RayBoxRange(grid.Bounds, origin, unit, accumulator.Distance, out float enter, out float exit, out _))
             {
                 continue;
             }
 
-            if (!Rays2D.RayBoxRange(grid.Bounds, origin, unit, accumulator.Distance, out float enter, out float exit, out _))
-            {
-                continue;
-            }
-
-            WalkGrid(grid, origin, unit, enter, exit, filter, grid.AdmitsEveryLayer(filter), ref accumulator, hits, ref count);
+            WalkGrid(grid, origin, unit, enter, exit, filter, admitsEvery, ref accumulator, hits, ref count);
         }
 
         RayVisitor visitor = new(this, origin, unit, filter, ignore, hits, count, accumulator);
@@ -656,7 +380,6 @@ public sealed partial class CollisionWorld2D
         Span<RayHit2D> hits,
         ref int count)
     {
-        bool all = !hits.IsEmpty;
         int size = grid.CellSize;
         Vector2 start = origin + (unit * enter);
         int x = Math.Clamp(CollisionGrid2D.FloorDiv(start.X, size), 0, grid.Width - 1);
@@ -675,14 +398,11 @@ public sealed partial class CollisionWorld2D
 
         while (true)
         {
-            if (TestCell(grid, x, y, origin, unit, filter, admitsEvery, ref accumulator, hits, ref count) && !all)
-            {
-                return;
-            }
+            TestCell(grid, x, y, origin, unit, filter, admitsEvery, ref accumulator, hits, ref count);
 
-            // Re-read every step, because the limit tightens as hits are taken and a filled span puts
-            // everything beyond its farthest entry out of reach. The comparison is strictly greater, so
-            // a cell entered right at the limit is still tested and the total order decides the tie.
+            // Re-read every step. The limit tightens as hits are taken, and a filled span puts everything
+            // beyond its farthest entry out of reach. A cell entered right at the limit is still tested,
+            // and the total order decides which of the cells tied there is nearest.
             if (MathF.Min(boundaryX, boundaryY) > MathF.Min(exit, accumulator.Distance))
             {
                 return;
@@ -691,12 +411,9 @@ public sealed partial class CollisionWorld2D
             // A tie means the ray crosses a cell corner and enters both cells at once. Stepping X alone
             // would commit to whichever face the box test picks, perhaps the seam the two cells share,
             // and hide the exposed face of the cell never visited.
-            if (boundaryX == boundaryY
-                && (uint)(y + stepY) < (uint)grid.Height
-                && TestCell(grid, x, y + stepY, origin, unit, filter, admitsEvery, ref accumulator, hits, ref count)
-                && !all)
+            if (boundaryX == boundaryY && (uint)(y + stepY) < (uint)grid.Height)
             {
-                return;
+                TestCell(grid, x, y + stepY, origin, unit, filter, admitsEvery, ref accumulator, hits, ref count);
             }
 
             if (boundaryX <= boundaryY)
@@ -717,7 +434,8 @@ public sealed partial class CollisionWorld2D
         }
     }
 
-    private bool TestCell(
+    // Records the cell at (x, y) when the ray meets one of its live surfaces within the limit.
+    private void TestCell(
         CollisionGrid2D grid,
         int x,
         int y,
@@ -731,7 +449,7 @@ public sealed partial class CollisionWorld2D
     {
         if (!TryCell(grid, x, y, filter, out CellState2D state, out CollisionLayer layer))
         {
-            return false;
+            return;
         }
 
         float limit = accumulator.Distance;
@@ -743,23 +461,23 @@ public sealed partial class CollisionWorld2D
             Aabb2D box = grid.CellBox(x, y);
             if (!Rays2D.RayBox(box, origin, unit, limit, out t, out normal))
             {
-                return false;
+                return;
             }
 
             if (normal == Vector2.Zero)
             {
-                // The ray began inside the cell, where there is no face to test, so the hit names the
+                // The ray began inside the cell, where there is no face to test. The hit names the
                 // nearest side.
                 normal = Rays2D.NearestFace(box, origin);
             }
             else if (!IsActiveFace(grid, x, y, state, normal, filter, admitsEvery))
             {
-                return false;
+                return;
             }
         }
         else if (!FirstEdgeCrossed(grid, x, y, state, origin, unit, limit, filter, admitsEvery, out t, out normal))
         {
-            return false;
+            return;
         }
 
         RecordRay(
@@ -771,8 +489,6 @@ public sealed partial class CollisionWorld2D
             normal,
             origin,
             unit);
-
-        return true;
     }
 
     // The first live edge of an edge cell the ray crosses inwards. A ray travelling along an edge or away
@@ -860,12 +576,12 @@ public sealed partial class CollisionWorld2D
         ColliderHandle ignore,
         Span<Contact2D> contacts)
     {
-        int written = FindGridContacts(world, filter, tolerance, ignore, contacts, out int found);
-        TouchVisitor visitor = new(this, world, filter, tolerance, ignore, contacts, written, found);
+        int written = FindGridContacts(world, filter, tolerance, ignore, contacts, out _);
+        TouchVisitor visitor = new(this, world, filter, tolerance, ignore, contacts, written);
         _tree.Query(world.Bounds.Expanded(tolerance), filter.Bits, ref visitor);
         visitor.Order();
 
-        return visitor.Found;
+        return visitor.Written;
     }
 
     // Writes the grid cells within tolerance of a shape, and returns how many were written. found is
@@ -884,12 +600,11 @@ public sealed partial class CollisionWorld2D
 
         foreach (CollisionGrid2D grid in Grids)
         {
-            if (grid.Handle == ignore || (filter & grid.Layers).IsEmpty || !grid.Bounds.Overlaps(probe))
+            if (!Visits(grid, filter, ignore, out bool admitsEvery) || !grid.Bounds.Overlaps(probe))
             {
                 continue;
             }
 
-            bool admitsEvery = grid.AdmitsEveryLayer(filter);
             int size = grid.CellSize;
             int minX = Math.Max(0, CollisionGrid2D.FloorDiv(probe.Min.X, size));
             int maxX = Math.Min(grid.Width - 1, CollisionGrid2D.FloorDiv(probe.Max.X, size));
@@ -913,7 +628,7 @@ public sealed partial class CollisionWorld2D
                             CollisionTarget.ForGridCell(grid.Handle, x, y, layer),
                             point,
                             normal,
-                            DepthOf(separation));
+                            Narrowphase2D.DepthOf(separation));
                     }
                 }
             }
@@ -940,7 +655,7 @@ public sealed partial class CollisionWorld2D
     {
         if ((state & CellState2D.Solid) != 0)
         {
-            nearest = Separation(world, grid.CellBox(x, y), out normal, out point);
+            nearest = Narrowphase2D.Separation(world, grid.CellBox(x, y), out normal, out point);
 
             return nearest <= tolerance;
         }
@@ -965,7 +680,7 @@ public sealed partial class CollisionWorld2D
         Vector2 corner = grid.CellCorner(x, y);
         if ((state & CellState2D.OneWay) == 0)
         {
-            nearest = Separation(world, grid.PolygonAt(x, y).Translated(corner), out normal, out point);
+            nearest = Narrowphase2D.Separation(world, grid.PolygonAt(x, y).Translated(corner), out normal, out point);
 
             return nearest <= tolerance;
         }
@@ -984,11 +699,11 @@ public sealed partial class CollisionWorld2D
             }
 
             Vector2 start = corner + edge.Start;
-            float separation = Separation(world, Shape2D.Segment(start, corner + edge.End), out _, out Vector2 edgePoint);
+            float separation = Narrowphase2D.Separation(world, Shape2D.Segment(start, corner + edge.End), out _, out Vector2 edgePoint);
 
             // An edge is a surface only to a shape on its outward side. The authored line decides that
             // side, not the narrowphase, whose least-penetration axis resolves a tie towards -X and -Y.
-            // The test is inclusive, so a centre on the line counts as outward.
+            // The test is inclusive. A centre on the line counts as outward.
             if (separation <= tolerance
                 && separation < nearest
                 && Vector2.Dot(world.Bounds.Center - start, edge.Normal) >= 0f)
@@ -1044,12 +759,11 @@ public sealed partial class CollisionWorld2D
 
         foreach (CollisionGrid2D grid in Grids)
         {
-            if (grid.Handle == ignore || (filter & grid.Layers).IsEmpty || !grid.Bounds.Overlaps(swept))
+            if (!Visits(grid, filter, ignore, out bool admitsEvery) || !grid.Bounds.Overlaps(swept))
             {
                 continue;
             }
 
-            bool admitsEvery = grid.AdmitsEveryLayer(filter);
             int size = grid.CellSize;
             int width = grid.Width;
             int minX = Math.Max(0, CollisionGrid2D.FloorDiv(swept.Min.X, size));
@@ -1084,8 +798,8 @@ public sealed partial class CollisionWorld2D
     }
 
     // The rows one column shares with the swept shape. The sweep is inside the column's slab over a
-    // single interval of the translation, and over that interval the shape's Y range is bounded by its
-    // position at the two ends, so the band is exact.
+    // single interval of the translation. Over that interval the shape's Y range is bounded by its
+    // position at the two ends, which makes the band exact.
     private static bool ColumnRows(
         in Aabb2D start,
         Vector2 translation,
@@ -1158,13 +872,13 @@ public sealed partial class CollisionWorld2D
         if ((state & CellState2D.Solid) != 0)
         {
             Aabb2D box = grid.CellBox(x, y);
-            if (accumulator.ReportsInside && StartsInside(moving, box, out Vector2 inward))
+            if (accumulator.ReportsInside && Narrowphase2D.StartsInside(moving, box, out Vector2 inward))
             {
                 RecordInside(ref accumulator, contacts, moving, box, target, inward);
                 return;
             }
 
-            if (!Sweep(moving, translation, box, out float fraction, out Vector2 normal, out Vector2 point))
+            if (!Narrowphase2D.Sweep(moving, translation, box, out float fraction, out Vector2 normal, out Vector2 point))
             {
                 return;
             }
@@ -1183,7 +897,7 @@ public sealed partial class CollisionWorld2D
         if (accumulator.ReportsInside && (state & CellState2D.OneWay) == 0 && moving.Bounds.Overlaps(grid.CellBox(x, y)))
         {
             Shape2D polygon = grid.PolygonAt(x, y).Translated(grid.CellCorner(x, y));
-            if (StartsInside(moving, polygon, out Vector2 inward))
+            if (Narrowphase2D.StartsInside(moving, polygon, out Vector2 inward))
             {
                 RecordInside(ref accumulator, contacts, moving, polygon.Bounds, target, inward);
                 return;
@@ -1227,22 +941,22 @@ public sealed partial class CollisionWorld2D
             Vector2 start = corner + edge.Start;
 
             // An edge stops only a sweep crossing it inwards that began on its outward side. A sweep
-            // running along it never tests it, so a slide carries over the join of two slopes.
+            // running along it never tests it. A slide then carries over the join of two slopes.
             Vector2 end = corner + edge.End;
             if (Vector2.Dot(translation, outward) >= accumulator.Lean
                 || (dropping && outward.Y < -CollisionGrid2D.UpFacing)
                 || !grid.EdgeLive(x, y, state, edge, filter, admitsEvery)
                 || (topOnly
-                    ? DepthPast(moving, start, outward) > CollisionTolerance.LinearSlop
-                    : StartedPast(moving, start, end, outward)))
+                    ? Narrowphase2D.ReachPastEdge(moving, start, outward) > CollisionTolerance.LinearSlop
+                    : Narrowphase2D.StartedPast(moving, start, end, outward)))
             {
                 continue;
             }
 
             // An axis-aligned edge is a zero-thickness box, which a box mover sweeps in closed form.
             bool swept = start.X == end.X || start.Y == end.Y
-                ? Sweep(moving, translation, new Aabb2D(Vector2.Min(start, end), Vector2.Max(start, end)), out float fraction, out Vector2 normal, out Vector2 point)
-                : Sweep(moving, translation, Shape2D.Segment(start, end), out fraction, out normal, out point);
+                ? Narrowphase2D.Sweep(moving, translation, new Aabb2D(Vector2.Min(start, end), Vector2.Max(start, end)), out float fraction, out Vector2 normal, out Vector2 point)
+                : Narrowphase2D.Sweep(moving, translation, Shape2D.Segment(start, end), out fraction, out normal, out point);
 
             if (!swept || Vector2.Dot(normal, outward) <= 0f)
             {
@@ -1252,7 +966,7 @@ public sealed partial class CollisionWorld2D
             // Report the edge's own normal, unless a box face met its end. A rounded shape meeting the
             // end of an edge is nearest its endpoint, where GJK answers with a diagonal the authored line
             // does not have.
-            RecordCast(ref accumulator, contacts, translation, fraction, target, topOnly ? outward : EdgeNormal(moving, normal, outward), point);
+            RecordCast(ref accumulator, contacts, translation, fraction, target, topOnly ? outward : Narrowphase2D.EdgeNormal(moving, normal, outward), point);
         }
     }
 
@@ -1314,8 +1028,8 @@ public sealed partial class CollisionWorld2D
         }
 
         // Stop a slop short of the surface along its normal. Rounding error then cannot leave the mover
-        // inside it, and the gap is within the contact skin, so the surface still reports as touched.
-        // The mover never backs up past where it started.
+        // inside it, and the gap is within the contact skin, where the surface still reports as
+        // touched. The mover never backs up past where it started.
         float length = accumulator.Length;
         float approach = -Vector2.Dot(translation, accumulator.Normal) / length;
         float travel = (length * accumulator.Fraction) - (CollisionTolerance.LinearSlop / approach);
@@ -1370,8 +1084,8 @@ public sealed partial class CollisionWorld2D
     }
 
     // Writes the handles of every shape collider on a layer in `layers` whose broadphase box meets
-    // `box` in handle order, skipping grids and `ignore`, and returns how many there were. A short span
-    // keeps the lowest handles. A collider's shove gathers its candidates here, and the order it pushes
+    // `box` in slot order, skipping grids and `ignore`, and returns how many there were. A short span
+    // keeps the lowest slots. A collider's shove gathers its candidates here, and the order it pushes
     // in then does not depend on the tree's arrangement.
     internal int CollidersNear(in Aabb2D box, ulong layers, ColliderHandle ignore, Span<ColliderHandle> found)
     {
@@ -1414,7 +1128,7 @@ public sealed partial class CollisionWorld2D
             : SweepPair(pusher, moving, translation, other.World.Translated(offset), out fraction, out normal, out point);
     }
 
-    // A one-way pusher meets a body as the body would meet it, so the body must start clear of the
+    // A one-way pusher meets a body as the body would meet it. The body must start clear of the
     // pusher's surface. The sweep reports the body's normal, and the pusher's surface faces the other way.
     private static bool SweepPair(
         in ColliderSlot pusher,
@@ -1424,9 +1138,9 @@ public sealed partial class CollisionWorld2D
         out float fraction,
         out Vector2 normal,
         out Vector2 point) =>
-        Sweep(moving, translation, target, out fraction, out normal, out point)
+        Narrowphase2D.Sweep(moving, translation, target, out fraction, out normal, out point)
             && Vector2.Dot(translation, normal) < -Along * translation.Length()
-            && (!pusher.OneWay || OneWayBlocks(target, moving, -normal, pusher.SolidSides));
+            && (!pusher.OneWay || Narrowphase2D.OneWayBlocks(target, moving, -normal, pusher.SolidSides));
 
     // Moves a shape as Move does, also passing through `pusher`. A shove sweeps the body it moves this
     // way, because a pusher that outran the body already lies across the body's path.
@@ -1469,8 +1183,7 @@ public sealed partial class CollisionWorld2D
         float tolerance,
         ColliderHandle ignore,
         Span<Contact2D> contacts,
-        int written,
-        int found) : ITreeVisitor2D
+        int written) : ITreeVisitor2D
     {
         private readonly Span<Contact2D> _contacts = contacts;
 
@@ -1480,10 +1193,10 @@ public sealed partial class CollisionWorld2D
         // Whether the span has filled. Filling orders the colliders written so far.
         private bool _full;
 
-        // How many overlaps there are, span or no span.
-        internal int Found = found;
+        // How many contacts the span holds, grid cells included.
+        internal readonly int Written => _written;
 
-        // Orders the colliders by handle once the query ends. A span that filled is in order already.
+        // Orders the colliders by slot once the query ends. A span that filled is in order already.
         internal readonly void Order()
         {
             if (!_full)
@@ -1501,17 +1214,16 @@ public sealed partial class CollisionWorld2D
 
             ref ColliderSlot slot = ref world._slots[index];
 
-            float separation = Separation(shape, slot.World, out Vector2 normal, out Vector2 point);
+            float separation = Narrowphase2D.Separation(shape, slot.World, out Vector2 normal, out Vector2 point);
             if (separation > tolerance)
             {
                 return true;
             }
 
-            Found++;
-            Contact2D contact = new(CollisionTarget.ForCollider(world.HandleAt(index), slot.Layer), point, normal, DepthOf(separation));
+            Contact2D contact = new(CollisionTarget.ForCollider(world.HandleAt(index), slot.Layer), point, normal, Narrowphase2D.DepthOf(separation));
 
             // Contacts land unordered while the span has room, and one sort orders a crowd of them. A
-            // span that fills is ordered then and keeps its lowest handles from there.
+            // span that fills is ordered then and keeps its lowest slots from there.
             if (_written < _contacts.Length)
             {
                 _contacts[_written++] = contact;
@@ -1555,14 +1267,14 @@ public sealed partial class CollisionWorld2D
             CollisionTarget target = CollisionTarget.ForCollider(world.HandleAt(index), slot.Layer);
 
             // A one-way collider is never a surface the shape starts inside.
-            if (Accumulator.ReportsInside && !slot.OneWay && StartsInside(moving, slot.World, out Vector2 inward))
+            if (Accumulator.ReportsInside && !slot.OneWay && Narrowphase2D.StartsInside(moving, slot.World, out Vector2 inward))
             {
                 world.RecordInside(ref Accumulator, _contacts, moving, slot.World.Bounds, target, inward);
                 return true;
             }
 
-            if (!Sweep(moving, translation, slot.World, out float fraction, out Vector2 normal, out Vector2 point)
-                || (slot.OneWay && !OneWayBlocks(moving, slot.World, normal, slot.SolidSides))
+            if (!Narrowphase2D.Sweep(moving, translation, slot.World, out float fraction, out Vector2 normal, out Vector2 point)
+                || (slot.OneWay && !Narrowphase2D.OneWayBlocks(moving, slot.World, normal, slot.SolidSides))
                 || (slot.OneWay && throughOneWay && normal.Y < -CollisionGrid2D.UpFacing))
             {
                 return true;

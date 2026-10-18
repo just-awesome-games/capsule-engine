@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 
-namespace Capsule.Scenes.Spawning;
+namespace Capsule.Scenes;
 
 // Reads one authored JSON value from its exact UTF-8, which the document reader has already validated. Nothing
 // here builds a document. An array reads straight from its bytes into the array its read fills.

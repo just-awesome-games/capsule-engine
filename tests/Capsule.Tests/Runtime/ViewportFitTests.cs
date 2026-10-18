@@ -52,15 +52,15 @@ public sealed class ViewportFitTests
         (double exactX, double exactY) = ExactSpan(View(fit).Camera, windowWidth, windowHeight);
         Assert.True(layout.Span.X <= exactX && layout.Span.Y <= exactY);
 
-        // The camera is placed on that same span, so the drawn rect and the surface agree.
+        // The camera is placed on that same span. The drawn rect and the surface agree.
         Rect world = View(fit).Camera.Place(1f, layout.Span);
         Assert.Equal(layout.Span.X, world.Right - world.Left);
         Assert.Equal(layout.Span.Y, world.Bottom - world.Top);
     }
 
-    // A camera wider than its canvas: 200 by 90 on 320 by 180. FixedHeight binds the height, so
-    // its scale is the canvas height over the camera's, 2, and its span is the one ResolveSpan
-    // gives the window; Expand and Letterbox bind on the axis the canvas holds tighter, 1.6.
+    // A camera wider than its canvas: 200 by 90 on 320 by 180. FixedHeight binds the height.
+    // Its scale is the canvas height over the camera's, 2, and its span is the one ResolveSpan
+    // gives the window. Expand and Letterbox bind on the axis the canvas holds tighter, 1.6.
     [Theory]
     [InlineData(ViewportFit.FixedHeight, 1280, 720, 320, 180, 0, 0, 320, 180, 2f, 160f, 90f)]
     [InlineData(ViewportFit.FixedHeight, 1600, 400, 720, 180, 0, 0, 720, 180, 2f, 360f, 90f)]
@@ -160,7 +160,7 @@ public sealed class ViewportFitTests
         Assert.Equal(PixelsPerUnit, layout.World.Scale);
     }
 
-    // On a surface 181 pixels tall the camera's half-span is 45.25 units, a quarter pixel, so a
+    // On a surface 181 pixels tall the camera's half-span is 45.25 units, a quarter pixel. A
     // followed sprite advancing 0.3 units a step would flip between two pixels if it and the
     // camera were rounded apart. Snapped from the camera's corner it holds its pixel, a static
     // sprite recedes by whole pixels only, and a sprite at another sub-pixel phase never jitters
@@ -202,7 +202,7 @@ public sealed class ViewportFitTests
     }
 
     // The grown axis's pixel count is the binding canvas extent times the output's ratio, taken in
-    // integers, so neither float's shortfall nor its excess reaches it: 180 by 365 over 180 is
+    // integers. Neither float's shortfall nor its excess reaches it: 180 by 365 over 180 is
     // exactly 365 pixels where float spells 364.99997, and 180 by 930 over 1027 is 162.999, which
     // is 162 (the span 54 units, under the 54.333 the fit resolved) where a tolerance would have
     // rounded it up past the resolved span. The span is that count over the scale, exactly.
@@ -236,7 +236,7 @@ public sealed class ViewportFitTests
     // Where the canvas holds the grown axis tighter than the other, the camera's size does not
     // cancel and the count is the true fraction in double: 4 × 320 × 5746 over 9 × 1593 is
     // 512.99997, which float's product rounds up to 513 (one pixel past the resolved span) and
-    // double floors to 512; 4 × 320 × 4500 over 9 × 1280 is exactly 500 and loses nothing; and
+    // double floors to 512. 4 × 320 × 4500 over 9 × 1280 is exactly 500 and loses nothing. And
     // 30.6 × 320 × 7722 over 57.2 × 3264 is 404.99999965, a third of a millionth under, which a
     // relative billionth would have lifted to 405 and four ulps leave at 404.
     [Theory]
@@ -284,7 +284,7 @@ public sealed class ViewportFitTests
     }
 
     // A canvas the clamp keeps far wider than the span the fit resolved: the span is quantised,
-    // not the surface, so the 100 by 100 view is placed centred in the 500 by 100 surface with bars
+    // not the surface. The 100 by 100 view is placed centred in the 500 by 100 surface with bars
     // beside it, still inside the 400 by 400 the camera culled against, and the entities at its
     // edges are drawn.
     [Fact]
@@ -300,8 +300,8 @@ public sealed class ViewportFitTests
         Assert.Equal((500, 100), layout.Surface);
         Assert.Equal(new Vector2(100f, 100f), layout.Span);
         Assert.Equal(new Letterbox(200, 0, 100, 100, 1f), layout.World);
-        Assert.Equal(new Rect(-50f, -50f, 50f, 50f), placed);
-        Assert.Equal(new Rect(-200f, -200f, 200f, 200f), swept);
+        Assert.Equal(Rect.FromEdges(-50f, -50f, 50f, 50f), placed);
+        Assert.Equal(Rect.FromEdges(-200f, -200f, 200f, 200f), swept);
 
         Scene scene = new();
         scene.Camera.ViewportSize = new Vector2(100f, 100f);

@@ -27,20 +27,37 @@ dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 
 Four packages ship, and [`PACKAGE.md`](PACKAGE.md) says what each holds. Every public member's contract is its XML documentation, shipped beside the assemblies. The pages below are the tasks that span many types.
 
+### Start
+
 - [`docs/getting-started.md`](docs/getting-started.md): clone, wire three projects, put one entity on screen, run it.
+
+### Game
+
+- [`docs/entities.md`](docs/entities.md): adding and removing, lifecycle, parenting, pausing, pooling, finding entities.
+- [`docs/scenes.md`](docs/scenes.md): scene documents and classes, placing entities, changing scenes.
 - [`docs/input.md`](docs/input.md): actions, axes, the pointer, rumble, the cursor, input drivers, the standard command line.
-- [`docs/rendering.md`](docs/rendering.md): the canvas, cameras, draw order, sprites, text, parallax.
+- [`docs/rendering.md`](docs/rendering.md): the canvas, the camera, renderers, draw order, parallax, particles, lighting, text, visibility.
+- [`docs/animation.md`](docs/animation.md): sprite animation clips, ticks, events and boxes, tweens, timers and scripted sequences.
+- [`docs/ui.md`](docs/ui.md): the screen layer and its UI kit of anchors, containers, labels and focus navigation.
+- [`docs/shaders.md`](docs/shaders.md): a shader of your own, its material and its globals.
 - [`docs/audio.md`](docs/audio.md): clips, buses, sources, the mixer.
 - [`docs/collision.md`](docs/collision.md): which collision piece answers which need, and triggers.
-- [`docs/assets.md`](docs/assets.md): asset keys, textures, sprite sheets, audio, fonts, preloading.
-- [`docs/configuring-assets.md`](docs/configuring-assets.md): config files, texture settings, atlases.
-- [`docs/scenes.md`](docs/scenes.md): the scene authoring model and the `*.scene.json` format.
-- [`docs/entities.md`](docs/entities.md): building, lifecycle, parenting, interpolation, pooling.
-- [`docs/persistence.md`](docs/persistence.md): save documents, the file format, and where they go.
-- [`docs/build-and-publish.md`](docs/build-and-publish.md): project wiring, build properties, publishing, platform modules.
-- [`docs/packages.md`](docs/packages.md): writing a package, its naming, and taking part in the build.
-- [`docs/testing.md`](docs/testing.md): which boundary to test a game at.
+- [`docs/persistence.md`](docs/persistence.md): save documents, writing and reading them, and where they go.
+
+### Content
+
+- [`docs/assets.md`](docs/assets.md): asset keys, textures, sprite sheets, audio, fonts, shaders, preloading.
+- [`docs/configuring-assets.md`](docs/configuring-assets.md): config files, texture settings, atlases, editor completion.
+
+### Build
+
+- [`docs/build-and-publish.md`](docs/build-and-publish.md): project wiring, consuming Capsule, commands, development builds, publishing, build properties.
+- [`docs/packages.md`](docs/packages.md): writing a package, the build project, importers, platform modules.
+- [`docs/testing.md`](docs/testing.md): testing a game headless at the right boundary.
 - [`docs/debugging.md`](docs/debugging.md): the debug overlay, debug draw, panels, logging.
+
+### Reference
+
 - [`docs/architecture.md`](docs/architecture.md): module boundaries, the logic boundary, the determinism contract, the NativeAOT floor.
 
 ## Contributing

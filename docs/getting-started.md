@@ -16,11 +16,13 @@ fastest start for a game of your own is a copy of it.
 | --- | --- | --- |
 | `src/MyGame.Game` | `<CapsuleGameLogic>true</CapsuleGameLogic>` | Scenes, entities, components, the `Assets/` authoring tree. It cannot reach a device, a file or a clock. |
 | `src/MyGame.Shell` | `<CapsuleGameShell>true</CapsuleGameShell>` | The executable. One file, the entry point below. |
-| `src/MyGame.Build` | no role | The asset build's host, a console app referencing `JAG.Capsule.Build`. One file that runs `CapsuleBuild` ([`build-and-publish.md`](build-and-publish.md#the-build-project)). |
+| `src/MyGame.Build` | no role | The asset build's host, a console app referencing `JAG.Capsule.Build`. One file that runs `CapsuleBuild` ([`packages.md`](packages.md#the-build-project)). |
 | `tests/MyGame.Tests` | no role | Headless tests of the logic project ([`testing.md`](testing.md)). |
 
 The project files and their package references are in
 [`build-and-publish.md`](build-and-publish.md). The rest of this page is the C# those projects hold.
+With `ImplicitUsings` on, the logic project imports every game-facing `Capsule` namespace and
+`System.Numerics`, and the files below name only the game's own namespaces.
 
 ## The shell
 
@@ -36,7 +38,7 @@ try
 {
     return CapsuleBoot.Configure("My Game", new DesktopPlatform())
         .WithCommandLine(args)
-        .WithRunStart(GameBoot.Start)
+        .WithRunStart(run => GameInput.Configure(run.Input))
         .RunScene<PlayField>();
 }
 catch (CommandLineException failure)
@@ -53,12 +55,9 @@ Every other boot lever is on `EngineBuilder`, and each documents its default.
 
 ## The game's actions
 
-An action names what the player can do, apart from the device that does it. Declare them once at the
-assembly root and bind them in one place:
+The entity below reads one action, declared at the assembly root:
 
 ```csharp
-using Capsule.Input;
-
 namespace MyGame;
 
 public static class GameInput
@@ -73,16 +72,13 @@ public static class GameInput
 }
 ```
 
-More on actions, axes and playing a run with no one at the keyboard is in [`input.md`](input.md).
+The shell's run start hands `Run.Input` to `Configure`. The rest of input is [`input.md`](input.md).
 
 ## A scene with one entity
 
-A scene is one world: its contents and a camera. A camera draws nothing until its `ViewportSize` spans
-some world units:
+A scene holds a camera and the entities it starts with ([`scenes.md`](scenes.md)):
 
 ```csharp
-using System.Numerics;
-using Capsule.Scenes;
 using MyGame.Entities;
 
 namespace MyGame.Scenes;
@@ -91,7 +87,7 @@ public sealed class PlayField : Scene
 {
     public PlayField()
     {
-        Camera = new Camera { ViewportSize = new Vector2(320f, 180f) };
+        Camera = new Camera { ViewportSize = new Vector2(320f, 180f), Center = new Vector2(160f, 90f) };
         Add(new Blob(new Vector2(160f, 90f)));
     }
 }
@@ -100,12 +96,6 @@ public sealed class PlayField : Scene
 An entity is a place in the world, and what it looks like is a renderer component on it:
 
 ```csharp
-using System.Numerics;
-using Capsule;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using MyGame;
-
 namespace MyGame.Entities;
 
 public sealed class Blob : Entity
@@ -121,18 +111,15 @@ public sealed class Blob : Entity
 }
 ```
 
-`OnStep` runs on the fixed step, sixty times a simulated second by default. `DeltaSeconds` is constant,
-and the run is reproducible. `Position` is in world units with Y pointing down, and `ColorRect` draws its
-`Size` down and to the right of it.
+`Position` is in world units with Y pointing down.
 
 ## Run it
 
 ```text
 dotnet run --project src/MyGame.Shell
-dotnet run --project src/MyGame.Shell -- --scene PlayField
-dotnet run --project src/MyGame.Shell -- --headless --driver Walkthrough
-dotnet test
 ```
+
+A window opens with a white square near its centre on black. `A` and `D` move it.
 
 ## Where to go next
 

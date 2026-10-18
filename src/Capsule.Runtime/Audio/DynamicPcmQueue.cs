@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework.Audio;
 namespace Capsule.Runtime.Audio;
 
 // The device's own queue: one MonoGame dynamic instance, which is an OpenAL streaming source. Its
-// format is fixed at construction, so a queue is reused only for a clip of the same rate and channel
+// format is fixed at construction. A queue is reused only for a clip of the same rate and channel
 // count.
 internal sealed class DynamicPcmQueue : IPcmQueue
 {

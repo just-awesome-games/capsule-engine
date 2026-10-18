@@ -3,8 +3,6 @@ using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Runtime.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 using Capsule.Tiles;
 using Capsule.UI;
 
@@ -57,7 +55,7 @@ public sealed class ParallaxTests
         Assert.Empty(simulation.View.ParallaxLayers.ToArray());
     }
 
-    // Inside a scrolled entity's Draw the view answers as the camera that entity is drawn by, so a
+    // Inside a scrolled entity's Draw the view answers as the camera that entity is drawn by. A
     // tile map culls to the cells its own layer shows rather than the cells under the real camera.
     [Fact]
     public void ATileMap_SubmitsTheTilesItsVirtualCameraCovers()
@@ -102,7 +100,7 @@ public sealed class ParallaxTests
             new Vector2(1300, 700),
             new Vector2(320, 180),
             fit,
-            bounded ? new Rect(0, 0, 1200, 600) : null,
+            bounded ? Rect.FromEdges(0, 0, 1200, 600) : null,
             scrollCenter)
         {
             PreviousSize = new Vector2(400, 225),
@@ -257,37 +255,6 @@ public sealed class ParallaxTests
         Assert.Equal(Vector2.One, element.ScrollFactor);
     }
 
-    // The document supplies the factor ahead of the constructor's body: a class that sets none
-    // takes it, and a class that sets its own keeps it.
-    [Fact]
-    public void ADocumentsScrollFactor_IsTheConstructorsToKeepOrOverride()
-    {
-        SceneDocument document = new(
-            [
-                new SceneDocumentEntry("placed", new EntitySpawn(new Vector2(4f, 4f)) { ScrollFactor = Vector2.Zero }),
-                new SceneDocumentEntry("placed", new EntitySpawn(new Vector2(4f, 4f))),
-                new SceneDocumentEntry("fixed", new EntitySpawn(new Vector2(4f, 4f)) { ScrollFactor = Half }),
-            ]);
-        Scene scene = SceneFixtures.RoomScene(
-            document,
-            SceneFixtures.Registry(
-                ("placed", spawn => new SceneFixtures.Placed(spawn)),
-                ("fixed", spawn => new ScreenFixed(spawn))));
-
-        Assert.Equal(Vector2.Zero, scene.Entities[0].ScrollFactor);
-        Assert.Equal(Vector2.One, scene.Entities[1].ScrollFactor);
-        Assert.Equal(Vector2.Zero, scene.Entities[2].ScrollFactor);
-    }
-
-    // The factor is applied before the body runs, so a body that then attaches a collider is
-    // refused as it would be for any scrolled entity, and the placement fails at construction.
-    [Fact]
-    public void ASpawnsFactor_IsRefusedByTheColliderTheBodyAttaches()
-    {
-        Assert.Throws<InvalidOperationException>(
-            () => new Colliding(new EntitySpawn(Vector2.Zero) { ScrollFactor = Half }));
-    }
-
     // The frame the host places for this view on an output, and the corner of the layer at factor, as
     // the host draws it.
     private static (Rect Frame, Vector2 Layer) Drawn(in CameraView camera, Vector2 output, Vector2 factor)
@@ -296,17 +263,5 @@ public sealed class ParallaxTests
         Rect frame = camera.Place(1f, span);
 
         return (frame, ScrollLayout.Corner(frame.Position, ScrollLayout.Parallax(frame.Position, span, camera.ScrollCenter), factor));
-    }
-
-    private sealed class ScreenFixed : Entity
-    {
-        public ScreenFixed(EntitySpawn spawn)
-            : base(spawn) => ScrollFactor = Vector2.Zero;
-    }
-
-    private sealed class Colliding : Entity
-    {
-        public Colliding(EntitySpawn spawn)
-            : base(spawn) => Add(new BoxCollider2D(new Vector2(8, 8)));
     }
 }

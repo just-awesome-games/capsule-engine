@@ -1,13 +1,23 @@
 # Input
 
 After this page you can declare a game's actions, read them in a step, and play a whole run with
-nobody at the keyboard.
+nobody at the keyboard. Each type's XML docs hold its rules.
+
+A game reads actions, never keys or pad buttons. Capsule samples one keyboard, one mouse and one gamepad,
+and turns them into action state once per fixed step. What each action means is the game's.
+
+| Need | Piece |
+| --- | --- |
+| A thing the player can do, apart from the device | `InputAction`, `AxisAction` |
+| Which buttons and axes drive an action | `InputConfiguration.Bindings`, an `ActionBindings` |
+| An action's state in a step | `StepContext.Input`, an `InputState` |
+| Gamepad rumble | `Run.Rumble` |
+| The window's cursor | `Run.Cursor` |
+| A run played by code | `InputScript`, or an `IInputDriver` of your own |
 
 ## Declare the actions
 
-An action is a named thing the player can do, apart from the device that does it. A game
-declares its actions once at its assembly root and binds them in one place. Every scene then reads
-actions, never keys or pad buttons:
+A game declares its actions once at its assembly root and binds them in one place:
 
 ```csharp
 public static class GameInput
@@ -15,58 +25,44 @@ public static class GameInput
     /// <summary>Horizontal movement, in [-1, 1].</summary>
     public static readonly AxisAction Move = new("move");
 
-    /// <summary>Leaves the floor.</summary>
-    public static readonly InputAction Jump = new("jump");
+    /// <summary>Opens the pause menu.</summary>
+    public static readonly InputAction Pause = new("pause");
 
     /// <summary>Binds every action to the devices the game supports.</summary>
-    public static void Configure(InputConfiguration input, GameSettings settings)
+    public static void Configure(InputConfiguration input)
     {
         ActionBindings bindings = input.Bindings;
 
-        // Axis contributions accumulate, so each pair adds another way to push the same axis.
+        // Axis contributions accumulate. Each pair adds another way to push the same axis.
         bindings.BindAxis(Move, Key.A, Key.D);
         bindings.BindAxis(Move, PadButton.DPadLeft, PadButton.DPadRight);
         bindings.BindAxis(Move, PadAxis.LeftStickX);
 
-        bindings.Bind(Jump, settings.Input.Jump.Key, settings.Input.Jump.Pad);
+        bindings.Bind(Pause, Key.Escape, PadButton.Start);
     }
 }
 ```
 
-The sample's `GameBoot.Start`, passed to `EngineBuilder.WithRunStart`, reads the saved settings and hands
-them to `Configure`. Declare each action once as a static field, as above. Pad deadzones are tuned in the
-same place with `InputConfiguration.GamepadDeadzones`.
+The function passed to `EngineBuilder.WithRunStart` hands `Run.Input` to `Configure`. Pad deadzones are
+tuned in the same place with `InputConfiguration.GamepadDeadzones`.
 
 ## Read them in a step
 
 ```csharp
 protected override void OnStep(in StepContext context)
 {
-    _velocity.X = context.Input.Axis(GameInput.Move) * _tuning.WalkSpeed;
+    Position += new Vector2(context.Input.Axis(GameInput.Move) * Speed * context.DeltaSeconds, 0f);
 
-    if (_body.IsOnFloor && context.Input.WasPressed(GameInput.Jump))
+    if (context.Input.WasPressed(GameInput.Pause) || context.Input.WindowFocusLost)
     {
-        _velocity.Y = -_tuning.JumpSpeed;
+        _pauseMenu.Open();
     }
 }
 ```
 
-`InputState` holds each action's state for the step and the pointer in canvas pixels.
-`Camera.CanvasToWorld` maps a pointer position into the world. A button prompt reads
-`InputState.ActiveDevice`, the device the player last used.
-
-Window focus reads as held state with edges, and the game decides what a loss means:
-
-```csharp
-if (context.Input.WindowFocusLost && !Paused)
-{
-    _pauseMenu.Open();
-}
-```
-
-An unfocused window reads no key, button or stick from any device.
-
-One keyboard, one mouse and one gamepad are sampled. There is no device index and no second pad.
+Pressed state exists only inside a step, on `StepContext.Input`, and `Run.Input` holds the bindings.
+`InputState` holds the pointer in canvas pixels, and `Camera.CanvasToWorld` maps it into the world. A
+button prompt reads `InputState.ActiveDevice`, the device the player last used.
 
 ## Rebind at a settings screen
 
@@ -76,7 +72,7 @@ what an action is bound to, and the next read sees it:
 ```csharp
 if (context.Input.WasAnyPressed(out InputButton button))
 {
-    Run.Input.Bindings.Rebind(GameInput.Jump, button);
+    Run.Input.Bindings.Rebind(GameInput.Pause, button);
 }
 ```
 
@@ -89,15 +85,13 @@ where an `InputButton` field saves as `"Key.Space"`, and re-applies them at run 
 
 ## Rumble
 
-`Run.Rumble` is the run's gamepad rumble, shaped like `Run.Audio`: a step plays pulses on it, and the
+`Run.Rumble` is the run's gamepad rumble, shaped like `Run.Audio`. A step plays pulses on it, and the
 host writes the mixed level to the pad after the step.
 
 ```csharp
 Run.Rumble.Play(low: 0.5f, high: 0.15f, seconds: 0.12f);
 Run.Rumble.Volume = settings.RumbleStrength;
 ```
-
-When the host rests the motors is on `Run.Rumble`. A headless run rumbles nothing.
 
 ## The cursor
 
@@ -109,81 +103,48 @@ Run.Cursor.Visible = false;
 Run.Cursor.Image = new Sprite(CapsuleAssets.Textures.CrosshairTexture, new TextureRegion(0, 0, 9, 9), new Vector2(4f, 4f));
 ```
 
-When the host overrides the game's cursor is on the `Cursor` type.
-
 ## Play a run with no one at the keyboard
 
-An input driver supplies the `DeviceSnapshot` sequence a run sees. Under the
-[determinism contract](architecture.md#determinism-contract) a driven run plays the same way every time,
-with no window, no graphics device and no player.
-
-An `InputScript` is a fixed sequence of edits and waits, everything it measures counted in fixed
-steps:
+An `InputScript` is a fixed sequence of edits and waits, counted in fixed steps. A driver class wraps
+one, and the shell reaches it by its class name:
 
 ```csharp
-public sealed class Walkthrough : IInputDriver
+public sealed class MenuTour : IInputDriver
 {
-    private readonly IInputDriver _script = Script();
+    private readonly IInputDriver _script = new InputScript()
+        .Down(Key.D).Wait(60).Up(Key.D)
+        .Tap(Key.Escape).Wait(30)
+        .Build();
 
     public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot) => _script.TryNext(scene, tick, out snapshot);
-
-    private static IInputDriver Script()
-    {
-        InputScript script = new();
-
-        script.Down(Key.D).Wait(96).Up(Key.D);
-        script.Tap(Key.Space).Wait(60);
-        script.Tap(Key.Escape);
-
-        return script.Build();
-    }
 }
 ```
 
-A driver that has to decide what to press from what is on screen implements `IInputDriver` directly
-and reads the `Scene` it is handed:
+A driver that decides what to press from what is on screen implements `IInputDriver` directly and
+reads the `Scene` it is handed. The sample's
+[`Walkthrough`](../samples/MinimalGame/src/MinimalGame.Game/Drivers/Walkthrough.cs) drives a whole
+level.
 
-```csharp
-public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
-{
-    if (scene is Room)
-    {
-        snapshot = DeviceSnapshot.Of(Key.Escape);
-
-        return true;
-    }
-
-    snapshot = tick == 0 ? DeviceSnapshot.Of(Key.Enter) : DeviceSnapshot.Empty;
-
-    return tick < Budget;
-}
-```
-
-Returning false ends the run. Put drivers in a directory carrying a `.capsuleignore`. They are then
-part of every ordinary build and of no publish
-([`build-and-publish.md`](build-and-publish.md#development-only-directories)).
+Put drivers in a directory carrying a `.capsuleignore`. They are then part of every ordinary build and
+of no publish ([`build-and-publish.md`](build-and-publish.md#development-only-directories)).
 
 ## The standard command line
-
-The build registers every driver with a public parameterless constructor under its class name,
-wherever the game declares it. One that takes constructor arguments registers under no name and
-reaches a run through `EngineBuilder.WithInputDriver` or `EngineBuilder.RunHeadless`.
 
 `WithCommandLine(args)` gives the shell the engine's standard command line, and a game writes no
 parser of its own:
 
 ```text
-dotnet run --project src/MyGame.Shell -- --scene Room --driver Walkthrough --headless
+dotnet run --project src/MyGame.Shell -- --scene PlayField --driver MenuTour --headless
 ```
 
-`--driver`, `--headless`, `--scene`, `--payload`, `--seed`, `--frames`, `--uncapped`, `--saves` and `--help` are the flags, as
-`EngineBuilder.WithCommandLine` documents. A shipping build keeps `--saves` and `--help`. The shell reports
+`EngineBuilder.WithCommandLine` documents the flags and the ones a shipping build keeps. The shell reports
 `--help` and a refused flag through `CommandLineException`, as
-[`getting-started.md`](getting-started.md#the-shell) shows.
+[`getting-started.md`](getting-started.md#the-shell) shows. A driver that takes constructor arguments
+reaches a run through `EngineBuilder.WithInputDriver` or `EngineBuilder.RunHeadless`.
 
 `--payload <Name>` boots the opening scene with a new instance of that `IScenePayload` class in place of
-the `RunScene` call's payload. The build registers each payload class with a public parameterless constructor,
-as it registers drivers.
+the `RunScene` call's payload. The build registers each payload class with a public parameterless
+constructor, as it registers drivers.
 
 From a test, the same driver plays under `SimulationHost.Play` or `EngineBuilder.RunHeadless`
 ([`testing.md`](testing.md)).

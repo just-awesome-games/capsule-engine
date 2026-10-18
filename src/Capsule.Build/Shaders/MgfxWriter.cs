@@ -39,15 +39,51 @@ internal static class MgfxWriter
     private const byte ColorUsage = 1;
     private const byte TextureCoordinateUsage = 2;
 
+    // The engine's vertex stage, the one every sprite shader shares. The transform arrives as four
+    // rows the position is dotted with, the coverage switch as the fifth row's x, and posFixup is the
+    // device's correction for GL's clip space and for a render target's flipped Y.
+    internal const string VertexGlsl = """
+        #version 120
+
+        uniform vec4 vs_uniforms_vec4[5];
+        uniform vec4 posFixup;
+        attribute vec4 vs_v0;
+        attribute vec4 vs_v1;
+        attribute vec4 vs_v2;
+        attribute vec4 vs_v3;
+        varying vec4 vTint;
+        varying vec4 vFlash;
+        varying vec2 vUV;
+        varying float vCoverage;
+
+        void main()
+        {
+            gl_Position = vec4(dot(vs_v0, vs_uniforms_vec4[0]), dot(vs_v0, vs_uniforms_vec4[1]), dot(vs_v0, vs_uniforms_vec4[2]), dot(vs_v0, vs_uniforms_vec4[3]));
+            vTint = vs_v1;
+            vFlash = vs_v2;
+            vUV = vs_v3.xy;
+            vCoverage = vs_uniforms_vec4[4].x;
+            gl_Position.y = gl_Position.y * posFixup.y;
+            gl_Position.xy += posFixup.zw * gl_Position.ww;
+            gl_Position.z = gl_Position.z * 2.0 - gl_Position.w;
+        }
+
+        """;
+
+    /// <summary>The varyings the pixel stage reads, by input location.</summary>
+    internal static readonly string[] Varyings = ["vTint", "vFlash", "vUV", "vCoverage"];
+
     /// <summary>The GLSL uniform a texture slot's combined sampler is named, slot 0 being the sprite.</summary>
     internal static string SamplerName(int slot) => "ps_s" + slot;
 
     /// <summary>
-    /// The effect for <paramref name="pixelGlsl"/> under the engine's vertex stage. The parameter table
-    /// is the transform, the sprite texture, the coverage switch, then <paramref name="constants"/> and
-    /// <paramref name="textures"/> in their order. Texture <c>i</c> of <paramref name="textures"/> is
-    /// bound at slot <c>i + 1</c>.
+    /// The effect for <paramref name="pixelGlsl"/> under the engine's vertex stage.
     /// </summary>
+    /// <remarks>
+    /// The parameter table is the transform, the sprite texture, the coverage switch, then
+    /// <paramref name="constants"/> and <paramref name="textures"/> in their order. Texture <c>i</c>
+    /// of <paramref name="textures"/> is bound at slot <c>i + 1</c>.
+    /// </remarks>
     /// <param name="source">The file name the shaders record, for a driver's compile error.</param>
     /// <param name="pixelGlsl">The pixel stage, reading <see cref="PixelBuffer"/> and <see cref="SamplerName"/>.</param>
     /// <param name="constants">
@@ -83,6 +119,8 @@ internal static class MgfxWriter
                 WriteBuffer(writer, name, size, constants, FirstConstant, global);
             }
 
+            // The vertex stage's 80-byte buffer holds two parameters: the transform's four rows at
+            // offset 0, then the coverage switch in a fifth row at offset 64.
             writer.Write(VertexBuffer);
             writer.Write((short)80);
             writer.Write(2);
@@ -110,6 +148,8 @@ internal static class MgfxWriter
 
             writer.Write((byte)0);
 
+            // No sampler, then one constant buffer, the vertex buffer written after the pixel stage's,
+            // then four attributes.
             WriteShader(writer, vertex: true, source, "CapsuleVertex", VertexGlsl);
             writer.Write((byte)0);
             writer.Write((byte)1);
@@ -160,7 +200,7 @@ internal static class MgfxWriter
 
         byte[] content = body.ToArray();
 
-        // The device caches effects by this key, so two different effects must never share one.
+        // The device caches effects by this key. Two different effects must never share one.
         int key = BitConverter.ToInt32(SHA256.HashData(content), 0);
 
         using MemoryStream effect = new();
@@ -175,40 +215,6 @@ internal static class MgfxWriter
 
         return effect.ToArray();
     }
-
-    // The engine's vertex stage, the one every sprite shader shares. The transform arrives as four
-    // rows the position is dotted with, the coverage switch as the fifth row's x, and posFixup is the
-    // device's correction for GL's clip space and for a render target's flipped Y.
-    internal const string VertexGlsl = """
-        #version 120
-
-        uniform vec4 vs_uniforms_vec4[5];
-        uniform vec4 posFixup;
-        attribute vec4 vs_v0;
-        attribute vec4 vs_v1;
-        attribute vec4 vs_v2;
-        attribute vec4 vs_v3;
-        varying vec4 vTint;
-        varying vec4 vFlash;
-        varying vec2 vUV;
-        varying float vCoverage;
-
-        void main()
-        {
-            gl_Position = vec4(dot(vs_v0, vs_uniforms_vec4[0]), dot(vs_v0, vs_uniforms_vec4[1]), dot(vs_v0, vs_uniforms_vec4[2]), dot(vs_v0, vs_uniforms_vec4[3]));
-            vTint = vs_v1;
-            vFlash = vs_v2;
-            vUV = vs_v3.xy;
-            vCoverage = vs_uniforms_vec4[4].x;
-            gl_Position.y = gl_Position.y * posFixup.y;
-            gl_Position.xy += posFixup.zw * gl_Position.ww;
-            gl_Position.z = gl_Position.z * 2.0 - gl_Position.w;
-        }
-
-        """;
-
-    /// <summary>The varyings the pixel stage reads, by input location.</summary>
-    internal static readonly string[] Varyings = ["vTint", "vFlash", "vUV", "vCoverage"];
 
     // One constant buffer: its name, size and the parameters packed into it, each at its offset in the
     // buffer. A parameter's index is its place in the full table.

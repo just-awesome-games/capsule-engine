@@ -2,16 +2,15 @@ using System.Numerics;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
-using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
 using Capsule.Tests.Rendering;
+using Capsule.Tests.UI;
 using Capsule.UI;
 
 namespace Capsule.Tests.Runtime;
 
 // One menu of two screen-space items, reached three ways: by gamepad, by pointer, and through the
-// whole host. The canvas the items are laid out in is the run's, so the box the pointer hits is the
+// whole host. The canvas the items are laid out in is the run's. The box the pointer hits is the
 // same one headless as it is under a window.
 [Collection(LogSinkCollection.Name)]
 public sealed class MenuNavigationTests
@@ -24,13 +23,6 @@ public sealed class MenuNavigationTests
     // Inside the second item's box, which spans (20, 60) to (80, 80) on that canvas.
     private static readonly Vector2 OnTheSecondItem = new(50f, 70f);
 
-    private static readonly InputAction Up = new("Up");
-    private static readonly InputAction Down = new("Down");
-    private static readonly InputAction Left = new("Left");
-    private static readonly InputAction Right = new("Right");
-    private static readonly InputAction Confirm = new("Confirm");
-    private static readonly FocusActions Actions = new(Up, Down, Left, Right, Confirm);
-
     [Fact]
     public void AGamepadAndAPointer_PressTheSameItemOfTheSameMenu()
     {
@@ -38,7 +30,7 @@ public sealed class MenuNavigationTests
         Assert.Equal("second", Play(ByPointer()));
     }
 
-    // The canvas is a run constant the simulation knows, so the pointer lands on the same item with no
+    // The canvas is a run constant the simulation knows. The pointer lands on the same item with no
     // window, no device and nothing drawn.
     [Fact]
     public void AHeadlessRun_PressesThatItemByPointerToo()
@@ -47,7 +39,7 @@ public sealed class MenuNavigationTests
 
         HeadlessRunResult result = CapsuleEngine.Configure(
                 "Menu Game",
-                new DesktopPlatform(),
+                new ContentPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(Menu), _ => played = new Menu())]))
@@ -87,17 +79,19 @@ public sealed class MenuNavigationTests
 
     private static ActionBindings Bound(ActionBindings bindings) =>
         bindings
-            .Bind(Up, Key.Up, PadButton.DPadUp)
-            .Bind(Down, Key.Down, PadButton.DPadDown)
-            .Bind(Left, Key.Left, PadButton.DPadLeft)
-            .Bind(Right, Key.Right, PadButton.DPadRight)
-            .Bind(Confirm, Key.Enter, PadButton.South, MouseButton.Left);
+            .Bind(FocusFixtures.Up, Key.Up, PadButton.DPadUp)
+            .Bind(FocusFixtures.Down, Key.Down, PadButton.DPadDown)
+            .Bind(FocusFixtures.Left, Key.Left, PadButton.DPadLeft)
+            .Bind(FocusFixtures.Right, Key.Right, PadButton.DPadRight)
+            .Bind(FocusFixtures.Confirm, Key.Enter, PadButton.South, MouseButton.Left);
 
     // The shape a game's menu takes: the scene instantiates its items in its constructor and the items
     // own what pressing them means.
     private sealed class Menu : Scene
     {
         private readonly Item _second;
+
+        internal string? Pressed { get; private set; }
 
         internal Menu()
         {
@@ -106,13 +100,11 @@ public sealed class MenuNavigationTests
 
             Add(first);
             Add(_second);
-            Add(new Holder(new FocusNavigator(Actions, first.Focusable, _second.Focusable)));
+            Add(new FocusFixtures.ScreenHolder(Vector2.Zero, new FocusNavigator(FocusFixtures.Actions, first.Focusable, _second.Focusable)));
 
             first.Focusable.Pressed += () => Press("first");
             _second.Focusable.Pressed += () => Press("second");
         }
-
-        internal string? Pressed { get; private set; }
 
         internal bool SecondIsFocused => _second.Focusable.IsFocused;
 
@@ -123,26 +115,18 @@ public sealed class MenuNavigationTests
         }
     }
 
-    // A label in a 60x20 box on the screen layer, anchored to the canvas's top-left corner so its box
-    // is the canvas pixels the entity was offset to, with a focusable over the same box.
+    // A label in a 60x20 box on the screen layer, anchored to the canvas's top-left corner, with a
+    // focusable over the same box. Its box is the canvas pixels the entity was offset to.
     private sealed class Item : ScreenEntity
     {
+        internal Focusable Focusable { get; } = new(ItemBox);
+
         internal Item(Vector2 offset)
             : base(Anchor.TopLeft, offset)
         {
-            // 'A' is a glyph the fixture font carries, so the run lays out a box rather than nothing.
+            // 'A' is a glyph the fixture font carries. The run lays out a box rather than nothing.
             Add(new Label(FontFixtures.Font(), "A") { Size = ItemBox });
             Add(Focusable);
         }
-
-        internal Focusable Focusable { get; } = new(ItemBox);
-    }
-
-    // The navigator is a component like any other, so it rides an entity of its own.
-    private sealed class Holder : ScreenEntity
-    {
-        internal Holder(Component navigator)
-            : base(Anchor.TopLeft, Vector2.Zero) =>
-            Add(navigator);
     }
 }

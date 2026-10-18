@@ -1,9 +1,7 @@
 namespace Capsule.Generators;
 
-/// <summary>
-/// What one type declaration was read as. A declaration can be a scene and an input driver at once,
-/// so every domain is described from a single symbol binding.
-/// </summary>
+/// <summary>What one type declaration was read as, with every domain described from one symbol binding.</summary>
+/// <remarks>A declaration can be a scene and an input driver at once.</remarks>
 /// <param name="Scene">
 /// Every Scene-deriving class, abstract included. A document's own key can compose it, or its
 /// baseScene key can name it, and the scene resolver filters which at the point of use.

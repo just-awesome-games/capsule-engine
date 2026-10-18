@@ -1,6 +1,4 @@
 using System.Text.Json.Serialization;
-using Capsule.Input;
-using Capsule.Persistence;
 
 namespace MinimalGame.Game;
 
@@ -17,7 +15,7 @@ public sealed record GameSettings
     public InputSettings Input { get; set; } = new();
 }
 
-/// <summary>One pair per rebindable action, so its two devices are edited and saved as one thing.</summary>
+/// <summary>One pair per rebindable action, its two devices edited and saved as one thing.</summary>
 public sealed record InputSettings
 {
     /// <summary>What leaves the floor.</summary>
@@ -38,7 +36,7 @@ public readonly record struct Binding(InputButton Key, InputButton Pad)
 /// <summary>The game's save documents, declared once beside the rest of its declarations.</summary>
 public static class GameSaves
 {
-    /// <summary>The settings document. A first run has none, so it reads as the default settings.</summary>
+    /// <summary>The settings document, which reads as the default settings on a first run that has none.</summary>
     public static readonly SaveKey<GameSettings> Settings =
         new("settings", GameSaveContext.Default.GameSettings, new GameSettings());
 }

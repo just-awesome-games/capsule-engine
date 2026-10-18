@@ -1,10 +1,9 @@
 using System.Numerics;
 using Capsule.Input;
 using Capsule.Runtime;
-using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
+using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Runtime;
 
@@ -16,7 +15,7 @@ public sealed class InputDriverPlaybackTests
 
     private static readonly InputAction Jump = new("Jump");
 
-    // A driver is asked once per fixed step, so how many frames the host drew to reach a step
+    // A driver is asked once per fixed step. How many frames the host drew to reach a step
     // cannot change what that step read.
     [Fact]
     public void Advance_UnderADriver_RunsTheSameStepSequenceAtAnyFrameCadence()
@@ -27,7 +26,7 @@ public sealed class InputDriverPlaybackTests
     [Fact]
     public void Advance_UnderADriver_EndsTheRunOnceTheDriverIsFinished()
     {
-        (FixedStepScheduler scheduler, SceneHost host, Recording scene) = Driven(Script());
+        (FixedStepScheduler scheduler, SceneHost host, JumpRecorder scene) = Driven(Script());
 
         using (host)
         {
@@ -36,7 +35,7 @@ public sealed class InputDriverPlaybackTests
                 Assert.False(scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, host));
             }
 
-            // The finish is the driver's answer to the ask for the step after its last, so it ends
+            // The finish is the driver's answer to the ask for the step after its last. It ends
             // the run on the advance that would have run that step.
             Assert.True(scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, host));
             Assert.Equal(ScriptSteps, scene.Presses.Count);
@@ -46,7 +45,7 @@ public sealed class InputDriverPlaybackTests
     [Fact]
     public void Advance_UnderADriver_IgnoresTheSampledDevice()
     {
-        (FixedStepScheduler scheduler, SceneHost host, Recording scene) = Driven(Script());
+        (FixedStepScheduler scheduler, SceneHost host, JumpRecorder scene) = Driven(Script());
 
         using (host)
         {
@@ -72,7 +71,7 @@ public sealed class InputDriverPlaybackTests
     [Fact]
     public void RunHeadless_RunsEveryStepTheDriverSuppliesWhenNoSceneExits()
     {
-        HeadlessRunResult result = Builder().RunHeadless<Idle>(Script());
+        HeadlessRunResult result = Builder().RunHeadless<SceneFixtures.Idle>(Script());
 
         Assert.Equal(ScriptSteps, result.Steps);
         Assert.False(result.ExitRequested);
@@ -81,20 +80,20 @@ public sealed class InputDriverPlaybackTests
     [Fact]
     public void RunHeadless_OfADriverThatSuppliesNothing_RunsNothing()
     {
-        HeadlessRunResult result = Builder().RunHeadless<Idle>(new InputScript().Build());
+        HeadlessRunResult result = Builder().RunHeadless<SceneFixtures.Idle>(new InputScript().Build());
 
         Assert.Equal(0, result.Steps);
         Assert.False(result.ExitRequested);
     }
 
-    // The point of a driver over a fixed sequence: it reads the world it is playing, so a press
+    // The point of a driver over a fixed sequence: it reads the world it is playing. A press
     // lands on the step the game reached a state rather than on a step counted in advance.
     [Fact]
     public void RunHeadless_UnderADriverReadingTheScene_PressesOnTheStepTheWorldReachesItsCue()
     {
         HeadlessRunResult result = Builder().RunHeadless<Patrol>(new WaitForTheWalker());
 
-        // The walker starts at 0 and moves one unit a step, so the fourth step is the first the
+        // The walker starts at 0 and moves one unit a step. The fourth step is the first the
         // driver sees it past 3, and the press that step exits the run.
         Assert.Equal(5, result.Steps);
         Assert.True(result.ExitRequested);
@@ -110,10 +109,10 @@ public sealed class InputDriverPlaybackTests
             .Wait(1)
             .Build();
 
-    private static (FixedStepScheduler Scheduler, SceneHost Host, Recording Scene) Driven(IInputDriver driver)
+    private static (FixedStepScheduler Scheduler, SceneHost Host, JumpRecorder Scene) Driven(IInputDriver driver)
     {
-        Recording scene = new();
-        SceneHost host = new(SceneTransition.ToScene(typeof(Recording), null), (in SceneTransition _) => scene, new Run());
+        JumpRecorder scene = new();
+        SceneHost host = new(SceneTransition.ToScene(typeof(JumpRecorder), null), (in SceneTransition _) => scene, new Run());
 
         return (new FixedStepScheduler(StepSeconds, 32, new ActionBindings().Bind(Jump, Key.Space), driver, host), host, scene);
     }
@@ -121,13 +120,13 @@ public sealed class InputDriverPlaybackTests
     private static EngineBuilder Builder() =>
         CapsuleEngine.Configure(
                 "Driven Game",
-                new DesktopPlatform(),
+                new ContentPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [
                         SceneRegistration.Plain(typeof(Menu), static _ => new Menu()),
                         SceneRegistration.Plain(typeof(Room), static _ => new Room()),
-                        SceneRegistration.Plain(typeof(Idle), static _ => new Idle()),
+                        SceneRegistration.Plain(typeof(SceneFixtures.Idle), static _ => new SceneFixtures.Idle()),
                         SceneRegistration.Plain(typeof(Patrol), static _ => new Patrol()),
                     ]))
             .WithFixedStep(10)
@@ -138,7 +137,7 @@ public sealed class InputDriverPlaybackTests
     // The whole run's press pattern, which is what "the same step sequence" means for a driver.
     private static List<bool> Play(int framesPerStep)
     {
-        (FixedStepScheduler scheduler, SceneHost host, Recording scene) = Driven(Script());
+        (FixedStepScheduler scheduler, SceneHost host, JumpRecorder scene) = Driven(Script());
 
         using (host)
         {
@@ -150,7 +149,7 @@ public sealed class InputDriverPlaybackTests
         }
     }
 
-    private sealed class Recording : Scene
+    private sealed class JumpRecorder : Scene
     {
         internal List<bool> Presses { get; } = [];
 
@@ -178,8 +177,6 @@ public sealed class InputDriverPlaybackTests
             }
         }
     }
-
-    private sealed class Idle : Scene;
 
     // One entity marching right, and an exit on the press the driver decides to make.
     private sealed class Patrol : Scene

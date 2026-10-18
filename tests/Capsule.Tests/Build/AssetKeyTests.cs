@@ -1,5 +1,4 @@
 using Capsule.Assets;
-using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
 
@@ -22,7 +21,7 @@ public sealed class AssetKeyTests
     {
         Assert.Equal(key, AssetPaths.NormalizeKey(authored, out _));
 
-        // Idempotent: the key of a key is that key, so an already-normalized game keeps its paths.
+        // Idempotent: the key of a key is that key. An already-normalized game keeps its paths.
         Assert.Equal(key, AssetPaths.NormalizeKey(key, out _));
     }
 

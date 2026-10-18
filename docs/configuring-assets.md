@@ -1,7 +1,8 @@
 # Configuring assets
 
 After this page you can change how a texture is stored and sampled, pack textures onto atlases, and set
-a value for a whole folder or for one file.
+a value for a whole folder or for one file. The schemas ([Editor completion](#editor-completion)) hold each
+setting's values and default.
 
 ## Config files
 
@@ -17,7 +18,7 @@ every folder below it. Its top-level keys are asset kinds:
 ```
 
 A sidecar `<file>.<ext>.config.json` configures the one asset file it names beside it. It holds that
-asset's settings directly, with no kind key. `glow.png.config.json` configures `glow.png`:
+asset's settings directly, with no kind key. `mask.png.config.json` configures `mask.png`:
 
 ```json
 { "format": "r8" }
@@ -34,27 +35,25 @@ file omits a setting to inherit it, and writes the default's spelling to set an 
 
 ```text
 Assets/.config.json                   { "texture": { "atlas": "game", "sampling": "point" } }
-Assets/Effects/glow.png.config.json   { "atlas": false, "sampling": "linear" }
+Assets/Backdrops/sky.png.config.json  { "atlas": false, "sampling": "linear" }
 ```
 
-Every texture packs onto `game` and samples the nearest texel, except `Effects/glow.png`. It ships on its
+Every texture packs onto `game` and samples the nearest texel, except `Backdrops/sky.png`. It ships on its
 own and samples linearly. A texture's `CapsuleAssets` member summary names each setting that is not its
 default and the file that set it.
 
 ## Texture settings
 
-The schemas document each setting's values and default ([Editor completion](#editor-completion)).
-
-`sampling` changes only the texture's sampler. A pixel-art game calls
-`EngineBuilder.WithSampling(TextureSampling.Point)` instead, which also snaps sprites to the pixel grid. An
-`r8` texture holds one 8-bit channel. [`rendering.md`](rendering.md#your-own-shader) shows how a shader
-reads one.
+An `r8` texture holds one 8-bit channel in a quarter of the memory. The engine's sprite shader draws it as
+white at that coverage, as a greyscale font page wants. [`shaders.md`](shaders.md) shows how a shader of
+your own reads one.
 
 ## Atlases
 
 An atlas is a build-time packing of textures onto shared pages, and game code never sees it. A file
 `<name>.atlas.json` anywhere under `Assets/` declares the atlas `<name>`, and a texture joins it through its
-`atlas` setting. These two files pack every texture onto one atlas:
+`atlas` setting. An atlas file holds the atlas's own settings: `maxSize`, the largest extent a page reaches,
+or `{}` for every default. These two files pack every texture onto one atlas:
 
 ```text
 Assets/Atlases/game.atlas.json   {}
@@ -64,13 +63,9 @@ Assets/.config.json              { "texture": { "atlas": "game" } }
 Adding, splitting or removing an atlas changes no C# and no document. The runtime serves a packed
 handle from its page.
 
-One input packs byte-identically on every machine. Each page takes the smallest extent the build finds
-for its members, rounded up to four texels, and no member is rotated. Two texels stay clear between
-placements, and each member's outer texel is duplicated one texel outward on every side. Linear
-sampling, scaling and tiling at a region's edge then read no neighbour. A page holds one format and one sampling, and members differing in
-either pack onto separate pages. Pages ship under `assets/atlases/`, and `assets/textures.json` maps each
-packed key to its page. A packed member does not ship on its own. Editing a texture, its config or an
-atlas file repacks only the atlases it touches.
+Linear sampling, scaling and tiling at a packed region's edge read no neighbour. A page holds one format
+and one sampling, and members differing in either pack onto separate pages. Pages ship under
+`assets/atlases/`, and a packed member does not ship on its own.
 
 ## Editor completion
 

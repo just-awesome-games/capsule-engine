@@ -1,6 +1,3 @@
-using System.Numerics;
-using Capsule.Rendering;
-
 namespace Capsule.Bench.Logic.Scenes;
 
 /// <summary>

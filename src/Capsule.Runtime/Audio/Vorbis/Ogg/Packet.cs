@@ -54,7 +54,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
 
         // Capsule: a packet continued across pages. part is the next continuation page's packed
         // pageIndex (see PacketProvider.CreatePacket). This runs once per continuation page
-        // discovered, so the reusable list grows in place instead of a fresh List<int> per packet.
+        // discovered. The reusable list grows in place instead of a fresh List<int> per packet.
         internal void AddDataPart(int part)
         {
             _dataParts.Add(part);

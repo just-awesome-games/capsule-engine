@@ -34,14 +34,13 @@ internal static class Keys
     {
         Dictionary<(AssetType, string), string> claimedBy = [];
         List<Source> keyed = [];
-        string[] developmentOnly = pass.Requests.Shipping ? DevelopmentOnlyDirectories(pass.Requests) : [];
 
         foreach (Request request in pass.Requests.Sources)
         {
             try
             {
                 string below = Below(request.Root ?? pass.Requests.AssetRoot, request.Path);
-                if (IsUnder(developmentOnly, below))
+                if (IsUnder(pass.DevelopmentOnly, below))
                 {
                     continue;
                 }
@@ -54,7 +53,7 @@ internal static class Keys
                 if (claimedBy.TryGetValue((source.Type, source.Key), out string? claimant))
                 {
                     throw new FormatException(
-                        $"keys as \"{source.Key}\", which '{claimant}' already claims. Two sources whose paths differ only in spelling are one asset, as are an imported file and an authored one at the same path, so rename one.");
+                        $"keys as \"{source.Key}\", which '{claimant}' already claims. Two sources whose paths differ only in spelling are one asset, as are an imported file and an authored one at the same path. Rename one.");
                 }
 
                 claimedBy.Add((source.Type, source.Key), source.Path);
@@ -93,7 +92,7 @@ internal static class Keys
         return AssetPaths.IsKey(key)
             ? key
             : throw new FormatException(
-                $"{subject}, which keys as \"{key}\". No segment of a key may be a reserved Windows device name (nul, con, ...).");
+                $"{subject}, which keys as \"{key}\". No segment of a key may be a reserved Windows device name (nul, con, ...). Rename that segment.");
     }
 
     /// <summary><paramref name="path"/> below <paramref name="root"/>, forward slashes.</summary>
@@ -105,7 +104,7 @@ internal static class Keys
 
     /// <summary>Where the extension a sidecar names starts in <paramref name="stem"/>, or -1 when its name holds none.</summary>
     /// <param name="stem">A sidecar's path or key without its <c>.config.json</c>.</param>
-    /// <remarks>An asset's name holds no '.', so the first one in the sidecar's file name starts the extension.</remarks>
+    /// <remarks>The first '.' in the sidecar's file name starts the extension because an asset's name holds none.</remarks>
     internal static int SidecarExtension(string stem) => stem.IndexOf('.', stem.LastIndexOf('/') + 1);
 
     /// <summary>

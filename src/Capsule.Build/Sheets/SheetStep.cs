@@ -8,10 +8,12 @@ namespace Capsule.Build.Sheets;
 /// </summary>
 internal static class SheetStep
 {
+    private const string Step = "sheets";
+
     internal static void Run(PipelinePass pass)
     {
         foreach ((Source sheet, Sheet document) in pass.Each(
-            "sheets",
+            Step,
             pass.Of(AssetType.Sheets),
             source => Derivation.Of(source),
             (source, _) => SheetFile.Read(source.Path),

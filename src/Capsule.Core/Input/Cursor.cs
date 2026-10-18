@@ -13,16 +13,15 @@ namespace Capsule.Input;
 /// </remarks>
 public sealed class Cursor
 {
-    internal Cursor()
-    {
-    }
-
     /// <summary>Whether the cursor shows over the window, true by default.</summary>
     /// <remarks>
     /// The host hides the cursor while the gamepad is <see cref="InputState.ActiveDevice"/>, whatever
     /// this says. It shows again when the mouse is used.
     /// </remarks>
     public bool Visible { get; set; } = true;
+
+    /// <summary>Whether the cursor is held inside the window while the window has focus.</summary>
+    public bool Confined { get; set; }
 
     /// <summary>The sprite drawn as the cursor, or null for the system arrow.</summary>
     /// <remarks>
@@ -54,8 +53,9 @@ public sealed class Cursor
         }
     }
 
-    /// <summary>Whether the cursor is held inside the window while the window has focus.</summary>
-    public bool Confined { get; set; }
+    internal Cursor()
+    {
+    }
 
     private static void RequireHotspot(in Sprite sprite, string parameterName)
     {

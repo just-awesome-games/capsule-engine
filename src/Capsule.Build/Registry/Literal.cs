@@ -31,7 +31,7 @@ internal static class Literal
     /// <summary>Round-trippable and suffixed, since an unsuffixed literal is a double a float parameter cannot take.</summary>
     internal static string Of(float value) => value.ToString("R", CultureInfo.InvariantCulture) + "F";
 
-    /// <summary>Round-trippable, so the constructor takes back the double the build measured.</summary>
+    /// <summary>Round-trippable, for the constructor to take back the double the build measured.</summary>
     internal static string Of(double value) => Number(value) + "D";
 
     /// <summary>A number as a summary states it, unsuffixed.</summary>

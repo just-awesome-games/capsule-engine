@@ -1,5 +1,8 @@
+using System.Numerics;
 using Capsule;
 using Capsule.Generated;
+using Capsule.Input;
+using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tiles;
 using MinimalGame.Game;
@@ -15,7 +18,7 @@ namespace MinimalGame.Tests;
 public static class RoomFixture
 {
     // The document places the player's 8x8 body with its feet on the floor row and the hazard to
-    // its right on the same floor. The ledges sit two tiles up; a body at UnderLedgeX is fully
+    // its right on the same floor. The ledges sit two tiles up, and a body at UnderLedgeX is fully
     // beneath the first run of them.
     public const float FloorTop = 176f;
 
@@ -39,6 +42,30 @@ public static class RoomFixture
         ArgumentNullException.ThrowIfNull(room);
 
         return room.Scene.FindSingle<Player>();
+    }
+
+    // Places the player at position before each of steps empty steps. Neither gravity nor a push
+    // carries it off.
+    public static void StandAt(SimulationHost room, Vector2 position, int steps = 1)
+    {
+        Player player = PlayerOf(room);
+
+        for (int step = 0; step < steps; step++)
+        {
+            player.Position = position;
+            room.Step(DeviceSnapshot.Empty);
+        }
+    }
+
+    // Stands the player's feet on the floor row at x for one step.
+    public static void StandAt(SimulationHost room, float x) => StandAt(room, new Vector2(x, FloorTop - 8f));
+
+    // The camera's bounds after one step standing at x on the floor row.
+    public static Rect? BoundsWithPlayerAt(SimulationHost room, float x)
+    {
+        StandAt(room, x);
+
+        return room.Scene.Camera.Bounds;
     }
 
     // The room also paints a backdrop from the terrain's palette, and only the terrain has a collider.

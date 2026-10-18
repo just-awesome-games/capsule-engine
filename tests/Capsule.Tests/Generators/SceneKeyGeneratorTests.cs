@@ -1,16 +1,14 @@
 using System.Collections.Immutable;
 using System.Reflection;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
 
 public sealed class SceneKeyGeneratorTests
 {
-    // Keys at different tree paths pass the build's key tree. Their generated base-scene classes must
-    // not then collide, as 'a/b' and 'a-b' did when segment identifiers were joined with nothing
-    // between them.
+    // Keys at different tree paths pass the build's key tree. Their generated base-scene classes do
+    // not then collide, though 'a/b' and 'a-b' differ only in their separator.
     [Fact]
     public void TwoDocumentsWhoseKeysDifferOnlyInSeparators_EachComposeTheirBaseScene()
     {

@@ -17,6 +17,9 @@ public readonly record struct InputDriverRegistration
 {
     private readonly InputDriverFactory? _factory;
 
+    /// <summary>The name this driver is registered under, which is how a command line names it.</summary>
+    public string Name { get; }
+
     /// <param name="name">The driver's simple class name, which is how a command line names it.</param>
     /// <param name="factory">The factory that constructs it, called once when the name is resolved.</param>
     public InputDriverRegistration(string name, InputDriverFactory factory)
@@ -28,9 +31,6 @@ public readonly record struct InputDriverRegistration
         _factory = factory;
     }
 
-    /// <summary>The name this driver is registered under, which is how a command line names it.</summary>
-    public string Name { get; }
-
     // Called only through InputDriverRegistry, which rejects a registration carrying no factory.
     internal IInputDriver Create() => _factory!();
 }
@@ -39,13 +39,16 @@ public readonly record struct InputDriverRegistration
 /// The input drivers a game declares, keyed by class name and fixed once built. A game passes the registry
 /// its source generator emits, and hand-building one is for tests.
 /// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class InputDriverRegistry
 {
     private readonly Dictionary<string, InputDriverRegistration> _byName = new(StringComparer.Ordinal);
 
+    // An empty registry, used by a game that declares no drivers.
+    internal static InputDriverRegistry Empty { get; } = new([]);
+
     /// <param name="drivers">Every driver the game declares.</param>
     /// <exception cref="ArgumentException">A registration names nothing, or a name is registered twice.</exception>
-    [EditorBrowsable(EditorBrowsableState.Never)]
     public InputDriverRegistry(IEnumerable<InputDriverRegistration> drivers)
     {
         ArgumentNullException.ThrowIfNull(drivers);
@@ -65,9 +68,6 @@ public sealed class InputDriverRegistry
             }
         }
     }
-
-    // An empty registry, used by a game that declares no drivers.
-    internal static InputDriverRegistry Empty { get; } = new([]);
 
     // Constructs the driver registered under name, or returns false when none is registered.
     internal bool TryCreate(string name, [NotNullWhen(true)] out IInputDriver? driver)

@@ -6,7 +6,7 @@ using Microsoft.Win32;
 
 namespace Capsule.Bench;
 
-// What a record says about where and what it measured; "unknown" where the machine will not say.
+// What a record says about where and what it measured. It reads "unknown" where the machine will not say.
 internal static class Machine
 {
 #if DEBUG
@@ -41,7 +41,7 @@ internal static class Machine
     internal static string Cpu() =>
         RegistryString(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0", "ProcessorNameString")?.Trim() ?? "unknown";
 
-    // MonoGame's adapter is out of every consumer's reach, this shell included, so the first
+    // MonoGame's adapter is out of every consumer's reach, this shell included. The first
     // display-class device stands in for it.
     internal static string Gpu() =>
         RegistryString(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000", "DriverDesc") ?? "unknown";

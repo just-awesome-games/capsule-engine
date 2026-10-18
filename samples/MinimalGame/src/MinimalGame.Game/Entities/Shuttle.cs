@@ -1,17 +1,6 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Animation;
-using Capsule.Physics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace MinimalGame.Game.Entities;
 
-/// <summary>
-/// A low block that travels its placement's path point to point, easing each leg. A body moved by its
-/// layer rides it and is shoved by it.
-/// </summary>
+/// <summary>A low block that travels its placement's path point to point, easing each leg.</summary>
 public sealed class Shuttle : Entity
 {
     private const int LegTicks = 60;

@@ -63,7 +63,7 @@ public sealed class AtlasPackerTests
         Assert.True((long)width * height <= covered * 11 / 10, $"a {width}x{height} page holds {covered} covered texels");
     }
 
-    // Four 30-texel cells and their gaps fill a 64-texel page exactly; the fifth opens the next.
+    // Four 30-texel cells and their gaps fill a 64-texel page exactly. The fifth opens the next.
     [Fact]
     public void Pack_OpensANewPageWhenTheCurrentOneIsFull()
     {
@@ -82,7 +82,7 @@ public sealed class AtlasPackerTests
         Assert.Contains("'wide'", error.Message, StringComparison.Ordinal);
     }
 
-    // A fixed pseudo-random spread of sizes, so the spec is the same on every run.
+    // A fixed pseudo-random spread of sizes. The spec is the same on every run.
     private static (string Key, int Width, int Height)[] Synthetic(int count)
     {
         (string, int, int)[] items = new (string, int, int)[count];

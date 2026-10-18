@@ -1,7 +1,3 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Scenes;
-using Capsule.UI;
 using MinimalGame.Game.Entities;
 
 namespace MinimalGame.Game.UI;
@@ -24,7 +20,7 @@ public sealed class PlayerHud : ScreenEntity
     /// <inheritdoc/>
     protected override void OnStart() => _player = Scene.FindSingle<Player>();
 
-    // Health is spent by a contact handler, so the read runs where contacts have settled.
+    // The read runs where contacts have settled because a contact handler spends health.
     /// <inheritdoc/>
     protected override void OnLateStep(in StepContext context) =>
         _health.Fraction = (float)_player.Health / _player.Tuning.MaxHealth;

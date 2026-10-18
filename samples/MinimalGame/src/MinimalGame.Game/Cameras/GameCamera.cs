@@ -1,6 +1,3 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.Scenes;
 using MinimalGame.Game.Entities;
 
 namespace MinimalGame.Game.Cameras;

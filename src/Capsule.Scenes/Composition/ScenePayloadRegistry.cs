@@ -16,6 +16,9 @@ public readonly record struct ScenePayloadRegistration
 {
     private readonly ScenePayloadFactory? _factory;
 
+    /// <summary>The name this payload is registered under, which is how a command line names it.</summary>
+    public string Name { get; }
+
     /// <param name="name">The payload's simple class name, which is how a command line names it.</param>
     /// <param name="factory">The factory that constructs it, called once when the name is resolved.</param>
     public ScenePayloadRegistration(string name, ScenePayloadFactory factory)
@@ -27,9 +30,6 @@ public readonly record struct ScenePayloadRegistration
         _factory = factory;
     }
 
-    /// <summary>The name this payload is registered under, which is how a command line names it.</summary>
-    public string Name { get; }
-
     // Called only through ScenePayloadRegistry, which rejects a registration carrying no factory.
     internal IScenePayload Create() => _factory!();
 }
@@ -38,13 +38,16 @@ public readonly record struct ScenePayloadRegistration
 /// The scene payloads a game declares, keyed by class name and fixed once built. A game passes the registry
 /// its source generator emits, and hand-building one is for tests.
 /// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class ScenePayloadRegistry
 {
     private readonly Dictionary<string, ScenePayloadRegistration> _byName = new(StringComparer.Ordinal);
 
+    // An empty registry, used by a game that declares no payloads.
+    internal static ScenePayloadRegistry Empty { get; } = new([]);
+
     /// <param name="payloads">Every payload the game declares.</param>
     /// <exception cref="ArgumentException">A registration names nothing, or a name is registered twice.</exception>
-    [EditorBrowsable(EditorBrowsableState.Never)]
     public ScenePayloadRegistry(IEnumerable<ScenePayloadRegistration> payloads)
     {
         ArgumentNullException.ThrowIfNull(payloads);
@@ -64,9 +67,6 @@ public sealed class ScenePayloadRegistry
             }
         }
     }
-
-    // An empty registry, used by a game that declares no payloads.
-    internal static ScenePayloadRegistry Empty { get; } = new([]);
 
     // Constructs the payload registered under name, or returns false when none is registered.
     internal bool TryCreate(string name, [NotNullWhen(true)] out IScenePayload? payload)

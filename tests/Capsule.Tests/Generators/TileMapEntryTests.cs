@@ -4,7 +4,6 @@ using System.Reflection;
 using Capsule.Assets;
 using Capsule.Physics;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
 using Capsule.Tiles;
 using Microsoft.CodeAnalysis;
 
@@ -90,10 +89,7 @@ public sealed class TileMapEntryTests
         string document = Document(authored);
         document = find is null ? document : document.Replace(find, replace, StringComparison.Ordinal);
 
-        SceneDocumentFormatException refused = Assert.Throws<SceneDocumentFormatException>(() => Composed(document));
-
-        Assert.Contains("entities[0] ('tile-map'", refused.Message, StringComparison.Ordinal);
-        Assert.Contains(defect, refused.Message, StringComparison.Ordinal);
+        GeneratorHarness.AssertLoadRefused(() => Composed(document), "scene document 'scenes/rink': entities[0] ('tile-map'", defect);
     }
 
     private static Scene Composed(string document) =>

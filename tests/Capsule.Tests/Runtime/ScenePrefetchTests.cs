@@ -11,11 +11,11 @@ namespace Capsule.Tests.Runtime;
 [Collection(StageAllocationCollection.Name)]
 public sealed class ScenePrefetchTests
 {
-    private static readonly TextureHandle Hud = new("hud", ".png");
+    private static readonly TextureHandle First = new("first", ".png");
 
     private static readonly TextureHandle Shared = new("shared", ".png");
 
-    private static readonly TextureHandle Bat = new("enemies/bat", ".png");
+    private static readonly TextureHandle Nested = new("nested/second", ".png");
 
     [Theory]
     [InlineData(false)]
@@ -35,7 +35,7 @@ public sealed class ScenePrefetchTests
         // The built scene composed an entity whose hooks never ran, as it never joined.
         Assert.Equal(["resolve Lobby", "lobby step", "resolve Arena", "arena built"], log);
         Assert.IsType<Lobby>(host.Scene);
-        Assert.Equal(device ? ["shared,enemies/bat"] : [], warmed);
+        Assert.Equal(device ? ["shared,nested/second"] : [], warmed);
     }
 
     [Fact]
@@ -57,28 +57,28 @@ public sealed class ScenePrefetchTests
     [Fact]
     public void ADifferentPrefetchOrARequest_ReleasesTheUnsharedWarmSet()
     {
-        Dictionary<string, List<FakeAsset>> created = [];
-        using var store = SyncStore.Over<TextureHandle, FakeAsset>(handle =>
+        Dictionary<string, List<DisposalProbe>> created = [];
+        using var store = SyncStore.Over<TextureHandle, DisposalProbe>(handle =>
         {
-            FakeAsset asset = new();
+            DisposalProbe asset = new();
             created.TryAdd(handle.Name, []);
             created[handle.Name].Add(asset);
             return asset;
         });
 
-        store.Prefetch([Hud, Shared]);
+        store.Prefetch([First, Shared]);
         PumpUntil(store, () => created.Count == 2);
-        store.Prefetch([Shared, Bat]);
+        store.Prefetch([Shared, Nested]);
         PumpUntil(store, () => created.Count == 3);
 
-        Assert.True(created["hud"][0].Disposed);
+        Assert.True(created["first"][0].Disposed);
         Assert.False(created["shared"][0].Disposed);
 
-        store.ChangeScene([Bat]);
+        store.ChangeScene([Nested]);
 
         Assert.True(created["shared"][0].Disposed);
-        Assert.False(created["enemies/bat"][0].Disposed);
-        Assert.Same(created["enemies/bat"][0], store.Get(Bat));
+        Assert.False(created["nested/second"][0].Disposed);
+        Assert.Same(created["nested/second"][0], store.Get(Nested));
         Assert.All(created.Values, static assets => Assert.Single(assets));
     }
 
@@ -88,7 +88,7 @@ public sealed class ScenePrefetchTests
         return target.SceneType == typeof(Lobby) ? new Lobby(log) : new Arena(log);
     };
 
-    private static void PumpUntil(Capsule.Runtime.Assets.SceneAssetStore<TextureHandle, FakeAsset> store, Func<bool> done)
+    private static void PumpUntil(Capsule.Runtime.Assets.SceneAssetStore<TextureHandle, DisposalProbe> store, Func<bool> done)
     {
         for (int frame = 0; frame < 1000 && !done(); frame++)
         {
@@ -116,15 +116,8 @@ public sealed class ScenePrefetchTests
             log.Add("arena built");
         }
 
-        protected internal override void CollectAssets(AssetCollection assets) => assets.Add([Shared, Bat]);
+        protected internal override void CollectAssets(AssetCollection assets) => assets.Add([Shared, Nested]);
 
         protected override void OnStart() => throw new InvalidOperationException("A prefetched scene must not start.");
-    }
-
-    private sealed class FakeAsset : IDisposable
-    {
-        internal bool Disposed { get; private set; }
-
-        public void Dispose() => Disposed = true;
     }
 }

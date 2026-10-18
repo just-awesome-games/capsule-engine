@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Input;
 using Capsule.Scenes;
+using Capsule.Tests.Scenes;
 using Capsule.UI;
 
 namespace Capsule.Tests.UI;
@@ -63,26 +64,36 @@ internal static class FocusFixtures
     internal static Focusable WorldItem(Vector2 position)
     {
         Focusable item = new(Box);
-        _ = new WorldHolder(position, item);
+        _ = new SceneFixtures.Holder(position, item);
 
         return item;
     }
 
+    /// <summary>The bindings every focus spec drives: arrows, Enter or a left click, Escape, and Delete or a right click.</summary>
+    internal static ActionBindings Bound(ActionBindings bindings) =>
+        bindings
+            .Bind(Up, Key.Up)
+            .Bind(Down, Key.Down)
+            .Bind(Left, Key.Left)
+            .Bind(Right, Key.Right)
+            .Bind(Confirm, Key.Enter, MouseButton.Left)
+            .Bind(Cancel, Key.Escape)
+            .Bind(Reset, Key.Delete, MouseButton.Right);
+
+    /// <summary>A screen entity holding <paramref name="held"/>, offset from its anchor.</summary>
     internal sealed class ScreenHolder : ScreenEntity
     {
-        internal ScreenHolder(Vector2 position, Component item)
-            : base(Anchor.TopLeft, position) =>
-            Add(item);
+        internal ScreenHolder(Vector2 position, Component held)
+            : this(Anchor.TopLeft, position, held)
+        {
+        }
+
+        internal ScreenHolder(Anchor anchor, Vector2 offset, Component held)
+            : base(anchor, offset) =>
+            Add(held);
     }
 
-    internal sealed class WorldHolder : Entity
-    {
-        internal WorldHolder(Vector2 position, Component item)
-            : base(position) =>
-            Add(item);
-    }
-
-    // A scene holding one item per entity and a navigator over all of them, stepped once per call, so a
+    // A scene holding one item per entity and a navigator over all of them, stepped once per call. A
     // spec reads as the sequence of steps it means. The log carries what the step just taken raised, in
     // order, and the items are named by their place in the navigator's list.
     internal sealed class Menu : IDisposable
@@ -93,6 +104,8 @@ internal static class FocusFixtures
 
         private SimulationHost? _run;
         private DeviceSnapshot _held;
+
+        internal FocusNavigator Navigator { get; }
 
         internal Menu(params ReadOnlySpan<Focusable> items)
             : this(Actions, items)
@@ -111,10 +124,8 @@ internal static class FocusFixtures
 
             Navigator.FocusChanged += item => _log.Add($"changed {IndexOf(item)}");
             Navigator.Canceled += () => _log.Add("canceled");
-            _scene.Add(new WorldHolder(Vector2.Zero, Navigator));
+            _scene.Add(new SceneFixtures.Holder(Vector2.Zero, Navigator));
         }
-
-        internal FocusNavigator Navigator { get; }
 
         /// <summary>What the step just taken raised, in the order it was raised.</summary>
         internal IReadOnlyList<string> Log => _log;
@@ -123,7 +134,7 @@ internal static class FocusFixtures
         internal int FocusedIndex => IndexOf(Navigator.Focused);
 
         /// <summary>
-        /// The one item reporting <see cref="Focusable.IsFocused"/>, or -1 where none does; -2 where
+        /// The one item reporting <see cref="Focusable.IsFocused"/>, -1 where none does, or -2 where
         /// more than one does, which is the state a half-applied move would leave.
         /// </summary>
         internal int OnlyFocusedIndex =>
@@ -159,8 +170,8 @@ internal static class FocusFixtures
         }
 
         /// <summary>
-        /// Takes every item's entity out of the scene, for the cases that must reach the navigator
-        /// while none of its items is live; <see cref="Seat"/> puts them all back.
+        /// Takes every item's entity out of the scene until <see cref="Seat"/> puts them back, for the
+        /// cases that must reach the navigator while none of its items is live.
         /// </summary>
         internal Menu Unseated()
         {
@@ -224,7 +235,7 @@ internal static class FocusFixtures
             return this;
         }
 
-        /// <summary>Puts the pointer here from the next step on; emits no step of its own.</summary>
+        /// <summary>Puts the pointer here from the next step on and emits no step of its own.</summary>
         internal Menu Pointer(Vector2 position)
         {
             _held = _held.WithPointer(position);
@@ -285,7 +296,7 @@ internal static class FocusFixtures
             return Advance(_held);
         }
 
-        /// <summary>Focuses an item outright, as a game opening a menu on one does; steps nothing.</summary>
+        /// <summary>Focuses an item outright, as a game opening a menu on one does, and steps nothing.</summary>
         internal Menu FocusOn(int index)
         {
             _log.Clear();
@@ -295,8 +306,8 @@ internal static class FocusFixtures
         }
 
         /// <summary>
-        /// Takes item <paramref name="index"/> out of the navigator, leaving it in the scene and in
-        /// the log; steps nothing.
+        /// Takes item <paramref name="index"/> out of the navigator without stepping, leaving it in the
+        /// scene and in the log.
         /// </summary>
         internal bool Drop(int index)
         {
@@ -306,16 +317,6 @@ internal static class FocusFixtures
         }
 
         public void Dispose() => _run?.Dispose();
-
-        private static ActionBindings Bound(ActionBindings bindings) =>
-            bindings
-                .Bind(Up, Key.Up)
-                .Bind(Down, Key.Down)
-                .Bind(Left, Key.Left)
-                .Bind(Right, Key.Right)
-                .Bind(Confirm, Key.Enter, MouseButton.Left)
-                .Bind(Cancel, Key.Escape)
-                .Bind(Reset, Key.Delete, MouseButton.Right);
 
         private Menu Advance(in DeviceSnapshot snapshot)
         {

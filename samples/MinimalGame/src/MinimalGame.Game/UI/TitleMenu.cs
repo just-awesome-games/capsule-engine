@@ -1,7 +1,3 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.UI;
 using MinimalGame.Game.Scenes;
 
 namespace MinimalGame.Game.UI;

@@ -52,7 +52,6 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     public static DeviceSnapshot Empty => default;
 
     /// <summary>A snapshot holding <paramref name="keys"/> and nothing else.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">A key is outside <see cref="Capacity"/>.</exception>
     public static DeviceSnapshot Of(params ReadOnlySpan<Key> keys)
     {
         UInt128 down = UInt128.Zero;
@@ -64,8 +63,8 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         return new DeviceSnapshot(down, 0, 0, Vector2.Zero, Vector2.Zero, default, false);
     }
 
-    /// <summary>Whether the window has focus, nothing is held, every axis is at rest, the wheel is still and the pointer is at the origin.</summary>
-    public bool IsEmpty => Equals(Empty);
+    // Whether the window has focus, nothing is held, every axis is at rest, the wheel is still and the pointer is at the origin.
+    internal bool IsEmpty => Equals(Empty);
 
     /// <summary>
     /// Where the pointer sits at this instant, in canvas pixels from the canvas's top-left corner.
@@ -102,27 +101,21 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     }
 
     /// <summary>This snapshot with <paramref name="key"/> additionally held.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The key is outside <see cref="Capacity"/>.</exception>
     public DeviceSnapshot With(Key key) => new(_down | Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused);
 
     /// <summary>This snapshot with <paramref name="button"/> additionally held.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The button is outside <see cref="PadCapacity"/>.</exception>
     public DeviceSnapshot With(PadButton button) => new(_down, _padDown | PadBit(button), _mouseDown, _pointer, _scroll, _axes, _unfocused);
 
     /// <summary>This snapshot with <paramref name="button"/> additionally held.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The button is outside <see cref="MouseCapacity"/>.</exception>
     public DeviceSnapshot With(MouseButton button) => new(_down, _padDown, _mouseDown | MouseBit(button), _pointer, _scroll, _axes, _unfocused);
 
     /// <summary>This snapshot with <paramref name="key"/> released.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The key is outside <see cref="Capacity"/>.</exception>
     public DeviceSnapshot Without(Key key) => new(_down & ~Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused);
 
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The button is outside <see cref="PadCapacity"/>.</exception>
     public DeviceSnapshot Without(PadButton button) => new(_down, _padDown & ~PadBit(button), _mouseDown, _pointer, _scroll, _axes, _unfocused);
 
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The button is outside <see cref="MouseCapacity"/>.</exception>
     public DeviceSnapshot Without(MouseButton button) => new(_down, _padDown, _mouseDown & ~MouseBit(button), _pointer, _scroll, _axes, _unfocused);
 
     // Whether a pad button is down here that was not down in the older snapshot.
@@ -151,7 +144,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         return pressed == 0 ? null : (PadButton)BitOperations.TrailingZeroCount(pressed);
     }
 
-    // Whether any pad axis is off centre. Snapshots are deadzone filtered, so any value is a push.
+    // Whether any pad axis is off centre. Snapshots are deadzone filtered, and any value is a push.
     internal bool AnyPadAxisActive
     {
         get
@@ -215,7 +208,6 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <summary>This snapshot with <paramref name="axis"/> at <paramref name="value"/>.</summary>
     /// <param name="axis">The axis to place. Must not be <see cref="PadAxis.None"/>.</param>
     /// <param name="value">In [-1, 1] for a stick, [0, 1] for a trigger.</param>
-    /// <exception cref="ArgumentOutOfRangeException">The axis names none, or the value is outside its range.</exception>
     public DeviceSnapshot WithAxis(PadAxis axis, float value)
     {
         int index = AxisIndex(axis);
@@ -290,7 +282,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <summary>Whether the two snapshots differ in window focus, anything held, any axis, the wheel or the pointer.</summary>
     public static bool operator !=(DeviceSnapshot left, DeviceSnapshot right) => !left.Equals(right);
 
-    // A None value is the empty set, so bit 0 is unused in all three masks.
+    // A None value is the empty set. Bit 0 is unused in all three masks.
     private static UInt128 Bit(Key key)
     {
         int index = (int)key;

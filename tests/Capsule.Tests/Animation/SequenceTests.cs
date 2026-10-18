@@ -30,7 +30,7 @@ public sealed class SequenceTests
         }
     }
 
-    // A condition already true at its yield costs no step, so no beat can miss an edge raised before it waits.
+    // A condition already true at its yield costs no step. No beat can miss an edge raised before it waits.
     [Fact]
     public void AnUntilWait_IsCheckedAtItsYieldAndThenOnEachStep()
     {

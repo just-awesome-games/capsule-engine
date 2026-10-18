@@ -1,10 +1,10 @@
-using Capsule.Scenes.Documents;
+using Capsule.Scenes;
 
 namespace Capsule.Tests.Documents;
 
 public sealed class EntryMembersFormatTests
 {
-    // A game entry's members are its class's to read, so the writer keeps their values as authored.
+    // A game entry's members are its class's to read. The writer keeps their values as authored.
     [Fact]
     public void AGameEntrysMembers_RoundTripAsAuthored()
     {

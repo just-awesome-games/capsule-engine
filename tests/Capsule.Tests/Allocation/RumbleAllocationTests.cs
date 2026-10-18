@@ -14,25 +14,13 @@ public sealed class RumbleAllocationTests
         InputState input = new(new ActionBindings());
         RumblePulse hit = new(0.8f, 0.5f, 0.25f) { LeftTrigger = 0.6f };
 
-        for (int i = 0; i < 100; i++)
-        {
-            Step(rumble, input, hit, i);
-        }
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-
-        for (int i = 100; i < 1100; i++)
-        {
-            Step(rumble, input, hit, i);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, StepMeasurement.Bytes(tick => Step(rumble, input, hit, tick), warmup: 100, measured: 1000));
         Assert.False(rumble.Level.IsZero);
     }
 
     private static void Step(Rumble rumble, InputState input, in RumblePulse hit, long tick)
     {
-        rumble.BeginStep(new StepContext(1.0 / StepContext.DefaultStepHertz, input, tick));
+        rumble.BeginStep(new StepContext(StepMeasurement.StepSeconds, input, tick));
         rumble.Play(0.5f, 0.2f, 0.1f);
         rumble.Play(in hit);
         RumbleHandle held = rumble.Hold(0.2f, 0f);
@@ -41,7 +29,7 @@ public sealed class RumbleAllocationTests
         rumble.Stop(held);
         _ = rumble.Level;
 
-        // Every tenth step clears the table, so the loop also measures a refill.
+        // Every tenth step clears the table. The loop also measures a refill.
         if (tick % 10 == 0)
         {
             rumble.Stop();

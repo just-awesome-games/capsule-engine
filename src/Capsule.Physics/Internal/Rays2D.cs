@@ -161,6 +161,7 @@ internal static class Rays2D
         return lower <= upper;
     }
 
+    // A collider slot holds a box, circle, capsule or polygon. No public factory builds a segment.
     private static bool Reach(
         in Shape2D shape,
         Vector2 origin,
@@ -173,16 +174,6 @@ internal static class Rays2D
         {
             case ShapeKind2D.Box:
                 return RayBox(shape.Bounds, origin, direction, limit, out t, out normal);
-
-            case ShapeKind2D.Segment:
-                // A bare segment has no interior for the half-plane clip to bound.
-                normal = shape.EdgeNormal(0);
-                if (Vector2.Dot(normal, direction) > 0f)
-                {
-                    normal = -normal;
-                }
-
-                return RaySegment(shape.PointAt(0), shape.PointAt(1), origin, direction, limit, out t);
 
             case ShapeKind2D.Polygon when shape.Radius == 0f:
                 return RayPolygon(shape, origin, direction, limit, out t, out normal);
@@ -274,7 +265,7 @@ internal static class Rays2D
 
         if (entered < 0)
         {
-            // No face was crossed on the way in, so the ray began inside the polygon.
+            // No face was crossed on the way in. The ray began inside the polygon.
             return true;
         }
 
@@ -308,7 +299,7 @@ internal static class Rays2D
 
         if (count >= 2)
         {
-            // A capsule's segment is walked both ways, so its two offset faces fall out of the polygon
+            // A capsule's segment is walked both ways. Its two offset faces then fall out of the polygon
             // loop.
             for (int index = 0; index < count; index++)
             {
@@ -385,7 +376,7 @@ internal static class Rays2D
         return a + (edge * t);
     }
 
-    // Winding is normalised on construction, so one sign test per edge decides it.
+    // Winding is normalised on construction. One sign test per edge decides it.
     private static bool Inside(in Shape2D shape, Vector2 point)
     {
         for (int index = 0; index < shape.PointCount; index++)

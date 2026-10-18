@@ -3,7 +3,7 @@
   "camera": {
     "type": "game-camera"
   },
-  "music": "audio/music/room.ogg",
+  "track": "audio/music/room.ogg",
   "entities": [
     {
       "type": "sky"

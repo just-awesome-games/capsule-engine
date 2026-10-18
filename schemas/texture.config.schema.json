@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/texture.config.schema.json",
-  "$comment": "Generated from Capsule.Build.Textures.TextureSidecarJson.",
+  "$comment": "Generated from Capsule.Build.Textures.TextureConfigJson.",
   "title": "Capsule texture sidecar",
   "description": "A <file>.<ext>.config.json holding the settings of the one texture it names beside it. A setting it omits takes its value from the nearest folder .config.json that sets it.",
   "type": "object",

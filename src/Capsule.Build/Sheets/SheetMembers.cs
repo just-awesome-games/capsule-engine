@@ -49,9 +49,9 @@ internal static class SheetMembers
                 code.AppendLine();
             }
 
-            // One table per frame, read by every sprite the property hands out, so two reads are
-            // equal and neither allocates. No frame identifier carries an underscore, so the field
-            // name collides with no frame.
+            // One table per frame, read by every sprite the property hands out: two reads are equal
+            // and neither allocates. No frame identifier carries an underscore, and the field name
+            // collides with no frame.
             string table = Identifier(frame.Name) + "_Marks";
             bool marked = frame.Sockets.Length > 0 || frame.Boxes.Length > 0;
             if (marked)
@@ -114,7 +114,7 @@ internal static class SheetMembers
 
         code.Append(frames).AppendLine("}");
 
-        // A sheet declaring no socket gets no empty class, so naming Sockets is a compile error
+        // A sheet declaring no socket gets no empty class. Naming Sockets is then a compile error
         // instead of a member that never resolves. Boxes, events and clips work the same way.
         WriteNames(code, frames, SocketsClass, "Every socket this sheet's frames set, by name.", document.Sockets);
         WriteNames(code, frames, BoxesClass, "Every box this sheet's frames set, by name.", document.Boxes);
@@ -145,8 +145,8 @@ internal static class SheetMembers
                 .Append(Literal.Of(clip.Frames.Sum(static frame => frame.Ticks))).Append(" ticks, ")
                 .Append(clip.Loop ? "looping" : "played once").AppendLine(".</summary>");
 
-            // A property with a field initializer, not an expression body. A clip is immutable, so
-            // every entity playing it reads the same instance.
+            // A property with a field initializer, not an expression body. A clip is immutable. Every
+            // entity playing it reads the same instance.
             code.Append(member).Append("public static ").Append(GeneratedTypes.SpriteClip).Append(' ')
                 .Append(Identifier(clip.Name)).Append(" { get; } = new ").Append(GeneratedTypes.SpriteClip).AppendLine("(");
             code.Append(member).Append("    new ").Append(GeneratedTypes.Sprite).Append("[] { ")

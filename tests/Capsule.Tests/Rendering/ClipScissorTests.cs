@@ -31,7 +31,7 @@ public sealed class ClipScissorTests
     {
         ScreenPlacement placement = new(new Vector2(originX, originY), scale);
 
-        bool mapped = ClipScissor.TryMap(new Rect(left, top, right, bottom), in placement, 100, 100, out int mappedX, out int mappedY, out int mappedWidth, out int mappedHeight);
+        bool mapped = ClipScissor.TryMap(Rect.FromEdges(left, top, right, bottom), in placement, 100, 100, out int mappedX, out int mappedY, out int mappedWidth, out int mappedHeight);
 
         Assert.Equal(shown, mapped);
         Assert.Equal((x, y, width, height), (mappedX, mappedY, mappedWidth, mappedHeight));
@@ -43,11 +43,11 @@ public sealed class ClipScissorTests
     [Fact]
     public void AClip_InterpolatesEachLevelBeforeIntersectingThem()
     {
-        Rect outer = new(0f, 0f, 10f, 10f);
-        ClipRegion[] levels = [new(new Rect(-5f, 0f, 5f, 10f), new Rect(5f, 0f, 15f, 10f)), new(outer, outer)];
+        Rect outer = Rect.FromEdges(0f, 0f, 10f, 10f);
+        ClipRegion[] levels = [new(Rect.FromEdges(-5f, 0f, 5f, 10f), Rect.FromEdges(5f, 0f, 15f, 10f)), new(outer, outer)];
 
         Assert.Equal(outer, ClipScissor.Shown(levels, 0.5f));
-        Assert.Equal(new Rect(0f, 0f, 5f, 10f), ClipScissor.Shown(levels, 0f));
+        Assert.Equal(Rect.FromEdges(0f, 0f, 5f, 10f), ClipScissor.Shown(levels, 0f));
     }
 
     // Two clips that abut on the canvas share one pixel boundary on the surface, whatever the scale.
@@ -56,8 +56,8 @@ public sealed class ClipScissorTests
     {
         ScreenPlacement placement = new(Vector2.Zero, 3f);
 
-        ClipScissor.TryMap(new Rect(0f, 0f, 10.4f, 5f), in placement, 100, 100, out int leftX, out _, out int leftWidth, out _);
-        ClipScissor.TryMap(new Rect(10.4f, 0f, 20f, 5f), in placement, 100, 100, out int rightX, out _, out _, out _);
+        ClipScissor.TryMap(Rect.FromEdges(0f, 0f, 10.4f, 5f), in placement, 100, 100, out int leftX, out _, out int leftWidth, out _);
+        ClipScissor.TryMap(Rect.FromEdges(10.4f, 0f, 20f, 5f), in placement, 100, 100, out int rightX, out _, out _, out _);
 
         Assert.Equal(rightX, leftX + leftWidth);
     }

@@ -4,11 +4,10 @@ using Capsule.Tests.Allocation;
 
 namespace Capsule.Tests.Physics;
 
-/// <summary>
-/// What a map-length grid traversal costs in the one quantity that reads the same on every machine:
-/// the cells it reaches. A sweep walks the band its shape covers, which is O(width); the rectangle
-/// its bounds describe is O(width x height).
-/// </summary>
+// A sweep walks the band its shape covers, which is O(width). The rectangle its bounds describe is
+// O(width x height).
+
+/// <summary>What a map-length grid traversal costs in cells reached, the one quantity that reads the same on every machine.</summary>
 public sealed class CastTraversalTests
 {
     private const int TileSize = CollisionWorkload.TileSize;
@@ -18,13 +17,13 @@ public sealed class CastTraversalTests
     private const float Across = TilesWide * TileSize;
     private const float Down = TilesHigh * TileSize;
 
-    // The body the performance workload sweeps across the same map.
+    // The body the collision workload's mover sweeps across the same map.
     private const float MoverWidth = 12f;
     private const float MoverHeight = 24f;
 
     // A quarter of the map is already a collapse. Only a diagonal can make the claim: its bounds
     // describe every one of the TilesWide x TilesHigh cells, while an honest band comes in an order
-    // of magnitude under. A flat sweep's bounds are its own band, so it asserts the band alone.
+    // of magnitude under. A flat sweep's bounds are its own band. It asserts the band alone.
     private const long RectangleCells = TilesWide * TilesHigh;
 
     [Fact]
@@ -67,8 +66,8 @@ public sealed class CastTraversalTests
     {
         CollisionWorld2D world = CollisionWorkload.World();
 
-        // Only the platform layer, and the ray climbs, so nothing stops it: the walk runs the
-        // length of the grid rather than ending at a first hit that would measure nothing.
+        // Only the platform layer, and the ray climbs. Nothing stops it, and the walk runs the length
+        // of the grid rather than ending at a first hit that would measure nothing.
         CollisionFilter filter = world.CreateFilter(CollisionWorkload.Platform);
 
         world.ResetDiagnostics();
@@ -83,9 +82,35 @@ public sealed class CastTraversalTests
         AssertNotTheRectangle(world.GridCellsTested, "a map-length diagonal ray");
     }
 
+    // A RaycastAll whose span is full has the reach left of the Raycast that took one hit. It stops
+    // in the same place rather than cell-testing the rest of the map for results it cannot keep.
+    [Fact]
+    public void ASaturatedRaycastAll_StopsWhereItsSpanFillsRatherThanWalkingOnToTheGridsEdge()
+    {
+        CollisionWorld2D world = CollisionWorkload.World();
+        CollisionFilter filter = world.CreateFilter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
+        RayHit2D[] one = new RayHit2D[1];
+
+        // Along the floor, where every cell of the row is solid and the first one fills the span.
+        Vector2 origin = new(8f, (41.5f * TileSize) + 0.5f);
+
+        world.ResetDiagnostics();
+        Assert.True(world.Raycast(origin, Vector2.UnitX, Across, filter, out RayHit2D _));
+        long bounded = world.GridCellsTested;
+
+        world.ResetDiagnostics();
+        Assert.Equal(1, world.RaycastAll(origin, Vector2.UnitX, Across, filter, one));
+        long saturated = world.GridCellsTested;
+
+        Assert.True(
+            saturated <= bounded + 1,
+            FormattableString.Invariant(
+                $"A saturated RaycastAll reached {saturated} grid cells against the nearest cast's {bounded}. It walks the grid past its limit."));
+    }
+
     // The band a sweep covers, derived rather than measured. The box is inside a TileSize-wide
     // column over TileSize + width of travel in X, rising (TileSize + width) * slope over that
-    // stretch, so it occupies height + (TileSize + width) * slope of Y there. A span that long
+    // stretch. It occupies height + (TileSize + width) * slope of Y there. A span that long
     // crosses at most ceil(span / TileSize) boundaries, plus the row it starts inside.
     private static long BandCells(float width, float height, float slope)
     {
@@ -100,7 +125,7 @@ public sealed class CastTraversalTests
         Assert.True(
             tested <= band,
             FormattableString.Invariant(
-                $"{what} tested {tested} grid cells against a band of {band}, so it is covering more of each column than the shape sweeps."));
+                $"{what} tested {tested} grid cells against a band of {band}. It covers more of each column than the shape sweeps."));
     }
 
     private static void AssertNotTheRectangle(long tested, string what)
@@ -108,6 +133,6 @@ public sealed class CastTraversalTests
         Assert.True(
             tested < RectangleCells / 4,
             FormattableString.Invariant(
-                $"{what} tested {tested} grid cells, within reach of the {RectangleCells} its swept bounds describe, so the traversal has collapsed to the rectangle."));
+                $"{what} tested {tested} grid cells, within reach of the {RectangleCells} its swept bounds describe. The traversal has collapsed to the rectangle."));
     }
 }

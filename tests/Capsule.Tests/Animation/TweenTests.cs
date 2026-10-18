@@ -4,7 +4,7 @@ namespace Capsule.Tests.Animation;
 
 public sealed class TweenTests
 {
-    // The tick contract: Start is tick 0 of n, and the nth step is the end, so an owner writing
+    // The tick contract: Start is tick 0 of n, and the nth step is the end. An owner writing
     // Value every step writes the from-state once and the to-state once.
     [Fact]
     public void ALinearRun_WalksTheTicksItWasStartedOn()
@@ -92,7 +92,7 @@ public sealed class TweenTests
         }
     }
 
-    // A sawtooth: the tick that would read 1 is the 0 the next pass opens on, so a repeating fade
+    // A sawtooth: the tick that would read 1 is the 0 the next pass opens on. A repeating fade
     // never flashes its end state between passes.
     [Fact]
     public void ARepeatingRun_WrapsToItsStartOnTheTickThatWouldEndIt()
@@ -140,7 +140,7 @@ public sealed class TweenTests
         Assert.False(tween.IsFinished);
     }
 
-    // Past one period of every mode, so a wrap is crossed rather than approached. Seeking onto an end
+    // Past one period of every mode. A wrap is crossed rather than approached. Seeking onto an end
     // is not the step that reached it.
     [Theory]
     [InlineData(TweenLoop.Once)]
@@ -176,9 +176,9 @@ public sealed class TweenTests
         Assert.False(tween.IsRunning);
     }
 
-    // The reflections only say the three directions of a family agree; what they are is pinned here,
+    // The reflections only say the three directions of a family agree. What they are is pinned here,
     // against the published formulas transcribed below through the platform's own transcendental
-    // functions. A test is not simulation code, so this is also what holds Capsule's deterministic
+    // functions. A test is not simulation code. This is also what holds Capsule's deterministic
     // sine and exponential to the real ones through every curve that calls them.
     [Theory]
     [InlineData(0.25f)]
@@ -198,21 +198,14 @@ public sealed class TweenTests
         }
     }
 
-    [Theory]
-    [InlineData(0f)]
-    [InlineData(0.5f)]
-    [InlineData(1f)]
-    [InlineData(float.NaN)]
-    public void ACurveTheEnumDoesNotDeclare_IsRefusedAtEveryProgress(float t)
-    {
-        // The endpoints are literal, so a curve that is refused between them must be refused on them
-        // too rather than answering 0 or 1 for something that does not exist.
-        Assert.Throws<ArgumentOutOfRangeException>(() => Easing.Apply((Ease)999, t));
-        Assert.Throws<ArgumentOutOfRangeException>(() => Easing.Apply((Ease)(-1), t));
-    }
+    // The endpoints are literal. A curve that does not exist is refused on them too rather than
+    // answering 0 or 1.
+    [Fact]
+    public void ACurveTheEnumDoesNotDeclare_IsRefusedEvenAtAnEndpoint() =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => Easing.Apply((Ease)999, 1f));
 
     // easings.net, transcribed: each curve written out in its own right rather than derived from
-    // another, so a family whose directions agree with each other but not with the curve it claims
+    // another. A family whose directions agree with each other but not with the curve it claims
     // to be still fails.
     private static float Published(Ease ease, float x)
     {

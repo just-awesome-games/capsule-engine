@@ -30,11 +30,7 @@ public sealed class PointLight : Renderer
     public float Radius
     {
         get;
-        set
-        {
-            Guard.NonNegative(value, nameof(value));
-            field = value;
-        }
+        set => field = Guard.NonNegative(value, nameof(value));
     } = 32f;
 
     /// <summary>The light's colour, added into the light map scaled by its alpha. White by default.</summary>
@@ -50,11 +46,7 @@ public sealed class PointLight : Renderer
     public float Intensity
     {
         get;
-        set
-        {
-            Guard.NonNegative(value, nameof(value));
-            field = value;
-        }
+        set => field = Guard.NonNegative(value, nameof(value));
     } = 1f;
 
     /// <summary>The frame the light is drawn as. <see cref="Rendering.Sprite.Light"/> by default, the engine's radial falloff.</summary>

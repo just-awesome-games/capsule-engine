@@ -7,7 +7,7 @@ namespace Capsule.Tests.Input;
 
 public sealed class MouseSamplerTests
 {
-    // The OS read itself no spec can stand up; the focus rule around it is what these hold.
+    // The OS read itself no spec can stand up. The focus rule around it is what these hold.
     [Fact]
     public void AnInactiveWindow_HoldsThePointerAndAddsNoButton()
     {

@@ -1,11 +1,13 @@
 namespace Capsule.Build.Shaders;
 
 /// <summary>
-/// The engine's sprite pixel stage around a game's <c>Fragment</c>. The prelude declares what a
-/// fragment reads, and the epilogue declares the pixel stage that calls the fragment and then applies
-/// the flash. The vertex stage is fixed GLSL the compiler adds. The engine's own shader is this
-/// template around <see cref="DefaultFragment"/>.
+/// The engine's sprite pixel stage around a game's <c>Fragment</c>.
 /// </summary>
+/// <remarks>
+/// The prelude declares what a fragment reads, and the epilogue declares the pixel stage that calls
+/// the fragment and then applies the flash. The vertex stage is fixed GLSL the compiler adds. The
+/// engine's own shader is this template around <see cref="DefaultFragment"/>.
+/// </remarks>
 internal static class ShaderTemplate
 {
     /// <summary>The sprite texture parameter, which the batcher binds per run and no material sets.</summary>
@@ -21,18 +23,24 @@ internal static class ShaderTemplate
     internal const string Coverage = "CapsuleCoverage";
 
     /// <summary>
-    /// The prefix of every name the template and the host introduce. A game parameter or texture
-    /// carrying it could be bound as the engine's, so the build rejects one.
+    /// The prefix of every name the template and the host introduce.
     /// </summary>
+    /// <remarks>
+    /// A game parameter or texture carrying it could be bound as the engine's. The build rejects
+    /// one.
+    /// </remarks>
     internal const string ReservedPrefix = "Capsule";
 
     /// <summary>The one sampler every texture is read through. The host sets its state per slot.</summary>
     internal const string Sampler = "CapsuleSampler";
 
     /// <summary>
-    /// The sampler <c>TextureSize</c> reads through. The compiler replaces each read through it with
-    /// the texture's size parameter. No read through it reaches the host.
+    /// The sampler <c>TextureSize</c> reads through.
     /// </summary>
+    /// <remarks>
+    /// The compiler replaces each read through it with the texture's size parameter. No read through
+    /// it reaches the host.
+    /// </remarks>
     internal const string SizeProbe = "CapsuleSizeProbe";
 
     /// <summary>
@@ -43,8 +51,11 @@ internal static class ShaderTemplate
 
     /// <summary>
     /// The one constant buffer a fragment may declare. Every parameter in it is a scene global, set on
-    /// the scene and shared by every material of the shader. Parameters outside it are the material's.
+    /// the scene and shared by every material of the shader.
     /// </summary>
+    /// <remarks>
+    /// Parameters outside it are the material's.
+    /// </remarks>
     internal const string SceneGlobalsBlock = "SceneGlobals";
 
     /// <summary>The pixel stage's entry point.</summary>
@@ -104,11 +115,11 @@ internal static class ShaderTemplate
         """;
 
     // The flash mixes the fragment's colour towards the flash colour scaled by the texel's coverage.
-    // The vertex carries that colour already premultiplied by the tint's alpha, so a full flash draws a
+    // The vertex carries that colour already premultiplied by the tint's alpha. A full flash draws a
     // premultiplied silhouette under alpha blending and adds it under additive blending, where the
     // fragment's alpha stays zero. A zero amount leaves the colour exactly as the fragment returned it.
     // The inputs are in location order: tint, flash, texture coordinate, coverage. Coverage comes from
-    // the vertex stage, so a pixel stage reads no uniform of the engine's.
+    // the vertex stage. A pixel stage reads no uniform of the engine's.
     private const string Epilogue = """
 
         float4 CapsulePixel(float4 tint : COLOR0, float4 flash : COLOR1, float2 uv : TEXCOORD0, float coverage : TEXCOORD1) : SV_Target0
@@ -137,7 +148,7 @@ internal static class ShaderTemplate
         // The compiler reads a directive's file name as a string literal.
         string quoted = fragmentPath.Replace('\\', '/').Replace("\"", "\\\"", StringComparison.Ordinal);
 
-        // One line ending whatever the checkout wrote, so a source composes the same on every machine.
+        // One line ending whatever the checkout wrote. A source composes the same on every machine.
         string composed = $"#line 1 \"{TemplateFile}\"\n{Prelude}#line 1 \"{quoted}\"\n{fragment}\n#line 1 \"{TemplateFile}\"\n{Epilogue}";
 
         return composed.ReplaceLineEndings("\n");

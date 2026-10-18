@@ -3,7 +3,7 @@ using Capsule.Rendering;
 namespace Capsule.Runtime.Rendering;
 
 // The scene globals one shader declares, resolved to indices into a scene's values. Resolving by name
-// happens once per scene and again only when the scene sets a name it had not, so a draw reads each
+// happens once per scene and again only when the scene sets a name it had not. A draw reads each
 // global by index.
 internal sealed class GlobalSlots
 {
@@ -48,8 +48,8 @@ internal sealed class GlobalSlots
     // The kind global g is declared as.
     internal ShaderParameterKind Kind(int g) => _shader.Parameters[_declared[g]].Kind;
 
-    // Each global's index in globals' values, or -1 where it set none. A mismatch is not cached, so
-    // every draw throws until the scene sets the name as the kind the shader declares.
+    // Each global's index in globals' values, or -1 where it set none. A mismatch is not cached.
+    // Every draw throws until the scene sets the name as the kind the shader declares.
     internal ReadOnlySpan<int> Resolve(ShaderGlobals globals)
     {
         if (ReferenceEquals(globals, _resolvedFor) && globals.Version == _resolvedVersion)
@@ -57,7 +57,7 @@ internal sealed class GlobalSlots
             return _sources;
         }
 
-        // Slots are rewritten in place, so a throw part-way leaves them half written. Forgetting the scene
+        // Slots are rewritten in place. A throw part-way leaves them half written. Forgetting the scene
         // first keeps the next resolve from reading them as its own.
         _resolvedFor = null;
 

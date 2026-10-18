@@ -1,4 +1,3 @@
-using Capsule.Build.Atlases;
 using Capsule.Build.Configuration;
 
 namespace Capsule.Build.Textures;
@@ -81,7 +80,7 @@ internal static class TextureSettingsStep
 
     private static bool IsFolderFile(Source config) => config.Key.Length == 0 || config.Key[^1] == '/';
 
-    // A font's page never packs, so an atlas it inherits is ignored. Its own sidecar setting one fails earlier.
+    // A font's page never packs. An atlas it inherits is ignored. Its own sidecar setting one fails earlier.
     private static void Apply(ResolvedTexture settings, TextureConfigJson? config, string from, bool fontPage)
     {
         if (config?.Atlas is { } atlas && !fontPage)
@@ -109,7 +108,7 @@ internal static class TextureSettingsStep
         FolderConfigJson file;
         if (IsFolderFile(config))
         {
-            file = AssetConfigJsonContext.Read(config, AssetConfigJsonContext.Default.FolderConfigJson, FolderConfigJson.Shape);
+            file = AssetConfigJsonContext.Read(config, AssetConfigJsonContext.FolderFile, FolderConfigJson.Shape);
         }
         else
         {
@@ -120,12 +119,12 @@ internal static class TextureSettingsStep
                 string key = dot < 0 ? config.Key : config.Key[..dot];
                 string[] suggested = [.. files.Values.Where(file => file.Key == key).Select(static file => $"\"{Path.GetFileName(file.Path)}.config.json\"").Order(StringComparer.Ordinal)];
                 throw new FormatException(suggested.Length > 0
-                    ? $"configures \"{named}\", and no asset file beside it is named that. A sidecar names its asset's whole file name, so rename it to {string.Join(" or ", suggested)}."
+                    ? $"configures \"{named}\", and no asset file beside it is named that. A sidecar names its asset's whole file name. Rename it to {string.Join(" or ", suggested)}."
                     : $"configures \"{named}\", and no asset file beside it is named that. A <file>.<ext>.config.json configures that file beside it, and a .config.json configures the whole folder. Rename or delete it.");
             }
 
             file = asset.Type == AssetType.Textures
-                ? new() { Texture = AssetConfigJsonContext.Read(config, AssetConfigJsonContext.Default.TextureSidecarJson, TextureConfigJson.Shape) }
+                ? new() { Texture = AssetConfigJsonContext.Read(config, AssetConfigJsonContext.Default.TextureConfigJson, TextureConfigJson.Shape) }
                 : throw new FormatException(
                     $"configures the {asset.Type.Suffix.ToLowerInvariant()} \"{named}\", and a {asset.Type.Suffix.ToLowerInvariant()} has no settings. {FolderConfigJson.Kinds} Delete this file.");
 

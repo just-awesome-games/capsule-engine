@@ -1,9 +1,6 @@
-using System.Numerics;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
-/// <summary>A root with three arms nested one under the next; it turns and its scale breathes every step, so every transform beneath it recomposes.</summary>
+/// <summary>A root with three arms nested one under the next that turns and breathes its scale every step, which recomposes every transform beneath it.</summary>
 public sealed class Gimbal : Entity
 {
     private const int BreathPeriod = 120;

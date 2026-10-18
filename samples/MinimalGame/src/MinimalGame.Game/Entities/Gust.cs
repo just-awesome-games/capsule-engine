@@ -1,11 +1,3 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Particles;
-using Capsule.Physics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
@@ -15,14 +7,6 @@ namespace MinimalGame.Game.Entities;
 public sealed class Gust : Entity
 {
     private readonly ParticleEmitter _streaks;
-
-    // Steps it blows, then steps it falls calm, on a loop from the scene's first step. With no calm it blows
-    // throughout.
-    [Authorable]
-    private int _blowTicks;
-
-    [Authorable]
-    private int _calmTicks;
 
     // Steps into the loop, whether it blows now, and the player inside.
     private int _cycleTick;
@@ -36,6 +20,14 @@ public sealed class Gust : Entity
     /// <summary>The push, in world units per second.</summary>
     [Authorable(Required = true)]
     public Vector2 Velocity { get; private set; }
+
+    /// <summary>Steps it blows in each loop, which runs from the scene's first step.</summary>
+    [Authorable]
+    public int BlowTicks { get; private set; }
+
+    /// <summary>Steps it falls calm after blowing in each loop. At 0 it blows throughout.</summary>
+    [Authorable]
+    public int CalmTicks { get; private set; }
 
     /// <param name="spawn">The area's top-left corner.</param>
     public Gust(EntitySpawn spawn)
@@ -62,15 +54,15 @@ public sealed class Gust : Entity
         Add(_streaks);
     }
 
-    // Decided for the next step, so the push and the streaks change on the same step whichever steps first,
+    // Decided for the next step. The push and the streaks change on the same step whichever steps first,
     // the player or the gust. The streaks already out blow on as the push stops.
     /// <inheritdoc/>
     protected override void OnLateStep(in StepContext context)
     {
-        if (_calmTicks > 0)
+        if (CalmTicks > 0)
         {
-            _cycleTick = (_cycleTick + 1) % (_blowTicks + _calmTicks);
-            _blowing = _cycleTick < _blowTicks;
+            _cycleTick = (_cycleTick + 1) % (BlowTicks + CalmTicks);
+            _blowing = _cycleTick < BlowTicks;
             _streaks.Emitting = _blowing;
         }
 

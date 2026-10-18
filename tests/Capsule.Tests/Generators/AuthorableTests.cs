@@ -3,8 +3,6 @@ using System.Globalization;
 using System.Reflection;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
@@ -24,7 +22,6 @@ public sealed class AuthorableTests
         using System.Text.Json.Serialization;
         using Capsule.Rendering;
         using Capsule.Scenes;
-        using Capsule.Scenes.Spawning;
 
         namespace Game;
 
@@ -44,7 +41,7 @@ public sealed class AuthorableTests
             public string? Label { get; set; } = "platform";
         }
 
-        // The constructor records what it reads, so every assertion is about the body's view.
+        // The constructor records what it reads. Every assertion is about the body's view.
         public sealed class Lift : Platform
         {
             public Lift(EntitySpawn spawn) : base(spawn) => Seen = FormattableString.Invariant(
@@ -146,7 +143,7 @@ public sealed class AuthorableTests
             private new string? Label { get; set; } = "private";
         }
 
-        // An override is the member it overrides, so the base's contract holds and its setter runs.
+        // An override is the member it overrides. The base's contract holds and its setter runs.
         public abstract class Rising(EntitySpawn spawn) : Entity(spawn)
         {
             [Authorable]
@@ -204,7 +201,7 @@ public sealed class AuthorableTests
     {
         Entity gate = Composed("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "bounds": [8, 16, 40.5, 48]}""");
 
-        Assert.Equal(new Rect(8f, 16f, 40.5f, 48f), gate.GetType().GetProperty("Bounds")!.GetValue(gate));
+        Assert.Equal(Rect.FromEdges(8f, 16f, 40.5f, 48f), gate.GetType().GetProperty("Bounds")!.GetValue(gate));
     }
 
     [Fact]
@@ -265,13 +262,8 @@ public sealed class AuthorableTests
     [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "seal": 1}""", "SealConverter could not read as Seal: The seal registry is closed.")]
     [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "bounds": [40, 16, 8, 48]}""", "the member takes Rect. " + RectFix)]
     [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "bounds": [8, 48, 40, 16]}""", "the member takes Rect. " + RectFix)]
-    public void AnEntryItsClassRefusesAtLoad_ThrowsNamingTheDocumentEntryAndFix(string entry, string fix)
-    {
-        SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(() => Composed(entry));
-
-        Assert.StartsWith("scene document 'scenes/room': entities[0] (", failure.Message, StringComparison.Ordinal);
-        Assert.Contains(fix, failure.Message, StringComparison.Ordinal);
-    }
+    public void AnEntryItsClassRefusesAtLoad_ThrowsNamingTheDocumentEntryAndFix(string entry, string fix) =>
+        GeneratorHarness.AssertLoadRefused(() => Composed(entry), "scene document 'scenes/room': entities[0] (", fix);
 
     private static string Document(string entry) =>
         "{\"entities\": [" + entry + "]}";

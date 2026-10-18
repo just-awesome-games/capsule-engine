@@ -106,11 +106,7 @@ public static class DeterministicMath
     private const double InverseSqrt3 = 0.57735026918962576;
     private const double SixthPi = Math.PI / 6.0;
 
-    /// <summary>
-    /// The sine of <paramref name="radians"/>, within 6e-8 of the true sine in absolute terms for any
-    /// argument of magnitude up to 2^24 (16777216), with no stated bound beyond that. Infinity or NaN
-    /// returns <see cref="float.NaN"/>.
-    /// </summary>
+    /// <summary>The sine of <paramref name="radians"/>, within 6e-8 of the true sine in absolute terms.</summary>
     /// <param name="radians">The angle in radians. Accurate to a magnitude of 2^24.</param>
     public static float Sin(float radians) =>
         float.IsFinite(radians) ? (float)SineOf(radians) : float.NaN;
@@ -120,10 +116,7 @@ public static class DeterministicMath
     public static float Cos(float radians) =>
         float.IsFinite(radians) ? (float)SineOf(HalfPi - radians) : float.NaN;
 
-    /// <summary>
-    /// The tangent of <paramref name="radians"/>, within a relative 6e-8 of the true tangent for any
-    /// argument of magnitude up to 2^24 (16777216), with no stated bound beyond that.
-    /// </summary>
+    /// <summary>The tangent of <paramref name="radians"/>, within a relative 6e-8 of the true tangent.</summary>
     /// <param name="radians">The angle in radians. Accurate to a magnitude of 2^24.</param>
     public static float Tan(float radians)
     {
@@ -143,12 +136,8 @@ public static class DeterministicMath
         return double.IsNaN(tangent) ? float.NaN : (float)tangent;
     }
 
-    /// <summary>
-    /// Two raised to <paramref name="exponent"/>, within a relative 6e-8 of the true value and exact
-    /// at every whole exponent from -149 to 127, subnormals included. An exponent at or above 128
-    /// returns <see cref="float.PositiveInfinity"/>, one at or below -150 returns zero, and NaN
-    /// returns NaN.
-    /// </summary>
+    /// <summary>Two raised to <paramref name="exponent"/>, within a relative 6e-8 of the true value.</summary>
+    /// <remarks>Exact at every whole exponent from -149 to 127, subnormals included.</remarks>
     public static float Exp2(float exponent) => Exp2Of(exponent);
 
     /// <summary>
@@ -201,7 +190,7 @@ public static class DeterministicMath
         // Every float at or past 2^24 is even, and an infinity is neither odd nor even.
         bool odd = whole && float.IsFinite(power) && Math.Floor(exponent * 0.5) != exponent * 0.5;
 
-        // A magnitude of one is settled here, so an infinite power never multiplies a zero logarithm.
+        // A magnitude of one is settled here. An infinite power then never multiplies a zero logarithm.
         double magnitude = Math.Abs((double)value);
         float result = magnitude == 1.0 ? 1f : Exp2Of(exponent * Log2Of(magnitude));
 
@@ -230,8 +219,8 @@ public static class DeterministicMath
             return 0f;
         }
 
-        // The series carries only the fraction. The whole part is a power of two, so scaling by it is exact
-        // and costs no accuracy.
+        // The series carries only the fraction. The whole part is a power of two, and scaling by it is
+        // exact.
         double u = (exponent - whole) * Ln2;
         double series = u * ExpTerm10;
         series = u * (ExpTerm9 + series);
@@ -246,7 +235,7 @@ public static class DeterministicMath
         series += 1.0;
 
         // A power of two built in double, where every exponent this far down is still normal. The product is
-        // exact, so the conversion back to float is the result's only rounding.
+        // exact. The conversion back to float is the result's only rounding.
         double scale = BitConverter.Int64BitsToDouble((long)((int)whole + 1023) << 52);
 
         return (float)(series * scale);
@@ -275,7 +264,7 @@ public static class DeterministicMath
 
         double angle = QuadrantAngle(Math.Abs((double)y), Math.Abs((double)x));
 
-        // The sign bit and not a comparison, so a negative zero X looks back along the axis.
+        // A negative zero X looks back along the axis. The sign bit tells it apart where a comparison cannot.
         if (BitConverter.SingleToInt32Bits(x) < 0)
         {
             angle = Math.PI - angle;
@@ -362,8 +351,8 @@ public static class DeterministicMath
     private static double SineOf(double radians)
     {
         // Fold onto one turn about zero, then onto the quarter turn the series is accurate over, which
-        // sine's symmetry gives for free. Subtract the head first and the tail second, so the fold's
-        // cancellation happens once and against an exact multiple.
+        // sine's symmetry gives for free. Subtracting the head first and the tail second makes the fold's
+        // cancellation happen once and against an exact multiple.
         double turns = Math.Floor((radians * InverseTwoPi) + 0.5);
         double x = (radians - (turns * TwoPiHead)) - (turns * TwoPiTail);
 

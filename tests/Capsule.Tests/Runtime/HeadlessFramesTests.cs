@@ -1,9 +1,10 @@
+using System.Diagnostics;
 using System.Globalization;
 using Capsule.Input;
 using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
+using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Runtime;
 
@@ -18,17 +19,19 @@ public sealed class HeadlessFramesTests
     {
         using TempWorkspace workspace = new("capsule-headless-frames-");
         string path = workspace.PathTo("frames.csv");
+        Clock clock = new();
 
-        CapsuleEngine.Configure(
+        EngineBuilder builder = CapsuleEngine.Configure(
                 "Paced Game",
                 new DesktopPlatform(),
-                new SceneRegistry(new EntityRegistry([]), [SceneRegistration.Plain(typeof(Room), _ => new Room())]))
+                new SceneRegistry(new EntityRegistry([]), [SceneRegistration.Plain(typeof(SceneFixtures.Idle), _ => new SceneFixtures.Idle())]))
             .WithFixedStep(100)
             .WithMaxStepsPerFrame(3)
             .WithFrameDiagnostics(path)
             .WithoutCrashLog()
-            .WithoutLogging()
-            .RunHeadless<Room>(new Overrunning());
+            .WithoutLogging();
+        builder.Timestamp = clock.Read;
+        builder.RunHeadless<SceneFixtures.Idle>(new Overrunning(clock));
 
         string[] lines = File.ReadAllLines(path);
         int header = Array.IndexOf(lines, "intervalMs,updateMs,drawMs,steps,gen0");
@@ -39,17 +42,26 @@ public sealed class HeadlessFramesTests
         Assert.All(steps, static count => Assert.InRange(count, 0, 1));
     }
 
-    private sealed class Room : Scene;
-
     // Each step costs two and a half times the 10 ms step, and the run ends after twelve.
-    private sealed class Overrunning : IInputDriver
+    private sealed class Overrunning(Clock clock) : IInputDriver
     {
         public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
         {
             snapshot = DeviceSnapshot.Empty;
-            Thread.Sleep(25);
+            clock.Advance(0.025);
 
             return tick < 12;
         }
+    }
+
+    // Moves a microsecond on every read, which lets a frame's wait for its period end, and further
+    // when a step spends time.
+    private sealed class Clock
+    {
+        private long _timestamp = Stopwatch.GetTimestamp();
+
+        internal long Read() => _timestamp += Stopwatch.Frequency / 1_000_000;
+
+        internal void Advance(double seconds) => _timestamp += (long)(seconds * Stopwatch.Frequency);
     }
 }

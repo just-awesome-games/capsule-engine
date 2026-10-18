@@ -1,10 +1,9 @@
 using System.Globalization;
 using System.IO.Compression;
 using System.Numerics;
-using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
+using Capsule.Tests.Runtime;
 using Capsule.Tests.Scenes;
 using Xunit.Abstractions;
 
@@ -14,11 +13,10 @@ namespace Capsule.Tests.Allocation;
 public sealed class StageAllocationTests(ITestOutputHelper output)
 {
     private const int WarmupSteps = 240;
-    private const int MeasuredSteps = 600;
-    private const int SparksSpawned = MeasuredSteps / StageWorkload.StepsBetweenSpawns;
+    private const int SparksSpawned = StepMeasurement.MeasuredSteps / StageWorkload.StepsBetweenSpawns;
 
-    // One spark is an entity, its component list and a renderer; 512 bytes is well over twice
-    // what those cost, and well under what one stray per-step allocation in the engine would add.
+    // Over twice what a spark's entity, component list and renderer cost, and well under what one
+    // stray per-step allocation in the engine would add.
     private const long SpawnBytesEach = 512;
 
     [Fact]
@@ -26,55 +24,45 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
     {
         SceneDocument document = StageWorkload.Build();
 
-        Report("no structural change", Measure(document, StageChurn.None), maxPerRun: 0);
+        AssertWithinBudget("no structural change", document, StageChurn.None, budget: 0);
 
         // The draw list is derived and rebuilt whole whenever anything joins or leaves. Rebuilding
         // it every step must still cost no allocation at all.
-        Report("draw list every step", Measure(document, StageChurn.DrawListOnly), maxPerRun: 0);
+        AssertWithinBudget("draw list every step", document, StageChurn.DrawListOnly, budget: 0);
     }
 
     [Fact]
     public void AStageSpawningTwentyEntitiesASecond_AllocatesOnlyWhatItSpawns()
     {
-        Report(
+        AssertWithinBudget(
             "20 spawns and despawns a second",
-            Measure(StageWorkload.Build(), StageChurn.Spawning),
-            maxPerRun: SparksSpawned * SpawnBytesEach);
+            StageWorkload.Build(),
+            StageChurn.Spawning,
+            budget: SparksSpawned * SpawnBytesEach);
     }
 
     [Fact]
     public void AStageSpawningFromAPool_AllocatesNothing()
     {
-        Report(
-            "20 spawns and despawns a second, from a pool",
-            Measure(StageWorkload.Build(), StageChurn.Pooled),
-            maxPerRun: 0);
+        AssertWithinBudget("20 spawns and despawns a second, from a pool", StageWorkload.Build(), StageChurn.Pooled, budget: 0);
     }
 
     // A wave spawned in one step is queued and drained at the end of it. The queue and its
-    // membership index are the only things the drain itself keeps, so the step allocates what the
-    // entities cost and little more; how long the drain takes is the bench's to measure.
+    // membership index are the only things the drain itself keeps. The step allocates what the
+    // entities cost and little more.
     [Fact]
     public void AWaveOfDeferredAdds_AllocatesNoMoreThanTheEntitiesItSpawns()
     {
-        // Warmed first, so the measurement is not taken against a cold JIT.
+        // Warmed first. The measurement is not taken against a cold JIT.
         Drain(256);
 
         const int Wave = 65536;
         long bytes = Drain(Wave);
 
-        output.WriteLine(string.Create(
-            CultureInfo.InvariantCulture,
-            $"{Wave} deferred adds: {bytes} bytes ({(double)bytes / Wave:0} each)"));
+        StepMeasurement.Report(output, $"{Wave} deferred adds", bytes, steps: 1, budget: Wave * SpawnBytesEach);
 
-        Assert.True(
-            bytes < Wave * SpawnBytesEach,
-            FormattableString.Invariant($"{Wave} deferred adds allocated {bytes} bytes, more than the entities themselves account for."));
-
-        // This test is the one thing in the collection that leaves a heap behind it. Its neighbours
-        // assert that a step allocates nothing at all, and a background collection of these entities
-        // landing inside one of their measured windows is enough to make that read as a per-step
-        // allocation. Handed back here rather than left for whoever runs next.
+        // The only test in the collection that leaves a heap behind it. A background collection of
+        // these entities inside a neighbour's measured window reads as a per-step allocation there.
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
@@ -85,8 +73,8 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
         Scene scene = new();
         using SceneSimulation simulation = new(scene);
 
-        // From Update, not from scene entry: only a mutation requested mid-step is deferred, and
-        // the deferred queue is the thing being measured.
+        // From a step, not from scene entry. Only a mutation requested mid-step is deferred, and the
+        // deferred queue is the thing being measured.
         scene.Add(new Spawner(count));
 
         long bytes = GC.GetAllocatedBytesForCurrentThread();
@@ -121,8 +109,8 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
     [Fact]
     public void ARestart_ComposesTheStageAgainWithoutReadingItsDocumentFromDisk()
     {
-        // Beside the executable, where SceneComposer looks; SceneComposerTests writes here too.
-        // StageAllocationCollection disables parallelization, so the delete below cannot race it.
+        // Beside the executable, where SceneComposer looks. SceneComposerTests writes here too.
+        // StageAllocationCollection disables parallelization. The delete below cannot race it.
         string directory = Path.Combine(AppContext.BaseDirectory, "assets");
         string path = Path.Combine(directory, StageWorkload.DocumentName + ShippedSceneDocument.Extension);
         Directory.CreateDirectory(directory);
@@ -131,7 +119,7 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
         {
             ShippedSceneDocument.Write(StageWorkload.Build(), path, CompressionLevel.Fastest);
 
-            SceneComposer composer = new(StageWorkload.Scenes(), new DesktopPlatform());
+            SceneComposer composer = new(StageWorkload.Scenes(), new ContentPlatform());
             using SceneHost host = new(
                 SceneTransition.ToName(StageWorkload.DocumentName, null),
                 composer.Resolve,
@@ -143,7 +131,7 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
             for (int index = 0; index < 15; index++)
             {
                 host.Run.RequestRestart();
-                host.Step(Scenes.SceneFixtures.Step(index));
+                host.Step(SceneFixtures.Step(index));
             }
 
             Assert.IsType<StageWorkload.StageScene>(host.Scene);
@@ -156,22 +144,12 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
         }
     }
 
-    private static (StepSample[] Samples, int Entities) Measure(SceneDocument document, StageChurn churn)
+    // Runs the stage with churn, writes what it drew, and asserts its steps fit the budget and its frames allocate nothing.
+    private void AssertWithinBudget(string label, SceneDocument document, StageChurn churn, long budget)
     {
         using SceneSimulation simulation = new(StageWorkload.Compose(document, churn), run: StageWorkload.Defaults);
-
-        StepSample[] samples = StepMeasurement.Measure(
-            simulation,
-            StageWorkload.StepSeconds,
-            WarmupSteps,
-            MeasuredSteps);
-
-        return (samples, simulation.Scene.Entities.Length);
-    }
-
-    private void Report(string label, (StepSample[] Samples, int Entities) measured, long maxPerRun)
-    {
-        (StepSample[] samples, int entities) = measured;
+        StepSample[] samples = StepMeasurement.Measure(simulation, WarmupSteps);
+        int entities = simulation.Scene.Entities.Length;
 
         long allocated = 0;
         long peakAllocated = 0;
@@ -189,17 +167,11 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
 
         output.WriteLine(string.Create(
             CultureInfo.InvariantCulture,
-            $"{label}: {entities} entities, {allocated / (double)samples.Length:0.0} bytes/step "
-            + $"(peak {peakAllocated}, run {allocated} of {maxPerRun}), {built} bytes building frames, "
+            $"{label}: {entities} entities, peak {peakAllocated} bytes in a step, "
             + $"commands {total / (double)samples.Length:0.0} total / {visible / (double)samples.Length:0.0} visible / "
             + $"{(total - visible) / (double)samples.Length:0.0} culled"));
 
-        Assert.True(
-            allocated <= maxPerRun,
-            FormattableString.Invariant(
-                $"{label} allocated {allocated} bytes over {samples.Length} steps, budget {maxPerRun}."));
-        Assert.True(
-            built == 0,
-            FormattableString.Invariant($"{label} allocated {built} bytes building {samples.Length} frames."));
+        StepMeasurement.Report(output, label, allocated, samples.Length, budget);
+        StepMeasurement.Report(output, $"{label}, building frames", built, samples.Length);
     }
 }

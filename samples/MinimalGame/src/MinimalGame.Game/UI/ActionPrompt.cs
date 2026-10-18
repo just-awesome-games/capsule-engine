@@ -1,9 +1,3 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Input;
-using Capsule.Rendering;
-using Capsule.Scenes;
-
 namespace MinimalGame.Game.UI;
 
 /// <summary>
@@ -19,7 +13,7 @@ public sealed class ActionPrompt : Entity
 
     private readonly InputAction _action;
 
-    // Every prompt is cut from one sheet, so any frame preloads the texture they all draw from.
+    // Any frame preloads the texture every prompt draws from because they are all cut from one sheet.
     private readonly SpriteRenderer _art = new(CapsuleAssets.Sprites.Ui.PromptsSheet.Frames.PadSouth) { Visible = false };
 
     private readonly Label _name = new(CapsuleAssets.Fonts.MenuFont)
@@ -41,7 +35,7 @@ public sealed class ActionPrompt : Entity
         Add(_name);
     }
 
-    /// <summary>The width the prompt draws, so its parent can place what sits beside it.</summary>
+    /// <summary>The width the prompt draws, for its parent to place what sits beside it.</summary>
     public float Width => _art.Visible ? _art.Sprite.Region.Width : _name.ContentSize.X;
 
     /// <summary>The colour a button's name draws in. Art keeps its own colours.</summary>

@@ -1,7 +1,7 @@
 <Project>
 
   <!-- How a Capsule game builds. This file holds the mode switches and imports every concern from
-       its own file. A package consumer gets it as buildTransitive/JAG.Capsule.targets, so every
+       its own file. A package consumer gets it as buildTransitive/JAG.Capsule.targets. Every
        project referencing JAG.Capsule imports it, whatever it is. Capsule.Build.props imports it for
        a source consumer. The pipeline, the generator, the shell's shape and its publish answer to a
        role. What a role-free library, test or tool receives is marked universal where it is set. -->
@@ -24,7 +24,7 @@
     <JsonSerializerIsReflectionEnabledByDefault Condition="'$(JsonSerializerIsReflectionEnabledByDefault)' == ''">false</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
 
-  <!-- Capsule.Publish.targets reads CapsuleShipping at evaluation, so the switches come first.
+  <!-- The switches come first because Capsule.Publish.targets reads CapsuleShipping at evaluation.
        Targets hooked to the same point run in import order, and this list keeps the order they have
        always run in. -->
   <Import Project="$(MSBuildThisFileDirectory)Capsule.SourceConsumer.targets" />

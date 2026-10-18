@@ -1,9 +1,3 @@
-using System.Numerics;
-using Capsule.Animation;
-using Capsule.Physics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>A kinematic body that walks until blocked and turns, stepping over lips no taller than <c>stepHeight</c>, where 0 steps over none.</summary>

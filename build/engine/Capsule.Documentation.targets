@@ -16,8 +16,8 @@
     </Task>
   </UsingTask>
 
-  <!-- The compiler writes every documentation comment it sees, whatever the member's accessibility,
-       so generator output for an internal type is dropped before the reference leaves obj/. A
+  <!-- The compiler writes every documentation comment it sees, whatever the member's accessibility.
+       Generator output for an internal type is dropped before the reference leaves obj/. A
        project lists those types as CapsuleGeneratedInternalType items. A project whose internal
        types carry documentation comments lists its public types as CapsuleDocumentedType items,
        and every other entry is dropped. The trim rewrites its own input. A marker touched after it

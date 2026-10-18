@@ -48,7 +48,8 @@ internal static class SceneRenderer
         string createRegistry = RegistryProviderRenderer.SceneRegistryBody(["global::Capsule.Generated." + providerName], StatementIndent);
 
         return GeneratedFile.Write(claims, $$"""
-            {{generatedScenes}}    /// <summary>Every scene this assembly declares. Generated code. Do not edit.</summary>
+            {{generatedScenes}}    /// <summary>Every scene this assembly declares.</summary>
+                /// <remarks>Generated code. Do not edit.</remarks>
                 {{GeneratedFile.ExcludeFromCodeCoverage}}
                 public static class CapsuleScenes
                 {
@@ -120,7 +121,7 @@ internal static class SceneRenderer
     // every entry is constructed, before the derived body runs.
     private static string Applier(SceneModel model) => $$"""
 
-                private static void {{ApplierName(model.QualifiedName)}}(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.Spawning.AuthoredMembers members)
+                private static void {{ApplierName(model.QualifiedName)}}(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.AuthoredMembers members)
                 {
                     {{model.QualifiedName}} scene = ({{model.QualifiedName}})composed;
         {{PropertyReadRenderer.Assignments(model.Authored, "scene", model.QualifiedName, StatementIndent)}}        }

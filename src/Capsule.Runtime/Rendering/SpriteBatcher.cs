@@ -7,8 +7,8 @@ using Vector2 = System.Numerics.Vector2;
 
 namespace Capsule.Runtime.Rendering;
 
-// Draws quads in submission order through one vertex buffer, matching SpriteBatch's output and
-// beating its speed. A sprite is written straight into a staging array as four vertices, a chunk of
+// Draws quads in submission order through one vertex buffer, pixel for pixel as the renderer's tests
+// pin them. A sprite is written straight into a staging array as four vertices, a chunk of
 // staged sprites is uploaded once, and each run on a single texture and material goes to the device as
 // one indexed draw. Every buffer is allocated in the constructor, and a frame at steady state allocates
 // nothing.
@@ -55,8 +55,8 @@ internal sealed class SpriteBatcher : IDisposable
     // Sprites staged and not yet flushed.
     private int _count;
 
-    // The texture the open run draws with, and its texel size. SpriteBatch reads the same float from
-    // the texture's internal TexelWidth, cached here once per run.
+    // The texture the open run draws with, and its texel size as the float a texture coordinate is
+    // scaled by, cached once per run.
     private Texture2D? _texture;
     private float _texelWidth;
     private float _texelHeight;
@@ -104,8 +104,8 @@ internal sealed class SpriteBatcher : IDisposable
         _indices.SetData(QuadIndices());
     }
 
-    // Two triangles per quad over vertices TL, TR, BL, BR, split as SpriteBatch splits them. The
-    // diagonal runs TR to BL, and the other split rasterises the diagonal's pixels differently.
+    // Two triangles per quad over vertices TL, TR, BL, BR. The diagonal runs TR to BL. The other split
+    // rasterises the diagonal's pixels differently.
     private static ushort[] QuadIndices()
     {
         ushort[] indices = new ushort[ChunkSprites * IndicesPerSprite];
@@ -124,9 +124,9 @@ internal sealed class SpriteBatcher : IDisposable
         return indices;
     }
 
-    // Opens a batch drawing with Capsule's own sprite shader. Sets SpriteBatch's default device
-    // states, blending premultiplied unless told otherwise, and applies the shader with transform
-    // then the viewport's projection.
+    // Opens a batch drawing with Capsule's own sprite shader. Sets the device states every batch draws
+    // under, blending premultiplied unless told otherwise, and applies the shader with transform then
+    // the viewport's projection.
     internal void Begin(in Matrix transform, SamplerState sampler, BlendState? blend = null)
     {
         _device.BlendState = blend ?? BlendState.AlphaBlend;
@@ -181,7 +181,7 @@ internal sealed class SpriteBatcher : IDisposable
     }
 
     // The material the sprites drawn next use, null for Capsule's own sprite shader. Begin resets it to
-    // null. A change closes the open run by forgetting its texture, so the sprite test stays the one
+    // null. A change closes the open run by forgetting its texture. The sprite test stays the one
     // texture comparison.
     internal void SetMaterial(Material? material)
     {
@@ -279,8 +279,8 @@ internal sealed class SpriteBatcher : IDisposable
         Stage(in quad, color, blend, flash);
     }
 
-    // The entire texture, as SpriteBatch draws a null source rectangle. Always alpha: nothing here draws
-    // from a SpriteIntent, so nothing here carries a blend of its own.
+    // The entire texture, its texture coordinates spanning zero to one. Nothing here draws from a
+    // SpriteIntent or carries a blend of its own, and every quad blends as alpha.
     internal void DrawWhole(Texture2D texture, Vector2 position, Vector2 origin, Vector2 scale, float rotation, ColorRgba color)
     {
         OpenRun(texture);
@@ -320,9 +320,8 @@ internal sealed class SpriteBatcher : IDisposable
     }
 
     // The quad's four corners, in the order the index pattern reads them: top left, top right, bottom
-    // left, bottom right. Written field by field through one advancing unchecked reference. At 50 000
-    // sprites an indexed write per vertex measures seven percent slower, a span five, and staging a
-    // whole vertex at a time twenty.
+    // left, bottom right. Written field by field through one advancing unchecked reference, which is
+    // faster than an indexed write per vertex, a span, or staging a whole vertex at a time.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void Stage(in SpriteQuad quad, ColorRgba color, BlendMode blend, ColorRgba flash)
     {
@@ -355,7 +354,7 @@ internal sealed class SpriteBatcher : IDisposable
         _count++;
     }
 
-    // ColorRgba is straight alpha and the backend blend convention is premultiplied, so an alpha
+    // ColorRgba is straight alpha and the backend blend convention is premultiplied. An alpha
     // intent is premultiplied here. Additive draws with no state change against the same premultiplied
     // pipeline: an alpha of zero contributes nothing to cover and the colour, already scaled by its
     // alpha, adds as src.rgb + dst.rgb x (1 - 0).
@@ -376,9 +375,9 @@ internal sealed class SpriteBatcher : IDisposable
     }
 
     // The bytes Pack hands to the backend's colour constructor, with no MonoGame type so a test can
-    // assert on it. Additive hands the colour scaled by its alpha and zero alpha, so a fading glow fades
+    // assert on it. Additive hands the colour scaled by its alpha and zero alpha. A fading glow fades
     // with no state change. Alpha hands the intent's colour and alpha through exactly, for
-    // Color.FromNonPremultiplied to premultiply as it always has (D-capsule-109).
+    // Color.FromNonPremultiplied to premultiply.
     internal static (byte R, byte G, byte B, byte A) PackInput(ColorRgba color, BlendMode blend) =>
         blend == BlendMode.Additive
             ? (ColorRgba.Multiply(color.R, color.A), ColorRgba.Multiply(color.G, color.A), ColorRgba.Multiply(color.B, color.A), (byte)0)
@@ -399,7 +398,7 @@ internal sealed class SpriteBatcher : IDisposable
     }
 
     // The bytes PackFlash hands to the backend's colour constructor. The flash colour is scaled by the
-    // sprite's straight tint alpha, so a flash fades as the sprite does under either blend, and the
+    // sprite's straight tint alpha. A flash fades as the sprite does under either blend, and the
     // amount passes through. A zero amount leaves the shader's colour exactly as it was.
     internal static (byte R, byte G, byte B, byte A) PackFlashInput(ColorRgba flash, byte tintAlpha) =>
         (ColorRgba.Multiply(flash.R, tintAlpha), ColorRgba.Multiply(flash.G, tintAlpha), ColorRgba.Multiply(flash.B, tintAlpha), flash.A);
@@ -427,7 +426,7 @@ internal sealed class SpriteBatcher : IDisposable
         // The index pattern starts at vertex zero for every quad, and a run starting part-way into
         // the chunk draws from its first vertex as the base. An effect is applied only where the
         // material, the texture's format or, for a shader reading it, the texture's size changes.
-        // Applying one rebinds slot 0, so the run's texture is bound after. A texture's Tag holds the
+        // Applying one rebinds slot 0. The run's texture is bound after. A texture's Tag holds the
         // sampler its own sampling asks for.
         for (int i = 0; i < _runCount; i++)
         {

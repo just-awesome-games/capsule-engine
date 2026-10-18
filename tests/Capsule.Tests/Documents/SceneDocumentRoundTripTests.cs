@@ -1,12 +1,11 @@
 using System.Numerics;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
+using Capsule.Scenes;
 
 namespace Capsule.Tests.Documents;
 
 public sealed class SceneDocumentRoundTripTests
 {
-    // The document's own members sit ahead of the entries in authored order, a nested object among them, so a
+    // The document's own members sit ahead of the entries in authored order, a nested object among them. A
     // document an importer writes reads back as it was built, and the shipped form carries them too.
     [Fact]
     public void TopLevelMembers_RoundTripAheadOfTheEntries()

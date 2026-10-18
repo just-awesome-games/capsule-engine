@@ -3,8 +3,6 @@ using Capsule.Animation;
 using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 using Capsule.Tiles;
 
 namespace Capsule.Tests.Scenes;
@@ -18,6 +16,13 @@ public sealed class SceneAssetTests
     private static readonly TextureHandle EntityExtra = new("entity/extra", ".png");
     private static readonly TextureHandle ComponentExtra = new("component/extra", ".png");
     private static readonly TextureHandle Unused = new("unused", ".png");
+
+    public static TheoryData<Func<Entity>, bool> PoolOwners => new()
+    {
+        { static () => new PoolOwner(forwarded: true), true },
+        { static () => new PoolOwner(forwarded: false), false },
+        { static () => new ScenePoolForwarder(), true },
+    };
 
     [Fact]
     public void AssetCollection_IsPureOrderedAndDeduplicated()
@@ -82,15 +87,16 @@ public sealed class SceneAssetTests
         Assert.Empty(scene.CollectAssetPreloads().Textures);
     }
 
+    // A pool's entities reach a scene's preloads only through an owner that forwards the pool. An idle
+    // entity in a forwarded pool brings the scene pool it declares.
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void AScenesPreloads_HoldAPooledEntitysTextureOnlyWhenItsOwnerForwardsThePool(bool forwarded)
+    [MemberData(nameof(PoolOwners))]
+    public void AScenesPreloads_HoldAPooledEntitysTextureOnlyThroughAForwardedPool(Func<Entity> owner, bool held)
     {
         Scene scene = new();
-        scene.Add(new PoolOwner(forwarded));
+        scene.Add(owner());
 
-        Assert.Equal(forwarded, scene.CollectPreloads().Contains(EntityExtra));
+        Assert.Equal(held, scene.CollectPreloads().Contains(EntityExtra));
     }
 
     [Fact]
@@ -123,7 +129,7 @@ public sealed class SceneAssetTests
         Assert.Equal([EntityExtra], preloads.Textures);
     }
 
-    private static Sprite Frame(TextureHandle texture) => new(texture, new TextureRegion(0, 0, 1, 1));
+    private static Sprite Frame(TextureHandle texture) => SceneFixtures.Frame(1, 1, texture);
 
     private class TestEntity : Entity
     {
@@ -163,6 +169,25 @@ public sealed class SceneAssetTests
                 _pool.CollectAssets(assets);
             }
         }
+    }
+
+    // Forwards a pool whose idle entity declares a scene pool of entities drawing EntityExtra.
+    private sealed class ScenePoolForwarder() : Entity(Vector2.Zero)
+    {
+        private readonly EntityPool<ScenePoolDeclarer> _pool = new(static () => new ScenePoolDeclarer(), capacity: 1);
+
+        protected internal override void CollectAssets(AssetCollection assets) => _pool.CollectAssets(assets);
+    }
+
+    private sealed class ScenePoolDeclarer() : Entity(Vector2.Zero)
+    {
+        protected internal override void CollectAssets(AssetCollection assets) => assets.Pool<ExtraDrawer>(capacity: 1);
+    }
+
+    private sealed class ExtraDrawer : Entity
+    {
+        public ExtraDrawer()
+            : base(Vector2.Zero) => Add(new SpriteRenderer(Frame(EntityExtra)));
     }
 
     private sealed class AssignsMaterialLater : Entity

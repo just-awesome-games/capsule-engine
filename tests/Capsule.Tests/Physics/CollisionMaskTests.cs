@@ -28,7 +28,7 @@ public sealed class CollisionMaskTests
         }
     }
 
-    // A mask interns its names as a collider's Detects does, so a layer named before any collider is on it is
+    // A mask interns its names as a collider's Detects does. A layer named before any collider is on it is
     // still hit once one is. A world with no room left refuses the name the way Layer does.
     [Fact]
     public void AMaskNamingAnUndeclaredLayer_InternsItOrThrowsWhenTheWorldIsFull()

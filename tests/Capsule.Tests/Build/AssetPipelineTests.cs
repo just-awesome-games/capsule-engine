@@ -2,12 +2,11 @@ using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Capsule.Build;
 using Capsule.Build.Caching;
-using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
 
 /// <summary>
-/// One process per build, so what one run reports is the whole authoring plane's state: a defect in
+/// Each build runs in one process, and what one run reports is the whole authoring plane's state: a defect in
 /// one kind of source never hides a defect in another, and what ships is exactly what this run
 /// derived or reused.
 /// </summary>
@@ -85,7 +84,7 @@ public sealed class AssetPipelineTests
         Assert.Equal(expected, workspace.Shipped);
     }
 
-    // An output a run would write unchanged keeps its timestamp, so a run that changes nothing
+    // An output a run would write unchanged keeps its timestamp. A run that changes nothing
     // recompiles nothing and copies nothing.
     [Fact]
     public void ARunThatChangesNoOutput_LeavesItsTimestampAlone()

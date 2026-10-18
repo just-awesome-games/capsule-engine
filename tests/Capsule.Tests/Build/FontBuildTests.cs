@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using System.Reflection;
 using Capsule.Assets;
 using Capsule.Rendering;
-using Capsule.Tests.Documents;
 using Capsule.Tests.Generators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -105,7 +104,7 @@ public sealed class FontBuildTests
         Assert.Contains("TextureHandle BodyTexture", workspace.Generated, StringComparison.Ordinal);
     }
 
-    // A glyph's region is in its page's own texels, so no atlas packs a page. An atlas the page
+    // A glyph's region is in its page's own texels. No atlas packs a page. An atlas the page
     // inherits is ignored, and one its own config sets is refused.
     [Fact]
     public void AnInheritedAtlas_SkipsAFontsPageAndItsOwnConfigSettingOneFails()
@@ -125,7 +124,7 @@ public sealed class FontBuildTests
         Assert.Contains("Assets/Fonts/menu.png.config.json: sets \"atlas\" for a font's page", workspace.Errors, StringComparison.Ordinal);
     }
 
-    // A page the build does not ship would carry a handle that finds no file at run time, so the
+    // A page the build does not ship would carry a handle that finds no file at run time. The
     // font fails the build instead.
     [Theory]
     [InlineData("menu.png")]
@@ -148,7 +147,7 @@ public sealed class FontBuildTests
 
     [Theory]
 
-    // The three flavours the format has; only the text one is read.
+    // The three flavours the format has. Only the text one is read.
     [InlineData("BMF", "binary")]
     [InlineData("<?xml version=\"1.0\"?>\n<font/>", "XML")]
 
@@ -160,7 +159,7 @@ public sealed class FontBuildTests
     [InlineData("@common|@page|char id=65 x=0 y=30 width=4 height=6 xoffset=0 yoffset=0 xadvance=5 page=0", "32x32 page")]
     [InlineData("@common|@page|char id=65 x=-1 y=0 width=4 height=6 xoffset=0 yoffset=0 xadvance=5 page=0", "32x32 page")]
 
-    // Two ints that each parse can still sum past what one holds; a wrapped sum would read as a
+    // Two ints that each parse can still sum past what one holds. A wrapped sum would read as a
     // rectangle inside the page.
     [InlineData("@common|@page|char id=65 x=2147483647 y=0 width=2147483647 height=6 xoffset=0 yoffset=0 xadvance=5 page=0", "32x32 page")]
     [InlineData("@common|@page|@a|@a", "65 twice")]
@@ -195,6 +194,7 @@ public sealed class FontBuildTests
     [InlineData("@common|@page|@a|@b|kerning first=67 second=66 amount=-2", 5)]
     [InlineData("@common|@page|@a|page id=1 file=\"menu.tga\"", 4)]
     [InlineData("common lineHeight=0 base=12 scaleW=32 scaleH=32 pages=1|@page|@a", 1)]
+    [InlineData("@common|@page|page id=0 file=\"other.png\"|@a", 3)]
     public void ADefectOnOneLine_NamesThatLine(string lines, int line) =>
         Assert.Contains(
             $"Assets/Fonts/menu.fnt: line {line} ",
@@ -203,7 +203,7 @@ public sealed class FontBuildTests
 
     private static string Source(params string[] lines) => string.Join("\r\n", lines) + "\r\n";
 
-    // '@' names one of the good lines, so a case says only what it is testing.
+    // '@' names one of the good lines. A case says only what it is testing.
     private static string Malformed(string lines) =>
         Source(
             [.. lines.Split('|').Select(static line => line switch
@@ -242,7 +242,7 @@ public sealed class FontBuildTests
         return workspace.Fail();
     }
 
-    // The generated registry as the game runs it, so a member hands back what it declares.
+    // The generated registry as the game runs it. A member hands back what it declares.
     private static Assembly Loaded(string generated) =>
         GeneratorHarness.Loaded(CSharpCompilation.Create(
             "FontSpecs",

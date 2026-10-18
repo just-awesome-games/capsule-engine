@@ -1,9 +1,4 @@
-using System.Numerics;
-using Capsule.Animation;
 using Capsule.Bench.Logic.Components;
-using Capsule.Physics;
-using Capsule.Rendering;
-using Capsule.Scenes;
 
 namespace Capsule.Bench.Logic.Entities;
 

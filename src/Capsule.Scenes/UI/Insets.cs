@@ -32,15 +32,10 @@ public readonly record struct Insets
     /// <param name="bottom">The distance up from the bottom edge.</param>
     public Insets(float left, float top, float right, float bottom)
     {
-        Guard.Finite(left, nameof(left));
-        Guard.Finite(top, nameof(top));
-        Guard.Finite(right, nameof(right));
-        Guard.Finite(bottom, nameof(bottom));
-
-        Left = left;
-        Top = top;
-        Right = right;
-        Bottom = bottom;
+        Left = Guard.Finite(left, nameof(left));
+        Top = Guard.Finite(top, nameof(top));
+        Right = Guard.Finite(right, nameof(right));
+        Bottom = Guard.Finite(bottom, nameof(bottom));
     }
 
     // The inner extent of an outer rect this wide and tall, never below zero.

@@ -10,7 +10,7 @@ namespace Capsule.Runtime.DevTools;
 internal static class Picker
 {
     // Fills stack with the entities drawn at point, topmost first. Each comes after those of its ancestors
-    // not yet listed, root first, so a click takes the whole before its parts. parallax is the frame's
+    // not yet listed, root first. A click takes the whole before its parts. parallax is the frame's
     // ScrollLayout.Parallax, which moves point into each scrolled layer.
     internal static void Pick(FrameView frame, ReadOnlySpan<DrawRun> runs, Vector2 point, Vector2 parallax, List<Entity> stack)
     {

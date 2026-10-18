@@ -17,7 +17,7 @@ internal static class Suite
 
     private const double SecondsPerFramedWorkload = 6d;
 
-    // The window settles one late present within its first 80 frames on every run; 120 keeps it
+    // The window settles one late present within its first 80 frames on every run. 120 keeps it
     // out of the measured window at 165 Hz and a fortiori at 60.
     private const int WarmUpFrames = 120;
 
@@ -58,7 +58,7 @@ internal static class Suite
             return 2;
         }
 
-        // Only the windowed lane presents, so an uncapped headless record would claim a flag that did nothing.
+        // Only the windowed lane presents. An uncapped headless record would claim a flag that did nothing.
         if (uncapped && only is WorkloadKind.Simulation or WorkloadKind.Paced)
         {
             Console.Error.WriteLine($"--uncapped paces the rendering lane and --lane {LaneName(only.Value)} runs none of it. Drop one of them.");
@@ -68,7 +68,7 @@ internal static class Suite
 
         label ??= "unlabelled";
 
-        // Every lane is decided before anything runs, so a scene without one fails the suite at once.
+        // Every lane is decided before anything runs. A scene without one fails the suite at once.
         List<(string Name, WorkloadAttribute Lane)> lanes = [];
         foreach (Type scene in Workloads.All)
         {
@@ -83,7 +83,7 @@ internal static class Suite
             {
                 if (only is null || lane.Kind == only)
                 {
-                    lanes.Add((scene.Name, lane));
+                    lanes.Add((lane.Row ?? scene.Name, lane));
                 }
             }
         }
@@ -166,7 +166,7 @@ internal static class Suite
         return new WorkloadRecord(workload, "headless", Program.Describe(lane.Surface), stepMs.Length, null, null, new StepTiming(step.Median, step.P95), new StepTiming(view.Median, view.P95), stepBytes, viewBytes, null, gen0, null);
     }
 
-    // `--scene X --frames <csv> 6`: the host writes a row per frame; the first WarmUpFrames are
+    // `--scene X --frames <csv> 6`: the host writes a row per frame. The first WarmUpFrames are
     // dropped, and gen-0 is counted from the last warm-up row so the first measured frame counts.
     // Uncapped, the host presents without vertical sync and the interval is the true frame cost.
     private static WorkloadRecord? Windowed(string executable, string workload, WorkloadAttribute lane, string label, bool uncapped)
@@ -216,7 +216,7 @@ internal static class Suite
     }
 
     // `--scene X --headless --driver Idle --frames <csv> 6`: the host's frame loop with no window, paced to
-    // the step rate. Each frame runs the steps its wall time bought, up to the step bound, so a step that
+    // the step rate. Each frame runs the steps its wall time bought, up to the step bound. A step that
     // overruns its length shows in the frames a player would see. The draw column is the frame's build.
     private static WorkloadRecord? Paced(string executable, string workload, WorkloadAttribute lane)
     {

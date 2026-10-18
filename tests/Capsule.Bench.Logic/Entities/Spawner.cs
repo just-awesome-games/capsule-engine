@@ -1,11 +1,8 @@
-using System.Numerics;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>
 /// Removes the motes whose time is up and places 34 more from a pool every step, each to live 30
-/// steps, so about two thousand join and leave a second and the population holds.
+/// steps. About two thousand join and leave a second, and the population holds.
 /// </summary>
 public sealed class Spawner : Entity
 {

@@ -1,15 +1,8 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Physics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// A slab that circles its spawn point at a constant rate. A body moved by its layer rides it round.
-/// It is one-way, so the player jumps up through it and drops down through it.
+/// A one-way slab that circles its spawn point at a constant rate, which the player jumps up through
+/// and drops down through.
 /// </summary>
 public sealed class CirclingPlatform : Entity
 {
@@ -19,8 +12,7 @@ public sealed class CirclingPlatform : Entity
 
     private readonly Vector2 _centre;
 
-    // The angle in steps of the turn, wrapped each turn: a float angle that grows forever loses
-    // precision.
+    // Steps into the turn, which give the angle.
     private int _tick;
 
     public CirclingPlatform(EntitySpawn spawn)

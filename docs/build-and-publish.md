@@ -1,7 +1,8 @@
 # Build and publish
 
 After this page you can wire a Capsule game from empty directories, run and test it from the command
-line, build it against an engine clone or against the packages, and publish it.
+line, build it against an engine clone or against the packages, and publish it. Each property's row and
+each type's XML docs hold its rules.
 
 ## Repository shape
 
@@ -34,9 +35,8 @@ file. Folders map to namespaces, and a namespace is the key a document names a t
 ([`scenes.md`](scenes.md#entries-and-composition)). The assembly root holds the game's declarations:
 collision layers, input actions, audio buses, save keys, world units.
 
-A game is three projects and its tests. The logic project is the game, the shell hosts it at run time, and
-the build project hosts its asset build. Create them from the repository root, then replace each generated
-project file's body with the wiring below:
+Create the [three projects and the tests](getting-started.md#three-projects) from the repository root,
+then replace each generated project file's body with the wiring below:
 
 ```text
 dotnet new sln --name MyGame --format slnx
@@ -66,6 +66,7 @@ projects also state their role, which the build and the generators read:
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
     <CapsuleGameLogic>true</CapsuleGameLogic>
     <CapsuleBuildProject>../MyGame.Build/MyGame.Build.csproj</CapsuleBuildProject>
   </PropertyGroup>
@@ -102,10 +103,15 @@ projects also state their role, which the build and the generators read:
 </Project>
 ```
 
-The build project's `Program.cs` runs `CapsuleBuild` ([The build project](#the-build-project)). A shell is
-a console app, and a Windows-subsystem app in Release, where a double-click opens no console. Tests
-reference the logic project and take no role. A test driving `EngineBuilder.RunHeadless` also references
-`JAG.Capsule.Runtime.Desktop`.
+The build project's `Program.cs` runs the asset build:
+
+```csharp
+return Capsule.Build.CapsuleBuild.Configure(args).Run();
+```
+
+Build-wide settings and importers are [`packages.md`](packages.md#the-build-project). A shell is
+a console app, and a Windows-subsystem app in Release, where a double-click opens no console. A test
+driving `EngineBuilder.RunHeadless` also references `JAG.Capsule.Runtime.Desktop`.
 
 To build against clones instead, one git-ignored `Directory.Build.local.props` names them and imports the
 engine clone's `build/Capsule.Build.props`:
@@ -194,9 +200,8 @@ The publish directory carries the host's native libraries beside the executable:
 the window and input, `openal.dll` for sound. Without the sound library or an output device the run plays
 silently and logs that once.
 
-On Windows the native link needs the MSVC Build Tools with the C++ workload. A Build Tools-only install
-also needs `C:\Program Files (x86)\Microsoft Visual Studio\Installer` on `PATH`, or the link fails with
-`'vswhere.exe' is not recognized`.
+On Windows the native link needs the MSVC Build Tools with the C++ workload, and a Build Tools-only install
+also needs `C:\Program Files (x86)\Microsoft Visual Studio\Installer` on `PATH`.
 
 A publish holds no `.pdb`. A NativeAOT publish defaults `StackTraceSupport` to `false` and
 `UseSystemResourceKeys` to `true`, which a project can set back. Its symbols go to
@@ -261,52 +266,3 @@ beside the shell project:
 
 Defining one half is allowed, and the build warns that the other half keeps Capsule branding. An `Icon.bmp`
 whose alpha is all zero reads as fully opaque.
-
-## The build project
-
-Every build of the logic project builds the build project first and runs it once, from the logic project's
-directory. The run reads every file under `Assets/` and writes what the game ships and the
-`CapsuleAssets` it compiles. Game-wide build configuration lives on `CapsuleBuild`:
-
-```csharp
-using Capsule.Build;
-using JAG.Capsule.Tiled;
-
-return CapsuleBuild.Configure(args)
-    .AddImporter(new TiledImporter())
-    .WithTileSize(16)
-    .Run();
-```
-
-The run reuses what it derived before. A derivation runs again only when the content of a file it reads,
-its resolved settings, the code that derives it or the .NET runtime changed, or a file it shipped is gone
-or rewritten. Moving write times without changing a byte derives nothing. The cache is
-`obj/capsule/derivation-cache.json`, or the same file under `obj/capsule-shipping/` for a publish.
-`dotnet clean` clears it. Derivations run in parallel, and the output is the same whatever order they
-finish in.
-
-### Writing an importer
-
-An importer turns an editor's own format into files Capsule reads as though they were authored. It
-implements `IAssetImporter`, whose XML documentation is the contract and shows one, and reads and writes
-only through its `AssetImportContext`. Each output keys and ships as an authored file at its path would. A
-key an authored file already claims fails the build naming both, as does an output two sources write.
-Outputs land in `obj/capsule/imported/`, or `obj/capsule-shipping/imported/` for a publish, and are never
-committed. An importer's tests construct an `AssetImportContext` over files on disk, call `Import`, and
-assert on the context's `Outputs` and `Inputs`. The context writes nothing to disk.
-
-## A private platform module
-
-A console runtime is a private repository, one per platform, holding whatever its NDA covers, and not a
-branch of the engine:
-
-1. Subclass `HostPlatform` there. `OpenContent` and `OpenSaveStorage` are its abstract members, and every
-   window and audio member has a no-window default to override where the platform has a policy.
-2. Put the game's shell for that host family in the same repository, referencing the module and passing it
-   to `CapsuleBoot.Configure`. The logic project is untouched.
-3. Consume Capsule in source mode at a pinned tag (`CapsuleSourcePath`) and swap the substrate with
-   `CapsuleSubstratePackage` and `CapsuleSubstrateVersion`. An unmodified checkout retargets.
-
-A shell references one platform module. A desktop assembly is then absent from a console publish rather
-than trimmed out of it. The engine's CI publishes the desktop path, and a private module is tested by its own
-repository.

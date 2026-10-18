@@ -1,9 +1,7 @@
 using System.Numerics;
 using Capsule.Input;
 using Capsule.Runtime;
-using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Runtime;
 
@@ -30,7 +28,7 @@ public sealed class HeadlessDeterminismTests
 
         HeadlessRunResult result = CapsuleEngine.Configure(
                 "Deterministic Game",
-                new DesktopPlatform(),
+                new ContentPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(Wandering), _ => scene)]))
@@ -54,7 +52,7 @@ public sealed class HeadlessDeterminismTests
         }
     }
 
-    // Steps by a draw from the run's source, so a position holds only if the whole run replays.
+    // Steps by a draw from the run's source. A position holds only if the whole run replays.
     private sealed class Wanderer() : Entity(Vector2.Zero)
     {
         protected internal override void OnStep(in StepContext context) =>

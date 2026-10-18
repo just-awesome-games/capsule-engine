@@ -1,14 +1,12 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// The dusk backdrop, pinned to the screen under everything else. Placed at the world origin, it fills
-/// the screen. Its scroll factor is set in code, where <see cref="Hills"/> authors its own.
+/// The dusk backdrop, pinned to the screen under everything else.
 /// </summary>
+/// <remarks>
+/// It fills the screen when placed at the world origin. Its scroll factor is set in code, where
+/// <see cref="Hills"/> authors its own.
+/// </remarks>
 public sealed class Sky : Entity
 {
     /// <summary>The whole of <c>textures/backdrops/sky.png</c>, anchored at its top-left corner.</summary>

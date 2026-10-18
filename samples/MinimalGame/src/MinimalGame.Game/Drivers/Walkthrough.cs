@@ -1,6 +1,3 @@
-using System.Numerics;
-using Capsule.Input;
-using Capsule.Scenes;
 using MinimalGame.Game.Entities;
 
 namespace MinimalGame.Game.Drivers;
@@ -8,11 +5,13 @@ namespace MinimalGame.Game.Drivers;
 /// <summary>
 /// Plays the room with nobody at the keyboard: jumps to break the brick overhead, walks right along
 /// the floor, through the hazard and under the first ledge, jumps up through it and lands on top,
-/// walks on a little, fires a bolt at the pointer, then picks Quit from the pause menu so the run
-/// ends by the game's own exit route.
-/// Every count is in fixed steps. Run it with <c>--scene scenes/room --driver Walkthrough</c>, with or
-/// without <c>--headless</c>; it plays the same steps either way and closes itself.
+/// walks on a little, fires a bolt at the pointer, then picks Quit from the pause menu so the run ends
+/// by the game's own exit route. Every count is in fixed steps.
 /// </summary>
+/// <remarks>
+/// Run it with <c>--scene scenes/room --driver Walkthrough</c>, with or without <c>--headless</c>. It
+/// plays the same steps either way and closes itself.
+/// </remarks>
 public sealed class Walkthrough : IInputDriver
 {
     private readonly IInputDriver _script = Script();
@@ -20,12 +19,12 @@ public sealed class Walkthrough : IInputDriver
     /// <inheritdoc/>
     public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot) => _script.TryNext(scene, tick, out snapshot);
 
-    // A fixed sequence: the room's geometry is known, so nothing here reads the scene.
+    // A fixed sequence. Nothing here reads the scene because the room's geometry is known.
     private static IInputDriver Script()
     {
         InputScript script = new();
 
-        // IsOnFloor is state as of the last move, so the jump waits one step for the spawn to land.
+        // The jump waits one step for the spawn to land because IsOnFloor is state as of the last move.
         // The head-bump breaks the brick over the spawn, and the fall is back on the floor inside a second.
         script.Wait(1).Tap(Key.Space).Wait(60);
 

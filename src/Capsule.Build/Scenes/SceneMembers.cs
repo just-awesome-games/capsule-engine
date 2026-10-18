@@ -1,6 +1,6 @@
 using System.Text;
 using Capsule.Build.Registry;
-using Capsule.Scenes.Documents;
+using Capsule.Scenes;
 
 namespace Capsule.Build.Scenes;
 

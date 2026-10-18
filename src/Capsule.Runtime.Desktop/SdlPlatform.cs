@@ -5,7 +5,7 @@ using Capsule.Diagnostics;
 namespace Capsule.Runtime.Desktop;
 
 // The SDL calls the host makes for itself. The graphics backend keeps its own binding internal and
-// initialises a fixed set of subsystems, so these calls are made here against the library the backend
+// initialises a fixed set of subsystems. These calls are made here against the library the backend
 // already ships beside the executable.
 internal static class SdlPlatform
 {
@@ -51,7 +51,7 @@ internal static class SdlPlatform
     internal static void WindowSize(nint window, out int width, out int height) =>
         SDL_GetWindowSize(window, out width, out height);
 
-    // The default probe derives no candidate matching the versioned sonames the backend ships, so the
+    // The default probe derives no candidate matching the versioned sonames the backend ships. The
     // file is named per platform, as the backend's own loader names it.
     private static nint Resolve(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
     {
@@ -166,7 +166,7 @@ internal static class SdlPlatform
     [DllImport(LibraryName, EntryPoint = "SDL_GetVersion")]
     private static extern void SDL_GetVersion(out SdlVersion version);
 
-    // SDL refuses the call unless the version field names a release it can answer for, so the struct
+    // SDL refuses the call unless the version field names a release it can answer for. The struct
     // is stamped from SDL_GetVersion before every call.
     [DllImport(LibraryName, EntryPoint = "SDL_GetWindowWMInfo")]
     private static extern int SDL_GetWindowWMInfo(nint window, ref SdlWindowInfo info);

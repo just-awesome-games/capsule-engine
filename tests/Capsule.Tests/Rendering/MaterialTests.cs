@@ -61,7 +61,7 @@ public sealed class MaterialTests
     }
 
     // GetColor rounds to the nearest byte and clamps each channel to 0 to 1. ShaderGlobals.GetColor shares
-    // this conversion, so it is covered here once.
+    // this conversion. It is covered here once.
     [Fact]
     public void GetColor_ClampsEachChannelAndRoundsToTheNearestByte()
     {
@@ -86,7 +86,7 @@ public sealed class MaterialTests
     public void AGlobal_IsRefusedByASetAndAGetAlike_NamingTheScene()
     {
         Material material = new(Graded);
-        const string Message = "Shader 'effects/graded' declares 'WorldAdd' in its SceneGlobals block, so a material neither sets nor reads it. Use scene.ShaderGlobals.Set or the Get of its kind.";
+        const string Message = "Shader 'effects/graded' declares 'WorldAdd' in its SceneGlobals block. A material neither sets nor reads it. Use scene.ShaderGlobals.Set or the Get of its kind.";
 
         ArgumentException set = Assert.Throws<ArgumentException>(() => material.Set("WorldAdd", Vector3.One));
         ArgumentException read = Assert.Throws<ArgumentException>(() => material.GetVector3("WorldAdd"));
@@ -96,7 +96,7 @@ public sealed class MaterialTests
     }
 
     // Runs are recorded per layer where the stored sprite's material differs from the layer's last
-    // run, so an unchanged material costs no run and the other layer's sprites break nothing.
+    // run. An unchanged material costs no run and the other layer's sprites break nothing.
     [Fact]
     public void MaterialRuns_OpenOnlyWhereALayersMaterialChanges()
     {

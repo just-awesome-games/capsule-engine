@@ -145,7 +145,7 @@ namespace Capsule.Runtime.Audio.Vorbis
                 books[i].Init(packet, huffman);
             }
 
-            // Vorbis never used this feature, so we just skip the appropriate number of bits
+            // Vorbis never used this feature. Skip the appropriate number of bits
             var times = (int)packet.ReadBits(6) + 1;
             packet.SkipBits(16 * times);
 
@@ -246,7 +246,7 @@ namespace Capsule.Runtime.Audio.Vorbis
                     {
                         _hasPrevPacketBuf = false;
 
-                        // no more samples, so just return
+                        // no more samples
                         break;
                     }
 
@@ -325,7 +325,7 @@ namespace Capsule.Runtime.Audio.Vorbis
             }
             else if (!_hasPrevPacketBuf)
             {
-                // first packet, so it doesn't have any good data before the valid length
+                // the first packet has no good data before the valid length
                 _prevPacketStart = validLen;
             }
 
@@ -369,7 +369,7 @@ namespace Capsule.Runtime.Audio.Vorbis
                         // Capsule: confirmed allocated exactly once for the decoder's life, not per
                         // packet. The ping-pong swap in ReadNextPacket keeps reusing this pair, and
                         // _hasPrevPacketBuf (not nulling the pair itself) is now what resets on a
-                        // seek or end of stream, so a loop wrap no longer forces this to run again.
+                        // seek or end of stream. A loop wrap does not force this to run again.
                         if (_nextPacketBuf == null)
                         {
                             _nextPacketBuf = new float[_channels][];

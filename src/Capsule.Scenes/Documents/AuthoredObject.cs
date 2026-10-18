@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
-namespace Capsule.Scenes.Documents;
+namespace Capsule.Scenes;
 
 // One authored JSON object as its keys and the exact UTF-8 of each key's value, sliced from bytes the reader has
 // already validated. A repeated key keeps its first place and its last value. Nothing is parsed until a read

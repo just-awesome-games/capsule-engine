@@ -51,7 +51,7 @@ public sealed class AudioLevelTests
     }
 
     // Levelling a bus after playing into it within one start re-gains the voice rather than losing
-    // it, so the two are only an ordering.
+    // it. The two are only an ordering.
     [Fact]
     public void ABusVolumeSetAfterAPlayInTheSameStep_ReLevelsThatVoice()
     {

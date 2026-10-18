@@ -90,16 +90,6 @@ public sealed class Focusable(Vector2 size) : Component
     // The navigator that gave this item the focus, or null. Only that navigator takes it away.
     internal FocusNavigator? Holder { get; private set; }
 
-    /// <summary>A hit box with no size of its own, which fills the rect of the <see cref="ScreenEntity"/> holding it.</summary>
-    public Focusable()
-        : this(Vector2.Zero)
-    {
-    }
-
-    internal override bool Steps => false;
-
-    internal override TransformSupport Supports => TransformSupport.Scale;
-
     /// <summary>
     /// Raised as the focus lands on this item, with <see cref="IsFocused"/> already true and before
     /// the navigator's <see cref="FocusNavigator.FocusChanged"/>.
@@ -148,6 +138,16 @@ public sealed class Focusable(Vector2 size) : Component
     /// </remarks>
     public event Action<PointerDrag>? Dragged;
 
+    /// <summary>A hit box with no size of its own, which fills the rect of the <see cref="ScreenEntity"/> holding it.</summary>
+    public Focusable()
+        : this(Vector2.Zero)
+    {
+    }
+
+    internal override bool Steps => false;
+
+    internal override TransformSupport Supports => TransformSupport.Scale;
+
     internal void TakeFocus(FocusNavigator holder)
     {
         Holder = holder;
@@ -160,6 +160,14 @@ public sealed class Focusable(Vector2 size) : Component
         Holder = null;
         IsFocused = false;
         Unfocused?.Invoke();
+    }
+
+    // Sets the focus state without raising an event, for a focused item leaving its scene or coming back
+    // to the navigator that still remembers it. A null holder clears the focus.
+    internal void HoldQuietly(FocusNavigator? holder)
+    {
+        Holder = holder;
+        IsFocused = holder is not null;
     }
 
     internal void Press(InputAction action, InputAction confirm)

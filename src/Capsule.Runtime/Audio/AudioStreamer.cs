@@ -7,14 +7,14 @@ namespace Capsule.Runtime.Audio;
 // Decoding ahead off the game thread keeps a frame from paying for a Vorbis packet, and a voice that
 // falls behind starves its own device queue instead of the frame.
 //
-// A voice's source is closed here, not by whoever ended it, so nothing is freed under a decode in
+// A voice's source is closed here, not by whoever ended it. Nothing is freed under a decode in
 // progress. Closing the source also returns the voice to the pool, and a voice handed out again is one
 // no decode still holds. The pool is keyed by format, because a voice's queue and buffers are
 // sized for one rate and channel count. It holds no more voices than a run has sounded at once, and a
 // replay of a format already heard allocates none of them.
 internal sealed class AudioStreamer : IDisposable
 {
-    // How long an idle worker waits before looking again. A submit wakes it, so this only bounds
+    // How long an idle worker waits before looking again. A submit wakes it. This only bounds
     // the case where every voice is already read ahead.
     private const int IdleMilliseconds = 5;
 
@@ -25,6 +25,9 @@ internal sealed class AudioStreamer : IDisposable
     private readonly Func<int, int, IPcmQueue> _queues;
     private readonly Thread _worker;
 
+    // The warning for a worker that stopped, written by the worker and logged by the game thread,
+    // because a log sink is written only on the simulation thread.
+    private string? _fault;
     private volatile bool _stopping;
     private bool _disposed;
 
@@ -61,7 +64,7 @@ internal sealed class AudioStreamer : IDisposable
         return voice;
     }
 
-    // Sounds source as its own voice from startSeconds on. A file handle is not poolable, so the
+    // Sounds source as its own voice from startSeconds on. A file handle is not poolable. The
     // caller opens the source per play and the voice owns it from here on.
     internal StreamedVoice Play(
         IPcmSource source,
@@ -97,6 +100,15 @@ internal sealed class AudioStreamer : IDisposable
         }
     }
 
+    // Once a frame, on the game thread. Logs a worker fault once.
+    internal void Update()
+    {
+        if (Interlocked.Exchange(ref _fault, null) is { } fault)
+        {
+            Log.Warning(fault);
+        }
+    }
+
     // Voices the worker has returned to the pool, waiting to be played again.
     internal int Pooled
     {
@@ -127,9 +139,10 @@ internal sealed class AudioStreamer : IDisposable
         _worker.Join();
         _disposed = true;
 
-        // The worker is joined, so this thread releases what it left.
+        // The worker is joined. This thread releases what it left and logs any fault a voice still holds.
         foreach (StreamedVoice voice in _voices)
         {
+            voice.ReportFault();
             voice.CloseSource();
             voice.CloseQueue();
         }
@@ -138,6 +151,7 @@ internal sealed class AudioStreamer : IDisposable
         {
             foreach (StreamedVoice voice in pooled)
             {
+                voice.ReportFault();
                 voice.CloseQueue();
             }
         }
@@ -171,9 +185,9 @@ internal sealed class AudioStreamer : IDisposable
         catch (Exception failure)
         {
             // A decode fault silences its own voice inside Fill. Reaching here means the worker is
-            // gone and every streamed voice from now on stays silent. This is not the frame's thread,
-            // so it must not crash.
-            Log.Warning($"audio: the streaming worker stopped and streamed sound falls silent. {failure.Message}");
+            // gone and every streamed voice from now on stays silent. This is not the frame's thread.
+            // It must not crash, and Update logs the fault on the game thread.
+            Volatile.Write(ref _fault, $"audio: the streaming worker stopped and streamed sound falls silent. {failure.Message}");
         }
     }
 

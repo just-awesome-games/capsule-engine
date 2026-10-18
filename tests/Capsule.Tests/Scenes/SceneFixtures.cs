@@ -4,8 +4,7 @@ using Capsule.Input;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
+using Capsule.Tests.Allocation;
 using Capsule.Tests.Physics;
 using Capsule.Tiles;
 
@@ -15,7 +14,7 @@ internal static class SceneFixtures
 {
     internal const int TileSize = 16;
 
-    /// <summary>The one texture every fixture draws from; a column of <see cref="TileSize"/> cells.</summary>
+    /// <summary>The one texture every fixture draws from, a column of <see cref="TileSize"/> cells.</summary>
     internal static readonly TextureHandle Atlas = new("atlas", ".png");
 
     /// <summary>The tile atlas the tile, document and workload fixtures name.</summary>
@@ -24,13 +23,21 @@ internal static class SceneFixtures
     /// <summary>The viewport span a scene opens at unless a test needs another.</summary>
     internal static readonly Vector2 Viewport = new(320, 180);
 
+    /// <summary>The screen at the origin, one <see cref="Viewport"/> across, that a pinned camera frames.</summary>
+    internal static readonly Rect OneScreen = new(Vector2.Zero, Viewport);
+
     /// <summary>The top half of a tile.</summary>
     internal static readonly Vector2[] HalfHeight = [new(0f, 0f), new(TileSize, 0f), new(TileSize, TileSize / 2f), new(0f, TileSize / 2f)];
 
     internal delegate void StepHook(Scene scene, in StepContext context);
 
-    /// <summary>A frame of <see cref="Atlas"/> cut from its top-left corner.</summary>
-    internal static Sprite Frame(int width, int height) => new(Atlas, new TextureRegion(0, 0, width, height));
+    /// <summary>A frame of <paramref name="texture"/>, or of <see cref="Atlas"/>, cut from its top-left corner.</summary>
+    internal static Sprite Frame(int width, int height, TextureHandle? texture = null) =>
+        new(texture ?? Atlas, new TextureRegion(0, 0, width, height));
+
+    /// <summary>Cell <paramref name="index"/> of a strip of 8x8 frames along the top of <see cref="Atlas"/>, pivoted bottom-centre.</summary>
+    internal static Sprite Frame(int index, SpriteMarks? marks = null) =>
+        new(Atlas, new TextureRegion(index * 8, 0, 8, 8), new Vector2(4f, 8f), marks);
 
     /// <summary>A document of <paramref name=entities/>, which a hand-built registry composes.</summary>
     internal static SceneDocument Room(params SceneDocumentEntry[] entities) => new([.. entities]);
@@ -143,7 +150,62 @@ internal static class SceneFixtures
     }
 
     internal static StepContext Step(long tick = 0, Vector2 output = default) =>
-        new(1.0 / 60.0, new InputState(new ActionBindings()), tick, output);
+        new(StepMeasurement.StepSeconds, new InputState(new ActionBindings()), tick, output);
+
+    /// <summary>A host running a fresh scene of <paramref name="entities"/> on a default run.</summary>
+    internal static SimulationHost Simulate(params ReadOnlySpan<Entity> entities) => Simulate(null, entities);
+
+    /// <summary>A host running a fresh scene of <paramref name="entities"/> on <paramref name="run"/>.</summary>
+    internal static SimulationHost Simulate(Run? run, params ReadOnlySpan<Entity> entities)
+    {
+        Scene scene = new();
+        foreach (Entity entity in entities)
+        {
+            scene.Add(entity);
+        }
+
+        return new SimulationHost(scene, run: run);
+    }
+
+    /// <summary>The share of the remaining distance a camera smoothed over <paramref name="smoothTime"/> seconds closes in one default step.</summary>
+    internal static float Blend(float smoothTime)
+    {
+        const float step = 1f / StepContext.DefaultStepHertz;
+
+        return step / (smoothTime + step);
+    }
+
+    /// <summary>A camera framing <see cref="OneScreen"/>, confined to <paramref name="bounds"/> or that screen.</summary>
+    /// <param name="transition">The bounds transition, or null for the camera's default.</param>
+    /// <param name="bounds">The confining rect, or null for <see cref="OneScreen"/>.</param>
+    internal static (SceneSimulation Simulation, Camera Camera) Pinned(BoundsTransition? transition = null, Rect? bounds = null)
+    {
+        HookScene scene = new(start: s =>
+        {
+            Open(s, Viewport / 2f, Viewport);
+            s.Camera.Bounds = bounds ?? OneScreen;
+            if (transition is { } standing)
+            {
+                s.Camera.BoundsTransition = standing;
+            }
+        });
+
+        return (new SceneSimulation(scene), scene.Camera);
+    }
+
+    /// <summary>A camera one <see cref="Viewport"/> across that follows <paramref name="subject"/>, set up by <paramref name="configure"/>.</summary>
+    internal static (SceneSimulation Simulation, Camera Camera) Following(Entity subject, Action<Camera> configure, Run? run = null)
+    {
+        HookScene scene = new(start: s =>
+        {
+            s.Camera.ViewportSize = Viewport;
+            configure(s.Camera);
+            s.Camera.Follow(subject);
+        });
+        scene.Add(subject);
+
+        return (new SceneSimulation(scene, run: run), scene.Camera);
+    }
 
     /// <summary>Opens <paramref name="scene"/>'s camera on a centre, spanning <paramref name="size"/>.</summary>
     internal static void Open(Scene scene, Vector2 center, Vector2 size)
@@ -185,6 +247,9 @@ internal static class SceneFixtures
 
     internal sealed class Room01(SceneContent content) : Scene(content);
 
+    /// <summary>A scene holding nothing, for a run whose first scene must be a registered type.</summary>
+    internal sealed class Idle : Scene;
+
     /// <summary>A scene of one map, spanning it as a scene composing the map from a document does.</summary>
     private sealed class TerrainScene : Scene
     {
@@ -198,6 +263,10 @@ internal static class SceneFixtures
     /// <summary>An 8x8 box with the <see cref="KinematicBody2D"/> that sweeps it.</summary>
     internal sealed class Body : Entity
     {
+        internal BoxCollider2D Collider { get; }
+
+        internal KinematicBody2D Mover { get; }
+
         /// <param name="position">Where the box's corner starts.</param>
         /// <param name="blocksOn">The layer that stops the sweep, or null to be stopped by nothing.</param>
         /// <param name="bodyFirst">Attach the body before its collider, which a whole entity may do.</param>
@@ -221,10 +290,6 @@ internal static class SceneFixtures
             Add(Collider);
             Add(Mover);
         }
-
-        internal BoxCollider2D Collider { get; }
-
-        internal KinematicBody2D Mover { get; }
     }
 
     internal sealed class Drifter(Vector2 position) : Entity(position)
@@ -235,6 +300,14 @@ internal static class SceneFixtures
         }
 
         protected internal override void OnStep(in StepContext context) => Position += Vector2.UnitX;
+    }
+
+    /// <summary>A world entity holding <paramref name="held"/>.</summary>
+    internal sealed class Holder : Entity
+    {
+        internal Holder(Vector2 position, Component held)
+            : base(position) =>
+            Add(held);
     }
 
     internal sealed class Meddler(Action<Scene> onAdded) : Entity(Vector2.Zero)
@@ -258,8 +331,8 @@ internal static class SceneFixtures
         internal EntitySpawn Spawn { get; } = spawn;
     }
 
-    /// <param name="logsStart">Also log <c>name!</c> as time begins; off, so a log cleared before
-    /// the scene starts stays a record of the steps alone.</param>
+    /// <param name="logsStart">Also log <c>name!</c> as time begins. Off by default, which keeps a log
+    /// cleared before the scene starts a record of the steps alone.</param>
     internal sealed class Recorder(string name, List<string> log, bool logsStart = false) : Entity(Vector2.Zero)
     {
         protected internal override void OnStart()

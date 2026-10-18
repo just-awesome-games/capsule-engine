@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Tests.UI;
 using Capsule.UI;
 
 namespace Capsule.Tests.Allocation;
@@ -8,8 +9,6 @@ namespace Capsule.Tests.Allocation;
 [Collection(StageAllocationCollection.Name)]
 public sealed class ContainerAllocationTests
 {
-    private static readonly FocusActions Actions = new(new("Up"), new("Down"), new("Left"), new("Right"), new("Confirm"));
-
     // Every screen draw reads its slot, and a resize on any step re-solves the boxes above it. Neither
     // the step nor the frame built after it may allocate once the track storage has grown.
     [Fact]
@@ -21,7 +20,7 @@ public sealed class ContainerAllocationTests
 
         using SimulationHost run = new(scene, run: new Run { Canvas = new Vector2(320f, 180f) });
 
-        StepSample[] samples = StepMeasurement.Measure(run.Simulation, run.StepSeconds, warmupSteps: 120, measuredSteps: 600);
+        StepSample[] samples = StepMeasurement.Measure(run.Simulation);
 
         Assert.All(samples, static sample => Assert.Equal((0L, 0L), (sample.StepBytes, sample.ViewBytes)));
         Assert.True(samples[^1].Render.Visible > 0);
@@ -40,7 +39,7 @@ public sealed class ContainerAllocationTests
             Spacing = 4f;
             Padding = new Insets(8f);
             Add(new ColorRect());
-            Add(new FocusNavigator(Actions));
+            Add(new FocusNavigator(FocusFixtures.Actions));
 
             ScreenEntity? first = null;
             for (int i = 0; i < 8; i++)

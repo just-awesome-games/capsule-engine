@@ -1,5 +1,3 @@
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic;
 
 /// <summary>
@@ -9,6 +7,9 @@ namespace Capsule.Bench.Logic;
 public static class Workloads
 {
     public static IReadOnlyList<Type> All { get; } = Build();
+
+    /// <summary>The row the shell runs, which a scene declaring a variant row reads as it composes, or null when the command line names none.</summary>
+    public static string? Running { get; set; }
 
     private static Type[] Build()
     {

@@ -50,8 +50,7 @@ public sealed class MoverContactTests
         Assert.Equal(-20f, escaping.Translation.X, Tolerance);
     }
 
-
-    // Handles and layers never compare across worlds, so what two runs owe each other is the same
+    // Handles and layers never compare across worlds. What two runs owe each other is the same
     // surfaces in the same order: cells, layer names and normals.
     [Fact]
     public void MoveBox_ProducesTheSameContactsForTheSameInputsOnAFreshWorld()
@@ -90,64 +89,37 @@ public sealed class MoverContactTests
         Assert.NotEmpty(firstContacts);
     }
 
-    // The tree hands its proxies back in whatever shape it currently holds, so the collider half of
-    // a move's contacts is ordered by handle before the caller sees it: two worlds holding the same
-    // colliders under the same handles write the same contacts in the same order.
+    // The tree hands its proxies back in whatever shape it currently holds. The collider half of a
+    // move's contacts is ordered by handle before the caller sees it.
     [Fact]
     public void MoveBox_OrdersItsColliderContactsByHandleWhateverShapeTheTreeIsIn()
     {
-        static int[] Run(bool churn)
+        CollisionWorld2D world = new();
+        CollisionLayer wall = world.Layer("wall");
+        ColliderHandle[] boxes = new ColliderHandle[8];
+        for (int index = 0; index < boxes.Length; index++)
         {
-            CollisionWorld2D world = new();
-            CollisionLayer wall = world.Layer("wall");
-            for (int index = 0; index < 6; index++)
-            {
-                world.Add(
-                    Shape2D.Box(new Vector2(index * 10f, 32f), new Vector2(8f, 8f)),
-                    Vector2.Zero,
-                    wall);
-            }
+            boxes[index] = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), new Vector2(index * 10f, 32f), wall);
+        }
 
-            if (churn)
-            {
-                // Added after the six, so they take later slots and leave the handles above alone;
-                // inserting and removing them rebalances the hierarchy over the same colliders.
-                ColliderHandle[] decoys = new ColliderHandle[24];
-                for (int index = 0; index < decoys.Length; index++)
-                {
-                    decoys[index] = world.Add(
-                        Shape2D.Box(new Vector2(((index * 37) % 400) - 200f, ((index * 53) % 200) - 100f), new Vector2(6f, 6f)),
-                        Vector2.Zero,
-                        wall);
-                }
+        Contact2D[] contacts = new Contact2D[16];
+        for (int arrangement = 0; arrangement < boxes.Length; arrangement++)
+        {
+            CollisionFixtures.Rearrange(world, boxes, CollisionFixtures.Shuffled(boxes.Length, arrangement));
 
-                for (int index = decoys.Length - 1; index >= 0; index--)
-                {
-                    world.Remove(decoys[index]);
-                }
-            }
-
-            Contact2D[] contacts = new Contact2D[8];
             MoveResult2D result = world.MoveBox(
-                CollisionFixtures.Box(0f, 0f, 58f, 8f),
+                CollisionFixtures.Box(0f, 0f, 78f, 8f),
                 new Vector2(0f, 40f),
                 CollisionFilter.Everything,
                 contacts);
 
             Assert.True(result.Blocked);
-
-            return [.. contacts[..result.ContactCount].Select(contact => contact.Target.Collider.Index)];
+            Assert.Equal(boxes, contacts[..result.ContactCount].Select(contact => contact.Target.Collider));
         }
-
-        int[] plain = Run(false);
-        int[] churned = Run(true);
-
-        Assert.Equal([0, 1, 2, 3, 4, 5], plain);
-        Assert.Equal(plain, churned);
     }
 
-    // A move reports every surface within a hair of the nearest one it met. The broadphase's shape
-    // follows the order colliders were added and moved in, and the band does not. The far-flung
+    // A move reports every surface within a hair of the nearest one it met. The handles and the
+    // broadphase's shape follow the order colliders arrived in, and the band does not. The far-flung
     // sweep puts the nearest two boxes within the hair of each other and the third just past it.
     [Theory]
     [InlineData(0, 1, 2)]
@@ -156,19 +128,15 @@ public sealed class MoverContactTests
     public void MoveBox_ReportsTheSurfacesNearestItWhateverOrderTheyArrivedIn(int first, int second, int third)
     {
         CollisionWorld2D world = new();
-        float[] starts = [0f, 10.005f, 13.015f];
-        float[] ends = [3f, 13.005f, 13.015f];
+        float[] stops = [3f, 13.005f, 13.015f];
         int[] order = [first, second, third];
         ColliderHandle[] boxes = new ColliderHandle[3];
         foreach (int box in order)
         {
-            boxes[box] = world.Add(Shape2D.Box(Vector2.Zero, Vector2.One), new Vector2(starts[box], 0f), world.FindLayer(CollisionWorld2D.DefaultLayerName));
+            boxes[box] = world.Add(Shape2D.Box(Vector2.Zero, Vector2.One), new Vector2(stops[box], 0f), world.FindLayer(CollisionWorld2D.DefaultLayerName));
         }
 
-        foreach (int box in order)
-        {
-            world.SetPosition(boxes[box], new Vector2(ends[box], 0f));
-        }
+        CollisionFixtures.Rearrange(world, boxes, order);
 
         Contact2D[] contacts = new Contact2D[4];
         MoveResult2D result = world.MoveBox(

@@ -137,7 +137,7 @@ namespace Capsule.Runtime.Audio.Vorbis
                 {
                     if (_submapFloor[i] != _channelFloor[j] || _submapResidue[i] != _channelResidue[j])
                     {
-                        // the submap doesn't match, so this floor doesn't contribute
+                        // the submap doesn't match and this floor doesn't contribute
                         floorData[j].ForceNoEnergy = true;
                     }
                 }

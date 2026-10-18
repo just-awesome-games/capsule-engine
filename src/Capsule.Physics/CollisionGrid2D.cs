@@ -45,10 +45,29 @@ internal sealed class CollisionGrid2D
     private readonly SideSpan2D[] _walls;
 
     // One byte per cell, holding what it collides as and which of its sides or edges a query can
-    // meet. Derived when the grid is built and when a cell changes, so the mover's inner loop never
-    // reads the palette for a box. Culling is geometric, and a query that filters part of the grid
-    // out re-decides it through NeighbourAdmits.
+    // meet. It is derived when the grid is built and when a cell changes, and the mover's inner loop
+    // never reads the palette for a box. Culling is geometric, and a query that filters part of the
+    // grid out re-decides it through NeighbourAdmits.
     private readonly CellState2D[] _state;
+
+    // This grid's identity in its world.
+    internal ColliderHandle Handle { get; }
+
+    // World units a cell spans on each axis.
+    internal int CellSize { get; }
+
+    // Cells across.
+    internal int Width { get; }
+
+    // Cells down.
+    internal int Height { get; }
+
+    // The world region the grid covers, from the origin.
+    internal Aabb2D Bounds { get; }
+
+    // The union of the layers of cells that collide, or of cells that once did. A query whose filter
+    // names none of them skips the grid without walking a cell.
+    internal CollisionFilter Layers { get; private set; }
 
     internal CollisionGrid2D(
         ColliderHandle handle,
@@ -102,41 +121,6 @@ internal sealed class CollisionGrid2D
         DeriveCells();
     }
 
-    // This grid's identity in its world.
-    public ColliderHandle Handle { get; }
-
-    // World units a cell spans on each axis.
-    public int CellSize { get; }
-
-    // Cells across.
-    public int Width { get; }
-
-    // Cells down.
-    public int Height { get; }
-
-    // The world region the grid covers, from the origin.
-    public Aabb2D Bounds { get; }
-
-    // The union of the layers of cells that collide, or of cells that once did. A query whose filter
-    // names none of them skips the grid without walking a cell.
-    internal CollisionFilter Layers { get; private set; }
-
-    // The layer the cell at (x, y) is on, or null where it collides as nothing.
-    public CollisionLayer? LayerAt(int x, int y)
-    {
-        RequireOnGrid(x, y);
-
-        return _layers[Profile((y * Width) + x)];
-    }
-
-    // The world-space box of the cell at (x, y).
-    public Aabb2D CellBounds(int x, int y)
-    {
-        RequireOnGrid(x, y);
-
-        return CellBox(x, y);
-    }
-
     // Every cell's state, row by row. A cell's index is y * Width + x.
     internal ReadOnlySpan<CellState2D> States => _state;
 
@@ -162,7 +146,7 @@ internal sealed class CollisionGrid2D
     internal Vector2 CellCorner(int x, int y) => new(x * (float)CellSize, y * (float)CellSize);
 
     // Whether the derived face culling answers a query outright. Culling was derived over every cell
-    // of the grid, so it holds only when the query can see every cell.
+    // of the grid and holds only when the query can see every cell.
     internal bool AdmitsEveryLayer(CollisionFilter filter) => (Layers & filter) == Layers;
 
     // Whether the cell across a side covers it fully with a solid shape and passes the query's

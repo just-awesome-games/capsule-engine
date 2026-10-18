@@ -11,24 +11,22 @@ namespace Capsule.Rendering;
 /// </summary>
 /// <remarks>
 /// <see cref="Rect"/> is in the entity's own units about its position, corner-anchored like a
-/// <see cref="Physics.BoxCollider2D"/>. The default rect has no extent and sits at the origin. A plain notifier
-/// watches its entity's position as a point. An axis with no extent is tested as a line. A line is on screen only
-/// strictly inside the region. Sharing an edge with the region is not being on screen.
+/// <see cref="Physics.BoxCollider2D"/>. The default rect is the entity's position as a point. An axis with no
+/// extent is tested as a line, which is on screen only strictly inside the region. Sharing an edge with the
+/// region is not being on screen.
 /// <para>
-/// This is simulation state, settled once per step after the step's deferred adds land. A notifier that joins
-/// between steps settles as the next step begins, against the last frame, before any entity steps. From its entity's first step,
+/// The state settles once per step, after the step's deferred adds land. From its entity's first step,
 /// <see cref="IsOnScreen"/> and the events describe that step's frame. While the camera's region is empty,
 /// nothing is on screen, whatever the margin.
 /// </para>
 /// <para>
-/// The rect follows scale in the entity's ancestry as a box collider does. Its corner and size are multiplied by the
-/// entity's world scale, and a negative axis mirrors the rect about the entity's position. <see cref="Margin"/> is in
-/// world units and never scales. Rotation in the ancestry and an <see cref="Entity.ScrollFactor"/> other than one are
-/// refused while the notifier is present.
+/// The rect's corner and size are multiplied by the entity's world scale, and a negative axis mirrors the rect
+/// about the entity's position. <see cref="Margin"/> is in world units and never scales. Rotation in the ancestry
+/// and an <see cref="Entity.ScrollFactor"/> other than one are refused while the notifier is present.
 /// </para>
 /// </remarks>
 /// <example>
-/// A shot watches its body and leaves once all of it is off screen. A spawner watches its own position and fires
+/// A falling leaf watches its body and leaves once all of it is off screen. A spawner watches its own position and fires
 /// 32 units before that position reaches the view:
 /// <code>
 /// Add(new VisibleOnScreenNotifier2D { Rect = new Rect(new Vector2(2f, -4f), new Vector2(12f, 8f)) });
@@ -80,8 +78,7 @@ public sealed class VisibleOnScreenNotifier2D : Component
         set
         {
             RequireNotDispatching();
-            Guard.NonNegative(value, nameof(value));
-            _margin = value;
+            _margin = Guard.NonNegative(value, nameof(value));
         }
     }
 
@@ -99,13 +96,13 @@ public sealed class VisibleOnScreenNotifier2D : Component
     protected internal override void OnAddedToScene()
     {
         _scene = Entity!.Scene;
-        _scene.TrackVisibility(this);
+        _scene.Visibility.Track(this);
     }
 
     /// <inheritdoc/>
     protected internal override void OnRemovedFromScene()
     {
-        _scene?.UntrackVisibility(this);
+        _scene?.Visibility.Untrack(this);
         _scene = null;
 
         // Clear the flag before the handler runs. A handler that reads the notifier sees it off screen,
@@ -121,7 +118,7 @@ public sealed class VisibleOnScreenNotifier2D : Component
     // overlap test also takes an axis with no extent as a line strictly inside the region.
     internal void SettleVisibility(in Rect region)
     {
-        Rect grown = new(region.Left - _margin.X, region.Top - _margin.Y, region.Right + _margin.X, region.Bottom + _margin.Y);
+        Rect grown = Rect.FromEdges(region.Left - _margin.X, region.Top - _margin.Y, region.Right + _margin.X, region.Bottom + _margin.Y);
         bool onScreen = !region.IsEmpty && grown.Intersects(WorldRect(Entity!.World));
 
         if (onScreen == IsOnScreen)
@@ -147,7 +144,7 @@ public sealed class VisibleOnScreenNotifier2D : Component
         Vector2 min = Vector2.Min(first, second);
         Vector2 max = Vector2.Max(first, second);
 
-        return new Rect(min.X, min.Y, max.X, max.Y);
+        return Rect.FromEdges(min.X, min.Y, max.X, max.Y);
     }
 
     // A handler sees the new state and may not change the notifier it is running for.

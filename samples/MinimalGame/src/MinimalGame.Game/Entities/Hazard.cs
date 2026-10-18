@@ -1,19 +1,8 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Animation;
-using Capsule.Particles;
-using Capsule.Physics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// A box on the <c>hazard</c> layer, which the <see cref="Player"/> reports and walks through.
-/// An entity holding a collider cannot turn, so the nested <see cref="Visual"/> child spins the
-/// sprite and the nested <see cref="Orbit"/> child carries the spark round it. The first touch of
-/// the player breaks the spark loose, and it flies off along its orbit's tangent. The box keeps hurting.
+/// A box on the <c>hazard</c> layer that the <see cref="Player"/> reports and walks through, with a spark
+/// circling it that the first touch breaks loose along its orbit's tangent. The box keeps hurting.
 /// </summary>
 public sealed class Hazard : Entity
 {
@@ -27,7 +16,7 @@ public sealed class Hazard : Entity
     public Hazard(EntitySpawn spawn)
         : base(spawn)
     {
-        // Reports the player's body, so the touch is seen from this side too.
+        // Reports the player's body. The touch is seen from this side too.
         BoxCollider2D box = new(Body)
         {
             Layer = CollisionLayers.Hazard,
@@ -37,6 +26,7 @@ public sealed class Hazard : Entity
         box.ContactEntered += OnTouched;
         Add(box);
 
+        // An entity holding a collider cannot turn. Nested children spin the sprite and carry the spark.
         _ = new Visual(this, Body / 2f);
         _spark = new Orbit(this, Body / 2f).Spark;
     }
@@ -117,11 +107,11 @@ public sealed class Hazard : Entity
         internal Spark(Entity parent)
             : base(parent, new Vector2(0f, -OrbitRadius))
         {
-            // Added before the frame, so the trail draws under the spark and, at the room's shared
-            // ZIndex, over the tiles.
+            // The trail draws under the spark because it is added before the frame. At the room's shared
+            // ZIndex it draws over the tiles.
             Add(new ParticleEmitter(SparkFrame, capacity: 48)
             {
-                // Emits as the spark moves, half a particle per unit; Emitting is on by default.
+                // Emits as the spark moves, half a particle per unit. Emitting is on by default.
                 RateOverDistance = 0.5f,
                 Lifetime = (0.3f, 0.5f),
                 Speed = (0f, 10f),
@@ -129,7 +119,7 @@ public sealed class Hazard : Entity
                 InheritVelocity = 0.2f,
                 Scale = (1f, 1f),
                 ScaleOverLifetime = Curve.Linear(1f, 0f),
-                Color = Gradient.Linear(SparkOrange, SparkOrange with { A = 0 }),
+                Color = Glow.FadeToClear(SparkOrange),
                 Blend = BlendMode.Additive,
             });
             Add(new SpriteRenderer(SparkFrame));

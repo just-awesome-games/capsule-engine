@@ -1,7 +1,3 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>A root that drifts up and down the viewport's height at its own speed, turning at the edges, with a shadow child drawn in its band.</summary>

@@ -11,14 +11,14 @@ namespace Capsule.Physics;
 /// </remarks>
 public readonly record struct CollisionLayer
 {
+    /// <summary>The layer's position in its world's table, from 0 to 63.</summary>
+    public int Index { get; }
+
+    internal int World { get; }
+
     internal CollisionLayer(int world, int index)
     {
         World = world;
         Index = index;
     }
-
-    /// <summary>The layer's position in its world's table, from 0 to 63.</summary>
-    public int Index { get; }
-
-    internal int World { get; }
 }

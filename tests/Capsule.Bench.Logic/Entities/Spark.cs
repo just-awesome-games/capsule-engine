@@ -1,7 +1,3 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 public sealed class Spark : Entity

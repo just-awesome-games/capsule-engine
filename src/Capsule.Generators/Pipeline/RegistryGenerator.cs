@@ -5,7 +5,7 @@ namespace Capsule.Generators;
 
 // The wiring from what the compilation holds to each file the generator writes and each check it runs.
 // Every step's logic lives in its domain's folder. A plan carries its diagnostics as data. Diagnostic
-// compares its arguments by reference, so a plan holding any is never cached and its step reports again.
+// compares its arguments by reference. A plan holding any is never cached and its step reports again.
 [Generator(LanguageNames.CSharp)]
 public sealed class RegistryGenerator : IIncrementalGenerator
 {
@@ -71,31 +71,25 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .Where(static id => id is not null)
             .Select(static (id, _) => id!));
 
-        // What the shell references. Only the shell walks every referenced assembly's attributes, so the
+        // What the shell references. Only the shell walks every referenced assembly's attributes. The
         // role filter comes before the walk.
-        IncrementalValueProvider<BootModel> boot = role
+        IncrementalValueProvider<BootModel> boot = project
             .Combine(context.CompilationProvider)
-            .Select(static (input, _) => input.Left == GeneratorRole.Shell ? BootDescriber.Describe(input.Right) : BootModel.None)
+            .Select(static (input, _) => input.Left.IsShellAssembly ? BootDescriber.Describe(input.Right) : BootModel.None)
             .WithTrackingName("BootModel");
 
         // The plans each file is rendered from.
+        IncrementalValueProvider<RegistryInputs> shared = isLogicAssembly
+            .Combine(rootNamespace)
+            .Combine(documents.Combine(assets))
+            .Select(static (input, _) => new RegistryInputs(input.Left.Left, input.Left.Right, input.Right.Left, input.Right.Right));
         IncrementalValueProvider<EntityPlan> entityPlan = entities
-            .Combine(engineTileMap).Combine(isLogicAssembly).Combine(rootNamespace).Combine(documents).Combine(assets)
-            .Select(static (input, _) =>
-            {
-                var (((((models, engine), logic), root), shipped), declared) = input;
-
-                return EntityResolver.Resolve(new EntityInputs(models, engine, logic, root, shipped, declared));
-            })
+            .Combine(engineTileMap).Combine(shared)
+            .Select(static (input, _) => EntityResolver.Resolve(new EntityInputs(input.Left.Left, input.Left.Right, input.Right)))
             .WithTrackingName("EntityPlan");
         IncrementalValueProvider<ScenePlan> scenePlan = scenes
-            .Combine(engineScene).Combine(isLogicAssembly).Combine(rootNamespace).Combine(documents).Combine(assets)
-            .Select(static (input, _) =>
-            {
-                var (((((models, engine), logic), root), shipped), assetModels) = input;
-
-                return SceneResolver.Resolve(new SceneInputs(models, engine, logic, root, shipped, assetModels));
-            })
+            .Combine(engineScene).Combine(shared)
+            .Select(static (input, _) => SceneResolver.Resolve(new SceneInputs(input.Left.Left, input.Left.Right, input.Right)))
             .WithTrackingName("ScenePlan");
         IncrementalValueProvider<InputDriverPlan> driverPlan = drivers
             .Select(static (models, _) => InputDriverResolver.Resolve(models))

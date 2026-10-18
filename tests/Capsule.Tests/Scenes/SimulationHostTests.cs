@@ -18,7 +18,7 @@ public sealed class SimulationHostTests
 
         run.Step(2);
 
-        // A script is positional, so a five-step one handed a run at tick 2 serves 2, 3 and 4.
+        // A script is positional. A five-step one handed a run at tick 2 serves 2, 3 and 4.
         run.Play(new InputScript().Wait(5).Build());
         run.Step();
 
@@ -26,7 +26,7 @@ public sealed class SimulationHostTests
         Assert.Equal(6, run.Tick);
     }
 
-    // The rate a caller builds a run with is the one a distance is measured against, so it has to
+    // The rate a caller builds a run with is the one a distance is measured against. It has to
     // be both readable and what the scene is actually stepped at.
     [Fact]
     public void TheStepLengthTheRunWasBuiltWith_IsWhatItReportsAndWhatTheSceneSees()
@@ -42,7 +42,7 @@ public sealed class SimulationHostTests
         Assert.Equal([1f / 120f, 1f / 120f], deltas);
     }
 
-    // Constructing the run starts the scene, so a rate rejected afterwards would strand it started
+    // Constructing the run starts the scene. A rate rejected afterwards would strand it started
     // with no run holding it to stop, and every retry over it would be refused.
     [Theory]
     [InlineData(0)]
@@ -113,7 +113,7 @@ public sealed class SimulationHostTests
         Assert.Equal(3, run.Tick);
     }
 
-    // The host reads the exit after the step, never before one, so a scene that gives up during its
+    // The host reads the exit after the step, never before one. A scene that gives up during its
     // start still runs the step the driver had already supplied. A Play that checked first would
     // report a run of no steps where RunHeadless reports one.
     [Fact]

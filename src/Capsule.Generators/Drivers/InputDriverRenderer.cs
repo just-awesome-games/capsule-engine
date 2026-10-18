@@ -22,7 +22,8 @@ internal static class InputDriverRenderer
     }
 
     internal static string Render(InputDriverPlan plan) => GeneratedFile.Write([], $$"""
-            /// <summary>Every input driver this assembly declares. Generated code. Do not edit.</summary>
+            /// <summary>Every input driver this assembly declares.</summary>
+            /// <remarks>Generated code. Do not edit.</remarks>
             {{GeneratedFile.ExcludeFromCodeCoverage}}
             internal static class CapsuleInputDrivers
             {

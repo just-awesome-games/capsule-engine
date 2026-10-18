@@ -5,9 +5,6 @@ using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-using Capsule.Tests.Persistence;
-using Capsule.Tests.Runtime;
 using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Persistence;
@@ -119,13 +116,13 @@ public sealed class SavePersistenceTests : IDisposable
         Assert.Equal(second, storage.Metadata["visits"]);
     }
 
-    // A medium that fails is a warning, never an exception into the step loop; the write is dropped
+    // A medium that fails is a warning, never an exception into the step loop. The write is dropped
     // and the next write of the name is the retry.
     [Fact]
     public void AStorageThatThrows_LogsAWarningAndTheRunContinues()
     {
         ThrowingSaveStorage storage = new();
-        using SceneHost host = new(ToScene<Idle>(), (in SceneTransition _) => new Idle(), new Run(), storage);
+        using SceneHost host = new(ToScene<SceneFixtures.Idle>(), (in SceneTransition _) => new SceneFixtures.Idle(), new Run(), storage);
 
         host.Run.Saves.Write(Visits, 1);
         host.FlushSaves();
@@ -178,8 +175,6 @@ public sealed class SavePersistenceTests : IDisposable
     private static SceneTransition ToScene<TScene>()
         where TScene : Scene
         => SceneTransition.ToScene(typeof(TScene), null);
-
-    private sealed class Idle : Scene;
 
     // Reads the counter at start and writes one more at start and each step, reporting what it
     // read on the way in and the stamp it sees while writing.

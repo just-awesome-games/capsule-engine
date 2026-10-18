@@ -1,16 +1,24 @@
 # Audio
 
 After this page you can play a sound from an entity, play music that survives a scene transition, and
-give a settings screen volume sliders.
+give a settings screen volume sliders. Each type's XML docs hold its rules.
 
-## Clips and buses
+Capsule mixes clips on buses and computes every voice's state from the clip's measured duration, in fixed
+steps. Which sound answers which event, and where the music handle lives, are the game's. Volumes are
+linear amplitude in [0, 1]. A voice has no position, and an `AudioSource` plays at its own `Pan` wherever
+its entity stands.
 
-A clip is authored under the logic project's `Assets/` and named in code as
-an `AudioClip` member of `CapsuleAssets` ([`assets.md`](assets.md#audio)). Playback state is computed from the
-duration the build measured and never read back from a device.
+| Need | Piece |
+| --- | --- |
+| A sound file | An `AudioClip` member of `CapsuleAssets` ([`assets.md`](assets.md#audio)) |
+| A group of voices mixed and paused together | `AudioBus`, under `AudioBus.Master` |
+| A sound that belongs to an entity | `AudioSource` |
+| Music, and any sound that outlives a scene | `Run.Audio`, the run's `AudioMixer` |
+| A level or a voice that changes over time | `FadeVolume`, `CrossFade`, and `Stop` with seconds |
 
-A bus is a named group that voices are mixed and paused through. A game declares its buses at its
-assembly root:
+## Buses
+
+A game declares its buses at its assembly root:
 
 ```csharp
 public static class AudioBuses
@@ -23,84 +31,62 @@ public static class AudioBuses
 }
 ```
 
-Every bus sits under `AudioBus.Master`, whose volume and pause reach every voice. Bus volume and pause
-state belong to the run and stand across every scene transition.
-
-## A sound from an entity
-
-`AudioSource` plays a clip for its entity and holds the voice. The voice stops when the entity leaves the
-scene:
-
-```csharp
-_footfall = new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx };
-Add(_footfall);
-```
-
-```csharp
-if (_body.IsOnFloor && !wasOnFloor)
-{
-    _footfall.Play();
-}
-```
-
-## Music, and everything the run owns
-
-`Run.Audio` is the run's `AudioMixer`. A voice started through it survives a scene transition, and an
-`AudioSource`'s voice does not:
-
-```csharp
-AudioClip theme = CapsuleAssets.Audio.ThemeSound;
-Voice voice = Run.Audio.Play(new AudioPlayback(theme) { Bus = AudioBuses.Music, Loop = true });
-```
-
-A settings screen writes to the same mixer:
+Bus volume and pause state belong to the run and stand across every scene transition. A settings screen
+writes them:
 
 ```csharp
 Run.Audio.SetVolume(AudioBuses.Music, volume);
 Run.Audio.Pause(AudioBuses.Sfx);
 ```
 
-The mixer sounds at most `AudioMixer.MaxVoices` voices, shared by the run and every `AudioSource`.
-`AudioMixer.Play` documents which voice a further play steals.
+## A sound from an entity
 
-## Fades
-
-A fade is a ramp the mixer steps on its own tick. It runs through a pause and past the scene that started
-it. A crossfade eases the incoming voice in while the outgoing one eases out, at equal power:
+`AudioSource` plays a clip for its entity and holds the voice, which stops when the entity leaves the
+scene:
 
 ```csharp
-Music = Run.Audio.CrossFade(
-    menuTheme,
-    new AudioPlayback(CapsuleAssets.Audio.Music.RoomSound) { Bus = AudioBuses.Music, Loop = true },
-    seconds: 2f);
-```
-
-A fade-out lets the old sound clear the mix before the next one starts. A bus fade ducks music under
-dialogue:
-
-```csharp
-Run.Audio.Stop(Music, seconds: 0.5f);
-Run.Audio.FadeVolume(AudioBuses.Music, 0.2f, seconds: 0.3f);
-```
-
-A fade raises no completion callback. `IsFading` reads true until the step a fade lands on, for a bus,
-a voice or an `AudioSource`. A game that changes scene once the music has faded out polls the ramp it
-started:
-
-```csharp
-Run.Audio.FadeVolume(Music, 0f, seconds: 1f);
+_chime = new AudioSource(CapsuleAssets.Audio.ChimeSound) { Bus = AudioBuses.Sfx };
+Add(_chime);
 ```
 
 ```csharp
-if (!Run.Audio.IsFading(Music))
+if (context.Input.WasPressed(GameInput.Interact))
 {
-    Run.RequestScene<MainMenu>();
+    _chime.Play();
 }
 ```
 
+## Music
+
+A voice started through `Run.Audio` survives a scene transition. The game keeps its handle on the object
+it attaches with `Run.Attach`, which every scene reads as `Run.State<T>()`:
+
+```csharp
+_music = Run.Audio.Play(new AudioPlayback(CapsuleAssets.Music.MenuThemeSound) { Bus = AudioBuses.Music, Loop = true });
+```
+
+A crossfade eases the incoming voice in while the outgoing one eases out:
+
+```csharp
+_music = Run.Audio.CrossFade(
+    _music,
+    new AudioPlayback(CapsuleAssets.Music.FieldThemeSound) { Bus = AudioBuses.Music, Loop = true },
+    seconds: 2f);
+```
+
+A fade is a ramp the mixer steps on its own tick, and it runs through a pause and past the scene that
+started it. A bus fade ducks music under dialogue, and a fade-out lets the old sound clear the mix:
+
+```csharp
+Run.Audio.FadeVolume(AudioBuses.Music, 0.2f, seconds: 0.3f);
+Run.Audio.Stop(_music, seconds: 0.5f);
+```
+
+A fade raises no completion callback. A game that changes scene once the music has faded polls
+`IsFading` on the bus, the voice or the `AudioSource` it started.
+
 ## Formats and streaming
 
-The host holds a `.wav` clip resident for every scene that uses it. An `.ogg` clip decodes on one background worker as it plays. A looping voice whose clip
-carries a loop region streams the same way in either format and repeats the region gaplessly. A `.wav` clip with a loop region
-is decoded when it loads, so its first looping play reads no file. A region-less `.wav` played from an offset decodes on that
-first play.
+A short sound effect is a `.wav`, held resident for every scene that uses it. Music and long ambience
+are `.ogg`, decoded on a background worker as they play. A looping voice whose clip carries a loop region
+streams in either format and repeats the region gaplessly.

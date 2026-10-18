@@ -58,7 +58,7 @@ public sealed class ColliderValidationTests
         Assert.Equal(body.Collider.Handle, contacts[0].Target.Collider);
     }
 
-    // The offset half of the check is world-independent, so it fires where the mistake was made
+    // The offset half of the check is world-independent. It fires where the mistake was made
     // rather than surfacing later as a failure to join a scene.
     [Fact]
     public void AnUnplaceableOffsetOnADetachedCollider_IsRefusedAtSetTimeNotAtAttachTime()

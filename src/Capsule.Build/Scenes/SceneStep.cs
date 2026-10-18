@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using Capsule.Build.Caching;
 using Capsule.Build.Registry;
-using Capsule.Scenes.Documents;
+using Capsule.Scenes;
 
 namespace Capsule.Build.Scenes;
 
@@ -32,7 +32,7 @@ internal static class SceneStep
             },
             DerivationCacheJsonContext.Default.StringArray))
         {
-            pass.Assets.Beside(GeneratedAttributes.SceneDocument);
+            pass.Assets.Beside(GeneratedAttributes.SceneDocumentDeclaration);
             pass.Declare(document, attributes, SceneMembers.Write);
         }
     }

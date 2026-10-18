@@ -1,8 +1,9 @@
 # Agent rules
 
-The rules no compiler enforces. Module reference direction, the logic boundary, banned APIs,
-warnings as errors, public XML documentation and packaging are gated by the build, so none of them
-is repeated here. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change runs.
+The rules no gate enforces. The build and the test suite gate module reference direction, the logic
+boundary, banned APIs, warnings as errors, public XML documentation, member order, test file length,
+the prose marks a scan can find and packaging, and none of them is repeated here.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change runs.
 
 ## Scope
 
@@ -12,7 +13,7 @@ is repeated here. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change 
 - Authoring formats are plain data that people and agents write by hand. A new format needs no tool.
 - [`samples/MinimalGame/`](samples/MinimalGame/) is the review surface. An engine change lands with the sample call site that lets it be played, and migrates any break it causes there. The sample stays a small game, not a feature gallery. The sample's README says what it is, how to run it and how to play it, and the code says the rest.
 - A run is driven by an input driver, not by asking a person to play it. The standard command line is the engine's: a game opts in with `WithCommandLine(args)` and re-implements no flag.
-- The debug overlay is `src/Capsule.Runtime/DevTools/` plus the guarded block in `CapsuleGame`. Deleting both leaves the engine compiling and every other test passing, so a host seam the overlay needs is generic host machinery. Parsers for other editors' formats are external modules that feed the build, and none lives here.
+- Development-only engine code, the debug overlay among it, lives in `src/Capsule.Runtime/DevTools/` or behind `Development.IsSupported`, which a shipping publish switches off and trims. A seam the overlay needs in shipping code costs a running game nothing measurable. Parsers for other editors' formats are external modules that feed the build, and none lives here.
 - MSBuild wildcards fold case on every platform. Separate two directories differing only by case with `DefaultItemExcludes` and ordinal `%(FullPath)` comparisons, not `Include`, `Remove` or `Exclude`.
 
 ## Public surface
@@ -24,7 +25,6 @@ is repeated here. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change 
 
 ## Code
 
-- A type declares its state first: constants, static fields, fields and auto-properties or other state-holding properties. Constructors follow, then every other member.
 - An asset type's folder holds its format classes, its step and its generated-member writer.
 
 ## Docs
@@ -34,12 +34,15 @@ is repeated here. [`CONTRIBUTING.md`](CONTRIBUTING.md) is the gate every change 
 - A summary names a default that is not the type's zero value, and what a zero default means when zero switches the feature off.
 - Argument validation follows .NET conventions: null, non-finite and out-of-range arguments throw the `ArgumentException` family and are not documented per member. An `<exception>` tag is for a state rule a caller can violate. Every throw's message names the defect and the fix.
 - Markdown holds what spans many types, one idea once: the task pages under [`docs/`](docs/). [`PACKAGE.md`](PACKAGE.md) is every package's README, and no module carries a second one.
+- An example in XML or on a page uses neutral names such as `Avatar` or `north`, never a genre's nouns such as enemies or coins. A page carries no genre recipe.
+- A behaviour change rewrites every page, XML line and comment that states the old behaviour, in the same change.
 - A comment states an invariant or a why. Delete one that restates the line below it or addresses a reviewer.
 - Docs, XML and comments name no other engine. Capsule is described on its own terms. A precedent and the complaint it answers live only in the design ledger. A dependency or an interchange format is named as what it is.
-- Plain sentences, subject then verb. No em-dashes, no consequence chains ("X, so a Y can Z"), no inversions ("Idempotent, because..."), no semicolon-joined clauses.
+- Plain sentences, subject then verb, with no inversion ("Idempotent, because...").
 
 ## Tests
 
 - Test contracts, invariants, boundaries and failure modes. A behaviour change ships with the test that would have caught its absence, a fix with the test that would have caught the bug.
 - No test of an obvious implementation step, no coverage target, and no game's content or tuning in the engine suite.
-- One canonical test per contract. Permutations of the same guard are one theory or none; a test file stays under 400 lines.
+- One canonical test per contract. Permutations of the same guard are one theory or none. Merging tests keeps every contract each one held, down to the input that made a row distinct.
+- A fixture shape has one owner. A test reuses it rather than declaring a near copy in its own file.

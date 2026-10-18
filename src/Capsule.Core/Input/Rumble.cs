@@ -16,8 +16,8 @@ namespace Capsule.Input;
 /// </remarks>
 public sealed class Rumble
 {
-    /// <summary>How many pulses may play at once before <see cref="Play(in RumblePulse)"/> evicts one.</summary>
-    public const int MaxPulses = 8;
+    // How many pulses may play at once before Play evicts one.
+    internal const int MaxPulses = 8;
 
     // Float step lengths make a duration that is a whole multiple of the step multiply to a hair under
     // its own value. This relative tolerance keeps such a duration from lasting one more step.
@@ -51,11 +51,7 @@ public sealed class Rumble
     public float Volume
     {
         get => _volume;
-        set
-        {
-            Guard.InUnit(value, nameof(value));
-            _volume = value;
-        }
+        set => _volume = Guard.InUnit(value, nameof(value));
     }
 
     /// <summary>
@@ -206,8 +202,8 @@ public sealed class Rumble
     public bool IsLive(RumbleHandle handle) => TryResolve(handle, out _);
 
     // Moves the mixer's clock onto this step and frees the pulses that have run out. A pulse played
-    // during the step counts its elapsed time from this step's tick, so it reads at full amplitude
-    // when the host reads Level after the step.
+    // during the step counts its elapsed time from this step's tick. It reads at full amplitude when
+    // the host reads Level after the step.
     internal void BeginStep(in StepContext context)
     {
         _tick = context.Tick;
@@ -228,8 +224,7 @@ public sealed class Rumble
     }
 
     // A live pulse measured its elapsed time at the step length in force when it started. Bank that
-    // time at the old length and count on from here at the new one, so the pulse still lasts its
-    // seconds.
+    // time at the old length and count on from here at the new one. The pulse still lasts its seconds.
     private void ChangeStepLength(double stepSeconds)
     {
         Span<Slot> slots = _slots;

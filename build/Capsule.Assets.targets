@@ -15,7 +15,7 @@
     <CapsuleDotNetHost Condition="'$(CapsuleDotNetHost)' == ''">dotnet</CapsuleDotNetHost>
   </PropertyGroup>
 
-  <!-- No asset file is an MSBuild item, so an IDE's own up-to-date check cannot see an edit. It
+  <!-- No asset file is an MSBuild item. An IDE's own up-to-date check cannot see an edit. It
        always calls MSBuild, and the run decides. -->
   <PropertyGroup Condition="'$(CapsuleBuildAssets)' == 'true'">
     <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
@@ -61,8 +61,8 @@
   </Target>
 
   <!-- One process per build, on every build. Tiered PGO's instrumentation costs the short process
-       more than it saves. A directory argument ending in a separator would escape its closing quote
-       on Windows, so each is trimmed. -->
+       more than it saves. Each directory argument is trimmed of a trailing separator,
+       which would escape its closing quote on Windows. -->
   <Target Name="CapsuleRunBuildTool"
           Condition="'$(CapsuleBuildAssets)' == 'true'"
           DependsOnTargets="CapsuleAssetSourcesInit;CapsuleResolveBuildTool;ResolveProjectReferences">
@@ -82,8 +82,8 @@
           StandardOutputImportance="normal" />
   </Target>
 
-  <!-- Runs on up-to-date builds too, from what the last run left on disk. A design-time build enters
-       at Compile and never reaches AssignTargetPaths, so this also runs before BeforeCompile. -->
+  <!-- Runs on up-to-date builds too, from what the last run left on disk. It also runs before BeforeCompile,
+       because a design-time build enters at Compile and never reaches AssignTargetPaths. -->
   <Target Name="CapsuleAddBuildOutputs"
           Condition="'$(CapsuleBuildAssets)' == 'true'"
           DependsOnTargets="CapsuleRunBuildTool"
@@ -99,7 +99,7 @@
 
       <Compile Condition="'$(CapsuleGameLogic)' == 'true'" Include="$(CapsuleObjDir)/CapsuleAssets.g.cs" />
 
-      <!-- Everything the tool writes is cleaned together, so no clean leaves the cache behind the
+      <!-- Everything the tool writes is cleaned together. No clean leaves the cache behind the
            outputs it vouches for. -->
       <FileWrites Include="$(CapsuleObjDir)/**" />
     </ItemGroup>

@@ -5,7 +5,7 @@
     "type": "game-camera"
   },
   "ambient": "#b4b7cf",
-  "music": "audio/music/room.ogg",
+  "track": "audio/music/room.ogg",
   "entities": [
     {
       "type": "sky"

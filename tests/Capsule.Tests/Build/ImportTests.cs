@@ -1,5 +1,4 @@
 using Capsule.Build;
-using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
 
@@ -163,10 +162,12 @@ public sealed class ImportTests
 
 /// <summary>
 /// Imports each source it claims by writing its text at its own path with <paramref name="output"/> for
-/// an extension. A source reading <see cref="Include"/> and a path writes that file's text instead. A
-/// source reading <see cref="Optional"/> and a path does so when the file exists, and writes an
-/// empty scene otherwise.
+/// an extension.
 /// </summary>
+/// <remarks>
+/// A source reading <see cref="Include"/> and a path writes that file's text instead. A source reading
+/// <see cref="Optional"/> and a path does so when the file exists, and writes an empty scene otherwise.
+/// </remarks>
 internal sealed class NoteImporter(string extension = ".note", string output = ".scene.json") : IAssetImporter
 {
     /// <summary>A source whose text is this has a format defect, reported with this message.</summary>

@@ -7,8 +7,8 @@ namespace Capsule.Tests.Allocation;
 [Collection(StageAllocationCollection.Name)]
 public sealed class RichLabelAllocationTests
 {
-    // One label draws unchanged every step. The other is rewritten every step from a span, and rebuilds
-    // its layout each time, so the buffers it grew on the first passes serve the rest.
+    // One label draws unchanged every step. The other is rewritten every step from a span and rebuilds
+    // its layout each time. The buffers it grew on the first passes serve the rest.
     [Fact]
     public void ARichLabel_DrawsAndRebuildsItsLayoutAllocatingNothingOnceWarm()
     {
@@ -19,7 +19,7 @@ public sealed class RichLabelAllocationTests
         scene.Add(new Rewriter(steady, rewritten));
         using SceneSimulation simulation = new(scene);
 
-        StepSample[] samples = StepMeasurement.Measure(simulation, 1.0 / 60.0, warmupSteps: 100, measuredSteps: 400);
+        StepSample[] samples = StepMeasurement.Measure(simulation, warmupSteps: 100, measuredSteps: 400);
 
         Assert.All(samples, sample => Assert.Equal(0, sample.ViewBytes));
         Assert.All(samples, sample => Assert.Equal(0, sample.StepBytes));

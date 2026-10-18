@@ -4,9 +4,8 @@ using Capsule.Persistence;
 using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 using Capsule.Tests.Persistence;
+using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Runtime;
 
@@ -34,23 +33,46 @@ public sealed class CommandLineTests : IDisposable
     [Fact]
     public void Headless_RunsTheNamedDriverToItsEnd()
     {
-        Assert.Equal(0, Builder().WithCommandLine(["--headless", "--driver", "Idler"]).RunScene<Idle>());
+        Assert.Equal(0, Builder().WithCommandLine(["--headless", "--driver", "Idler"]).RunScene<SceneFixtures.Idle>());
     }
 
-    [Fact]
-    public void ADriverNoRegistryHolds_IsReportedWithTheNamesThatAreRegistered()
+    // A name no registry holds is reported with the flag's usage and every name that is registered. A
+    // scene lists its classes and its document keys.
+    [Theory]
+    [InlineData(new[] { "--headless", "--driver", "Wanderer" }, new[] { "Wanderer", "Idler, Presser", "--driver <Name>" })]
+    [InlineData(new[] { "--headless", "--driver", "Idler", "--scene", "Nowhere" }, new[] { "Nowhere", nameof(Selected), HallKey, "--scene <Name>" })]
+    [InlineData(new[] { "--payload", "Northward" }, new[] { "'Northward'", "Eastward, Westward", "--payload <Name>" })]
+    public void ANameNoRegistryHolds_IsReportedWithTheNamesThatAreRegistered(string[] args, string[] reported)
     {
-        string reported = Refused(["--headless", "--driver", "Wanderer"]);
+        string report = Refused(args);
 
-        Assert.Contains("Wanderer", reported, StringComparison.Ordinal);
-        Assert.Contains("Idler, Presser", reported, StringComparison.Ordinal);
-        Assert.Contains("--driver <Name>", reported, StringComparison.Ordinal);
+        Assert.All(reported, name => Assert.Contains(name, report, StringComparison.Ordinal));
+    }
+
+    // The driver is checked when the run starts. A driver set in code before or after the command
+    // line plays a headless run.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Headless_PlaysADriverSetInCodeInEitherOrder(bool driverFirst)
+    {
+        IInputDriver driver = new InputScript().Wait(3).Build();
+        EngineBuilder builder = driverFirst
+            ? Builder().WithInputDriver(driver).WithCommandLine(["--headless"])
+            : Builder().WithCommandLine(["--headless"]).WithInputDriver(driver);
+
+        Assert.Equal(0, builder.RunScene<SceneFixtures.Idle>());
     }
 
     [Fact]
     public void Headless_WithNoDriver_IsReportedLikeABadArgument()
     {
-        Assert.Contains("--driver", Refused(["--headless"]), StringComparison.Ordinal);
+        EngineBuilder builder = Builder().WithCommandLine(["--headless"]);
+
+        CommandLineException refused = Assert.Throws<CommandLineException>(() => builder.RunScene<SceneFixtures.Idle>());
+
+        Assert.Equal(2, refused.Report());
+        Assert.Contains("--driver", _captured.ToString(), StringComparison.Ordinal);
     }
 
     [Theory]
@@ -70,15 +92,15 @@ public sealed class CommandLineTests : IDisposable
     [Fact]
     public void Scene_BootsTheNamedClassRatherThanTheOneRunSceneNames()
     {
-        int before = Selected.Openings;
-        EngineBuilder builder = Builder().WithCommandLine(["--headless", "--driver", "Idler", "--scene", "Selected"]);
+        List<object> opened = [];
+        EngineBuilder builder = Builder(opened: opened).WithCommandLine(["--headless", "--driver", "Idler", "--scene", "Selected"]);
 
         Assert.Equal(nameof(Selected), builder.SceneOverride);
-        Assert.Equal(0, builder.RunScene<Idle>());
-        Assert.Equal(before + 1, Selected.Openings);
+        Assert.Equal(0, builder.RunScene<SceneFixtures.Idle>());
+        Assert.Equal<object>([nameof(Selected)], opened);
     }
 
-    // A document no class claims has no class name to give, so its key is the only way to name it.
+    // A document no class claims has no class name to give. Its key is the only way to name it.
     [Fact]
     public void Scene_BootsADocumentByItsKey()
     {
@@ -89,37 +111,26 @@ public sealed class CommandLineTests : IDisposable
             Path.Combine(documents, "hall" + ShippedSceneDocument.Extension),
             CompressionLevel.Fastest);
 
-        int before = Hall.Openings;
-        EngineBuilder builder = Builder(new ContentPlatform(_workspace.Root))
+        List<object> opened = [];
+        EngineBuilder builder = Builder(new ContentPlatform(_workspace.Root), opened: opened)
             .WithCommandLine(["--headless", "--driver", "Idler", "--scene", HallKey]);
 
         Assert.Equal(HallKey, builder.SceneOverride);
-        Assert.Equal(0, builder.RunScene<Idle>());
-        Assert.Equal(before + 1, Hall.Openings);
+        Assert.Equal(0, builder.RunScene<SceneFixtures.Idle>());
+        Assert.Equal<object>([nameof(Hall)], opened);
     }
 
-    // The class is looked up first. The document here is never shipped, so booting it would fail.
+    // The class is looked up first. The document here is never shipped. Booting it would fail.
     [Fact]
     public void Scene_NamingBothAClassAndADocumentKey_BootsTheClass()
     {
-        int before = Selected.Openings;
-        EngineBuilder builder = Builder(documentKey: nameof(Selected))
+        List<object> opened = [];
+        EngineBuilder builder = Builder(documentKey: nameof(Selected), opened: opened)
             .WithCommandLine(["--headless", "--driver", "Idler", "--scene", nameof(Selected)]);
 
         Assert.Equal(nameof(Selected), builder.SceneOverride);
-        Assert.Equal(0, builder.RunScene<Idle>());
-        Assert.Equal(before + 1, Selected.Openings);
-    }
-
-    [Fact]
-    public void ASceneNoRegistryHolds_IsReportedWithTheClassesAndKeysThatAreRegistered()
-    {
-        string reported = Refused(["--headless", "--driver", "Idler", "--scene", "Nowhere"]);
-
-        Assert.Contains("Nowhere", reported, StringComparison.Ordinal);
-        Assert.Contains(nameof(Selected), reported, StringComparison.Ordinal);
-        Assert.Contains(HallKey, reported, StringComparison.Ordinal);
-        Assert.Contains("--scene <Name>", reported, StringComparison.Ordinal);
+        Assert.Equal(0, builder.RunScene<SceneFixtures.Idle>());
+        Assert.Equal<object>([nameof(Selected)], opened);
     }
 
     [Theory]
@@ -128,20 +139,11 @@ public sealed class CommandLineTests : IDisposable
     public void Payload_ReplacesTheOpeningScenesPayload(bool withScene)
     {
         string[] args = ["--headless", "--driver", "Idler", "--payload", nameof(Westward)];
-        EngineBuilder builder = Builder().WithCommandLine(withScene ? [.. args, "--scene", nameof(Greeted)] : args);
+        List<object> opened = [];
+        EngineBuilder builder = Builder(opened: opened).WithCommandLine(withScene ? [.. args, "--scene", nameof(Greeted)] : args);
 
-        Assert.Equal(0, withScene ? builder.RunScene<Idle>(new CallsOwn()) : builder.RunScene<Greeted>(new CallsOwn()));
-        Assert.IsType<Westward>(Greeted.Received);
-    }
-
-    [Fact]
-    public void APayloadNoRegistryHolds_IsReportedWithTheNamesThatAreRegistered()
-    {
-        string reported = Refused(["--payload", "Northward"]);
-
-        Assert.Contains("'Northward'", reported, StringComparison.Ordinal);
-        Assert.Contains("Eastward, Westward", reported, StringComparison.Ordinal);
-        Assert.Contains("--payload <Name>", reported, StringComparison.Ordinal);
+        Assert.Equal(0, withScene ? builder.RunScene<SceneFixtures.Idle>(new CallsOwn()) : builder.RunScene<Greeted>(new CallsOwn()));
+        Assert.IsType<Westward>(Assert.Single(opened));
     }
 
     [Fact]
@@ -168,14 +170,14 @@ public sealed class CommandLineTests : IDisposable
         Assert.Contains("--payload <Name>", stdout.ToString(), StringComparison.Ordinal);
     }
 
-    // The flag is applied as eagerly as --frames, so the headless run persists into the directory it
+    // The flag is applied as eagerly as --frames. The headless run persists into the directory it
     // names: the document the scene wrote on its way out is there when the run returns.
     [Fact]
     public void Saves_IsHonouredByAHeadlessRun()
     {
         string saves = Path.Combine(_workspace.Root, "saves");
 
-        Assert.Equal(0, Builder().WithCommandLine(["--saves", saves, "--headless", "--driver", "Idler", "--scene", "Saver"]).RunScene<Idle>());
+        Assert.Equal(0, Builder().WithCommandLine(["--saves", saves, "--headless", "--driver", "Idler", "--scene", "Saver"]).RunScene<SceneFixtures.Idle>());
         Assert.True(File.Exists(Path.Combine(saves, "visits.save.json")));
     }
 
@@ -256,22 +258,23 @@ public sealed class CommandLineTests : IDisposable
         return _captured.ToString();
     }
 
-    // Every registry holds the class-free document HallKey. A documentKey adds a second one.
-    private static EngineBuilder Builder(HostPlatform? platform = null, string? documentKey = null) =>
+    // Every registry holds the class-free document HallKey. A documentKey adds a second one. The
+    // recording scenes add what they opened with to opened.
+    private static EngineBuilder Builder(HostPlatform? platform = null, string? documentKey = null, List<object>? opened = null) =>
         CapsuleEngine.Configure(
                 "Command Line Game",
                 platform ?? new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [
-                        SceneRegistration.Plain(typeof(Idle), static _ => new Idle()),
-                        SceneRegistration.Plain(typeof(Selected), static _ => new Selected()),
+                        SceneRegistration.Plain(typeof(SceneFixtures.Idle), static _ => new SceneFixtures.Idle()),
+                        SceneRegistration.Plain(typeof(Selected), _ => new Selected(opened)),
                         SceneRegistration.Plain(typeof(Saver), static _ => new Saver()),
-                        SceneRegistration.Plain(typeof(Greeted), static _ => new Greeted()),
-                        SceneRegistration.DocumentOnly(HallKey, static content => new Hall(content!.Value)),
+                        SceneRegistration.Plain(typeof(Greeted), _ => new Greeted(opened)),
+                        SceneRegistration.DocumentOnly(HallKey, content => new Hall(content!.Value, opened)),
                         .. documentKey is null
                             ? Array.Empty<SceneRegistration>()
-                            : [SceneRegistration.DocumentOnly(documentKey, static content => new Hall(content!.Value))],
+                            : [SceneRegistration.DocumentOnly(documentKey, content => new Hall(content!.Value, opened))],
                     ]),
                 new InputDriverRegistry(
                     [
@@ -287,8 +290,6 @@ public sealed class CommandLineTests : IDisposable
             .WithoutCrashLog()
             .WithoutLogging();
 
-    private sealed class Idle : Scene;
-
     private sealed class Saver : Scene
     {
         private static readonly SaveKey<int> Visits = new("visits", SaveTestJsonContext.Default.Int32, 0);
@@ -300,12 +301,10 @@ public sealed class CommandLineTests : IDisposable
         }
     }
 
-    // A document no class claims, composed into this scene so a test can see it booted.
-    private sealed class Hall(SceneContent content) : Scene(content)
+    // A document no class claims, composed into this scene, which records that it booted.
+    private sealed class Hall(SceneContent content, List<object>? opened) : Scene(content)
     {
-        internal static int Openings { get; private set; }
-
-        protected override void OnStart() => Openings++;
+        protected override void OnStart() => opened?.Add(nameof(Hall));
 
         protected override void OnStep(in StepContext context) => Run.RequestExit();
     }
@@ -316,22 +315,18 @@ public sealed class CommandLineTests : IDisposable
 
     private sealed record CallsOwn : IScenePayload;
 
-    // Keeps the payload it opened with, so a test can see what --payload delivered.
-    private sealed class Greeted : Scene
+    // Records the payload it opened with, which is what --payload delivered.
+    private sealed class Greeted(List<object>? opened) : Scene
     {
-        internal static IScenePayload? Received { get; private set; }
-
-        protected override void OnStart() => Received = EntryPayload;
+        protected override void OnStart() => opened?.Add(EntryPayload!);
 
         protected override void OnStep(in StepContext context) => Run.RequestExit();
     }
 
-    // Registered but never named by a RunScene call, so only --scene can open it.
-    private sealed class Selected : Scene
+    // Registered but never named by a RunScene call. Only --scene can open it.
+    private sealed class Selected(List<object>? opened) : Scene
     {
-        internal static int Openings { get; private set; }
-
-        protected override void OnStart() => Openings++;
+        protected override void OnStart() => opened?.Add(nameof(Selected));
 
         protected override void OnStep(in StepContext context) => Run.RequestExit();
     }

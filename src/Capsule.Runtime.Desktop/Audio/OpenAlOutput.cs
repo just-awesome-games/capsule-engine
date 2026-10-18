@@ -70,7 +70,7 @@ internal sealed class OpenAlOutput : AudioOutput
 
     // Subscribes defaultChanged to the system's default playback device changing, or returns null when
     // the device or the extensions are absent. defaultChanged runs on one of the library's own threads,
-    // possibly at real-time priority with a small stack, so it may only note the change. Call once,
+    // possibly at real-time priority with a small stack. It may only note the change. Call once,
     // after the backend has opened its device.
     internal static OpenAlOutput? TryAttach(Action defaultChanged)
     {

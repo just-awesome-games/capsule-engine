@@ -1,8 +1,5 @@
-using System.Numerics;
 using Capsule.Bench.Logic.Cameras;
 using Capsule.Bench.Logic.Entities;
-using Capsule.Rendering;
-using Capsule.Scenes;
 
 namespace Capsule.Bench.Logic.Scenes;
 
@@ -23,13 +20,5 @@ public sealed class Props10k : Scene
         {
             Add(new Wanderer(new Vector2(6f + (index * 6.3f), (index * 37) % World.ViewportSize.Y), 20f + (index % 7)));
         }
-    }
-
-    private sealed class Prop : Entity
-    {
-        private static readonly Sprite Frame = new(CapsuleAssets.Textures.TerrainTexture, new TextureRegion(0, 0, 4, 4));
-
-        internal Prop(Vector2 position)
-            : base(position) => Add(new SpriteRenderer(Frame));
     }
 }

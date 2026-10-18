@@ -34,7 +34,7 @@ internal sealed class OverlayScene : Scene
     private static readonly ColorRgba TrackColor = ColorRgba.White with { A = 48 };
     private static readonly ColorRgba ThumbColor = ColorRgba.White with { A = 160 };
 
-    // The pointer line is measured at its full width, blank or not, so a first point never widens the menu.
+    // The pointer line is measured at its full width, blank or not. A first point never widens the menu.
     private static readonly float PointerWidth = Font.Measure(new string('0', PointerLength)).X;
 
     // The font is monospace. The pointer line is cut to the menu's width in these.
@@ -214,7 +214,7 @@ internal sealed class OverlayScene : Scene
         && pointer.X >= 0f && pointer.X <= _backdrop.Size.X
         && pointer.Y >= 0f && pointer.Y <= _backdrop.Size.Y;
 
-    // The status row is one line, so it shows the first line of text.
+    // The status row is one line. It shows the first line of text.
     internal void SetStatus(string text)
     {
         int end = text.AsSpan().IndexOfAny('\r', '\n');
@@ -245,7 +245,7 @@ internal sealed class OverlayScene : Scene
             _text = new char[_column + longestValue];
         }
 
-        // Every row is measured, shown or not, so the menu keeps one width as the window moves.
+        // Every row is measured, shown or not. The menu keeps one width as the window moves.
         float width = MathF.Max(
             MathF.Max(Font.Measure(_sceneName.Text).X, Font.Measure(_tick.Text).X),
             MathF.Max(PointerWidth, Font.Measure(_title.Text).X));

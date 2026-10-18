@@ -22,7 +22,8 @@ internal static class ScenePayloadRenderer
     }
 
     internal static string Render(ScenePayloadPlan plan) => GeneratedFile.Write([], $$"""
-            /// <summary>Every scene payload this assembly declares. Generated code. Do not edit.</summary>
+            /// <summary>Every scene payload this assembly declares.</summary>
+            /// <remarks>Generated code. Do not edit.</remarks>
             {{GeneratedFile.ExcludeFromCodeCoverage}}
             internal static class CapsuleScenePayloads
             {

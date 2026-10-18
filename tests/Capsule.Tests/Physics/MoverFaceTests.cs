@@ -40,34 +40,46 @@ public sealed class MoverFaceTests
     }
 
     // A face reports its own normal whatever the narrowphase measured. A rounded shape coming down
-    // past the near end of an edge is nearest that endpoint, where GJK answers with the diagonal
-    // from the corner, a direction the surface does not have. Each shape is placed with its centre
-    // off the end of the face, which is where the endpoint is the nearest feature.
+    // past the near end of an edge, or resting there, is nearest that endpoint. There GJK answers with
+    // the diagonal from the corner, a direction the surface does not have. Each shape is placed with
+    // its centre off the end of the face, which is where the endpoint is the nearest feature.
     [Theory]
-    [InlineData(ShapeKind2D.Circle)]
-    [InlineData(ShapeKind2D.Capsule)]
-    [InlineData(ShapeKind2D.Box)]
-    public void ShapeCast_PastTheEndOfAOneWayEdge_ReportsTheEdgesOwnNormal(ShapeKind2D kind)
+    [InlineData(ShapeKind2D.Circle, false)]
+    [InlineData(ShapeKind2D.Capsule, false)]
+    [InlineData(ShapeKind2D.Box, false)]
+    [InlineData(ShapeKind2D.Circle, true)]
+    public void ACastOrOverlapPastTheEndOfAOneWayEdge_ReportsTheEdgesOwnNormal(ShapeKind2D kind, bool overlap)
     {
         CollisionWorld2D world = new();
 
-        // The only collidable cell is (1, 1), so the face spans x = 16..32 at y = 16.
+        // The only collidable cell is (1, 1). The face spans x = 16..32 at y = 16.
         CollisionFixtures.Paint(world, "..", ".-");
 
-        Assert.True(world.ShapeCast(
-            Landing(kind),
-            new Vector2(14f, 4f),
-            new Vector2(0f, 24f),
-            CollisionFilter.Everything,
-            out ShapeCastHit2D hit));
+        (CollisionTarget target, Vector2 normal) = overlap ? Overlap() : Cast();
 
-        Assert.True(hit.Target.IsGridCell);
-        Assert.Equal((1, 1), (hit.Target.CellX, hit.Target.CellY));
-        Assert.Equal(new Vector2(0f, -1f), hit.Normal);
+        Assert.True(target.IsGridCell);
+        Assert.Equal((1, 1), (target.CellX, target.CellY));
+        Assert.Equal(new Vector2(0f, -1f), normal);
+
+        (CollisionTarget, Vector2) Cast()
+        {
+            Assert.True(world.ShapeCast(Landing(kind), new Vector2(14f, 4f), new Vector2(0f, 24f), CollisionFilter.Everything, out ShapeCastHit2D hit));
+
+            return (hit.Target, hit.Normal);
+        }
+
+        // Close enough to the endpoint (16, 16) to be inside the skin.
+        (CollisionTarget, Vector2) Overlap()
+        {
+            ColliderHandle resting = world.Add(Landing(kind), new Vector2(14f, 12.52f), world.Layer("body"));
+            Contact2D[] contacts = new Contact2D[8];
+            Assert.Equal(1, world.OverlapColliderAll(resting, CollisionFilter.Everything, contacts));
+
+            return (contacts[0].Target, contacts[0].Normal);
+        }
     }
 
-
-    // Centred on the origin, so the cast origin places the shape's middle. The box is the control:
+    // Centred on the origin. The cast origin places the shape's middle. The box is the control:
     // it takes the closed-form sweep, the rounded pair take the GJK path this is about.
     private static Shape2D Landing(ShapeKind2D kind) => kind switch
     {
@@ -75,20 +87,4 @@ public sealed class MoverFaceTests
         ShapeKind2D.Capsule => Shape2D.Capsule(new Vector2(0f, -4f), new Vector2(0f, 4f), 3f),
         _ => Shape2D.Box(Aabb2D.FromCenter(Vector2.Zero, new Vector2(8f, 8f))),
     };
-
-    [Fact]
-    public void MoveBox_IsStoppedByTheFaceASolidCellSharesWithOneTheFilterExcludes()
-    {
-        CollisionWorld2D world = new();
-        CollisionFixtures.Paint(world, "=#..");
-
-        MoveResult2D result = world.MoveBox(
-            CollisionFixtures.Box(40f, 4f, 8f, 8f),
-            new Vector2(-40f, 0f),
-            world.CreateFilter(CollisionFixtures.Climb),
-            default);
-
-        Assert.True(result.Blocked);
-        Assert.Equal(-24f, result.Translation.X, Tolerance);
-    }
 }

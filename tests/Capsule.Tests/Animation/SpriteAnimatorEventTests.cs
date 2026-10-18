@@ -121,7 +121,7 @@ public sealed class SpriteAnimatorEventTests
     public void AReaderBeforeTheAnimatorSeesAnEventOneStepLaterAndAReaderAfterSeesItOnItsStep()
     {
         Listener listener = new();
-        SimulationHost run = Simulate(listener);
+        SimulationHost run = SceneFixtures.Simulate(listener);
         listener.Animator.Play(new SpriteClip([Frame(0), Frame(1)], [2, 2], frameEvents: [[], [Hit]]));
 
         run.Step(6);
@@ -136,7 +136,7 @@ public sealed class SpriteAnimatorEventTests
     public void APlayAfterTheAnimatorStepped_IsSeenOnceByEachReaderFromTheAnimatorsNextStep()
     {
         Listener listener = new() { PlayLate = new SpriteClip([Frame(0)], [10], frameEvents: [[Hit]]) };
-        SimulationHost run = Simulate(listener);
+        SimulationHost run = SceneFixtures.Simulate(listener);
 
         run.Step(6);
 
@@ -197,14 +197,6 @@ public sealed class SpriteAnimatorEventTests
         }
 
         return frames;
-    }
-
-    private static SimulationHost Simulate(Entity entity)
-    {
-        SceneFixtures.HookScene scene = new();
-        scene.Add(entity);
-
-        return new SimulationHost(scene);
     }
 
     private sealed class Listener : Entity

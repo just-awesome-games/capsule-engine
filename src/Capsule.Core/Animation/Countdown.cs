@@ -10,11 +10,11 @@ namespace Capsule.Animation;
 /// </remarks>
 /// <example>
 /// <code>
-/// _cooldown.Step();
-/// if (firePressed &amp;&amp; !_cooldown.IsRunning)
+/// _bell.Step();
+/// if (pressed &amp;&amp; !_bell.IsRunning)
 /// {
-///     Fire();
-///     _cooldown.Start(30);
+///     Ring();
+///     _bell.Start(60);
 /// }
 /// </code>
 /// </example>

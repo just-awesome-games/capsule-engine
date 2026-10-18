@@ -1,13 +1,13 @@
 namespace Capsule.Tests.Core;
 
-// The platform's own sine and exponential are correctly rounded by no standard, so simulation code
+// The platform's own sine and exponential are correctly rounded by no standard. Simulation code
 // may not call them. These are the replacements: what is asserted is that they are accurate enough
 // to stand in for the real functions over the range they claim, and honest about where that ends,
 // since being identical everywhere is what they are built of.
 public sealed class DeterministicMathTests
 {
     // The bound every member publishes: absolute for a sine, relative for the exponential. Neither
-    // is correctly rounded, so this is about a unit in the last place rather than half of one.
+    // is correctly rounded. This is about a unit in the last place rather than half of one.
     private const double Bound = 6e-8;
 
     // The magnitude sine and cosine claim their accuracy out to.
@@ -25,7 +25,7 @@ public sealed class DeterministicMathTests
         }
 
         // Then coarse the whole way out to the claimed magnitude, on a step that is no multiple of a
-        // turn, so the fold is sampled at every phase rather than at one.
+        // turn. The fold is sampled at every phase rather than at one.
         for (int sample = -1_000_000; sample <= 1_000_000; sample++)
         {
             worst = Math.Max(worst, SineError((float)(sample * 16.777216)));
@@ -84,7 +84,7 @@ public sealed class DeterministicMathTests
         Assert.True(worst < Bound, $"the exponential is out by {worst} relatively.");
     }
 
-    // The whole part is a power of two and scaling by it is exact, so a whole exponent is not an
+    // The whole part is a power of two and scaling by it is exact. A whole exponent is not an
     // approximation at all, subnormals included.
     [Fact]
     public void EveryWholeExponent_IsExact()
@@ -144,7 +144,7 @@ public sealed class DeterministicMathTests
         const double AngleBound = 1.2e-7;
         double worst = 0.0;
 
-        // Every direction around the circle, at radii from a thousandth of a unit to a million, so the
+        // Every direction around the circle, at radii from a thousandth of a unit to a million. The
         // fold about a sixth of pi and the swap about the diagonal are crossed in all four quadrants.
         foreach (float radius in new[] { 0.001f, 1f, 37.5f, 1_000_000f })
         {
@@ -160,7 +160,7 @@ public sealed class DeterministicMathTests
         Assert.True(worst < AngleBound, $"the arctangent is out by {worst}.");
     }
 
-    // Signed zeros compare equal, so the cases are a list and not inline data.
+    // Signed zeros compare equal. The cases are a list and not inline data.
     [Fact]
     public void AnAngleOnAnAxisOrAtInfinity_FollowsTheSystemConventionsBitForBit()
     {
@@ -184,7 +184,7 @@ public sealed class DeterministicMathTests
     }
 
     // Dense over the span a game calls each function in, then at every 2003rd float bit pattern of either
-    // sign across the whole range it claims, so every binade is sampled.
+    // sign across the whole range it claims. Every binade is sampled.
     [Theory]
     [InlineData(nameof(DeterministicMath.Tan))]
     [InlineData(nameof(DeterministicMath.Atan))]

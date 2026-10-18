@@ -7,35 +7,17 @@ public sealed class GeneratorConfigurationTests
 {
     private const string Source = "namespace Game; public sealed class Marker;";
 
-    [Fact]
-    public void OneProjectDeclaringBothRoles_FailsTheBuild()
+    // Both roles in one project, a logic role missing the scenes it builds on, a shell role missing the
+    // runtime it boots, and a shell referencing no logic assembly each fail the build with their own error.
+    [Theory]
+    [InlineData(true, true, new string[0], "CAP011")]
+    [InlineData(true, false, new[] { "Capsule.Scenes", "Capsule.Runtime" }, "CAP012")]
+    [InlineData(false, true, new[] { "Capsule.Runtime" }, "CAP013")]
+    [InlineData(false, true, new string[0], "CAP015")]
+    public void AMisconfiguredProject_FailsTheBuild(bool logic, bool shell, string[] excludedAssemblies, string id)
     {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileWithRoles(Source, logic: true, shell: true).Diagnostics;
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileWithRoles(Source, logic, shell, excludedAssemblies).Diagnostics;
 
-        Assert.Equal("CAP011", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
-    }
-
-    [Fact]
-    public void LogicRoleWithoutScenes_FailsTheBuild()
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileWithRoles(
-            Source,
-            logic: true,
-            shell: false,
-            excludedAssemblies: ["Capsule.Scenes", "Capsule.Runtime"]).Diagnostics;
-
-        Assert.Equal("CAP012", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
-    }
-
-    [Fact]
-    public void ShellRoleWithoutRuntime_FailsTheBuild()
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileWithRoles(
-            Source,
-            logic: false,
-            shell: true,
-            excludedAssemblies: ["Capsule.Runtime"]).Diagnostics;
-
-        Assert.Equal("CAP013", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+        Assert.Equal(id, Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 }

@@ -1,6 +1,7 @@
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
+using Capsule.Runtime.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -39,7 +40,7 @@ internal sealed class TextureStore : IDisposable
         {
             TextureFacts facts = _map.Facts(handle);
             using Stream file = Open(platform, handle);
-            return new TextureUpload(device, pool, TextureDecoder.Decode(file, pool, handle.Name, facts.SingleChannel), Sampler(facts.Sampling));
+            return new TextureUpload(device, pool, TextureDecoder.Decode(file, pool, handle.Name, facts.SingleChannel), facts.Sampling is { } sampling ? FrameRenderer.Sampler(sampling) : null);
         }
     }
 
@@ -71,7 +72,7 @@ internal sealed class TextureStore : IDisposable
     }
 
     // The handle's texels inside region as straight RGBA, row by row, decoded from its file or its
-    // page. Residency is untouched, so a caller outside the frame path can read any handle. Throws
+    // page. Residency is untouched. A caller outside the frame path can read any handle. Throws
     // when the file is missing or the region falls outside the handle's texels.
     internal byte[] ReadRegion(in TextureHandle handle, TextureRegion region) =>
         ReadRegion(_platform, _map, handle, region);
@@ -153,14 +154,6 @@ internal sealed class TextureStore : IDisposable
         return texture;
     }
 
-    // The sampler a file's own sampling asks for, or null to sample as the frame does.
-    private static SamplerState? Sampler(TextureSampling? sampling) => sampling switch
-    {
-        TextureSampling.Point => SamplerState.PointClamp,
-        TextureSampling.Linear => SamplerState.LinearClamp,
-        _ => null,
-    };
-
     // One decoded page on its way to the device, top rows first. Its Tag carries the sampler its
     // sampling asks for, which the batcher reads once per run.
     internal sealed class TextureUpload(GraphicsDevice device, TexelPool pool, DecodedTexture decoded, SamplerState? sampler = null) : IPendingAsset<Texture2D>
@@ -212,7 +205,7 @@ internal sealed class TextureStore : IDisposable
             pool.Return(decoded.Texels);
         }
 
-        // A whole-texture SetData of a 4096-texel page measured twice its rows written as slices.
+        // Row slices, which cost less than one whole-texture SetData of the page.
         private void Upload(int rows)
         {
             _texture ??= new Texture2D(device, decoded.Width, decoded.Height, false, decoded.BytesPerTexel == 1 ? SurfaceFormat.Alpha8 : SurfaceFormat.Color)

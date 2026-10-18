@@ -43,8 +43,8 @@ public sealed class InputState
 
     /// <summary>Whether the game's window has input focus this step.</summary>
     /// <remarks>
-    /// The engine does not pause on a loss. A driven or headless run has window focus unless its
-    /// driver takes it away.
+    /// The engine does not pause on a loss. An unfocused window reads no key, button or stick from any
+    /// device. A driven or headless run has window focus unless its driver takes it away.
     /// </remarks>
     public bool HasWindowFocus => _current.HasWindowFocus;
 
@@ -106,7 +106,7 @@ public sealed class InputState
     }
 
     /// <summary>Whether anything bound to <paramref name="action"/> is down this step.</summary>
-    public bool IsHeld(InputAction action) => _bindings.IsAnyDown(action, _current);
+    public bool IsHeld(InputAction action) => Held(action, null);
 
     /// <summary>
     /// What <paramref name="action"/> reads this step. Buttons and pad axes contribute within [-1,
@@ -116,13 +116,11 @@ public sealed class InputState
     public float Axis(AxisAction action) => _bindings.AxisValue(action, _current);
 
     /// <summary>Whether <paramref name="action"/> went down on the edge into this step.</summary>
-    public bool WasPressed(InputAction action) =>
-        _bindings.IsAnyDown(action, _current) && !_bindings.IsAnyDown(action, _previous);
+    public bool WasPressed(InputAction action) => Pressed(action, null);
 
-    internal bool WasPressed(InputAction action, bool mouse) =>
-        _bindings.IsAnyDown(action, _current, mouse) && !_bindings.IsAnyDown(action, _previous, mouse);
+    internal bool WasPressed(InputAction action, bool mouse) => Pressed(action, mouse);
 
-    internal bool IsHeld(InputAction action, bool mouse) => _bindings.IsAnyDown(action, _current, mouse);
+    internal bool IsHeld(InputAction action, bool mouse) => Held(action, mouse);
 
     /// <summary>Whether <paramref name="action"/> came up on the edge into this step.</summary>
     public bool WasReleased(InputAction action) =>
@@ -166,4 +164,10 @@ public sealed class InputState
         button = InputButton.None;
         return false;
     }
+
+    // Whether action is held, through only its mouse buttons, only the rest, or all of them when mouse is null.
+    private bool Held(InputAction action, bool? mouse) => _bindings.IsAnyDown(action, _current, mouse);
+
+    private bool Pressed(InputAction action, bool? mouse) =>
+        Held(action, mouse) && !_bindings.IsAnyDown(action, _previous, mouse);
 }

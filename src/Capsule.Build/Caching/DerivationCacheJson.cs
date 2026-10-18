@@ -23,16 +23,10 @@ internal sealed class DerivationCacheJson
 /// <summary>One successful derivation: what it was stamped from, what it shipped and the facts it handed on.</summary>
 internal sealed class DerivationJson
 {
-    /// <summary>The SHA-256 over the step, the build of <see cref="Tool"/>, <see cref="Settings"/> and each input's path and hash.</summary>
+    /// <summary>The SHA-256 over the step, the build of its tool, its settings, and the path and hash of each input and of each file in <see cref="Read"/>.</summary>
     public string Stamp { get; set; } = string.Empty;
 
-    public string Tool { get; set; } = string.Empty;
-
-    public string Settings { get; set; } = string.Empty;
-
-    public string[] Inputs { get; set; } = [];
-
-    /// <summary>Every file it read beyond <see cref="Inputs"/>, or null when it read none.</summary>
+    /// <summary>Every file it read beyond the inputs its description names, or null when it read none.</summary>
     public string[]? Read { get; set; }
 
     /// <summary>Every file it wrote, by its path below the root it writes under.</summary>

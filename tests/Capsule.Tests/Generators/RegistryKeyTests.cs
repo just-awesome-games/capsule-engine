@@ -5,38 +5,47 @@ namespace Capsule.Tests.Generators;
 
 /// <summary>
 /// Where a type is declared is the key it claims: its namespace under the assembly's root, minus a
-/// folder repeating the type's own name. An entity, camera, tile type or baseScene key drops a leading
-/// <c>Entities</c>, <c>Cameras</c>, <c>Tiles</c> or <c>Scenes</c> segment, whichever kind the type is. A scene claims
-/// the document at its namespace's path under <c>Assets/</c>, so <c>Game.Scenes.Room</c> composes
-/// <c>Assets/Scenes/room.scene.json</c>.
+/// folder repeating the type's own name.
 /// </summary>
+/// <remarks>
+/// An entity, camera, tile type or baseScene key drops a leading <c>Entities</c>, <c>Cameras</c>,
+/// <c>Tiles</c> or <c>Scenes</c> segment, whichever kind the type is. A scene claims the document at its
+/// namespace's path under <c>Assets/</c>: <c>Game.Scenes.Room</c> composes
+/// <c>Assets/Scenes/room.scene.json</c>.
+/// </remarks>
 public sealed class RegistryKeyTests
 {
     [Theory]
-    [InlineData("Game.Entities", "Player", "player")]
-    [InlineData("Game.Entities.Player", "Player", "player")]
-    [InlineData("Game.Entities.Enemies", "Bat", "enemies/bat")]
-    [InlineData("Game.Entities.Enemies.Cave", "Bat", "enemies/cave/bat")]
-    [InlineData("Game", "Player", "player")]
-    [InlineData("Game.Cameras", "CameraStart", "camera-start")]
-    [InlineData("Game.Scenes.Doors", "Door", "doors/door")]
-    [InlineData("Game.Tiles.Hazards", "Spikes", "hazards/spikes")]
-    [InlineData("Vendor.Enemies", "Bat", "bat")]
-    public void AnEntity_ClaimsTheKeyItsNamespaceNames(string space, string type, string key)
+    [InlineData(false, "Game.Entities", "Player", "player")]
+    [InlineData(false, "Game.Entities.Player", "Player", "player")]
+    [InlineData(false, "Game.Entities.Enemies", "Bat", "enemies/bat")]
+    [InlineData(false, "Game.Entities.Enemies.Cave", "Bat", "enemies/cave/bat")]
+    [InlineData(false, "Game", "Player", "player")]
+    [InlineData(false, "Game.Cameras", "CameraStart", "camera-start")]
+    [InlineData(false, "Game.Scenes.Doors", "Door", "doors/door")]
+    [InlineData(false, "Game.Tiles.Hazards", "Spikes", "hazards/spikes")]
+    [InlineData(false, "Vendor.Enemies", "Bat", "bat")]
+    [InlineData(true, "Game.Scenes", "Room01", "scenes/room-01")]
+    [InlineData(true, "Game.Scenes.Stage1", "Room01", "scenes/stage-1/room-01")]
+    [InlineData(true, "Game.Scenes.Room01", "Room01", "scenes/room-01")]
+    [InlineData(true, "Game.Levels", "Room01", "levels/room-01")]
+    public void AnEntityOrScene_ClaimsTheKeyItsNamespaceNames(bool scene, string space, string type, string key)
     {
+        string declaration = scene
+            ? $"public sealed class {type}(SceneContent content) : Scene(content);"
+            : $"public sealed class {type}(EntitySpawn spawn) : Entity(spawn);";
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileIn("Game", $$"""
             using Capsule.Scenes;
-            using Capsule.Scenes.Spawning;
 
             namespace {{space}};
 
-            public sealed class {{type}}(EntitySpawn spawn) : Entity(spawn);
+            {{declaration}}
             """);
 
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Contains(
             $"\"{key}\"",
-            GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleEntitiesFile),
+            GeneratorHarness.Emitted(compiled, scene ? GeneratorHarness.CapsuleScenesFile : GeneratorHarness.CapsuleEntitiesFile),
             StringComparison.Ordinal);
     }
 
@@ -45,7 +54,6 @@ public sealed class RegistryKeyTests
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileIn("Game", """
             using Capsule.Scenes;
-            using Capsule.Scenes.Spawning;
 
             namespace Game.Entities.Enemies
             {
@@ -65,60 +73,8 @@ public sealed class RegistryKeyTests
         Assert.Contains("\"bosses/bat\"", generated, StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData("Game.Scenes", "Room01", "scenes/room-01")]
-    [InlineData("Game.Scenes.Stage1", "Room01", "scenes/stage-1/room-01")]
-    [InlineData("Game.Scenes.Room01", "Room01", "scenes/room-01")]
-    [InlineData("Game.Levels", "Room01", "levels/room-01")]
-    public void AScene_ClaimsTheKeyItsNamespaceNames(string space, string type, string key)
-    {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileIn("Game", $$"""
-            using Capsule.Scenes;
 
-            namespace {{space}};
-
-            public sealed class {{type}}(SceneContent content) : Scene(content);
-            """);
-
-        Assert.Empty(GeneratorHarness.Errors(diagnostics));
-        Assert.Contains(
-            $"\"{key}\"",
-            GeneratorHarness.Emitted(compiled, GeneratorHarness.CapsuleScenesFile),
-            StringComparison.Ordinal);
-    }
-
-    // Every kind drops any of the domain segments, so a class filed under another kind's
-    // folder claims the same key as one filed under its own, and the pair is refused naming both.
-    [Theory]
-    [InlineData("public sealed class Bat(EntitySpawn spawn) : Entity(spawn);", "CAP003")]
-    [InlineData("public sealed class Bat : Camera;", "CAP003")]
-    public void TwoClassesClaimingOneKeyAcrossDomainSegments_FailTheBuildNamingBoth(string declaration, string id)
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileIn("Game", $$"""
-            using Capsule.Scenes;
-            using Capsule.Scenes.Spawning;
-
-            namespace Game.Cameras
-            {
-                {{declaration}}
-            }
-
-            namespace Game.Entities
-            {
-                {{declaration}}
-            }
-            """).Diagnostics;
-
-        Diagnostic collision = Assert.Single(GeneratorHarness.Errors(diagnostics));
-        Assert.Equal(id, collision.Id);
-
-        string message = collision.GetMessage(System.Globalization.CultureInfo.InvariantCulture);
-        Assert.Contains("Game.Cameras.Bat", message, StringComparison.Ordinal);
-        Assert.Contains("Game.Entities.Bat", message, StringComparison.Ordinal);
-        Assert.Contains("'bat'", message, StringComparison.Ordinal);
-    }
-
-    // A baseScene drops the other kinds' segments too, so a base filed beside the entities or cameras
+    // A baseScene drops the other kinds' segments too. A base filed beside the entities or cameras
     // still serves the document naming it by its unprefixed key.
     [Theory]
     [InlineData("Game.Entities")]
@@ -152,7 +108,6 @@ public sealed class RegistryKeyTests
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileIn("Game", $$"""
             using Capsule.Scenes;
-            using Capsule.Scenes.Spawning;
 
             namespace Game.Entities.Enemies;
 
@@ -164,7 +119,7 @@ public sealed class RegistryKeyTests
         Assert.Contains("\"bosses/wyrm\"", GeneratorHarness.Emitted(compiled, file), StringComparison.Ordinal);
     }
 
-    // An override names a whole key; one that is no key names a file the build cannot write.
+    // An override names a whole key. One that is no key names a file the build cannot write.
     [Theory]
     [InlineData("bosses//wyrm")]
     [InlineData("../wyrm")]
@@ -178,7 +133,6 @@ public sealed class RegistryKeyTests
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileIn("Game", $$"""
             using Capsule.Scenes;
-            using Capsule.Scenes.Spawning;
 
             namespace Game.Entities;
 

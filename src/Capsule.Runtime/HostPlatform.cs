@@ -10,7 +10,7 @@ namespace Capsule.Runtime;
 /// <remarks>
 /// A shell hands one to <c>CapsuleBoot.Configure</c> beside the game's name.
 /// <c>Capsule.Runtime.Desktop</c> implements it for Windows, Linux and macOS, and a private
-/// platform module subclasses this for another host (<c>docs/architecture.md</c>). Only the engine
+/// platform module subclasses this for another host (<c>docs/packages.md</c>). Only the engine
 /// calls these members. A headless run needs only the two abstract members, and every virtual
 /// member has a working default.
 /// </remarks>

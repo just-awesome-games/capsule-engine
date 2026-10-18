@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 namespace Capsule.Tests.Generators;
 
 // A generator that re-reads its inputs whatever changed costs a game the whole edit loop. Every model the
-// pipeline carries compares by value, so an edit that changes nothing a model holds leaves each plan cached.
+// pipeline carries compares by value. An edit that changes nothing a model holds leaves each plan cached.
 public sealed class GeneratorCachingTests
 {
     private const string Before = $$"""
@@ -20,12 +20,13 @@ public sealed class GeneratorCachingTests
         public sealed class Hall(SceneContent content) : Scene(content);
         """;
 
-    // The names the generator hands WithTrackingName. A plan holding a diagnostic is rebuilt on every run,
-    // so this input faults nothing.
+    // The names the generator hands WithTrackingName. This input faults nothing, because a plan holding a
+    // diagnostic is rebuilt on every run.
     [Theory]
     [InlineData("BootModel")]
     [InlineData("EntityPlan")]
     [InlineData("ScenePlan")]
+    [InlineData("ScenePayloadPlan")]
     [InlineData("InputDriverPlan")]
     [InlineData("BootPlan")]
     public void AnEditToAMethodBody_RunsNoPlanAgain(string step)

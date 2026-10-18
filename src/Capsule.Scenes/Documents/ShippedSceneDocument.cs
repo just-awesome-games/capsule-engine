@@ -1,10 +1,10 @@
 using System.IO.Compression;
 using System.Text;
 
-namespace Capsule.Scenes.Documents;
+namespace Capsule.Scenes;
 
 // The form a scene document ships in beside the executable: its compact JSON, gzipped. The authored
-// form stays plain JSON. The gzip header carries a zero timestamp, so the same document compresses
+// form stays plain JSON. The gzip header carries a zero timestamp. The same document compresses
 // to the same bytes on every build.
 internal static class ShippedSceneDocument
 {

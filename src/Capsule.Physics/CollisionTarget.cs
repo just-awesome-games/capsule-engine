@@ -6,15 +6,6 @@ namespace Capsule.Physics;
 /// </summary>
 public readonly record struct CollisionTarget
 {
-    private CollisionTarget(ColliderHandle collider, bool isGridCell, int cellX, int cellY, CollisionLayer layer)
-    {
-        Collider = collider;
-        IsGridCell = isGridCell;
-        CellX = cellX;
-        CellY = cellY;
-        Layer = layer;
-    }
-
     /// <summary>The collider found, or for a grid cell the grid it belongs to.</summary>
     public ColliderHandle Collider { get; }
 
@@ -29,6 +20,15 @@ public readonly record struct CollisionTarget
 
     /// <summary>The layer the collider or grid cell is on.</summary>
     public CollisionLayer Layer { get; }
+
+    private CollisionTarget(ColliderHandle collider, bool isGridCell, int cellX, int cellY, CollisionLayer layer)
+    {
+        Collider = collider;
+        IsGridCell = isGridCell;
+        CellX = cellX;
+        CellY = cellY;
+        Layer = layer;
+    }
 
     internal static CollisionTarget ForCollider(ColliderHandle collider, CollisionLayer layer) =>
         new(collider, false, 0, 0, layer);

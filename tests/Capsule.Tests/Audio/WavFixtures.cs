@@ -12,6 +12,7 @@ internal static class WavFixtures
     /// <param name="formatTag">1 for PCM, 3 for IEEE float, anything else for a format Capsule refuses.</param>
     /// <param name="padded">Whether an odd-sized chunk the walk must step over precedes the data.</param>
     /// <param name="loop">The sampler chunk's one loop, in samples, or none.</param>
+    /// <param name="extensible">Whether the chunk is WAVE_FORMAT_EXTENSIBLE carrying the format tag as its sub-format.</param>
     internal static byte[] Wav(
         int rate,
         int bits,
@@ -19,7 +20,8 @@ internal static class WavFixtures
         byte[] samples,
         int formatTag = 1,
         bool padded = false,
-        (uint Start, uint End)? loop = null)
+        (uint Start, uint End)? loop = null,
+        bool extensible = false)
     {
         int blockAlign = channels * (bits / 8);
 
@@ -31,13 +33,24 @@ internal static class WavFixtures
         writer.Write("WAVE"u8);
 
         writer.Write("fmt "u8);
-        writer.Write(16);
-        writer.Write((short)formatTag);
+        writer.Write(extensible ? 40 : 16);
+        writer.Write(extensible ? unchecked((short)0xFFFE) : (short)formatTag);
         writer.Write((short)channels);
         writer.Write(rate);
         writer.Write(rate * blockAlign);
         writer.Write((short)blockAlign);
         writer.Write((short)bits);
+
+        if (extensible)
+        {
+            // The extension's size, valid bits and channel mask, then the sub-format GUID: the format
+            // tag and the suffix every standard sub-format shares, 0000-0010-8000-00aa00389b71.
+            writer.Write((short)22);
+            writer.Write((short)bits);
+            writer.Write(0);
+            writer.Write((short)formatTag);
+            writer.Write([0, 0, 0, 0, 0x10, 0, 0x80, 0, 0, 0xAA, 0, 0x38, 0x9B, 0x71]);
+        }
 
         if (padded)
         {

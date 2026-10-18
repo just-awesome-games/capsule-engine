@@ -1,5 +1,4 @@
 using System.Numerics;
-using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
@@ -13,10 +12,12 @@ public sealed class UiPrimitiveTests
 {
     private static readonly Sprite Panel = new(SceneFixtures.Atlas, new TextureRegion(0, 0, 12, 12));
 
+    private static readonly Vector2 HolderPosition = new(4f, 5f);
+
     [Fact]
     public void AFilledRect_IsOneSpriteOverTheEngineWhiteTexel()
     {
-        using SimulationHost run = Run(new ColorRect(new Vector2(30f, 10f)) { Color = ColorRgba.Black });
+        using SimulationHost run = SceneFixtures.Simulate(new SceneFixtures.Holder(HolderPosition, new ColorRect(new Vector2(30f, 10f)) { Color = ColorRgba.Black }));
         run.Step();
 
         SpriteIntent drawn = Assert.Single(run.Simulation.View.Sprites.ToArray());
@@ -31,11 +32,11 @@ public sealed class UiPrimitiveTests
     {
         ColorRect rect = new(new Vector2(30f, 10f)) { Offset = new Vector2(2f, 3f) };
 
-        using SimulationHost run = Run(rect);
+        using SimulationHost run = SceneFixtures.Simulate(new SceneFixtures.Holder(HolderPosition, rect));
         run.Step();
 
         // The holder sits at (4, 5).
-        Assert.Equal(new Rect(6f, 8f, 36f, 18f), rect.Bounds);
+        Assert.Equal(Rect.FromEdges(6f, 8f, 36f, 18f), rect.Bounds);
         Assert.Equal(new Vector2(6f, 8f), Assert.Single(run.Simulation.View.Sprites.ToArray()).Position);
     }
 
@@ -44,7 +45,7 @@ public sealed class UiPrimitiveTests
     {
         NineSlice panel = new(Panel, new SliceInsets(3), new Vector2(40f, 30f));
         Scene scene = new();
-        scene.Add(new Holder(panel));
+        scene.Add(new SceneFixtures.Holder(HolderPosition, panel));
 
         Assert.Equal([SceneFixtures.Atlas], scene.CollectAssetPreloads().Textures);
 
@@ -52,7 +53,7 @@ public sealed class UiPrimitiveTests
         run.Step();
 
         Assert.Equal(9, run.Simulation.View.Sprites.Length);
-        Assert.Equal(new Rect(4f, 5f, 44f, 35f), panel.Bounds);
+        Assert.Equal(Rect.FromEdges(4f, 5f, 44f, 35f), panel.Bounds);
     }
 
     [Fact]
@@ -69,12 +70,12 @@ public sealed class UiPrimitiveTests
         run.Step();
 
         // Half the canvas, then the entity's own (4, 5).
-        Assert.Equal(new Rect(54f, 30f, 84f, 40f), rect.Bounds);
+        Assert.Equal(Rect.FromEdges(54f, 30f, 84f, 40f), rect.Bounds);
         Assert.Equal(new Vector2(54f, 30f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
     }
 
-    // What a game's own renderer is handed: the position already resolved in the space its entity draws
-    // in, so a custom renderer lands on the screen layer from its anchor without arithmetic of its own.
+    // A game's own renderer is handed the position already resolved in the space its entity draws in. A
+    // custom renderer lands on the screen layer from its anchor without arithmetic of its own.
     [Fact]
     public void ACustomRenderer_ReadsItsResolvedPositionsInItsEntitysSpace()
     {
@@ -89,7 +90,7 @@ public sealed class UiPrimitiveTests
         // Two steps from the canvas's centre, which the anchor resolved to (50, 25).
         Assert.Equal(new Vector2(52f, 25f), probe.Current);
         Assert.Equal(new Vector2(51f, 25f), probe.Previous);
-        Assert.Equal(new Rect(52f, 25f, 54f, 27f), probe.Bounds);
+        Assert.Equal(Rect.FromEdges(52f, 25f, 54f, 27f), probe.Bounds);
 
         SpriteIntent drawn = Assert.Single(run.Simulation.View.ScreenSprites.ToArray());
 
@@ -106,13 +107,13 @@ public sealed class UiPrimitiveTests
         holder.Add(rect);
         holder.Add(label);
 
-        Assert.Equal(new Rect(4f, 5f, 34f, 10f), rect.Bounds);
-        Assert.Equal(new Rect(4f, 5f, 34f, 5f + BitmapFont.Default.Measure("Hi").Y), label.Bounds);
+        Assert.Equal(Rect.FromEdges(4f, 5f, 34f, 10f), rect.Bounds);
+        Assert.Equal(Rect.FromEdges(4f, 5f, 34f, 5f + BitmapFont.Default.Measure("Hi").Y), label.Bounds);
 
         // A centre pivot keeps the filled X on the rect and centres only the measured Y.
         label.Pivot = Pivot.Center;
         float half = BitmapFont.Default.Measure("Hi").Y / 2f;
-        Assert.Equal(new Rect(4f, 5f - half, 34f, 5f + half), label.Bounds);
+        Assert.Equal(Rect.FromEdges(4f, 5f - half, 34f, 5f + half), label.Bounds);
     }
 
     [Fact]
@@ -120,23 +121,6 @@ public sealed class UiPrimitiveTests
     {
         Assert.True(new ColorRect(new Vector2(30f, 10f)).Bounds.IsEmpty);
         Assert.True(new NineSlice(Panel, new SliceInsets(3), new Vector2(40f, 30f)).Bounds.IsEmpty);
-    }
-
-    private static SimulationHost Run(Component primitive)
-    {
-        Scene scene = new();
-        scene.Add(new Holder(primitive));
-
-        return new SimulationHost(scene);
-    }
-
-    private sealed class Holder : Entity
-    {
-        internal Holder(Component drawn)
-            : base(new Vector2(4f, 5f))
-        {
-            Add(drawn);
-        }
     }
 
     private sealed class Drifter : ScreenEntity
@@ -150,7 +134,7 @@ public sealed class UiPrimitiveTests
         protected internal override void OnStep(in StepContext context) => Position += Vector2.UnitX;
     }
 
-    // A renderer of the kind a game writes itself: it places its intent from the resolved positions
+    // A renderer of the kind a game writes itself. It places its intent from the resolved positions
     // rather than reaching for its entity's space origin.
     private sealed class Probe : Renderer
     {

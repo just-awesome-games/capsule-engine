@@ -1,5 +1,3 @@
-using Capsule.Physics;
-
 namespace MinimalGame.Game;
 
 public static class CollisionLayers

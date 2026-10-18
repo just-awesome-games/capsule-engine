@@ -51,8 +51,8 @@ internal static class SelectionBounds
         }
 
         union = any
-            ? new Rect(MathF.Min(union.Left, left), MathF.Min(union.Top, top), MathF.Max(union.Right, right), MathF.Max(union.Bottom, bottom))
-            : new Rect(left, top, right, bottom);
+            ? Rect.FromEdges(MathF.Min(union.Left, left), MathF.Min(union.Top, top), MathF.Max(union.Right, right), MathF.Max(union.Bottom, bottom))
+            : Rect.FromEdges(left, top, right, bottom);
         any = true;
     }
 }

@@ -8,27 +8,27 @@ namespace Capsule.Tests.Scenes;
 
 public sealed class SceneYSortTests
 {
-    // Every entity stands at X zero and each renderer's offset is its tag, so an intent's X names the
+    // Every entity stands at X zero and each renderer's offset is its tag. An intent's X names the
     // renderer that drew it.
     [Fact]
     public void RootsInABand_DrawByTheirYAsTheyMove_WithTheirSubtreeAndInsideTheirBand()
     {
-        Marker low = Root(10f, 1);
+        Node low = Root(10f, 1);
 
         // Its child stands far below it and still draws with its root.
-        Marker lowChild = new(new Vector2(0f, 100f));
+        Node lowChild = new(new Vector2(0f, 100f));
         lowChild.Add(Tag(2));
         lowChild.Parent = low;
 
-        Marker middle = Root(20f, 3);
-        Marker tied = Root(20f, 4);
+        Node middle = Root(20f, 3);
+        Node tied = Root(20f, 4);
 
         // A child with a band of its own draws over the whole default band whatever its root's Y.
-        Marker raised = new(Vector2.Zero) { ZIndex = 5 };
+        Node raised = new(Vector2.Zero) { ZIndex = 5 };
         raised.Add(Tag(6));
         raised.Parent = middle;
 
-        Marker under = Root(1000f, 5);
+        Node under = Root(1000f, 5);
         under.ZIndex = -1;
 
         // The screen layer keeps its walk order whatever its Y.
@@ -63,15 +63,13 @@ public sealed class SceneYSortTests
         Assert.Equal([5, 1, 2, 3, 4, 6], Order(run.Simulation.View.Sprites));
     }
 
-    private static Marker Root(float y, int tag)
+    private static Node Root(float y, int tag)
     {
-        Marker root = new(new Vector2(0f, y));
+        Node root = new(new Vector2(0f, y));
         root.Add(Tag(tag));
 
         return root;
     }
-
-    private sealed class Marker(Vector2 position) : Entity(position);
 
     private sealed class Pinned : ScreenEntity
     {

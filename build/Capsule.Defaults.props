@@ -2,7 +2,8 @@
 
   <!-- What Capsule sets ahead of the project body. JAG.Capsule carries this file as
        buildTransitive/JAG.Capsule.props, and Capsule.Build.props imports it for a source consumer.
-       A role is unknown here, so every role default lives in Capsule.Build.targets. -->
+       A property here cannot read a role. Every role default lives in Capsule.Build.targets, apart
+       from the logic role's usings below. -->
   <PropertyGroup>
     <!-- Universal import, inert without the shell role, which Capsule.OutputType.targets reads after
          the project body and ahead of the SDK's targets, which read OutputType. -->
@@ -15,6 +16,14 @@
     <!-- The SDK writes ProjectDir into the analyzer config the compiler reads, and sets it only when empty. -->
     <ProjectDir Condition="'$(ProjectDir)' == ''">$([MSBuild]::EnsureTrailingSlash('$(_CapsuleProjectDirectory)'))</ProjectDir>
   </PropertyGroup>
+
+  <!-- A logic project imports every game-facing namespace, as the SDK imports System's. The items
+       come ahead of the project body, where a game drops one with <Using Remove> or every one by
+       turning ImplicitUsings off. Items evaluate after every property, and the condition sees the role. -->
+  <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true' and ('$(ImplicitUsings)' == 'enable' or '$(ImplicitUsings)' == 'true')">
+    <Using Include="Capsule;Capsule.Animation;Capsule.Assets;Capsule.Audio;Capsule.Diagnostics;Capsule.Input;Capsule.Particles" />
+    <Using Include="Capsule.Persistence;Capsule.Physics;Capsule.Rendering;Capsule.Scenes;Capsule.Tiles;Capsule.UI;System.Numerics" />
+  </ItemGroup>
 
   <!-- Source control reports the repository root in the spelling the project was reached by. The SDK
        writes it into the Source Link file the compiler reads. The root's drive letter is upper-cased

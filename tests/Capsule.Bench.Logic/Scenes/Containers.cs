@@ -1,6 +1,5 @@
 using Capsule.Bench.Logic.Cameras;
 using Capsule.Bench.Logic.UI;
-using Capsule.Scenes;
 
 namespace Capsule.Bench.Logic.Scenes;
 

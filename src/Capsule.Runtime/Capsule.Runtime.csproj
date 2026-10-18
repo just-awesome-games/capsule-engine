@@ -5,7 +5,7 @@
     <RootNamespace>Capsule.Runtime</RootNamespace>
     <PackageId>JAG.Capsule.Runtime</PackageId>
     <Description>The platform-neutral Capsule host: window, graphics device, clock, keyboard and gamepad sampling, the interpolating renderer, sound playback, scene hosting and the HostPlatform contract a platform module fills in. The only module that links the graphics backend.</Description>
-    <!-- The substrate is one property pair, so a private platform module retargets an unmodified
+    <!-- The substrate is one property pair. A private platform module retargets an unmodified
          source checkout without editing it. -->
     <CapsuleSubstratePackage Condition="'$(CapsuleSubstratePackage)' == ''">MonoGame.Framework.DesktopGL</CapsuleSubstratePackage>
     <CapsuleSubstrateVersion Condition="'$(CapsuleSubstrateVersion)' == ''">3.8.5.1</CapsuleSubstrateVersion>

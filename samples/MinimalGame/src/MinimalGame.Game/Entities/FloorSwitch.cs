@@ -1,12 +1,3 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Animation;
-using Capsule.Diagnostics;
-using Capsule.Physics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace MinimalGame.Game.Entities;
 
 /// <summary>

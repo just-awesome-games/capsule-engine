@@ -1,11 +1,6 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace Capsule.Bench.Logic.Entities;
 
-// Only every third one draws, so most are stepped and culled without submitting anything.
+// Only every third one draws. Most are stepped and culled without submitting anything.
 public sealed class Bystander : Entity
 {
     private static readonly Sprite Frame = new(CapsuleAssets.Textures.TerrainTexture, new TextureRegion(0, 0, 16, 16));

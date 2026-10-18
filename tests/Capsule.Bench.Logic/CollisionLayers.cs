@@ -7,7 +7,7 @@ public static class CollisionLayers
     /// <summary>A one-way ledge, collidable from above.</summary>
     public const string Platform = "platform";
 
-    /// <summary>Walkers and posts; walkers never collide with each other.</summary>
+    /// <summary>Walkers and posts, where walkers never collide with each other.</summary>
     public const string Actor = "actor";
 
     /// <summary>A solid object that shoves the bodies it moves into.</summary>

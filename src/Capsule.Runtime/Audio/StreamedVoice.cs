@@ -10,7 +10,7 @@ namespace Capsule.Runtime.Audio;
 // Everything a play needs belongs to the voice and outlives the play: the device queue, the decode
 // scratch, the buffers handed to the device, the loop reader, and the cursor over a resident clip's
 // samples. A voice that has ended goes back to the streamer's pool and is armed over the next play's
-// source in place, so a warm replay allocates nothing. Its format is fixed by the rate and channel
+// source in place. A warm replay allocates nothing. Its format is fixed by the rate and channel
 // count it was built for, since the buffer sizes and the queue are. A file-backed source is per play,
 // because it holds a file handle.
 //
@@ -25,7 +25,7 @@ internal sealed class StreamedVoice : IAudioVoice
     private const double BufferSeconds = 0.25;
     private const int ReadyBuffers = 3;
 
-    // The backend asks for more below three queued, so the game thread keeps three.
+    // The backend asks for more below three queued. The game thread keeps three.
     private const int QueuedBuffers = 3;
 
     private readonly Lock _gate = new();
@@ -53,6 +53,10 @@ internal sealed class StreamedVoice : IAudioVoice
     private Action? _ended;
 
     private string _clipName = "";
+
+    // The warning for a decode fault, written by whichever thread faulted and logged by the game
+    // thread, because a log sink is written only on the simulation thread.
+    private string? _fault;
     private bool _endOfStream;
     private volatile bool _faulted;
     private volatile bool _returning;
@@ -113,6 +117,8 @@ internal sealed class StreamedVoice : IAudioVoice
 
     public void Update()
     {
+        ReportFault();
+
         if (_faulted || _disposed)
         {
             return;
@@ -138,21 +144,24 @@ internal sealed class StreamedVoice : IAudioVoice
         _disposed = true;
         _queue.Stop();
 
+        // A fault the worker recorded after this frame's Update is still heard.
+        ReportFault();
+
         // Taken and cleared before the end is published. The callback holds the resident sound whose
-        // samples this voice streamed, and the worker pools the voice as soon as it sees _returning,
-        // so a pooled voice still holding that sound would keep it decoded until shutdown. Clearing
-        // it here also makes a second Dispose report nothing.
+        // samples this voice streamed, and the worker pools the voice as soon as it sees _returning. A
+        // pooled voice still holding that sound would keep it decoded until shutdown. Clearing it here
+        // also makes a second Dispose report nothing.
         Action? ended = _ended;
         _ended = null;
 
-        // The source is the worker's, so it is freed by asking the worker. The queue and the buffers
-        // stay, so the next play of this format allocates nothing.
+        // The source is the worker's. It is freed by asking the worker. The queue and the buffers
+        // stay. The next play of this format allocates nothing.
         _returning = true;
         _streamer.Wake();
         ended?.Invoke();
     }
 
-    // Sounds this voice over a resident clip's samples. Its own cursor is pointed at them, so a
+    // Sounds this voice over a resident clip's samples. Its own cursor is pointed at them. A
     // replay opens nothing.
     internal void Start(
         PcmAudio samples,
@@ -191,6 +200,9 @@ internal sealed class StreamedVoice : IAudioVoice
         _ended = ended;
 
         _endOfStream = false;
+
+        // A fault the worker recorded while this voice retired from its last play is heard, not dropped.
+        ReportFault();
         _faulted = false;
         _returning = false;
         _paused = false;
@@ -250,7 +262,7 @@ internal sealed class StreamedVoice : IAudioVoice
             return true;
         }
 
-        // Outside the lock, so the game thread's submit never waits on a conversion.
+        // Outside the lock. The game thread's submit never waits on a conversion.
         Encode(_scratch.AsSpan(0, samples), buffer);
 
         lock (_gate)
@@ -263,10 +275,10 @@ internal sealed class StreamedVoice : IAudioVoice
 
     // Called on the worker once this voice is retiring, and on the streamer's teardown after the
     // worker has been joined. The buffers belong to the voice and survive for its next play. What was
-    // decoded and never submitted goes back to the free list, so the next play starts on an empty
+    // decoded and never submitted goes back to the free list. The next play starts on an empty
     // ready queue.
     //
-    // The reader and the cursor belong to the voice too, so they are emptied and not dropped. What
+    // The reader and the cursor belong to the voice too. They are emptied and not dropped. What
     // they hold of the play, a file handle or the ended clip's samples, must not reach the pool,
     // where a waiting voice would keep that clip decoded until shutdown.
     internal void CloseSource()
@@ -287,10 +299,21 @@ internal sealed class StreamedVoice : IAudioVoice
     // Closes the device queue, once the device it belongs to is going away.
     internal void CloseQueue() => _queue.Dispose();
 
+    // On the worker or, for the first buffer, the game thread. The message is published before the
+    // flag that silences the voice.
     private void Fault(Exception failure)
     {
+        Volatile.Write(ref _fault, $"audio: streaming '{_clipName}' failed and it falls silent. {failure.Message}");
         _faulted = true;
-        Log.Warning($"audio: streaming '{_clipName}' failed and it falls silent. {failure.Message}");
+    }
+
+    // On the game thread. Logs a recorded fault once.
+    internal void ReportFault()
+    {
+        if (Interlocked.Exchange(ref _fault, null) is { } fault)
+        {
+            Log.Warning(fault);
+        }
     }
 
     // Rounded, not truncated. A sample read back from a 16-bit source must encode to the value it was

@@ -32,6 +32,22 @@ public sealed class ColliderLifecycleTests
     }
 
     [Fact]
+    public void ATileMapColliderRegistersOneGridWhoseCellsCarryTheAuthoredLayer()
+    {
+        Scene scene = SceneFixtures.Terrain("....", "####").Started();
+        TileMapCollider2D collider = scene.FindSingle<TileMap>().Get<TileMapCollider2D>();
+
+        Assert.NotNull(collider.Grid);
+        Assert.Equal(4, collider.Grid.Width);
+        Assert.Equal("solid", scene.Collision.NameOf(collider.Grid.LayerOf(0, 1)));
+
+        scene.Remove(collider.Entity!);
+
+        Assert.Null(collider.Grid);
+        Assert.Empty(scene.Collision.Grids.ToArray());
+    }
+
+    [Fact]
     public void AColliderAttachedToAnEntityAlreadyInAScene_RegistersImmediately()
     {
         Scene scene = new Scene().Started();
@@ -113,7 +129,7 @@ public sealed class ColliderLifecycleTests
         Assert.Equal(2, entered);
     }
 
-    // A collider keeps layer names, not bits, so the scene it lands in is the one it filters against.
+    // A collider keeps layer names, not bits. The scene it lands in is the one it filters against.
     [Fact]
     public void AColliderCarriedToAnotherScene_RebuildsItsFilterAgainstTheNewWorld()
     {
@@ -128,7 +144,7 @@ public sealed class ColliderLifecycleTests
 
         Assert.Equal(CollisionFilter.None, body.Collider.Filter);
 
-        // Names interned ahead of 'solid' land it on a different bit, so a filter carried over
+        // Names interned ahead of 'solid' land it on a different bit. A filter carried over
         // would match some other tile type rather than simply matching nothing.
         using SceneSimulation simulation = new(new Scene());
         Scene second = simulation.Scene;

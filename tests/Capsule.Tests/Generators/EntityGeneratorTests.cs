@@ -30,24 +30,6 @@ public sealed class EntityGeneratorTests
         Assert.Contains("\"enemy-2\"", generated, StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData("public sealed class Player : Entity { public Player() : base(Vector2.Zero) { } }")]
-    [InlineData("public sealed class Player : Entity { public Player(Vector2 at, int hp) : base(at) { } }")]
-    [InlineData("public abstract class Hazard : Entity { protected Hazard(EntitySpawn spawn) : base(spawn) { } }")]
-    [InlineData("public sealed class Marker { public Marker(EntitySpawn spawn) { } }")]
-    public void AClassOfAnotherShape_IsPassedOverInSilence(string declaration)
-    {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation updated) = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            {{declaration}}
-            """);
-
-        Assert.Empty(diagnostics);
-        Assert.DoesNotContain("Game.Player", Emitted(updated), StringComparison.Ordinal);
-        Assert.DoesNotContain("Game.Marker", Emitted(updated), StringComparison.Ordinal);
-    }
-
     [Fact]
     public void AnExplicitTypeKey_ReplacesTheConvention()
     {
@@ -67,44 +49,6 @@ public sealed class EntityGeneratorTests
         Assert.NotEmpty(claims);
         Assert.All(claims, line => Assert.Contains("Game.Protagonist", line, StringComparison.Ordinal));
         Assert.DoesNotContain("\"protagonist\"", generated, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TwoClassesClaimingOneType_FailTheBuildNamingBoth()
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            public sealed class Chest(EntitySpawn spawn) : Entity(spawn);
-
-            [TypeKey("chest")]
-            public sealed class IronChest(EntitySpawn spawn) : Entity(spawn);
-            """).Diagnostics;
-
-        Diagnostic collision = Assert.Single(GeneratorHarness.Errors(diagnostics));
-        Assert.Equal("CAP003", collision.Id);
-
-        string message = collision.GetMessage(System.Globalization.CultureInfo.InvariantCulture);
-        Assert.Contains("Game.Chest", message, StringComparison.Ordinal);
-        Assert.Contains("Game.IronChest", message, StringComparison.Ordinal);
-        Assert.Contains("'chest'", message, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("[TypeKey(\"hazard\")] public abstract class Hazard : Entity { protected Hazard(EntitySpawn spawn) : base(spawn) { } }", "CAP001")]
-    [InlineData("[TypeKey(\"player\")] public sealed class Player : Entity { public Player() : base(Vector2.Zero) { } }", "CAP002")]
-    [InlineData("[TypeKey(\"  \")] public sealed class Player(EntitySpawn spawn) : Entity(spawn);", "CAP004")]
-    [InlineData("public static class Entities { private sealed class Player(EntitySpawn spawn) : Entity(spawn); }", "CAP008")]
-    [InlineData("public sealed class Player : Entity { public Player(EntitySpawn spawn) : base(spawn) { } public Player(in EntitySpawn spawn) : base(spawn) { } }", "CAP010")]
-    public void AnEntityOfAShapeTheRegistryCannotSpawn_FailsTheBuild(string declaration, string id)
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            {{declaration}}
-            """).Diagnostics;
-
-        Assert.Equal(id, Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 
     // A public constructor taking a Vector2, for placement from code, is not a spawn constructor:

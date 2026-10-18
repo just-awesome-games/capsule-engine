@@ -8,12 +8,12 @@
     <RootNamespace>Capsule.AotSmoke</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsPackable>false</IsPackable>
-    <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
+    <!-- Nothing here is a reference a consumer compiles against. It carries no API reference. -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <!-- An AOT publish restores a runtime-specific ILC compiler pack per CI matrix leg, so no one
+    <!-- An AOT publish restores a runtime-specific ILC compiler pack per CI matrix leg. No one
          lock file describes this project's restore. -->
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
-    <!-- The shell role, so the publish takes a game shell's shape. The smoke runs through the
+    <!-- The shell role. The publish takes a game shell's shape. The smoke runs through the
          generated CapsuleBoot, and the default icons come with the role. -->
     <CapsuleGameShell>true</CapsuleGameShell>
     <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>

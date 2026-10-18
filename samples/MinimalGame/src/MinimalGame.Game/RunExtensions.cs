@@ -1,5 +1,3 @@
-using Capsule;
-
 namespace MinimalGame.Game;
 
 /// <summary>The game's typed door onto the run object <see cref="GameBoot.Start"/> attached.</summary>

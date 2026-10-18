@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/scene.schema.json",
-  "$comment": "Generated from Capsule.Scenes.Documents.SceneDocumentJson.",
+  "$comment": "Generated from Capsule.Scenes.SceneDocumentJson.",
   "title": "Capsule scene document",
   "description": "A scene document: every entity a scene places. Any other key sets the member the composing scene class marks [Authorable], the engine's own Scene members among them.",
   "type": "object",

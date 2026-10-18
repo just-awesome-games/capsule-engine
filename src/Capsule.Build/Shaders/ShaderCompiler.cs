@@ -7,12 +7,12 @@ using Capsule.Rendering;
 
 namespace Capsule.Build.Shaders;
 
-/// <summary>
-/// The one seam a pixel-stage source becomes a compiled effect through. DXC compiles the HLSL to
-/// SPIR-V, SPIRV-Cross reflects its parameters and writes it as GLSL, and <see cref="MgfxWriter"/>
-/// packs it with the engine's vertex stage. Both tools are native binaries for the host's operating
-/// system and architecture, so a workstation installs nothing.
-/// </summary>
+/// <summary>The one seam a pixel-stage source becomes a compiled effect through.</summary>
+/// <remarks>
+/// DXC compiles the HLSL to SPIR-V, SPIRV-Cross reflects its parameters and writes it as GLSL, and
+/// <see cref="MgfxWriter"/> packs it with the engine's vertex stage. Both tools are native binaries for
+/// the host's operating system and architecture. A workstation installs nothing.
+/// </remarks>
 internal static partial class ShaderCompiler
 {
     // The GLSL the desktop host's OpenGL 2.1 context accepts.
@@ -35,7 +35,7 @@ internal static partial class ShaderCompiler
         string spirv = Path.ChangeExtension(source, ".spv");
         string directory = Path.GetDirectoryName(source)!;
 
-        // Run beside the source and handed its bare name, so no machine path reaches a diagnostic's
+        // Run beside the source and handed its bare name. No machine path reaches a diagnostic's
         // anchor or a shipped file.
         (int exit, string output, string errors) = Run(
             Binary(tools.Dxc, "dxc", inBin: true),
@@ -89,7 +89,7 @@ internal static partial class ShaderCompiler
             }
 
             string glsl = output.ReplaceLineEndings("\n");
-            if (Bind(ref glsl, textures, ref bufferSize, out List<PixelConstant> sizes) is { } unsupported)
+            if (AdaptForGl21(ref glsl, textures, ref bufferSize, out List<PixelConstant> sizes) is { } unsupported)
             {
                 return Failed(unsupported, diagnostics);
             }
@@ -107,12 +107,12 @@ internal static partial class ShaderCompiler
         }
     }
 
-    // Binds each texture to its slot. The combined sampler SPIRV-Cross names after a texture and the
-    // engine's sampler takes the slot's name. A read through the size probe becomes a size parameter
-    // appended to the pixel buffer. The flattened parameter block takes the pixel buffer's name, and the
-    // scene globals block the globals buffer's.
-    // Returns why the stage would not compile on OpenGL 2.1, or null.
-    private static string? Bind(ref string glsl, List<string> textures, ref int bufferSize, out List<PixelConstant> sizes)
+    // Rewrites the stage for the effect container and returns why OpenGL 2.1 would not compile it, or
+    // null. The combined sampler SPIRV-Cross names after a texture and the engine's sampler takes the
+    // slot's name. A read through the size probe becomes a size parameter appended to the pixel buffer.
+    // The flattened parameter block takes the pixel buffer's name, and the scene globals block the
+    // globals buffer's.
+    private static string? AdaptForGl21(ref string glsl, List<string> textures, ref int bufferSize, out List<PixelConstant> sizes)
     {
         sizes = [];
         for (int slot = 0; slot <= textures.Count; slot++)
@@ -317,7 +317,7 @@ internal static partial class ShaderCompiler
     }
 
     // The tool's binary for this host. Each package lays a folder out per operating system and
-    // architecture, macOS as one universal binary. NuGet extracts without the executable bit, so it is
+    // architecture, macOS as one universal binary. NuGet extracts without the executable bit. It is
     // restored before the first run.
     private static string Binary(string package, string name, bool inBin)
     {
@@ -374,7 +374,7 @@ internal static partial class ShaderCompiler
         }
 
         using Process process = Process.Start(start)
-            ?? throw new IOException($"The shader tool '{executable}' did not start.");
+            ?? throw new IOException($"The shader tool '{executable}' did not start. Restore the project, and check that the tool runs on this host.");
 
         Task<string> errors = process.StandardError.ReadToEndAsync();
         string output = process.StandardOutput.ReadToEnd();

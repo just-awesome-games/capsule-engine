@@ -19,10 +19,13 @@
     <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)..'))</CapsuleSourceRoot>
 
     <_CapsuleConsumerDirectory>$([System.IO.Path]::GetDirectoryName('$(DirectoryBuildPropsPath)'))</_CapsuleConsumerDirectory>
+    <!-- CapsuleSourceOverrides is parsed here alone: the clones' targets to import, and the packages they replace,
+         which Capsule.SourceConsumer.targets drops. -->
+    <_CapsuleOverriddenPackages Condition="'$(CapsuleSourceOverrides)' != ''">$([System.Text.RegularExpressions.Regex]::Replace('$(CapsuleSourceOverrides)', '\s*([^=;\s]+)\s*=[^;]*', '$1'))</_CapsuleOverriddenPackages>
     <_CapsuleSourceOverrideTargets Condition="'$(CapsuleSourceOverrides)' != ''">$([System.Text.RegularExpressions.Regex]::Replace('$(CapsuleSourceOverrides)', '\s*([^=;\s]+)\s*=\s*([^;]*[^;\s])\s*', '$(_CapsuleConsumerDirectory)/$2/build/$1.targets'))</_CapsuleSourceOverrideTargets>
 
     <!-- A package's targets are imported ahead of Directory.Build.targets, and a clone's right after
-         it, overrides first. The project body is final there, so the swap sees every reference. A
+         it, overrides first. The project body is final there, and the swap sees every reference. A
          clone that is not there fails the evaluation naming the file. -->
     <CustomAfterDirectoryBuildTargets>$(CustomAfterDirectoryBuildTargets);$(_CapsuleSourceOverrideTargets);$(MSBuildThisFileDirectory)Capsule.Build.targets</CustomAfterDirectoryBuildTargets>
   </PropertyGroup>

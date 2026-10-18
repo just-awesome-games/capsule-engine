@@ -1,19 +1,16 @@
-using System.Numerics;
-using Capsule.Assets;
 using Capsule.Bench.Logic.Cameras;
 using Capsule.Bench.Logic.Components;
 using Capsule.Bench.Logic.Entities;
-using Capsule.Rendering;
-using Capsule.Scenes;
 
 namespace Capsule.Bench.Logic.Scenes;
 
-/// <summary>
-/// Scene transitions with media at every boundary. The workload hands over to its first half, and
-/// every 120 steps each half requests the other. Each half declares a page the other never uses and
-/// prefetches the other on arrival, so every boundary adopts the warmed page and releases the outgoing
-/// one. The signal is <c>intervalMs</c> max, because loading runs outside <c>FrameRenderer.Draw</c>.
-/// </summary>
+/// <summary>Scene transitions with media at every boundary.</summary>
+/// <remarks>
+/// The workload hands over to its first half, and every 120 steps each half requests the other. Each
+/// half declares a page the other never uses and prefetches the other on arrival. Every boundary
+/// adopts the warmed page and releases the outgoing one. The signal is <c>intervalMs</c> max, because
+/// loading runs outside <c>FrameRenderer.Draw</c>.
+/// </remarks>
 [Workload(WorkloadKind.Rendering)]
 public sealed class Transition : Scene
 {

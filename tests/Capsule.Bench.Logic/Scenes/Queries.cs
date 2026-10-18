@@ -1,5 +1,4 @@
 using Capsule.Bench.Logic.Cameras;
-using Capsule.Scenes;
 
 namespace Capsule.Bench.Logic.Scenes;
 

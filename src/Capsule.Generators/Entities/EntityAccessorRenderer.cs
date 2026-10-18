@@ -7,7 +7,7 @@ internal static class EntityAccessorRenderer
     private const string UnsafeAccessor = "global::System.Runtime.CompilerServices.UnsafeAccessor";
 
     // C#'s required members are checked at a new expression. Generated code sets a class's required references
-    // past construction, so it calls the constructor through an accessor the check does not reach.
+    // past construction. It calls the constructor through an accessor the check does not reach.
     internal static string Constructor(string qualifiedName, string parameter) => $$"""
 
                 [{{UnsafeAccessor}}({{UnsafeAccessor}}Kind.Constructor)]
@@ -79,7 +79,7 @@ internal static class EntityAccessorRenderer
             + $"{indent}{access} static extern void {SetterName(property)}({property.Declaring} owner, {property.Declared} value);";
 
     // Set or Get and the member's key capitalized: _tuning is set by SetTuning. A class's keys are unique and never
-    // start with a capital, so its accessor names are unique too.
+    // start with a capital. Its accessor names are unique too.
     private static string SetterName(PropertyModel property) => "Set" + Capitalized(property.Key);
 
     private static string GetterName(PropertyModel property) => "Get" + Capitalized(property.Key);

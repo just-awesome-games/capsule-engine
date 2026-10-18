@@ -17,7 +17,7 @@ internal sealed class ResidentSoundEffect(
     private readonly Stack<PooledVoice> _pooled = new();
 
     // The decoded clip, for plays the device cannot queue whole. A clip with a loop region arrives
-    // decoded, and any other decodes on its first such play. It sits beside the SoundEffect, so a plain
+    // decoded, and any other decodes on its first such play. It sits beside the SoundEffect. A plain
     // one-shot is still queued whole. A clip without a region that only plays that way never pays the
     // samples' memory.
     private PcmAudio? _samples = samples;
@@ -31,7 +31,7 @@ internal sealed class ResidentSoundEffect(
     }
 
     // The streamer pools the streamed voice, not this sound. Its queue, its buffers, its loop reader
-    // and its cursor over these samples are fixed by the clip's rate and channel count, so every
+    // and its cursor over these samples are fixed by the clip's rate and channel count. Every
     // replay of a region loop or an offset start reuses them, whether it is this clip or any other of
     // that format.
     public IAudioVoice Stream(float gain, float pitch, float pan, bool loop, double startSeconds, Action ended)
@@ -43,7 +43,7 @@ internal sealed class ResidentSoundEffect(
 
     public void Dispose()
     {
-        // Reached once no voice holds an instance, so the pool is complete by here.
+        // Reached once no voice holds an instance. The pool is complete by here.
         while (_pooled.Count > 0)
         {
             _pooled.Pop().Close();

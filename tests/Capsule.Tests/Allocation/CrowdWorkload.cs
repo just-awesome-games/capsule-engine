@@ -10,18 +10,14 @@ using Capsule.Tiles;
 namespace Capsule.Tests.Allocation;
 
 // A thousand animated kinematic bodies walking a tile ring. They collide with the room and never with
-// each other. One lift sits among them on a layer they block on, so the broadphase is always queried.
+// each other. One slab sits among them on a layer they block on, which keeps the broadphase queried.
 internal static class CrowdWorkload
 {
-    internal const int TileSize = 16;
     internal const int TilesWide = 16;
     internal const int TilesHigh = 14;
     internal const int Players = 1000;
 
-    internal const string Solid = "solid";
-    internal const string Platform = "platform";
-    internal const string Actor = "actor";
-
+    private const int TileSize = CollisionWorkload.TileSize;
     private const int PlatformRow = 8;
 
     private static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
@@ -35,13 +31,6 @@ internal static class CrowdWorkload
     ];
 
     private static readonly SpriteClip Clip = new(Walk, [4, 4, 4, 4], loop: true);
-
-    private static readonly TileType[] Palette =
-    [
-        TileGrid.EmptyTile,
-        new() { Name = Solid, Cell = 0, Layer = Solid },
-        new() { Name = Platform, Cell = 1, Layer = Platform, OneWay = true },
-    ];
 
     internal static Scene Room()
     {
@@ -62,71 +51,42 @@ internal static class CrowdWorkload
         }
 
         Scene scene = new();
-        TileMap terrain = new(new TileGrid(TileSize, TilesWide, TilesHigh, Palette, cells, Atlas, 2));
-        terrain.Add(new TileMapCollider2D());
-        scene.Add(terrain);
-        scene.Add(new Lift(new Vector2(8 * TileSize, 4 * TileSize)));
+        scene.Add(SceneFixtures.Colliding(new TileGrid(TileSize, TilesWide, TilesHigh, CollisionWorkload.Palette, cells, Atlas, 2)));
+        scene.Add(new Slab(new Vector2(8 * TileSize, 4 * TileSize)));
 
         for (int index = 0; index < Players; index++)
         {
-            scene.Add(new Player(
+            scene.Add(Player(
                 new Vector2(
                     TileSize + ((index * 7) % ((TilesWide - 2) * TileSize)),
                     TileSize + ((index * 13) % ((TilesHigh - 3) * TileSize))),
-                index));
+                (index % 2) == 0 ? 1f : -1f));
         }
 
         return scene;
     }
 
-    internal sealed class Lift : Entity
+    // A walker on the actor layer, playing the walk cycle.
+    private static CollisionWorkload.Walker Player(Vector2 position, float direction)
     {
-        internal Lift(Vector2 position)
-            : base(position)
-        {
-            BoxCollider2D collider = new(new Vector2(32f, 8f));
-            collider.Layer = Platform;
-            Add(collider);
-        }
+        CollisionWorkload.Walker walker = new(position, direction);
+        walker.Collider.Layer = CollisionWorkload.Actor;
+
+        SpriteRenderer renderer = new(Walk[0]);
+        walker.Add(renderer);
+
+        SpriteAnimator animator = new(renderer);
+        walker.Add(animator);
+        animator.Play(Clip);
+
+        return walker;
     }
 
-    internal sealed class Player : Entity
+    /// <summary>A still slab on the platform layer.</summary>
+    internal sealed class Slab : Entity
     {
-        private readonly KinematicBody2D _body;
-        private readonly SpriteAnimator _animator;
-        private float _direction;
-
-        internal Player(Vector2 position, int index)
-            : base(position)
-        {
-            _direction = (index % 2) == 0 ? 1f : -1f;
-
-            BoxCollider2D collider = new(new Vector2(12f, 24f));
-            collider.Layer = Actor;
-            collider.Detects = new(Solid, Platform);
-            Add(collider);
-
-            _body = new KinematicBody2D(collider) { Mode = BodyMode.Grounded };
-            _body.BlockedBy = new(Solid, Platform);
-            Add(_body);
-
-            SpriteRenderer renderer = new(Walk[0]);
-            Add(renderer);
-
-            _animator = new SpriteAnimator(renderer);
-            Add(_animator);
-        }
-
-        protected internal override void OnStart() => _animator.Play(Clip);
-
-        protected internal override void OnStep(in StepContext context)
-        {
-            _body.Move(new Vector2(_direction * 2f, 4f));
-
-            if (_body.IsOnWall)
-            {
-                _direction = -_direction;
-            }
-        }
+        internal Slab(Vector2 position)
+            : base(position) =>
+            Add(new BoxCollider2D(new Vector2(32f, 8f)) { Layer = CollisionWorkload.Platform });
     }
 }

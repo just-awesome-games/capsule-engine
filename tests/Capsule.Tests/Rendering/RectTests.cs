@@ -3,11 +3,17 @@ using Capsule.Rendering;
 
 namespace Capsule.Tests.Rendering;
 
-// Containment on the half-open region: what the pointer is tested against, so a point on a shared edge
-// lands in exactly one of two abutting rects.
+// The two ways to build a rect, and containment on the half-open region the pointer is tested against.
+// A point on a shared edge lands in exactly one of two abutting rects.
 public sealed class RectTests
 {
-    private static readonly Rect Box = new(10f, 20f, 30f, 40f);
+    private static readonly Rect Box = Rect.FromEdges(10f, 20f, 30f, 40f);
+
+    [Fact]
+    public void EdgesAndACornerWithAnExtent_BuildTheSameRect()
+    {
+        Assert.Equal(Box, new Rect(new Vector2(10f, 20f), new Vector2(20f, 20f)));
+    }
 
     // Inside, then the low edges and the corner they meet at, then the high edges and their corner,
     // then outside on each axis.
@@ -30,7 +36,7 @@ public sealed class RectTests
     [Fact]
     public void AnEmptyRect_ContainsNothing()
     {
-        Assert.False(new Rect(10f, 20f, 10f, 40f).Contains(new Vector2(10f, 30f)));
+        Assert.False(Rect.FromEdges(10f, 20f, 10f, 40f).Contains(new Vector2(10f, 30f)));
         Assert.False(default(Rect).Contains(Vector2.Zero));
     }
 
@@ -38,10 +44,10 @@ public sealed class RectTests
     public void ANonFinitePointOrEdge_IsNeverContained()
     {
         Assert.False(Box.Contains(new Vector2(float.NaN, 30f)));
-        Assert.False(new Rect(float.NaN, 20f, 30f, 40f).Contains(new Vector2(20f, 30f)));
+        Assert.False(Rect.FromEdges(float.NaN, 20f, 30f, 40f).Contains(new Vector2(20f, 30f)));
 
-        // An infinite edge is no region either, so containment and emptiness agree on it.
-        Rect unbounded = new(0f, 0f, float.PositiveInfinity, 10f);
+        // An infinite edge is no region either. Containment and emptiness agree on it.
+        Rect unbounded = Rect.FromEdges(0f, 0f, float.PositiveInfinity, 10f);
 
         Assert.True(unbounded.IsEmpty);
         Assert.False(unbounded.Contains(new Vector2(5f, 5f)));

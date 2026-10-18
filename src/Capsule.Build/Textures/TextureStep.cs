@@ -10,6 +10,8 @@ namespace Capsule.Build.Textures;
 /// </summary>
 internal static class TextureStep
 {
+    private const string Step = "textures";
+
     internal static void Run(PipelinePass pass)
     {
         List<Source> packed = [];
@@ -21,7 +23,7 @@ internal static class TextureStep
 
         // An unpacked texture ships as authored, or an r8 texture as an 8-bit greyscale PNG of its values.
         List<Source> shipped = pass.Each(
-            "textures",
+            Step,
             unpacked,
             source => Derivation.Of(source, pass.TextureSettings[source.Key].Format == TextureFormatSetting.R8 ? "format=r8" : string.Empty),
             (source, files) =>
@@ -53,7 +55,7 @@ internal static class TextureStep
 
         foreach (Source texture in packed.Concat(shipped))
         {
-            pass.Assets.Beside(GeneratedAttributes.Asset);
+            pass.Assets.Beside(GeneratedAttributes.AssetDeclaration);
             pass.Declare(texture, pass.TextureSettings[texture.Key], TextureMembers.Write);
         }
     }

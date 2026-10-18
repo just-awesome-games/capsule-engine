@@ -1,8 +1,3 @@
-using System.Numerics;
-using Capsule.Physics;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace MinimalGame.Game.Entities;
 
 /// <summary>

@@ -29,7 +29,8 @@ internal static class BootRenderer
             + string.Concat(plan.Payloads.Items.Select(static payload => $"{Statement}payloads.Add({ScenePayloadRenderer.Registration(payload)});\n"));
 
         return GeneratedFile.Write([], $$"""
-                /// <summary>This game's entry point. Generated code. Do not edit.</summary>
+                /// <summary>This game's entry point.</summary>
+                /// <remarks>Generated code. Do not edit.</remarks>
                 {{GeneratedFile.ExcludeFromCodeCoverage}}
                 public static class CapsuleBoot
                 {

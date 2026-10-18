@@ -9,25 +9,26 @@
 
 namespace Capsule.Generated
 {
-    /// <summary>Every spawnable entity this assembly declares, as one registry. Generated code. Do not edit.</summary>
+    /// <summary>Every spawnable entity this assembly declares, as one registry.</summary>
+    /// <remarks>Generated code. Do not edit.</remarks>
     [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class CapsuleEntities
     {
-        internal static global::Capsule.Scenes.Spawning.EntityRegistration[] Registrations { get; } =
-            new global::Capsule.Scenes.Spawning.EntityRegistration[]
+        internal static global::Capsule.Scenes.EntityRegistration[] Registrations { get; } =
+            new global::Capsule.Scenes.EntityRegistration[]
             {
-                new global::Capsule.Scenes.Spawning.EntityRegistration("door", static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new global::Game.Door(spawn)),
-                new global::Capsule.Scenes.Spawning.EntityRegistration(
+                new global::Capsule.Scenes.EntityRegistration("door", static (global::Capsule.Scenes.EntitySpawn spawn) => new global::Game.Door(spawn)),
+                new global::Capsule.Scenes.EntityRegistration(
                     "floor-switch",
-                    static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => New_Game_FloorSwitch(spawn),
+                    static (global::Capsule.Scenes.EntitySpawn spawn) => New_Game_FloorSwitch(spawn),
                     static (placed, members) =>
                     {
                         global::Game.FloorSwitch entity = (global::Game.FloorSwitch)placed;
                         members.Link(entity, static (owner, linked) => ((global::Game.FloorSwitch)owner).Lamp = linked.Entity<global::Game.Lamp>("lamp"));
                     }),
-                new global::Capsule.Scenes.Spawning.EntityRegistration(
+                new global::Capsule.Scenes.EntityRegistration(
                     "lamp",
-                    static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new global::Game.Lamp(spawn),
+                    static (global::Capsule.Scenes.EntitySpawn spawn) => new global::Game.Lamp(spawn),
                     static (placed, members) =>
                     {
                         global::Game.Lamp entity = (global::Game.Lamp)placed;
@@ -46,9 +47,9 @@ namespace Capsule.Generated
                             SetCharge(entity) = members.Int("charge");
                         }
                     }),
-                new global::Capsule.Scenes.Spawning.EntityRegistration(
+                new global::Capsule.Scenes.EntityRegistration(
                     "portal",
-                    static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new global::Game.Portal(spawn),
+                    static (global::Capsule.Scenes.EntitySpawn spawn) => new global::Game.Portal(spawn),
                     static (placed, members) =>
                     {
                         global::Game.Portal entity = (global::Game.Portal)placed;
@@ -57,9 +58,9 @@ namespace Capsule.Generated
                             Object_Game_Exit(entity.Exit, members.Object("exit"), replaces: false);
                         }
                     }),
-                new global::Capsule.Scenes.Spawning.EntityRegistration(
+                new global::Capsule.Scenes.EntityRegistration(
                     "tile-map",
-                    static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new global::Capsule.Tiles.TileMap(spawn),
+                    static (global::Capsule.Scenes.EntitySpawn spawn) => new global::Capsule.Tiles.TileMap(spawn),
                     static (placed, members) =>
                     {
                         global::Capsule.Tiles.TileMap entity = (global::Capsule.Tiles.TileMap)placed;
@@ -88,19 +89,19 @@ namespace Capsule.Generated
             };
 
         /// <summary>The registry a scene resolves its type keys through.</summary>
-        public static global::Capsule.Scenes.Spawning.EntityRegistry Registry { get; } =
-            new global::Capsule.Scenes.Spawning.EntityRegistry(Registrations);
+        public static global::Capsule.Scenes.EntityRegistry Registry { get; } =
+            new global::Capsule.Scenes.EntityRegistry(Registrations);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Constructor)]
-        private static extern global::Game.FloorSwitch New_Game_FloorSwitch(global::Capsule.Scenes.Spawning.EntitySpawn spawn);
+        private static extern global::Game.FloorSwitch New_Game_FloorSwitch(global::Capsule.Scenes.EntitySpawn spawn);
 
-        private static global::Capsule.Tiles.TileFrame Object_Capsule_Tiles_TileFrame(global::Capsule.Tiles.TileFrame? held, global::Capsule.Scenes.Spawning.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
+        private static global::Capsule.Tiles.TileFrame Object_Capsule_Tiles_TileFrame(global::Capsule.Tiles.TileFrame? held, global::Capsule.Scenes.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
         {
             null => Fill_Capsule_Tiles_TileFrame(held ?? new global::Capsule.Tiles.TileFrame(), members),
             _ => throw members.NotAType(""),
         };
 
-        private static global::Capsule.Tiles.TileType Object_Capsule_Tiles_TileType(global::Capsule.Tiles.TileType? held, global::Capsule.Scenes.Spawning.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
+        private static global::Capsule.Tiles.TileType Object_Capsule_Tiles_TileType(global::Capsule.Tiles.TileType? held, global::Capsule.Scenes.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
         {
             null => held switch
             {
@@ -112,20 +113,20 @@ namespace Capsule.Generated
             _ => throw members.NotAType("ice"),
         };
 
-        private static global::Game.Exit Object_Game_Exit(global::Game.Exit? held, global::Capsule.Scenes.Spawning.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
+        private static global::Game.Exit Object_Game_Exit(global::Game.Exit? held, global::Capsule.Scenes.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
         {
             null => Fill_Game_Exit(held ?? new global::Game.Exit(), members),
             _ => throw members.NotAType(""),
         };
 
-        private static global::Capsule.Tiles.TileFrame Fill_Capsule_Tiles_TileFrame(global::Capsule.Tiles.TileFrame target, global::Capsule.Scenes.Spawning.AuthoredMembers members)
+        private static global::Capsule.Tiles.TileFrame Fill_Capsule_Tiles_TileFrame(global::Capsule.Tiles.TileFrame target, global::Capsule.Scenes.AuthoredMembers members)
         {
             SetCell(target, members.Int("cell"));
             SetTicks(target, members.Int("ticks"));
             return target;
         }
 
-        private static global::Capsule.Tiles.TileType Fill_Capsule_Tiles_TileType(global::Capsule.Tiles.TileType target, global::Capsule.Scenes.Spawning.AuthoredMembers members)
+        private static global::Capsule.Tiles.TileType Fill_Capsule_Tiles_TileType(global::Capsule.Tiles.TileType target, global::Capsule.Scenes.AuthoredMembers members)
         {
             SetName(target, members.String("name"));
             if (members.Has("cell"))
@@ -159,13 +160,13 @@ namespace Capsule.Generated
             return target;
         }
 
-        private static global::Game.Exit Fill_Game_Exit(global::Game.Exit target, global::Capsule.Scenes.Spawning.AuthoredMembers members)
+        private static global::Game.Exit Fill_Game_Exit(global::Game.Exit target, global::Capsule.Scenes.AuthoredMembers members)
         {
             target.Destination = members.Scene("destination", FindScene);
             return target;
         }
 
-        private static global::Game.Ice Fill_Game_Ice(global::Game.Ice target, global::Capsule.Scenes.Spawning.AuthoredMembers members)
+        private static global::Game.Ice Fill_Game_Ice(global::Game.Ice target, global::Capsule.Scenes.AuthoredMembers members)
         {
             SetName(target, members.String("name"));
             if (members.Has("cell"))

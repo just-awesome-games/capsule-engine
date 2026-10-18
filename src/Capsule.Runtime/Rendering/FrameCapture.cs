@@ -5,8 +5,8 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Capsule.Runtime.Rendering;
 
 // Saving the surface a frame was drawn on as a PNG. Read-back and encoding failures are logged instead
-// of thrown into the frame loop, and a destination is replaced once a complete PNG is in hand, so
-// whatever is already there survives a failed capture.
+// of thrown into the frame loop, and a destination is replaced once a complete PNG is in hand.
+// Whatever is already there survives a failed capture.
 internal static class FrameCapture
 {
     // The capture is staged beside its destination under a name ending in this suffix. A random segment
@@ -42,12 +42,12 @@ internal static class FrameCapture
     }
 
     // The encoded PNG lands on a temporary sibling this call creates exclusively and moves onto the
-    // destination once it is complete, so neither a partial write nor a denied one touches the file
-    // already at path or any other file beside it. Resolving path is inside the protected operation, so
-    // a path the file system rejects is logged instead of thrown.
+    // destination once it is complete. Neither a partial write nor a denied one touches the file
+    // already at path or any other file beside it. Resolving path is inside the protected operation.
+    // A path the file system rejects is logged instead of thrown.
     internal static void Write(byte[] png, string path)
     {
-        // Null until this call owns a staging file, so cleanup never deletes a sibling it found.
+        // Null until this call owns a staging file. Cleanup never deletes a sibling it found.
         string? created = null;
 
         try

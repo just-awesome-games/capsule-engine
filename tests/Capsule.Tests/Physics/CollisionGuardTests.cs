@@ -1,5 +1,7 @@
 using System.Numerics;
 using Capsule.Physics;
+using Capsule.Scenes;
+using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Physics;
 
@@ -26,7 +28,7 @@ public sealed class CollisionGuardTests
         Assert.Throws<ArgumentException>(() => second.Remove(terrain));
         Assert.Throws<ArgumentException>(() => second.NameOf(first.Layer("item")));
         Assert.Throws<ArgumentException>(
-            () => second.OverlapBoxAll(terrain.CellBounds(0, 0), first.CreateFilter(CollisionFixtures.Solid), default));
+            () => second.OverlapBoxAll(terrain.CellBox(0, 0), first.CreateFilter(CollisionFixtures.Solid), default));
         Assert.Throws<ArgumentException>(
             () => second.Add(Shape2D.Box(Vector2.Zero, new Vector2(4f, 4f)), Vector2.Zero, first.Layer("item")));
         Assert.Throws<ArgumentException>(
@@ -37,6 +39,100 @@ public sealed class CollisionGuardTests
         // The collider it did add is untouched by any of that.
         Assert.True(second.Contains(own));
         Assert.Equal(1, second.ColliderCount);
+    }
+
+    // Two worlds hand the same bit to unrelated names. One world's layer read against another's table
+    // would be a silent mismatch, whether matched or combined.
+    [Fact]
+    public void AFilter_RefusesToMatchOrCombineALayerFromAnotherWorld()
+    {
+        CollisionWorld2D first = new();
+        CollisionWorld2D second = new();
+        CollisionLayer hazard = first.Layer("hazard");
+        CollisionLayer solid = second.Layer("solid");
+        CollisionFilter left = CollisionFilter.Of(hazard);
+        CollisionFilter right = CollisionFilter.Of(solid);
+
+        Assert.Equal(hazard.Index, solid.Index);
+        Assert.NotEqual(left, right);
+        Assert.Throws<ArgumentException>(() => left.Matches(solid));
+        Assert.Throws<ArgumentException>(() => first.CreateFilter("hazard").Matches(solid));
+        Assert.Throws<ArgumentException>(() => CollisionFilter.Of(hazard, solid));
+        Assert.Throws<ArgumentException>(() => left.With(solid));
+        Assert.Throws<ArgumentException>(() => left.Without(solid));
+        Assert.Throws<ArgumentException>(() => left | right);
+        Assert.Throws<ArgumentException>(() => left & right);
+    }
+
+    // A layer no world interned is the zero value of a type that is nothing but a table index. Read as
+    // agnostic, it would build a filter every world resolves to its own index-0 entry.
+    [Fact]
+    public void ALayerNoWorldInterned_IsRefusedByEveryFilterAndWorldSeam()
+    {
+        CollisionWorld2D world = new();
+        CollisionLayer solid = world.Layer("solid");
+        CollisionFilter filter = CollisionFilter.Of(solid);
+        Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
+        ColliderHandle handle = world.Add(box, Vector2.Zero, solid);
+
+        Assert.False(world.TryFindLayer("hazard", out CollisionLayer missing));
+        Assert.Equal(world.Layer(CollisionWorld2D.DefaultLayerName).Index, missing.Index);
+
+        Assert.Throws<ArgumentException>(() => CollisionFilter.Of(missing));
+        Assert.Throws<ArgumentException>(() => CollisionFilter.Of(solid, missing));
+        Assert.Throws<ArgumentException>(() => CollisionFilter.None.With(missing));
+        Assert.Throws<ArgumentException>(() => filter.With(missing));
+        Assert.Throws<ArgumentException>(() => filter.Without(missing));
+        Assert.Throws<ArgumentException>(() => filter.Matches(missing));
+        Assert.Throws<ArgumentException>(() => CollisionFilter.Everything.Matches(missing));
+        Assert.Throws<ArgumentException>(() => world.NameOf(missing));
+        Assert.Throws<ArgumentException>(() => world.Add(box, Vector2.Zero, missing));
+        Assert.Throws<ArgumentException>(() => world.SetLayer(handle, missing));
+        Assert.Equal(solid, world.LayerOf(handle));
+    }
+
+    // A grid handle names a grid, not one shape on one layer. Every per-collider accessor refuses it
+    // rather than answering about the empty slot the grid occupies.
+    [Fact]
+    public void ThePerColliderAccessors_RefuseAGridHandleRatherThanDescribingItsSlot()
+    {
+        CollisionWorld2D world = new();
+        CollisionGrid2D grid = CollisionFixtures.Paint(world, "....", "####");
+        ColliderHandle handle = grid.Handle;
+
+        Assert.Throws<ArgumentException>(() => world.SetLayer(handle, world.Layer("wall")));
+        Assert.Throws<ArgumentException>(() => world.PositionOf(handle));
+        Assert.Throws<ArgumentException>(() => world.ShapeOf(handle));
+        Assert.Throws<ArgumentException>(() => world.LayerOf(handle));
+        Assert.Null(world.UserDataOf(handle));
+
+        // The members that are about grids still take it, and the grid still answers as before.
+        Assert.True(world.Contains(handle));
+        Assert.Same(grid, world.GridOf(handle));
+        Assert.Equal(world.Layer(CollisionFixtures.Solid), grid.LayerOf(0, 1));
+
+        // And the refused SetLayer changed nothing a tile query reads.
+        Assert.True(world.Raycast(new Vector2(8f, 0f), Vector2.UnitY, 64f, world.CreateFilter(CollisionFixtures.Solid), out RayHit2D hit));
+        Assert.Equal((0, 1), (hit.Target.CellX, hit.Target.CellY));
+    }
+
+    [Fact]
+    public void APairOverlap_RefusesAColliderFromAnotherWorldAndFindsNothingInOneOutsideEveryWorld()
+    {
+        Scene scene = new Scene().Started();
+        Prober prober = new(Vector2.Zero);
+        scene.Add(prober);
+
+        Scene elsewhere = new Scene().Started();
+        Prober foreign = new(Vector2.Zero);
+        elsewhere.Add(foreign);
+
+        Assert.Throws<ArgumentException>(() => prober.Collider.Overlaps(foreign.Collider));
+        Assert.Throws<ArgumentNullException>(() => prober.Collider.Overlaps(null!));
+
+        // A collider in no scene is in no world, and there is nothing there for it to touch.
+        Prober unregistered = new(Vector2.Zero);
+        Assert.False(prober.Collider.Overlaps(unregistered.Collider));
     }
 
     [Fact]
@@ -61,7 +157,7 @@ public sealed class CollisionGuardTests
         Assert.Throws<ArgumentException>(() => second.MoveBox(probe, new Vector2(10f, 0f), foreign, default));
     }
 
-    // One NaN bound does not stay in its own proxy: the tree unions boxes as it balances, so it would
+    // One NaN bound does not stay in its own proxy: the tree unions boxes as it balances. It would
     // spread to ancestors shared with unrelated colliders.
     [Fact]
     public void EveryTransformSeam_RefusesANonFiniteValueAndLeavesTheWorldQueryable()
@@ -108,7 +204,7 @@ public sealed class CollisionGuardTests
         ColliderHandle far = world.Add(wide, new Vector2(-2e38f, 0f), item);
         ColliderHandle bystander = world.Add(box, new Vector2(100f, 0f), item);
 
-        // Both positions are finite; the displacement between them is not.
+        // Both positions are finite. The displacement between them is not.
         Assert.Throws<ArgumentOutOfRangeException>(() => world.SetPosition(far, new Vector2(2e38f, 0f)));
 
         // The mover refuses the same journey by its endpoint, before it steps an axis of it.
@@ -123,7 +219,7 @@ public sealed class CollisionGuardTests
         Assert.Equal(bystander, contacts[0].Target.Collider);
     }
 
-    // A removed collider's handle carries an index since handed to somebody else, so honouring it as
+    // A removed collider's handle carries an index since handed to somebody else. Honouring it as
     // an ignore would silence an unrelated collider.
     [Fact]
     public void EveryQueryVerb_RefusesAStaleIgnoreRatherThanSuppressingWhateverTookItsSlot()
@@ -161,7 +257,6 @@ public sealed class CollisionGuardTests
         Assert.Equal(reused, contacts[0].Target.Collider);
         Assert.Equal(0, world.OverlapBoxAll(probe, CollisionFilter.Everything, contacts, reused));
     }
-
 
     [Fact]
     public void EveryShapeSeam_RefusesADefaultShapeRatherThanActingOnAnEmptyPointSet()

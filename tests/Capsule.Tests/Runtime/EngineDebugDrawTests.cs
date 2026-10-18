@@ -3,14 +3,13 @@ using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Physics;
 using Capsule.Rendering;
-using Capsule.Runtime;
-using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
+using Capsule.Tests.DevTools;
 using Capsule.Tests.Scenes;
 using Capsule.Tiles;
 using Capsule.UI;
-using static Capsule.Tests.Runtime.OverlayRig;
+using static Capsule.Tests.DevTools.OverlayRig;
 
 namespace Capsule.Tests.Runtime;
 
@@ -19,7 +18,7 @@ public sealed class EngineDebugDrawTests
     [Fact]
     public void AfterOneStep_TheEngineEmitsCollidersCameraAndOriginsExactlyAsTheSceneHoldsThem()
     {
-        // The camera's right edge lies exactly on the boundary after the grid's second cell, so the
+        // The camera's right edge lies exactly on the boundary after the grid's second cell. The
         // view reaches two cells, the margin adds one, and the fourth solid cell must not emit.
         Physical scene = new();
         using OverlayRig rig = Over(scene);
@@ -64,10 +63,10 @@ public sealed class EngineDebugDrawTests
 
         // Cell 0 owes three faces and cells 1 and 2 two each. Shared faces are not drawn.
         CollisionGrid2D grid = scene.Map.Get<TileMapCollider2D>().Grid!;
-        Aabb2D first = grid.CellBounds(0, 0);
+        Aabb2D first = grid.CellBox(0, 0);
         Assert.Equal((first.Min, new Vector2(first.Min.X, first.Max.Y)), (lines[61].A, lines[61].B));
         Assert.Equal((first.Min, new Vector2(first.Max.X, first.Min.Y)), (lines[62].A, lines[62].B));
-        Aabb2D third = grid.CellBounds(2, 0);
+        Aabb2D third = grid.CellBox(2, 0);
         Assert.Equal((new Vector2(third.Min.X, third.Max.Y), third.Max), (lines[67].A, lines[67].B));
 
         rig.Overlay.ToggleChannel("Colliders");
@@ -114,7 +113,7 @@ public sealed class EngineDebugDrawTests
         rig.Frame();
 
         // The shapes, but none of the grid's faces: the camera's visible region is empty until its
-        // first late step, so the map has nothing in view to outline yet.
+        // first late step. The map has nothing in view to outline yet.
         Assert.Equal(0, rig.Scheduler.Tick);
         Assert.Equal(61, view.Lines.Length);
 
@@ -201,13 +200,25 @@ public sealed class EngineDebugDrawTests
 
     private sealed class Physical : Scene
     {
+        internal Holder<BoxCollider2D> Box { get; }
+
+        internal Holder<CircleCollider2D> Circle { get; }
+
+        internal Holder<CapsuleCollider2D> Capsule { get; }
+
+        internal Holder<PolygonCollider2D> Triangle { get; }
+
+        internal Holder<BoxCollider2D> Disabled { get; }
+
+        internal TileMap Map { get; }
+
         // withLowercaseChannel names a channel a game's own debug draw might: this is the channel
         // list's mixed-case ordering test, not a shape to render.
         internal Physical(bool withLowercaseChannel = false)
         {
             Camera.ViewportSize = new Vector2(32f, 32f);
             Camera.Center = new Vector2(16f, 40f);
-            Camera.Bounds = new Rect(-100f, -100f, 200f, 200f);
+            Camera.Bounds = Rect.FromEdges(-100f, -100f, 200f, 200f);
 
             Box = new Holder<BoxCollider2D>(new Vector2(40f, 40f), new BoxCollider2D(new Vector2(4f, 2f))) { Velocity = new Vector2(2f, 0f) };
             Circle = new Holder<CircleCollider2D>(new Vector2(60f, 40f), new CircleCollider2D(2f));
@@ -237,18 +248,6 @@ public sealed class EngineDebugDrawTests
                 Add(new LowercaseChannel(new Vector2(120f, 40f)));
             }
         }
-
-        internal Holder<BoxCollider2D> Box { get; }
-
-        internal Holder<CircleCollider2D> Circle { get; }
-
-        internal Holder<CapsuleCollider2D> Capsule { get; }
-
-        internal Holder<PolygonCollider2D> Triangle { get; }
-
-        internal Holder<BoxCollider2D> Disabled { get; }
-
-        internal TileMap Map { get; }
     }
 
     private sealed class HookScene : Scene
@@ -288,16 +287,16 @@ public sealed class EngineDebugDrawTests
     private sealed class Holder<TCollider> : Entity
         where TCollider : Collider2D
     {
+        internal TCollider Collider { get; }
+
+        internal Vector2 Velocity { get; init; }
+
         internal Holder(Vector2 position, TCollider collider)
             : base(position)
         {
             Collider = collider;
             Add(collider);
         }
-
-        internal TCollider Collider { get; }
-
-        internal Vector2 Velocity { get; init; }
 
         protected internal override void OnStep(in StepContext context) => Position += Velocity;
     }

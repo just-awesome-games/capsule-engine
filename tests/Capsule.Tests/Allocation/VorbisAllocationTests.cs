@@ -8,6 +8,8 @@ namespace Capsule.Tests.Allocation;
 public sealed class VorbisAllocationTests
 {
     private const string FixturePath = "Audio/Fixtures/loop.ogg";
+
+    // The fixture's length in frames, which the reader does not expose.
     private const int FrameCount = 176_400;
 
     // A streamed voice's own scratch: 0.25 s at the fixture's rate and channel count, the size
@@ -17,20 +19,9 @@ public sealed class VorbisAllocationTests
     // At least twelve seconds measured, past three full loop wraps.
     private const double MeasuredSeconds = 12.0;
 
-    // The vendored decoder must not allocate once warmed up: no per-packet, per-page or
-    // per-loop-wrap allocation. This is the contract; no per-packet unit tests of upstream
-    // internals belong here.
-    //
-    // Warm-up covers two full passes of the fixture plus a buffer's margin, not a flat two seconds:
-    // loop.ogg's own five Ogg pages are each discovered once, on their first visit, as the first
-    // pass reads forward through the file (Ogg's container format offers no whole-file index to
-    // consult up front), and the page immediately after the wrap on the first repeat is also a
-    // first visit for the reader's small known-page cache (see Ogg/PageReader.cs). A flat two-second
-    // warm-up is short of both for this four-second fixture (two seconds is only half a pass) and
-    // leaves part of that one-time discovery inside the measured window. Reaching zero allocation
-    // there instead would mean scanning the whole file up front on every open, trading streaming's
-    // whole point (bounded, incremental I/O) to shave a one-time cost off of only the fixture's own
-    // short first loop.
+    // The decoder allocates nothing per packet, per page or per loop wrap once warm. The reader
+    // discovers each Ogg page on its first visit, and the page after the first wrap is a first visit
+    // to its known-page cache. The warm-up is two full passes plus a buffer, which covers both.
     [Fact]
     public void AVoicePlayingALoopingClip_AllocatesNothingOncePastWarmup()
     {

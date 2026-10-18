@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Tests.Scenes;
 using Capsule.UI;
 
 namespace Capsule.Tests.UI;
@@ -29,7 +30,7 @@ public sealed class ContainerTests
         using SimulationHost run = Run(box);
 
         // The inside starts at (6, 6) and is as wide as the widest child. The hidden child takes no
-        // slot, so the rows are 4, 4, 3 and 5 tall with 2 between them.
+        // slot. The rows are 4, 4, 3 and 5 tall with 2 between them.
         Assert.Equal(new Rect(new Vector2(6f, 13f), new Vector2(10f, 4f)), nudged.Bounds);
         Assert.Equal(new Rect(new Vector2(13f, 12f), new Vector2(6f, 4f)), centred.Bounds);
         Assert.Equal(new Rect(new Vector2(6f, 18f), new Vector2(20f, 3f)), wide.Bounds);
@@ -71,8 +72,8 @@ public sealed class ContainerTests
 
         using SimulationHost run = Run(grid);
 
-        // Columns of 6 and 8, rows of 3, 5 and 3. A cell is its column's width and its row's height,
-        // so a child anchored to its far corner sits there and not at its own size.
+        // Columns of 6 and 8, rows of 3, 5 and 3. A cell is its column's width and its row's height. A
+        // child anchored to its far corner sits there and not at its own size.
         Assert.Equal(new Vector2(7f, 0f), wide.Bounds.Position);
         Assert.Equal(new Vector2(0f, 5f), tall.Bounds.Position);
         Assert.Equal(new Vector2(13f, 9f), cornered.Bounds.Position);
@@ -89,11 +90,5 @@ public sealed class ContainerTests
         return rect;
     }
 
-    private static SimulationHost Run(Entity root)
-    {
-        Scene scene = new();
-        scene.Add(root);
-
-        return new SimulationHost(scene, run: new Run { Canvas = Canvas });
-    }
+    private static SimulationHost Run(Entity root) => SceneFixtures.Simulate(new Run { Canvas = Canvas }, root);
 }

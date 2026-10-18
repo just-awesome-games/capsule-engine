@@ -1,9 +1,6 @@
-using Capsule.Input;
-using Capsule.Scenes;
-
 namespace Capsule.AotSmoke.Logic.Drivers;
 
-// Under a marked directory, so an ordinary build compiles and registers it and a publish has
+// Under a marked directory. An ordinary build compiles and registers it, and a publish has
 // neither the source nor the registration. The published smoke asserts the second half.
 internal sealed class DevelopmentOnlyDriver : IInputDriver
 {

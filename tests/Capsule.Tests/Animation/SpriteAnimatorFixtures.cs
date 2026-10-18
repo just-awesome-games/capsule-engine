@@ -1,6 +1,5 @@
 using System.Numerics;
 using Capsule.Animation;
-using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
@@ -9,8 +8,6 @@ namespace Capsule.Tests.Animation;
 
 internal static class SpriteAnimatorFixtures
 {
-    internal static readonly TextureHandle Sheet = new("player", ".png");
-
     internal static readonly SpriteClip Walk = new(
         [Frame(0), Frame(1), Frame(2)],
         [2, 2, 2],
@@ -43,14 +40,6 @@ internal static class SpriteAnimatorFixtures
         return drawn;
     }
 
-    internal static SimulationHost Simulate(Animated entity)
-    {
-        SceneFixtures.HookScene scene = new();
-        scene.Add(entity);
-
-        return new SimulationHost(scene);
-    }
-
     // Stepped through a scene, not by calling the component: the animator's whole promise is that
     // frames advance on the fixed step, in the order a scene steps its components.
     internal static (SpriteRenderer Renderer, SpriteAnimator Animator, SimulationHost Run) Animating()
@@ -67,13 +56,14 @@ internal static class SpriteAnimatorFixtures
         return (renderer, animator, new SimulationHost(scene));
     }
 
-    internal static Sprite Frame(int index) =>
-        new(Sheet, new TextureRegion(index * 8, 0, 8, 8), new Vector2(4, 8));
+    internal static Sprite Frame(int index) => SceneFixtures.Frame(index);
 
     internal sealed class Animated : Entity
     {
         private readonly SpriteClip? _onStart;
         private readonly SpriteClip? _onStep;
+
+        internal SpriteAnimator Animator { get; }
 
         internal Animated(SpriteClip? onStart = null, SpriteClip? onStep = null)
             : base(Vector2.Zero)
@@ -86,8 +76,6 @@ internal static class SpriteAnimatorFixtures
             Add(renderer);
             Add(Animator);
         }
-
-        internal SpriteAnimator Animator { get; }
 
         protected internal override void OnStart()
         {

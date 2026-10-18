@@ -1,11 +1,3 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Animation;
-using Capsule.Physics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
@@ -20,7 +12,7 @@ public sealed class CameraZone : Entity
 
     private bool _holdsPlayer;
 
-    // Whether the player left this step, so the late step hands the bounds on.
+    // Whether the player left this step, for the late step to hand the bounds on.
     private bool _left;
 
     private Rect? _outside;
@@ -59,8 +51,8 @@ public sealed class CameraZone : Entity
         }
     }
 
-    // A scene tearing down with the player inside ends the contact after this zone has left it, so the
-    // hand-back waits for a late step that never comes.
+    // A scene tearing down with the player inside ends the contact after this zone has left it. The
+    // hand-back then waits for a late step that never comes.
     private void OnPlayerExited(ColliderContact2D contact)
     {
         _holdsPlayer = false;
@@ -68,7 +60,7 @@ public sealed class CameraZone : Entity
     }
 
     // Leaving into a zone the player still stands in hands the bounds to that zone, and leaving every zone
-    // brings back the bounds held before the first. Contacts settle one collider at a time, so the hand-back
+    // brings back the bounds held before the first. Contacts settle one collider at a time. The hand-back
     // waits until every zone's have, whichever order they registered in.
     protected override void OnLateStep(in StepContext context)
     {

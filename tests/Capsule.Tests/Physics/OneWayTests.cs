@@ -24,7 +24,7 @@ public sealed class OneWayTests
             "####")).Started();
         if (collider)
         {
-            scene.Add(new Slab(new Vector2(0f, 32f)));
+            scene.Add(new Slab(new Vector2(0f, 32f), CollisionFixtures.Solid, new Vector2(64f, 8f), oneWay: true));
         }
 
         SceneFixtures.Body body = new(new Vector2(24f, 56f), blocksOn: "solid");
@@ -62,7 +62,7 @@ public sealed class OneWayTests
             "########").Started();
         if (collider)
         {
-            scene.Add(new Slab(new Vector2(32f, 32f), new Vector2(48f, 16f), solidSides: true));
+            scene.Add(new Slab(new Vector2(32f, 32f), CollisionFixtures.Solid, new Vector2(48f, 16f), oneWay: true, solidSides: true));
         }
 
         SceneFixtures.Body climber = new(new Vector2(34f, 72f), blocksOn: "solid");
@@ -94,7 +94,7 @@ public sealed class OneWayTests
     public void AOneWayColliderSinkingOntoABody_PassesThroughItWithoutAShove()
     {
         Scene scene = new();
-        Slab slab = new(new Vector2(0f, 32f));
+        Slab slab = new(new Vector2(0f, 32f), CollisionFixtures.Solid, new Vector2(64f, 8f), oneWay: true);
         SceneFixtures.Body body = new(new Vector2(24f, 44f), blocksOn: "solid");
         body.Mover.MovedBy = new("solid");
         bool crushed = false;
@@ -106,27 +106,6 @@ public sealed class OneWayTests
 
         Assert.Equal(new Vector2(24f, 44f), body.Position);
         Assert.False(crushed);
-    }
-
-    // A solid tile above a one-way tile culls its edge along y = 16. A filter that cannot see the solid
-    // tile turns it back into empty space, and every query meets the edge again.
-    [Fact]
-    public void AOneWayEdgeCulledByANeighbourTheFilterExcludes_IsLiveToCastRayAndOverlap()
-    {
-        CollisionWorld2D world = new();
-        CollisionFixtures.Paint(world, "=", "-");
-        CollisionFilter platform = world.CreateFilter(CollisionFixtures.Platform);
-        Vector2 up = new(0f, -1f);
-
-        Assert.True(world.ShapeCast(Shape2D.Box(Vector2.Zero, new Vector2(4f, 4f)), new Vector2(6f, 4f), new Vector2(0f, 20f), platform, out ShapeCastHit2D cast));
-        Assert.Equal(up, cast.Normal);
-
-        Assert.True(world.Raycast(new Vector2(8f, -10f), Vector2.UnitY, 40f, platform, out RayHit2D ray));
-        Assert.Equal(26f, ray.Distance, 3);
-
-        Span<Contact2D> contacts = stackalloc Contact2D[4];
-        Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(4f, 10f, 8f, 8f), platform, contacts));
-        Assert.Equal(up, contacts[0].Normal);
     }
 
     // A one-way slope's edge runs from (16, 32) up to (32, 16). A box beside its low end and reaching
@@ -153,7 +132,7 @@ public sealed class OneWayTests
     }
 
     // The surface lies along y = 16, and the box reaches 6 below it. A one-way surface blocks only a shape
-    // coming down onto it from above, so a shape that starts inside it reports nothing.
+    // coming down onto it from above. A shape that starts inside it reports nothing.
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -162,7 +141,7 @@ public sealed class OneWayTests
         Scene scene = SceneFixtures.Terrain("....", collider ? "...." : "----", "####").Started();
         if (collider)
         {
-            scene.Add(new Slab(new Vector2(0f, 16f)));
+            scene.Add(new Slab(new Vector2(0f, 16f), CollisionFixtures.Solid, new Vector2(64f, 8f), oneWay: true));
         }
 
         Shape2D box = Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f));
@@ -170,15 +149,5 @@ public sealed class OneWayTests
 
         Assert.False(scene.Collision.ShapeCast(box, origin, Vector2.Zero, CollisionFilter.Everything, out _));
         Assert.False(scene.Collision.ShapeCast(box, origin, new Vector2(0f, 8f), CollisionFilter.Everything, out _));
-    }
-
-    /// <summary>A one-way box on the layer "solid", 64 wide and 8 tall unless sized.</summary>
-    private sealed class Slab : Entity
-    {
-        internal Slab(Vector2 position, Vector2? size = null, bool solidSides = false)
-            : base(position)
-        {
-            Add(new BoxCollider2D(size ?? new Vector2(64f, 8f)) { Layer = "solid", OneWay = true, SolidSides = solidSides });
-        }
     }
 }

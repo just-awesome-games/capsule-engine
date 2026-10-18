@@ -2,7 +2,6 @@ using System.Numerics;
 using Capsule.Physics;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
-using Capsule.Tiles;
 using Body = Capsule.Tests.Scenes.SceneFixtures.Body;
 
 namespace Capsule.Tests.Physics;
@@ -100,7 +99,7 @@ public sealed class ColliderContactEventTests
         using SimulationHost run = new(scene);
         run.Step();
 
-        // Overlapping the same floor, but never settled, so it has announced nothing to end.
+        // Overlapping the same floor, but never settled. It has announced nothing to end.
         Straddler unannounced = new(new Vector2(0f, 8f));
         scene.Add(unannounced);
 
@@ -134,12 +133,11 @@ public sealed class ColliderContactEventTests
     // A hurt box's own handler flinches on its first contact. It sees its change at once. Disabling
     // ends the dispatch as detaching does, and enabling again in the same handler announces nothing
     // more until the next step. A resized box finishes the dispatch it started and exits what it no
-    // longer touches on the next step. What it detects and the layer it sits on stay refused.
+    // longer touches on the next step.
     [Theory]
     [InlineData("disables")]
     [InlineData("disables then enables")]
     [InlineData("resizes")]
-    [InlineData("changes layer")]
     public void AContactHandler_ChangesItsOwnCollidersEnabledOffsetAndShapeAtOnce(string flinch)
     {
         Scene scene = SceneFixtures.Terrain("....", "####");
@@ -165,26 +163,15 @@ public sealed class ColliderContactEventTests
                     body.Collider.Enabled = false;
                     body.Collider.Enabled = true;
                     break;
-                case "resizes":
+                default:
                     body.Collider.Size = new Vector2(8f, 8f);
                     body.Collider.Offset = new Vector2(2f, 0f);
                     placed = body.Collider.Bounds;
-                    break;
-                default:
-                    body.Collider.Layer = "hurt";
                     break;
             }
         };
 
         using SimulationHost run = new(scene);
-
-        if (flinch == "changes layer")
-        {
-            Assert.Throws<InvalidOperationException>(() => run.Step());
-            Assert.Equal(CollisionWorld2D.DefaultLayerName, body.Collider.Layer);
-            return;
-        }
-
         run.Step();
         run.Step();
 
@@ -204,21 +191,44 @@ public sealed class ColliderContactEventTests
         }
     }
 
-    // The enemy that dies on contact. Detaching the collider from inside its own enter handler ends
-    // the dispatch: what it announced is exited. The rest of the settled set was never announced. It
-    // is dropped without an exit rather than entered on a collider out of the world.
+    // The layer a collider sits on stays refused inside its own contact handler.
     [Fact]
-    public void AContactEnteredHandlerThatDetachesItsCollider_ExitsWhatItAnnouncedAndNothingElse()
+    public void AContactHandler_IsRefusedAChangeToItsOwnCollidersLayer()
     {
         Scene scene = SceneFixtures.Terrain("....", "####");
         Straddler body = new(new Vector2(0f, 8f));
         scene.Add(body);
+        body.Collider.ContactEntered += _ => body.Collider.Layer = "hurt";
+
+        using SimulationHost run = new(scene);
+
+        Assert.Throws<InvalidOperationException>(() => run.Step());
+        Assert.Equal(CollisionWorld2D.DefaultLayerName, body.Collider.Layer);
+    }
+
+    // The enemy that dies on contact. Detaching the collider from inside its own enter handler ends
+    // the dispatch, and what it announced is exited. A contact carried from the step before sits
+    // behind the new one in the world's order and is exited too, in Touching order. The rest of the
+    // settled set was never announced. It is dropped without an exit rather than entered on a
+    // collider out of the world. The body starts clear of the floor or carrying its third cell, then
+    // lands on the first three.
+    [Theory]
+    [InlineData(52f, "+(0,1)", "-(0,1)")]
+    [InlineData(36f, "+(2,1)", "+(0,1)", "-(0,1)", "-(2,1)")]
+    public void AContactEnteredHandlerThatDetachesItsCollider_ExitsWhatItAnnouncedAndNothingElse(float startX, params string[] log)
+    {
+        Scene scene = SceneFixtures.Terrain("....", "###.");
+        Straddler body = new(new Vector2(startX, 8f));
+        scene.Add(body);
+
+        using SimulationHost run = new(scene);
+        run.Step();
+
         body.Collider.ContactEntered += _ => body.Remove(body.Collider);
+        body.Teleport(new Vector2(0f, 8f));
+        run.Step();
 
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step(0));
-
-        Assert.Equal(["+(0,1)", "-(0,1)"], body.Log);
+        Assert.Equal(log, body.Log);
         Assert.Null(body.Collider.Entity);
         Assert.Null(body.Collider.World);
         Assert.Empty(body.Collider.Touching.ToArray());
@@ -256,26 +266,6 @@ public sealed class ColliderContactEventTests
         Assert.Equal(["-(2,1)", "-(3,1)", "-(4,1)", "-(5,1)", "+(14,1)", "+(15,1)", "+(16,1)", "+(17,1)"], body.Log);
     }
 
-    // A carried contact sits behind a new one in the world's order. Detaching from the new one's
-    // enter exits both announced contacts in Touching order, and the new one the loop had not reached
-    // goes unannounced.
-    [Fact]
-    public void AContactEnteredHandlerThatDetaches_ExitsTheCarriedContactsBehindIt()
-    {
-        Scene scene = SceneFixtures.Terrain("....", "###.");
-        Straddler body = new(new Vector2(36f, 8f));
-        scene.Add(body);
-
-        using SimulationHost run = new(scene);
-        run.Step();
-
-        body.Collider.ContactEntered += _ => body.Remove(body.Collider);
-        body.Teleport(new Vector2(0f, 8f));
-        run.Step();
-
-        Assert.Equal(["+(2,1)", "+(0,1)", "-(0,1)", "-(2,1)"], body.Log);
-        Assert.Null(body.Collider.World);
-    }
 
     // Sixteen and thirty-two are buffer sizes, not contact limits: a collider spanning a long floor
     // must enter every cell it stands on, and Move must name every one it landed against.
@@ -302,9 +292,13 @@ public sealed class ColliderContactEventTests
         Assert.Equal(body.Collider.Touching.Length, body.Entered);
     }
 
-    /// <summary>A body resting across floor cells, three at its default width, so a dispatch cut short is visible.</summary>
+    /// <summary>A body resting across floor cells, three at its default width, which shows a dispatch cut short.</summary>
     private sealed class Straddler : Entity
     {
+        internal BoxCollider2D Collider { get; }
+
+        internal List<string> Log { get; } = [];
+
         internal Straddler(Vector2 position, float width = 40f)
             : base(position)
         {
@@ -314,15 +308,17 @@ public sealed class ColliderContactEventTests
             Collider.ContactExited += contact => Log.Add($"-({contact.Tile!.Value.X},{contact.Tile.Value.Y})");
             Add(Collider);
         }
-
-        internal BoxCollider2D Collider { get; }
-
-        internal List<string> Log { get; } = [];
     }
 
     /// <summary>A body long enough to touch far more cells than a contact buffer starts out holding.</summary>
     private sealed class Wide : Entity
     {
+        internal BoxCollider2D Collider { get; }
+
+        internal KinematicBody2D Mover { get; }
+
+        internal int Entered { get; private set; }
+
         internal Wide(Vector2 position)
             : base(position)
         {
@@ -334,11 +330,5 @@ public sealed class ColliderContactEventTests
             Mover.BlockedBy = new("solid");
             Add(Mover);
         }
-
-        internal BoxCollider2D Collider { get; }
-
-        internal KinematicBody2D Mover { get; }
-
-        internal int Entered { get; private set; }
     }
 }

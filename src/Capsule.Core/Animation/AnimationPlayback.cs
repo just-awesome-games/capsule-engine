@@ -78,11 +78,7 @@ public struct AnimationPlayback
     /// The ticks elapsed since the current pass over <paramref name="frameTicks"/> began. Passing it
     /// back to <see cref="Seek"/> over the same durations reproduces this position.
     /// </summary>
-    /// <param name="frameTicks">How many steps each frame is held for, in frame order.</param>
-    /// <exception cref="ArgumentException">
-    /// The run does not reach the cursor, or its ticks up to the cursor exceed
-    /// <see cref="int.MaxValue"/> and <see cref="Seek"/> could not take them back.
-    /// </exception>
+    /// <param name="frameTicks">How many steps each frame is held for, in frame order. Pass the run this cursor walks.</param>
     public readonly int TickOf(ReadOnlySpan<int> frameTicks)
     {
         if (FrameIndex >= frameTicks.Length)
@@ -114,7 +110,6 @@ public struct AnimationPlayback
     /// </summary>
     /// <param name="frameTicks">How many steps each frame is held for, with every duration positive. Pass the same run on every step.</param>
     /// <param name="loop">Whether the last frame wraps back to frame 0 instead of finishing.</param>
-    /// <exception cref="ArgumentException">The run is empty, does not reach the cursor, or holds a non-positive duration.</exception>
     public void Step(ReadOnlySpan<int> frameTicks, bool loop)
     {
         if (IsFinished)

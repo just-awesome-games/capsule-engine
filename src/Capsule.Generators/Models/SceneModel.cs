@@ -12,10 +12,13 @@ internal enum SceneFault
 
 /// <summary>
 /// One class deriving <see cref="Capsule.Scenes.Scene"/>, abstract included, described once for
-/// both keys a scene document can resolve to it. A document's own key composes it when
-/// <see cref="Registrable"/> and <see cref="Fault"/> is <see cref="SceneFault.None"/>. A document's
-/// <c>baseScene</c> key names it when <see cref="BaseFault"/> is <see cref="SceneFault.None"/>.
+/// both keys a scene document can resolve to it.
 /// </summary>
+/// <remarks>
+/// A document's own key composes it when <see cref="Registrable"/> and <see cref="Fault"/> is
+/// <see cref="SceneFault.None"/>. A document's <c>baseScene</c> key names it when <see cref="BaseFault"/> is
+/// <see cref="SceneFault.None"/>.
+/// </remarks>
 /// <param name="Documented">Whether a document composes this scene.</param>
 /// <param name="Declared">The key <c>[TypeKey]</c> names, or null when the type claims one by convention.</param>
 /// <param name="Fault">Why a registration candidate cannot register.</param>
@@ -47,10 +50,10 @@ internal readonly record struct SceneModel(
     string ContentModifier) : IClaimingClass
 {
     /// <summary>Every member a document's top-level keys set, the engine's own Scene members included.</summary>
-    internal IEnumerable<PropertyModel> Authored => Properties.Items.Where(static property => property.Authorable && property.Settable);
+    internal IEnumerable<PropertyModel> Authored => PropertyModel.AuthoredIn(Properties);
 
     /// <summary>The engine's plain Scene, whose applier serves every class that adds no authorable member to it.</summary>
-    internal const string EngineScene = "global::Capsule.Scenes.Scene";
+    internal const string EngineScene = "global::" + MetadataNames.Scene;
 
     /// <summary>
     /// Whether generated code emits and registers an applier for the class: code can name it, and it or a game base

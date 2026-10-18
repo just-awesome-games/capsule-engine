@@ -31,6 +31,12 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     // with it off.
     internal bool HostPlacesWorld { get; set; }
 
+    /// <summary>The scene being advanced, for the lifetime of this simulation.</summary>
+    public Scene Scene { get; }
+
+    /// <summary>The run installed on <see cref="Scene"/>, shared for this simulation's lifetime.</summary>
+    public Run Run { get; }
+
     /// <summary>Starts <paramref name="scene"/> under <paramref name="run"/>.</summary>
     /// <param name="scene">The scene to run.</param>
     /// <param name="entryPayload">State supplied by the transition that opened the scene.</param>
@@ -58,18 +64,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         }
         catch (Exception startFailure)
         {
-            try
-            {
-                scene.Stop();
-            }
-            catch (Exception stopFailure)
-            {
-                throw new AggregateException(
-                    $"Starting and then cleaning up {scene.GetType().Name} both failed.",
-                    startFailure,
-                    stopFailure);
-            }
-
+            Failure.CleanUp(startFailure, scene.Stop, $"Starting and then cleaning up {scene.GetType().Name} both failed.");
             throw;
         }
     }
@@ -100,12 +95,6 @@ public sealed class SceneSimulation : ISimulation, IDisposable
             _viewStale = true;
         }
     }
-
-    /// <summary>The scene being advanced, for the lifetime of this simulation.</summary>
-    public Scene Scene { get; }
-
-    /// <summary>The run installed on <see cref="Scene"/>, shared for this simulation's lifetime.</summary>
-    public Run Run { get; }
 
     /// <summary>Whether the run has asked the host to shut down. Once true, it stays true.</summary>
     public bool ExitRequested => Run.ExitRequested;
@@ -191,7 +180,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene.StepEntities(in context);
 
         // Contacts settle once every position this step produces is final.
-        Scene.SettleContacts();
+        Scene.Physics.SettleContacts();
 
         // Late steps run in step order and read the settled contacts.
         Scene.LateStepEntities(in context);
@@ -246,7 +235,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         _building = true;
         try
         {
-            Scene.DrawFrame(_view, _viewCamera, _drawRuns);
+            Scene.Drawing.DrawFrame(_view, _viewCamera, _drawRuns);
         }
         finally
         {

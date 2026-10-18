@@ -79,7 +79,7 @@ internal sealed class DebugOverlay : IDisposable
     // False after a build or a status change, until the scene has laid the page out again.
     private bool _pageShown;
 
-    // Ticks stepped by hand run after the frame is sampled, so they count toward the next sample.
+    // Ticks stepped by hand run after the frame is sampled. They count toward the next sample.
     private int _ticksSteppedByHand;
 
     // Intercept stamps the frame's start. Negative while no frame is in progress.
@@ -246,10 +246,10 @@ internal sealed class DebugOverlay : IDisposable
             overlayInput = game.WithPointer(window / overlayScale);
         }
 
-        // Advanced while closed too, so a press made before the overlay opens is no edge once it has.
+        // Advanced while closed too. A press made before the overlay opens is no edge once it has.
         _input.Advance(in overlayInput);
 
-        // The menu is withdrawn while hidden, so the keys that act then are read here.
+        // The menu is withdrawn while hidden. The keys that act then are read here.
         _shownByHide = _state == OverlayState.Hidden && _input.WasPressed(OverlayActions.Hide);
         if (_shownByHide)
         {
@@ -659,7 +659,7 @@ internal sealed class DebugOverlay : IDisposable
         _pageStale = true;
     }
 
-    // The scene emits first, so a run held before its first step still lists its channels.
+    // The scene emits first. A run held before its first step still lists its channels.
     private void OpenDebugDraw()
     {
         _draws.Emit();
@@ -796,12 +796,12 @@ internal sealed class DebugOverlay : IDisposable
             return;
         }
 
-        // Set first, so a failure the step reports replaces it.
+        // Set first. A failure the step reports replaces it.
         SetStatus(string.Create(CultureInfo.InvariantCulture, $"Moved {name} to {point.X:0.##}, {point.Y:0.##}"));
         StepGameReporting("Move", () => MoveTo(entity, point));
     }
 
-    // A camera following the entity or anything under it cuts with it, so closing shows no sweep.
+    // A camera following the entity or anything under it cuts with it. Closing shows no sweep.
     private static void MoveTo(Entity entity, Vector2 world)
     {
         entity.Teleport(entity.Parent is { } parent ? parent.WorldTransform.InverseTransformPoint(world) : world);

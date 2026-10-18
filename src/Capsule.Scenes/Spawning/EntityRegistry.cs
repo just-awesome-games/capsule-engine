@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Globalization;
 using Capsule.Tiles;
 
-namespace Capsule.Scenes.Spawning;
+namespace Capsule.Scenes;
 
 /// <summary>Constructs one entity from its spawn data.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
@@ -18,6 +18,7 @@ public delegate void EntityApplier(Entity entity, AuthoredMembers members);
 /// <remarks>
 /// A game passes the registry its source generator emits. Build one by hand only in tests.
 /// </remarks>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class EntityRegistry
 {
     private readonly Dictionary<string, EntityRegistration> _entities;
@@ -27,7 +28,6 @@ public sealed class EntityRegistry
 
     /// <summary>A registry over <paramref name="entities"/>.</summary>
     /// <exception cref="ArgumentException">A type key is blank or repeated, or a spawner is null.</exception>
-    [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRegistry(IEnumerable<EntityRegistration> entities)
     {
         ArgumentNullException.ThrowIfNull(entities);
@@ -61,7 +61,6 @@ public sealed class EntityRegistry
     }
 
     /// <summary>This registry with the tile map that <paramref name="owner"/>, the registrations of the assembly owning a document, declares.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
     public EntityRegistry OwnedBy(IEnumerable<EntityRegistration> owner)
     {
         ArgumentNullException.ThrowIfNull(owner);
@@ -90,7 +89,7 @@ public sealed class EntityRegistry
             throw new SpawnException(
                 string.Create(CultureInfo.InvariantCulture, $"type key '{spawn.Type}' at ({spawn.Position.X}, {spawn.Position.Y}) is claimed by no entity. A class claims ")
                 + "a type by being a non-abstract Capsule.Scenes.Entity with a public constructor taking one "
-                + "Capsule.Scenes.Spawning.EntitySpawn. The type is the key its namespace names unless "
+                + "Capsule.Scenes.EntitySpawn. The type is the key its namespace names unless "
                 + "[TypeKey] gives one. A class with a C# required member other than an entity reference is placed in code only. "
                 + $"Claimed: {Registered.Names(_entities.Keys)}.");
         }

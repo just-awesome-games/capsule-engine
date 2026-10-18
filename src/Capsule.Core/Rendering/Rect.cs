@@ -11,18 +11,29 @@ namespace Capsule.Rendering;
 /// open, and two rects that only share an edge do not <see cref="Intersects"/>. Containment is
 /// half-open.
 /// </remarks>
-/// <param name="Left">The low edge on X.</param>
-/// <param name="Top">The low edge on Y, the upper one on screen.</param>
-/// <param name="Right">The high edge on X, not a width.</param>
-/// <param name="Bottom">The high edge on Y, not a height.</param>
-public readonly record struct Rect(float Left, float Top, float Right, float Bottom)
+public readonly record struct Rect
 {
+    /// <summary>The low edge on X.</summary>
+    public float Left { get; init; }
+
+    /// <summary>The low edge on Y, the upper one on screen.</summary>
+    public float Top { get; init; }
+
+    /// <summary>The high edge on X, not a width.</summary>
+    public float Right { get; init; }
+
+    /// <summary>The high edge on Y, not a height.</summary>
+    public float Bottom { get; init; }
+
     /// <summary>The rect spanning <paramref name="size"/> from the corner at <paramref name="position"/>.</summary>
     /// <param name="position">The top-left corner, which is the low edge on both axes.</param>
     /// <param name="size">The extent spanned from that corner. A non-positive axis encloses nothing.</param>
     public Rect(Vector2 position, Vector2 size)
-        : this(position.X, position.Y, position.X + size.X, position.Y + size.Y)
     {
+        Left = position.X;
+        Top = position.Y;
+        Right = position.X + size.X;
+        Bottom = position.Y + size.Y;
     }
 
     /// <summary>The top-left corner, which is the low edge on each axis.</summary>
@@ -59,6 +70,14 @@ public readonly record struct Rect(float Left, float Top, float Right, float Bot
         point.Y >= Top &&
         point.Y < Bottom;
 
+    /// <summary>The rect bounded by four edges, each a coordinate rather than an extent.</summary>
+    /// <param name="left">The low edge on X.</param>
+    /// <param name="top">The low edge on Y, the upper one on screen.</param>
+    /// <param name="right">The high edge on X, not a width.</param>
+    /// <param name="bottom">The high edge on Y, not a height.</param>
+    public static Rect FromEdges(float left, float top, float right, float bottom) =>
+        new() { Left = left, Top = top, Right = right, Bottom = bottom };
+
     /// <summary>Whether this rect and <paramref name="other"/> overlap on both axes.</summary>
     public bool Intersects(in Rect other) =>
         Right > other.Left &&
@@ -69,7 +88,7 @@ public readonly record struct Rect(float Left, float Top, float Right, float Bot
     // The rect covering a box swept between two points. The box reaches lowPad from a point towards the
     // low edges and highPad towards the high ones, both measured from the point.
     internal static Rect Sweep(Vector2 from, Vector2 to, Vector2 lowPad, Vector2 highPad) =>
-        new(
+        FromEdges(
             MathF.Min(from.X, to.X) + lowPad.X,
             MathF.Min(from.Y, to.Y) + lowPad.Y,
             MathF.Max(from.X, to.X) + highPad.X,
@@ -80,7 +99,7 @@ public readonly record struct Rect(float Left, float Top, float Right, float Bot
 
     // The rect both cover, empty where they do not overlap.
     internal static Rect Intersection(in Rect first, in Rect second) =>
-        new(
+        FromEdges(
             MathF.Max(first.Left, second.Left),
             MathF.Max(first.Top, second.Top),
             MathF.Min(first.Right, second.Right),
@@ -88,7 +107,7 @@ public readonly record struct Rect(float Left, float Top, float Right, float Bot
 
     // The smallest rect covering both.
     internal static Rect Union(in Rect first, in Rect second) =>
-        new(
+        FromEdges(
             MathF.Min(first.Left, second.Left),
             MathF.Min(first.Top, second.Top),
             MathF.Max(first.Right, second.Right),

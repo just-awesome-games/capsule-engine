@@ -10,8 +10,11 @@ namespace Capsule.Runtime.Audio.Vorbis
     {
         sealed class Data : IFloorData
         {
-            internal int[] Posts = new int[64];
+            // Capsule: sized to the floor's x-list at setup.
+            internal readonly int[] Posts;
             internal int PostCount;
+
+            internal Data(int posts) => Posts = new int[posts];
 
             public bool ExecuteChannel => (ForceEnergy || PostCount > 0) && !ForceNoEnergy;
 
@@ -30,23 +33,16 @@ namespace Capsule.Runtime.Audio.Vorbis
         // call for that channel. Overwriting it in place is safe.
         Data[] _dataByChannel;
 
-        // Capsule: Apply's scratch, reused every call instead of `new bool[64]`/`new int[64]` per
-        // packet. Apply runs on the main decode thread. It is never reentrant for one Floor1.
-        readonly bool[] _stepFlags = new bool[64];
-        readonly int[] _finalY = new int[64];
+        // Capsule: Apply's scratch, sized to the x-list at setup and reused every call. Apply runs on
+        // the main decode thread. It is never reentrant for one Floor1.
+        bool[] _stepFlags;
+        int[] _finalY;
 
         static readonly int[] _rangeLookup = { 256, 128, 86, 64 };
         static readonly int[] _yBitsLookup = { 8, 7, 7, 6 };
 
         public void Init(Ogg.Packet packet, int channels, int block0Size, int block1Size, Codebook[] codebooks)
         {
-            // Capsule: sized once at setup, one Data per channel for the life of the floor.
-            _dataByChannel = new Data[channels];
-            for (int c = 0; c < channels; c++)
-            {
-                _dataByChannel[c] = new Data();
-            }
-
             var maximum_class = -1;
             _partitionClass = new int[(int)packet.ReadBits(5)];
             for (int i = 0; i < _partitionClass.Length; i++)
@@ -106,6 +102,16 @@ namespace Capsule.Runtime.Audio.Vorbis
                 }
             }
             _xList = xList.ToArray();
+
+            // Capsule: sized once at setup, one Data per channel for the life of the floor.
+            _dataByChannel = new Data[channels];
+            for (int c = 0; c < channels; c++)
+            {
+                _dataByChannel[c] = new Data(_xList.Length);
+            }
+
+            _stepFlags = new bool[_xList.Length];
+            _finalY = new int[_xList.Length];
 
             // precalc the low and high neighbors (and init the sort table)
             _lNeigh = new int[xList.Count];
@@ -251,9 +257,9 @@ namespace Capsule.Runtime.Audio.Vorbis
 
         bool[] UnwrapPosts(Data data)
         {
-            // Capsule: instance scratch (see _stepFlags/_finalY) instead of `new bool[64]`/`new
-            // int[64]` per Apply call. data.PostCount is always 0 or the full post count for this
-            // floor's setup, so every index below it is written before Apply reads it back. A
+            // Capsule: instance scratch (see _stepFlags/_finalY), allocated once at setup and not per
+            // Apply call. data.PostCount is always 0 or the full post count for this
+            // floor's setup. Every index below it is written before Apply reads it back. A
             // stale entry beyond PostCount from an earlier, larger decode is never read.
             var stepFlags = _stepFlags;
             stepFlags[0] = true;

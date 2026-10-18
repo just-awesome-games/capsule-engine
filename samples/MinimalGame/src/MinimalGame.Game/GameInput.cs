@@ -1,6 +1,3 @@
-using Capsule.Input;
-using Capsule.UI;
-
 namespace MinimalGame.Game;
 
 /// <summary>
@@ -65,7 +62,7 @@ public static class GameInput
 
         ActionBindings bindings = input.Bindings;
 
-        // Axis contributions accumulate, so each pair adds another way to push the same axis.
+        // Axis contributions accumulate. Each pair adds another way to push the same axis.
         bindings.BindAxis(Move, Key.A, Key.D);
         bindings.BindAxis(Move, Key.Left, Key.Right);
         bindings.BindAxis(Move, PadButton.DPadLeft, PadButton.DPadRight);
@@ -77,7 +74,7 @@ public static class GameInput
         // The same keys MenuDown takes: menus read MenuDown and play reads Drop, never both at once.
         bindings.Bind(Drop, Key.Down, Key.S, PadButton.DPadDown, StickDirection.LeftStickDown);
 
-        // The same keys the Move axis takes: no scene reads both, so one device can serve either.
+        // The same keys the Move axis takes. One device can serve either because no scene reads both.
         bindings.Bind(MenuLeft, Key.Left, Key.A, PadButton.DPadLeft, StickDirection.LeftStickLeft);
         bindings.Bind(MenuRight, Key.Right, Key.D, PadButton.DPadRight, StickDirection.LeftStickRight);
         bindings.Bind(Confirm, Key.Enter, Key.Space, PadButton.South, MouseButton.Left);

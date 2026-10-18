@@ -3,8 +3,7 @@ using Capsule.Runtime.Assets;
 
 namespace Capsule.Tests.Runtime;
 
-// The hashes are the texels Texture2D.FromStream uploaded with PremultiplyAlpha when the decoder
-// replaced it. A changed hash is a visible change to every shipped texture.
+// The hashes are the premultiplied texels captured from each file. A changed hash is a visible change to every shipped texture.
 public sealed class TextureDecodeTests
 {
     [Theory]

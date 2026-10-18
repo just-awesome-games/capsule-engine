@@ -69,7 +69,7 @@ gh run view <run-id> --log | grep "Your package was pushed"            # one lin
 ```
 
 NuGet.org indexes a pushed package minutes after the workflow reports success. Confirm each
-package is downloadable before pointing a consumer at it (HTTP 200; 404 means still indexing):
+package is downloadable before pointing a consumer at it (HTTP 200, where a 404 means it is still indexing):
 
 ```bash
 for p in jag.capsule jag.capsule.build jag.capsule.runtime jag.capsule.runtime.desktop; do

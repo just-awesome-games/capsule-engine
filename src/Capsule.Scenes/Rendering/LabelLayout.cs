@@ -16,8 +16,8 @@ internal readonly record struct LabelLayoutKey(
 internal readonly record struct LabelGlyph(int Page, TextureRegion Region, int X, int Y, int Index, ColorRgba Tint);
 
 // A label's laid-out run: the markup stripped, every glyph placed, and the extent measured. The buffers
-// only grow, so a rebuild allocates once they have held a run this long. A label asks it to Update each
-// draw, and it lays the run out again only when the key changed.
+// only grow, and a rebuild allocates nothing once they have held a run this long. A label asks it to Update
+// each draw, and it lays the run out again only when the key changed.
 internal sealed class LabelLayout
 {
     private readonly record struct ColorRun(int Start, ColorRgba Color);

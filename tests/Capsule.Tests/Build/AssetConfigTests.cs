@@ -1,5 +1,3 @@
-using Capsule.Tests.Documents;
-
 namespace Capsule.Tests.Build;
 
 /// <summary>
@@ -46,7 +44,7 @@ public sealed class AssetConfigTests
     [InlineData("Assets/spare.atlas.json", """{ "$schema": null }""", "\"$schema\" is null. \"$schema\" is the URL of this file's schema, and the build ignores it. Write the URL as a string, or remove \"$schema\".")]
     [InlineData("Assets/.config.json", """{ "texture": """, "is not valid JSON at line 1")]
     [InlineData("Assets/glow.png.config.json", """{ "atlas": null }""", "has a null at $.atlas. Omit a setting to inherit it, or write its default, such as false for \"atlas\".")]
-    [InlineData("Assets/glow.config.json", """{ "format": "r8" }""", "configures \"glow\", and no asset file beside it is named that. A sidecar names its asset's whole file name, so rename it to \"glow.png.config.json\"")]
+    [InlineData("Assets/glow.config.json", """{ "format": "r8" }""", "configures \"glow\", and no asset file beside it is named that. A sidecar names its asset's whole file name. Rename it to \"glow.png.config.json\"")]
     [InlineData("Assets/hero.fx.config.json", "{}", "configures the shader \"hero.fx\", and a shader has no settings")]
     [InlineData("Assets/glow.png.config.json", """{ "atlas": "World" }""", "sets \"atlas\" to \"world\", and no \"world.atlas.json\" under Assets/ declares that atlas.")]
     [InlineData("Assets/spare.atlas.json", "{}", "declares the atlas \"spare\", and no texture's \"atlas\" setting names it.")]

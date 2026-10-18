@@ -8,6 +8,12 @@ namespace Capsule.Generators;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
 {
+    private const string LogFix = "Write through Capsule.Diagnostics.Log";
+    private const string SaveFix = "Persist through Run.Saves. Ship read-only data as assets";
+    private const string ShellFix = "Leave sockets, processes, devices and the environment to the shell";
+    private const string WaitFix = "Wait with a Countdown, or a Sequence of Wait values, that its owner steps";
+    private const string StepFix = "Do the work inside the step";
+
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [
             Diagnostics.RuntimeBoundary,
@@ -80,57 +86,59 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeInvocation(OperationAnalysisContext context)
     {
         IInvocationOperation operation = (IInvocationOperation)context.Operation;
-        IMethodSymbol method = operation.TargetMethod;
-        DiagnosticDescriptor? rule = Classify(new Subject(method));
+        Subject subject = new(operation.TargetMethod);
+        DiagnosticDescriptor? rule = Classify(subject);
         if (rule is not null && (rule != Diagnostics.Concurrency || operation.Parent is not IAwaitOperation))
         {
-            Report(context, rule, operation.Syntax.GetLocation(), method);
+            Report(context, rule, operation.Syntax.GetLocation(), subject, Display(subject.Symbol));
         }
     }
 
     private static void AnalyzeObjectCreation(OperationAnalysisContext context)
     {
         IObjectCreationOperation operation = (IObjectCreationOperation)context.Operation;
-        if (operation.Constructor is { } constructor && Classify(new Subject(constructor)) is { } rule)
+        if (operation.Constructor is { } constructor && new Subject(constructor) is var subject && Classify(subject) is { } rule)
         {
             // Report the type, since the call site reads as 'new Random(...)'.
-            Report(context, rule, operation.Syntax.GetLocation(), Display(constructor.ContainingType));
+            Report(context, rule, operation.Syntax.GetLocation(), subject, Display(constructor.ContainingType));
         }
     }
 
     private static void AnalyzeMethodReference(OperationAnalysisContext context)
     {
         IMethodReferenceOperation operation = (IMethodReferenceOperation)context.Operation;
-        IMethodSymbol method = operation.Method;
-        if (Classify(new Subject(method)) is { } rule)
+        Subject subject = new(operation.Method);
+        if (Classify(subject) is { } rule)
         {
-            Report(context, rule, operation.Syntax.GetLocation(), method);
+            Report(context, rule, operation.Syntax.GetLocation(), subject, Display(subject.Symbol));
         }
     }
 
     private static void AnalyzeProperty(OperationAnalysisContext context)
     {
         IPropertyReferenceOperation operation = (IPropertyReferenceOperation)context.Operation;
-        if (Classify(new Subject(operation.Property)) is { } rule)
+        Subject subject = new(operation.Property);
+        if (Classify(subject) is { } rule)
         {
-            Report(context, rule, operation.Syntax.GetLocation(), Display(operation.Property));
+            Report(context, rule, operation.Syntax.GetLocation(), subject, Display(subject.Symbol));
         }
     }
 
     private static void AnalyzeField(OperationAnalysisContext context)
     {
         IFieldReferenceOperation operation = (IFieldReferenceOperation)context.Operation;
-        if (IsExternalIo(new Subject(operation.Field)))
+        Subject subject = new(operation.Field);
+        if (IsExternalIo(subject))
         {
-            Report(context, Diagnostics.ExternalIo, operation.Syntax.GetLocation(), Display(operation.Field));
+            Report(context, Diagnostics.ExternalIo, operation.Syntax.GetLocation(), subject, Display(subject.Symbol));
         }
     }
 
     private static void AnalyzeAwait(OperationAnalysisContext context) =>
-        Report(context, Diagnostics.Concurrency, context.Operation.Syntax.GetLocation(), "await");
+        context.ReportDiagnostic(Diagnostic.Create(Diagnostics.Concurrency, context.Operation.Syntax.GetLocation(), "await", WaitFix));
 
     private static void AnalyzeLock(OperationAnalysisContext context) =>
-        Report(context, Diagnostics.Concurrency, context.Operation.Syntax.GetLocation(), "lock");
+        context.ReportDiagnostic(Diagnostic.Create(Diagnostics.Concurrency, context.Operation.Syntax.GetLocation(), "lock", StepFix));
 
     private static void AnalyzeNativeImport(SymbolAnalysisContext context)
     {
@@ -140,7 +148,8 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
             context.ReportDiagnostic(Diagnostic.Create(
                 Diagnostics.ExternalIo,
                 method.Locations.FirstOrDefault() ?? Location.None,
-                Display(method)));
+                Display(method),
+                ShellFix));
         }
     }
 
@@ -280,7 +289,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         || (subject.IsSystem("Guid") && subject.Symbol.Name == "NewGuid")
         || (subject.Type?.Name == "RandomNumberGenerator" && subject.In("System.Security.Cryptography"));
 
-    // Exactly the functions DeterministicMath replaces, so every report names its replacement. The
+    // Exactly the functions DeterministicMath replaces. Every report names its replacement. The
     // double overloads are refused too, since Math.Sin is the habitual call, though a float twin is no
     // drop-in for them. A function DeterministicMath gains later joins this list.
     private static bool IsPlatformMath(in Subject subject) =>
@@ -304,14 +313,22 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
 
     private static string Display(ISymbol symbol) => symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
 
-    private static void Report(OperationAnalysisContext context, DiagnosticDescriptor rule, Location location, string display) =>
-        context.ReportDiagnostic(Diagnostic.Create(rule, location, display));
+    private static void Report(OperationAnalysisContext context, DiagnosticDescriptor rule, Location location, in Subject subject, string display) =>
+        context.ReportDiagnostic(Fix(rule, subject) is { } fix
+            ? Diagnostic.Create(rule, location, display, fix)
+            : Diagnostic.Create(rule, location, display));
 
-    // Only CAP107's message has a second placeholder, for the replacement it names.
-    private static void Report(OperationAnalysisContext context, DiagnosticDescriptor rule, Location location, IMethodSymbol method) =>
-        context.ReportDiagnostic(rule == Diagnostics.PlatformMath
-            ? Diagnostic.Create(rule, location, Display(method), Replacement(method))
-            : Diagnostic.Create(rule, location, Display(method)));
+    // CAP102, CAP103 and CAP107 name the replacement for what they refuse in a second placeholder.
+    private static string? Fix(DiagnosticDescriptor rule, in Subject subject) =>
+        rule == Diagnostics.PlatformMath ? Replacement((IMethodSymbol)subject.Symbol)
+        : rule == Diagnostics.ExternalIo ? subject.IsSystem("Console") && subject.Symbol.Name.StartsWith("Write", StringComparison.Ordinal) ? LogFix : subject.Under("System.IO") ? SaveFix : ShellFix
+        : rule == Diagnostics.Concurrency ? Waits(subject) ? WaitFix : StepFix
+        : null;
+
+    private static bool Waits(in Subject subject) =>
+        subject.In("System.Threading.Tasks")
+        || subject.In("System.Timers")
+        || (subject.In("System.Threading") && (subject.Type?.Name == "Timer" || (subject.Type?.Name == "Thread" && subject.Symbol.Name == "Sleep")));
 
     // Every rule asks the same things of a symbol, and spelling a namespace out allocates a string.
     // Spell it once per operation here for all of them to read.

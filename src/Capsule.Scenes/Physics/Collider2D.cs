@@ -25,11 +25,8 @@ namespace Capsule.Physics;
 /// <see cref="SolidSides"/> and attaching the collider throw for the length of the dispatch.
 /// </para>
 /// </remarks>
-public abstract class Collider2D : Component
+public abstract partial class Collider2D : Component
 {
-    // How many riders the list holds from construction on. A larger crowd doubles it.
-    private const int StartingRiders = 4;
-
     private Shape2D _shape;
 
     // The shape at its offset under the world scale. This is the form the world holds.
@@ -55,11 +52,14 @@ public abstract class Collider2D : Component
     // registered collider entered that state.
     private bool _warnedReportingNothing;
 
+    // Whether the warning for a contact handler with ReportsContacts off has fired. It fires once a lifetime.
+    private bool _warnedHandlerUnheard;
+
     private CollisionWorld2D? _world;
     private Scene? _scene;
     private ColliderHandle _handle;
 
-    // The contact buffers grow together, so swapping _touching and _wasTouching never resizes.
+    // The contact buffers grow together. Swapping _touching and _wasTouching never resizes.
     private Contact2D[] _found = new Contact2D[16];
     private ColliderContact2D[] _touching = new ColliderContact2D[16];
     private ColliderContact2D[] _wasTouching = new ColliderContact2D[16];
@@ -79,27 +79,13 @@ public abstract class Collider2D : Component
     // The interned index of Layer in the world this collider is registered with.
     private int _layerIndex;
 
-    // The bodies whose last move stopped on this collider, grown once and never shrunk. A slot empties
-    // to null while this collider is carrying, and is compacted once the carry is done.
-    private KinematicBody2D?[] _riders = new KinematicBody2D?[StartingRiders];
-    private int _riderCount;
-    private bool _ridersEmptied;
+    // The bodies whose last move stopped on this collider.
+    private RiderList _riders = new();
 
     // The colliders near this one's last move, allocated on its first shove. Each collider owns its
     // own, and _pushing keeps a nested move of this one from reusing it.
     private ColliderHandle[]? _near;
     private bool _pushing;
-
-    /// <summary>The collider's starting shape, expressed relative to the entity's position.</summary>
-    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/> with no points.</exception>
-    protected Collider2D(in Shape2D shape)
-    {
-        RequireShape(shape);
-
-        _shape = shape;
-        _local = shape;
-        EngineSteps = true;
-    }
 
     /// <summary>
     /// Raised for each thing this collider began touching since the previous step, in overlap-query
@@ -118,11 +104,28 @@ public abstract class Collider2D : Component
     /// contacts, or was detached from its entity.
     /// </summary>
     /// <remarks>
-    /// Exits come in <see cref="Touching"/> order, before the step's enters. Each enter is paired with
-    /// one exit, provided the handlers return normally. A handler may change the collider as a
-    /// <see cref="ContactEntered"/> handler may.
+    /// Exits come in the order <see cref="Touching"/> held them before the change, and a step's exits
+    /// come before its enters. Each enter is paired with one exit, provided the handlers return normally.
+    /// A handler may change the collider as a <see cref="ContactEntered"/> handler may.
     /// </remarks>
     public event Action<ColliderContact2D>? ContactExited;
+
+    // Detects resolved in the world this collider is registered with, or None outside one.
+    internal CollisionFilter Filter { get; private set; }
+
+    // The body that sweeps this collider while both are in a scene, or null.
+    internal KinematicBody2D? Body { get; set; }
+
+    /// <summary>The collider's starting shape, expressed relative to the entity's position.</summary>
+    /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/> with no points.</exception>
+    protected Collider2D(in Shape2D shape)
+    {
+        RequireShape(shape);
+
+        _shape = shape;
+        _local = shape;
+        EngineSteps = true;
+    }
 
     /// <summary>The shape in the collider's own space. <see cref="Offset"/> and the entity's position place it.</summary>
     public Shape2D Shape => _shape;
@@ -199,11 +202,11 @@ public abstract class Collider2D : Component
             WarnIfReportingNothing();
             if (value)
             {
-                _scene!.TrackContacts(this);
+                _scene!.Physics.TrackContacts(this);
             }
             else
             {
-                _scene!.UntrackContacts(this);
+                _scene!.Physics.UntrackContacts(this);
                 EndAnnouncedContacts();
             }
         }
@@ -237,6 +240,7 @@ public abstract class Collider2D : Component
     /// <summary>
     /// Whether this one-way collider also blocks a mover from the sides, passing it only from below.
     /// </summary>
+    /// <remarks>It is read only while <see cref="OneWay"/> is on.</remarks>
     public bool SolidSides
     {
         get => _solidSides;
@@ -302,7 +306,7 @@ public abstract class Collider2D : Component
 
             // Resolve before storing. A world with no layer slots left throws here, while the
             // collider still detects what it did.
-            CollisionFilter filter = ResolveFilter(_scene?.Collision, value);
+            CollisionFilter filter = ResolveFilter(_scene?.Physics.World, value);
             _detects = value;
             if (_world is not null)
             {
@@ -312,9 +316,6 @@ public abstract class Collider2D : Component
             }
         }
     }
-
-    // Detects resolved in the world this collider is registered with, or None outside one.
-    internal CollisionFilter Filter { get; private set; }
 
     /// <summary>The layer this collider is on.</summary>
     /// <remarks>
@@ -334,7 +335,7 @@ public abstract class Collider2D : Component
             {
                 // Intern first. A world with no layer slots left throws here, while the collider
                 // still holds its old layer.
-                CollisionLayer layer = scene.Collision.Layer(value);
+                CollisionLayer layer = scene.Physics.World.Layer(value);
                 _layerIndex = layer.Index;
                 _world?.SetLayer(_handle, layer);
                 Body?.FollowLayer(scene, layer.Index);
@@ -343,9 +344,6 @@ public abstract class Collider2D : Component
             _layer = value;
         }
     }
-
-    // The body that sweeps this collider while both are in a scene, or null.
-    internal KinematicBody2D? Body { get; set; }
 
     /// <summary>Where the shape sits in the world right now.</summary>
     /// <exception cref="InvalidOperationException">The collider is attached to no entity.</exception>
@@ -357,16 +355,15 @@ public abstract class Collider2D : Component
     /// after every entity's step and before any late step.
     /// </summary>
     /// <remarks>
-    /// A move made after the settle shows on the next one. A collider out of the world at the settle holds an
-    /// empty list until the next step's settle, even when enabled again before then. A collider on a held
-    /// entity keeps the list from its last settle. Disabling or detaching the collider, or turning
-    /// <see cref="ReportsContacts"/> off, empties the list at once. A scene removal made during a step empties
-    /// it at the step's end, and the removed entity reads <see cref="Scenes.Entity.IsRemovalPending"/> until then. A
-    /// span read before the list empties keeps its contents. A loop that can disable the collider checks
+    /// A move made after the settle shows on the next one. Disabling or detaching the collider, or turning
+    /// <see cref="ReportsContacts"/> off, empties the list at once, and a scene removal made during a step
+    /// empties it at the step's end. A collider out of the world at the settle holds an empty list until
+    /// the next settle, and one on a held entity keeps the list from its last settle. A span read before
+    /// the list empties keeps its contents. A loop that can disable the collider checks
     /// <see cref="Enabled"/> before each contact.
     /// <para>
-    /// During a dispatch the span can already hold contacts whose <see cref="ContactEntered"/> has not been
-    /// raised. The enter and exit pairing is a guarantee about the events, not about this span.
+    /// During a dispatch the span can hold contacts whose <see cref="ContactEntered"/> has not been raised
+    /// yet. The enter and exit pairing is a guarantee about the events, not about this span.
     /// </para>
     /// </remarks>
     public ReadOnlySpan<ColliderContact2D> Touching => _touching.AsSpan(0, _touchingCount);
@@ -376,10 +373,7 @@ public abstract class Collider2D : Component
     /// <see cref="CollisionTolerance.ContactSkin"/> of this collider that
     /// <see cref="Detects"/> matches. The collider never reports itself.
     /// </summary>
-    /// <returns>
-    /// The total overlap count. A span shorter than that count is filled to capacity and the
-    /// remaining overlaps are counted but not written.
-    /// </returns>
+    /// <returns>How many overlaps were written, at most the span's length. A full span means there may have been more.</returns>
     /// <remarks><see cref="Scene.ColliderOf"/> finds the collider and entity behind each contact.</remarks>
     public int OverlapAll(Span<Contact2D> contacts) => RequireWorld().OverlapColliderAll(_handle, Filter, contacts);
 
@@ -521,13 +515,13 @@ public abstract class Collider2D : Component
     /// All other rules of <see cref="Cast(Vector2, out ShapeCastHit2D)"/> apply.
     /// </remarks>
     /// <example>
-    /// A wall probe that sweeps the player's collider against climbable layers only:
+    /// A probe that sweeps an entity's collider sideways against door layers only:
     /// <code>
-    /// private static readonly CollisionMask Climbable = new(CollisionLayers.Climbable);
+    /// private static readonly CollisionMask Doors = new(CollisionLayers.Doors);
     ///
-    /// if (_collider.Cast(new Vector2(reach, 0f), Climbable, out ShapeCastHit2D hit))
+    /// if (_collider.Cast(new Vector2(reach, 0f), Doors, out ShapeCastHit2D hit))
     /// {
-    ///     // Kick off hit.Normal.
+    ///     // A door is within reach, hit.Fraction of the way along.
     /// }
     /// </code>
     /// </example>
@@ -589,17 +583,22 @@ public abstract class Collider2D : Component
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()
     {
-        // Parenting outside a scene notifies nothing, so the scale catches up before registering.
+        // Parenting outside a scene notifies nothing. The scale catches up before registering.
         FollowScale();
 
         _scene = Entity!.Scene;
+
+        // The layer may have changed while this collider was out of the scene. Registering interns it.
         if (_enabled && !_collapsed)
         {
             Register();
         }
+        else
+        {
+            _layerIndex = _scene.Physics.World.Layer(_layer).Index;
+        }
 
-        // The layer may have changed while this collider was out of the scene.
-        Body?.FollowLayer(_scene, _scene.Collision.Layer(_layer).Index);
+        Body?.FollowLayer(_scene, _layerIndex);
     }
 
     /// <inheritdoc/>
@@ -630,7 +629,7 @@ public abstract class Collider2D : Component
     private void Register()
     {
         Scene scene = _scene!;
-        CollisionWorld2D world = scene.Collision;
+        CollisionWorld2D world = scene.Physics.World;
         CollisionFilter filter = ResolveFilter(world, _detects);
         CollisionLayer layer = world.Layer(_layer);
         ColliderHandle handle = world.Add(_local, Entity!.WorldPosition, layer, this);
@@ -646,10 +645,11 @@ public abstract class Collider2D : Component
         if (_reportsContacts)
         {
             SyncContactFilter();
-            scene.TrackContacts(this);
+            scene.Physics.TrackContacts(this);
         }
 
         WarnIfReportingNothing();
+        WarnIfHandlerUnheard();
     }
 
     private void Unregister()
@@ -660,7 +660,7 @@ public abstract class Collider2D : Component
         }
 
         _unregisters++;
-        _scene?.UntrackContacts(this);
+        _scene?.Physics.UntrackContacts(this);
         world.Remove(_handle);
         ReleaseRiders();
         Body?.Unride();
@@ -704,231 +704,6 @@ public abstract class Collider2D : Component
         }
     }
 
-    // A collider no body is moved by only follows its entity. One that is carries its riders by the
-    // same translation and then shoves the bodies it moved into.
-    internal override void OnEntityMoved()
-    {
-        FollowScale();
-
-        if (_world is not { } world)
-        {
-            return;
-        }
-
-        Vector2 position = Entity!.WorldPosition;
-        bool moves = _riderCount > 0 || (_scene!.MovedByLayers & (1UL << _layerIndex)) != 0;
-
-        // A move made from inside this collider's own carry, by a Crushed handler, only follows the
-        // entity. Carrying again would reuse the buffer the outer carry is reading.
-        if (!moves || _pushing)
-        {
-            world.SetPosition(_handle, position);
-            return;
-        }
-
-        Vector2 from = world.PositionOf(_handle);
-        Vector2 motion = position - from;
-        world.SetPosition(_handle, position);
-        if (motion == Vector2.Zero)
-        {
-            return;
-        }
-
-        _pushing = true;
-        try
-        {
-            CarryRiders(motion);
-
-            // A handler raised during the carry may have disabled or detached this collider.
-            if (_world is not null)
-            {
-                ShoveBodies(world, from, motion);
-            }
-        }
-        finally
-        {
-            _pushing = false;
-            CompactRiders();
-        }
-    }
-
-    internal void AddRider(KinematicBody2D body)
-    {
-        if (_riderCount == _riders.Length)
-        {
-            Array.Resize(ref _riders, _riders.Length * 2);
-        }
-
-        _riders[_riderCount++] = body;
-    }
-
-    internal void RemoveRider(KinematicBody2D body)
-    {
-        for (int index = 0; index < _riderCount; index++)
-        {
-            if (!ReferenceEquals(_riders[index], body))
-            {
-                continue;
-            }
-
-            if (_pushing)
-            {
-                _riders[index] = null;
-                _ridersEmptied = true;
-                return;
-            }
-
-            _riderCount--;
-            _riders[index] = _riders[_riderCount];
-            _riders[_riderCount] = null;
-            return;
-        }
-    }
-
-    // A surface with a velocity is a floor that moves zero and carries its riders by one step of it.
-    internal override void OnEngineStep(in StepContext context)
-    {
-        if (_surfaceVelocity == Vector2.Zero || _riderCount == 0 || _pushing)
-        {
-            return;
-        }
-
-        _pushing = true;
-        try
-        {
-            CarryRiders(_surfaceVelocity * context.DeltaSeconds, context.Tick);
-        }
-        finally
-        {
-            _pushing = false;
-            CompactRiders();
-        }
-    }
-
-    // A carried rider's colliders move in turn, which carries whatever rides them. The count is read
-    // once, so a body that lands here mid-carry waits for the next move. A surface carry passes its step's
-    // tick.
-    private void CarryRiders(Vector2 motion, long? surfaceTick = null)
-    {
-        int count = _riderCount;
-        for (int index = 0; index < count && _world is not null; index++)
-        {
-            if (_riders[index] is not { } rider || !rider.IsMovedBy(_layerIndex) || MovesWith(rider.Entity))
-            {
-                continue;
-            }
-
-            if (surfaceTick is { } tick)
-            {
-                rider.CarryOnSurface(motion, tick);
-            }
-            else
-            {
-                rider.Carry(motion);
-            }
-        }
-    }
-
-    // Shoves each body this collider's move drove into by the travel left after meeting it, in handle
-    // order. A rider whose carry took the whole motion is passed by, and one a carry could not clear is
-    // checked. The move is swept from where the collider was, so a body thinner than the move is still met.
-    private void ShoveBodies(CollisionWorld2D world, Vector2 from, Vector2 motion)
-    {
-        if ((_scene!.MovedByLayers & (1UL << _layerIndex)) == 0)
-        {
-            return;
-        }
-
-        // A body resting on its center stands below the pose it sweeps. The reach extends down to it.
-        Aabb2D path = _local.Translated(from).Bounds.Union(world.WorldShapeOf(_handle).Bounds)
-            .Expanded(CollisionTolerance.ContactSkin);
-        Aabb2D reach = new(path.Min, path.Max + new Vector2(0f, _scene.DeepestSink));
-
-        _near ??= new ColliderHandle[8];
-        int count = world.CollidersNear(reach, _scene.BodyLayers, _handle, _near);
-        if (count > _near.Length)
-        {
-            Grow(ref _near, count);
-            count = world.CollidersNear(reach, _scene.BodyLayers, _handle, _near);
-        }
-
-        for (int index = 0; index < count && _world is not null; index++)
-        {
-            ColliderHandle near = _near[index];
-            if (!world.Contains(near)
-                || world.UserDataOf(near) is not Collider2D { Body: { } body }
-                || !body.IsMovedBy(_layerIndex)
-                || MovesWith(body.Entity)
-                || body.CarriedWholeBy(this)
-                || !world.SweepPair(
-                    _handle,
-                    from,
-                    motion,
-                    near,
-                    body.SweptOffset(),
-                    out float fraction,
-                    out Vector2 normal,
-                    out Vector2 point))
-            {
-                continue;
-            }
-
-            // The sweep reports the body's normal. The pusher's surface faces the other way.
-            body.Shove(this, motion * (1f - fraction), -normal, point);
-        }
-    }
-
-    // Whether an entity is this collider's own or one of its ancestors, which move with it already.
-    private bool MovesWith(Entity? other)
-    {
-        for (Entity? entity = Entity; entity is not null; entity = entity.Parent)
-        {
-            if (ReferenceEquals(entity, other))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private void CompactRiders()
-    {
-        if (!_ridersEmptied)
-        {
-            return;
-        }
-
-        _ridersEmptied = false;
-        int kept = 0;
-        for (int index = 0; index < _riderCount; index++)
-        {
-            if (_riders[index] is { } rider)
-            {
-                _riders[kept++] = rider;
-            }
-        }
-
-        Array.Clear(_riders, kept, _riderCount - kept);
-        _riderCount = kept;
-    }
-
-    // Lets go of every rider as this collider leaves the world.
-    private void ReleaseRiders()
-    {
-        for (int index = 0; index < _riderCount; index++)
-        {
-            if (_riders[index] is { } rider)
-            {
-                _riders[index] = null;
-                rider.ForgetFloor(this);
-            }
-        }
-
-        _riderCount = 0;
-        _ridersEmptied = false;
-    }
-
     internal void SettleContacts()
     {
         if (_world is not { } world)
@@ -968,7 +743,7 @@ public abstract class Collider2D : Component
         {
             // Exits run before enters, and a handler reading Touching sees the settled set. This loop
             // finishes even if a handler detaches the collider. These contacts and the unregister
-            // sweep's are disjoint, so nothing exits twice and nothing is dropped.
+            // sweep's are disjoint. Nothing exits twice and nothing is dropped.
             for (int index = 0; index < leftCount; index++)
             {
                 ContactExited?.Invoke(left[index]);
@@ -983,8 +758,8 @@ public abstract class Collider2D : Component
                     continue;
                 }
 
-                // Marked before the handler runs, so a handler that detaches from inside it still
-                // owes this contact an exit.
+                // Marked before the handler runs. A handler that detaches from inside it still owes
+                // this contact an exit.
                 announced[index] = true;
                 ContactEntered?.Invoke(touching[index]);
             }
@@ -996,7 +771,7 @@ public abstract class Collider2D : Component
     }
 
     // Writes the gather into _touching and marks the contacts carried over from the previous step as
-    // announced. Both lists are in overlap-query order, so one merge finds them. The previous
+    // announced. Both lists are in overlap-query order, and one merge finds them. The previous
     // contacts not found again move to the head of _wasTouching in their order, and the return value
     // says how many there are.
     private int Diff(CollisionWorld2D world, int count, int wasCount)
@@ -1048,7 +823,7 @@ public abstract class Collider2D : Component
         bool spans = TryPlace(shape, offset, scale, out Shape2D local);
         if (spans && Entity is { } entity)
         {
-            _ = local.Translated(entity.WorldPosition);
+            RequirePlaceable(local, entity.WorldPosition);
         }
 
         bool wasCollapsed = _collapsed;
@@ -1079,6 +854,9 @@ public abstract class Collider2D : Component
             world.SetShape(_handle, _local);
         }
     }
+
+    // Throws when the entity's position would carry the shape's bounds past what a float box holds.
+    private static void RequirePlaceable(in Shape2D local, Vector2 position) => _ = local.Translated(position);
 
     private void RequireNotDispatching()
     {
@@ -1133,7 +911,7 @@ public abstract class Collider2D : Component
         world?.Intern(mask.Names) ?? CollisionFilter.None;
 
     // Warns once each time a registered collider starts reporting contacts while detecting no layer.
-    // Initializers run before registration, so setting ReportsContacts before Detects never warns.
+    // Initializers run before registration. Setting ReportsContacts before Detects never warns.
     private void WarnIfReportingNothing()
     {
         bool reportsNothing = _reportsContacts && _detects.Names.IsEmpty;
@@ -1145,6 +923,18 @@ public abstract class Collider2D : Component
         }
 
         _warnedReportingNothing = reportsNothing;
+    }
+
+    // Checked only on registering, since a later write turning ReportsContacts off is deliberate.
+    private void WarnIfHandlerUnheard()
+    {
+        if (!_reportsContacts && !_warnedHandlerUnheard && (ContactEntered is not null || ContactExited is not null))
+        {
+            _warnedHandlerUnheard = true;
+            Log.Warning(
+                $"A {GetType().Name} on a {Entity!.GetType().Name} has a contact handler but ReportsContacts is off, "
+                + "and it will report none. Set ReportsContacts = true");
+        }
     }
 
     // The world keeps candidates only for a collider that reports contacts.
@@ -1163,5 +953,5 @@ public abstract class Collider2D : Component
 
     private CollisionWorld2D RequireWorld() =>
         _world ?? throw new InvalidOperationException(
-            "This Collider2D is disabled or in no scene, so it has no world to query. Enable it and add its entity to a scene.");
+            "This Collider2D is disabled or in no scene and has no world to query. Enable it and add its entity to a scene.");
 }

@@ -10,7 +10,7 @@ using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Runtime.Assets;
 using Capsule.Runtime.Desktop;
-using Capsule.Scenes.Documents;
+using Capsule.Scenes;
 
 namespace Capsule.AotSmoke;
 
@@ -49,7 +49,7 @@ internal static class Program
         }
     }
 
-    // The runs check reads 0 then 1, so the saves directory must start without a runs save. A run that
+    // The runs check reads 0 then 1. The saves directory must start without a runs save. A run that
     // names no directory gets a fresh one of its own, deleted at the end. A named directory must be
     // missing or empty, and one holding anything fails here instead of at check 2.
     private static int Run(string[] args)
@@ -62,7 +62,7 @@ internal static class Program
             if (given is not null && Directory.Exists(given) && Directory.EnumerateFileSystemEntries(given).Any())
             {
                 Console.Error.WriteLine(
-                    $"AOT smoke failed (8): the saves directory '{given}' is not empty, so the runs read cannot be trusted to start at 0. Pass an empty directory to {SavesFlag}, or omit {SavesFlag} to use a fresh temporary one.");
+                    $"AOT smoke failed (8): the saves directory '{given}' is not empty, and the runs read cannot be trusted to start at 0. Pass an empty directory to {SavesFlag}, or omit {SavesFlag} to use a fresh temporary one.");
 
                 return 8;
             }
@@ -94,7 +94,7 @@ internal static class Program
         if (published && !shipping)
         {
             Console.Error.WriteLine(
-                "AOT smoke failed (3): this is a published binary whose Development.IsSupported is true, so the publish did not set CapsuleShipping.");
+                "AOT smoke failed (3): this is a published binary whose Development.IsSupported is true. Set CapsuleShipping on the publish.");
 
             return 3;
         }
@@ -126,7 +126,7 @@ internal static class Program
             return 5;
         }
 
-        // The half of a texture load that runs off the game thread needs no device, so the published
+        // The half of a texture load that runs off the game thread needs no device. The published
         // decoder is proved here although the run below is headless.
         string texels = FontPageTexels();
         if (texels != FontPageTexelsSha256)
@@ -136,7 +136,7 @@ internal static class Program
             return 6;
         }
 
-        // Twice in one process: each run builds a fresh store, so the second read comes back from
+        // Twice in one process. Each run builds a fresh store, and the second read comes back from
         // the file the first run wrote.
         HeadlessRunResult result = Play(args);
         int? firstRead = FixtureScene.RunsRead;
@@ -209,7 +209,7 @@ internal static class Program
             && Shipped(CapsuleAssets.Textures.PixelTexture)
             && Shipped("fonts/menu.png")
 
-            // Compiled into the game, so it is not beside the executable.
+            // Compiled into the game and not beside the executable.
             && !Shipped("fonts/menu.fnt")
             && Shipped(CapsuleAssets.Textures.TileSets.CaveWallTexture)
             && CapsuleAssets.Textures.TileSets.CaveWallTexture.Name == "textures/tile-sets/cave-wall"

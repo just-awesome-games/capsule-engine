@@ -15,7 +15,7 @@ namespace Capsule.Runtime.Audio.Vorbis
 
         public VorbisReader(Stream stream)
         {
-            // Capsule: shipped content is seekable (HostPlatform.OpenContent), so the forward-only reader is gone.
+            // Capsule: shipped content is seekable (HostPlatform.OpenContent). The reader needs no forward-only path.
             _pageReader = new Ogg.PageReader(stream, AcceptFirstStream);
 
             try

@@ -7,9 +7,16 @@ namespace Capsule.Scenes;
 /// factory that constructs the scene. Build one through <see cref="FromDocument"/>, <see cref="Plain"/>
 /// or <see cref="DocumentOnly"/>.
 /// </summary>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public readonly record struct SceneRegistration
 {
     private readonly Func<SceneContent?, Scene> _factory;
+
+    /// <summary>The class registered, or null for a registration identified by its document alone.</summary>
+    public Type? SceneType { get; }
+
+    /// <summary>The scene document backing it, or null when none does.</summary>
+    public string? DocumentName { get; }
 
     private SceneRegistration(Type? sceneType, string? documentName, Func<SceneContent?, Scene> factory)
     {
@@ -18,12 +25,6 @@ public readonly record struct SceneRegistration
         _factory = factory;
     }
 
-    /// <summary>The class registered, or null for a registration identified by its document alone.</summary>
-    public Type? SceneType { get; }
-
-    /// <summary>The scene document backing it, or null when none does.</summary>
-    public string? DocumentName { get; }
-
     // The label a reader sees: the class name, or the document name when no class claims it.
     internal string Name => SceneType?.Name ?? DocumentName!;
 
@@ -31,7 +32,6 @@ public readonly record struct SceneRegistration
     /// <param name="sceneType">The class registered.</param>
     /// <param name="name">The scene document backing it.</param>
     /// <param name="factory">The factory that constructs it. The content is never null for this kind.</param>
-    [EditorBrowsable(EditorBrowsableState.Never)]
     public static SceneRegistration FromDocument(Type sceneType, string name, Func<SceneContent?, Scene> factory)
     {
         ArgumentNullException.ThrowIfNull(sceneType);
@@ -44,7 +44,6 @@ public readonly record struct SceneRegistration
     /// <summary>Registers a scene that no document backs.</summary>
     /// <param name="sceneType">The class registered.</param>
     /// <param name="factory">The factory that constructs it. The content is always null for this kind.</param>
-    [EditorBrowsable(EditorBrowsableState.Never)]
     public static SceneRegistration Plain(Type sceneType, Func<SceneContent?, Scene> factory)
     {
         ArgumentNullException.ThrowIfNull(sceneType);
@@ -56,7 +55,6 @@ public readonly record struct SceneRegistration
     /// <summary>Registers a scene composed from a shipped document that no class claims.</summary>
     /// <param name="name">The document's key.</param>
     /// <param name="factory">The factory that constructs it. The content is never null for this kind.</param>
-    [EditorBrowsable(EditorBrowsableState.Never)]
     public static SceneRegistration DocumentOnly(string name, Func<SceneContent?, Scene> factory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);

@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Capsule.Input;
@@ -14,8 +13,6 @@ namespace Capsule.Tests.Allocation;
 [Collection(StageAllocationCollection.Name)]
 public sealed class CollisionAllocationTests(ITestOutputHelper output)
 {
-    private const int WarmupSteps = 120;
-    private const int MeasuredSteps = 600;
     private const int RaysPerBatch = 64;
     private const int OverlapsPerBatch = 64;
     private const int DiagonalCastsPerBatch = 4;
@@ -29,7 +26,7 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         Contact2D[] contacts = new Contact2D[16];
         float direction = 1f;
 
-        Report("mover on a room", Measure(step =>
+        long bytes = StepMeasurement.Bytes(_ =>
         {
             MoveResult2D result = world.MoveBox(box, new Vector2(direction * 2f, 4f), filter, contacts);
             box = box.Translated(result.Translation);
@@ -38,9 +35,9 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
             {
                 direction = -direction;
             }
+        });
 
-            return result.ContactCount + step;
-        }));
+        StepMeasurement.Report(output, "mover on a room", bytes);
     }
 
     [Fact]
@@ -51,33 +48,28 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         Contact2D[] contacts = new Contact2D[32];
         RayHit2D[] hits = new RayHit2D[16];
 
-        Report("64 rays and 64 overlaps", Measure(step =>
+        long bytes = StepMeasurement.Bytes(step =>
         {
-            int found = 0;
             for (int index = 0; index < RaysPerBatch; index++)
             {
                 float x = ((index * 61) + step) % (CollisionWorkload.TilesWide * CollisionWorkload.TileSize);
                 Vector2 origin = new(x, 34f * CollisionWorkload.TileSize);
 
-                if (world.Raycast(origin, Vector2.UnitY, 256f, filter, out RayHit2D hit))
-                {
-                    found += hit.Target.CellY;
-                }
-
-                found += world.RaycastAll(origin, Vector2.UnitX, 128f, filter, hits);
+                _ = world.Raycast(origin, Vector2.UnitY, 256f, filter, out _);
+                _ = world.RaycastAll(origin, Vector2.UnitX, 128f, filter, hits);
             }
 
             for (int index = 0; index < OverlapsPerBatch; index++)
             {
                 float x = ((index * 37) + step) % (CollisionWorkload.TilesWide * CollisionWorkload.TileSize);
-                found += world.OverlapBoxAll(
+                _ = world.OverlapBoxAll(
                     Aabb2D.FromCorner(new Vector2(x, 37f * CollisionWorkload.TileSize), new Vector2(24f, 24f)),
                     filter,
                     contacts);
             }
+        });
 
-            return found;
-        }));
+        StepMeasurement.Report(output, "64 rays and 64 overlaps", bytes);
     }
 
     // Two live worlds take turns with one mask, and with an empty one. After each world's first
@@ -90,22 +82,21 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         CollisionMask empty = new();
         Contact2D[] contacts = new Contact2D[32];
 
-        Report("masked rays and overlaps in two worlds", Measure(step =>
+        long bytes = StepMeasurement.Bytes(step =>
         {
             CollisionWorld2D world = worlds[step & 1];
             float x = (step * 61) % (CollisionWorkload.TilesWide * CollisionWorkload.TileSize);
             Aabb2D box = Aabb2D.FromCorner(new Vector2(x, 37f * CollisionWorkload.TileSize), new Vector2(24f, 24f));
-            int found = world.OverlapBoxAll(box, mask, contacts) + world.OverlapBoxAll(box, empty, contacts);
+            _ = world.OverlapBoxAll(box, mask, contacts);
+            _ = world.OverlapBoxAll(box, empty, contacts);
+            _ = world.Raycast(new Vector2(x, 34f * CollisionWorkload.TileSize), Vector2.UnitY, 256f, mask, out _);
+        });
 
-            return world.Raycast(new Vector2(x, 34f * CollisionWorkload.TileSize), Vector2.UnitY, 256f, mask, out RayHit2D hit)
-                ? found + hit.Target.CellY
-                : found;
-        }));
+        StepMeasurement.Report(output, "masked rays and overlaps in two worlds", bytes);
     }
 
-    // Four sweeps across the map corner to corner, the longest casts a room-scale game issues. What
-    // this asserts is zero allocation; whether a sweep walks the band its shape covers rather than
-    // the rectangle its bounds describe is a cell count, not a duration, and is not claimed here.
+    // Four sweeps across the map corner to corner, the longest casts a room-scale game issues. The
+    // cells a sweep reaches are CastTraversalTests' contract.
     [Fact]
     public void ABatchOfMapLengthDiagonalCasts_AllocatesNothing()
     {
@@ -116,57 +107,21 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         const float across = CollisionWorkload.TilesWide * CollisionWorkload.TileSize;
         const float down = CollisionWorkload.TilesHigh * CollisionWorkload.TileSize;
 
-        Report("4 map-length diagonal casts", Measure(step =>
+        long bytes = StepMeasurement.Bytes(step =>
         {
-            int found = 0;
             for (int index = 0; index < DiagonalCastsPerBatch; index++)
             {
                 float offset = ((index * 13) + step) % CollisionWorkload.TileSize;
-                Vector2 origin = new(offset, offset);
-
-                if (world.ShapeCast(shape, origin, new Vector2(across, down), filter, out ShapeCastHit2D hit))
-                {
-                    found += hit.Target.CellX;
-                }
+                _ = world.ShapeCast(shape, new Vector2(offset, offset), new Vector2(across, down), filter, out _);
             }
+        });
 
-            return found;
-        }));
-    }
-
-    // A RaycastAll whose span is full has the same reach left as the Raycast that took one hit, so
-    // it must stop in the same place. Left to run to the grid's far edge it would cell-test the
-    // rest of the map for results it has already decided it cannot keep. The test counts cells
-    // reached, which reads the same on every machine.
-    [Fact]
-    public void ASaturatedRaycastAll_StopsWhereItsSpanFillsRatherThanWalkingOnToTheGridsEdge()
-    {
-        CollisionWorld2D world = CollisionWorkload.World();
-        CollisionFilter filter = world.CreateFilter(CollisionWorkload.Solid, CollisionWorkload.Platform, CollisionWorkload.Actor);
-        RayHit2D[] one = new RayHit2D[1];
-
-        // Along the floor: every cell of the row is solid, so an unpruned walk reaches every one of
-        // them after the very first has already filled the span.
-        Vector2 origin = new(8f, (41.5f * CollisionWorkload.TileSize) + 0.5f);
-        const float across = CollisionWorkload.TilesWide * CollisionWorkload.TileSize;
-
-        world.ResetDiagnostics();
-        Assert.True(world.Raycast(origin, Vector2.UnitX, across, filter, out RayHit2D _));
-        long bounded = world.GridCellsTested;
-
-        world.ResetDiagnostics();
-        Assert.Equal(1, world.RaycastAll(origin, Vector2.UnitX, across, filter, one));
-        long saturated = world.GridCellsTested;
-
-        Assert.True(
-            saturated <= bounded + 1,
-            FormattableString.Invariant(
-                $"a saturated RaycastAll reached {saturated} grid cells against the nearest cast's {bounded}, so it is still walking the grid past its limit."));
+        StepMeasurement.Report(output, "4 map-length diagonal casts", bytes);
     }
 
     // A wide box lands on forty floor tiles and forty crates at once, more surfaces than the world's
-    // scratch holds. The world is fresh, so its very first sweep is the one measured. An identical
-    // world takes the first sweep beforehand, so compiling the code is not counted.
+    // scratch holds. The measured sweep is a fresh world's first. An identical world takes the first
+    // sweep beforehand, which keeps compiling the code out of the count.
     [Fact]
     public void AFirstMoveMeetingMoreSurfacesThanTheScratchHolds_AllocatesNothingAndReportsThemAll()
     {
@@ -194,23 +149,30 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
     {
         Scene scene = CollisionWorkload.Room();
         TileMap terrain = SceneFixtures.TerrainOf(scene);
-        CollisionWorkload.Walker walker = new(CollisionWorkload.Mover.Min, restsOnCenter);
+        CollisionWorkload.Walker walker = new(CollisionWorkload.Mover.Min);
+        walker.Mover.RestsOnCenter = restsOnCenter;
+        walker.Collider.ReportsContacts = true;
+
+        // Live handlers, which the contact events raise through.
+        walker.Collider.ContactEntered += static _ => { };
+        walker.Collider.ContactExited += static _ => { };
         scene.Add(walker);
 
         using SceneSimulation simulation = new(scene, run: StageWorkload.Defaults);
 
-        // One input state for the run: building one a step is the harness allocating, not the step.
+        // One input state for the run. Building one a step is the harness allocating, not the step.
         InputState input = new(new ActionBindings());
 
         // A roof cell far from the walk is repainted every step, turning the other way each time.
-        Report("walker in a scene", Measure(step =>
+        long bytes = StepMeasurement.Bytes(step =>
         {
             terrain.SetTile(200, 20, "slope-up", (step & 1) == 0 ? TileTransform.FlipX : TileTransform.Rotate90);
-            simulation.Step(new StepContext(StageWorkload.StepSeconds, input, step));
-            return walker.Contacts;
-        }));
+            simulation.Step(new StepContext(StepMeasurement.StepSeconds, input, step));
+        });
 
-        // The walk went over the hill, so the measured steps include grounded moves on slope tiles.
+        StepMeasurement.Report(output, "walker in a scene", bytes);
+
+        // The walk went over the hill. The measured steps include grounded moves on slope tiles.
         Assert.True(walker.Position.X > 528f);
     }
 
@@ -231,18 +193,18 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         InputState input = new(new ActionBindings());
         float seat = 0f;
 
-        Report("lift with a rider and a crate", Measure(step =>
+        long bytes = StepMeasurement.Bytes(step =>
         {
-            simulation.Step(new StepContext(StageWorkload.StepSeconds, input, step));
-            if (step == WarmupSteps)
+            simulation.Step(new StepContext(StepMeasurement.StepSeconds, input, step));
+            if (step == StepMeasurement.WarmupSteps)
             {
                 seat = rider.Position.X - lift.Position.X;
             }
+        });
 
-            return (int)crate.Position.X + crate.Crushes;
-        }));
+        StepMeasurement.Report(output, "lift with a rider and a crate", bytes);
 
-        // The rider kept its seat through every measured step, so the carry ran on each of them.
+        // The rider kept its seat through every measured step. The carry ran on each of them.
         Assert.Equal(seat, rider.Position.X - lift.Position.X, 0.01f);
         Assert.True(crate.Position.X > lift.Position.X);
     }
@@ -266,17 +228,15 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         using SceneSimulation simulation = new(scene, run: StageWorkload.Defaults);
         InputState input = new(new ActionBindings());
 
-        Report("belt carrying a body into a wall", Measure(step =>
-        {
-            simulation.Step(new StepContext(StageWorkload.StepSeconds, input, step));
-            return (int)rider.Position.X;
-        }));
+        long bytes = StepMeasurement.Bytes(step => simulation.Step(new StepContext(StepMeasurement.StepSeconds, input, step)));
+
+        StepMeasurement.Report(output, "belt carrying a body into a wall", bytes);
 
         Assert.Equal(320f, rider.Position.X, 0.01f);
     }
 
-    // A sensor spans a row whose cells turn solid one a step, so its contact count rises by one on
-    // every step. Buffers grown to the exact count would allocate on each of those steps. Doubling
+    // A sensor spans a row whose cells turn solid one a step. Its contact count rises by one on every
+    // step. Buffers grown to the exact count would allocate on each of those steps. Doubling
     // allocates each buffer twice past its starting sixteen, and the bound is twice that.
     [Fact]
     public void ASensorWhoseContactsRiseOneAStep_GrowsItsBuffersGeometrically()
@@ -294,9 +254,8 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
         long bound = 2 * 2 * cells * (Unsafe.SizeOf<Contact2D>() + (2 * Unsafe.SizeOf<ColliderContact2D>()) + sizeof(bool));
-        output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"contacts rising to {cells}: {bytes} bytes, bound {bound}"));
+        StepMeasurement.Report(output, "contacts rising one a step", bytes, steps: cells, budget: bound);
         Assert.Equal(cells, sensor.Box.Touching.Length);
-        Assert.True(bytes <= bound, $"a sensor whose contacts rose to {cells} one a step allocated {bytes} bytes, over the {bound} that doubling its buffers costs.");
     }
 
     // An empty row of cells under a sensor that spans it.
@@ -315,7 +274,7 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         for (int step = 0; step < cells; step++)
         {
             terrain.SetTile(step, 0, "solid");
-            simulation.Step(new StepContext(StageWorkload.StepSeconds, input, step));
+            simulation.Step(new StepContext(StepMeasurement.StepSeconds, input, step));
         }
     }
 
@@ -334,35 +293,6 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         }
 
         return world;
-    }
-
-    private static (long Bytes, long Guard) Measure(Func<int, int> step)
-    {
-        long guard = 0;
-        for (int index = 0; index < WarmupSteps; index++)
-        {
-            guard += step(index);
-        }
-
-        long bytes = GC.GetAllocatedBytesForCurrentThread();
-
-        for (int index = 0; index < MeasuredSteps; index++)
-        {
-            guard += step(WarmupSteps + index);
-        }
-
-        return (GC.GetAllocatedBytesForCurrentThread() - bytes, guard);
-    }
-
-    private void Report(string label, (long Bytes, long Guard) measured)
-    {
-        (long bytes, long guard) = measured;
-
-        output.WriteLine(string.Create(
-            CultureInfo.InvariantCulture,
-            $"{label}: {bytes} bytes over {MeasuredSteps} steps (guard {guard})"));
-
-        Assert.Equal(0, bytes);
     }
 
     private sealed class Sensor : Entity

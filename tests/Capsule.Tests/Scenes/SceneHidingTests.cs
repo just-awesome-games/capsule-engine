@@ -52,7 +52,7 @@ public sealed class SceneHidingTests
         Assert.Equal(new Vector2(1f, 0f), child.Position);
     }
 
-    // The composed tint reaches every leaf once. A label's glyphs expand through the sprite leaf, so a
+    // The composed tint reaches every leaf once. A label's glyphs expand through the sprite leaf. A
     // second multiply there would halve them again. A white tint takes no multiply at all.
     [Fact]
     public void ATintComposedDownTheTree_ReachesASpriteALabelAndALightExactlyOnce()

@@ -1,12 +1,19 @@
 using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
+using Capsule.Tiles;
 
 namespace Capsule.Tests.Scenes;
 
 public sealed class SceneCameraTests
 {
+    /// <summary>The two kinds of drawing culling must keep alike.</summary>
+    public enum Drawing
+    {
+        Sprite,
+        Tile,
+    }
+
     [Fact]
     public void ASpriteMovingWithTheCamera_HoldsOneScreenPositionAtEveryAlpha()
     {
@@ -46,7 +53,7 @@ public sealed class SceneCameraTests
         Assert.Equal(camera.Center, camera.PreviousCenter);
     }
 
-    // Only a teleport says the subject's place changed; the cut a scene opens on lands the follow.
+    // Only a teleport says the subject's place changed. The cut a scene opens on lands the follow.
     [Fact]
     public void ATeleport_RunsOnTeleported_ButTheCutASceneOpensOnDoesNot()
     {
@@ -82,43 +89,43 @@ public sealed class SceneCameraTests
         Assert.Equal(subject.Position, simulation.View.Camera.Center);
     }
 
-    [Fact]
-    public void ASpriteTheCameraOnlySweepsOver_SurvivesCulling()
+    // The view starts over x -1 to 7 and ends over 25 to 33. Only the sweep between crosses the
+    // drawing at 8 to 16.
+    [Theory]
+    [InlineData(Drawing.Sprite)]
+    [InlineData(Drawing.Tile)]
+    public void ADrawingTheCameraOnlySweepsOver_SurvivesCulling(Drawing drawing)
     {
-        SceneFixtures.Drifter standing = new(new Vector2(50, 0));
-        standing.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
+        static void Sweep(Scene scene, in StepContext context) => scene.Camera.Center = new Vector2(29f, 4f);
 
-        static void Sweep(Scene scene, in StepContext context) => scene.Camera.Center = new Vector2(60, 0);
-
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(40, 0), new Vector2(10, 10)), step: Sweep);
-        scene.Add(standing);
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(3f, 4f), new Vector2(8f, 8f)), step: Sweep);
+        scene.Add(Spanning8To16(drawing));
 
         SceneSimulation simulation = new(scene);
         simulation.Step(SceneFixtures.Step());
 
-        Assert.Equal(new Vector2(51, 0), Assert.Single(simulation.View.Sprites.ToArray()).Position);
+        Assert.Single(simulation.View.Sprites.ToArray());
     }
 
-    // Before the first step settles the centre, bounds confine only what is drawn, so culling has to
-    // confine the same way: this sprite is on screen only because the view was pushed right off the
-    // room's left edge, and the raw sweep around the centre excludes it.
-    [Fact]
-    public void ASpriteConfinementBringsIntoView_SurvivesCulling()
+    // Before the first step settles the centre, bounds confine only what is drawn, and culling confines
+    // the same way. The raw view around the centre spans x -9 to 7. The drawing at 8 to 16 is on screen
+    // only because the bounds pushed the view right off the room's left edge.
+    [Theory]
+    [InlineData(Drawing.Sprite)]
+    [InlineData(Drawing.Tile)]
+    public void ADrawingConfinementBringsIntoView_SurvivesCulling(Drawing drawing)
     {
-        SceneFixtures.Drifter standing = new(new Vector2(14, 4));
-        standing.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
-
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(0, 4), new Vector2(16, 8)));
-        scene.Camera.Bounds = new Rect(0f, 0f, 32f, 8f);
-        scene.Add(standing);
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(-1f, 4f), new Vector2(16f, 8f)));
+        scene.Camera.Bounds = Rect.FromEdges(0f, 0f, 32f, 8f);
+        scene.Add(Spanning8To16(drawing));
 
         using SceneSimulation simulation = new(scene);
 
-        Assert.Equal(new Vector2(14, 4), Assert.Single(simulation.View.Sprites.ToArray()).Position);
+        Assert.Single(simulation.View.Sprites.ToArray());
     }
 
     // The ordering the camera's own late hook exists for: the subject moves in the entity pass and
-    // the camera reads it after that pass, so entity order cannot decide whether it frames this
+    // the camera reads it after that pass. Entity order cannot decide whether it frames this
     // step's position or the last one's.
     [Fact]
     public void AnInstalledCamerasLateStep_FramesWhereItsSubjectEndedThisStep()
@@ -128,7 +135,7 @@ public sealed class SceneCameraTests
 
         SceneFixtures.HookScene scene = new(start: Install(camera));
 
-        // Ahead of the subject, so a camera settled inside the entity pass would frame the
+        // Ahead of the subject. A camera settled inside the entity pass would frame the
         // position the subject still held when the pass reached this slot.
         scene.Add(new SceneFixtures.Drifter(new Vector2(500, 0)));
         scene.Add(subject);
@@ -192,7 +199,7 @@ public sealed class SceneCameraTests
         Assert.Equal(["camera"], order);
     }
 
-    // A camera discovers its subject the way an entity does, so it is started only once the scene's
+    // A camera discovers its subject the way an entity does. It is started only once the scene's
     // entities have been.
     [Fact]
     public void ACameraInstalledFromTheScenesStart_IsStartedAndSeesTheScenesEntities()
@@ -211,7 +218,7 @@ public sealed class SceneCameraTests
         Assert.Equal(new Vector2(7, 3), simulation.View.Camera.Center);
     }
 
-    // Entities start before the scene installs its camera, so a camera installed from an entity's
+    // Entities start before the scene installs its camera. A camera installed from an entity's
     // start is the one the scene opens with, and the camera it displaces never started.
     [Fact]
     public void ACameraInstalledAsTheScenesEntitiesStart_IsTheOneTheSceneOpensWith()
@@ -232,7 +239,7 @@ public sealed class SceneCameraTests
         Assert.Null(displaced.SceneOrNull);
     }
 
-    // A scene that fails to start never installed its camera, so that camera never began.
+    // A scene that fails to start never installed its camera. That camera never began.
     [Fact]
     public void ASceneWhoseEntityFailsToStart_NeverStartsItsCamera()
     {
@@ -259,12 +266,12 @@ public sealed class SceneCameraTests
         Assert.NotSame(shared, other.Camera);
     }
 
-    // Framing is the camera's and resolution is the renderer's, so what the scene sets has to reach
+    // Framing is the camera's and resolution is the renderer's. What the scene sets has to reach
     // the frame view unread by the step that produced it.
     [Fact]
     public void ACamerasFitAndBounds_ReachTheFrameViewWithTheCentreItSettled()
     {
-        Rect room = new(0f, 0f, 1000f, 500f);
+        Rect room = Rect.FromEdges(0f, 0f, 1000f, 500f);
         Camera camera = new()
         {
             Center = new Vector2(-400f, 250f),
@@ -284,8 +291,14 @@ public sealed class SceneCameraTests
         Assert.Equal(new Vector2(-400f, 250f), view.Center);
 
         // Before the first step settles the centre, the clamp lives in resolution alone.
-        Assert.Equal(new Rect(0f, 160f, 320f, 340f), view.Resolve(1f, new Vector2(1280f, 720f)));
+        Assert.Equal(Rect.FromEdges(0f, 160f, 320f, 340f), view.Resolve(1f, new Vector2(1280f, 720f)));
     }
+
+    // An 8x8 sprite, or one tile of a row of 8-pixel tiles, covering x 8 to 16 and y 0 to 8.
+    private static Entity Spanning8To16(Drawing drawing) =>
+        drawing == Drawing.Sprite
+            ? new SceneFixtures.Holder(new Vector2(8f, 0f), new SpriteRenderer(SceneFixtures.Frame(8, 8)))
+            : new TileMap(new TileGrid(8, 4, 1, [TileGrid.EmptyTile, SceneFixtures.Tile("solid", 0)], [0, 1, 0, 0], SceneFixtures.Atlas, 1));
 
     private static Action<Scene> Install(Camera camera) =>
         scene => ((SceneFixtures.HookScene)scene).Install(camera);

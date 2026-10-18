@@ -59,7 +59,7 @@ public sealed class AnimationPlaybackTests
         Assert.True(playback.IsFinished);
         Assert.Equal(2, playback.FrameIndex);
 
-        // Stepping a finished run is a no-op, so the last frame keeps drawing.
+        // Stepping a finished run is a no-op. The last frame keeps drawing.
         playback.Step(Three, loop: false);
 
         Assert.True(playback.IsFinished);
@@ -67,7 +67,7 @@ public sealed class AnimationPlaybackTests
         Assert.Equal(2, playback.TicksElapsed);
     }
 
-    // Past the run's six ticks, so a loop wraps and a non-looping run clamps finished. TickOf reads
+    // Past the run's six ticks. A loop wraps and a non-looping run clamps finished. TickOf reads
     // the seeked tick back within the current pass.
     [Theory]
     [InlineData(false)]

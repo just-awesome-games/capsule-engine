@@ -12,14 +12,14 @@ namespace Capsule.Input;
 /// <example>
 /// <code>
 /// public static readonly AxisAction Move = new("move");
-/// public static readonly InputAction Jump = new("jump");
+/// public static readonly InputAction Confirm = new("confirm");
 ///
 /// public static void Configure(InputConfiguration input, GameSettings settings)
 /// {
 ///     input.GamepadDeadzones(InputConfiguration.DefaultStickDeadzone, InputConfiguration.DefaultTriggerDeadzone);
 ///     input.Bindings.BindAxis(Move, Key.A, Key.D);
 ///     input.Bindings.BindAxis(Move, PadAxis.LeftStickX);
-///     input.Bindings.Bind(Jump, settings.Input.Jump.Key, settings.Input.Jump.Pad);
+///     input.Bindings.Bind(Confirm, settings.Input.Confirm.Key, settings.Input.Confirm.Pad);
 /// }
 /// </code>
 /// </example>
@@ -52,7 +52,7 @@ public sealed class InputConfiguration
     public InputButton DebugOverlayButton { get; private set; } = Key.Grave;
 
     // Set when the run's first scene starts. The overlay reads DebugOverlayButton once at construction,
-    // so a write after that would silently do nothing.
+    // and a write after that would silently do nothing.
     internal bool Started { get; set; }
 
     /// <summary>
@@ -62,7 +62,6 @@ public sealed class InputConfiguration
     /// </summary>
     /// <param name="stick">Stick radius, in [0, 1). Zero applies no stick deadzone.</param>
     /// <param name="trigger">Trigger pull, in [0, 1). Zero applies no trigger deadzone.</param>
-    /// <exception cref="ArgumentOutOfRangeException">A radius is NaN or outside [0, 1).</exception>
     public InputConfiguration GamepadDeadzones(float stick, float trigger)
     {
         RequireDeadzone(stick, nameof(stick));

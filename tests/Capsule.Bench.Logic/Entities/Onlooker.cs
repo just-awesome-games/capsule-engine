@@ -1,7 +1,3 @@
-using System.Numerics;
-using Capsule.Physics;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>A body that crates move, standing still where it is placed.</summary>

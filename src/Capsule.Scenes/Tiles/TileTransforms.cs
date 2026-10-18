@@ -10,8 +10,8 @@ internal static class TileTransforms
     // How many distinct transforms there are. Every value below it is valid.
     internal const int Count = 8;
 
-    // Indexed by transform. The renderer mirrors a sprite about its pivot and then turns it clockwise, so
-    // each entry is the mirror and quarter turn that compose to the transform about the tile's centre.
+    // Indexed by transform. The renderer mirrors a sprite about its pivot and then turns it clockwise. Each
+    // entry is the mirror and quarter turn that compose to the transform about the tile's centre.
     private static readonly Pose[] Poses =
     [
         new(0f, FlipX: false, FlipY: false),

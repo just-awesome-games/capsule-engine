@@ -14,7 +14,6 @@ internal interface ISimulation
     // call.
     FrameView View { get; }
 
-    // Advances the simulation by one fixed step.
     void Step(in StepContext context);
 
     // Advances one fixed step, running `before` once the step has begun and ahead of the simulation's own

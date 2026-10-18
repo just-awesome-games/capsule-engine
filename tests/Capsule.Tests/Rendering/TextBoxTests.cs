@@ -7,7 +7,7 @@ namespace Capsule.Tests.Rendering;
 // visible count reveals, and the box the whole thing occupies.
 public sealed class TextBoxTests
 {
-    // 'A' advances 5, 'B' advances 6 and kerns -2 behind 'A', and the space advances 4, so "AB AB"
+    // 'A' advances 5, 'B' advances 6 and kerns -2 behind 'A', and the space advances 4. "AB AB"
     // measures FontFixtures.TwoWordsWidth and breaks into two lines of FontFixtures.WordWidth at any
     // box from that width up to one under the whole run.
     private const string TwoWords = "AB AB";
@@ -30,13 +30,13 @@ public sealed class TextBoxTests
     [Fact]
     public void ABoxTooNarrowForAWord_BreaksInsideIt()
     {
-        // One pixel under the width a word needs, so every glyph takes a line of its own.
+        // One pixel under the width a word needs. Every glyph takes a line of its own.
         Assert.Equal(
             new Vector2(FontFixtures.B.XAdvance, 4 * FontFixtures.LineHeight),
             FontFixtures.Font().Measure(TwoWords, FontFixtures.WordWidth - 1));
     }
 
-    // No space to break at, so the word breaks at the character; 'B' alone needs the 6 the first box
+    // No space to break at. The word breaks at the character. 'B' alone needs the 6 the first box
     // has, and a box narrower than one glyph still gives that glyph a line of its own.
     [Theory]
     [InlineData(6)]
@@ -87,9 +87,9 @@ public sealed class TextBoxTests
         float x,
         float y)
     {
-        // One line of 5 by 10 in a box of 40 by 30, the pivot left at its top-left corner; 'A' carries
+        // One line of 5 by 10 in a box of 40 by 30, the pivot left at its top-left corner. 'A' carries
         // a one-pixel bearing on X and sits two font pixels below its line's top edge. The line's own
-        // shift is whole font pixels, so the centred half-pixel floors.
+        // shift is whole font pixels. The centred half-pixel floors.
         TextIntent aligned = Text("A") with
         {
             Size = new Vector2(40f, 30f),
@@ -100,20 +100,20 @@ public sealed class TextBoxTests
         FrameView view = new();
         view.Add(aligned);
 
-        Assert.Equal(new Rect(0f, 0f, 40f, 30f), aligned.Bounds);
+        Assert.Equal(Rect.FromEdges(0f, 0f, 40f, 30f), aligned.Bounds);
         Assert.Equal(new Vector2(x, y), view.Sprites[0].Position);
     }
 
     [Fact]
     public void ASizelessRun_RunsRightFromItsPositionUntilThePivotSaysOtherwise()
     {
-        // The box is the text itself, so there is nothing for the alignment to move the run inside of:
+        // The box is the text itself. There is nothing for the alignment to move the run inside of:
         // right-aligned text still starts at the position, and only the pivot puts its end there.
         TextIntent rightAligned = Text("AB") with { HorizontalAlignment = HorizontalAlignment.Right };
 
-        Assert.Equal(new Rect(0f, 0f, FontFixtures.WordWidth, FontFixtures.LineHeight), rightAligned.Bounds);
+        Assert.Equal(Rect.FromEdges(0f, 0f, FontFixtures.WordWidth, FontFixtures.LineHeight), rightAligned.Bounds);
         Assert.Equal(
-            new Rect(-FontFixtures.WordWidth, 0f, 0f, FontFixtures.LineHeight),
+            Rect.FromEdges(-FontFixtures.WordWidth, 0f, 0f, FontFixtures.LineHeight),
             (rightAligned with { Pivot = Pivot.TopRight }).Bounds);
     }
 
@@ -123,7 +123,7 @@ public sealed class TextBoxTests
         FrameView view = new();
         view.Add(Text("AB\nA") with { VisibleCharacters = 2 });
 
-        // The newline spends the third codepoint, so three reveals no more than two.
+        // The newline spends the third codepoint. Three reveals no more than two.
         FrameView andTheBreak = new();
         andTheBreak.Add(Text("AB\nA") with { VisibleCharacters = 3 });
 
@@ -167,7 +167,7 @@ public sealed class TextBoxTests
         Assert.True((Text("A") with { Font = null }).Bounds.IsEmpty);
     }
 
-    // A run given its box on both axes and sitting at its top never reads its own extent, so the
+    // A run given its box on both axes and sitting at its top never reads its own extent. The
     // layout that skips measuring it has to place every glyph where a measured one does.
     [Fact]
     public void ASizedTopAlignedRun_PlacesItsGlyphsWhereAMeasuredRunDoes()

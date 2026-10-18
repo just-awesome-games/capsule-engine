@@ -1,5 +1,3 @@
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
 using MinimalGame.Game.Scenes;
 
 namespace MinimalGame.Game.Entities;

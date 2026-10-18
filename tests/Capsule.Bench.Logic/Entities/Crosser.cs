@@ -1,7 +1,3 @@
-using System.Numerics;
-using Capsule.Physics;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>A small actor that drifts in a straight line through everything and turns back at the edges of its room.</summary>

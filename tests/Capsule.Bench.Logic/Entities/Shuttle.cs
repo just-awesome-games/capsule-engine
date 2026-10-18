@@ -1,8 +1,3 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Physics;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>A one-way slab that swings back and forth about its home, up and down or side to side, and carries whatever stands on it.</summary>

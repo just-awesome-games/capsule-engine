@@ -2,8 +2,6 @@ using System.Numerics;
 using Capsule.Assets;
 using Capsule.Physics;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 using Capsule.Tests.Physics;
 using Capsule.Tests.Scenes;
 using Capsule.Tiles;
@@ -14,9 +12,10 @@ namespace Capsule.Tests.Allocation;
 /// A room the size a Capsule game actually ships: a tiled floor and ceiling with platforms, a hill of
 /// two slope tiles, a scattering of entity colliders, and one mover walking the length of it.
 /// </summary>
+/// <remarks>It owns the tile size, layer names and palette every allocation workload paints with.</remarks>
 internal static class CollisionWorkload
 {
-    internal const int TileSize = 16;
+    internal const int TileSize = SceneFixtures.TileSize;
     internal const int TilesWide = 256;
     internal const int TilesHigh = 48;
     internal const int Actors = 120;
@@ -33,7 +32,8 @@ internal static class CollisionWorkload
 
     private static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
 
-    private static readonly TileType[] Palette =
+    /// <summary>The workloads' tile types: empty, then solid and platform at palette indices 1 and 2.</summary>
+    internal static readonly TileType[] Palette =
     [
         TileGrid.EmptyTile,
         new() { Name = Solid, Cell = 0, Layer = Solid },
@@ -107,34 +107,32 @@ internal static class CollisionWorkload
         return SceneFixtures.Terrain(new TileGrid(TileSize, TilesWide, TilesHigh, Palette, Cells(), Atlas, 2));
     }
 
-    /// <summary>A grounded entity that walks right over the hill, falls, and turns around at the far wall.</summary>
+    /// <summary>A character-sized grounded body that walks, falls off ledges and turns around at a wall.</summary>
     internal sealed class Walker : Entity
     {
-        private readonly BoxCollider2D _collider;
-        private readonly KinematicBody2D _mover;
-        private float _direction = 1f;
+        private float _direction;
 
-        internal Walker(Vector2 position, bool restsOnCenter = false)
+        internal BoxCollider2D Collider { get; }
+
+        internal KinematicBody2D Mover { get; }
+
+        internal Walker(Vector2 position, float direction = 1f)
             : base(position)
         {
-            _collider = new BoxCollider2D(new Vector2(12f, 24f));
-            _collider.Detects = new(Solid, Platform);
-            _collider.ReportsContacts = true;
-            _collider.ContactEntered += _ => Contacts++;
-            _collider.ContactExited += _ => Contacts--;
-            Add(_collider);
-            _mover = new KinematicBody2D(_collider) { Mode = BodyMode.Grounded, RestsOnCenter = restsOnCenter };
-            _mover.BlockedBy = new(Solid, Platform);
-            Add(_mover);
+            _direction = direction;
+            Collider = new BoxCollider2D(new Vector2(12f, 24f));
+            Collider.Detects = new(Solid, Platform);
+            Add(Collider);
+            Mover = new KinematicBody2D(Collider) { Mode = BodyMode.Grounded };
+            Mover.BlockedBy = new(Solid, Platform);
+            Add(Mover);
         }
-
-        internal int Contacts { get; private set; }
 
         protected internal override void OnStep(in StepContext context)
         {
-            _mover.Move(new Vector2(_direction * 2f, 4f));
+            Mover.Move(new Vector2(_direction * 2f, 4f));
 
-            if (_mover.IsOnWall)
+            if (Mover.IsOnWall)
             {
                 _direction = -_direction;
             }
@@ -175,6 +173,8 @@ internal static class CollisionWorkload
         private readonly KinematicBody2D _mover;
         private readonly float _walk;
 
+        internal int Crushes { get; private set; }
+
         internal Hauled(Vector2 position, float walk, BodyMode mode = BodyMode.Floating)
             : base(position)
         {
@@ -187,8 +187,6 @@ internal static class CollisionWorkload
             _mover.Crushed += _ => Crushes++;
             Add(_mover);
         }
-
-        internal int Crushes { get; private set; }
 
         protected internal override void OnStep(in StepContext context) => _mover.Move(new Vector2(_walk, 4f));
     }

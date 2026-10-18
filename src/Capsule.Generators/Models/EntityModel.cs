@@ -29,14 +29,14 @@ internal readonly record struct EntityModel(
     EquatableArray<PropertyModel> Properties,
     EquatableArray<ObjectModel> Objects,
     EquatableArray<string> AssignableTo,
-    string SpawnModifier)
+    string SpawnModifier) : IClaimingClass
 {
-    // Only code satisfies C#'s required on a member no placement sets, so only code places such a class.
+    // Only code satisfies C#'s required on a member no placement sets. Only code places such a class.
     internal bool CodeOnly => Properties.Items.Any(static property => property.CodeOnly);
 
     // A class whose placement sets C#'s required members is constructed past the compiler's check.
     internal bool Required => Properties.Items.Any(static property => property.RequiredKeyword);
 
     /// <summary>Every member a placement sets.</summary>
-    internal IEnumerable<PropertyModel> Authored => Properties.Items.Where(static property => property.Authorable && property.Settable);
+    internal IEnumerable<PropertyModel> Authored => PropertyModel.AuthoredIn(Properties);
 }

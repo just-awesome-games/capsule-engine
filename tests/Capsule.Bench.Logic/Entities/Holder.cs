@@ -1,6 +1,3 @@
-using System.Numerics;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>An entity at the origin carrying one renderer: what a rendering workload's whole world is.</summary>

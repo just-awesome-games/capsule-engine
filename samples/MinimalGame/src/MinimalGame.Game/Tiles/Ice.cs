@@ -1,6 +1,3 @@
-using Capsule.Scenes;
-using Capsule.Tiles;
-
 namespace MinimalGame.Game.Tiles;
 
 /// <summary>Ground the player slides on, speeding up and slowing down over several steps.</summary>

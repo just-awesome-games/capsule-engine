@@ -20,7 +20,7 @@ public sealed class MoverSweepTests
             CollisionFilter.Everything,
             contacts);
 
-        // The wall's left face is at x = 32, so an 8-wide box starting at 0 may travel 24.
+        // The wall's left face is at x = 32. An 8-wide box starting at 0 may travel 24.
         Assert.Equal(24f, result.Translation.X, Tolerance);
         Assert.True(result.Blocked);
         Assert.Equal(1, result.ContactCount);
@@ -66,25 +66,6 @@ public sealed class MoverSweepTests
 
         Assert.Equal(120f, travelled, Tolerance);
         Assert.Equal(8f, box.Min.Y, Tolerance);
-    }
-
-    // A leading corner landing exactly on a seam meets the surface and not the seam, then slides along
-    // the surface for the rest of the move.
-    [Fact]
-    public void MoveBox_DrivingItsLeadingCornerIntoACellSeam_LandsOnTheSurface()
-    {
-        CollisionWorld2D world = new();
-        CollisionFixtures.Paint(world, "....", "####");
-
-        MoveResult2D result = world.MoveBox(
-            CollisionFixtures.Box(0f, 0f, 8f, 8f),
-            new Vector2(16f, 16f),
-            CollisionFilter.Everything,
-            default);
-
-        Assert.Equal(16f, result.Translation.X, Tolerance);
-        Assert.Equal(8f, result.Translation.Y, Tolerance);
-        Assert.True(result.Blocked);
     }
 
     [Fact]

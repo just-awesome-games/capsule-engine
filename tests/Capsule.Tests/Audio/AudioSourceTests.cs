@@ -10,21 +10,51 @@ public sealed class AudioSourceTests
     private static readonly AudioClip Step = new("step-soft", ".wav", 0.08);
 
     [Fact]
-    public void PlayOnStart_StartsTheSourceWhereTheSceneStartsIt()
+    public void AutoPlay_StartsTheSourceWhereTheSceneStartsIt()
     {
-        AudioSource source = new(Step) { PlayOnStart = true, Loop = true };
+        AudioSource source = new(Step) { AutoPlay = true, Loop = true };
         using SimulationHost run = Run(source);
 
         Assert.True(source.IsPlaying);
         Assert.Equal(AudioCommandKind.Play, run.Run.Audio.Commands[0].Kind);
     }
 
+    // A pooled entity starts once in its life, and AutoPlay plays on every join, not only that start.
+    [Fact]
+    public void AutoPlay_OnAPooledEntity_StartsAVoiceOnEachJoin()
+    {
+        EntityPool<AudioPlaybackFixtures.Speaker> pool = new(
+            static () =>
+            {
+                AudioPlaybackFixtures.Speaker speaker = new();
+                speaker.Add(new AudioSource(Step) { AutoPlay = true, Loop = true });
+                return speaker;
+            },
+            capacity: 1);
+        Scene scene = new();
+        AudioPlaybackFixtures.Speaker first = pool.Take();
+        scene.Add(first);
+        using SimulationHost run = new(scene);
+        AudioSource source = first.Get<AudioSource>();
+        Assert.True(source.IsPlaying);
+
+        scene.Remove(first);
+        run.Step();
+        Assert.False(source.IsPlaying);
+
+        scene.Add(pool.Take());
+        run.Step();
+
+        Assert.Same(first, scene.Entities[0]);
+        Assert.True(source.IsPlaying);
+    }
+
     // The run's step length only reaches the mixer on the first step, after OnStart has played:
     // 0.08 s is 9.6 steps at 120 Hz, never the 4.8 the default rate would make of it.
     [Fact]
-    public void PlayOnStart_UnderANonDefaultRate_LastsTheClipsOwnDuration()
+    public void AutoPlay_UnderANonDefaultRate_LastsTheClipsOwnDuration()
     {
-        AudioSource source = new(Step) { PlayOnStart = true };
+        AudioSource source = new(Step) { AutoPlay = true };
         using SimulationHost run = Run(source, stepHertz: 120);
 
         run.Step(10);
@@ -38,7 +68,7 @@ public sealed class AudioSourceTests
     [Fact]
     public void ASourceWhoseEntityLeavesTheScene_StopsItsVoice()
     {
-        AudioSource source = new(Step) { PlayOnStart = true, Loop = true };
+        AudioSource source = new(Step) { AutoPlay = true, Loop = true };
         using SimulationHost run = Run(source);
 
         Voice voice = FirstVoice(run.Scene);
@@ -49,12 +79,12 @@ public sealed class AudioSourceTests
         Assert.False(run.Run.Audio.IsPlaying(voice));
     }
 
-    // Stopping the scene reaches the same hook, so a transition silences a scene's own sources
+    // Stopping the scene reaches the same hook. A transition silences a scene's own sources
     // while anything played through the mixer directly plays on.
     [Fact]
     public void StoppingTheScene_StopsASourcesVoiceAndLeavesAMixerPlayedOneAlone()
     {
-        AudioSource source = new(Step) { PlayOnStart = true, Loop = true };
+        AudioSource source = new(Step) { AutoPlay = true, Loop = true };
         SimulationHost run = Run(source);
 
         Voice ambient = run.Run.Audio.Play(new AudioPlayback(Step) { Loop = true });
@@ -112,7 +142,7 @@ public sealed class AudioSourceTests
     public void ASource_DeclaresItsClipAsAPreload()
     {
         AudioSource source = new(Step);
-        Speaker entity = new();
+        AudioPlaybackFixtures.Speaker entity = new();
         entity.Add(source);
 
         Scene scene = new();
@@ -126,7 +156,7 @@ public sealed class AudioSourceTests
     [Fact]
     public void ASourcesVolume_ReachesTheLiveVoiceAndTheNextOne()
     {
-        AudioSource source = new(Step) { PlayOnStart = true, Loop = true };
+        AudioSource source = new(Step) { AutoPlay = true, Loop = true };
         using SimulationHost run = Run(source);
 
         source.Volume = 0.25f;
@@ -142,7 +172,7 @@ public sealed class AudioSourceTests
     [Fact]
     public void Play_RestartsTheSourcesOwnVoiceRatherThanStackingOne()
     {
-        AudioSource source = new(Step) { PlayOnStart = true, Loop = true };
+        AudioSource source = new(Step) { AutoPlay = true, Loop = true };
         using SimulationHost run = Run(source);
 
         Voice first = FirstVoice(run.Scene);
@@ -155,7 +185,7 @@ public sealed class AudioSourceTests
     [Fact]
     public void PlayOneShot_StartsASeparateVoiceTheSourceDoesNotHold()
     {
-        AudioSource source = new(Step) { PlayOnStart = true, Loop = true };
+        AudioSource source = new(Step) { AutoPlay = true, Loop = true };
         using SimulationHost run = Run(source);
 
         Voice held = FirstVoice(run.Scene);
@@ -172,7 +202,7 @@ public sealed class AudioSourceTests
     [Fact]
     public void PlayOneShot_ScalesTheSourcesStandingLevelsWithoutChangingThem()
     {
-        AudioSource source = new(Step) { PlayOnStart = true, Loop = true, Volume = 0.5f, Pitch = 2f };
+        AudioSource source = new(Step) { AutoPlay = true, Loop = true, Volume = 0.5f, Pitch = 2f };
         using SimulationHost run = Run(source);
 
         Voice held = FirstVoice(run.Scene);
@@ -203,7 +233,7 @@ public sealed class AudioSourceTests
     [Fact]
     public void Pan_MovesTheLiveVoiceAndEveryPlayAfterIt_AndTimeFollowsTheClip()
     {
-        AudioSource source = new(Step) { PlayOnStart = true, Loop = true };
+        AudioSource source = new(Step) { AutoPlay = true, Loop = true };
         using SimulationHost run = Run(source);
 
         source.Pan = -1f;
@@ -244,11 +274,9 @@ public sealed class AudioSourceTests
         return Voice.None;
     }
 
-    private sealed class Speaker() : Entity(Vector2.Zero);
-
     private static SimulationHost Run(AudioSource source, int stepHertz = StepContext.DefaultStepHertz)
     {
-        Speaker entity = new();
+        AudioPlaybackFixtures.Speaker entity = new();
         entity.Add(source);
 
         Scene scene = new();

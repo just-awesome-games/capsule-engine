@@ -11,22 +11,14 @@ namespace Capsule.Particles;
 /// <see cref="SpriteIntent"/> per live particle.
 /// </summary>
 /// <remarks>
-/// It takes the <see cref="Renderer.ZIndex"/>, <see cref="Renderer.Visible"/> and
-/// <see cref="Renderer.Material"/> every renderer has, and the material shades every particle.
-/// <para>
 /// Positions are in world units under a world root and canvas pixels under a screen root. In
 /// <see cref="ParticleSpace.World"/> a particle moves on its own once spawned and does not follow the
 /// entity. In <see cref="ParticleSpace.Local"/> it rides the entity's position, turn and mirror.
 /// Neither space applies the entity's scale to a particle's motion or size.
-/// </para>
 /// <para>
-/// The simulation is engine state seeded from the run's seed. A headless run emits exactly the
-/// intents a windowed run draws, and two runs of one seed are identical. A spawn into a full pool
-/// replaces the live particle nearest the end of its life.
-/// </para>
-/// <para>
-/// Particles draw in spawn order with the newest last. A replacing spawn takes the replaced
-/// particle's place in that order.
+/// The simulation is seeded from the run's seed, and two runs of one seed emit identical intents.
+/// Particles draw in spawn order with the newest last. A spawn into a full pool replaces the live
+/// particle nearest the end of its life and takes its place in that order.
 /// </para>
 /// </remarks>
 /// <example>
@@ -66,7 +58,7 @@ namespace Capsule.Particles;
 /// </example>
 public sealed class ParticleEmitter : Renderer
 {
-    // The top byte set, so a particle stream never collides with a stream a game mints from its own
+    // The top byte is set. A particle stream then never collides with a stream a game mints from its own
     // small integer domain.
     private const ulong ParticleStreamBase = 0xFF00_0000_0000_0000UL;
     private const float DefaultDeltaSeconds = 1f / StepContext.DefaultStepHertz;
@@ -76,14 +68,7 @@ public sealed class ParticleEmitter : Renderer
 
     private RandomSource _random = null!;
     private ulong _particleStream;
-    private ReadOnlyMemory<Sprite> _sprites;
     private float _boundsRadius;
-    private float _spread;
-    private float _damping;
-    private float _inheritVelocity;
-    private float _rate;
-    private float _rateOverDistance;
-    private float _prewarmSeconds;
 
     // Live particles fill the front of the pool in spawn order.
     private int _alive;
@@ -104,26 +89,11 @@ public sealed class ParticleEmitter : Renderer
     private Vector2 _boundsMin;
     private Vector2 _boundsMax;
 
-    /// <param name="sprite">The frame a particle draws when <see cref="Sprites"/> is empty.</param>
-    /// <param name="capacity">The pool's fixed size, the most particles alive at once.</param>
-    public ParticleEmitter(Sprite sprite, int capacity)
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(capacity, 0);
-
-        _defaultSprite = sprite;
-        _boundsRadius = LargestHalfDiagonal(Frames);
-        Capacity = capacity;
-        _particles = new Particle[capacity];
-    }
-
     /// <summary>The pool's fixed size, set at construction.</summary>
     public int Capacity { get; }
 
     /// <summary>Where live particles are kept, <see cref="ParticleSpace.World"/> by default and fixed at construction.</summary>
     public ParticleSpace Space { get; init; }
-
-    /// <summary>How many particles are alive now.</summary>
-    public int Alive => _alive;
 
     /// <summary>The point in the entity's own space the emit shape is centred on, placed as <see cref="SpriteRenderer.Offset"/> is. Zero by default.</summary>
     public Vector2 Offset { get; set; }
@@ -144,13 +114,8 @@ public sealed class ParticleEmitter : Renderer
     /// <summary>The cone's full width about <see cref="Direction"/>, in degrees, drawn uniformly. Zero launches along <see cref="Direction"/>.</summary>
     public float Spread
     {
-        get => _spread;
-
-        set
-        {
-            Guard.InRange(value, 0f, 360f, nameof(value));
-            _spread = value;
-        }
+        get;
+        set => field = Guard.InRange(value, 0f, 360f, nameof(value));
     }
 
     /// <summary>The launch speed, in units per second along the drawn direction. Zero by default.</summary>
@@ -175,13 +140,8 @@ public sealed class ParticleEmitter : Renderer
     /// <summary>Velocity drag per second, applied as <c>velocity *= max(0, 1 - Damping * dt)</c> each step. Zero by default.</summary>
     public float Damping
     {
-        get => _damping;
-
-        set
-        {
-            Guard.NonNegative(value, nameof(value));
-            _damping = value;
-        }
+        get;
+        set => field = Guard.NonNegative(value, nameof(value));
     }
 
     /// <summary>The spawn rotation about the frame's pivot, in degrees. Zero by default.</summary>
@@ -209,11 +169,11 @@ public sealed class ParticleEmitter : Renderer
     /// <remarks>A new value reaches live particles on their next draw.</remarks>
     public ReadOnlyMemory<Sprite> Sprites
     {
-        get => _sprites;
+        get;
 
         set
         {
-            _sprites = value;
+            field = value;
             _boundsRadius = LargestHalfDiagonal(Frames);
         }
     }
@@ -228,13 +188,8 @@ public sealed class ParticleEmitter : Renderer
     /// <remarks>It has no effect in <see cref="ParticleSpace.Local"/>, where particles already move with the entity.</remarks>
     public float InheritVelocity
     {
-        get => _inheritVelocity;
-
-        set
-        {
-            Guard.Finite(value, nameof(value));
-            _inheritVelocity = value;
-        }
+        get;
+        set => field = Guard.Finite(value, nameof(value));
     }
 
     /// <summary>How every particle blends with what is already drawn. <see cref="BlendMode.Alpha"/> by default.</summary>
@@ -249,13 +204,8 @@ public sealed class ParticleEmitter : Renderer
     /// <summary>Particles spawned per second while <see cref="Emitting"/>, zero by default. A fractional remainder carries to the next step.</summary>
     public float Rate
     {
-        get => _rate;
-
-        set
-        {
-            Guard.NonNegative(value, nameof(value));
-            _rate = value;
-        }
+        get;
+        set => field = Guard.NonNegative(value, nameof(value));
     }
 
     /// <summary>
@@ -265,13 +215,8 @@ public sealed class ParticleEmitter : Renderer
     /// <remarks>A fractional remainder carries to the next step.</remarks>
     public float RateOverDistance
     {
-        get => _rateOverDistance;
-
-        set
-        {
-            Guard.NonNegative(value, nameof(value));
-            _rateOverDistance = value;
-        }
+        get;
+        set => field = Guard.NonNegative(value, nameof(value));
     }
 
     /// <summary>
@@ -284,14 +229,24 @@ public sealed class ParticleEmitter : Renderer
     /// </remarks>
     public float PrewarmSeconds
     {
-        get => _prewarmSeconds;
-
-        set
-        {
-            Guard.NonNegative(value, nameof(value));
-            _prewarmSeconds = value;
-        }
+        get;
+        set => field = Guard.NonNegative(value, nameof(value));
     }
+
+    /// <param name="sprite">The frame a particle draws when <see cref="Sprites"/> is empty.</param>
+    /// <param name="capacity">The pool's fixed size, the most particles alive at once.</param>
+    public ParticleEmitter(Sprite sprite, int capacity)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(capacity, 0);
+
+        _defaultSprite = sprite;
+        _boundsRadius = LargestHalfDiagonal(Frames);
+        Capacity = capacity;
+        _particles = new Particle[capacity];
+    }
+
+    /// <summary>How many particles are alive now.</summary>
+    public int Alive => _alive;
 
     /// <summary>
     /// The rect covering every live particle's last move, grown by the largest frame's reach at its
@@ -697,7 +652,7 @@ public sealed class ParticleEmitter : Renderer
         particle.SpriteIndex = spriteIndex;
         particle.Position = origin + (velocity * (1f - f) * dt);
         particle.PreviousPosition = origin - (velocity * f * dt);
-        // A prewarmed particle counts as spawned the step before, so later prewarm ticks age it.
+        // A prewarmed particle counts as spawned the step before. Later prewarm ticks then age it.
         particle.SpawnStep = (Entity!.SceneOrNull?.StepsBegun ?? 0) - (_prewarming ? 1 : 0);
 
         ExtendBounds(particle.PreviousPosition, particle.Position);
@@ -732,7 +687,7 @@ public sealed class ParticleEmitter : Renderer
         return nearestEnd;
     }
 
-    private ReadOnlySpan<Sprite> Frames => _sprites.IsEmpty ? new ReadOnlySpan<Sprite>(in _defaultSprite) : _sprites.Span;
+    private ReadOnlySpan<Sprite> Frames => Sprites.IsEmpty ? new ReadOnlySpan<Sprite>(in _defaultSprite) : Sprites.Span;
 
     // Clamped because a particle's index outlives a shorter Sprites assigned later.
     private Sprite FrameAt(int index)
@@ -786,7 +741,7 @@ public sealed class ParticleEmitter : Renderer
         inner.Bottom <= outer.Bottom;
 
     private static Rect Inflate(Vector2 min, Vector2 max, float radius) =>
-        new(min.X - radius, min.Y - radius, max.X + radius, max.Y + radius);
+        Rect.FromEdges(min.X - radius, min.Y - radius, max.X + radius, max.Y + radius);
 
     private static float LargestHalfDiagonal(ReadOnlySpan<Sprite> sprites)
     {

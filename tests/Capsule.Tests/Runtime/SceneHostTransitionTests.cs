@@ -83,7 +83,7 @@ public sealed class SceneHostTransitionTests
         {
             seen.Add(target);
             return target.Kind == SceneTransitionKind.Scene
-                ? new HookScene(step: RequestsBossRoom)
+                ? new HookScene(step: RequestsNamedTarget)
                 : new RestartingScene(1);
         }
 
@@ -94,7 +94,7 @@ public sealed class SceneHostTransitionTests
         Assert.Equal(
             [SceneTransitionKind.Scene, SceneTransitionKind.Named, SceneTransitionKind.Named],
             seen.Select(static target => target.Kind));
-        Assert.Equal("boss-room", seen[^1].DocumentName);
+        Assert.Equal("target-room", seen[^1].DocumentName);
     }
 
     [Fact]
@@ -106,14 +106,14 @@ public sealed class SceneHostTransitionTests
         Scene Resolve(in SceneTransition target)
         {
             seen = target;
-            return target.Kind == SceneTransitionKind.Scene ? new HookScene(step: RequestsBossRoom) : arrival;
+            return target.Kind == SceneTransitionKind.Scene ? new HookScene(step: RequestsNamedTarget) : arrival;
         }
 
         using SceneHost host = new(ToScene<HookScene>(), Resolve, new Run());
         host.Step(Step(0));
 
         Assert.Equal(SceneTransitionKind.Named, seen.Kind);
-        Assert.Equal("boss-room", seen.DocumentName);
+        Assert.Equal("target-room", seen.DocumentName);
         Assert.Same(arrival, host.Scene);
     }
 
@@ -121,7 +121,7 @@ public sealed class SceneHostTransitionTests
     public void ASceneOpenedByATransition_DoesNotSweepIntoPlace()
     {
         Scene Resolve(in SceneTransition target) => target.Kind == SceneTransitionKind.Scene
-            ? new HookScene(step: RequestsBossRoom)
+            ? new HookScene(step: RequestsNamedTarget)
             : new HookScene(Opens(new Vector2(4000, 4000)));
 
         using SceneHost host = new(ToScene<HookScene>(), Resolve, new Run());

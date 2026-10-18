@@ -1,11 +1,7 @@
 using Capsule.Audio;
-using Capsule.Input;
-using Capsule.Runtime;
-using Capsule.Runtime.Audio;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
-using Capsule.Tests.Runtime;
-using Capsule.Tests.Scenes;
+using Capsule.Tests.DevTools;
 using static Capsule.Tests.Audio.AudioPlaybackFixtures;
 
 namespace Capsule.Tests.Audio;
@@ -118,7 +114,7 @@ public sealed class AudioPlaybackCommandTests
     }
 
     // A panel command is part of the tick it forces: the sound it plays or stops is that step's
-    // command, handed to the player once with the step's own, so a Stop from the panel retires the
+    // command, handed to the player once with the step's own. A Stop from the panel retires the
     // looping device voice and a Play starts exactly one.
     [Fact]
     public void APanelAudioCommand_ReachesThePlayerWithItsTickExactlyOnce()
@@ -135,43 +131,26 @@ public sealed class AudioPlaybackCommandTests
         Assert.True(voice.Loop);
         Assert.Equal(1, voice.Plays);
 
-        rig.Open();
-        rig.Press(Key.S);
-        rig.Press(Key.Down);
-        rig.Press(Key.Enter);
-        Assert.Equal("Speaker", rig.Overlay.Title);
+        rig.OpenEntityPanel("Speaker");
 
-        Choose(rig, "  Stop");
+        rig.SelectRow("Stop");
         Assert.Equal(1, rig.Scheduler.Tick);
         Assert.True(voice.Disposed);
         Assert.Single(fixture.Backend.Voices);
 
-        Choose(rig, "  Play");
+        rig.SelectRow("Play");
         Assert.Equal(2, rig.Scheduler.Tick);
         Assert.Same(voice, Assert.Single(fixture.Backend.Voices));
         Assert.False(voice.Disposed);
         Assert.Equal(2, voice.Plays);
 
-        Choose(rig, "  Pause");
+        rig.SelectRow("Pause");
         Assert.True(voice.Paused);
 
-        Choose(rig, "  Resume");
+        rig.SelectRow("Resume");
         Assert.False(voice.Paused);
         Assert.Equal(1, voice.Resumes);
         Assert.Equal(4, rig.Scheduler.Tick);
-    }
-
-    // Moves the focus down to the row reading `label` and activates it.
-    private static void Choose(OverlayRig rig, string label)
-    {
-        int guard = rig.Overlay.Rows.Count;
-        while (rig.Focused() != label)
-        {
-            Assert.True(guard-- > 0, $"No row reads '{label}'.");
-            rig.Press(Key.Down);
-        }
-
-        rig.Press(Key.Enter);
     }
 
     // A handle whose generation has moved on addresses a voice that was stolen, stopped or expired.
@@ -187,7 +166,7 @@ public sealed class AudioPlaybackCommandTests
     }
 
     // The mixer raises the stolen voice's Stop ahead of the new voice's Play, both on one slot. The
-    // sound pools its voice, so the one the steal ended is the one the new play sounds on.
+    // sound pools its voice. The one the steal ended is the one the new play sounds on.
     [Fact]
     public void AStolenSlotEndsItsOldVoiceBeforeTheNewOneStarts()
     {
@@ -204,7 +183,7 @@ public sealed class AudioPlaybackCommandTests
         Assert.Equal(1f, voice.Gain);
     }
 
-    // An expired one-shot raises no Stop at all, so the table retires it on what the device says.
+    // An expired one-shot raises no Stop at all. The table retires it on what the device says.
     [Fact]
     public void AVoiceTheDeviceFinishedIsRetiredWithoutACommand()
     {

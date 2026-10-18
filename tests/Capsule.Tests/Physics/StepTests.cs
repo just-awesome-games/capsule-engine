@@ -1,7 +1,6 @@
 using System.Numerics;
 using Capsule.Physics;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
 using Capsule.Tests.Scenes;
 using Capsule.Tiles;
 
@@ -190,11 +189,11 @@ public sealed class StepTests
         scene.Add(new Block(new Vector2(0f, GroundTop), new Vector2(160f, 16f)));
         if (lipAtFoot)
         {
-            scene.Add(new Block(Vector2.Zero, [new(48f, 64f), new(48f, 61f), new(112f, 29f), new(112f, 64f)]));
+            scene.Add(new Block([new(48f, 64f), new(48f, 61f), new(112f, 29f), new(112f, 64f)]));
         }
         else
         {
-            scene.Add(new Block(Vector2.Zero, [new(16f, 64f), new(48f, 48f), new(48f, 64f)]));
+            scene.Add(new Block([new(16f, 64f), new(48f, 48f), new(48f, 64f)]));
             scene.Add(new Block(new Vector2(48f, 45f), new Vector2(112f, 19f)));
         }
 
@@ -224,8 +223,8 @@ public sealed class StepTests
     public void AMoveThatStepsOffASlope_TakesItsFloorFromTheLanding()
     {
         Scene scene = new Scene().Started();
-        scene.Add(new Block(Vector2.Zero, [new(0f, 48f), new(32f, 64f), new(0f, 64f)]));
-        Block rising = new(Vector2.Zero, [new(32f, 64f), new(64f, 48f), new(64f, 64f)], "platform");
+        scene.Add(new Block([new(0f, 48f), new(32f, 64f), new(0f, 64f)]));
+        Block rising = new([new(32f, 64f), new(64f, 48f), new(64f, 64f)], "platform");
         scene.Add(rising);
         scene.Add(new Block(new Vector2(64f, 45f), new Vector2(96f, 19f)));
         SceneFixtures.Body body = new(new Vector2(4f, 32f), blocksOn: "solid");
@@ -285,17 +284,5 @@ public sealed class StepTests
             1);
 
         return SceneFixtures.Terrain(grid);
-    }
-
-    // A box or a polygon on a layer, "solid" unless named.
-    private sealed class Block : Entity
-    {
-        internal Block(Vector2 position, Vector2 size, string layer = "solid", bool oneWay = false)
-            : base(position) =>
-            Add(new BoxCollider2D(size) { Layer = layer, OneWay = oneWay });
-
-        internal Block(Vector2 position, Vector2[] points, string layer = "solid")
-            : base(position) =>
-            Add(new PolygonCollider2D(points) { Layer = layer });
     }
 }

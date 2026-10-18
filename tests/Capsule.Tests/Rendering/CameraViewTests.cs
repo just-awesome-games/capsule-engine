@@ -14,7 +14,7 @@ public sealed class CameraViewTests
     {
         CameraView view = new(Vector2.Zero, Span);
 
-        Rect expected = new(-160f, -90f, 160f, 90f);
+        Rect expected = Rect.FromEdges(-160f, -90f, 160f, 90f);
 
         Assert.Equal(expected, view.Resolve(1f, Wider));
         Assert.Equal(expected, view.Resolve(1f, Taller));
@@ -32,7 +32,7 @@ public sealed class CameraViewTests
         Vector2 center = Vector2.Lerp(view.PreviousCenter, view.Center, alpha);
         Rect resolved = view.Resolve(alpha, Wider);
 
-        Assert.Equal(new Rect(center.X - 160f, center.Y - 90f, center.X + 160f, center.Y + 90f), resolved);
+        Assert.Equal(Rect.FromEdges(center.X - 160f, center.Y - 90f, center.X + 160f, center.Y + 90f), resolved);
     }
 
     [Fact]
@@ -41,10 +41,10 @@ public sealed class CameraViewTests
         CameraView view = new(Vector2.Zero, Vector2.Zero, Span, ViewportFit.Expand);
 
         // 4:1 against a 16:9 span: the height binds and the width grows to 4 * 180.
-        Assert.Equal(new Rect(-360f, -90f, 360f, 90f), view.Resolve(1f, Wider));
+        Assert.Equal(Rect.FromEdges(-360f, -90f, 360f, 90f), view.Resolve(1f, Wider));
 
         // 1:2 against 16:9: the width binds and the height grows to 320 * 2.
-        Assert.Equal(new Rect(-160f, -320f, 160f, 320f), view.Resolve(1f, Taller));
+        Assert.Equal(Rect.FromEdges(-160f, -320f, 160f, 320f), view.Resolve(1f, Taller));
     }
 
     [Fact]
@@ -52,9 +52,9 @@ public sealed class CameraViewTests
     {
         CameraView view = new(Vector2.Zero, Vector2.Zero, Span, ViewportFit.FixedHeight);
 
-        // A wider output shows more width; a taller one shows less. The height never moves.
-        Assert.Equal(new Rect(-360f, -90f, 360f, 90f), view.Resolve(1f, Wider));
-        Assert.Equal(new Rect(-45f, -90f, 45f, 90f), view.Resolve(1f, Taller));
+        // A wider output shows more width. A taller one shows less. The height never moves.
+        Assert.Equal(Rect.FromEdges(-360f, -90f, 360f, 90f), view.Resolve(1f, Wider));
+        Assert.Equal(Rect.FromEdges(-45f, -90f, 45f, 90f), view.Resolve(1f, Taller));
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class CameraViewTests
     {
         CameraView view = new(Vector2.Zero, Vector2.Zero, Span, ViewportFit.Expand);
 
-        Assert.Equal(new Rect(-160f, -90f, 160f, 90f), view.Resolve(1f, Vector2.Zero));
+        Assert.Equal(Rect.FromEdges(-160f, -90f, 160f, 90f), view.Resolve(1f, Vector2.Zero));
     }
 
     [Theory]
@@ -81,21 +81,21 @@ public sealed class CameraViewTests
     [Fact]
     public void Bounds_CentreAnAxisTheViewIsLargerThan()
     {
-        CameraView view = new(Vector2.Zero, Span) { Bounds = new Rect(100f, 100f, 300f, 1000f) };
+        CameraView view = new(Vector2.Zero, Span) { Bounds = Rect.FromEdges(100f, 100f, 300f, 1000f) };
 
         // 320 wide against a 200-wide room: centred on it, overhanging both edges equally. The
-        // vertical axis fits, so it clamps as usual.
-        Assert.Equal(new Rect(40f, 100f, 360f, 280f), view.Resolve(1f, Wider));
+        // vertical axis fits. It clamps as usual.
+        Assert.Equal(Rect.FromEdges(40f, 100f, 360f, 280f), view.Resolve(1f, Wider));
     }
 
     // The confinement is the renderer's: the framing target the simulation settled is untouched.
     [Fact]
     public void Bounds_DoNotMoveTheCameraCentre()
     {
-        CameraView view = new(new Vector2(-9000f, -9000f), Span) { Bounds = new Rect(0f, 0f, 1000f, 1000f) };
+        CameraView view = new(new Vector2(-9000f, -9000f), Span) { Bounds = Rect.FromEdges(0f, 0f, 1000f, 1000f) };
 
         Assert.Equal(new Vector2(-9000f, -9000f), view.Center);
-        Assert.Equal(new Rect(0f, 0f, 320f, 180f), view.Resolve(1f, Wider));
+        Assert.Equal(Rect.FromEdges(0f, 0f, 320f, 180f), view.Resolve(1f, Wider));
     }
 
     [Fact]
@@ -103,21 +103,21 @@ public sealed class CameraViewTests
     {
         CameraView view = new(Vector2.Zero, Vector2.Zero, Span, ViewportFit.Expand)
         {
-            Bounds = new Rect(0f, 0f, 1000f, 1000f),
+            Bounds = Rect.FromEdges(0f, 0f, 1000f, 1000f),
         };
 
-        // 720 wide once expanded, still inside the 1000-wide room, so it clamps rather than centres.
-        Assert.Equal(new Rect(0f, 0f, 720f, 180f), view.Resolve(1f, Wider));
+        // 720 wide once expanded, still inside the 1000-wide room. It clamps rather than centres.
+        Assert.Equal(Rect.FromEdges(0f, 0f, 720f, 180f), view.Resolve(1f, Wider));
     }
 
     // The raw sweep around an unclamped centre would exclude world the confined view shows.
     [Fact]
     public void SweptBounds_CoverTheConfinedViewRatherThanTheRawCentres()
     {
-        CameraView view = new(new Vector2(20f, 500f), Span) { Bounds = new Rect(0f, 0f, 1000f, 1000f) };
+        CameraView view = new(new Vector2(20f, 500f), Span) { Bounds = Rect.FromEdges(0f, 0f, 1000f, 1000f) };
 
-        Assert.Equal(new Rect(0f, 410f, 320f, 590f), view.Resolve(1f, Wider));
-        Assert.Equal(new Rect(0f, 410f, 320f, 590f), view.SweptBounds);
+        Assert.Equal(Rect.FromEdges(0f, 410f, 320f, 590f), view.Resolve(1f, Wider));
+        Assert.Equal(Rect.FromEdges(0f, 410f, 320f, 590f), view.SweptBounds);
     }
 
     // A camera whose centre the game clamped by hand and one confined by Bounds cull identically. The
@@ -131,7 +131,7 @@ public sealed class CameraViewTests
     [InlineData(500f, 500f)]
     public void SweptBounds_UnderLetterbox_MatchAHandClampedCameraWithNoBounds(float x, float y)
     {
-        Rect room = new(0f, 0f, 1000f, 1000f);
+        Rect room = Rect.FromEdges(0f, 0f, 1000f, 1000f);
         CameraView confined = new(new Vector2(x, y), Span) { Bounds = room };
 
         Vector2 clamped = new(
@@ -142,14 +142,14 @@ public sealed class CameraViewTests
         Assert.Equal(new CameraView(clamped, Span).Resolve(1f, Wider), confined.Resolve(1f, Wider));
     }
 
-    // Interpolation runs inside the confinement, so the sweep has to cover every alpha between the
+    // Interpolation runs inside the confinement. The sweep has to cover every alpha between the
     // two settled centres and not just its endpoints.
     [Fact]
     public void SweptBounds_CoverEveryInterpolatedFrameOfTheStep()
     {
         CameraView view = new(new Vector2(-500f, 500f), new Vector2(1500f, 500f), Span)
         {
-            Bounds = new Rect(0f, 0f, 1000f, 1000f),
+            Bounds = Rect.FromEdges(0f, 0f, 1000f, 1000f),
         };
 
         Rect swept = view.SweptBounds;
@@ -167,7 +167,7 @@ public sealed class CameraViewTests
     [Fact]
     public void SweptBounds_CoverAViewLargerThanItsBounds()
     {
-        CameraView view = new(Vector2.Zero, Span) { Bounds = new Rect(100f, 100f, 300f, 1000f) };
+        CameraView view = new(Vector2.Zero, Span) { Bounds = Rect.FromEdges(100f, 100f, 300f, 1000f) };
 
         Rect swept = view.SweptBounds;
         Rect frame = view.Resolve(1f, Wider);
@@ -182,7 +182,7 @@ public sealed class CameraViewTests
         CameraView letterbox = new(Vector2.Zero, Span);
         CameraView expand = new(Vector2.Zero, Vector2.Zero, Span, ViewportFit.Expand);
 
-        Assert.Equal(new Rect(-160f, -90f, 160f, 90f), letterbox.SweptBounds);
+        Assert.Equal(Rect.FromEdges(-160f, -90f, 160f, 90f), letterbox.SweptBounds);
 
         // Anything the expanded view resolves on a plausible output has to survive culling.
         Rect culled = expand.SweptBounds;

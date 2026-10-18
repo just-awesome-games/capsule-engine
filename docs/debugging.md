@@ -1,7 +1,10 @@
 # Debugging
 
-After this page you can open the debug overlay, add your own rows and geometry to it, and know what
-a shipping publish drops.
+After this page you can open the debug overlay, hold and step a run, and add your own rows and geometry
+to it. Each type's XML docs hold its rules.
+
+The debug overlay is development code. It holds the run while it is open, and a game writes to it
+through three seams and reads nothing back.
 
 ## Controls
 
@@ -53,23 +56,19 @@ Its keys, its mouse buttons, Ctrl, Shift, Alt and the wheel do not reach the sim
 served the overlay stays withheld from the game until it is released. A frame capture never shows the
 overlay or its camera.
 
-The first pan, scroll or zoom draws the game's frame through the overlay's own camera. Panning, scrolling
-and zooming never write the game's `Camera`. `C`, the Game Camera row, a scene change and closing the
-overlay return the view to the game's camera. A frame capture requested meanwhile waits for the game's
-camera. Zoomed out, a declared render surface is drawn at a whole multiple of its resolution, up to the
-next whole scale it is presented at. The menu's top three lines show the scene, the tick and the world
-point last under the pointer, with the entity on top there, and a tile map's cell and tile.
+Panning, scrolling and zooming move the overlay's own camera and never the game's `Camera`. `C`, a scene
+change and closing the overlay return the view to the game's camera. The menu's top lines show the scene,
+the tick, and the world point under the pointer with what is drawn there.
 
-An entity's panel on top selects that entity. While the run is held, the selection outlines each renderer's
-bounds, orange on the entity and blue on what is under it. It also draws every debug draw the entity and
-what is under it made, over the rest, whatever the Debug Draw page has switched on. `F` flies the view to the
-union of the renderer and collider bounds under the selection, with a margin, at no closer than the game
-camera's span. It never writes the game's `Camera`, and a pan, scroll or zoom ends the flight where it stands.
-Popping the panel, a scene change and closing the overlay end the selection.
+Selecting an entity outlines its renderers and draws every debug draw it and what is under it made,
+whatever the Debug Draw page has switched on. `F` flies the view to it.
 
 Nothing reads back from the overlay. No code can learn what it shows or has switched on. A command, a
 toggle, Step, Move, Restart, Load Scene, Remove or Exit is a host act that changes the run as input would. A run
 that took one is not reproducible from its driver alone. A time-scale change leaves a run reproducible.
+
+A headless run has no overlay. A windowed run driven by an input driver opens one as any other run does,
+and stepping asks the driver for the step's snapshot.
 
 ## The three seams a game writes to
 
@@ -79,21 +78,22 @@ that took one is not reproducible from its driver alone. A time-scale change lea
 | Debug panels | Override `OnDebugPanel` on a scene, entity, component or camera and write rows: fields to read, commands to run, toggles to flip. | `DebugPanel` |
 | Logging | Call `Capsule.Diagnostics.Log`. A headless test installs `CollectingLogSink`. | `EngineBuilder.WithLogSink` |
 
+Every debug-draw channel starts switched off. Open the overlay and switch the channel on under Debug Draw,
+and its draws then stay on screen with the overlay closed.
+
 ```csharp
+protected override void OnDebugDraw()
+{
+    DebugDraw.Line("Aim", WorldPosition, WorldPosition + (_facing * 24f));
+    DebugDraw.Rect("Aim", new Rect(WorldPosition - new Vector2(8f), new Vector2(16f)));
+}
+
 protected override void OnDebugPanel(DebugPanel panel)
 {
-    panel.Field("Current Health", Health);
-    panel.Command("Heal", () => Health++);
+    panel.Field("Count", _count);
+    panel.Command("Reset", () => _count = 0);
 }
 ```
 
-A debug draw, a panel field or a log line changes nothing about the run.
-
-## Development builds
-
-The overlay is development code. A publish drops it or carries it disabled, as
-[`build-and-publish.md`](build-and-publish.md#development-builds) describes, and a game gates its own tools
-on `Capsule.Diagnostics.Development`.
-
-A headless run has no overlay. A windowed run driven by an input driver opens one as any other run does,
-and stepping asks the driver for the step's snapshot.
+A debug draw, a panel field or a log line changes nothing about the run. What a shipping publish drops is
+in [`build-and-publish.md`](build-and-publish.md#development-builds).

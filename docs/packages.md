@@ -1,13 +1,21 @@
 # Writing a Capsule package
 
 After this page you can publish a package that Capsule games reference, name it so it never collides with
-Capsule's own packages, and take part in a game's build when your package turns authoring files into assets.
-
-## What a package is
+Capsule's own packages, extend a game's build with an importer, and host Capsule on another platform. Each
+type's XML docs hold its rules.
 
 A Capsule package is an ordinary NuGet package. It references `JAG.Capsule` for the API and ships the C#
 a game calls. A game adds it with `dotnet add package`, as it adds any other package. Capsule keeps no
 registry of packages and asks for no manifest.
+
+| Need | Piece |
+| --- | --- |
+| C# a game calls | A library referencing `JAG.Capsule` |
+| Turn an editor's files into assets | An `IAssetImporter` in a library referencing `JAG.Capsule.Build` |
+| Configure a game's whole asset build | `CapsuleBuild` in the game's build project |
+| Host Capsule on another platform | A `HostPlatform` subclass in a private platform module |
+
+## What a package receives
 
 Referencing `JAG.Capsule` gives a project the API, the staged API reference and the
 [development-build axis](build-and-publish.md#development-builds), as in a game. The asset pipeline, the
@@ -28,17 +36,54 @@ collides with any later engine namespace of that name, in every game that refere
 `JAG.Capsule` package ID prefix belongs to JAG Studios, whose own packages use it, as `JAG.Capsule.Tiled`
 does. The `capsule-engine` tag lets a package search find every Capsule package in one place.
 
-## Taking part in the build
+## The build project
 
-Most packages never touch the build. A package that turns an editor's files into Capsule assets ships an
-importer: a public class implementing `IAssetImporter`, in a library that references `JAG.Capsule.Build`
-in place of `JAG.Capsule`. A game references the package from its build project and adds the importer in
-that project's `Program.cs`. [Writing an importer](build-and-publish.md#writing-an-importer) is the contract.
+Every build of a game's logic project builds its build project first and runs it once, from the logic
+project's directory. The run reads every file under `Assets/` and writes what the game ships and the
+`CapsuleAssets` it compiles. Game-wide build configuration and importers live on `CapsuleBuild`:
+
+```csharp
+using Capsule.Build;
+using JAG.Capsule.Tiled;
+
+return CapsuleBuild.Configure(args)
+    .AddImporter(new TiledImporter())
+    .WithTileSize(16)
+    .Run();
+```
+
+The run reuses what it derived before. A derivation runs again only when the content of a file it reads,
+its resolved settings, the code that derives it or the .NET runtime changed, or a file it shipped is gone
+or rewritten. `dotnet clean` clears the cache.
+
+## Writing an importer
+
+An importer turns an editor's own format into files Capsule reads as though they were authored. It is a
+public class implementing `IAssetImporter`, in a library that references `JAG.Capsule.Build` in place of
+`JAG.Capsule`. A game references the package from its build project and adds the importer there, as above.
+`IAssetImporter`'s XML documentation is the contract and shows one. An importer reads and writes only
+through its `AssetImportContext`.
+
+Each output keys and ships as an authored file at its path would. A key an authored file already claims
+fails the build naming both, as does an output two sources write. Outputs land in `obj/capsule/imported/`,
+or `obj/capsule-shipping/imported/` for a publish, and are never committed. `AssetImportContext` shows an importer's test.
 
 ## Developing a package against a game
 
 A game builds against a package's clone through `CapsuleSourceOverrides`
-([Consuming Capsule](build-and-publish.md#consuming-capsule)). The clone supplies
-`build/<PackageId>.targets`, which references the package's project in place of the package. An importer
-runs inside the game's build process and must compile against the game's engine. A package clone that
-builds against an engine clone names that same engine clone.
+([Consuming Capsule](build-and-publish.md#consuming-capsule)). The package's repository supplies the
+`build/<PackageId>.targets` that override reads, referencing the package's project in place of the package.
+An importer runs inside the game's build process and must compile against the game's engine. A package
+clone that builds against an engine clone names that same engine clone.
+
+## A private platform module
+
+A console runtime is a private repository, one per platform:
+
+1. Subclass `HostPlatform` there.
+2. Put the game's shell for that host family in the same repository, referencing the module and passing it
+   to `CapsuleBoot.Configure`. The logic project is untouched.
+3. Consume Capsule in source mode at a pinned tag (`CapsuleSourcePath`) and swap the substrate with
+   `CapsuleSubstratePackage` and `CapsuleSubstrateVersion`. An unmodified checkout retargets.
+
+A shell references one platform module.

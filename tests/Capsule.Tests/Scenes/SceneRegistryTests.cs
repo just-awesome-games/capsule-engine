@@ -1,7 +1,5 @@
 using System.IO.Compression;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 using Capsule.Tiles;
 
 namespace Capsule.Tests.Scenes;
@@ -9,6 +7,14 @@ namespace Capsule.Tests.Scenes;
 public sealed class SceneRegistryTests
 {
     private static readonly EntityRegistry NoEntities = SceneFixtures.Registry();
+
+    // One class twice, two classes claiming one document, and a registration naming neither.
+    public static TheoryData<SceneRegistration[], string> Refused => new()
+    {
+        { [Menu, Menu], "registered more than once" },
+        { [Room01, SceneRegistration.FromDocument(typeof(SceneFixtures.HookScene), "room-01", static content => new SceneFixtures.Room01(content!.Value))], "backs more than one scene" },
+        { [default], "names neither a class nor a document" },
+    };
 
     [Fact]
     public void APlainSceneIsFoundByItsClass()
@@ -50,29 +56,13 @@ public sealed class SceneRegistryTests
         Assert.Equal(typeof(Scene), composed.GetType());
     }
 
-    [Fact]
-    public void OneClassRegisteredTwice_IsRejectedWhereTheRegistryIsBuilt()
+    [Theory]
+    [MemberData(nameof(Refused))]
+    public void AConflictingOrEmptyRegistration_IsRejectedWhereTheRegistryIsBuilt(SceneRegistration[] registrations, string named)
     {
-        Assert.Throws<ArgumentException>(() => Registry(Menu, Menu));
-    }
+        ArgumentException failure = Assert.Throws<ArgumentException>(() => Registry(registrations));
 
-    [Fact]
-    public void TwoClassesClaimingOneDocument_AreRejectedWhereTheRegistryIsBuilt()
-    {
-        SceneRegistration hookSceneOnRoom01 = SceneRegistration.FromDocument(
-            typeof(SceneFixtures.HookScene),
-            "room-01",
-            static content => new SceneFixtures.Room01(content!.Value));
-
-        Assert.Throws<ArgumentException>(() => Registry(Room01, hookSceneOnRoom01));
-    }
-
-    [Fact]
-    public void ARegistrationNamingNeitherAClassNorADocument_IsRejectedWhereTheRegistryIsBuilt()
-    {
-        ArgumentException failure = Assert.Throws<ArgumentException>(() => Registry(default(SceneRegistration)));
-
-        Assert.Contains("names neither a class nor a document", failure.Message, StringComparison.Ordinal);
+        Assert.Contains(named, failure.Message, StringComparison.Ordinal);
     }
 
     [Fact]

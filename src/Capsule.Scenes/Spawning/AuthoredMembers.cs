@@ -7,9 +7,8 @@ using System.Text.Json.Serialization;
 using Capsule.Assets;
 using Capsule.Audio;
 using Capsule.Rendering;
-using Capsule.Scenes.Documents;
 
-namespace Capsule.Scenes.Spawning;
+namespace Capsule.Scenes;
 
 /// <summary>
 /// The authorable member values of one scene-document entry, of the document itself or of one object nested in
@@ -134,7 +133,7 @@ public readonly struct AuthoredMembers
         return AuthoredValue.TryFloats(Authored(key), read)
             && read[2] >= read[0]
             && read[3] >= read[1]
-            ? new Rect(read[0], read[1], read[2], read[3])
+            ? Capsule.Rendering.Rect.FromEdges(read[0], read[1], read[2], read[3])
             : throw Mismatch(key, "Rect", "[left, top, right, bottom] with all four finite, right no less than left and bottom no less than top");
     }
 
@@ -451,7 +450,7 @@ public readonly struct AuthoredMembers
         return _members is { } members && members.TryGetValue(key, out value);
     }
 
-    // The applier reads an optional member only after Has, so an absent key here is a required member.
+    // The applier reads an optional member only after Has. An absent key here is a required member.
     private ReadOnlyMemory<byte> Authored(string key) =>
         _index >= 0 ? _element
         : Find(key, out ReadOnlyMemory<byte> value)

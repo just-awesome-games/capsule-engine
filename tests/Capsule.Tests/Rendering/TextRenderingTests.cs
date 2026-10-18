@@ -55,7 +55,7 @@ public sealed class TextRenderingTests
         Assert.Equal(FontFixtures.A.Region, Assert.Single(view.Sprites.ToArray()).Sprite.Region);
     }
 
-    // Text overflows a sized box, so a sized axis never rejects the run. Each row's box sits wholly off
+    // Text overflows a sized box. A sized axis never rejects the run. Each row's box sits wholly off
     // the layer on its sized axis while the run's last glyph overflows onto it.
     [Theory]
     [InlineData("AB", -7f, 0f, 1f, 0f)]

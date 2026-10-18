@@ -2,7 +2,6 @@ using System.Buffers.Binary;
 using System.IO.Compression;
 using Capsule.Build.Textures;
 using Capsule.Runtime.Assets;
-using Capsule.Tests.Documents;
 using StbImageSharp;
 
 namespace Capsule.Tests.Build;
@@ -68,7 +67,29 @@ public sealed class SingleChannelPngTests
         Assert.Throws<FormatException>(() => SingleChannelPng.Read(png.ToArray()));
     }
 
-    // The runtime reads the shipped file as one channel with no premultiply, so every value lands as
+    // A header whose texel count overflows a buffer is a defect of the file, not a crash of the build.
+    // The widest header the texel limit allows, one row of 2^28 eight-bit texels, sizes its row without
+    // overflowing, and the missing data is then the defect reported.
+    [Theory]
+    [InlineData(46341, 46341, "46341x46341")]
+    [InlineData(1 << 28, 1, null)]
+    public void AnOversizedOrWidestAllowedHeader_IsRefusedAsAFormatDefect(int width, int height, string? named)
+    {
+        byte[] header = new byte[13];
+        BinaryPrimitives.WriteInt32BigEndian(header, width);
+        BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(4), height);
+        header[8] = 8;
+        using MemoryStream png = new();
+        png.Write(PngWriter.Signature);
+        PngWriter.Chunk(png, "IHDR"u8, header);
+        PngWriter.Chunk(png, "IEND"u8, []);
+
+        FormatException error = Assert.Throws<FormatException>(() => SingleChannelPng.Read(png.ToArray()));
+
+        Assert.Contains(named ?? string.Empty, error.Message, StringComparison.Ordinal);
+    }
+
+    // The runtime reads the shipped file as one channel with no premultiply. Every value lands as
     // the author's index.
     [Fact]
     public void AnR8Texture_DecodesAtRunTimeToItsExactValues()
@@ -86,7 +107,7 @@ public sealed class SingleChannelPngTests
         Assert.Equal(values, decoded.Texels);
     }
 
-    // Values that fill the depth's range and vary along and across rows, so every filter sees
+    // Values that fill the depth's range and vary along and across rows. Every filter sees
     // non-zero left, up and corner neighbours.
     private static byte[] Values(int depth) =>
         [.. Enumerable.Range(0, Width * Height).Select(i => (byte)(((i * 7) + (i / Width * 3)) % (1 << depth)))];

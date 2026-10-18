@@ -1,5 +1,3 @@
-using Capsule.Tests.Documents;
-
 namespace Capsule.Tests.Build;
 
 /// <summary>
@@ -57,7 +55,7 @@ public sealed class SheetToolTests
         Assert.Contains("new global::System.Numerics.Vector2(0F, 0F));", generated, StringComparison.Ordinal);
     }
 
-    // A clip is identified by instance, so the member hands back one instance rather than rebuilding
+    // A clip is identified by instance. The member hands back one instance rather than rebuilding
     // it per read: a property with a field initializer, never an expression body.
     [Fact]
     public void AClip_CompilesIntoOneSpriteClipOfItsFramesTicksAndLoop()
@@ -87,7 +85,7 @@ public sealed class SheetToolTests
     }
 
     // A socket or a box is a name constant the game binds by and a mark each frame carries or leaves
-    // out; one table per frame is what makes two reads of that frame equal and allocation-free. An
+    // out. One table per frame is what makes two reads of that frame equal and allocation-free. An
     // event is a name constant and a list on each clip entry, never on the frame it plays.
     [Fact]
     public void SocketsBoxesAndEvents_CompileIntoNameConstantsAndTheMarksAndEntriesThatSetThem()
@@ -121,7 +119,7 @@ public sealed class SheetToolTests
             StringComparison.Ordinal);
     }
 
-    // The sheet's own spelling of the texture is normalized to the key the build ships it under, so a
+    // The sheet's own spelling of the texture is normalized to the key the build ships it under. A
     // sheet naming 'P.PNG' carries the handle of the 'p.png' that shipped.
     [Theory]
     [InlineData("p.png")]
@@ -147,7 +145,7 @@ public sealed class SheetToolTests
     public void ASheetNamedAfterItsOwnClasses_IsDeclared() =>
         Assert.Contains("public static class FramesSheet", Emitted(("frames", Prop)), StringComparison.Ordinal);
 
-    // A null where the format declares an optional member is that member left out, so a tool writing
+    // A null where the format declares an optional member is that member left out. A tool writing
     // its whole schema out authors the same sheet as one that omits what it has nothing to say about.
     [Fact]
     public void ANullInAnOptionalPosition_IsThatMemberAbsent()

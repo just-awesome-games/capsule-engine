@@ -1,6 +1,3 @@
-using System.Numerics;
-using Capsule.Physics;
-using Capsule.Scenes;
 using MinimalGame.Game.Scenes;
 
 namespace MinimalGame.Game.Entities;

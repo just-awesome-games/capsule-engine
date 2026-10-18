@@ -4,16 +4,11 @@ using Microsoft.CodeAnalysis;
 namespace Capsule.Generators;
 
 // Reads every referenced assembly's registry metadata: the provider a logic assembly declares, and the
-// keys it claims.
+// keys it claims. Only a shell that references the runtime is described.
 internal static class BootDescriber
 {
     internal static BootModel Describe(Compilation compilation)
     {
-        if (compilation.GetTypeByMetadataName(MetadataNames.CapsuleEngine) is null)
-        {
-            return BootModel.None;
-        }
-
         ImmutableArray<RegistryProviderModel>.Builder providers = ImmutableArray.CreateBuilder<RegistryProviderModel>();
         ImmutableArray<string>.Builder invalid = ImmutableArray.CreateBuilder<string>();
         foreach (IAssemblySymbol assembly in compilation.SourceModule.ReferencedAssemblySymbols)

@@ -8,8 +8,8 @@ namespace Capsule.Runtime.Audio;
 // The sounds owned by the current scene, preloaded where declared and otherwise loaded on first play.
 // Streamed clips are not resident. They are opened per voice and closed when the voice ends.
 //
-// A voice outlives the scene that started it, because the mixer is the run's and not the scene's, so
-// a resident sound the outgoing scene drops is held until its last live voice ends.
+// A voice outlives the scene that started it, because the mixer is the run's and not the scene's.
+// A resident sound the outgoing scene drops is held until its last live voice ends.
 internal sealed class SoundStore : IDisposable
 {
     private readonly IAudioBackend _backend;

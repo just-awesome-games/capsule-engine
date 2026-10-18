@@ -1,12 +1,12 @@
 # Capsule.Bench
 
-The engine's performance harness, run by hand and never by CI or the commit hook. It is a Capsule game laid out as [`docs/build-and-publish.md`](../../docs/build-and-publish.md) describes, and each top-level scene is a workload. A scene declares its lane with `[Workload(...)]`, and the suite refuses one without it. A scene that declares several lanes is measured once in each. A nested scene is part of the workload that declares it.
+The engine's performance harness, run by hand and never by CI or the commit hook. It is a Capsule game laid out as [`docs/build-and-publish.md`](../../docs/build-and-publish.md) describes, and each top-level scene is a workload. A scene declares its lane with `[Workload(...)]`, and the suite refuses one without it. A scene that declares several lanes is measured once in each. A lane's row is named for its class unless `Row` names a variant, which the class builds on its own document when `Workloads.Running` holds that name. `--scene` takes a row's name. A nested scene is part of the workload that declares it.
 
 - `WorkloadKind.Simulation` runs headless with no window, device or media. It times 600 fixed steps after 180 warm-up steps. Between steps the driver builds the frame a presenting host would and times it apart.
 - `WorkloadKind.Rendering` runs windowed for six real seconds on the attribute's surface: `Surface.Canvas360` (640x360 point-sampled, the default) or `Surface.Hd1080` (1920x1080 linear). It drops the first 120 frames and measures submission and frame interval.
-- `WorkloadKind.Paced` runs headless through the host's frame loop for six real seconds, paced to the step rate as a window presenting once a step would be. Each frame runs the steps its wall time bought, within the step bound and the step budget, so a step that overruns its length shows in the frame interval a player would see. It drops the first second and measures frame interval, steps run and the frame's build.
+- `WorkloadKind.Paced` runs headless through the host's frame loop for six real seconds, paced to the step rate as a window presenting once a step would be. Each frame runs the steps its wall time bought, within the step bound and the step budget. A step that overruns its length shows in the frame interval a player would see. It drops the first second and measures frame interval, steps run and the frame's build.
 
-The bench runs with `TieredCompilation=false`, so absolute numbers differ from a tiered game's.
+The bench runs with `TieredCompilation=false`. Its absolute numbers differ from a tiered game's.
 
 ```text
 dotnet run -c Release --project tests/Capsule.Bench -- suite --label <text> [--lane simulation|rendering|paced] [--uncapped]
@@ -22,7 +22,7 @@ A record is a header (`timestamp`, `label`, `lane`, `uncapped`, `commit`, `confi
 - Windowed: `frames`, `drawMs` {median, p95, max} for `FrameRenderer.Draw` alone, and `intervalMs` {median, p95, max} from frame start to frame start. `captureSha256` appears on `Still` rows and changes only when the renderer's output did.
 - Paced: `frames`, `steps` for the fixed steps those frames ran, one a frame while the workload keeps pace, `intervalMs` {median, p95, max} from frame start to frame start, and `viewMs` {median, p95} for the frame's build.
 
-Changing a workload's definition resets its history, so compare by label and commit. Compare an uncapped record only with another uncapped record. Older records differ:
+Changing a workload's definition resets its history. Compare by label and commit. Compare an uncapped record only with another uncapped record. Older records differ:
 
 - Before 2026-09-18 they carry other columns.
 - Before 2026-09-30 they carry no `lane` and cover both lanes.

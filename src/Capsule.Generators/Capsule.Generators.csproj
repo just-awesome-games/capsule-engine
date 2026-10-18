@@ -6,14 +6,14 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>Capsule.Generators</RootNamespace>
     <IsPackable>false</IsPackable>
-    <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
+    <!-- Nothing here is a reference a consumer compiles against. It carries no API reference. -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <!-- RS2008 tracks diagnostic IDs across released analyzer packages. This generator is
-         consumed from a source clone at a pinned ref, so the ref is the release record. -->
+         consumed from a source clone at a pinned ref. The ref is the release record. -->
     <NoWarn>$(NoWarn);RS2008</NoWarn>
     <!-- Local, never global, with TreatAsLocalProperty on the Project element: NuGet's restore
-         walk strips nothing, so without the guard it evaluates this project for a consumer's
+         walk strips nothing. Without the guard it evaluates this project for a consumer's
          NativeAOT publish runtime and fails (NETSDK1207 on netstandard2.0). -->
     <PublishAot>false</PublishAot>
     <SelfContained>false</SelfContained>

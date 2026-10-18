@@ -10,11 +10,37 @@ step's translation to a body's `Move`.
 | Need | Piece |
 | --- | --- |
 | A shape on an entity | `BoxCollider2D`, `CircleCollider2D`, `CapsuleCollider2D` or `PolygonCollider2D` |
-| A tile map that collides | `TileMapCollider2D`, with each tile type's layer and shape in the palette |
+| A tile map that collides | `TileMapCollider2D`, with each tile type's layer and shape in the palette. It is a component, not a `Collider2D`, and its contacts arrive on the other collider as `ColliderContact2D.Tile` |
 | What finds and blocks what | A collider's `Layer`, and the `CollisionMask` sets a collider's `Detects` and a body's `BlockedBy` and `MovedBy` take |
 | A reaction to what a collider touches | `ReportsContacts`, with `ContactEntered`, `ContactExited` and `Touching` |
 | A body that stops on what it hits | `KinematicBody2D` |
 | What is where | The queries on `Scene.Collision` |
+| The entity or tile a query hit | `Scene.ColliderOf(hit.Target.Collider)`, `Scene.TileOf(hit.Target)` |
+
+A game names its layers once at its assembly root, beside the masks it shares. Every mask matches nothing
+until it is set:
+
+```csharp
+public static class CollisionLayers
+{
+    public const string Avatar = "avatar";
+    public const string Solid = "solid";
+
+    public static readonly CollisionMask Blocking = new(Solid);
+}
+```
+
+```csharp
+// A trigger that reacts to the avatar.
+BoxCollider2D area = new(new Vector2(32f, 32f)) { Detects = new(CollisionLayers.Avatar), ReportsContacts = true };
+area.ContactEntered += contact => _occupant = contact.OtherEntity;
+Add(area);
+
+// A body that stops on solid ground.
+BoxCollider2D box = new(new Vector2(12f, 16f)) { Layer = CollisionLayers.Avatar };
+Add(box);
+Add(new KinematicBody2D(box) { BlockedBy = CollisionLayers.Blocking });
+```
 
 ## Triggers
 

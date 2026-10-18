@@ -1,5 +1,5 @@
-// Maps each texel's brightness onto a ramp from Shadow to Light. The scene sets the ramp, so every
-// material drawing this shader in it shares one palette.
+// Maps each texel's brightness onto a ramp from Shadow to Light. The scene sets the ramp, and every
+// material drawing this shader in it shares that one palette.
 cbuffer SceneGlobals
 {
     float4 Shadow;

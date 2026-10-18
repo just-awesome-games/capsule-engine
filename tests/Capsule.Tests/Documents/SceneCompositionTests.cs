@@ -1,8 +1,6 @@
 using System.Numerics;
 using Capsule.Physics;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 using Capsule.Tests.Scenes;
 using Capsule.Tiles;
 
@@ -69,7 +67,7 @@ public sealed class SceneCompositionTests
         Assert.Equal(0f, scene.Entities[1].Rotation);
     }
 
-    // A collider cannot turn, so the class that adds one to a turned spawn fails there, naming both
+    // A collider cannot turn. The class that adds one to a turned spawn fails there, naming both
     // ways out.
     [Fact]
     public void ATurnedSpawn_OnAClassAddingACollider_FailsNamingBothFixes()
@@ -84,18 +82,55 @@ public sealed class SceneCompositionTests
             StringComparison.Ordinal);
     }
 
+    // The document supplies the scroll factor ahead of the constructor's body. A class that sets none
+    // takes it, and a class that sets its own keeps it.
+    [Fact]
+    public void ADocumentsScrollFactor_IsTheConstructorsToKeepOrOverride()
+    {
+        SceneDocument document = new(
+            [
+                new SceneDocumentEntry("placed", new EntitySpawn(new Vector2(4f, 4f)) { ScrollFactor = Vector2.Zero }),
+                new SceneDocumentEntry("placed", new EntitySpawn(new Vector2(4f, 4f))),
+                new SceneDocumentEntry("fixed", new EntitySpawn(new Vector2(4f, 4f)) { ScrollFactor = new Vector2(0.5f, 1f) }),
+            ]);
+        Scene scene = SceneFixtures.RoomScene(
+            document,
+            SceneFixtures.Registry(
+                ("placed", spawn => new SceneFixtures.Placed(spawn)),
+                ("fixed", spawn => new ScreenFixed(spawn))));
+
+        Assert.Equal(Vector2.Zero, scene.Entities[0].ScrollFactor);
+        Assert.Equal(Vector2.One, scene.Entities[1].ScrollFactor);
+        Assert.Equal(Vector2.Zero, scene.Entities[2].ScrollFactor);
+    }
+
+    // The scroll factor is applied before the body runs. A body that then attaches a collider is refused
+    // as it would be for any scrolled entity, and the placement fails at construction.
+    [Fact]
+    public void ASpawnsFactor_IsRefusedByTheColliderTheBodyAttaches()
+    {
+        Assert.Throws<InvalidOperationException>(
+            () => new Solid(new EntitySpawn(Vector2.Zero) { ScrollFactor = new Vector2(0.5f, 1f) }));
+    }
+
     private sealed class Turned : Entity
     {
+        internal float RotationInBody { get; }
+
         public Turned(EntitySpawn spawn)
             : base(spawn) => RotationInBody = Rotation;
-
-        internal float RotationInBody { get; }
     }
 
     private sealed class Upright : Entity
     {
         public Upright(EntitySpawn spawn)
             : base(spawn) => Rotation = 0f;
+    }
+
+    private sealed class ScreenFixed : Entity
+    {
+        public ScreenFixed(EntitySpawn spawn)
+            : base(spawn) => ScrollFactor = Vector2.Zero;
     }
 
     private sealed class Solid : Entity

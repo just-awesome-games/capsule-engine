@@ -1,0 +1,77 @@
+using Capsule.Input;
+using Capsule.Rendering;
+using Capsule.Scenes;
+
+namespace Capsule.Tests;
+
+// What one step's input said about one action: its two edges and whether it was held.
+internal readonly record struct ActionRead(bool Pressed, bool Released, bool Held);
+
+// One step as the simulation saw it: the context it ran on, and each action the simulation was
+// given, in the order they were given.
+internal readonly record struct RecordedStep(
+    long Tick,
+    float DeltaSeconds,
+    double TotalSeconds,
+    ActionRead First,
+    ActionRead Second,
+    ActionRead Third);
+
+// The simulation the scheduler and overlay specs step. It always counts its steps. It records them
+// only for a spec that named the actions it reads. A spec measuring allocation steps one that
+// records nothing and still counts.
+internal sealed class RecordingSimulation(params InputAction[] actions) : ISimulation
+{
+    internal List<RecordedStep> Recorded { get; } = [];
+
+    // Steps run, counted whether or not they were recorded.
+    internal int Steps { get; private set; }
+
+    // The tick on which the simulation asks the run to end. A null tick never asks.
+    internal long? ExitOnTick { get; init; }
+
+    public bool ExitRequested { get; private set; }
+
+    public FrameView View { get; } = new();
+
+    public void Step(in StepContext context)
+    {
+        Steps++;
+        ExitRequested = context.Tick == ExitOnTick;
+
+        if (actions.Length == 0)
+        {
+            return;
+        }
+
+        Recorded.Add(new RecordedStep(
+            context.Tick,
+            context.DeltaSeconds,
+            context.TotalSeconds,
+            Read(in context, 0),
+            Read(in context, 1),
+            Read(in context, 2)));
+    }
+
+    public void Step(in StepContext context, Action before)
+    {
+        before();
+        Step(in context);
+    }
+
+    private ActionRead Read(in StepContext context, int index) =>
+        index < actions.Length
+            ? new ActionRead(
+                context.Input.WasPressed(actions[index]),
+                context.Input.WasReleased(actions[index]),
+                context.Input.IsHeld(actions[index]))
+            : default;
+}
+
+// The overlay specs' scene, which records its steps as RecordingSimulation does.
+internal sealed class RecordingScene(params InputAction[] actions) : Scene
+{
+    internal RecordingSimulation Recorder { get; } = new(actions);
+
+    protected override void OnStep(in StepContext context) => Recorder.Step(in context);
+}

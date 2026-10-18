@@ -21,7 +21,7 @@ internal static class Boxes2D
 
         if (gapX > 0f && gapY > 0f)
         {
-            // Apart on both axes, so the closest features are corners and the normal is diagonal.
+            // Apart on both axes. The closest features are corners, and the normal is diagonal.
             normal = Vector2.Normalize(new Vector2(axisX.X * gapX, axisY.Y * gapY));
             point = Vector2.Clamp(a.Center, b.Min, b.Max);
             return MathF.Sqrt((gapX * gapX) + (gapY * gapY));
@@ -74,8 +74,7 @@ internal static class Boxes2D
 
         if (fraction == 0f && normal == Vector2.Zero)
         {
-            // Already overlapping, so there is no entry face and the least-penetration axis supplies
-            // the normal.
+            // Already overlapping, with no entry face. The least-penetration axis supplies the normal.
             Separation(moving, target, out normal, out _);
         }
 

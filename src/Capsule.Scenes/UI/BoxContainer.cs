@@ -9,12 +9,10 @@ namespace Capsule.UI;
 /// <remarks>
 /// Each visible child gets a slot as long as the child's preferred extent along the axis and as wide as
 /// the padded inside across it. A screen entity's preferred extent is its <see cref="ScreenEntity.Size"/>,
-/// and a container's is its fitted extent. The box never overrides a child. The child's own
-/// <see cref="ScreenEntity.Anchor"/> places it in its slot as it would in a plain parent's padded rect, so
-/// <see cref="Anchor.TopWide"/> spans the slot's width and <see cref="Anchor.Center"/> centres in it. The
-/// child's <see cref="Scenes.Entity.Position"/> stays an offset from that anchor and never moves a
-/// sibling, so a nudge or a shake animates freely. A child whose own <see cref="Scenes.Entity.Visible"/> is
-/// false takes no slot. A plain entity child is not placed.
+/// and a container's is its fitted extent. The child's own <see cref="ScreenEntity.Anchor"/> places it in
+/// its slot as it would in a plain parent's padded rect. The child's <see cref="Scenes.Entity.Position"/>
+/// stays an offset from that anchor and never moves a sibling. A child whose own
+/// <see cref="Scenes.Entity.Visible"/> is false takes no slot. A plain entity child is not placed.
 /// <para>
 /// On each axis the box is at least its <see cref="ScreenEntity.Size"/> and grows past it to fit its
 /// children and its <see cref="ScreenEntity.Padding"/>. An axis its own anchor spans takes the span
@@ -54,8 +52,7 @@ public class BoxContainer : ScreenEntity
 
         set
         {
-            Guard.NonNegative(value, nameof(value));
-            field = value;
+            field = Guard.NonNegative(value, nameof(value));
             Arrange();
         }
     }

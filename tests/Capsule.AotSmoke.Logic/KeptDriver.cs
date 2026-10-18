@@ -1,6 +1,3 @@
-using Capsule.Input;
-using Capsule.Scenes;
-
 namespace Capsule.AotSmoke.Logic;
 
 // The control: a driver outside any marked directory, which every build compiles and registers.

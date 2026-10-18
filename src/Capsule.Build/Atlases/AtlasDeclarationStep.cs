@@ -15,7 +15,7 @@ internal static class AtlasDeclarationStep
             string name = file.Key[(file.Key.LastIndexOf('/') + 1)..];
             if (atlases.TryGetValue(name, out DeclaredAtlas first))
             {
-                pass.Fail(file.Path, $"declares the atlas \"{name}\", which '{first.Path}' already declares. An atlas is named by its file name, so rename or delete one.");
+                pass.Fail(file.Path, $"declares the atlas \"{name}\", which '{first.Path}' already declares. An atlas is named by its file name. Rename or delete one.");
                 continue;
             }
 

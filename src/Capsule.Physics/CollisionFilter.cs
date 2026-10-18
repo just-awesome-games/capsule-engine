@@ -88,8 +88,8 @@ public readonly record struct CollisionFilter
     public static CollisionFilter operator &(CollisionFilter left, CollisionFilter right) =>
         new(Shared(left._world, right._world, nameof(right)), left._mask & right._mask);
 
-    // A layer's world, required to be non-zero. An unstamped layer is a zero index, so treating it
-    // as world-agnostic would build a filter every world accepts as its own index-0 entry.
+    // A layer's world, required to be non-zero. An unstamped layer is a zero index. Treating it as
+    // world-agnostic would build a filter every world accepts as its own index-0 entry.
     private static int Interned(CollisionLayer layer, string parameterName) =>
         layer.World != 0
             ? layer.World

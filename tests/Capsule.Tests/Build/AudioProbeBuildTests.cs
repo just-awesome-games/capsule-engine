@@ -1,3 +1,4 @@
+using Capsule.Build.Audio;
 using Capsule.Tests.Documents;
 using static Capsule.Tests.Build.AudioProbeFixtures;
 
@@ -13,7 +14,7 @@ public sealed class AudioProbeBuildTests
     // Whatever the defect, the build names the source that failed and what is wrong with it, and
     // stamps nothing: a game never compiles against half a registry. A truncated comment header is
     // a malformed container rather than a clip without a region, since reading the tags that
-    // happen to precede the cut would ship a loop nobody authored; a comment declaring more bytes
+    // happen to precede the cut would ship a loop nobody authored. A comment declaring more bytes
     // than its own packet holds is no licence to read the setup packet laced behind it either.
     [Theory]
     [InlineData("unfinished-comment-header", ".ogg", "truncated")]
@@ -33,6 +34,26 @@ public sealed class AudioProbeBuildTests
 
         Assert.Contains(source + ":", errors, StringComparison.Ordinal);
         Assert.Contains(expected, errors, StringComparison.Ordinal);
+    }
+
+    // A clip the probe cannot measure or the host cannot play is refused naming the defect, which fails
+    // the build and not the clip's first play. The WAV shapes other than ADPCM measure cleanly.
+    [Theory]
+    [InlineData("loop-tag-not-a-sample-count", ".ogg", "LOOPSTART=\"one bar\"")]
+    [InlineData("no-vorbis-header", ".ogg", "Vorbis")]
+    [InlineData("ogg-six-channels", ".ogg", "6 channels")]
+    [InlineData("ima-adpcm", ".wav", "PCM")]
+    [InlineData("40-bit-pcm", ".wav", "40 bits")]
+    [InlineData("64-bit-float", ".wav", "64 bits")]
+    [InlineData("wav-six-channels", ".wav", "6 channels")]
+    public void AClipTheProbeRefuses_IsReportedNamingTheDefect(string defect, string extension, string expected)
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        File.WriteAllBytes("clip" + extension, Malformed(defect));
+
+        FormatException refused = Assert.Throws<FormatException>(() => AudioProbe.Measure("clip" + extension));
+
+        Assert.Contains(expected, refused.Message, StringComparison.Ordinal);
     }
 
     [Fact]

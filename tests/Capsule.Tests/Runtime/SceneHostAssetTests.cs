@@ -9,11 +9,11 @@ namespace Capsule.Tests.Runtime;
 
 public sealed class SceneHostAssetTests
 {
-    private static readonly TextureHandle Hud = new("hud", ".png");
+    private static readonly TextureHandle First = new("first", ".png");
 
     private static readonly TextureHandle Shared = new("shared", ".png");
 
-    private static readonly TextureHandle Bat = new("enemies/bat", ".png");
+    private static readonly TextureHandle Nested = new("nested/second", ".png");
 
     [Fact]
     public void ATransition_PreparesTheIncomingScenesAssetsBeforeStoppingTheOutgoingScene()
@@ -30,7 +30,7 @@ public sealed class SceneHostAssetTests
         host.Step(Step(0));
 
         Assert.IsType<ArenaTextures>(host.Scene);
-        Assert.Equal(["prepare:enemies/bat,shared", "menu.stop"], order);
+        Assert.Equal(["prepare:nested/second,shared", "menu.stop"], order);
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class SceneHostAssetTests
         host.PrepareInitialAssets();
         host.PrepareInitialAssets();
 
-        Assert.Equal(["hud"], prepared);
+        Assert.Equal(["first"], prepared);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class SceneHostAssetTests
     private sealed class MenuTextures(List<string> order) : Scene
     {
         protected internal override void CollectAssets(AssetCollection assets) =>
-            assets.Add([Hud, Shared]);
+            assets.Add([First, Shared]);
 
         protected override void OnStep(in StepContext context) => Run.RequestScene<ArenaTextures>();
 
@@ -121,20 +121,20 @@ public sealed class SceneHostAssetTests
 
     private sealed class AddsOnStart : Scene
     {
-        internal AddsOnStart() => Add(new Holds(Hud));
+        internal AddsOnStart() => Add(new Holds(First));
 
-        protected override void OnStart() => Add(new Holds(Bat));
+        protected override void OnStart() => Add(new Holds(Nested));
     }
 
     private sealed class RejectedInitialScene : Scene
     {
+        internal FailsToCollect Entity { get; }
+
         internal RejectedInitialScene(List<string> lifecycle)
         {
             Entity = new FailsToCollect(lifecycle);
             Add(Entity);
         }
-
-        internal FailsToCollect Entity { get; }
 
         protected override void OnStart() => throw new InvalidOperationException("A rejected scene must not start.");
     }
@@ -156,11 +156,13 @@ public sealed class SceneHostAssetTests
     private sealed class ArenaTextures : Scene
     {
         protected internal override void CollectAssets(AssetCollection assets) =>
-            assets.Add([Shared, Bat]);
+            assets.Add([Shared, Nested]);
     }
 
     private sealed class RejectedArenaTextures : Scene
     {
+        internal LifecycleEntity Entity { get; }
+
         internal RejectedArenaTextures(List<string> lifecycle)
         {
             Entity = new LifecycleEntity(lifecycle);
@@ -169,9 +171,7 @@ public sealed class SceneHostAssetTests
         }
 
         protected internal override void CollectAssets(AssetCollection assets) =>
-            assets.Add([Shared, Bat]);
-
-        internal LifecycleEntity Entity { get; }
+            assets.Add([Shared, Nested]);
 
         protected override void OnStart() => throw new InvalidOperationException("A rejected scene must not start.");
 

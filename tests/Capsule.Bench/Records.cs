@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 namespace Capsule.Bench;
 
 // Where records go and how they are written. Property order is declaration order and names are
-// camel-cased, so a diff reads and a trend script reads one schema per command.
+// camel-cased. A diff reads and a trend script reads one schema per command.
 internal static class Records
 {
     private static readonly JsonSerializerOptions Options = new(RecordJson.Default.Options)
@@ -32,7 +32,7 @@ internal static class Records
         return path;
     }
 
-    // Beside this source file wherever the bench is run from, so a record lands where it is committed.
+    // Beside this source file wherever the bench is run from. A record lands where it is committed.
     internal static string SourceDirectory([CallerFilePath] string source = "") => Path.GetDirectoryName(source)!;
 }
 

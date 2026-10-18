@@ -36,7 +36,7 @@ public sealed class SceneViewBuildTests
         Assert.Equal(2, counting.Draws);
     }
 
-    // Entities cross in Y under YSort, so the order a frame keeps moves every step. A view built only
+    // Entities cross in Y under YSort. The order a frame keeps moves every step. A view built only
     // at the end must equal one built after every step, as a presenting host builds it.
     [Fact]
     public void AViewReadOnlyAtTheEnd_EqualsOneReadAfterEveryStep()

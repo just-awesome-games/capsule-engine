@@ -11,7 +11,7 @@ using Capsule.Assets;
 using Capsule.Build.Configuration;
 using Capsule.Build.Sheets;
 using Capsule.Build.Textures;
-using Capsule.Scenes.Documents;
+using Capsule.Scenes;
 
 namespace Capsule.Build.Schemas;
 
@@ -40,8 +40,8 @@ internal static class FormatSchemas
     /// <summary>Every authored file format: its schema's file name under <c>schemas/</c>, its title and the root class that parses it.</summary>
     internal static readonly (string File, string Title, JsonTypeInfo Parser)[] Formats =
     [
-        ("folder.config.schema.json", "Capsule folder config", AssetConfigJsonContext.Default.FolderConfigJson),
-        ("texture.config.schema.json", "Capsule texture sidecar", AssetConfigJsonContext.Default.TextureSidecarJson),
+        ("folder.config.schema.json", "Capsule folder config", AssetConfigJsonContext.FolderFile),
+        ("texture.config.schema.json", "Capsule texture sidecar", AssetConfigJsonContext.Default.TextureConfigJson),
         ("atlas.schema.json", "Capsule atlas", AssetConfigJsonContext.Default.AtlasConfigJson),
         ("sheet.schema.json", "Capsule sprite sheet", SheetJsonContext.Default.SheetJson),
         ("scene.schema.json", "Capsule scene document", SceneDocumentJsonContext.Default.SceneDocumentJson),
@@ -254,7 +254,7 @@ internal static class FormatSchemas
         _ => throw new InvalidOperationException($"{nameof(FormatSchemas)} has no JSON literal for a {value.GetType().Name}. Spell it in {nameof(Literal)}."),
     };
 
-    // Removes and returns every member of a node, in order, so each can move to another parent.
+    // Removes and returns every member of a node, in order, for each to move to another parent.
     private static KeyValuePair<string, JsonNode?>[] Detach(JsonObject node)
     {
         KeyValuePair<string, JsonNode?>[] members = [.. node];

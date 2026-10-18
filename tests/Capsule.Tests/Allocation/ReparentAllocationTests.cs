@@ -56,20 +56,8 @@ public sealed class ReparentAllocationTests
             }
         }));
         using SimulationHost host = new(scene);
-        long before = 0;
 
-        for (int index = 0; index < Period; index++)
-        {
-            if (index == WarmupSteps)
-            {
-                before = GC.GetAllocatedBytesForCurrentThread();
-            }
-
-            host.Step();
-            _ = host.Simulation.View;
-        }
-
-        return GC.GetAllocatedBytesForCurrentThread() - before;
+        return Measure(host, Period);
     }
 
     private static long Run(Launcher launcher)
@@ -78,21 +66,20 @@ public sealed class ReparentAllocationTests
         scene.Add(launcher);
         scene.Add(new SceneFixtures.Watcher(_ => launcher.Cycle()));
         using SimulationHost host = new(scene);
-        long before = 0;
 
-        for (int index = 0; index < Period * 10; index++)
-        {
-            if (index == WarmupSteps)
-            {
-                before = GC.GetAllocatedBytesForCurrentThread();
-            }
-
-            host.Step();
-            _ = host.Simulation.View;
-        }
-
-        return GC.GetAllocatedBytesForCurrentThread() - before;
+        return Measure(host, Period * 10);
     }
+
+    // The bytes of every step after the warm-up, each with the frame built after it.
+    private static long Measure(SimulationHost host, int steps) =>
+        StepMeasurement.Bytes(
+            step =>
+            {
+                host.Step();
+                _ = host.Simulation.View;
+            },
+            WarmupSteps,
+            steps - WarmupSteps);
 
     private sealed class Shot : Entity
     {

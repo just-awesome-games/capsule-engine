@@ -35,30 +35,22 @@ public sealed class BitmapFontTests
         Assert.Equal(0, font.GetKerning('A', 'A'));
     }
 
-    [Fact]
-    public void TwoGlyphsOfOneCodepoint_AreRefused()
+    // Each row builds from that many pages and that many copies of one glyph on the given page: two
+    // glyphs of one codepoint, a glyph on a page the font does not carry, and no page at all.
+    [Theory]
+    [InlineData(1, 2, 0, "glyphs")]
+    [InlineData(1, 1, 1, "glyphs")]
+    [InlineData(0, 0, 0, "pages")]
+    public void AFontWithADuplicateOrOrphanGlyphOrNoPage_IsRefused(int pages, int glyphs, int page, string parameter)
     {
-        ArgumentException error = Assert.Throws<ArgumentException>(
-            () => new BitmapFont(10, 8, [FontFixtures.Page], [FontFixtures.A, FontFixtures.A], []));
+        ArgumentException error = Assert.Throws<ArgumentException>(() => new BitmapFont(
+            10,
+            8,
+            [.. Enumerable.Repeat(FontFixtures.Page, pages)],
+            [.. Enumerable.Repeat(FontFixtures.A with { Page = page }, glyphs)],
+            []));
 
-        Assert.Equal("glyphs", error.ParamName);
-    }
-
-    [Fact]
-    public void AGlyphOnAPageTheFontDoesNotCarry_IsRefused()
-    {
-        ArgumentException error = Assert.Throws<ArgumentException>(
-            () => new BitmapFont(10, 8, [FontFixtures.Page], [FontFixtures.A with { Page = 1 }], []));
-
-        Assert.Equal("glyphs", error.ParamName);
-    }
-
-    [Fact]
-    public void AFontWithNoPage_IsRefused()
-    {
-        Assert.Equal(
-            "pages",
-            Assert.Throws<ArgumentException>(() => new BitmapFont(10, 8, [], [], [])).ParamName);
+        Assert.Equal(parameter, error.ParamName);
     }
 
     // The pen carries the previous glyph's advance plus the pair's kerning, and nothing else.
@@ -67,7 +59,7 @@ public sealed class BitmapFontTests
     {
         Assert.Equal([(FontFixtures.A, 0, 0), (FontFixtures.B, 3, 0)], Placements("AB"));
 
-        // No pair declared for B against A, so the advance stands alone.
+        // No pair declared for B against A. The advance stands alone.
         Assert.Equal([(FontFixtures.B, 0, 0), (FontFixtures.A, 6, 0)], Placements("BA"));
     }
 
@@ -84,7 +76,7 @@ public sealed class BitmapFontTests
         Assert.Equal(Placements("AB"), Placements("A\rB"));
     }
 
-    // A codepoint the font has no glyph for is drawn as nothing and advances nothing, so the pair
+    // A codepoint the font has no glyph for is drawn as nothing and advances nothing. The pair
     // either side of it still kerns.
     [Fact]
     public void ACodepointTheFontDoesNotCarry_DrawsNothingAndAdvancesNothing()
@@ -111,7 +103,7 @@ public sealed class BitmapFontTests
     {
         BitmapFont font = FontFixtures.Font();
 
-        // "AB" ends at 3 + 6; "A" at 5.
+        // "AB" ends at 3 + 6 and "A" at 5.
         Assert.Equal(new Vector2(9f, FontFixtures.LineHeight * 2), font.Measure("AB\nA"));
         Assert.Equal(new Vector2(5f, FontFixtures.LineHeight), font.Measure("A"));
         Assert.Equal(Vector2.Zero, font.Measure(string.Empty));

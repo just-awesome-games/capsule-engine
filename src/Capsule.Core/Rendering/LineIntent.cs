@@ -29,7 +29,7 @@ public readonly record struct LineIntent(Vector2 A, Vector2 B, float Thickness, 
 
     // The rect the drawn segment covers, or false where it draws nothing: a non-finite end or thickness, a
     // negative thickness, or no length. An axis-aligned hairline has no area on one axis and is still a
-    // region something is drawn in, so Rect.IsEmpty is not the test here.
+    // region something is drawn in. Rect.IsEmpty is not the test here.
     internal bool TryGetBounds(out Rect bounds)
     {
         bounds = default;

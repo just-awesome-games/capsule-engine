@@ -156,7 +156,7 @@ public sealed class Run
         {
             if (!double.IsFinite(value) || value <= 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(value), value, "The time scale must be finite and greater than zero.");
+                throw new ArgumentOutOfRangeException(nameof(value), value, "The time scale must be finite and greater than zero. To hold the game, set Scene.Paused. To hold a few steps, call Scene.Freeze.");
             }
 
             field = value;
@@ -196,7 +196,7 @@ public sealed class Run
 
         if (_state is not null)
         {
-            throw new InvalidOperationException("A run holds one attached object. Attach it once, at run start.");
+            throw new InvalidOperationException("A run holds one attached object. Attach it once, at run start. Hold every run-wide object as a member of that one object.");
         }
 
         _state = state;
@@ -243,7 +243,7 @@ public sealed class Run
     /// <summary>Starts loading the media <typeparamref name="TScene"/> preloads after the current step.</summary>
     /// <remarks>
     /// Call it on intent, such as a highlighted menu item, not from a proximity sweep. The scene's
-    /// constructor runs twice. At most one scene is prefetched, and a repeat does nothing.
+    /// constructor runs twice. At most one scene is prefetched, and a later call replaces an earlier one.
     /// </remarks>
     public void PrefetchScene<TScene>()
         where TScene : Scene =>

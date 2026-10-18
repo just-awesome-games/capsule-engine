@@ -1,7 +1,4 @@
-using Capsule.Assets;
 using Capsule.Audio;
-using Capsule.Runtime;
-using Capsule.Runtime.Audio;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
@@ -11,7 +8,7 @@ namespace Capsule.Tests.Audio;
 
 public sealed class AudioResidencyTests
 {
-    // The retirement that pooling reports is what the residency count is kept on, so a sound whose
+    // The retirement that pooling reports is what the residency count is kept on. A sound whose
     // voice has been played, ended and played again is still held by exactly one live voice.
     [Fact]
     public void ASoundWhosePooledVoiceIsPlayedAgainIsStillRetainedByIt()
@@ -45,7 +42,7 @@ public sealed class AudioResidencyTests
         Assert.Equal(Music, Assert.Single(fixture.Backend.Voices).Clip);
     }
 
-    // The device queues a resident clip whole and can only repeat all of it, so a loop that must
+    // The device queues a resident clip whole and can only repeat all of it. A loop that must
     // repeat a region streams the same resident sound's samples instead. It is still one load for
     // the scene, and the voice still counts against that sound's residency.
     [Fact]
@@ -84,9 +81,9 @@ public sealed class AudioResidencyTests
         Assert.Equal(1, voice.Plays);
     }
 
-    // A SoundEffectInstance starts at the front of its buffer and nowhere else, so a resident clip
+    // A resident clip's queued voice starts at the front of its buffer and nowhere else. A resident clip
     // asked for a start offset takes the streaming path the region loop takes, from the same
-    // resident sound, so it is still one load and the voice still counts against its residency.
+    // resident sound. It is still one load and the voice still counts against its residency.
     [Fact]
     public void AResidentClipPlayedFromAnOffset_StreamsTheResidentSoundsSamples()
     {
@@ -119,7 +116,7 @@ public sealed class AudioResidencyTests
         Assert.True(sound.Disposed);
     }
 
-    // The initial scene starts before the device is open, so what its start raised stands on the
+    // The initial scene starts before the device is open. What its start raised stands on the
     // mixer with no step behind it. A boot that only waited for the first step's commands would lose
     // it: BeginStep clears the table the host has not applied yet.
     [Fact]

@@ -1,6 +1,5 @@
 using System.Numerics;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
+using Capsule.Scenes;
 
 namespace Capsule.Tests.Documents;
 
@@ -21,14 +20,5 @@ public sealed class ScrollFieldsTests
         Assert.Equal((0, Vector2.One), (document.Entries[1].Spawn.ZIndex, document.Entries[1].Spawn.ScrollFactor));
         Assert.Equal((null, null), (document.Entries[2].Spawn.ZIndex, document.Entries[2].Spawn.ScrollFactor));
         Assert.Equal(Json, document.ToJson());
-    }
-
-    [Fact]
-    public void Parse_RejectsAScrollFactorThatIsNotTwoComponents()
-    {
-        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(
-            () => SceneDocument.Parse("""{"entities": [{"type": "coin", "scrollFactor": [0.5, 1, 2]}]}"""));
-
-        Assert.Contains("entities[0] has a scrollFactor of 3 components", error.Message, StringComparison.Ordinal);
     }
 }

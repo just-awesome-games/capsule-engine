@@ -1,8 +1,3 @@
-using System.Numerics;
-using Capsule.Physics;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace Capsule.Bench.Logic.Entities;
 
 // A collider on a layer the crowd blocks on: without one, no walker's filter reaches anything in

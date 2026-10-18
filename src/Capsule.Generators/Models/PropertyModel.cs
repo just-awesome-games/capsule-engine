@@ -36,7 +36,7 @@ internal enum PropertyKind
 /// <param name="RequiredKeyword">Whether the member carries C#'s <c>required</c>.</param>
 /// <param name="Direct">Whether generated code assigns it in plain C#, where otherwise an accessor sets it.</param>
 /// <param name="Readable">Whether generated code reads it in plain C#, where otherwise an accessor reads it.</param>
-/// <param name="Held">Whether it has no setter, so a document fills the object it holds in place.</param>
+/// <param name="Held">Whether it has no setter and a document fills the object it holds in place.</param>
 /// <param name="Declaring">
 /// The fully qualified type declaring the member, which its accessor takes. A generic type is written with
 /// its own type parameters.
@@ -83,5 +83,9 @@ internal readonly record struct PropertyModel(
     internal string Declared => (Shared ? $"global::System.ReadOnlyMemory<{Type}>" : Type + (Array ? "[]" : string.Empty)) + (Nullable ? "?" : string.Empty);
 
     // C#'s required on anything but an [Authorable] entity reference or array of them, which only code can satisfy.
+    /// <summary>Every member of <paramref name="properties"/> a document sets: authorable and settable.</summary>
+    internal static IEnumerable<PropertyModel> AuthoredIn(EquatableArray<PropertyModel> properties) =>
+        properties.Items.Where(static property => property.Authorable && property.Settable);
+
     internal bool CodeOnly => RequiredKeyword && !(Authorable && Kind == PropertyKind.Reference);
 }

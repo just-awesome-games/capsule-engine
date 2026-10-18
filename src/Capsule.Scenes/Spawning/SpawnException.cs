@@ -1,4 +1,4 @@
-namespace Capsule.Scenes.Spawning;
+namespace Capsule.Scenes;
 
 /// <summary>
 /// An entity could not be spawned. The message names the type key that failed.

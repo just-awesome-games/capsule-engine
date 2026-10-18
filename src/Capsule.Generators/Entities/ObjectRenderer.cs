@@ -3,15 +3,12 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Generators;
 
-/// <summary>One object class with the subclasses a type key constructs, each by the key it claims.</summary>
-internal readonly record struct KeyedObject(ObjectModel Model, EquatableArray<(string Key, string Type)> Types);
-
 // The methods an applier reads a member's JSON object through: one Fill per class, setting its members, and one
 // Object per member type, which picks the instance to fill. CapsuleEntities and CapsuleScenes each declare those
 // their own members reach.
 internal static class ObjectRenderer
 {
-    private const string Members = "global::Capsule.Scenes.Spawning.AuthoredMembers";
+    private const string Members = "global::Capsule.Scenes.AuthoredMembers";
 
     // A Fill method's statements sit one level inside its braces.
     private const string StatementIndent = "            ";
@@ -83,8 +80,8 @@ internal static class ObjectRenderer
     }
 
     // Picks the instance a member's object fills: the subclass its type key names, or with no type the instance the
-    // member holds, as its own class, or a new one of the member's class. A member with no setter replaces nothing,
-    // so its type key stays unread and the document refuses it.
+    // member holds, as its own class, or a new one of the member's class. A member with no setter replaces nothing.
+    // Its type key stays unread, and the document refuses it.
     private static string Build(KeyedObject entry, Dictionary<string, KeyedObject> byName)
     {
         ObjectModel model = entry.Model;
@@ -104,7 +101,7 @@ internal static class ObjectRenderer
                 arms.Append($"                {subclass} subclass => {Fill(subclass)}(subclass, members),\n");
             }
 
-            // A throw expression cannot be an argument, so a class nothing constructs throws as the arm itself.
+            // A throw expression cannot be an argument. A class nothing constructs throws as the arm itself.
             string unheld = Construct(model) is { } constructed ? $"{Fill(name)}({constructed}, members)" : fresh;
             arms.Append($"                null => {unheld},\n")
                 .Append($"                _ => {Fill(name)}(held, members),\n")

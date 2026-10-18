@@ -3,7 +3,6 @@ using System.Globalization;
 using System.Reflection;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
@@ -18,7 +17,6 @@ public sealed class SceneAuthorableTests
         #nullable enable
         using Capsule.Rendering;
         using Capsule.Scenes;
-        using Capsule.Scenes.Spawning;
 
         namespace Game;
 
@@ -61,7 +59,6 @@ public sealed class SceneAuthorableTests
     private const string Rooms = """
         #nullable enable
         using Capsule.Scenes;
-        using Capsule.Scenes.Spawning;
 
         namespace Game;
 
@@ -112,20 +109,16 @@ public sealed class SceneAuthorableTests
     [Fact]
     public void ARectMember_IsSetFromItsFourEdges()
     {
-        Assert.Equal(new Rect(0f, -16f, 320f, 240f), Member(Composed(Authored), "Bounds"));
+        Assert.Equal(Rect.FromEdges(0f, -16f, 320f, 240f), Member(Composed(Authored), "Bounds"));
     }
 
-    // The engine's Scene declares no members, so a document no class claims authors none.
+    // The engine's Scene declares no members. A document no class claims authors none.
     [Theory]
     [InlineData(Hall, """{"lift": 1}""", "the scene document omits 'floor', which its class requires. Add \"floor\" to the document.")]
     [InlineData(Hall, """{"floor": 3, "lift": 1, "music": 2}""", "the scene document sets 'music', which no authorable member takes. Its authorable members are: camera, size, clearColor, ambient, sampling, floor, title, bounds, lift.")]
     [InlineData("scenes/plain.scene.json", """{"music": 2}""", "the scene document sets 'music', which no authorable member takes. Its authorable members are: camera, size, clearColor, ambient, sampling.")]
-    public void ADocumentItsClassRefuses_FailsTheLoad(string path, string members, string fix)
-    {
-        SceneDocumentFormatException refused = Assert.Throws<SceneDocumentFormatException>(() => Composed(members, path));
-
-        Assert.Contains(fix, refused.Message, StringComparison.Ordinal);
-    }
+    public void ADocumentItsClassRefuses_FailsTheLoad(string path, string members, string fix) =>
+        GeneratorHarness.AssertLoadRefused(() => Composed(members, path), $"scene document '{path[..^".scene.json".Length]}': ", fix);
 
     [Fact]
     public void ATestSubclassOfAnAbstractScene_GetsTheDocumentsMembers_ThroughContent()

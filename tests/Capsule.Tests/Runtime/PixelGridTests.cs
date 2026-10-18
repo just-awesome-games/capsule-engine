@@ -21,7 +21,7 @@ public sealed class PixelGridTests
     }
 
     // A midpoint rounds down whichever side of zero it is on and however the origin's own float
-    // error nudges it, so a point a whole number of pixels from another snaps a whole number of
+    // error nudges it. A point a whole number of pixels from another snaps a whole number of
     // pixels from it and a followed point on a half pixel holds its pixel.
     [Theory]
     [InlineData(10.5f, 1f)]

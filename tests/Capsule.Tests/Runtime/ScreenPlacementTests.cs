@@ -22,11 +22,32 @@ public sealed class ScreenPlacementTests
         Assert.Equal(new Vector2(160f, 90f), placement.ToCanvas(new Vector2(320f, 270f)));
     }
 
-    [Fact]
-    public void AWindowWithNoArea_PlacesNothing()
+    /// <summary>A route the host takes to place the screen layer in the window.</summary>
+    public enum Entry
     {
-        Assert.Equal(0f, FrameLayout.WindowPlacement(Canvas, 0, 540).Scale);
-        Assert.Equal(0f, FrameLayout.WindowPlacement(Vector2.Zero, 640, 540).Scale);
+        Window,
+        DeclaredLayout,
+        UndeclaredLayout,
+    }
+
+    // A window or canvas with no area places nothing, through the window fit and through the layout
+    // settled before a frame draws, with or without a declared resolution.
+    [Theory]
+    [InlineData(Entry.Window, 320f, 0)]
+    [InlineData(Entry.Window, 0f, 640)]
+    [InlineData(Entry.DeclaredLayout, 320f, 0)]
+    [InlineData(Entry.UndeclaredLayout, 320f, 0)]
+    public void AWindowOrCanvasWithNoArea_PlacesNothingThroughEitherEntryPoint(Entry entry, float canvasWidth, int windowWidth)
+    {
+        Vector2 canvas = new(canvasWidth, canvasWidth == 0f ? 0f : 180f);
+        ScreenPlacement placement = entry switch
+        {
+            Entry.Window => FrameLayout.WindowPlacement(canvas, windowWidth, 540),
+            Entry.DeclaredLayout => Layout((320, 180), View(canvas), windowWidth, 720).Layer,
+            _ => Layout(null, View(canvas), windowWidth, 720).Layer,
+        };
+
+        Assert.Equal(0f, placement.Scale);
     }
 
     // A declared surface fills the window edge to edge on its binding axis at the fractional scale,
@@ -79,7 +100,7 @@ public sealed class ScreenPlacementTests
     [Fact]
     public void OnASurfaceTheCameraGrew_TheLayerStaysTheCanvasCentredInIt()
     {
-        // Expand and FixedHeight draw a wider surface to reveal more world; the layer is the canvas,
+        // Expand and FixedHeight draw a wider surface to reveal more world. The layer is the canvas,
         // centred on whole pixels so it lands on the grid the world already used.
         Assert.Equal(new Vector2(40f, 0f), FrameLayout.ScreenSlack(400, 180, Canvas));
         Assert.Equal(new Vector2(0f, 10f), FrameLayout.ScreenSlack(320, 201, Canvas));
@@ -110,7 +131,7 @@ public sealed class ScreenPlacementTests
         Assert.Equal(320.5f, placement.ToCanvas(new Vector2(641f, 90f)).X);
     }
 
-    // The host samples the mouse before the first frame draws, so the placement is settled from the
+    // The host samples the mouse before the first frame draws. The placement is settled from the
     // frame view and the back buffer up front: window pixels are never handed over as canvas pixels.
     [Fact]
     public void BeforeAFrameHasDrawn_AWindowPixelAlreadyReadsThroughTheLayersPlacement()
@@ -126,13 +147,6 @@ public sealed class ScreenPlacementTests
 
         Assert.Equal(1f, windowed.Scale);
         Assert.Equal(new Vector2(160f, 100f), windowed.ToCanvas(new Vector2(160f, 100f)));
-    }
-
-    [Fact]
-    public void BeforeAFrameHasDrawn_AWindowWithNoAreaPlacesNothing()
-    {
-        Assert.Equal(0f, Layout((320, 180), View(Canvas), 0, 720).Layer.Scale);
-        Assert.Equal(0f, Layout(null, View(Canvas), 0, 720).Layer.Scale);
     }
 
     // One routine resolves the surface, the slack in it and the present. The layer a pointer is
@@ -151,7 +165,7 @@ public sealed class ScreenPlacementTests
         float originY)
     {
         // 960 by 542 is a hair narrower than the canvas: the two thirds of a row Expand would reveal
-        // round down to none, so the surface stays the canvas with a one-pixel bar.
+        // round down to none. The surface stays the canvas with a one-pixel bar.
         ScreenLayout layout = Layout((320, 180), View(Canvas, Canvas, fit), 960, 542);
 
         Assert.Equal((surfaceWidth, surfaceHeight), layout.Surface);
@@ -178,7 +192,7 @@ public sealed class ScreenPlacementTests
     [Fact]
     public void OnASurfaceTheFitGrew_TheLayerSitsAtItsSlackInsideThePresentedSurface()
     {
-        // FixedHeight on a 2:1 window spans 360 world units across the 320-pixel canvas, so the
+        // FixedHeight on a 2:1 window spans 360 world units across the 320-pixel canvas. The
         // surface is 360 wide and the canvas sits 20 pixels into it.
         ScreenLayout layout = Layout(
             (320, 180),

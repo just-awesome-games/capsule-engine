@@ -12,7 +12,7 @@ public sealed class SpriteClipTests
         Assert.Equal(5, SpriteAnimatorFixtures.Shoot.Duration);
     }
 
-    // The sum is widened before it is checked, so a total that wraps an int is refused and not read as small.
+    // The sum is widened before it is checked. A total that wraps an int is refused and not read as small.
     [Fact]
     public void FramesHeldPastWhatDurationHolds_AreRefused()
     {

@@ -1,5 +1,3 @@
-using Capsule;
-
 namespace MinimalGame.Game;
 
 /// <summary>What the game does once when a run starts, before its first scene.</summary>

@@ -1,13 +1,5 @@
-using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Capsule;
-using Capsule.Input;
-using Capsule.Persistence;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-using Capsule.UI;
 
 namespace Capsule.AotSmoke.Logic;
 
@@ -15,7 +7,7 @@ namespace Capsule.AotSmoke.Logic;
 // back from the first, which is the whole persistence path under NativeAOT.
 public sealed record RunCounter(int Runs);
 
-// The game's own source-generated context, declared beside its keys; the store never sees it.
+// The game's own source-generated context, declared beside its keys. The store never sees it.
 [JsonSerializable(typeof(RunCounter))]
 public sealed partial class SmokeJsonContext : JsonSerializerContext;
 
@@ -114,13 +106,13 @@ public sealed class Beacon : Signal<string>
 public abstract class Signal<T> : Entity
     where T : class
 {
+    [Authorable]
+    public int Band { get; protected set; } = 1;
+
     protected Signal(EntitySpawn spawn)
         : base(spawn)
     {
     }
-
-    [Authorable]
-    public int Band { get; protected set; } = 1;
 }
 
 [JsonConverter(typeof(RouteConverter))]

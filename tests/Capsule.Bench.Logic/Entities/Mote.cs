@@ -1,12 +1,10 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 public sealed class Mote : Entity
 {
     private static readonly Sprite Frame = new(CapsuleAssets.Textures.TerrainTexture, new TextureRegion(0, 0, 4, 4));
+
+    public long DiesAt { get; set; }
 
     public Mote()
         : base(Vector2.Zero)
@@ -14,6 +12,4 @@ public sealed class Mote : Entity
         Add(new SpriteRenderer(Frame));
         Add(new VisibleOnScreenNotifier2D { Rect = new Rect(Vector2.Zero, new Vector2(4f, 4f)) });
     }
-
-    public long DiesAt { get; set; }
 }

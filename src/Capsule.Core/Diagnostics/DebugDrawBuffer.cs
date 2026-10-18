@@ -5,7 +5,7 @@ using Capsule.Rendering;
 namespace Capsule.Diagnostics;
 
 // One straight segment a DebugDraw call decomposed to. A null Color takes the channel's colour, resolved
-// when drawn. Motion is how far the followed thing moved this step, so the host can place the segment
+// when drawn. Motion is how far the followed thing moved this step. The host can place the segment
 // where that thing is drawn between steps. A segment is kept until the settled tick passes ExpiresAtTick.
 // Owner is what the host stamped while it ran the draw's hook, or null for a draw from anywhere else.
 internal readonly record struct DebugDrawSegment(
@@ -69,13 +69,13 @@ internal sealed class DebugDrawBuffer
     }
 
     // tick is the scheduler's settled tick, which the next step will run. A draw emitted during step N
-    // for one step expires at N + 1, so it shows on the frame settled after step N and is gone once step
+    // for one step expires at N + 1. It shows on the frame settled after step N and is gone once step
     // N + 1 has run.
     internal void Settle(long tick)
     {
         _tick = tick;
 
-        // Compacted in place, so the lists keep their capacity and a warm buffer allocates nothing.
+        // Compacted in place. The lists keep their capacity and a warm buffer allocates nothing.
         Span<DebugDrawSegment> segments = CollectionsMarshal.AsSpan(_segments);
         int keptSegments = 0;
         for (int index = 0; index < segments.Length; index++)

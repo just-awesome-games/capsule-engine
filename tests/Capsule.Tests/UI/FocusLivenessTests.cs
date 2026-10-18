@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Input;
 using Capsule.Scenes;
+using Capsule.Tests.Scenes;
 using Capsule.UI;
 
 using static Capsule.Tests.UI.FocusFixtures;
@@ -53,7 +54,7 @@ public sealed class FocusLivenessTests
     }
 
     // A removed entity takes its item out of the focus entirely: the step that notices spends itself
-    // landing the first live item, so the confirm that arrived with it presses nothing.
+    // landing the first live item. The confirm that arrived with it presses nothing.
     [Fact]
     public void TheFocusedItemsEntityLeavingTheScene_ReleasesItAndLandsTheFirstLiveItemWithoutPressing()
     {
@@ -155,7 +156,7 @@ public sealed class FocusLivenessTests
 
     // A menu rebuilt inside a step: every row leaves, new rows arrive queued to join the scene, and
     // the one the menu remembers takes the focus at once. A row queued to join is live enough to hold
-    // the focus, so the next step reads its input from there.
+    // the focus. The next step reads its input from there.
     [Fact]
     public void AMenuRebuiltInsideAStep_OpensOnTheItemItAskedForAtOnce()
     {
@@ -191,7 +192,7 @@ public sealed class FocusLivenessTests
     {
         using Menu menu = Column().Open();
         Focusable nested = new(Box);
-        _ = new WorldHolder(Vector2.Zero, nested) { Parent = menu.At(1).Entity };
+        _ = new SceneFixtures.Holder(Vector2.Zero, nested) { Parent = menu.At(1).Entity };
         menu.Navigator.Add(nested);
         menu.Rest();
 
@@ -295,7 +296,7 @@ public sealed class FocusLivenessTests
     }
 
     // The focused item leaves and comes back as a root of its own before the navigator steps. It is live
-    // again but no longer held, so the next step repairs the focus and the confirm never reaches it.
+    // again but no longer held. The next step repairs the focus and the confirm never reaches it.
     [Fact]
     public void AFocusedGatheredItemThatLeavesAndIsLiveAgainElsewhere_IsRepairedAwayFromAndNeverPressed()
     {

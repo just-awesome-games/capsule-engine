@@ -30,15 +30,9 @@ public readonly record struct CameraView(
     Vector2 ScrollCenter = default)
 {
     // How far from square an output may be before a fit that follows its aspect reveals world this view
-    // culled. A step's render intent is drawn on whatever output the frame has by then, so a fit other
+    // culled. A step's render intent is drawn on whatever output the frame has by then. A fit other
     // than Letterbox is culled against this ceiling rather than any one output.
     private const float CullAspectCeiling = 4f;
-
-    /// <summary>A view that does not interpolate, with the previous and current centre at one point.</summary>
-    public CameraView(Vector2 center, Vector2 size)
-        : this(center, center, size)
-    {
-    }
 
     /// <summary><see cref="Size"/> as of the previous fixed step, which defaults to <see cref="Size"/>.</summary>
     public Vector2 PreviousSize { get; init; } = Size;
@@ -55,6 +49,12 @@ public readonly record struct CameraView(
     /// </summary>
     public Vector2 Offset { get; init; }
 
+    /// <summary>A view that does not interpolate, with the previous and current centre at one point.</summary>
+    public CameraView(Vector2 center, Vector2 size)
+        : this(center, center, size)
+    {
+    }
+
     /// <summary>
     /// The union of the viewport regions this view resolves to across a step, which culling tests
     /// against. <see cref="Bounds"/> confine it as they confine a drawn frame, and a
@@ -69,7 +69,7 @@ public readonly record struct CameraView(
             Vector2 low = Vector2.Min(PreviousCenter, Center);
             Vector2 high = Vector2.Max(PreviousCenter, Center);
 
-            // Confining is a clamp, so it is monotone in the centre. Confining the two endpoints covers
+            // Confining is a clamp and monotone in the centre. Confining the two endpoints covers
             // every centre the frame interpolates between them, and confining at the widest span covers
             // every narrower span an output or an interpolated size could ask for.
             if (Bounds is { } bounds)
@@ -118,7 +118,7 @@ public readonly record struct CameraView(
 
     // The world rect this view shows across span world units, with the centre and offset interpolated
     // by alpha, confined to Bounds and then offset as Resolve places it. The renderer calls this with
-    // ResolveSpan's span quantised down to whole surface pixels, so what it draws agrees with this rect
+    // ResolveSpan's span quantised down to whole surface pixels. What it draws agrees with this rect,
     // and the placed span stays within what SweptBounds covers.
     internal Rect Place(float alpha, Vector2 span)
     {
@@ -138,7 +138,7 @@ public readonly record struct CameraView(
 
         center += StepInterpolation.Interpolate(PreviousOffset, Offset, alpha);
 
-        return new Rect(center.X - half.X, center.Y - half.Y, center.X + half.X, center.Y + half.Y);
+        return Rect.FromEdges(center.X - half.X, center.Y - half.Y, center.X + half.X, center.Y + half.Y);
     }
 
     // The world units this view spans on an output of outputSize pixels, per Fit. This is the span
@@ -160,7 +160,7 @@ public readonly record struct CameraView(
         }
 
         // Expand grows whichever axis the output has slack on and holds the other at its declared
-        // minimum, so the scale matches what the binding axis would have given.
+        // minimum. The scale matches what the binding axis would have given.
         return aspect > Size.X / Size.Y
             ? new Vector2(Size.Y * aspect, Size.Y)
             : new Vector2(Size.X, Size.X / aspect);
@@ -168,11 +168,11 @@ public readonly record struct CameraView(
 
     // The view an entity with this scroll factor is drawn by, shaped so its SweptBounds cover every rect
     // the frame can draw that entity's layer at. A frame places the real view at a span s' no wider than
-    // the cull span s, inside SweptBounds [Kmin, Kmax], so its centre c lies in
+    // the cull span s, inside SweptBounds [Kmin, Kmax]. Its centre c lies in
     // [Kmin + s'/2, Kmax - s'/2]. The layer's rect is s' wide about C + (c - C) f, where C is
     // ScrollCenter. Mapping the two ends of SweptBounds by f and widening each side by
     // s max(0, 1 - |f|) / 2 covers it for every s' and either sign of f. That range is never narrower
-    // than s, so a view of the cull size centred s/2 inside each end sweeps exactly it.
+    // than s. A view of the cull size centred s/2 inside each end sweeps exactly it.
     internal CameraView ScrolledBy(Vector2 factor)
     {
         Rect swept = SweptBounds;

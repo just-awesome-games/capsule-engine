@@ -92,7 +92,7 @@ public sealed class ColliderCastTests
     }
 
     // The whole value of the sweep as a probe: a surface it runs along is not in its way. The body
-    // rests on the floor and stands flush against the wall, so the two cases differ only in which
+    // rests on the floor and stands flush against the wall. The two cases differ only in which
     // way the sweep goes.
     [Fact]
     public void Cast_MeetsTheSurfaceItDrivesIntoAndNotTheOnesItRunsAlong()
@@ -128,7 +128,7 @@ public sealed class ColliderCastTests
         Assert.True(prober.Collider.Cast(new Vector2(0f, 6f), out _));
     }
 
-    // The sweep starts on top of the collider's own shape, so without the exclusion every cast would
+    // The sweep starts on top of the collider's own shape. Without the exclusion every cast would
     // report itself at fraction 0 and never reach anything beyond.
     [Fact]
     public void Cast_MeetsAnotherColliderAndNeverItself()
@@ -173,8 +173,8 @@ public sealed class ColliderCastTests
         Assert.False(world.ShapeCast(shape, new Vector2(36f, 32f), away, CollisionFilter.Everything, out _));
     }
 
-    // Detects is the default filter, so a collider that detects nothing sweeps through everything;
-    // the overload is how a caller asks a different question without changing the collider.
+    // Detects is the default filter. A collider that detects nothing sweeps through everything.
+    // The overload is how a caller asks a different question without changing the collider.
     [Fact]
     public void Cast_UsesTheCollidersOwnFilterUnlessGivenAnother()
     {

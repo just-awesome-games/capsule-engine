@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.Reflection;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
@@ -13,7 +12,6 @@ public sealed class AuthorableObjectTests
     private const string Game = """
         #nullable enable
         using Capsule.Scenes;
-        using Capsule.Scenes.Spawning;
 
         namespace Game;
 
@@ -107,23 +105,19 @@ public sealed class AuthorableObjectTests
     }
 
     [Fact]
-    public void AKeyNoNestedMemberTakes_FailsTheLoadNamingItsPath()
-    {
-        SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(
-            () => Composed("""{"entities": [{"id": 1, "type": "lamp"}, {"type": "switch", "trigger": {"target": 1, "dely": 2}}]}"""));
+    public void AKeyNoNestedMemberTakes_FailsTheLoadNamingItsPath() =>
+        GeneratorHarness.AssertLoadRefused(
+            () => Composed("""{"entities": [{"id": 1, "type": "lamp"}, {"type": "switch", "trigger": {"target": 1, "dely": 2}}]}"""),
+            "scene document 'scenes/room': entities[1] ('switch') ",
+            "sets 'trigger.dely', which no authorable member takes. 'trigger's authorable members are: delay, target.");
 
-        Assert.Contains("entities[1] ('switch') sets 'trigger.dely', which no authorable member takes. 'trigger's authorable members are: delay, target.", failure.Message, StringComparison.Ordinal);
-    }
-
-    // An abstract member's class is never constructed, so an object without a type has nothing to fill.
+    // An abstract member's class is never constructed. An object without a type has nothing to fill.
     [Fact]
-    public void AnAbstractMemberWithNoType_FailsTheLoadNamingTheTypes()
-    {
-        SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(
-            () => Composed("""{"entities": [{"id": 1, "type": "lamp"}, {"type": "switch", "trigger": {"target": 1}, "movement": {"speed": 30}}]}"""));
-
-        Assert.Contains("sets 'movement' with no type, and the member holds no object to fill. Write one of: patrol.", failure.Message, StringComparison.Ordinal);
-    }
+    public void AnAbstractMemberWithNoType_FailsTheLoadNamingTheTypes() =>
+        GeneratorHarness.AssertLoadRefused(
+            () => Composed("""{"entities": [{"id": 1, "type": "lamp"}, {"type": "switch", "trigger": {"target": 1}, "movement": {"speed": 30}}]}"""),
+            "scene document 'scenes/room': entities[1] ('switch') ",
+            "sets 'movement' with no type, and the member holds no object to fill. Write one of: patrol.");
 
     private static Scene Composed(string json) => Registry.Value.Create(new SceneKey("scenes/room"), SceneDocument.Parse(json));
 

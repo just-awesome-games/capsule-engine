@@ -24,7 +24,7 @@ public sealed class FrameView
 {
     // A rect that overlaps nothing, which an empty one does not guarantee: a crossed rect still overlaps
     // a rect that straddles it.
-    private static readonly Rect Nothing = new(float.PositiveInfinity, float.PositiveInfinity, float.NegativeInfinity, float.NegativeInfinity);
+    private static readonly Rect Nothing = Rect.FromEdges(float.PositiveInfinity, float.PositiveInfinity, float.NegativeInfinity, float.NegativeInfinity);
 
     private readonly Layer _world = new();
     private readonly Layer _screen = new();
@@ -43,7 +43,7 @@ public sealed class FrameView
     private ColorRgba _flash;
     private bool _flashing;
 
-    // Whether a stored sprite takes the tint or the flash, so an unstyled store costs one flag test.
+    // Whether a stored sprite takes the tint or the flash. An unstyled store costs one flag test.
     private bool _styled;
 
     private Vector2 _canvas;
@@ -179,8 +179,8 @@ public sealed class FrameView
     }
 
     // Whether this frame runs the lighting pass: a non-white ambient or a light added. Rewritten from
-    // false by every Clear, so a frame whose last light left runs none. An additive sprite alone does
-    // not open the pass: it is a light only in a frame that lights, so a scene that set up no
+    // false by every Clear, and a frame whose last light left runs none. An additive sprite alone does
+    // not open the pass. It is a light only in a frame that lights, and a scene that set up no
     // lighting keeps its unlit look and pays nothing.
     internal bool LitWorld { get; private set; }
 
@@ -253,7 +253,8 @@ public sealed class FrameView
     /// </summary>
     /// <remarks>
     /// One submission is one sprite or line offered to the culler. Text, a panel and a tiling count
-    /// the copies they expand to, and an expansion that produces nothing counts nothing.
+    /// the copies they expand to, and an expansion that produces nothing counts nothing. A text run
+    /// rejected whole before layout counts nothing.
     /// </remarks>
     public RenderMetrics Metrics => new(
         _submitted,
@@ -262,8 +263,8 @@ public sealed class FrameView
 
     // The colour the running renderer's entity is tinted by, and white outside a renderer, with its
     // composed flash, the colour in RGB and the amount in alpha, transparent outside a renderer. The
-    // scene sets both before each Draw. Only the leaves that store an intent apply them, so an
-    // expansion such as text is tinted once, and the flash applies to sprites only, since only a
+    // scene sets both before each Draw. Only the leaves that store an intent apply them, and an
+    // expansion such as text is tinted once. The flash applies to sprites only, because only a
     // sprite draws through the shader that mixes it. White and transparent cost one flag test.
     internal void SetStyle(ColorRgba tint, ColorRgba flash)
     {
@@ -474,10 +475,10 @@ public sealed class FrameView
         int lineHeight = font.LineHeight;
         ReadOnlySpan<TextureHandle> pages = font.Pages;
 
-        // The run is laid out in full whatever the visible count, so revealing it never moves a glyph.
+        // The run is laid out in full whatever the visible count. Revealing it never moves a glyph.
         int visible = text.VisibleCharacters ?? int.MaxValue;
 
-        // The box is the same shape at both ends of the step, so the previous origin differs by travel.
+        // The box is the same shape at both ends of the step. The previous origin differs by travel.
         Vector2 travel = text.PreviousPosition - text.Position;
 
         foreach (GlyphPlacement glyphPlacement in new GlyphRun(font, text.Text.Span, placed.BoxWidth, placed.Wrap, placed.Alignment))
@@ -530,7 +531,7 @@ public sealed class FrameView
     public void Add(in NineSliceIntent panel, RenderSpace space)
     {
         // Negated comparisons reject a NaN extent along with the non-positive ones. Corner slices keep
-        // their own size whatever the target, so without this a panel of no extent would still draw them.
+        // their own size whatever the target. Without this a panel of no extent would still draw them.
         if (!(panel.Size.X > 0f) || !(panel.Size.Y > 0f))
         {
             return;
@@ -665,7 +666,7 @@ public sealed class FrameView
             return;
         }
 
-        Rect reach = bounded ? canvas : new Rect(float.NegativeInfinity, float.NegativeInfinity, float.PositiveInfinity, float.PositiveInfinity);
+        Rect reach = bounded ? canvas : Rect.FromEdges(float.NegativeInfinity, float.NegativeInfinity, float.PositiveInfinity, float.PositiveInfinity);
         ReadOnlySpan<ClipRegion> levels = CollectionsMarshal.AsSpan(_screen.ClipLevels).Slice(_screen.ClipStart, _screen.ClipCount);
         for (int i = 0; i < levels.Length; i++)
         {

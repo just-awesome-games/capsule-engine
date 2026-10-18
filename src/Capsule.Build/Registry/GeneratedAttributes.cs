@@ -2,9 +2,12 @@ namespace Capsule.Build.Registry;
 
 /// <summary>
 /// The attributes generated members carry for the generator, each declared beside <c>CapsuleAssets</c>
-/// by the step whose members use it. Each is conditional on a symbol no build defines. The generator
-/// reads it from source, and the compiler leaves it out of the assembly.
+/// by the step whose members use it.
 /// </summary>
+/// <remarks>
+/// Each is conditional on a symbol no build defines. The generator reads it from source, and the
+/// compiler leaves it out of the assembly.
+/// </remarks>
 internal static class GeneratedAttributes
 {
     /// <summary>What marks a texture or sound member with the key and extension a scene document names it by.</summary>
@@ -14,7 +17,7 @@ internal static class GeneratedAttributes
     internal const string SceneDocumentName = "CapsuleGeneratedSceneDocument";
 
     /// <summary>The declaration of <see cref="AssetName"/>.</summary>
-    internal const string Asset = """
+    internal const string AssetDeclaration = """
             /// <summary>A texture or sound, with the key and extension a scene document names it by. Generated code.</summary>
             [global::System.AttributeUsage(global::System.AttributeTargets.Property)]
             [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
@@ -30,7 +33,7 @@ internal static class GeneratedAttributes
         """;
 
     /// <summary>The declaration of <see cref="SceneDocumentName"/>.</summary>
-    internal const string SceneDocument = """
+    internal const string SceneDocumentDeclaration = """
             /// <summary>A shipped scene document, with the baseScene the build read from it. Generated code.</summary>
             [global::System.AttributeUsage(global::System.AttributeTargets.Property)]
             [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]

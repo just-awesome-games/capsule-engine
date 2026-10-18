@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using Capsule.Assets;
 using Capsule.Rendering;
@@ -10,22 +11,34 @@ public sealed class TileGridTests
 {
     private static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
 
-    [Fact]
-    public void Constructor_RejectsAPaletteThatDoesNotBeginWithEmpty()
+    // A palette written as "empty", "name" for a tile type with no cell, or "name:cell". Each row breaks
+    // one rule of the palette, the area or the texture and columns pairing.
+    [Theory]
+    [InlineData("ground:0 wall:1", 2, 1, true, 4, "tileTypes[0]")]
+    [InlineData("empty ground:0 ground:1", 2, 1, true, 4, "ground")]
+    [InlineData("empty", 65536, 65536, false, 0, "requires 4294967296")]
+    [InlineData("empty hazard", 2, 1, true, 4, "terrain")]
+    [InlineData("empty ground:0", 2, 1, true, 0, "columns")]
+    [InlineData("empty hazard", 2, 1, false, 4, "columns is 4")]
+    public void Constructor_RejectsABrokenPaletteAreaOrAtlas(string palette, int width, int height, bool textured, int columns, string named)
     {
+        TileType[] tileTypes =
+        [
+            .. palette.Split(' ').Select(static entry => entry.Split(':') switch
+            {
+                ["empty"] => TileGrid.EmptyTile,
+                [string name] => new TileType { Name = name },
+                [string name, string cell] => SceneFixtures.Tile(name, int.Parse(cell, CultureInfo.InvariantCulture)),
+                _ => throw new ArgumentException($"{entry} is not a palette entry. Write empty, name or name:cell."),
+            }),
+        ];
+        // The overflowing grid is refused before its tiles are counted.
+        int[] tiles = width * (long)height == 2 ? [0, 1] : [];
+
         ArgumentException error = Assert.Throws<ArgumentException>(
-            () => Grid([SceneFixtures.Tile("ground", 0), SceneFixtures.Tile("wall", 1)], [0, 1]));
+            () => new TileGrid(16, width, height, tileTypes, tiles, textured ? Atlas : null, columns));
 
-        Assert.Contains("tileTypes[0]", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Constructor_RejectsARepeatedTileTypeName()
-    {
-        ArgumentException error = Assert.Throws<ArgumentException>(
-            () => Grid([TileGrid.EmptyTile, SceneFixtures.Tile("ground", 0), SceneFixtures.Tile("ground", 1)], [0, 1]));
-
-        Assert.Contains("ground", error.Message, StringComparison.Ordinal);
+        Assert.Contains(named, error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -39,17 +52,8 @@ public sealed class TileGridTests
         Assert.Null(grid.Sprites.Span[1]);
     }
 
-    [Fact]
-    public void Constructor_RejectsAGridWhoseAreaOverflowsAnInt()
-    {
-        ArgumentException error = Assert.Throws<ArgumentException>(
-            () => new TileGrid(16, 65536, 65536, [TileGrid.EmptyTile], []));
-
-        Assert.Contains("requires 4294967296", error.Message, StringComparison.Ordinal);
-    }
-
-    // A cell is read across a row of Columns and then down, square at the grid's tile size, so
-    // the whole atlas layout falls out of three numbers the document already carries.
+    // A cell is read across a row of Columns and then down, square at the grid's tile size.
+    // The whole atlas layout falls out of three numbers the document already carries.
     [Theory]
     [InlineData(0, 0, 0)]
     [InlineData(2, 32, 0)]
@@ -69,33 +73,6 @@ public sealed class TileGridTests
         Assert.Equal<Sprite?>(
             new Sprite(Atlas, new TextureRegion(expectedX, expectedY, 16, 16), new Vector2(8, 8)),
             grid.Sprites.Span[1]);
-    }
-
-    [Fact]
-    public void Constructor_RejectsATextureNoTileTypeDrawsFrom()
-    {
-        ArgumentException error = Assert.Throws<ArgumentException>(
-            () => new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileType { Name = "hazard" }], [0, 1], Atlas, 4));
-
-        Assert.Contains("terrain", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Constructor_RejectsATexturedGridWithNoColumns()
-    {
-        ArgumentException error = Assert.Throws<ArgumentException>(
-            () => new TileGrid(16, 2, 1, [TileGrid.EmptyTile, SceneFixtures.Tile("ground", 0)], [0, 1], Atlas, 0));
-
-        Assert.Contains("columns", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Constructor_RejectsColumnsWithoutATexture()
-    {
-        ArgumentException error = Assert.Throws<ArgumentException>(
-            () => new TileGrid(16, 2, 1, [TileGrid.EmptyTile, new TileType { Name = "hazard" }], [0, 1], null, 4));
-
-        Assert.Contains("columns is 4", error.Message, StringComparison.Ordinal);
     }
 
     // The refusal names the cell whatever makes it undrawable: no texture to cut it from, a negative
@@ -127,7 +104,4 @@ public sealed class TileGridTests
 
         Assert.Contains(named, error.Message, StringComparison.Ordinal);
     }
-
-    private static TileGrid Grid(TileType[] tileTypes, int[] tiles) =>
-        new(16, 2, 1, tileTypes, tiles, Atlas, 4);
 }

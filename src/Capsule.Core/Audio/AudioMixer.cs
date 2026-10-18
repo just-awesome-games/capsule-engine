@@ -71,8 +71,7 @@ public sealed class AudioMixer
         get => _unfocusedVolume;
         set
         {
-            Guard.InUnit(value, nameof(value));
-            _unfocusedVolume = value;
+            _unfocusedVolume = Guard.InUnit(value, nameof(value));
             if (_unfocused)
             {
                 RaiseGains(0);
@@ -160,8 +159,8 @@ public sealed class AudioMixer
 
     /// <summary>Pauses this bus, registering it if it is new.</summary>
     /// <remarks>
-    /// Every voice on the bus is held where it is. Pausing <see cref="AudioBus.Master"/> pauses
-    /// every voice.
+    /// Every voice on the bus is held where it is, and a fade on it keeps running. Pausing
+    /// <see cref="AudioBus.Master"/> pauses every voice.
     /// </remarks>
     public void Pause(AudioBus bus) => SetBusPaused(bus, paused: true);
 
@@ -299,38 +298,11 @@ public sealed class AudioMixer
     /// Holds <paramref name="voice"/> where it is, keeping the ticks it has left. A voice already
     /// paused in its own right is unchanged.
     /// </summary>
-    public void Pause(Voice voice)
-    {
-        if (!TryResolve(voice, out int index) || _slots[index].SelfPaused)
-        {
-            return;
-        }
-
-        ref Slot slot = ref _slots[index];
-        slot.SelfPaused = true;
-
-        if (!slot.Paused)
-        {
-            Hold(ref slot, index);
-        }
-    }
+    /// <remarks>A fade on the voice keeps running while it is held.</remarks>
+    public void Pause(Voice voice) => SetVoicePaused(voice, paused: true);
 
     /// <summary>Continues <paramref name="voice"/> from where it was held. A voice whose bus is still paused stays held and raises nothing.</summary>
-    public void Resume(Voice voice)
-    {
-        if (!TryResolve(voice, out int index) || !_slots[index].SelfPaused)
-        {
-            return;
-        }
-
-        ref Slot slot = ref _slots[index];
-        slot.SelfPaused = false;
-
-        if (slot.Paused && !EffectivelyPaused(in slot))
-        {
-            Release(ref slot, index);
-        }
-    }
+    public void Resume(Voice voice) => SetVoicePaused(voice, paused: false);
 
     /// <summary>
     /// Sets this voice's own linear amplitude in [0, 1]. This cancels any ramp
@@ -557,7 +529,7 @@ public sealed class AudioMixer
     }
 
     // A live one-shot was armed against the step length in force when it started. Bank its remaining clip
-    // time at the old length and re-arm at the new one, so the voice still lasts its clip's duration. A
+    // time at the old length and re-arm at the new one. The voice still lasts its clip's duration. A
     // ramp is rebased the same way, to elapsed and remaining wall-clock seconds at the old length and
     // back to ticks at the new one. This preserves the eased fraction it has reached.
     private void ChangeStepLength(double stepSeconds)
@@ -667,25 +639,38 @@ public sealed class AudioMixer
         Span<Slot> slots = _slots;
         for (int i = 0; i < slots.Length; i++)
         {
-            if (ReclaimIfExpired(ref slots[i]))
+            if (!ReclaimIfExpired(ref slots[i]))
             {
-                continue;
+                SettlePause(ref slots[i], i);
             }
+        }
+    }
 
-            bool held = EffectivelyPaused(in slots[i]);
-            if (held == slots[i].Paused)
-            {
-                continue;
-            }
+    private void SetVoicePaused(Voice voice, bool paused)
+    {
+        if (TryResolve(voice, out int index))
+        {
+            _slots[index].SelfPaused = paused;
+            SettlePause(ref _slots[index], index);
+        }
+    }
 
-            if (held)
-            {
-                Hold(ref slots[i], i);
-            }
-            else
-            {
-                Release(ref slots[i], i);
-            }
+    // Holds or releases the voice to match its own pause, its bus's and the master's.
+    private void SettlePause(ref Slot slot, int index)
+    {
+        bool held = EffectivelyPaused(in slot);
+        if (held == slot.Paused)
+        {
+            return;
+        }
+
+        if (held)
+        {
+            Hold(ref slot, index);
+        }
+        else
+        {
+            Release(ref slot, index);
         }
     }
 
@@ -771,7 +756,7 @@ public sealed class AudioMixer
     private AudioBus BusOf(int index) => index == 0 ? AudioBus.Master : new AudioBus(_buses[index].Name);
 
     // Whether this slot holds nothing addressable, freeing it if it holds a one-shot that has run out. An
-    // expired slot keeps Live until something reaches it, so walks over the table ask this instead of Live.
+    // expired slot keeps Live until something reaches it. Walks over the table ask this instead of Live.
     // An expired voice left in place would respond to a bus-wide change.
     private bool ReclaimIfExpired(ref Slot slot)
     {
@@ -927,7 +912,7 @@ public sealed class AudioMixer
     }
 
     // Checked even for a playback that does not loop. A bad region is refused at the clip's first play.
-    // HasRegion reads a malformed region as no region, so the shape is tested directly here.
+    // HasRegion reads a malformed region as no region. The shape is tested directly here.
     private static void RequireRegion(in AudioClip clip, string parameterName)
     {
         AudioLoopRegion region = clip.LoopRegion;
@@ -1009,7 +994,7 @@ public sealed class AudioMixer
     }
 
     // A linear-time ramp on one float field, stepped by BeginStep. From and To are the values at
-    // StartTick and EndTick; between them the field holds From plus the eased fraction of their span.
+    // StartTick and EndTick. Between them the field holds From plus the eased fraction of their span.
     private struct Ramp
     {
         internal float From;

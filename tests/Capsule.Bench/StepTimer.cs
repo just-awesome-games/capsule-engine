@@ -9,17 +9,18 @@ namespace Capsule.Bench;
 
 /// <summary>
 /// The headless lane's driver: presses nothing and times every fixed step from one snapshot request
-/// to the next, which under <c>--headless</c> is the step and nothing else. Between steps it builds
-/// the frame a presenting host would and times that apart. After 180 warm-up steps it measures 600,
-/// prints them on one tagged line the suite parses, and ends the run.
+/// to the next, which under <c>--headless</c> is the step and nothing else.
 /// </summary>
 /// <remarks>
-/// It also counts the bytes the steps and the builds allocate on this thread. The fixed step and
-/// the build both run here, and a scene spawns no work on another thread once it has loaded.
+/// Between steps it builds the frame a presenting host would and times that apart. After 180 warm-up
+/// steps it measures 600, prints them on one tagged line the suite parses, and ends the run. It also
+/// counts the bytes the steps and the builds allocate on this thread. The fixed step and the build
+/// both run here, and a scene spawns no work on another thread once it has loaded.
 /// </remarks>
 public sealed class StepTimer : IInputDriver
 {
-    private const int WarmUpSteps = 180;
+    // The steps every headless driver runs before it measures, which the soak shares.
+    internal const int WarmUpSteps = 180;
 
     private const int MeasuredSteps = 600;
 
@@ -29,7 +30,7 @@ public sealed class StepTimer : IInputDriver
     private readonly double[] _viewMs = new double[MeasuredSteps];
 
     // The scene's own view builds only when read, and a headless run reads none. The driver builds
-    // into its own view the same way, so the step's clock never sees the build.
+    // into its own view the same way. The step's clock never sees the build.
     private readonly FrameView _view = new();
     private long _previous;
     private long _allocatedBeforeStep;
@@ -43,7 +44,7 @@ public sealed class StepTimer : IInputDriver
         long now = Stopwatch.GetTimestamp();
         long stepped = GC.GetAllocatedBytesForCurrentThread();
 
-        scene.DrawFrame(_view);
+        scene.Drawing.DrawFrame(_view);
         long built = Stopwatch.GetTimestamp();
         long drawn = GC.GetAllocatedBytesForCurrentThread();
 
@@ -76,7 +77,7 @@ public sealed class StepTimer : IInputDriver
     }
 
     // The gen-0 collections over the measured steps, the bytes the steps and the builds allocated,
-    // each step's milliseconds and each build's that followed it; false for any other line.
+    // each step's milliseconds and each build's that followed it. False for any other line.
     internal static bool TryParse(string line, out int gen0, out long stepBytes, out long viewBytes, out double[] stepMs, out double[] viewMs)
     {
         gen0 = 0;

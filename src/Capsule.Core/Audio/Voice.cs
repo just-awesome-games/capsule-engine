@@ -10,7 +10,7 @@ namespace Capsule.Audio;
 /// </remarks>
 public readonly record struct Voice
 {
-    // Slot in the low bits and generation above it. The generation advances when a slot is freed, so a
+    // Slot in the low bits and generation above it. The generation advances when a slot is freed. A
     // handle to the voice that used to live there cannot address the voice living there now.
     private const int SlotBits = 8;
     private const int SlotMask = (1 << SlotBits) - 1;

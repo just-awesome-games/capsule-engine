@@ -5,14 +5,17 @@ using Capsule.Build.Caching;
 using Capsule.Build.Fonts;
 using Capsule.Build.Registry;
 using Capsule.Build.Textures;
-using Capsule.Scenes.Documents;
+using Capsule.Scenes;
 
 namespace Capsule.Build;
 
 /// <summary>
 /// What every step of one run reads and writes. The values one step hands the next are properties set
-/// once by the step named on each. Reading one before that step ran throws.
+/// once by the step named on each.
 /// </summary>
+/// <remarks>
+/// Reading one before that step ran throws.
+/// </remarks>
 internal sealed class PipelinePass(string outputDirectory, CapsuleBuild configuration, TextWriter output, TextWriter error)
 {
     // What the item an Each runs on this thread has reported, replayed in item order once every item
@@ -41,6 +44,8 @@ internal sealed class PipelinePass(string outputDirectory, CapsuleBuild configur
 
     private DerivationCache? _cache;
 
+    private string[]? _developmentOnly;
+
     private int _failures;
 
     /// <summary>Where the run writes everything.</summary>
@@ -67,6 +72,12 @@ internal sealed class PipelinePass(string outputDirectory, CapsuleBuild configur
         get => Ran(_requests, nameof(Requests), nameof(BuildRequests) + "." + nameof(BuildRequests.Walk));
         set => _requests = value;
     }
+
+    /// <summary>
+    /// Every directory a shipping pass leaves out, as <see cref="Keys.DevelopmentOnlyDirectories"/> finds
+    /// them, or none in any other pass.
+    /// </summary>
+    internal string[] DevelopmentOnly => _developmentOnly ??= Requests.Shipping ? Keys.DevelopmentOnlyDirectories(Requests) : [];
 
     /// <summary>What the last run derived, which every cached step reuses from. Set once the tree is walked.</summary>
     internal DerivationCache Cache
@@ -296,12 +307,7 @@ internal sealed class PipelinePass(string outputDirectory, CapsuleBuild configur
         Assets.Declare(source, (code, indent, identifier) => write(code, indent, identifier, source, model));
 
     /// <summary>Reports one defect against <paramref name="anchor"/>, the file or line it is in.</summary>
-    internal void Fail(string anchor, string message)
-    {
-        // A reader that already anchored its message to the same path is not anchored twice.
-        string prefix = anchor + ": ";
-        Emit(error: true, prefix + (message.StartsWith(prefix, StringComparison.Ordinal) ? message[prefix.Length..] : message));
-    }
+    internal void Fail(string anchor, string message) => Emit(error: true, $"{anchor}: {message}");
 
     /// <summary>Reports a warning against <paramref name="anchor"/>. A warning fails nothing.</summary>
     internal void Warn(string anchor, string message) => Emit(error: false, $"{anchor}: {message}");

@@ -1,6 +1,3 @@
-using Capsule.Rendering;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Components;
 
 // Tints its renderer on and off on a period, as a game marks an invulnerable actor.

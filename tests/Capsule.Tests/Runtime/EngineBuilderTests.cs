@@ -7,7 +7,6 @@ using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Persistence;
 using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
 
 namespace Capsule.Tests.Runtime;
 
@@ -59,7 +58,7 @@ public sealed class EngineBuilderTests
         Assert.ThrowsAny<ArgumentException>(() => SceneBuilder().WithLocalFolder(folderName));
     }
 
-    // The canvas a run's screen layer is laid out in: declared, it is what the game said; otherwise
+    // The canvas a run's screen layer is laid out in: declared, it is what the game said. Otherwise
     // the render resolution stands in, and with neither the window the run opens at.
     [Fact]
     public void TheCanvas_IsTheDeclaredOneElseTheRenderResolutionElseTheWindow()
@@ -128,11 +127,12 @@ public sealed class EngineBuilderTests
     }
 
     // The first scene composes before any window opens, and a failure there is a crash like one in
-    // the loop. Nothing ships here, so the scene document is missing.
+    // the loop. Nothing ships here. The scene document is missing.
     [Fact]
     public void RunScene_ReportsAFirstSceneThatFailsToComposeToTheCrashLog()
     {
-        CrashRecordingPlatform platform = new();
+        using TempWorkspace saves = new("capsule-crash-saves");
+        CrashRecordingPlatform platform = new(saves.Root);
         EngineBuilder builder = CapsuleEngine.Configure(
                 GameName,
                 platform,
@@ -149,8 +149,8 @@ public sealed class EngineBuilderTests
     private static EngineBuilder SceneBuilder(string gameName = GameName) =>
         CapsuleEngine.Configure(gameName, new DesktopPlatform(), new SceneRegistry(new EntityRegistry([]), [MenuRegistration]));
 
-    // Every setter a game reaches for, so a rejection above is the run's and not a half-built
-    // builder's; silent logging is where a headless run starts.
+    // Every setter a game reaches for. A rejection above is the run's and not a half-built
+    // builder's. Silent logging is where a headless run starts.
     private static EngineBuilder ConfiguredBuilder() =>
         SceneBuilder()
             .WithWindowTitle("Spec")
@@ -175,14 +175,14 @@ public sealed class EngineBuilderTests
 
     private sealed class Room01(SceneContent content) : Scene(content);
 
-    // Ships nothing, keeps saves nowhere and records what the run reports as a crash.
-    private sealed class CrashRecordingPlatform : HostPlatform
+    // Ships nothing, keeps saves under the given root and records what the run reports as a crash.
+    private sealed class CrashRecordingPlatform(string saveRoot) : HostPlatform
     {
         internal List<Exception> Reported { get; } = [];
 
         protected internal override Stream OpenContent(string relativePath) => throw new FileNotFoundException(null, relativePath);
 
-        protected internal override ISaveStorage OpenSaveStorage(string localFolderName) => new DirectorySaveStorage(Path.Combine(Path.GetTempPath(), "capsule-never-written"));
+        protected internal override ISaveStorage OpenSaveStorage(string localFolderName) => new DirectorySaveStorage(saveRoot);
 
         protected internal override void ReportCrash(string localFolderName, Exception exception) => Reported.Add(exception);
     }

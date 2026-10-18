@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Capsule.Generators;
 
-/// <summary>An array compared by its elements, so a model holding one caches between generator runs.</summary>
+/// <summary>An array compared by its elements, for a model holding one to cache between generator runs.</summary>
 internal readonly struct EquatableArray<T>(ImmutableArray<T> items) : IEquatable<EquatableArray<T>>
 {
     private readonly ImmutableArray<T> _items = items;

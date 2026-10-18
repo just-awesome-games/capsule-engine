@@ -11,7 +11,7 @@
       "type": "string"
     },
     "maxSize": {
-      "description": "The largest extent a page reaches on either axis, in texels. A power of two up to 8192.",
+      "description": "The largest extent a page reaches on either axis, in texels. A power of two.",
       "default": 4096,
       "type": "integer",
       "enum": [

@@ -23,6 +23,23 @@ public sealed class GridRaycastTests
         Assert.Equal(new Vector2(0f, -1f), downwards.Normal);
     }
 
+    // A diagonal through a corner enters two solid cells at once. The nearest hit and the first of
+    // every hit name the same cell, the one the total order puts first.
+    [Fact]
+    public void Raycast_ThroughACornerSharedByTwoSolidCells_NamesTheCellRaycastAllPutsFirst()
+    {
+        CollisionWorld2D world = new();
+        CollisionFixtures.Paint(world, ".#", "##");
+        Vector2 origin = new(8f, 8f);
+        Span<RayHit2D> hits = stackalloc RayHit2D[4];
+
+        Assert.True(world.Raycast(origin, Vector2.One, 64f, CollisionFilter.Everything, out RayHit2D nearest));
+        Assert.True(world.RaycastAll(origin, Vector2.One, 64f, CollisionFilter.Everything, hits) >= 2);
+
+        Assert.Equal(hits[0].Distance, hits[1].Distance);
+        Assert.Equal(hits[0].Target, nearest.Target);
+        Assert.Equal((1, 0), (nearest.Target.CellX, nearest.Target.CellY));
+    }
 
     [Fact]
     public void Raycast_NeverReportsAFaceSharedWithAnotherSolidCell()
@@ -35,20 +52,6 @@ public sealed class GridRaycastTests
         Assert.Equal((0, 0), (hit.Target.CellX, hit.Target.CellY));
         Assert.Equal(8f, hit.Distance, 3);
         Assert.Equal(new Vector2(-1f, 0f), hit.Normal);
-    }
-
-    // A ray that starts inside a solid cell crossed no face, and a hit promises a unit normal, so the
-    // nearest side of that cell is the surface it names.
-    [Fact]
-    public void Raycast_StartingInsideASolidCellReportsTheNearestSideRatherThanNoNormal()
-    {
-        CollisionWorld2D world = new();
-        CollisionFixtures.Paint(world, "#");
-
-        Assert.True(world.Raycast(new Vector2(8f, 3f), Vector2.UnitX, 64f, CollisionFilter.Everything, out RayHit2D hit));
-
-        Assert.Equal(0f, hit.Distance);
-        Assert.Equal(new Vector2(0f, -1f), hit.Normal);
     }
 
     // A one-way edge is crossed only from above. The ray starts 16 units above the line, then turns
@@ -66,31 +69,6 @@ public sealed class GridRaycastTests
         Assert.False(world.Raycast(new Vector2(24f, 30f), -Vector2.UnitY, 64f, CollisionFilter.Everything, out _));
         Assert.False(world.Raycast(new Vector2(0f, 16f), Vector2.UnitX, 64f, CollisionFilter.Everything, out _));
     }
-
-    // A filter turns the cells it excludes into empty space, faces included: the seam a wall shares with
-    // a wall the query cannot see is that wall's own outer face, not an interior one.
-    [Fact]
-    public void Raycast_ReachesTheFaceASolidCellSharesWithOneTheFilterExcludes()
-    {
-        CollisionWorld2D world = new();
-        CollisionFixtures.Paint(world, "=#..");
-
-        Assert.True(world.Raycast(new Vector2(40f, 8f), -Vector2.UnitX, 64f, CollisionFilter.Everything, out RayHit2D whole));
-        Assert.Equal((1, 0), (whole.Target.CellX, whole.Target.CellY));
-        Assert.Equal(8f, whole.Distance, 3);
-
-        Assert.True(world.Raycast(
-            new Vector2(40f, 8f),
-            -Vector2.UnitX,
-            64f,
-            world.CreateFilter(CollisionFixtures.Climb),
-            out RayHit2D climbing));
-
-        Assert.Equal((0, 0), (climbing.Target.CellX, climbing.Target.CellY));
-        Assert.Equal(24f, climbing.Distance, 3);
-        Assert.Equal(new Vector2(1f, 0f), climbing.Normal);
-    }
-
 
     // A diagonal reaching a cell corner dead on touches both cells it separates. The walk must not
     // commit to one and report nothing because the face it picked is the seam between the two.
@@ -133,10 +111,9 @@ public sealed class GridRaycastTests
         Assert.Equal(0, hit.Target.CellY);
     }
 
-
-    // A corner buried inside the terrain exposes nothing: the ray meets the outside of the block.
+    // A corner buried inside the terrain exposes nothing. The ray meets the outside of the block.
     [Fact]
-    public void Raycast_ReportsNothingAtACornerWhoseFacesAreAllInterior()
+    public void Raycast_DiagonalIntoABlock_HitsItsExposedOuterCornerRatherThanAnInteriorOne()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", ".###", ".###");

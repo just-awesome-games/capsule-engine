@@ -37,16 +37,14 @@
     <PackageReference Remove="JAG.Capsule;JAG.Capsule.Runtime;JAG.Capsule.Runtime.Desktop;JAG.Capsule.Build" />
   </ItemGroup>
 
-  <!-- A package an override replaces is not restored. Its clone's targets are already imported. -->
-  <PropertyGroup Condition="'$(CapsuleSourceOverrides)' != ''">
-    <_CapsuleOverriddenPackages>$([System.Text.RegularExpressions.Regex]::Replace('$(CapsuleSourceOverrides)', '\s*([^=;\s]+)\s*=[^;]*', '$1'))</_CapsuleOverriddenPackages>
-  </PropertyGroup>
+  <!-- A package an override replaces is not restored. Capsule.Build.props named it and imported its
+       clone's targets. -->
   <ItemGroup Condition="'$(_CapsuleOverriddenPackages)' != ''">
     <PackageReference Remove="$(_CapsuleOverriddenPackages)" />
   </ItemGroup>
 
-  <!-- One configuration for the engine's projects, applied before project assignment. A package
-       consumer that sets CapsuleSourceConfiguration builds no clone, so the target skips it. -->
+  <!-- One configuration for the engine's projects, applied before project assignment. The target
+       skips a package consumer that sets CapsuleSourceConfiguration, which builds no clone. -->
   <Target Name="CapsuleConfigureEngineReferences"
           Condition="'$(CapsuleSourceConfiguration)' != '' and '$(CapsuleSourceRoot)' != ''"
           AfterTargets="ResolvePackageDependenciesForBuild">

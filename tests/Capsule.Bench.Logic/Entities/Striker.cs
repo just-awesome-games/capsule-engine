@@ -1,8 +1,3 @@
-using System.Numerics;
-using Capsule.Animation;
-using Capsule.Rendering;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>

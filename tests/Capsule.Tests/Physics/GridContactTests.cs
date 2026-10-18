@@ -39,8 +39,8 @@ public sealed class GridContactTests
         Assert.Equal(1, world.OverlapBoxAll(CollisionFixtures.Box(20f, 12f, 8f, 8f), CollisionFilter.Everything, contacts));
     }
 
-    // An edge is a surface only from the side it faces. Both boxes are within the skin of the plane;
-    // only the one that has not passed through is touching anything.
+    // An edge is a surface only from the side it faces. Both boxes are within the skin of the plane.
+    // Only the one that has not passed through is touching anything.
     [Fact]
     public void OverlapCollider_ReportsAOneWayEdgeToAColliderAboveItAndNotToOneBelow()
     {
@@ -81,7 +81,7 @@ public sealed class GridContactTests
         Assert.Equal(new Vector2(0f, -1f), contacts[0].Normal);
     }
 
-    // An edge is a segment with extent, so meeting it at one endpoint and nowhere along it is not
+    // An edge is a segment with extent. Meeting it at one endpoint and nowhere along it is not
     // crossing it. The box starts flush against the line and off the near end of the edge by its own
     // width. The difference between passing through and landing is one slop of overlap along it.
     [Fact]
@@ -106,26 +106,115 @@ public sealed class GridContactTests
         Assert.Equal(0f, hit.Fraction);
     }
 
-    // The sweep covers a band rather than a single line, so the cell showing the exposed face is visited
-    // whatever the leading corner lands on.
-    [Fact]
-    public void ShapeCast_LandingItsLeadingCornerOnACellSeam_MeetsTheSurfaceRatherThanTheSeam()
+    // A leading corner landing exactly on a seam meets the surface and not the seam. The sweep covers a
+    // band rather than a single line. It visits the cell showing the exposed face whatever the corner
+    // lands on, and a move slides along the surface for the rest of its way.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ASweepLandingItsLeadingCornerOnACellSeam_MeetsTheSurfaceRatherThanTheSeam(bool move)
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "####");
+        Vector2 translation = new(16f, 16f);
 
-        Assert.True(world.ShapeCast(
-            Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)),
-            Vector2.Zero,
-            new Vector2(16f, 16f),
-            CollisionFilter.Everything,
-            out ShapeCastHit2D hit));
+        (Vector2 normal, Vector2 landed) = move ? Move() : Cast();
 
-        Assert.Equal(new Vector2(0f, -1f), hit.Normal);
-        Assert.Equal(0.5f, hit.Fraction, 3);
+        Assert.Equal(new Vector2(0f, -1f), normal);
+        Assert.Equal(8f, landed.Y, CollisionFixtures.Tolerance);
+
+        (Vector2 Normal, Vector2 Landed) Move()
+        {
+            Contact2D[] contacts = new Contact2D[4];
+            MoveResult2D result = world.MoveBox(CollisionFixtures.Box(0f, 0f, 8f, 8f), translation, CollisionFilter.Everything, contacts);
+            Assert.True(result.Blocked);
+            Assert.Equal(16f, result.Translation.X, CollisionFixtures.Tolerance);
+
+            return (contacts[0].Normal, result.Translation);
+        }
+
+        (Vector2 Normal, Vector2 Landed) Cast()
+        {
+            Assert.True(world.ShapeCast(
+                Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)),
+                Vector2.Zero,
+                translation,
+                CollisionFilter.Everything,
+                out ShapeCastHit2D hit));
+
+            return (hit.Normal, translation * hit.Fraction);
+        }
     }
 
-    // Every edge of the middle cell lies flush against a solid neighbour, so a sweep out of it crosses no
+    // A filter turns the cells it excludes into empty space, faces included. A face a cell shares with an
+    // excluded neighbour is that cell's outer face: the side of a wall beside an unseen wall, or the edge
+    // of a one-way tile under an unseen solid tile. Every query starts 24 units out from the face.
+    [Theory]
+    [InlineData(false, "ray")]
+    [InlineData(false, "cast")]
+    [InlineData(false, "move")]
+    [InlineData(false, "overlap")]
+    [InlineData(true, "ray")]
+    [InlineData(true, "cast")]
+    [InlineData(true, "move")]
+    [InlineData(true, "overlap")]
+    public void AFaceCulledOnlyByANeighbourTheFilterExcludes_IsLiveToEveryQuery(bool oneWay, string query)
+    {
+        CollisionWorld2D world = new();
+        CollisionFixtures.Paint(world, oneWay ? ["=", "-"] : ["=#.."]);
+        CollisionFilter filter = world.CreateFilter(oneWay ? CollisionFixtures.Platform : CollisionFixtures.Climb);
+        Vector2 face = oneWay ? new Vector2(8f, 16f) : new Vector2(16f, 8f);
+        Vector2 normal = oneWay ? new Vector2(0f, -1f) : new Vector2(1f, 0f);
+        Vector2 start = face + (24f * normal);
+        Vector2 size = new(4f, 4f);
+        Contact2D[] contacts = new Contact2D[4];
+
+        (CollisionTarget target, Vector2 met) = query switch
+        {
+            "ray" => Ray(),
+            "cast" => Cast(),
+            "move" => Move(),
+            _ => Overlap(),
+        };
+
+        Assert.True(target.IsGridCell);
+        Assert.Equal(oneWay ? (0, 1) : (0, 0), (target.CellX, target.CellY));
+        Assert.Equal(normal, met);
+
+        (CollisionTarget, Vector2) Ray()
+        {
+            Assert.True(world.Raycast(start, -normal, 40f, filter, out RayHit2D hit));
+            Assert.Equal(24f, hit.Distance, 3);
+
+            return (hit.Target, hit.Normal);
+        }
+
+        (CollisionTarget, Vector2) Cast()
+        {
+            Assert.True(world.ShapeCast(Shape2D.Box(Vector2.Zero, size), start - (size / 2f), -40f * normal, filter, out ShapeCastHit2D hit));
+
+            return (hit.Target, hit.Normal);
+        }
+
+        (CollisionTarget, Vector2) Move()
+        {
+            MoveResult2D result = world.MoveBox(Aabb2D.FromCenter(start, size), -40f * normal, filter, contacts);
+            Assert.True(result.Blocked);
+            Assert.Equal(-22f, Vector2.Dot(result.Translation, normal), CollisionFixtures.Tolerance);
+
+            return (contacts[0].Target, contacts[0].Normal);
+        }
+
+        // Straddling the face by one unit, the box overlaps the cell behind it and the excluded one.
+        (CollisionTarget, Vector2) Overlap()
+        {
+            Assert.Equal(1, world.OverlapBoxAll(Aabb2D.FromCenter(face + normal, size), filter, contacts));
+
+            return (contacts[0].Target, contacts[0].Normal);
+        }
+    }
+
+    // Every edge of the middle cell lies flush against a solid neighbour. A sweep out of it crosses no
     // face. The box starts inside it and reports it at fraction 0 whichever way it sweeps.
     [Theory]
     [InlineData(0f, 0f)]
@@ -148,26 +237,25 @@ public sealed class GridContactTests
         Assert.Equal(new Vector2(24f, 24f), hit.Point);
     }
 
-    // The normal is the face's own, not the narrowphase's: a rounded shape resting past the end of a
-    // face is nearest its endpoint, where GJK answers with the diagonal from that corner.
+    // A grid added after another grid was removed takes the freed slot. Overlaps, rays and sweeps
+    // then still agree on which of two coinciding grids comes first.
     [Fact]
-    public void OverlapCollider_PastTheEndOfAOneWayEdge_ReportsTheEdgesOwnNormal()
+    public void GridsReaddedIntoFreedSlots_KeepOneOrderAcrossOverlapsRaysAndSweeps()
     {
         CollisionWorld2D world = new();
+        CollisionGrid2D first = CollisionFixtures.Paint(world, "#");
+        CollisionGrid2D second = CollisionFixtures.Paint(world, "#");
+        world.Remove(first);
+        CollisionGrid2D third = CollisionFixtures.Paint(world, "#");
 
-        // The only collidable cell is (1, 1), so the face spans x = 16..32 at y = 16.
-        CollisionFixtures.Paint(world, "..", ".-");
+        Span<Contact2D> contacts = stackalloc Contact2D[2];
+        Span<RayHit2D> hits = stackalloc RayHit2D[2];
+        Assert.Equal(2, world.OverlapBoxAll(CollisionFixtures.Box(4f, 4f, 8f, 8f), CollisionFilter.Everything, contacts));
+        Assert.Equal(2, world.RaycastAll(new Vector2(8f, -8f), Vector2.UnitY, 32f, CollisionFilter.Everything, hits));
+        Assert.True(world.ShapeCast(Shape2D.Box(new Vector2(4f, -12f), new Vector2(8f, 8f)), Vector2.Zero, new Vector2(0f, 16f), CollisionFilter.Everything, out ShapeCastHit2D swept));
 
-        // Centred off the near end, close enough to the endpoint (16, 16) to be inside the skin.
-        ColliderHandle circle = world.Add(
-            Shape2D.Circle(Vector2.Zero, 4f),
-            new Vector2(14f, 12.52f),
-            world.Layer("body"));
-
-        Span<Contact2D> contacts = stackalloc Contact2D[8];
-
-        Assert.Equal(1, world.OverlapColliderAll(circle, CollisionFilter.Everything, contacts));
-        Assert.Equal((1, 1), (contacts[0].Target.CellX, contacts[0].Target.CellY));
-        Assert.Equal(new Vector2(0f, -1f), contacts[0].Normal);
+        Assert.Equal(contacts[0].Target.Collider, hits[0].Target.Collider);
+        Assert.Equal(contacts[0].Target.Collider, swept.Target.Collider);
+        Assert.True(world.OverlapOrder(contacts[0].Target, contacts[1].Target) < 0);
     }
 }

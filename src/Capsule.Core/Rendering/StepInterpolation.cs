@@ -11,7 +11,7 @@ internal static class StepInterpolation
     internal static Vector2 Interpolate(Vector2 previous, Vector2 current, float alpha) =>
         previous == current ? current : previous + (current - previous) * alpha;
 
-    // Angles in radians, along the shortest arc. The turn is wrapped into (-pi, pi] before scaling, so a
+    // Angles in radians, along the shortest arc. The turn is wrapped into (-pi, pi] before scaling. A
     // facing that snaps across the wrap turns the short way instead of the long way for one frame. Equal
     // endpoints return the endpoint unchanged, as the position rule does.
     internal static float Interpolate(float previous, float current, float alpha)

@@ -1,7 +1,3 @@
-using System.Numerics;
-using Capsule.Physics;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>A grounded body that paces a few pixels back and forth under gravity and is moved by platforms.</summary>

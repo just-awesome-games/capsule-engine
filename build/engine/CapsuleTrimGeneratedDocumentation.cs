@@ -26,7 +26,7 @@ public sealed class CapsuleTrimGeneratedDocumentation : Microsoft.Build.Utilitie
 
         foreach (XElement entry in generated)
         {
-            // The whitespace ahead of an entry belongs to it; leaving it behind would blank a line.
+            // The whitespace ahead of an entry belongs to it. Leaving it behind would blank a line.
             if (entry.PreviousNode is XText indent && indent.Value.Trim().Length == 0)
             {
                 indent.Remove();
@@ -35,7 +35,7 @@ public sealed class CapsuleTrimGeneratedDocumentation : Microsoft.Build.Utilitie
             entry.Remove();
         }
 
-        // An untouched file keeps its timestamp, so a rebuild that skipped compilation stays a no-op.
+        // An untouched file keeps its timestamp. A rebuild that skipped compilation stays a no-op.
         if (generated.Length > 0)
         {
             using (StreamWriter writer = new StreamWriter(DocumentationPath, false, new UTF8Encoding(false)))

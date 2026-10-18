@@ -35,7 +35,8 @@ public sealed class RunStateTests
 
         run.Attach(new GameState());
 
-        Assert.Throws<InvalidOperationException>(() => run.Attach(new GameState()));
+        InvalidOperationException second = Assert.Throws<InvalidOperationException>(() => run.Attach(new GameState()));
+        Assert.Contains("as a member of that one object", second.Message, StringComparison.Ordinal);
         Assert.Throws<InvalidOperationException>(() => run.State<OtherState>());
     }
 

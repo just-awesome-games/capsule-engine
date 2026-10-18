@@ -6,7 +6,7 @@ namespace Capsule.Runtime.Rendering;
 // Where a scrolled layer's intent lands on the frame, as arithmetic over the placed world rect. No
 // device, no state, nothing drawn. A layer is drawn by a virtual camera whose centre is the frame's,
 // moved by the layer's factor about the scroll centre. The frame draws a sprite at its offset from that
-// corner, measured from the frame's own corner and snapped there under point sampling, so the layer's
+// corner, measured from the frame's own corner and snapped there under point sampling. The layer's
 // grid and the world's coincide.
 internal static class ScrollLayout
 {

@@ -34,9 +34,9 @@
     </ItemGroup>
 
     <Warning Condition="Exists('$(_CapsuleGameIcon)') and !Exists('$(_CapsuleGameWindowIcon)') and '$(_CapsuleGameDeclaredWindowIcon)' != 'true'"
-             Text="Capsule: this shell has an Icon.ico but no Icon.bmp, so its window and taskbar keep Capsule's default icon. Add a 128x128 32-bit uncompressed Icon.bmp beside the project, or remove Icon.ico to take both defaults." />
+             Text="Capsule: this shell has an Icon.ico but no Icon.bmp. Its window and taskbar keep Capsule's default icon. Add a 128x128 32-bit uncompressed Icon.bmp beside the project, or remove Icon.ico to take both defaults." />
     <Warning Condition="!Exists('$(_CapsuleGameIcon)') and Exists('$(_CapsuleGameWindowIcon)') and '$(ApplicationIcon)' == '$(_CapsuleDefaultIcon)'"
-             Text="Capsule: this shell has an Icon.bmp but no Icon.ico, so its executable keeps Capsule's default icon. Add an Icon.ico beside the project, or remove Icon.bmp to take both defaults." />
+             Text="Capsule: this shell has an Icon.bmp but no Icon.ico. Its executable keeps Capsule's default icon. Add an Icon.ico beside the project, or remove Icon.bmp to take both defaults." />
   </Target>
 
 </Project>

@@ -3,7 +3,7 @@ namespace Capsule.Rendering;
 /// <summary>Render-command counts for the last rewrite of a <see cref="FrameView"/>.</summary>
 /// <remarks>
 /// One command is one sprite or line. Text, a panel and a tiling count one command per sprite they
-/// expand to.
+/// expand to. A text run rejected whole before layout counts nothing.
 /// </remarks>
 /// <param name="Submitted">Sprites and lines offered to the culler.</param>
 /// <param name="Visible">Sprites and lines the culler kept.</param>

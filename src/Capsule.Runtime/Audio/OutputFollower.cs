@@ -1,7 +1,7 @@
 namespace Capsule.Runtime.Audio;
 
 // Keeps sound on the system's default output. The device announces a change from one of its own
-// threads, where nothing may be reopened, so the change is noted there and acted on from the game
+// threads, where nothing may be reopened. The change is noted there and acted on from the game
 // thread's next update. A reopen that fails, because a headset is still negotiating or an output went
 // before its replacement was announced, is retried on an interval. A device the system has
 // disconnected is reopened even when no announcement arrived, noticed on that same interval instead of

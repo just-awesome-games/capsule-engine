@@ -1,7 +1,6 @@
 using System.Numerics;
 using Capsule.Physics;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
 using Capsule.Tests.Scenes;
 using Capsule.Tiles;
 using Body = Capsule.Tests.Scenes.SceneFixtures.Body;
@@ -143,7 +142,7 @@ public sealed class ColliderContactReportTests
         Assert.Same(post.Collider, Assert.Single(read.ToArray()).OtherCollider);
     }
 
-    // A collider out of the world at the settle settled nothing that step, so enabling it in a late
+    // A collider out of the world at the settle settled nothing that step. Enabling it in a late
     // step neither fills the list nor raises an enter before the next step's settle.
     [Fact]
     public void AColliderEnabledAfterContactsSettle_TouchesNothingUntilTheNextStep()
@@ -215,7 +214,7 @@ public sealed class ColliderContactReportTests
         Assert.Equal("platform", contact.LayerName);
     }
 
-    // One row of top-face-only tiles across the middle, so the face plane is y = 16.
+    // One row of top-face-only tiles across the middle. The face plane is y = 16.
     private static Scene Ledge()
     {
         Scene scene = new();
@@ -227,21 +226,5 @@ public sealed class ColliderContactReportTests
             [0, 0, 0, 1, 1, 1, 0, 0, 0])));
 
         return scene;
-    }
-
-    [Fact]
-    public void ATileMapColliderRegistersOneGridWhoseCellsCarryTheAuthoredLayer()
-    {
-        Scene scene = SceneFixtures.Terrain("....", "####").Started();
-        TileMapCollider2D collider = scene.FindSingle<TileMap>().Get<TileMapCollider2D>();
-
-        Assert.NotNull(collider.Grid);
-        Assert.Equal(4, collider.Grid.Width);
-        Assert.Equal("solid", scene.Collision.NameOf(collider.Grid.LayerAt(0, 1)!.Value));
-
-        scene.Remove(collider.Entity!);
-
-        Assert.Null(collider.Grid);
-        Assert.Empty(scene.Collision.Grids.ToArray());
     }
 }

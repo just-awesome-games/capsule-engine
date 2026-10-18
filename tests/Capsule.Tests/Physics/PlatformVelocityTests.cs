@@ -1,5 +1,4 @@
 using System.Numerics;
-using Capsule.Physics;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 
@@ -66,18 +65,18 @@ public sealed class PlatformVelocityTests
         Assert.Equal(Vector2.Zero, rider.Mover.PlatformVelocity);
     }
 
-    // The middle body rides the slab and is itself a belt. The top rider steps between the slab and the middle,
-    // so in each step its carries arrive on both sides of its read, and it still reads the whole sum.
+    // The middle body rides the slab and is itself a belt. The top rider steps between the slab and the middle.
+    // In each step its carries arrive on both sides of its read, and it still reads the whole sum.
     [Fact]
     public void ARiderOnARider_ReadsEveryCarryOfTheStepBefore()
     {
         Scene scene = new();
         SceneSimulation simulation = new(scene);
         Slab bottom = new(new Vector2(0f, 40f)) { Velocity = new Vector2(60f, 0f) };
-        Rider middle = new(new Vector2(4f, 32f), new Vector2(24f, 8f), Platform);
+        Rider middle = new(new Vector2(4f, 32f), new Vector2(24f, 8f), Platform) { Falls = true };
         middle.Collider.Layer = Platform;
         middle.Collider.SurfaceVelocity = new Vector2(30f, 0f);
-        Rider top = new(new Vector2(12f, 24f), Platform);
+        Rider top = new(new Vector2(12f, 24f), Platform) { Falls = true };
         scene.Add(bottom);
         scene.Add(top);
         scene.Add(middle);
@@ -108,7 +107,7 @@ public sealed class PlatformVelocityTests
         Scene scene = new();
         SceneSimulation simulation = new(scene);
         Slab platform = new(new Vector2(0f, 40f));
-        Rider rider = new(new Vector2(12f, 32f), movedBy);
+        Rider rider = new(new Vector2(12f, 32f), movedBy) { Falls = true };
         scene.Add(platformFirst ? platform : rider);
         scene.Add(platformFirst ? rider : platform);
 
@@ -127,53 +126,5 @@ public sealed class PlatformVelocityTests
     {
         Assert.Equal(expected.X, actual.X, 0.01f);
         Assert.Equal(expected.Y, actual.Y, 0.01f);
-    }
-
-    /// <summary>A 32 by 8 slab on the platform layer that moves at its velocity each step.</summary>
-    private sealed class Slab : Entity
-    {
-        internal Slab(Vector2 position)
-            : base(position)
-        {
-            Collider = new BoxCollider2D(new Vector2(32f, 8f)) { Layer = Platform };
-            Add(Collider);
-        }
-
-        internal BoxCollider2D Collider { get; }
-
-        internal Vector2 Velocity { get; set; }
-
-        protected internal override void OnStep(in StepContext context) => Position += Velocity * context.DeltaSeconds;
-    }
-
-    /// <summary>A body, 8 square by default, blocked by platforms and moved by the layers named, falling one unit a step.</summary>
-    private sealed class Rider : Entity
-    {
-        internal Rider(Vector2 position, params string[] movedBy)
-            : this(position, new Vector2(8f, 8f), movedBy)
-        {
-        }
-
-        internal Rider(Vector2 position, Vector2 size, params string[] movedBy)
-            : base(position)
-        {
-            Collider = new BoxCollider2D(size);
-            Add(Collider);
-            Mover = new KinematicBody2D(Collider) { BlockedBy = new(Platform), MovedBy = new(movedBy) };
-            Add(Mover);
-        }
-
-        internal BoxCollider2D Collider { get; }
-
-        internal KinematicBody2D Mover { get; }
-
-        // PlatformVelocity as this step read it before the move.
-        internal Vector2 Read { get; private set; }
-
-        protected internal override void OnStep(in StepContext context)
-        {
-            Read = Mover.PlatformVelocity;
-            Mover.Move(new Vector2(0f, 1f));
-        }
     }
 }

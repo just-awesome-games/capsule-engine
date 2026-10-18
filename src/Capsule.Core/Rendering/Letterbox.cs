@@ -11,7 +11,7 @@ internal readonly record struct Letterbox(int X, int Y, int Width, int Height, f
         FitAt(contentWidth, contentHeight, containerWidth, containerHeight, UniformScale(contentWidth, contentHeight, containerWidth, containerHeight));
 
     // Fits content at a stated scale instead of the largest that fits. It is for content whose grown
-    // axis is already a whole number of container pixels at that scale, so the scale is not recomputed
+    // axis is already a whole number of container pixels at that scale. The scale is not recomputed
     // from a division that can land an ulp off. The other axis's extent is rounded as Fit rounds it.
     // Content the container cannot hold at that scale is clipped to the container, centred.
     internal static Letterbox FitAt(float contentWidth, float contentHeight, int containerWidth, int containerHeight, float scale)
@@ -35,8 +35,8 @@ internal readonly record struct Letterbox(int X, int Y, int Width, int Height, f
         int width = Math.Min(containerWidth, (int)MathF.Round(contentWidth * scale));
         int height = Math.Min(containerHeight, (int)MathF.Round(contentHeight * scale));
 
-        // Centred from the rounded extents, not the exact ones, so the rect cannot spill past the
-        // container it is set as a viewport over.
+        // Centred from the rounded extents, not the exact ones. The rect cannot spill past the container
+        // it is set as a viewport over.
         return new Letterbox((containerWidth - width) / 2, (containerHeight - height) / 2, width, height, scale);
     }
 }

@@ -1,7 +1,6 @@
 using System.Numerics;
 using Capsule.Physics;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
 using Capsule.Tests.Scenes;
 using Capsule.Tiles;
 
@@ -52,7 +51,7 @@ public sealed class SlopeTests
         Assert.Equal(40f, result.Translation.X, CollisionFixtures.Tolerance);
     }
 
-    // The slope's right side and the box's left side cover each other fully, so neither is a surface,
+    // The slope's right side and the box's left side cover each other fully. Neither is a surface,
     // and the ground under the slope culls its bottom.
     // A filter that cannot see the box turns it back into empty space, and the slope's side is live
     // again.
@@ -92,8 +91,8 @@ public sealed class SlopeTests
             "##############").Started();
         if (collider)
         {
-            scene.Add(new Hull([new(0f, 64f), new(224f, 64f), new(224f, 80f), new(0f, 80f)]));
-            scene.Add(new Hull([new(48f, 64f), new(80f, 32f), new(96f, 32f), new(128f, 64f), new(128f, 80f), new(48f, 80f)]));
+            scene.Add(new Block([new(0f, 64f), new(224f, 64f), new(224f, 80f), new(0f, 80f)]));
+            scene.Add(new Block([new(48f, 64f), new(80f, 32f), new(96f, 32f), new(128f, 64f), new(128f, 80f), new(48f, 80f)]));
         }
 
         SceneFixtures.Body body = Grounded(scene, new Vector2(8f, 40f));
@@ -139,7 +138,7 @@ public sealed class SlopeTests
         Assert.Equal(-1f / run, (body.Position.Y - start.Y) / (body.Position.X - start.X), 0.01f);
     }
 
-    // A floor stops a fall outright, so gravity alone never walks a body down a slope.
+    // A floor stops a fall outright. Gravity alone never walks a body down a slope.
     [Fact]
     public void AGroundedBodyStandingOnASlope_DoesNotDrift()
     {
@@ -206,8 +205,8 @@ public sealed class SlopeTests
     public void AGroundedBox_WalkingOverASlopesFoot_ClimbsItsFace(float way)
     {
         Scene scene = new Scene().Started();
-        scene.Add(new Hull(Mirrored(way, new(0f, 64f), new(160f, 64f), new(160f, 80f), new(0f, 80f))));
-        scene.Add(new Hull(Mirrored(way, new(48f, 64f), new(80f, 48f), new(80f, 64f))));
+        scene.Add(new Block(Mirrored(way, new(0f, 64f), new(160f, 64f), new(160f, 80f), new(0f, 80f))));
+        scene.Add(new Block(Mirrored(way, new(48f, 64f), new(80f, 48f), new(80f, 64f))));
         SceneFixtures.Body body = Grounded(scene, new Vector2(way > 0f ? 16f : 136f, 55f));
 
         body.Mover.Move(new Vector2(way * 40f, 0.5f));
@@ -220,7 +219,7 @@ public sealed class SlopeTests
     }
 
     // A box falls with its bottom corner onto the top vertex of a 1:2 slope and lands on it, on either
-    // side of the vertex. A vertical fall is a slop narrower than the box, so its corner meets the
+    // side of the vertex. A vertical fall is a slop narrower than the box. Its corner meets the
     // slope's face just past the vertex and reports that face. It stops a slop clear of the face, which
     // rests the box up to the contact skin above the vertex and never below it.
     [Theory]
@@ -229,7 +228,7 @@ public sealed class SlopeTests
     public void AGroundedBox_FallingOntoASlopesTopVertex_LandsOnIt(float way)
     {
         Scene scene = new Scene().Started();
-        scene.Add(new Hull(Mirrored(way, new(64f, 48f), new(96f, 64f), new(64f, 64f))));
+        scene.Add(new Block(Mirrored(way, new(64f, 48f), new(96f, 64f), new(64f, 64f))));
         SceneFixtures.Body body = new(new Vector2(way > 0f ? 64f : 88f, 32f), blocksOn: "solid");
         body.Mover.Mode = BodyMode.Grounded;
         scene.Add(body);
@@ -272,14 +271,6 @@ public sealed class SlopeTests
         internal Wedge(float run)
             : base(Vector2.Zero) =>
             Add(new PolygonCollider2D([new(0f, 256f / run), new(256f, 0f), new(256f, 256f / run)]) { Layer = "solid" });
-    }
-
-    // A convex polygon collider on "solid".
-    private sealed class Hull : Entity
-    {
-        internal Hull(Vector2[] points)
-            : base(Vector2.Zero) =>
-            Add(new PolygonCollider2D(points) { Layer = "solid" });
     }
 
     // Flat ground, a 1:4 descent, a 1:2 descent whose foot is at 16, and a 1:4 descent that starts

@@ -11,7 +11,7 @@ public sealed class FrameDiagnosticsTests
     private static readonly string[] BootStages =
         ["builderEntered", "hostConstructed", "deviceReady", "sceneAssetsLoaded", "firstUpdate", "firstDraw"];
 
-    // Every stage is timestamped before the first draw, so each is a millisecond count that grew
+    // Every stage is timestamped before the first draw. Each is a millisecond count that grew
     // over the boot. A negative or unordered one means a stage went unmarked.
     [Fact]
     public void TheBootTrace_PrecedesTheHeaderAndNamesEveryStageOnceInNonDecreasingMilliseconds()
@@ -53,7 +53,7 @@ public sealed class FrameDiagnosticsTests
     }
 
     // Full buffers are written by a thread the frame never waits on and the last, partial one at
-    // exit; every frame must come out, in frame order, with the steps it ran and the collection
+    // exit. Every frame must come out, in frame order, with the steps it ran and the collection
     // count so far, which never goes down.
     [Fact]
     public void Dispose_WritesEveryFrameInOrder()
@@ -119,13 +119,13 @@ public sealed class FrameDiagnosticsTests
                 ? new FrameDiagnostics(_path, Stopwatch.GetTimestamp(), exitAfterSeconds)
                 : new FrameDiagnostics(_path, clock.Timestamp, exitAfterSeconds, clock.GetTimestamp);
 
-            // The host marks each of these before it submits a frame; the rest are taken here.
+            // The host marks each of these before it submits a frame. The rest are taken here.
             _diagnostics.Mark(FrameDiagnostics.Stage.HostConstructed);
             _diagnostics.Mark(FrameDiagnostics.Stage.DeviceReady);
             _diagnostics.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
         }
 
-        /// <summary>Runs one frame that stepped <paramref name="steps"/> times; returns whether the run's time budget is spent.</summary>
+        /// <summary>Runs one frame that stepped <paramref name="steps"/> times and returns whether the run's time budget is spent.</summary>
         internal bool Frame(int steps = 1)
         {
             FrameDiagnostics diagnostics = _diagnostics ?? throw new InvalidOperationException("The capture is closed.");
@@ -143,7 +143,7 @@ public sealed class FrameDiagnosticsTests
             _diagnostics = null;
         }
 
-        /// <summary>Ends the capture and reads what it wrote; the writer holds the file open.</summary>
+        /// <summary>Ends the capture, which closes the file the writer held, and reads what it wrote.</summary>
         internal string[] ReadLines()
         {
             Close();

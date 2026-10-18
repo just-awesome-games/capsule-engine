@@ -18,8 +18,8 @@ public sealed class DebugPanelTests
         Alert,
     }
 
-    // Written under a culture whose decimal separator is a comma, so the invariant spelling is
-    // what the assertions prove; a float is not widened to double on the way through.
+    // Written under a culture whose decimal separator is a comma. The invariant spelling is
+    // what the assertions prove. A float is not widened to double on the way through.
     [Fact]
     public void Fields_FormatInvariantAtShortestRoundTripAndNameEnumsAndNulls()
     {
@@ -33,7 +33,7 @@ public sealed class DebugPanelTests
             panel.Field("Ratio", 0.1);
             panel.Field("Count", 12);
             panel.Field("At", new Vector2(120f, 64.5f));
-            panel.Field("Area", new Rect(-8f, 0.5f, 16f, 32f));
+            panel.Field("Area", Rect.FromEdges(-8f, 0.5f, 16f, 32f));
             panel.Field("Mood", Mood.Alert);
             panel.Field("Target", (string?)null);
             panel.Field("Grounded", true);
@@ -57,7 +57,7 @@ public sealed class DebugPanelTests
         }
     }
 
-    // Rows keep write order across the verbs; a toggle's action carries the flip, so the overlay
+    // Rows keep write order across the verbs. A toggle's action carries the flip. The overlay
     // never learns the setter.
     [Fact]
     public void CommandsAndToggles_InterleaveWithFieldsAndAToggleActivatesWithItsOpposite()
@@ -83,7 +83,7 @@ public sealed class DebugPanelTests
     }
 
     // A game hook compiled without the development symbol keeps no call into the panel and no
-    // lambda: the closure the calls would have built is absent from the assembly, so a shipping
+    // lambda: the closure the calls would have built is absent from the assembly. A shipping
     // build carries nothing of them. The same source with the symbol keeps both.
     [Theory]
     [InlineData(false)]

@@ -4,10 +4,8 @@ using Capsule.Runtime.Audio.Vorbis;
 
 namespace Capsule.Tests.Audio;
 
-// The vendored decoder (Capsule.Runtime.Audio.Vorbis) must decode identically to the reference
-// NVorbis 0.10.4 package, which Capsule.Tests references directly for exactly this comparison
-// (MonoGame carries it too, but only as a runtime dependency, so it does not reach here as a
-// compile reference on its own). One canonical contract, two cases: a plain loop and a loop
+// The vendored decoder (Capsule.Runtime.Audio.Vorbis) decodes identically to the NVorbis 0.10.4
+// package, which Capsule.Tests references for this comparison. One canonical contract, two cases: a plain loop and a loop
 // region, both driven far enough to exercise a real voice's wrap and re-read paths.
 public sealed class VorbisDecodeTests
 {
@@ -16,8 +14,7 @@ public sealed class VorbisDecodeTests
     private const int Channels = 1;
     private const int SampleRate = 44_100;
 
-    // Both sides are the same decoder version (0.10.4) now, so exact bit-for-bit equality holds
-    // rather than the float-rounding tolerance a cross-version comparison would need.
+    // Both sides are decoder version 0.10.4 and match bit for bit.
 
     [Fact]
     public void APlainLoop_DecodesIdenticallyToTheReferenceDecoder()

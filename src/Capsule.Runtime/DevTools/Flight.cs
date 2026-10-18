@@ -7,6 +7,10 @@ namespace Capsule.Runtime.DevTools;
 // straight ease. It is a plain value, and stepping it allocates nothing.
 internal struct Flight
 {
+    // A centre closer than this share of the wider end's span counts as the same centre. The flight is then a
+    // pure zoom.
+    private const double PureZoomShare = 1e-6;
+
     private Vector2 _from;
     private Vector2 _to;
 
@@ -54,7 +58,7 @@ internal struct Flight
         };
 
         double rho = FreeCamera.FlightRho;
-        if (distance <= Math.Max(widthFrom, widthTo) * 1e-6)
+        if (distance <= Math.Max(widthFrom, widthTo) * PureZoomShare)
         {
             flight._pureZoom = true;
             flight._length = Math.Abs(Math.Log(widthTo / widthFrom)) / rho;

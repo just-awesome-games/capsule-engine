@@ -46,7 +46,7 @@ public sealed class PointLightTests
 
         simulation.Step(SceneFixtures.Step());
 
-        Assert.Equal(new Rect(91, 40, 111, 60), light.Bounds);
+        Assert.Equal(Rect.FromEdges(91, 40, 111, 60), light.Bounds);
 
         light.Intensity = 0f;
 

@@ -1,7 +1,7 @@
 namespace Capsule.Runtime.Audio;
 
 // A cursor over one resident clip's decoded samples, which a streamed voice reads when the clip is
-// already in memory. It owns a position and the clip it points at, so several voices read one clip at
+// already in memory. It owns a position and the clip it points at. Several voices read one clip at
 // once and letting go of one frees neither the samples nor the others.
 //
 // The cursor belongs to the voice, like the loop reader over it. A voice played again is pointed at the

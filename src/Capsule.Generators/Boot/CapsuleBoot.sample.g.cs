@@ -3,7 +3,8 @@
 
 namespace Capsule.Generated
 {
-    /// <summary>This game's entry point. Generated code. Do not edit.</summary>
+    /// <summary>This game's entry point.</summary>
+    /// <remarks>Generated code. Do not edit.</remarks>
     [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class CapsuleBoot
     {

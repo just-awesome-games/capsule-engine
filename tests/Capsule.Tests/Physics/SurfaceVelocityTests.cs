@@ -107,7 +107,7 @@ public sealed class SurfaceVelocityTests
         Assert.Equal(30f, walker.Position.X, CollisionFixtures.Tolerance);
     }
 
-    // The wall's face is at x = 48, so the 8 wide body stops with its corner at 40.
+    // The wall's face is at x = 48. The 8 wide body stops with its corner at 40.
     [Fact]
     public void AWall_StopsTheCarry()
     {
@@ -240,6 +240,10 @@ public sealed class SurfaceVelocityTests
     {
         internal const float Edge = 8f;
 
+        internal KinematicBody2D Mover { get; }
+
+        internal bool Walks { get; init; }
+
         internal Walker(Vector2 position, params string[] movedBy)
             : base(position)
         {
@@ -253,10 +257,6 @@ public sealed class SurfaceVelocityTests
             };
             Add(Mover);
         }
-
-        internal KinematicBody2D Mover { get; }
-
-        internal bool Walks { get; init; }
 
         internal bool RestsOnCenter
         {

@@ -41,7 +41,7 @@ internal static class AtlasPacker
             (string key, int width, int height) = ordered[i];
             if (width <= 0 || height <= 0 || width > maxSize || height > maxSize)
             {
-                throw new ArgumentException($"'{key}' is {width}x{height}, which no {maxSize}-texel page holds.", nameof(items));
+                throw new ArgumentException($"'{key}' is {width}x{height}, which no {maxSize}-texel page holds. Leave it out of the items, or raise maxSize.", nameof(items));
             }
 
             int page = 0;

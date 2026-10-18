@@ -25,88 +25,90 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
         "Expected 'None' or '<Device>.<Name>', such as 'Key.Space', 'PadButton.South', " +
         "'MouseButton.Left' or 'StickDirection.LeftStickUp'.";
 
-    private readonly Key _key;
-    private readonly PadButton _padButton;
-    private readonly MouseButton _mouseButton;
-    private readonly StickDirection _stickDirection;
+    // Which device enum _value belongs to. Every None constant stores as Source.None with value 0,
+    // which keeps it equal to the default.
+    private readonly Source _source;
+    private readonly int _value;
 
-    private InputButton(Key key, PadButton padButton, MouseButton mouseButton, StickDirection stickDirection)
+    private InputButton(Source source, int value)
     {
-        _key = key;
-        _padButton = padButton;
-        _mouseButton = mouseButton;
-        _stickDirection = stickDirection;
+        _source = value == 0 ? Source.None : source;
+        _value = value;
     }
 
     /// <summary>No button, equal to <c>default</c>. Binding rejects it.</summary>
     public static InputButton None => default;
 
     /// <summary>Names <paramref name="key"/> as this button.</summary>
-    public static implicit operator InputButton(Key key) => new(key, PadButton.None, MouseButton.None, StickDirection.None);
+    public static implicit operator InputButton(Key key) => new(Source.Key, (int)key);
 
     /// <summary>Names <paramref name="padButton"/> as this button.</summary>
-    public static implicit operator InputButton(PadButton padButton) => new(Key.None, padButton, MouseButton.None, StickDirection.None);
+    public static implicit operator InputButton(PadButton padButton) => new(Source.PadButton, (int)padButton);
 
     /// <summary>Names <paramref name="mouseButton"/> as this button.</summary>
-    public static implicit operator InputButton(MouseButton mouseButton) => new(Key.None, PadButton.None, mouseButton, StickDirection.None);
+    public static implicit operator InputButton(MouseButton mouseButton) => new(Source.MouseButton, (int)mouseButton);
 
     /// <summary>Names <paramref name="stickDirection"/> as this button.</summary>
-    public static implicit operator InputButton(StickDirection stickDirection) => new(Key.None, PadButton.None, MouseButton.None, stickDirection);
+    public static implicit operator InputButton(StickDirection stickDirection) => new(Source.StickDirection, (int)stickDirection);
 
     /// <summary>Whether this names no button, which covers the default and any <c>None</c> device constant.</summary>
-    public bool IsNone =>
-        _key == Key.None && _padButton == PadButton.None && _mouseButton == MouseButton.None &&
-        _stickDirection == StickDirection.None;
+    public bool IsNone => _source == Source.None;
 
     // Whether a snapshot can hold this button. Binding checks it, and a read does not.
-    internal bool IsRepresentable =>
-        (uint)_key < DeviceSnapshot.Capacity &&
-        (uint)_padButton < DeviceSnapshot.PadCapacity &&
-        (uint)_mouseButton < DeviceSnapshot.MouseCapacity;
+    internal bool IsRepresentable => _source switch
+    {
+        Source.Key => (uint)_value < DeviceSnapshot.Capacity,
+        Source.PadButton => (uint)_value < DeviceSnapshot.PadCapacity,
+        Source.MouseButton => (uint)_value < DeviceSnapshot.MouseCapacity,
+        _ => true,
+    };
 
-    internal bool IsMouseButton => _mouseButton != MouseButton.None;
+    internal bool IsMouseButton => _source == Source.MouseButton;
 
     /// <summary>
     /// Whether <paramref name="snapshot"/> holds this button down. A stick direction is down while
     /// its axis is at or past <see cref="StickPressPoint"/> in that direction.
     /// </summary>
     /// <remarks><see cref="None"/> is never down.</remarks>
-    public bool IsDown(in DeviceSnapshot snapshot) =>
-        _key != Key.None ? snapshot.IsDown(_key)
-        : _padButton != PadButton.None ? snapshot.IsDown(_padButton)
-        : _stickDirection != StickDirection.None ? IsPushed(snapshot)
-        : snapshot.IsDown(_mouseButton);
+    public bool IsDown(in DeviceSnapshot snapshot) => _source switch
+    {
+        Source.Key => snapshot.IsDown((Key)_value),
+        Source.PadButton => snapshot.IsDown((PadButton)_value),
+        Source.MouseButton => snapshot.IsDown((MouseButton)_value),
+        Source.StickDirection => IsPushed(snapshot),
+        _ => false,
+    };
 
     /// <summary>The device this button is on: keyboard and mouse together, or the gamepad.</summary>
     /// <exception cref="InvalidOperationException"><see cref="None"/> names no device.</exception>
     public InputDevice Device =>
         IsNone ? throw new InvalidOperationException($"{nameof(InputButton)}.{nameof(None)} names no device. Test {nameof(IsNone)} first.")
-        : _key != Key.None || _mouseButton != MouseButton.None ? InputDevice.KeyboardMouse
+        : _source is Source.Key or Source.MouseButton ? InputDevice.KeyboardMouse
         : InputDevice.Gamepad;
 
     /// <summary>The device constant's bare name for a caption, such as <c>Space</c>, or <c>None</c>.</summary>
     public string Name => IsNone ? nameof(None) : Qualified.Name;
 
     /// <summary>Whether both name the same device constant.</summary>
-    public bool Equals(InputButton other) =>
-        _key == other._key && _padButton == other._padButton && _mouseButton == other._mouseButton &&
-        _stickDirection == other._stickDirection;
+    public bool Equals(InputButton other) => _source == other._source && _value == other._value;
 
     /// <inheritdoc/>
     public override bool Equals(object? obj) => obj is InputButton other && Equals(other);
 
     /// <inheritdoc/>
-    public override int GetHashCode() => HashCode.Combine(_key, _padButton, _mouseButton, _stickDirection);
+    public override int GetHashCode() => HashCode.Combine(_source, _value);
 
     /// <summary>The qualified, parseable form, such as <c>Key.Space</c>, or <c>None</c>.</summary>
     public override string ToString() => IsNone ? nameof(None) : $"{Qualified.Device}.{Qualified.Name}";
 
     // The device constant's type name and bare name. Callers rule out None first.
-    private (string Device, string Name) Qualified =>
-        _key != Key.None ? (nameof(Key), _key.ToString())
-        : _padButton != PadButton.None ? (nameof(PadButton), _padButton.ToString())
-        : _stickDirection != StickDirection.None ? (nameof(StickDirection), _stickDirection.ToString())
-        : (nameof(MouseButton), _mouseButton.ToString());
+    private (string Device, string Name) Qualified => _source switch
+    {
+        Source.Key => (nameof(Key), ((Key)_value).ToString()),
+        Source.PadButton => (nameof(PadButton), ((PadButton)_value).ToString()),
+        Source.MouseButton => (nameof(MouseButton), ((MouseButton)_value).ToString()),
+        _ => (nameof(StickDirection), Direction.ToString()),
+    };
 
     /// <summary>Parses the form <see cref="ToString"/> writes, such as <c>Key.Space</c> or <c>None</c>.</summary>
     /// <exception cref="FormatException"><paramref name="s"/> is not that shape.</exception>
@@ -177,33 +179,41 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
     /// <summary>Whether the two name different device constants.</summary>
     public static bool operator !=(InputButton left, InputButton right) => !left.Equals(right);
 
+    private StickDirection Direction => (StickDirection)_value;
+
     private bool IsPushed(in DeviceSnapshot snapshot)
     {
-        float position = snapshot.Axis(Axis(_stickDirection));
+        float position = snapshot.Axis(Axis(Direction));
 
-        return Positive(_stickDirection) ? position >= StickPressPoint : position <= -StickPressPoint;
+        return Positive(Direction) ? position >= StickPressPoint : position <= -StickPressPoint;
     }
 
-    internal DeviceSnapshot AddTo(in DeviceSnapshot snapshot) =>
-        _key != Key.None ? snapshot.With(_key)
-        : _padButton != PadButton.None ? snapshot.With(_padButton)
-        : _stickDirection != StickDirection.None ? snapshot.WithAxis(Axis(_stickDirection), Positive(_stickDirection) ? 1f : -1f)
-        : snapshot.With(_mouseButton);
+    internal DeviceSnapshot AddTo(in DeviceSnapshot snapshot) => _source switch
+    {
+        Source.Key => snapshot.With((Key)_value),
+        Source.PadButton => snapshot.With((PadButton)_value),
+        Source.MouseButton => snapshot.With((MouseButton)_value),
+        Source.StickDirection => snapshot.WithAxis(Axis(Direction), Positive(Direction) ? 1f : -1f),
+        _ => snapshot,
+    };
 
-    internal DeviceSnapshot RemoveFrom(in DeviceSnapshot snapshot) =>
-        _key != Key.None ? snapshot.Without(_key)
-        : _padButton != PadButton.None ? snapshot.Without(_padButton)
-        : _stickDirection != StickDirection.None ? WithoutStickDirection(snapshot)
-        : snapshot.Without(_mouseButton);
+    internal DeviceSnapshot RemoveFrom(in DeviceSnapshot snapshot) => _source switch
+    {
+        Source.Key => snapshot.Without((Key)_value),
+        Source.PadButton => snapshot.Without((PadButton)_value),
+        Source.MouseButton => snapshot.Without((MouseButton)_value),
+        Source.StickDirection => WithoutStickDirection(snapshot),
+        _ => snapshot,
+    };
 
     private DeviceSnapshot WithoutStickDirection(in DeviceSnapshot snapshot)
     {
-        PadAxis axis = Axis(_stickDirection);
+        PadAxis axis = Axis(Direction);
         float position = snapshot.Axis(axis);
-        float inside = Positive(_stickDirection)
+        float inside = Positive(Direction)
             ? MathF.BitDecrement(StickPressPoint)
             : MathF.BitIncrement(-StickPressPoint);
-        float released = Positive(_stickDirection) ? MathF.Min(position, inside) : MathF.Max(position, inside);
+        float released = Positive(Direction) ? MathF.Min(position, inside) : MathF.Max(position, inside);
 
         return snapshot.WithAxis(axis, released);
     }
@@ -219,4 +229,13 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
     private static bool Positive(StickDirection direction) =>
         direction is StickDirection.LeftStickUp or StickDirection.LeftStickRight
             or StickDirection.RightStickUp or StickDirection.RightStickRight;
+
+    private enum Source : byte
+    {
+        None,
+        Key,
+        PadButton,
+        MouseButton,
+        StickDirection,
+    }
 }

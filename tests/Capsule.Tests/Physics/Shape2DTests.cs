@@ -39,7 +39,7 @@ public sealed class Shape2DTests
     {
         Shape2D unit = Shape2D.Box(Vector2.Zero, new Vector2(1f, 1f));
 
-        // Float spacing reaches one unit at 2^23; one step below it, the box still has width.
+        // Float spacing reaches one unit at 2^23. One step below it, the box still has width.
         const float Furthest = 4194304f;
         Shape2D placed = unit.Translated(new Vector2(Furthest, 0f));
 
@@ -96,7 +96,7 @@ public sealed class Shape2DTests
         Assert.Throws<ArgumentException>(() => Shape2D.Polygon([new Vector2(0f, 0f), new Vector2(0f, 0.001f), new Vector2(8f, 8f)]));
     }
 
-    // Winding decides which way edge normals point, so the same outline authored backwards must
+    // Winding decides which way edge normals point. The same outline authored backwards must
     // still face them outward.
     [Fact]
     public void Polygon_AcceptsEitherWindingOrderAndStillFacesItsNormalsOutward()
@@ -160,7 +160,7 @@ public sealed class Shape2DTests
         Assert.Equal(new Vector2(7f, 15f), capsule.Bounds.Max);
     }
 
-    // About the shape's own origin, so a box offset from it moves with its corners rather than
+    // About the shape's own origin. A box offset from it moves with its corners rather than
     // growing in place.
     [Fact]
     public void Scaled_MultipliesEveryPointAboutTheShapesOwnOrigin()
@@ -172,7 +172,7 @@ public sealed class Shape2DTests
         Assert.Equal(ShapeKind2D.Box, scaled.Kind);
     }
 
-    // A radius is one distance, so a non-uniform scale would name a shape the narrowphase has no
+    // A radius is one distance. A non-uniform scale would name a shape the narrowphase has no
     // representation for.
     [Fact]
     public void Scaled_ScalesARoundedShapesRadiusWithItsPoints()
@@ -220,5 +220,12 @@ public sealed class Shape2DTests
     {
         Assert.Throws<ArgumentException>(
             () => Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)).Scaled(new Vector2(1e-6f, 1e-6f)));
+    }
+
+    [Fact]
+    public void Scaled_RefusesTheDefaultShape()
+    {
+        ArgumentException refused = Assert.Throws<ArgumentException>(() => default(Shape2D).Scaled(Vector2.One));
+        Assert.Contains("default Shape2D", refused.Message, StringComparison.Ordinal);
     }
 }

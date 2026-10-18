@@ -13,7 +13,7 @@ public sealed class ColorRgbaTests
         Assert.Equal(from, ColorRgba.Lerp(from, to, 0f));
         Assert.Equal(to, ColorRgba.Lerp(from, to, 1f));
 
-        // Clamped, so a tween overshooting its curve never blends past either colour.
+        // Clamped. A tween overshooting its curve never blends past either colour.
         Assert.Equal(from, ColorRgba.Lerp(from, to, -0.5f));
         Assert.Equal(to, ColorRgba.Lerp(from, to, 1.5f));
     }

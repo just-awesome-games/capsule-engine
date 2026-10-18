@@ -110,7 +110,7 @@ public sealed class AudioVoiceLifetimeTests
         Assert.Equal([(AudioCommandKind.Play, next)], Raised(mixer));
     }
 
-    // An expired slot stays occupied until something reaches it, so a bus-wide change must retire it
+    // An expired slot stays occupied until something reaches it. A bus-wide change must retire it
     // rather than hold it: a held voice is not expired, which would make its stale handle resolve.
     [Fact]
     public void AnExpiredOneShot_IsNotRevivedByAChangeToItsBus()
@@ -152,7 +152,7 @@ public sealed class AudioVoiceLifetimeTests
             }
         }
 
-        // The slot is handed to another voice, so the stale handle now names a live slot.
+        // The slot is handed to another voice. The stale handle now names a live slot.
         Advance(mixer, StepEnds + 1);
         Voice reused = mixer.Play(Step);
         Assert.NotEqual(dead, reused);
@@ -222,7 +222,7 @@ public sealed class AudioVoiceLifetimeTests
                 break;
 
             default:
-                // The slot is handed to another voice, so the stale handle names a live slot at an
+                // The slot is handed to another voice. The stale handle names a live slot at an
                 // older generation rather than an empty one.
                 mixer.Stop(voice);
                 Voice reused = mixer.Play(Step);

@@ -30,6 +30,15 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     private readonly PointBuffer _points;
     private readonly byte _count;
 
+    /// <summary>Which <see cref="ShapeKind2D"/> this shape is.</summary>
+    public ShapeKind2D Kind { get; }
+
+    /// <summary>How far the shape extends beyond the hull of its points, in world units.</summary>
+    public float Radius { get; }
+
+    /// <summary>The shape's bounds in the space its points are expressed in, radius included.</summary>
+    public Aabb2D Bounds { get; }
+
     private Shape2D(ShapeKind2D kind, in PointBuffer points, int count, float radius, in Aabb2D bounds, int hull = 0)
     {
         Kind = kind;
@@ -40,20 +49,11 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         Bounds = bounds;
     }
 
-    /// <summary>Which <see cref="ShapeKind2D"/> this shape is.</summary>
-    public ShapeKind2D Kind { get; }
-
-    /// <summary>How far the shape extends beyond the hull of its points, in world units.</summary>
-    public float Radius { get; }
-
     /// <summary>
     /// How many points the shape holds. One for a circle, two for a capsule, three to
     /// <see cref="MaxPoints"/> otherwise, and zero for the default value.
     /// </summary>
     public int PointCount => _count;
-
-    /// <summary>The shape's bounds in the space its points are expressed in, radius included.</summary>
-    public Aabb2D Bounds { get; }
 
     /// <summary>A circle of <paramref name="radius"/> around <paramref name="center"/>.</summary>
     /// <exception cref="ArgumentException">The centre and radius together span more than a float box holds.</exception>
@@ -153,7 +153,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         return new Shape2D(kind, buffer, points.Length, radius, bounds, hull);
     }
 
-    // A grid cell or one of its faces. The grid already validated these coordinates, so the bounds
+    // A grid cell or one of its faces. The grid already validated these coordinates, and the bounds
     // are taken unchecked. A cell with no thickness on an axis becomes a segment.
     internal static Shape2D OfCell(in Aabb2D cell) =>
         cell.Min.X != cell.Max.X && cell.Min.Y != cell.Max.Y ? Rectangle(cell) : Segment(cell.Min, cell.Max);
@@ -224,16 +224,17 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     /// This shape with every point multiplied by <paramref name="scale"/> about the origin of its own
     /// space. The radius scales too, and a rounded shape needs the same factor on both axes.
     /// </summary>
-    /// <exception cref="ArgumentException">The scale is non-uniform on a rounded shape, or the result is a shape construction would refuse.</exception>
+    /// <exception cref="ArgumentException">The shape is the default value, the scale is non-uniform on a rounded shape, or the result is a shape construction would refuse.</exception>
     public Shape2D Scaled(Vector2 scale)
     {
+        RequireBuilt(this, null);
         Guard.Positive(scale.X, nameof(scale));
         Guard.Positive(scale.Y, nameof(scale));
 
         if (Radius > 0f && scale.X != scale.Y)
         {
             throw new ArgumentException(
-                $"A {Kind} is rounded, so it needs the same scale factor on both axes.",
+                $"A {Kind} is rounded and needs the same scale factor on both axes. Pass a uniform scale.",
                 nameof(scale));
         }
 
@@ -244,7 +245,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
             scaled[index] = PointAt(index) * scale;
         }
 
-        // The scale is uniform whenever the radius is non-zero, so either component works.
+        // The scale is uniform whenever the radius is non-zero. Either component works.
         float radius = Radius * scale.X;
         if (Radius > 0f && !(float.IsFinite(radius) && radius > 0f))
         {
@@ -307,6 +308,17 @@ public readonly struct Shape2D : IEquatable<Shape2D>
 
     /// <summary>Whether two shapes differ in kind, radius or points.</summary>
     public static bool operator !=(Shape2D left, Shape2D right) => !left.Equals(right);
+
+    // Refuses the default value, which holds no points.
+    internal static void RequireBuilt(in Shape2D shape, string? parameterName)
+    {
+        if (shape._count == 0)
+        {
+            throw new ArgumentException(
+                "Shape is a default Shape2D. Build one with Shape2D.Box, Circle, Capsule or Polygon.",
+                parameterName);
+        }
+    }
 
     // The furthest point along a direction.
     internal Vector2 Support(Vector2 direction) => PointAt(SupportIndex(direction));
@@ -405,7 +417,7 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         }
     }
 
-    // Normalises to cross-positive winding, so the outward normal of the edge from p[i] to p[i+1] is
+    // Normalises to cross-positive winding. The outward normal of the edge from p[i] to p[i+1] is then
     // (e.Y, -e.X). Reversing here lets a caller author either order.
     private static void NormaliseWinding(Span<Vector2> points)
     {

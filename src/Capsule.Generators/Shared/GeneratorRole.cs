@@ -34,7 +34,7 @@ internal static class GeneratorRoles
     /// <summary>Whether the logic boundary applies: the logic role, alone or in conflict with the shell role.</summary>
     internal static bool DeclaresLogic(this GeneratorRole role) => role is GeneratorRole.Logic or GeneratorRole.Conflict;
 
-    // MSBuild passes a boolean property through verbatim, so compare it case-insensitively.
+    // Compared case-insensitively because MSBuild passes a boolean property through verbatim.
     private static bool Declares(AnalyzerConfigOptions options, string key) =>
         options.TryGetValue(key, out string? value) && string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
 }

@@ -104,16 +104,7 @@ public sealed class AssetImportContext
     }
 
     // The path relative to the working directory, recorded as an input before anything opens it.
-    private string Reads(string path)
-    {
-        string relative = BuildRequests.Relative(path);
-        if (!_inputs.Contains(relative, Keys.PathComparer))
-        {
-            _inputs.Add(relative);
-        }
-
-        return relative;
-    }
+    private string Reads(string path) => BuildRequests.Record(_inputs, path);
 
     private static string Checked(string assetPath)
     {

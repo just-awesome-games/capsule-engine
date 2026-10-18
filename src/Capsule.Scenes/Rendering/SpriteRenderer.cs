@@ -132,15 +132,14 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
                 return default;
             }
 
-            // Bounds describe the entity's current transform, so this is the rect at rest and not
-            // the swept one.
+            // Bounds describe the entity's current transform. This is the rect at rest, not the swept one.
             Transform2D at = RenderTransform;
             if ((Tiling != Vector2.Zero && at.Rotation != 0f) || !Intent(at, at).TryGetSweptBounds(out Rect frame))
             {
                 return default;
             }
 
-            return new Rect(
+            return Rect.FromEdges(
                 frame.Left,
                 frame.Top,
                 Tiling.X > 0f && float.IsFinite(Tiling.X) ? frame.Left + Tiling.X : frame.Right,
@@ -153,19 +152,15 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     /// creates it under this renderer's entity and every later call returns the same instance.
     /// </summary>
     /// <remarks>
-    /// The renderer owns it. Game code may read its <see cref="Entity.WorldPosition"/> or parent
+    /// The renderer owns the child. Game code may read its <see cref="Entity.WorldPosition"/> or parent
     /// entities under it, but must not remove or reparent it. It leaves the scene with its parent.
     /// <para>
     /// Its local position is <see cref="Offset"/> plus the socket's point measured from the frame's
-    /// pivot, mirrored about that pivot by <see cref="FlipX"/> and <see cref="FlipY"/> the same way
-    /// the drawn frame is. The entity's turn and scale then place it as they place the frame. Every
-    /// write to <see cref="Sprite"/>, <see cref="Offset"/>, <see cref="FlipX"/> or
-    /// <see cref="FlipY"/> re-places it as a teleport. A socket point snaps with its frame and
-    /// never interpolates between two frames' points. A frame that does not carry the socket leaves
-    /// the child where the last frame carrying it put it, and a later offset or flip re-places it
-    /// from that stored point. Until some frame carries it, the child sits at the entity's origin.
-    /// The point comes from the frame written this step. A late step, or a component attached after
-    /// the animator, reads the socket of the frame that will be drawn.
+    /// pivot, mirrored by <see cref="FlipX"/> and <see cref="FlipY"/> as the frame is. Every write to
+    /// <see cref="Sprite"/>, <see cref="Offset"/>, <see cref="FlipX"/> or <see cref="FlipY"/> teleports
+    /// it. A frame that does not carry the socket leaves the child at the last point a frame carried.
+    /// Until some frame carries it, the child sits at the entity's origin. A component stepping after
+    /// the animator reads the socket of the frame that will be drawn.
     /// </para>
     /// </remarks>
     /// <param name="name">The socket's name as the sheet declared it. The sheet's generated <c>Sockets</c> class lists them.</param>
@@ -203,30 +198,28 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     /// on a child entity of this renderer's entity, and every later call returns the same instance.
     /// </summary>
     /// <remarks>
-    /// The renderer writes the collider's <see cref="Collider2D.Enabled"/>, <see cref="Collider2D.Offset"/>
-    /// and <see cref="BoxCollider2D.Size"/>, and owns the child entity, which is named for the box and
-    /// leaves the scene with its parent. The game sets its <see cref="Collider2D.Layer"/>,
-    /// <see cref="Collider2D.Detects"/>, <see cref="Collider2D.ReportsContacts"/>,
-    /// <see cref="Collider2D.OneWay"/> and handlers. A game's own write to the three the renderer
-    /// writes lasts until the renderer next places the box.
+    /// The renderer owns the child entity, which is named for the box and leaves the scene with its
+    /// parent. The renderer writes the collider's <see cref="Collider2D.Enabled"/>,
+    /// <see cref="Collider2D.Offset"/> and <see cref="BoxCollider2D.Size"/>, and a game's own write to
+    /// those lasts until the renderer next places the box. The game sets the rest, such as
+    /// <see cref="Collider2D.Layer"/>, <see cref="Collider2D.Detects"/> and the handlers.
     /// <para>
-    /// On a frame carrying the box the collider is enabled and covers the box's rect. The rect is
-    /// measured from the frame's pivot, moved by <see cref="Offset"/> and mirrored about the pivot by
-    /// <see cref="FlipX"/> and <see cref="FlipY"/>, in the entity's own space. On a frame without the
-    /// box, and before any frame carries it, the collider is disabled. Unlike a socket, a box does not
-    /// hold over a frame that lacks it. Every write to <see cref="Sprite"/>, <see cref="Offset"/>,
-    /// <see cref="FlipX"/> or <see cref="FlipY"/> re-places it before returning. The box reports a
-    /// contact on the step the animator enters its frame.
+    /// On a frame carrying the box the collider is enabled and covers the box's rect, measured from the
+    /// frame's pivot, moved by <see cref="Offset"/> and mirrored by <see cref="FlipX"/> and
+    /// <see cref="FlipY"/> in the entity's own space. On a frame without the box, and before any frame
+    /// carries it, the collider is disabled. Every write to <see cref="Sprite"/>, <see cref="Offset"/>,
+    /// <see cref="FlipX"/> or <see cref="FlipY"/> re-places it. The box reports a contact on the step
+    /// the animator enters its frame.
     /// </para>
     /// </remarks>
     /// <example>
-    /// A hurt box that reports what damages it:
+    /// A door's reach box that reports what walks into it:
     /// <code>
-    /// BoxCollider2D hurt = sprite.Box(CapsuleAssets.Sprites.Actors.EnemySheet.Boxes.Hurt);
-    /// hurt.Layer = CollisionLayers.EnemyHurt;
-    /// hurt.Detects = new(CollisionLayers.Damaging);
-    /// hurt.ReportsContacts = true;
-    /// hurt.ContactEntered += OnHurt;
+    /// BoxCollider2D reach = sprite.Box(CapsuleAssets.Sprites.Props.DoorSheet.Boxes.Reach);
+    /// reach.Layer = CollisionLayers.Triggers;
+    /// reach.Detects = new(CollisionLayers.Actors);
+    /// reach.ReportsContacts = true;
+    /// reach.ContactEntered += OnApproached;
     /// </code>
     /// </example>
     /// <param name="name">The box's name as the sheet declared it. The sheet's generated <c>Boxes</c> class lists them.</param>
@@ -282,8 +275,8 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         view.Add(Intent(PreviousRenderTransform, RenderTransform), Tiling);
     }
 
-    // A negative world scale axis mirrors the frame about the pivot, the same effect as a flip, so fold
-    // it into the flip flags and pass the backend the magnitude of the extent.
+    // A negative world scale axis mirrors the frame about the pivot as a flip does. It folds into the flip
+    // flags, and the backend draws the magnitude of the extent.
     private SpriteIntent Intent(in Transform2D previous, in Transform2D current)
     {
         Sprite frame = Sprite;
@@ -302,8 +295,8 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
             Blend);
     }
 
-    // Scans the frame's sockets once. Names are interned literals in a generated sheet, so the
-    // comparison usually matches on reference without reading a character.
+    // Names are interned literals in a generated sheet. The comparison usually matches on reference
+    // without reading a character.
     private void Read(SocketBinding binding)
     {
         ReadOnlySpan<SpriteSocket> carried = _sprite.Marks is { } marks ? marks.Sockets : [];
@@ -420,11 +413,8 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         }
 
         Rect area = binding.Area;
-        Vector2 pivot = binding.Pivot;
         Vector2 size = Extent(area);
-        Vector2 offset = _offset + new Vector2(
-            _flipX ? pivot.X - area.Right : area.Left - pivot.X,
-            _flipY ? pivot.Y - area.Bottom : area.Top - pivot.Y);
+        Vector2 offset = _offset + FromPivot(new Vector2(area.Left, area.Top), new Vector2(area.Right, area.Bottom), binding.Pivot);
 
         if (size != collider.Size)
         {
@@ -448,8 +438,8 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
 
     private static Vector2 Extent(Rect area) => new(area.Right - area.Left, area.Bottom - area.Top);
 
-    // Mirrors about the pivot, matching the drawn frame. The entity tree composes the parent's scale and
-    // turn, which keeps a facing written as a negative scale from folding in twice.
+    // The entity tree composes the parent's scale and turn, which keeps a facing written as a negative
+    // scale from folding in twice.
     private void Place(SocketBinding binding)
     {
         if (!binding.Placed)
@@ -457,14 +447,19 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
             return;
         }
 
-        Vector2 fromPivot = binding.Point - binding.Pivot;
-        Vector2 local = _offset + new Vector2(_flipX ? -fromPivot.X : fromPivot.X, _flipY ? -fromPivot.Y : fromPivot.Y);
+        Vector2 local = _offset + FromPivot(binding.Point, binding.Point, binding.Pivot);
 
         if (local != binding.Child.Position)
         {
             binding.Child.Teleport(local);
         }
     }
+
+    // The low corner of the span from `low` to `high`, measured from `pivot` and mirrored about it on a
+    // flipped axis as the drawn frame is. A point is a span whose two corners coincide.
+    private Vector2 FromPivot(Vector2 low, Vector2 high, Vector2 pivot) => new(
+        _flipX ? pivot.X - high.X : low.X - pivot.X,
+        _flipY ? pivot.Y - high.Y : low.Y - pivot.Y);
 
     /// <inheritdoc/>
     protected internal override void OnDebugPanel(DebugPanel panel)

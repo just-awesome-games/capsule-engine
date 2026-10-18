@@ -1,6 +1,6 @@
 namespace Capsule.Tests.Core;
 
-// Signed zeros compare equal and NaN equals nothing, so each case is compared bit for bit against the
+// Signed zeros compare equal and NaN equals nothing. Each case is compared bit for bit against the
 // system's double result rounded to float. The one NaN a member may return is float.NaN.
 public sealed class DeterministicMathSpecialValuesTests
 {

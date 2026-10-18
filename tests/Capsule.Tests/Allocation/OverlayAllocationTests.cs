@@ -3,12 +3,9 @@ using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Physics;
 using Capsule.Rendering;
-using Capsule.Runtime;
-using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
-using Capsule.Tests.Runtime;
-using static Capsule.Tests.Runtime.OverlayRig;
+using Capsule.Tests.DevTools;
 
 namespace Capsule.Tests.Allocation;
 
@@ -42,12 +39,7 @@ public sealed class OverlayAllocationTests
             static (in SceneTransition _) => new Instrumented(),
             new Run()));
 
-        rig.Open();
-        rig.Press(Key.S);
-        rig.Press(Key.Down);
-        rig.Press(Key.Enter);
-
-        Assert.Equal("Holder", rig.Overlay.Title);
+        rig.OpenEntityPanel("Holder");
         Assert.Contains(rig.Overlay.Scene.ShownRows(), static row => row.StartsWith("Ticks", StringComparison.Ordinal));
 
         AssertIdleStretchAllocatesNothing(rig);
@@ -69,11 +61,7 @@ public sealed class OverlayAllocationTests
         rig.Open();
         rig.PlaceWorld();
 
-        Gesture(rig, 60);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        Gesture(rig, 300);
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, StepMeasurement.Bytes(frame => Gesture(rig, frame), warmup: 60, measured: 300));
         Assert.True(rig.Overlay.FreeCamera.Detached);
         Assert.NotEmpty(rig.Overlay.Scene.Readout()[2]);
     }
@@ -85,59 +73,35 @@ public sealed class OverlayAllocationTests
     public void HeldFramesWithASelectionHighlightedAndAFlightInProgress_AllocateNothing()
     {
         using OverlayRig rig = OverlayFixtures.Framing(new Highlighted());
-        rig.Open();
-        rig.Press(Key.S);
-        rig.Press(Key.Down);
-        rig.Press(Key.Enter);
+        rig.OpenEntityPanel("Holder");
         rig.PlaceWorld();
         rig.Press(Key.F);
 
-        Assert.Equal("Holder", rig.Overlay.Title);
         Assert.True(rig.Overlay.FreeCamera.Flying);
 
-        Flying(rig, 60);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        Flying(rig, 300);
+        long bytes = StepMeasurement.Bytes(
+            frame =>
+            {
+                rig.Frame(intervalMs: 0.4, updateMs: 0.1);
+                _ = rig.Host.View;
+            },
+            warmup: 60,
+            measured: 300);
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, bytes);
         Assert.True(rig.Overlay.FreeCamera.Flying);
     }
 
-    private static void Flying(OverlayRig rig, int frames)
+    private static void Gesture(OverlayRig rig, int frame)
     {
-        for (int frame = 0; frame < frames; frame++)
-        {
-            rig.Frame(intervalMs: 0.4, updateMs: 0.1);
-            _ = rig.Host.View;
-        }
+        Vector2 pointer = new(500f + (frame % 50), 250f);
+        float notches = frame % 20 == 0 ? 1f : frame % 20 == 10 ? -1f : 0f;
+        rig.Frame(DeviceSnapshot.Empty.With(Key.LeftControl).WithPointer(pointer).With(MouseButton.Middle).WithScroll(new Vector2(0f, notches)));
+        _ = rig.Host.View;
     }
 
-    private static void Gesture(OverlayRig rig, int frames)
-    {
-        for (int frame = 0; frame < frames; frame++)
-        {
-            Vector2 pointer = new(500f + (frame % 50), 250f);
-            float notches = frame % 20 == 0 ? 1f : frame % 20 == 10 ? -1f : 0f;
-            rig.Frame(DeviceSnapshot.Empty.With(Key.LeftControl).WithPointer(pointer).With(MouseButton.Middle).WithScroll(new Vector2(0f, notches)));
-            _ = rig.Host.View;
-        }
-    }
-
-    private static void AssertIdleStretchAllocatesNothing(OverlayRig rig)
-    {
-        for (int frame = 0; frame < 60; frame++)
-        {
-            rig.Frame();
-        }
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int frame = 0; frame < 300; frame++)
-        {
-            rig.Frame();
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
-    }
+    private static void AssertIdleStretchAllocatesNothing(OverlayRig rig) =>
+        Assert.Equal(0, StepMeasurement.Bytes(_ => rig.Frame(), warmup: 60, measured: 300));
 
     private sealed class Highlighted : Scene
     {

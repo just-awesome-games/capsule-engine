@@ -21,18 +21,18 @@ namespace Capsule.Runtime;
 /// </example>
 public sealed class CommandLineException : Exception
 {
+    /// <summary>The usage block for this game's standard command line, as <c>--help</c> prints it.</summary>
+    public string Usage { get; }
+
+    /// <summary>Whether the command line asked for the usage block instead of naming a defect.</summary>
+    public bool HelpRequested { get; }
+
     internal CommandLineException(string message, string usage, bool helpRequested)
         : base(message)
     {
         Usage = usage;
         HelpRequested = helpRequested;
     }
-
-    /// <summary>The usage block for this game's standard command line, as <c>--help</c> prints it.</summary>
-    public string Usage { get; }
-
-    /// <summary>Whether the command line asked for the usage block instead of naming a defect.</summary>
-    public bool HelpRequested { get; }
 
     /// <summary>The process's exit code: 0 for <c>--help</c>, 2 for a command line the engine refused.</summary>
     public int ExitCode => HelpRequested ? 0 : 2;

@@ -17,7 +17,7 @@ internal static class AudioProbeFixtures
                     Comments(["PADDING=" + new string('x', 300), "LOOPSTART=6000"]),
                     255);
 
-                // Cut before the comment header's second page, so the file ends on a page whose
+                // Cut before the comment header's second page. The file ends on a page whose
                 // lacing says the packet runs on.
                 return whole[..Pages(whole)[2]];
 
@@ -26,6 +26,35 @@ internal static class AudioProbeFixtures
 
             case "loop-past-the-end":
                 return Wav(1, 16, 22050, 1764, loop: (441, 2000));
+
+            case "loop-tag-not-a-sample-count":
+                return Ogg(48000, [0, 24000], Comments(["LOOPSTART=one bar"]));
+
+            case "no-vorbis-header":
+                // The packet type, at the head of the first page's payload: 1 is the identification header.
+                byte[] unidentified = Ogg(48000, [24000]);
+                unidentified[28] = 5;
+
+                return unidentified;
+
+            case "ogg-six-channels":
+                // The channel count, eleven bytes into the identification header.
+                byte[] surround = Ogg(48000, [0, 24000]);
+                surround[28 + 11] = 6;
+
+                return surround;
+
+            case "ima-adpcm":
+                return Wav(1, 16, 22050, 8, formatTag: 0x11);
+
+            case "40-bit-pcm":
+                return Wav(1, 40, 22050, 8);
+
+            case "64-bit-float":
+                return Wav(1, 64, 22050, 8, formatTag: 3);
+
+            case "wav-six-channels":
+                return Wav(6, 16, 22050, 8);
 
             default:
                 return [];
@@ -38,13 +67,15 @@ internal static class AudioProbeFixtures
         int rate,
         int frames,
         bool padded = false,
-        (uint Start, uint End)? loop = null) =>
-        WavFixtures.Wav(rate, bits, channels, new byte[frames * channels * (bits / 8)], padded: padded, loop: loop);
+        (uint Start, uint End)? loop = null,
+        int formatTag = 1,
+        bool extensible = false) =>
+        WavFixtures.Wav(rate, bits, channels, new byte[frames * channels * (bits / 8)], formatTag, padded, loop, extensible);
 
     // One identification page, then one page per granule after the first, the second carrying the
     // comment header. commentPage laces that header across as many pages as it needs, which is what
-    // an encoder writes for a header too long for one page; every page but the last then ends on a
-    // maximum-length lacing value, so commentPage is a multiple of 255.
+    // an encoder writes for a header too long for one page. Every page but the last then ends on a
+    // maximum-length lacing value. commentPage is a multiple of 255.
     internal static byte[] Ogg(int rate, long[] granules, byte[]? comments = null, int commentPage = 0)
     {
         using MemoryStream file = new();
@@ -118,7 +149,7 @@ internal static class AudioProbeFixtures
     }
 
     // Where each page of a file begins. The payloads these fixtures carry hold no capture pattern of
-    // their own, so the pattern is only ever a page.
+    // their own. The pattern is only ever a page.
     internal static List<int> Pages(byte[] file)
     {
         List<int> starts = [];

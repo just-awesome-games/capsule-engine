@@ -5,11 +5,16 @@ namespace Capsule.Build.Fonts;
 
 /// <summary>
 /// Reads every bitmap font and declares it as a <c>BitmapFont</c>, and sets
-/// <see cref="PipelinePass.FontPages"/>. The textures a font names beside it are its pages. A misspelt
-/// font is a compile error and nothing is parsed at run time.
+/// <see cref="PipelinePass.FontPages"/>.
 /// </summary>
+/// <remarks>
+/// The textures a font names beside it are its pages. A misspelt font is a compile error and nothing
+/// is parsed at run time.
+/// </remarks>
 internal static class FontStep
 {
+    private const string Step = "fonts";
+
     // A byte that is no UTF-8 fails the font instead of reading as a replacement character.
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
@@ -18,7 +23,7 @@ internal static class FontStep
         HashSet<string> pages = new(StringComparer.Ordinal);
 
         foreach ((Source font, BmFontDescription description) in pass.Each(
-            "fonts",
+            Step,
             pass.Of(AssetType.Fonts),
             source => Derivation.Of(source),
             (source, _) => BmFontParser.Parse(File.ReadAllText(source.Path, StrictUtf8)),

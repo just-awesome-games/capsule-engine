@@ -3,8 +3,8 @@ using System.Text.RegularExpressions;
 
 namespace Capsule.Build.Fonts;
 
-// Reads the text flavour of the BMFont format. The font is known at build time, so the generated
-// registry carries it as literal data and nothing is parsed at run time.
+// Reads the text flavour of the BMFont format at build time. The generated registry carries the font as
+// literal data, and nothing is parsed at run time.
 internal static partial class BmFontParser
 {
     /// <summary>The extension a page ships as.</summary>
@@ -63,7 +63,13 @@ internal static partial class BmFontParser
                     break;
 
                 case "page":
-                    pages[fields.Require("id")] = (fields.RequireText("file"), line);
+                    int id = fields.Require("id");
+                    if (pages.TryGetValue(id, out (string File, int Line) first))
+                    {
+                        throw At(line, Invariant($"declares page {id}, which line {first.Line + 1} already declares. Give each page its own id."));
+                    }
+
+                    pages.Add(id, (fields.RequireText("file"), line));
                     break;
 
                 case "char":
@@ -80,7 +86,7 @@ internal static partial class BmFontParser
 
                     if (!codepoints.Add(glyph.Codepoint))
                     {
-                        throw At(line, Invariant($"declares codepoint {glyph.Codepoint} twice."));
+                        throw At(line, Invariant($"declares codepoint {glyph.Codepoint} twice. Keep one of its char lines."));
                     }
 
                     glyphs.Add((glyph, line));
@@ -98,12 +104,12 @@ internal static partial class BmFontParser
 
         if (lineHeight <= 0)
         {
-            throw At(commonLine, Invariant($"declares lineHeight={lineHeight}. A line must be at least one pixel tall."));
+            throw At(commonLine, Invariant($"declares lineHeight={lineHeight}. A line must be at least one pixel tall. Bake the font with a positive lineHeight."));
         }
 
         if (pages.Count == 0)
         {
-            throw new FormatException("declares no page. A font must be baked onto at least one page.");
+            throw new FormatException("declares no page. Bake the font onto at least one page.");
         }
 
         string[] pageFiles = new string[pages.Count];
@@ -113,7 +119,7 @@ internal static partial class BmFontParser
         {
             if (!string.Equals(Path.GetExtension(file), PageExtension, StringComparison.OrdinalIgnoreCase))
             {
-                throw At(line, $"names page \"{file}\". A page must ship as {PageExtension}.");
+                throw At(line, $"names page \"{file}\". Export every page as {PageExtension}.");
             }
 
             pageFiles[pageIndex.Count] = file.Replace('\\', '/');
@@ -127,7 +133,7 @@ internal static partial class BmFontParser
 
             if (!pageIndex.TryGetValue(glyph.Page, out int index))
             {
-                throw At(line, Invariant($"puts codepoint {glyph.Codepoint} on page {glyph.Page} and declares no file for that page."));
+                throw At(line, Invariant($"puts codepoint {glyph.Codepoint} on page {glyph.Page} and declares no file for that page. Add a page line with id={glyph.Page}, or bake the glyph onto a declared page."));
             }
 
             // Widened to long: two ints that each parse can sum past int range, and a wrapped sum
@@ -140,7 +146,7 @@ internal static partial class BmFontParser
                 || (long)glyph.Y + glyph.Height > scaleHeight)
             {
                 throw At(line, Invariant(
-                    $"cuts codepoint {glyph.Codepoint} at ({glyph.X}, {glyph.Y}) {glyph.Width}x{glyph.Height}, outside its {scaleWidth}x{scaleHeight} page."));
+                    $"cuts codepoint {glyph.Codepoint} at ({glyph.X}, {glyph.Y}) {glyph.Width}x{glyph.Height}, outside its {scaleWidth}x{scaleHeight} page. Bake the font again so every glyph lies on its page."));
             }
 
             placed[i] = glyph with { Page = index };
@@ -150,7 +156,7 @@ internal static partial class BmFontParser
         {
             if (!codepoints.Contains(kerning.First) || !codepoints.Contains(kerning.Second))
             {
-                throw At(line, Invariant($"kerns {kerning.First} against {kerning.Second} and carries no glyph for one of them."));
+                throw At(line, Invariant($"kerns {kerning.First} against {kerning.Second} and carries no glyph for one of them. Remove the kerning line, or bake the missing glyph."));
             }
         }
 
@@ -195,14 +201,14 @@ internal static partial class BmFontParser
             // here instead of wrapping into a plausible one.
             return int.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int parsed)
                 ? parsed
-                : throw At(line, $"declares {Tag} {key}=\"{value}\". That is not a whole number the font can be measured by.");
+                : throw At(line, $"declares {Tag} {key}=\"{value}\". That is not a whole number the font can be measured by. Write it as a whole number.");
         }
 
         /// <summary>A textual field the font is measured by.</summary>
         internal string RequireText(string key) =>
             values.TryGetValue(key, out string? text) && text.Length > 0
                 ? text
-                : throw At(line, $"declares a {Tag} line with no {key}.");
+                : throw At(line, $"declares a {Tag} line with no {key}. Add {key}= to the line, or bake the font again.");
 
         /// <summary>A field that may be absent. Reads as zero when missing.</summary>
         internal int Optional(string key) =>

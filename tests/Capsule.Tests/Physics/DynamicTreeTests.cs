@@ -36,8 +36,7 @@ public sealed class DynamicTreeTests
         Assert.Empty(Found(tree, Cell(108, 0), Everything));
     }
 
-
-    // The rotations a thousand inserts force rewrite parentage; a mask that is not carried through them
+    // The rotations a thousand inserts force rewrite parentage. A mask that is not carried through them
     // loses proxies rather than merely visiting extra ones.
     [Fact]
     public void Query_KeepsTheMaskExactThroughTheRotationsAThousandInsertsForce()
@@ -52,10 +51,8 @@ public sealed class DynamicTreeTests
         Assert.Equal(Odds(1024), Found(tree, All, Blue));
     }
 
-
-
     // Every path that writes a mask, run over one tree: a node left holding less than its children's
-    // union prunes a subtree the query should have reached, so a proxy goes missing.
+    // union prunes a subtree the query should have reached. A proxy goes missing.
     [Fact]
     public void MaskWritingPaths_LeaveEveryProxyFindableThroughMovesRewritesAndRemovals()
     {
@@ -82,7 +79,7 @@ public sealed class DynamicTreeTests
 
         Assert.Equal(Range(300), Found(tree, All, Red | Blue | Green));
 
-        // Every Blue proxy rewritten to Red, so the bit has to leave its ancestors rather than merely
+        // Every Blue proxy rewritten to Red. The bit has to leave its ancestors rather than merely
         // being joined by another.
         for (int index = 0; index < proxies.Length; index++)
         {
@@ -95,7 +92,7 @@ public sealed class DynamicTreeTests
         Assert.Equal(Range(300), Found(tree, All, Red | Green));
         Assert.Empty(Found(tree, All, Blue));
 
-        // Asserted per removal, so the promotions that reach a grandparent or the root are each
+        // Asserted per removal. The promotions that reach a grandparent or the root are each
         // covered, down to a tree holding one proxy.
         for (int index = 0; index < proxies.Length - 1; index++)
         {

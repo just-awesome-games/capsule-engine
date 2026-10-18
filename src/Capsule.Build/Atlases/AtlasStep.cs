@@ -12,10 +12,12 @@ namespace Capsule.Build.Atlases;
 /// </summary>
 internal static class AtlasStep
 {
+    private const string Step = "atlases";
+
     /// <summary>Texels of border duplicated outward on every side of a member.</summary>
     internal const int Extrude = 1;
 
-    // Where every page ships below assets/, as atlases/game.0.png. No key holds a '.', so no asset
+    // Where every page ships below assets/, as atlases/game.0.png. No key holds a '.', and no asset
     // ships at a page's path.
     private const string PageDirectory = "atlases/";
 
@@ -37,7 +39,7 @@ internal static class AtlasStep
 
         // An atlas derives from its own settings and every member's texels, format and sampling.
         foreach ((_, TextureMapJson packed) in pass.Each(
-            "atlases",
+            Step,
             atlases,
             atlas => new Derivation(
                 atlas.Path,

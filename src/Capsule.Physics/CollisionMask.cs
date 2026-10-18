@@ -4,32 +4,27 @@ namespace Capsule.Physics;
 /// A set of layers named once and usable with any collision world.
 /// </summary>
 /// <remarks>
-/// A game declares its masks as <c>static readonly</c> fields beside its layer names. A mask sets
-/// what a collider detects and what blocks and moves a body, and it filters any query. Each world
-/// resolves a mask the first time it reaches the world, interning names the world has not seen. A
-/// mask with no names matches nothing.
-/// <para>
-/// A mask is immutable and safe to share across threads. A query keeps a slot for its mask in the
-/// world, so a mask built per query grows the world's table without bound. A mask only colliders and
-/// bodies use takes no slot.
-/// </para>
+/// A mask is immutable and safe to share across threads, and one with no names matches nothing. Each
+/// world interns its names the first time the mask reaches it. Declare a mask once, as a
+/// <c>static readonly</c> field. A mask a query uses keeps a slot in every world it reaches, and a
+/// mask built per query grows that table without bound. A mask only colliders and bodies use takes no
+/// slot.
 /// </remarks>
 /// <example>
-/// A wall probe that sweeps the player's collider against climbable layers only:
+/// A probe that sweeps an entity's collider sideways against door layers only:
 /// <code>
-/// private static readonly CollisionMask Climbable = new(CollisionLayers.Climbable);
+/// private static readonly CollisionMask Doors = new(CollisionLayers.Doors);
 ///
-/// if (_collider.Cast(new Vector2(reach, 0f), Climbable, out ShapeCastHit2D hit))
+/// if (_collider.Cast(new Vector2(reach, 0f), Doors, out ShapeCastHit2D hit))
 /// {
-///     // Kick off hit.Normal.
+///     // A door is within reach, hit.Fraction of the way along.
 /// }
 /// </code>
 /// </example>
 public sealed class CollisionMask
 {
     // Query masks are numbered from zero in the order they first reach a query. The number indexes
-    // each world's table of resolved masks, so a mask only colliders and bodies use takes no slot.
-    // The lock covers masks first queried on several threads.
+    // each world's table of resolved masks. The lock covers masks first queried on several threads.
     private static readonly Lock Numbering = new();
     private static int QueryMasks;
 

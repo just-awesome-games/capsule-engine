@@ -48,9 +48,13 @@ internal sealed class SoundDevice : IAudioBackend
         return device;
     }
 
-    // Once a frame, on the game thread. Moves the output to the system's default device when the
-    // default has changed or the device has been pulled.
-    internal void Update(double elapsedSeconds) => _follower?.Update(elapsedSeconds);
+    // Once a frame, on the game thread. Logs a streaming worker fault, and moves the output to the
+    // system's default device when the default has changed or the device has been pulled.
+    internal void Update(double elapsedSeconds)
+    {
+        _streamer.Update();
+        _follower?.Update(elapsedSeconds);
+    }
 
     // A clip with a loop region is decoded here from the bytes just read. Its first looping play then
     // reads no file and decodes nothing on the game thread.
@@ -101,7 +105,7 @@ internal sealed class SoundDevice : IAudioBackend
         return _streamer.Play(new VorbisPcmSource(reader), clip, gain, pitch, pan, loop, startSeconds);
     }
 
-    // The watch goes first, so no announcement lands while the voices it would move are torn down.
+    // The watch goes first. No announcement lands while the voices it would move are torn down.
     public void Dispose()
     {
         _output?.Dispose();

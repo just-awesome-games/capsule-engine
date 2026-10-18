@@ -29,8 +29,8 @@ namespace Capsule.Runtime.Audio.Vorbis
             readonly ushort[] _bitrev;
 
             // Capsule: instance scratch instead of `new float[_n2]` per CalcReverse call. Mdct
-            // (the owner of this MdctImpl, via _setupCache) is one instance per StreamDecoder, so
-            // this buffer is one instance per reader. No two callers share it.
+            // (the owner of this MdctImpl, via _setupCache) is one instance per StreamDecoder.
+            // This buffer is one instance per reader. No two callers share it.
             readonly float[] _buf2;
 
             public MdctImpl(int n)

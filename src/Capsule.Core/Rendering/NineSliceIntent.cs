@@ -46,7 +46,7 @@ public readonly record struct NineSliceIntent(
         Axis(region.Y, region.Height, Insets.Top, Insets.Bottom, Size.Y, rows);
     }
 
-    // One axis of the cut. The far edge is placed from the target's far side, so it stays on that edge
+    // One axis of the cut. The far edge is placed from the target's far side. It stays on that edge
     // however much the middle was squeezed.
     private static void Axis(int origin, int extent, int near, int far, float size, Span<SliceSpan> slices)
     {

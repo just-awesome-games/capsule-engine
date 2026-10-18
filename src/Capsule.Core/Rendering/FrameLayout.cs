@@ -6,8 +6,8 @@ namespace Capsule.Rendering;
 // buffer. No device, no state, nothing drawn. Drawing, pointer mapping and the camera's canvas to world
 // conversion resolve from the same geometry, or a point maps to the wrong pixel.
 //
-// The rule every method here follows: a grown axis is never rounded a pixel up, so the span the
-// world is placed on stays within the span the fit resolved and the camera culled against. A larger
+// The rule every method here follows: a grown axis is never rounded a pixel up. The span the world
+// is placed on stays within the span the fit resolved and the camera culled against. A larger
 // surface gets bars around it instead of showing world the camera never considered.
 internal static class FrameLayout
 {
@@ -47,8 +47,8 @@ internal static class FrameLayout
         ScreenPlacement presented = TargetPlacement(surface.Width, surface.Height, outputWidth, outputHeight);
 
         // A canvas declared apart from the resolution is not in the surface's pixels. Drawn on the
-        // surface it would be cropped or left unscaled, so it takes its own centred fit of the
-        // window over the presented surface.
+        // surface it would be cropped or left unscaled. It takes its own centred fit of the window
+        // over the presented surface instead.
         if (canvas != new Vector2(resolution.Width, resolution.Height))
         {
             ScreenPlacement windowed = WindowPlacement(canvas, outputWidth, outputHeight);
@@ -95,7 +95,7 @@ internal static class FrameLayout
     }
 
     // The whole surface pixels the fit's grown axis covers, null on an axis it did not grow. The grown
-    // axis's surface extent and its quantised span both come from this count, so they cannot disagree.
+    // axis's surface extent and its quantised span both come from this count and cannot disagree.
     // Where the scale comes from the other axis, the camera's size cancels and the count is the
     // binding canvas extent times the output's ratio. Where the canvas holds the grown axis tighter,
     // it is the floor of the exact fraction.
@@ -138,7 +138,7 @@ internal static class FrameLayout
     }
 
     // The floor of (numerator * a * b) / (denominator * c) over whole numbers. A float is an integer
-    // mantissa times a power of two, so the quotient is a ratio of integers. In double, a count that
+    // mantissa times a power of two, and the quotient is a ratio of integers. In double, a count that
     // is truly whole can land an ulp under it and cost the grown axis a pixel.
     private static int FloorRatio(float numerator, int a, int b, float denominator, int c)
     {
@@ -174,7 +174,7 @@ internal static class FrameLayout
     // Where the world lands on the render surface. Under Letterbox the declared span is fitted into
     // the surface at whatever scale it allows, and the slack becomes bars. Under Expand or
     // FixedHeight the quantised span is a whole number of surface pixels at the declared pixels per
-    // unit, so it is centred at that stated scale, with bars where the surface is larger. A scale
+    // unit. It is centred at that stated scale, with bars where the surface is larger. A scale
     // recomputed from a division could land an ulp off.
     private static Letterbox WorldFit(in CameraView camera, Vector2 span, float pixelsPerUnit, (int Width, int Height) surface) =>
         camera.Fit == ViewportFit.Letterbox || !(pixelsPerUnit > 0f)
@@ -219,9 +219,9 @@ internal static class FrameLayout
     }
 
     // The surface a declared canvas draws on for a resolved world rect. Pixels per world unit come
-    // from the canvas over the camera's declared span on the fit's binding axis, so the fit changes
-    // how much world is on the surface and not how large a world unit is. Under Letterbox the
-    // resolved rect is that declared span, so the surface matches the canvas. The surface never
+    // from the canvas over the camera's declared span on the fit's binding axis. The fit changes how
+    // much world is on the surface and not how large a world unit is. Under Letterbox the resolved
+    // rect is that declared span, and the surface matches the canvas. The surface never
     // shrinks below the canvas and never exceeds the back buffer on an axis, since the present would
     // only scale the extra pixels back down after paying to draw them.
     internal static (int Width, int Height) SurfaceSize(
@@ -286,7 +286,7 @@ internal static class FrameLayout
 
     // The present pass for a surface drawn factor times larger than a layout at scale declares. The
     // prescale shrinks by the factor and Scale is the final blit's. The blit's source extent and scale
-    // are the factor of 1's, so the world lands on the same back-buffer pixels.
+    // are the factor of 1's. The world lands on the same back-buffer pixels.
     internal static (int Prescale, TextureSampling Final, float Scale) PresentPass(TextureSampling sampling, float scale, int factor)
     {
         (int prescale, TextureSampling final) = PresentPass(sampling, scale);
@@ -315,8 +315,8 @@ internal static class FrameLayout
         return Math.Max(limit, 1);
     }
 
-    // layout on a surface factor times larger. The world and an on-surface screen layer grow with it,
-    // and the present scale shrinks by it. Span and Layer are unchanged.
+    // Returns layout as it stands on a surface factor times larger. The world and an on-surface screen
+    // layer grow with it, and the present scale shrinks by it. Span and Layer are unchanged.
     internal static ScreenLayout Enlarge(in ScreenLayout layout, int factor)
     {
         if (factor == 1)
@@ -335,8 +335,8 @@ internal static class FrameLayout
         };
     }
 
-    // GrownPixels' count on an axis the fit grew, so the surface matches the quantised span there and
-    // no extra pixel shows as a one-pixel bar. The clamp's floor absorbs a binding axis whose float
+    // GrownPixels' count on an axis the fit grew. The surface matches the quantised span there, and no
+    // extra pixel shows as a one-pixel bar. The clamp's floor absorbs a binding axis whose float
     // product lands under the canvas it equals.
     private static int Extent(int pixels, int canvas, int output) =>
         Math.Clamp(pixels, canvas, Math.Max(canvas, output));

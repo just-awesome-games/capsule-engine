@@ -75,8 +75,8 @@ public readonly record struct Aabb2D(Vector2 Min, Vector2 Max)
 
     internal static bool IsFinite(Vector2 value) => float.IsFinite(value.X) && float.IsFinite(value.Y);
 
-    // Two bounds of the same sign can overflow a float when summed, so that case walks half the
-    // width out from Min.
+    // Two bounds of the same sign can overflow a float when summed. That case walks half the width
+    // out from Min instead.
     private static float Midpoint(float min, float max) =>
         (min < 0f) != (max < 0f) ? (min + max) * 0.5f : min + ((max - min) * 0.5f);
 }

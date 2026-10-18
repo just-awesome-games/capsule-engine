@@ -5,11 +5,11 @@ namespace Capsule.Assets;
 
 // The shipped texture map, holding only non-default run-time facts. The build writes it and the
 // runtime reads it once at boot. A packed texture maps to its page, the texel its (0, 0) landed on
-// and its own size. Any other texture and any page map to a non-default format or sampling. A game whose every
-// texture is unpacked and default ships no map.
+// and its own size. Any other texture and any page map to a non-default format or sampling. A game
+// whose every texture is unpacked and default ships no map.
 internal sealed class TextureMapJson
 {
-    // Where the map ships, below assets/. No key holds a '.', so no asset ships here.
+    // Where the map ships, below assets/. The name holds a '.', which no asset key does.
     internal const string ShippedPath = "textures.json";
 
     [JsonPropertyName("pages")]
@@ -90,33 +90,6 @@ internal sealed class LowerCaseEnumConverter<T> : JsonConverter<T>
 
     // A number parses to a member too, and then differs from the member's own spelling.
     private static string Spell(T value) => value.ToString().ToLowerInvariant();
-}
-
-// Reads a root "$schema", which names the file's JSON Schema for an editor. Its value is ignored, and
-// anything but a string is refused. The same key anywhere below the root is an unknown field.
-internal sealed class SchemaKeyConverter : JsonConverter<string>
-{
-    internal const string Key = "$schema";
-
-    // A null reaches Read, which refuses it, instead of reading as an omitted key.
-    public override bool HandleNull => true;
-
-    public override string Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
-        reader.TokenType == JsonTokenType.String
-            ? reader.GetString()!
-            : throw new JsonException(
-                $"\"{Key}\" is {Kind(reader.TokenType)}. \"{Key}\" is the URL of this file's schema, and the build ignores it. Write the URL as a string, or remove \"{Key}\".");
-
-    public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) => writer.WriteStringValue(value);
-
-    private static string Kind(JsonTokenType token) => token switch
-    {
-        JsonTokenType.Null => "null",
-        JsonTokenType.StartObject => "an object",
-        JsonTokenType.StartArray => "an array",
-        JsonTokenType.Number => "a number",
-        _ => "a boolean",
-    };
 }
 
 // Reflection-based serialization is off solution-wide.

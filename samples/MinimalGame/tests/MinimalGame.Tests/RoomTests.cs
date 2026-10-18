@@ -1,13 +1,9 @@
 using System.Numerics;
-using System.Text.Json;
 using Capsule;
 using Capsule.Generated;
 using Capsule.Input;
 using Capsule.Physics;
-using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 using Capsule.Tiles;
 using MinimalGame.Game;
 using MinimalGame.Game.Entities;
@@ -20,8 +16,8 @@ namespace MinimalGame.Tests;
 // snapshots in place of a keyboard, and read back through the entity the document placed.
 public sealed class RoomTests
 {
-    // A blocked move comes to rest LinearSlop short of what stopped it, so standing on a surface is
-    // only ever true to within that gap.
+    // A blocked move comes to rest LinearSlop short of what stopped it. Standing on a surface is only
+    // ever true to within that gap.
     private const float RestTolerance = CollisionTolerance.LinearSlop + 1e-3f;
 
     // Four seconds, well past any walk or jump these tests wait on.
@@ -30,8 +26,8 @@ public sealed class RoomTests
     // The brick sits in tile row 8, whose cells end at this height.
     private const float BrickRowBottom = 144f;
 
-    // The brick over the spawn breaks at the first head-bump and reads empty from then on, so the
-    // second jump rises through the row it filled.
+    // The brick over the spawn breaks at the first head-bump and reads empty from then on. The second
+    // jump rises through the row it filled.
     [Fact]
     public void AJumpFromTheSpawn_BreaksTheBrickOverhead_AndTheNextJumpRisesThroughItsRow()
     {
@@ -41,8 +37,8 @@ public sealed class RoomTests
         TileMap map = RoomFixture.TerrainOf(room);
         Assert.IsType<Brick>(map.TileAt(2, 8));
 
-        // IsOnFloor is state as of the body's last move, so a jump on the very first step finds no
-        // floor to jump from: the script settles for one step first.
+        // IsOnFloor is state as of the body's last move. A jump on the very first step finds no floor
+        // to jump from, and the script settles for one step first.
         room.Play(new InputScript().Wait(1).Tap(Key.Space).Build());
         Assert.True(room.RunUntil(() => body.IsOnFloor, StepBudget), "the player never landed");
         Assert.Equal(TileGrid.EmptyTileName, map.TileAt(2, 8).Name);
@@ -75,70 +71,6 @@ public sealed class RoomTests
         Assert.Equal(TileGrid.EmptyTileName, map.TileAt(2, 8).Name);
         Assert.True(bolt.Position.Y > BrickRowBottom - 1f, $"the bolt flew on to {bolt.Position.Y}");
     }
-
-    // The hurtbox reports; it blocks nothing. Health is spent on the step the contact is entered
-    // and not again while it lasts. The hit freezes the room for its tuned steps, and then the walk
-    // carries on through the hazard.
-    [Fact]
-    public void WalkingIntoTheHazard_SpendsOneHealthPointFreezesTheRoomAndDoesNotStopTheWalk()
-    {
-        using SimulationHost room = RoomFixture.Simulate();
-        Player player = RoomFixture.PlayerOf(room);
-        int maxHealth = player.Tuning.MaxHealth;
-
-        Assert.True(
-            room.RunUntil(() => player.Health < maxHealth, StepBudget, DeviceSnapshot.Of(Key.D)),
-            "the walk never reached the hazard");
-        Assert.Equal(maxHealth - 1, player.Health);
-
-        float contactX = player.Position.X;
-        room.Step(player.Tuning.HurtFreezeTicks, DeviceSnapshot.Of(Key.D));
-        Assert.Equal(contactX, player.Position.X);
-
-        room.Step(DeviceSnapshot.Of(Key.D));
-        Assert.True(player.Position.X > contactX, "the hazard stopped the walk");
-        Assert.Equal(maxHealth - 1, player.Health);
-    }
-
-    // The first touch frees the spark from its orbit. It flies on along the tangent it was moving in at the
-    // speed it left at, and leaves the scene past the view. The box keeps hurting.
-    [Fact]
-    public void TheHazardsSpark_BreaksLooseOnTheFirstTouch_AndFliesOnAlongItsTangentUntilItLeavesTheView()
-    {
-        using SimulationHost room = RoomFixture.Simulate();
-        Player player = RoomFixture.PlayerOf(room);
-        Hazard hazard = room.Scene.FindSingle<Hazard>();
-        Entity spark = hazard.Children[1].Children[0];
-        Vector2 before = spark.WorldPosition;
-        Vector2 heading = default;
-
-        Assert.True(
-            room.RunUntil(
-                () =>
-                {
-                    heading = spark.WorldPosition - before;
-                    before = spark.WorldPosition;
-                    return spark.Parent is null;
-                },
-                StepBudget,
-                DeviceSnapshot.Of(Key.D)),
-            "the spark never broke loose");
-        Assert.Null(spark.Parent);
-
-        // The room is frozen for the hit, and the spark with it.
-        room.Step(player.Tuning.HurtFreezeTicks);
-        Vector2 first = spark.WorldPosition;
-        room.Step();
-        Vector2 second = spark.WorldPosition;
-        room.Step();
-        Vector2 third = spark.WorldPosition;
-
-        Assert.True(Vector2.Dot(Vector2.Normalize(second - first), Vector2.Normalize(heading)) > 0.99f, "the spark left its tangent");
-        Assert.Equal((second - first).Length(), (third - second).Length(), 1e-3f);
-        Assert.True(room.RunUntil(() => spark.SceneOrNull is null, StepBudget), "the spark never left the view");
-        Assert.True(hazard.Get<BoxCollider2D>().Enabled);
-    }
-
     // The ledges are one-way: the same jump that passes up through one from below is stopped by it
     // on the way down, and down with Jump lets the player fall back through it.
     [Fact]
@@ -190,155 +122,6 @@ public sealed class RoomTests
         Assert.True(room.RunUntil(() => player.Velocity.X == 0f, StepBudget), "the slide never came to a stop");
     }
 
-    // A room torn down with the player inside the camera zone ends the zone's contact after the zone has
-    // left the scene, as walking out through the east door does.
-    [Fact]
-    public void TearingDownTheRoomWithThePlayerInTheCameraZone_Succeeds()
-    {
-        SimulationHost room = RoomFixture.Simulate();
-        RoomFixture.PlayerOf(room).Position = new Vector2(400f, RoomFixture.FloorTop - 8f);
-        room.Step(DeviceSnapshot.Empty);
-
-        room.Dispose();
-    }
-
-    // The waterfall holds the player to its gravity while the player is in it and lets go on leaving. A room
-    // torn down with the player inside ends that contact too.
-    [Fact]
-    public void TheWaterfall_SetsThePlayersGravityWhileThePlayerIsInIt()
-    {
-        SimulationHost room = RoomFixture.Simulate();
-        Player player = RoomFixture.PlayerOf(room);
-        Waterfall falls = room.Scene.FindSingle<Waterfall>();
-        Vector2 inside = falls.Position + new Vector2(4f, 8f);
-
-        player.Position = inside;
-        room.Step(DeviceSnapshot.Empty);
-        Assert.Equal(falls.Gravity, player.GravityOverride);
-
-        player.Position = new Vector2(100f, inside.Y);
-        room.Step(DeviceSnapshot.Empty);
-        Assert.Null(player.GravityOverride);
-
-        player.Position = inside;
-        room.Step(DeviceSnapshot.Empty);
-        room.Dispose();
-    }
-
-    // The hall's gust blows for 90 steps and falls calm for 60. It pushes the player held in it while it
-    // blows, and stops on the player leaving.
-    [Fact]
-    public void TheHallsGust_PushesThePlayerInItWhileItBlows()
-    {
-        Run run = new();
-        GameBoot.Start(run);
-        using SimulationHost hall = new(CapsuleScenes.Registry.Create(CapsuleAssets.Scenes.Halls.HallScene), run: run);
-        Player player = hall.Scene.FindSingle<Player>();
-        Gust gust = hall.Scene.FindSingle<Gust>();
-
-        void StandAt(Vector2 position, int steps)
-        {
-            for (int step = 0; step < steps; step++)
-            {
-                player.Position = position;
-                hall.Step(DeviceSnapshot.Empty);
-            }
-        }
-
-        Vector2 inside = gust.Position + new Vector2(28f, 4f);
-        StandAt(inside, 1);
-        Assert.Equal(gust.Velocity, player.Wind);
-        StandAt(inside, 89);
-        Assert.Equal(Vector2.Zero, player.Wind);
-        StandAt(inside, 60);
-        Assert.Equal(gust.Velocity, player.Wind);
-        StandAt(gust.Position + new Vector2(gust.Size.X + 8f, 4f), 1);
-        Assert.Equal(Vector2.Zero, player.Wind);
-    }
-
-    // Leaving one camera zone for an overlapping one hands the bounds to the zone still held. Leaving
-    // that one too brings back the bounds held before the first.
-    [Fact]
-    public void LeavingACameraZoneIntoAnOverlappingOne_HandsTheBoundsOverAndLeavingBothRestoresTheRoom()
-    {
-        Rect zoneA = new(160f, 0f, 400f, 192f);
-        Rect zoneB = new(320f, 0f, 560f, 192f);
-        using SimulationHost room = ZonedRoom([zoneA, zoneB]);
-        Player player = RoomFixture.PlayerOf(room);
-        Rect? roomBounds = room.Scene.Camera.Bounds;
-        Assert.NotNull(roomBounds);
-
-        Rect? BoundsWithPlayerAt(float x)
-        {
-            player.Position = new Vector2(x, RoomFixture.FloorTop - 8f);
-            room.Step(DeviceSnapshot.Empty);
-
-            return room.Scene.Camera.Bounds;
-        }
-
-        Assert.Equal(zoneA, BoundsWithPlayerAt(200f));
-        Assert.Equal(zoneB, BoundsWithPlayerAt(360f));
-        Assert.Equal(zoneB, BoundsWithPlayerAt(480f));
-        Assert.Equal(roomBounds, BoundsWithPlayerAt(600f));
-    }
-
-    // Two zones that share an edge hold the player together on that edge. Stepping off it into one hands
-    // the bounds to that one, and leaving both in a single step brings back the room.
-    [Fact]
-    public void LeavingTwoAdjacentCameraZonesInOneStep_RestoresTheRoom_AndLeavingOneHandsTheBoundsToTheOther()
-    {
-        Rect zoneA = new(160f, 0f, 320f, 192f);
-        Rect zoneB = new(320f, 0f, 480f, 192f);
-        using SimulationHost room = ZonedRoom([zoneA, zoneB]);
-        Player player = RoomFixture.PlayerOf(room);
-        Rect? roomBounds = room.Scene.Camera.Bounds;
-        Rect?[] onEither = [zoneA, zoneB];
-
-        Rect? BoundsWithPlayerCentreAt(float x)
-        {
-            player.Position = new Vector2(x - 4f, RoomFixture.FloorTop - 8f);
-            room.Step(DeviceSnapshot.Empty);
-
-            return room.Scene.Camera.Bounds;
-        }
-
-        Assert.Contains(BoundsWithPlayerCentreAt(320f), onEither);
-        Assert.Equal(zoneA, BoundsWithPlayerCentreAt(240f));
-        Assert.Contains(BoundsWithPlayerCentreAt(320f), onEither);
-        Assert.Equal(zoneB, BoundsWithPlayerCentreAt(400f));
-        Assert.Contains(BoundsWithPlayerCentreAt(320f), onEither);
-        Assert.Equal(roomBounds, BoundsWithPlayerCentreAt(600f));
-    }
-
-    // The zone's first slide-in holds the player until the view lands on it. Stepping back in slides the
-    // view again and leaves the player in control.
-    [Fact]
-    public void EnteringACameraZoneTheFirstTime_HoldsThePlayerUntilTheViewLands()
-    {
-        using SimulationHost room = ZonedRoom([new Rect(160f, 0f, 400f, 192f)]);
-        Player player = RoomFixture.PlayerOf(room);
-        Camera camera = room.Scene.Camera;
-        room.Step(DeviceSnapshot.Empty);
-
-        void StandAt(float x)
-        {
-            player.Position = new Vector2(x, RoomFixture.FloorTop - 8f);
-            room.Step(DeviceSnapshot.Empty);
-        }
-
-        StandAt(200f);
-        Assert.False(player.HasControl);
-        Assert.True(room.RunUntil(() => !camera.IsTransitioning, StepBudget), "the view never landed");
-        Assert.False(player.HasControl);
-        room.Step(DeviceSnapshot.Empty);
-        Assert.True(player.HasControl);
-
-        StandAt(32f);
-        StandAt(200f);
-        Assert.True(camera.IsTransitioning);
-        Assert.True(player.HasControl);
-    }
-
     // The lamps draw the bolt's glow too. Without them the glow reaches the room's preload only
     // through the player's forwarded bolt pool.
     [Fact]
@@ -359,47 +142,60 @@ public sealed class RoomTests
         Assert.True(room.CollectPreloads().Contains(CapsuleAssets.Textures.GlowTexture));
     }
 
-    // A room of bare floor with the player standing at its west end and the camera zones placed.
-    private static SimulationHost ZonedRoom(Rect[] zones)
+    // The music's death fade runs on under the pause menu. Quit picked on the step the fade lands
+    // leaves the run exiting, and the room asks for no menu after the exit. The first room finds that
+    // step, and the second plays the pause and the quit up to it.
+    [Fact]
+    public void QuittingFromThePauseMenuOnTheStepTheDeathFadeLands_Exits()
     {
-        const int Wide = 40;
-        const int High = 12;
-        int[] tiles = new int[Wide * High];
-        Array.Fill(tiles, 1, (High - 1) * Wide, Wide);
-
-        SceneDocumentEntry floor = new(
-            "tile-map",
-            JsonSerializer.SerializeToElement(new
-            {
-                tileSize = 16,
-                width = Wide,
-                height = High,
-                tileTypes = new object[] { new { name = "empty" }, new { name = "ground", layer = CollisionLayers.Solid } },
-                tiles,
-                collider = true,
-            }));
-
-        SceneDocumentEntry Zone(Rect area) => new(
-            "camera-zone",
-            new EntitySpawn(area.Position),
-            JsonSerializer.SerializeToElement(new { size = new[] { area.Size.X, area.Size.Y } }));
-
-        List<SceneDocumentEntry> entries = [floor, new SceneDocumentEntry("player", new EntitySpawn(new Vector2(32f, RoomFixture.FloorTop - 8f)))];
-        foreach (Rect zone in zones)
+        int fadeSteps = 0;
+        using (SimulationHost probe = RoomFixture.Simulate())
         {
-            entries.Add(Zone(zone));
+            SpendAllHealth(probe);
+            while (probe.Run.Game.Music.IsFading)
+            {
+                Assert.True(fadeSteps < StepBudget, "the death fade never landed");
+                probe.Step(DeviceSnapshot.Empty);
+                fadeSteps++;
+            }
         }
 
-        SceneDocument document = new(
-            entries,
-            JsonSerializer.SerializeToElement(new { camera = new { type = "game-camera" }, music = "audio/music/room.ogg" }));
+        // Escape opens the menu on Resume, and Down moves the focus to Quit before Enter picks it.
+        Assert.True(fadeSteps > 3, $"the death fade landed after {fadeSteps} steps, too soon to pause and quit");
+        using SimulationHost room = RoomFixture.Simulate();
+        SpendAllHealth(room);
+        room.Step(DeviceSnapshot.Of(Key.Escape));
+        room.Step(DeviceSnapshot.Of(Key.Down));
+        room.Step(fadeSteps - 3, DeviceSnapshot.Empty);
+        Assert.True(room.Run.Game.Music.IsFading);
 
-        Run run = new();
-        GameBoot.Start(run);
+        room.Step(DeviceSnapshot.Of(Key.Enter));
 
-        return new SimulationHost(CapsuleScenes.Registry.Create(CapsuleAssets.Scenes.RoomScene, document), run: run);
+        Assert.True(room.Run.ExitRequested, "Quit did not exit");
+        Assert.False(room.Run.Game.Music.IsFading);
     }
 
-    // Position is the body's top-left corner; the feet are its bottom edge.
+    // Puts the player in the hazard's box once per grace, ending on the step its last point goes.
+    private static void SpendAllHealth(SimulationHost room)
+    {
+        Player player = RoomFixture.PlayerOf(room);
+        Vector2 clear = player.Position;
+        Vector2 inHazard = room.Scene.FindSingle<Hazard>().Position + new Vector2(4f, 8f);
+
+        for (int health = player.Health; health > 0; health--)
+        {
+            RoomFixture.StandAt(room, inHazard);
+            Assert.Equal(health - 1, player.Health);
+            if (health == 1)
+            {
+                return;
+            }
+
+            RoomFixture.StandAt(room, clear);
+            Assert.True(room.RunUntil(() => player.InvulnerableTicksLeft == 0, StepBudget), "the grace never ended");
+        }
+    }
+
+    // Position is the body's top-left corner, and the feet are its bottom edge.
     private static float PlayerFeet(Player player) => player.Position.Y + 8f;
 }

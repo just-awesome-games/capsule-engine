@@ -2,7 +2,7 @@ using Capsule.Assets;
 
 namespace Capsule.Runtime.Assets;
 
-// Where a named asset's file is, as a content path. One instance per asset type, so resolution
+// Where a named asset's file is, as a content path. One instance per asset type. Resolution
 // and its failure are testable without a device.
 internal sealed class AssetFiles(string noun, string parameterName)
 {

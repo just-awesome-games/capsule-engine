@@ -40,7 +40,7 @@ public readonly record struct SpriteIntent(
     // in RGB and the amount in alpha. Set by the frame at store and by nothing a game writes.
     internal ColorRgba Flash { get; init; }
 
-    // The anchor a backend draws from, in region texels. It mirrors on a flipped axis, so the pivot texel
+    // The anchor a backend draws from, in region texels. It mirrors on a flipped axis. The pivot texel
     // stays on the position whichever way the frame faces.
     internal Vector2 DrawOrigin => new(
         FlipX ? Sprite.Region.Width - Sprite.Pivot.X : Sprite.Pivot.X,
@@ -79,7 +79,7 @@ public readonly record struct SpriteIntent(
         else
         {
             // The farthest corner from the pivot on each axis is whichever side is longer. The square root
-            // is correctly rounded on every platform, so this stays deterministic.
+            // is correctly rounded on every platform, and this stays deterministic.
             float reachX = MathF.Max(corner.X, Size.X - corner.X);
             float reachY = MathF.Max(corner.Y, Size.Y - corner.Y);
             float radius = MathF.Sqrt((reachX * reachX) + (reachY * reachY));

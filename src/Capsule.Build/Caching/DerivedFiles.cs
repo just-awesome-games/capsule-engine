@@ -21,16 +21,7 @@ internal sealed class DerivedFiles(OutputFiles outputs, string owner)
     /// <summary>Records a file the derivation reads, which the cache stamps beside its named inputs.</summary>
     /// <param name="path">The file relative to the working directory, or absolute.</param>
     /// <returns>The path relative to the working directory, as the walk spells it.</returns>
-    internal string Reads(string path)
-    {
-        string relative = BuildRequests.Relative(path);
-        if (!_read.Contains(relative, Keys.PathComparer))
-        {
-            _read.Add(relative);
-        }
-
-        return relative;
-    }
+    internal string Reads(string path) => BuildRequests.Record(_read, path);
 
     /// <summary>Claims the file at <paramref name="path"/> below the root and writes it.</summary>
     /// <param name="path">The path below the root, as <c>textures/enemies/bat.png</c>.</param>

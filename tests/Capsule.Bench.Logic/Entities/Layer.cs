@@ -1,11 +1,6 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace Capsule.Bench.Logic.Entities;
 
-// One band of the strip repeating without bound along X; the document's scroll factor is its depth
+// One band of the strip repeating without bound along X. The document's scroll factor is its depth
 // and its height picks the band.
 public sealed class Layer : Entity
 {

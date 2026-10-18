@@ -37,6 +37,26 @@ internal static class Program
             args = [.. args[..soak], .. args[(soak + 2)..]];
         }
 
+        // A lane's row is its scene's class name or the variant it names. The engine runs the class, and
+        // the scene reads the row from Workloads.Running as it composes. The surface is a boot option,
+        // the Rendering lane's of the row. None, or a row this assembly does not know, boots the default.
+        int named = Array.IndexOf(args, "--scene") + 1;
+        string? row = named > 0 && named < args.Length ? args[named] : null;
+        (Type Scene, WorkloadAttribute Lane)[] lanes =
+        [
+            .. Workloads.All
+                .SelectMany(static scene => scene.GetCustomAttributes<WorkloadAttribute>().Select(lane => (scene, lane)))
+                .Where(entry => (entry.lane.Row ?? entry.scene.Name) == row),
+        ];
+        if (lanes.Length > 0)
+        {
+            Workloads.Running = row;
+            args = [.. args];
+            args[named] = lanes[0].Scene.Name;
+        }
+
+        Surface surface = lanes.FirstOrDefault(static entry => entry.Lane.Kind == WorkloadKind.Rendering).Lane?.Surface ?? Surface.Canvas360;
+
         EngineBuilder engine;
         try
         {
@@ -48,11 +68,6 @@ internal static class Program
         {
             return failure.Report();
         }
-
-        // The surface is a boot option, so it is the attribute's of whichever scene the command
-        // line named; none, or one this assembly does not know, boots the default.
-        Type? scene = Workloads.All.FirstOrDefault(scene => scene.Name == engine.SceneOverride);
-        Surface surface = scene?.GetCustomAttributes<WorkloadAttribute>().FirstOrDefault(static lane => lane.Kind == WorkloadKind.Rendering)?.Surface ?? Surface.Canvas360;
 
         engine = surface == Surface.Hd1080
             ? engine.WithWindow(1920, 1080).WithRenderResolution(1920, 1080).WithSampling(TextureSampling.Linear)

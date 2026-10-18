@@ -7,7 +7,7 @@ namespace Capsule.Tests.Audio;
 // faked, and nothing here asserts what OpenAL does.
 public sealed class OutputFollowerTests
 {
-    // A power of two, so the retry arithmetic below is exact.
+    // A power of two. The retry arithmetic below is exact.
     private const double Frame = 1.0 / 64.0;
 
     [Fact]
@@ -82,8 +82,6 @@ public sealed class OutputFollowerTests
 
     private sealed class Fixture
     {
-        internal Fixture() => Follower = new(Reopen, () => Connected);
-
         internal OutputFollower Follower { get; }
 
         internal int Reopens { get; private set; }
@@ -91,6 +89,8 @@ public sealed class OutputFollowerTests
         internal bool ReopenSucceeds { get; set; } = true;
 
         internal bool Connected { get; set; } = true;
+
+        internal Fixture() => Follower = new(Reopen, () => Connected);
 
         private bool Reopen()
         {

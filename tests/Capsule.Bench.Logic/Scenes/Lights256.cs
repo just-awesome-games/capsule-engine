@@ -1,7 +1,4 @@
-using System.Numerics;
 using Capsule.Bench.Logic.Entities;
-using Capsule.Rendering;
-using Capsule.Scenes;
 
 namespace Capsule.Bench.Logic.Scenes;
 

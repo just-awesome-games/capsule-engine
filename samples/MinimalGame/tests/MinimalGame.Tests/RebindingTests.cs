@@ -43,8 +43,8 @@ public sealed class RebindingTests
         Assert.Contains((InputButton)Key.F, run.Input.Bindings.ButtonsFor(GameInput.Jump).ToArray());
     }
 
-    // The playtest bug: the press that ends a capture is still down when the navigator, stepping
-    // after the menu, would otherwise read it as a fresh Confirm and reopen the capture it just closed.
+    // The press that ends a capture is still down when the navigator steps after the menu. The
+    // navigator does not read it as a fresh Confirm, and the capture stays closed.
     [Fact]
     public void ThePressThatEndsACapture_DoesNotReopenIt()
     {

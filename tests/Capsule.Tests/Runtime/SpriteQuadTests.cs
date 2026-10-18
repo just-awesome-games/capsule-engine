@@ -8,8 +8,8 @@ public sealed class SpriteQuadTests
     // A 64 by 64 texture.
     private const float Texel = 1f / 64f;
 
-    // The origin is in region texels and is scaled with the region, so the drawn rect sits origin
-    // times scale up and left of the position; the texture coordinates are the region's edges
+    // The origin is in region texels and is scaled with the region. The drawn rect sits origin
+    // times scale up and left of the position. The texture coordinates are the region's edges
     // over the texture's extent.
     [Fact]
     public void Unrotated_PlacesTheScaledRegionAboutItsScaledOrigin()

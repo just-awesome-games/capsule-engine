@@ -66,7 +66,7 @@ public sealed class ParticleEmitterTests
     [Fact]
     public void SubTickSpawn_PlacesOriginsAcrossTheTicksDisplacement()
     {
-        // Zero speed: Position and PreviousPosition both land exactly on the origin, so the fraction
+        // Zero speed: Position and PreviousPosition both land exactly on the origin. The fraction
         // is read straight off the drawn position.
         Mover stillMover = new(Vector2.Zero);
         ParticleEmitter stillEmitter = new(Tile, capacity: 8) { Rate = 240f, Lifetime = new FloatRange(2f, 2f) };
@@ -152,7 +152,7 @@ public sealed class ParticleEmitterTests
     public void EmitAfterTheRequestingEntitysRemoval_StillDrawsOnTheNextFrame()
     {
         ParticleEmitter shared = new(Tile, capacity: 8) { Lifetime = new FloatRange(2f, 2f) };
-        Root pool = new(Vector2.Zero);
+        EntityHierarchyFixtures.Node pool = new(Vector2.Zero);
         pool.Add(shared);
 
         SceneFixtures.HookScene scene = new(start: s =>
@@ -213,7 +213,7 @@ public sealed class ParticleEmitterTests
         Assert.True(bounds.Contains(intent.Position) || intent.Position.X == bounds.Right || intent.Position.Y == bounds.Bottom);
 
         // A spawn after the step that folded Bounds is not lost until the next fold: Emit extends
-        // Bounds itself, so a late burst under a culling camera still draws the same frame.
+        // Bounds itself. A late burst under a culling camera still draws the same frame.
         Vector2 far = new(100f, 100f);
         emitter.Emit(1, far);
 
@@ -285,7 +285,7 @@ public sealed class ParticleEmitterTests
         SceneFixtures.HookScene scene = new(
             start: s =>
             {
-                Root root = new(Vector2.Zero);
+                EntityHierarchyFixtures.Node root = new(Vector2.Zero);
                 burst = new ParticleEmitter(Tile, capacity: 8) { Lifetime = new FloatRange(2f, 2f) };
                 continuous = new ParticleEmitter(Tile, capacity: 8) { Rate = 5f, Lifetime = new FloatRange(2f, 2f) };
                 root.Add(burst);
@@ -306,10 +306,10 @@ public sealed class ParticleEmitterTests
         return [.. host.Simulation.View.Sprites.ToArray()];
     }
 
-    private static (Root Root, ParticleEmitter Emitter, SimulationHost Host) Build(int capacity)
+    private static (EntityHierarchyFixtures.Node Root, ParticleEmitter Emitter, SimulationHost Host) Build(int capacity)
     {
         ParticleEmitter emitter = new(Tile, capacity);
-        Root root = new(Vector2.Zero);
+        EntityHierarchyFixtures.Node root = new(Vector2.Zero);
         root.Add(emitter);
 
         SceneFixtures.HookScene scene = new(start: s => s.Add(root));
@@ -318,9 +318,7 @@ public sealed class ParticleEmitterTests
         return (root, emitter, host);
     }
 
-    private sealed class Root(Vector2 position) : Entity(position);
-
-    // Moves one world unit on X every tick, so a spawn's sub-tick fraction is directly readable off
+    // Moves one world unit on X every tick. A spawn's sub-tick fraction is directly readable off
     // its origin.
     private sealed class Mover(Vector2 position) : Entity(position)
     {

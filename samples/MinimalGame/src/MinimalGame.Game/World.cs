@@ -1,5 +1,3 @@
-using System.Numerics;
-
 namespace MinimalGame.Game;
 
 /// <summary>The game's world declarations. One world unit is one world-pixel, Y-down.</summary>

@@ -2,8 +2,8 @@ using Capsule.Audio;
 
 namespace Capsule.Runtime.Audio;
 
-// Whatever turns a clip into sound. The store and the player are written against this interface, so
-// scene residency, retention and command translation are exercised with no device open.
+// Whatever turns a clip into sound. The store and the player are written against this interface.
+// Scene residency, retention and command translation are exercised with no device open.
 internal interface IAudioBackend : IDisposable
 {
     // A resident clip's file read whole into memory, on any thread. Throws when the shipped file is
@@ -14,7 +14,7 @@ internal interface IAudioBackend : IDisposable
     // is unreadable.
     IResidentSound Load(in AudioClip clip, ResidentFile file);
 
-    // A voice decoding its clip as it plays, beginning at startSeconds. Nothing is resident, so the
+    // A voice decoding its clip as it plays, beginning at startSeconds. Nothing is resident. The
     // clip is opened per play and closed when the voice ends.
     IAudioVoice Stream(in AudioClip clip, float gain, float pitch, float pan, bool loop, double startSeconds);
 }
@@ -26,14 +26,14 @@ internal readonly record struct ResidentFile(MemoryStream Bytes, PcmAudio? Sampl
 // One clip held in memory for as long as a scene or a live voice wants it.
 internal interface IResidentSound : IDisposable
 {
-    // The voice belongs to the sound and is pooled across plays, so the caller may be handed the same
+    // The voice belongs to the sound and is pooled across plays. The caller may be handed the same
     // object again. ended is invoked once the voice has gone back to that pool, which counts residency
     // without a second object per play. The caller should cache it, since it is the same for every
     // voice this sound plays.
     IAudioVoice Play(float gain, float pitch, float pan, bool loop, Action ended);
 
     // This sound's samples streamed instead of queued whole, from startSeconds on. The device queues a
-    // clip whole, so it can neither repeat part of one nor begin mid-buffer. This is the path for a
+    // clip whole. It can neither repeat part of one nor begin mid-buffer. This is the path for a
     // voice repeating a loop region and for one played from an offset. ended is reported as Play
     // reports it.
     IAudioVoice Stream(float gain, float pitch, float pan, bool loop, double startSeconds, Action ended);

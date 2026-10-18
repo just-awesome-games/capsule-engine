@@ -1,18 +1,13 @@
 using System.IO.Compression;
 using System.Numerics;
-using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
-using Capsule.Tests.Documents;
 using Capsule.Tests.Scenes;
-using Capsule.Tiles;
 
 namespace Capsule.Tests.Runtime;
 
 // Reaches for the shell content directory a scene document ships into, which is one place for the
-// whole process; the collection keeps it away from everything else that writes there.
+// whole process. The collection keeps it away from everything else that writes there.
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class SceneComposerTests : IDisposable
 {
@@ -21,13 +16,13 @@ public sealed class SceneComposerTests : IDisposable
     private static readonly string DocumentPath =
         Path.Combine(AppContext.BaseDirectory, "assets", DocumentName + ShippedSceneDocument.Extension);
 
-    // A game boots a document-backed scene by its class; nothing in game code names the document.
+    // A game boots a document-backed scene by its class. Nothing in game code names the document.
     // Losing the turn from one into the other boots an empty room rather than failing.
     [Fact]
     public void ADocumentBackedClass_BootedByItsClass_IsComposedFromTheDocumentItClaims()
     {
         Write(SceneFixtures.Room(new SceneDocumentEntry("chest", new EntitySpawn(new Vector2(48f, 16f)))));
-        SceneComposer composer = new(Registry(), new DesktopPlatform());
+        SceneComposer composer = new(Registry(), new ContentPlatform());
 
         Scene composed = composer.Resolve(SceneTransition.ToScene(typeof(Hall), null));
 
@@ -35,13 +30,13 @@ public sealed class SceneComposerTests : IDisposable
         Assert.IsType<SceneFixtures.Placed>(Assert.Single(composed.Entities.ToArray()));
     }
 
-    // The scene layer is pure and knows no paths, so without this the commonest authoring mistake
+    // The scene layer is pure and knows no paths. Without this the commonest authoring mistake
     // leaves the author guessing which document holds the type key it names.
     [Fact]
     public void APlacementNoEntityClaims_NamesTheDocumentFileThatHoldsIt()
     {
         Write(SceneFixtures.Room(new SceneDocumentEntry("wyvern")));
-        SceneComposer composer = new(Registry(), new DesktopPlatform());
+        SceneComposer composer = new(Registry(), new ContentPlatform());
 
         SpawnException failure = Assert.Throws<SpawnException>(
             () => composer.Resolve(SceneTransition.ToName(DocumentName, null)));
@@ -56,7 +51,7 @@ public sealed class SceneComposerTests : IDisposable
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DocumentPath)!);
         File.WriteAllText(DocumentPath, SceneFixtures.Room().ToJson());
-        SceneComposer composer = new(Registry(), new DesktopPlatform());
+        SceneComposer composer = new(Registry(), new ContentPlatform());
 
         SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(
             () => composer.Resolve(SceneTransition.ToName(DocumentName, null)));

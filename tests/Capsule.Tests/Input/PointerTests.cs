@@ -50,7 +50,7 @@ public sealed class PointerTests
         Assert.Equal(new Vector2(9f, 9f), latched.Pointer);
     }
 
-    // A notch is a displacement, so the latch must add it where it replaces a position.
+    // A notch is a displacement. The latch must add it where it replaces a position.
     [Fact]
     public void ALatch_SumsTheWheelRatherThanTakingTheNewest()
     {

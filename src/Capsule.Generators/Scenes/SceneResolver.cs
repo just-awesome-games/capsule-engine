@@ -11,14 +11,14 @@ internal static class SceneResolver
 {
     internal static ScenePlan Resolve(SceneInputs inputs)
     {
-        if (!inputs.IsLogicAssembly)
+        if (!inputs.Shared.IsLogicAssembly)
         {
             return default;
         }
 
         List<Diagnostic> diagnostics = [];
 
-        // A baseScene can name any Scene-deriving class, so KeyedBaseScenes below keys every model.
+        // A baseScene can name any Scene-deriving class. KeyedBaseScenes below keys every model.
         // Registration is narrower: only a class the describer found eligible at all.
         ImmutableArray<SceneModel> registrable = [.. inputs.Models.Items.Where(static model => model.Registrable)];
 
@@ -30,7 +30,7 @@ internal static class SceneResolver
             static model => model.DisplayName,
             static model => model.At,
             static model => Reported(model.Fault),
-            model => Claim(diagnostics, sound, model, inputs.RootNamespace));
+            model => Claim(diagnostics, sound, model, inputs.Shared.RootNamespace));
 
         // Scenes with no document sort first and never collide.
         List<(string? DocumentName, SceneModel Model)> registered = RegistryPass.RejectDuplicateKeys(
@@ -48,10 +48,10 @@ internal static class SceneResolver
             Diagnostics.DuplicateSceneDocumentName);
 
         HashSet<string> claimed = new(registered.Select(static entry => entry.DocumentName).OfType<string>(), StringComparer.Ordinal);
-        Dictionary<string, SceneModel> baseScenes = KeyedBaseScenes(diagnostics, inputs.Models.Items, inputs.RootNamespace);
+        Dictionary<string, SceneModel> baseScenes = KeyedBaseScenes(diagnostics, inputs.Models.Items, inputs.Shared.RootNamespace);
 
         List<(string DocumentName, GeneratedBase? Base)> unclaimed = [];
-        foreach (SceneDocumentModel document in inputs.Documents.Items)
+        foreach (SceneDocumentModel document in inputs.Shared.Documents.Items)
         {
             if (!claimed.Contains(document.Key))
             {
@@ -61,7 +61,7 @@ internal static class SceneResolver
 
         unclaimed.Sort(static (left, right) => string.CompareOrdinal(left.DocumentName, right.DocumentName));
 
-        // A class no document names gets an applier too, so a test composing it by class sets its members. The
+        // A class no document names gets an applier too. A test composing it by class sets its members. The
         // engine's plain Scene gets one for every class that adds no member to it.
         IEnumerable<SceneModel> applied = inputs.Models.Items.Where(static model => model.Applied)
             .Concat(inputs.EngineScene is { } engine ? [engine] : [])
@@ -69,27 +69,23 @@ internal static class SceneResolver
             .Select(static models => models.First())
             .OrderBy(static model => model.QualifiedName, StringComparer.Ordinal);
 
-        ScenePlan plan = new(
+        SceneModel[] appliedModels = [.. applied];
+        EquatableArray<KeyedObject> objects = ObjectRenderer.Keyed(
+            appliedModels.SelectMany(static model => model.Objects.Items),
+            inputs.Shared.RootNamespace,
+            diagnostics);
+        EquatableArray<AssetLookup> lookups = EntityResolver.Lookups(
+            appliedModels.SelectMany(static model => model.Authored).Concat(ObjectRenderer.Authored(objects)),
+            new AssetTable(inputs.Shared.Assets.Items, inputs.Shared.Documents.Items));
+
+        return new ScenePlan(
             Generates: true,
             new([.. registered.Select(static entry => new RegisteredScene(entry.DocumentName, entry.Model))]),
             new([.. unclaimed.Select(static entry => new DocumentOnlyScene(entry.DocumentName, entry.Base))]),
-            new([.. applied]),
-            default,
-            default,
+            new([.. appliedModels]),
+            objects,
+            lookups,
             new([.. diagnostics]));
-        EquatableArray<KeyedObject> objects = ObjectRenderer.Keyed(
-            plan.Applied.Items.SelectMany(static model => model.Objects.Items),
-            inputs.RootNamespace,
-            diagnostics);
-
-        return plan with
-        {
-            Objects = objects,
-            Lookups = EntityResolver.Lookups(
-                plan.Applied.Items.SelectMany(static model => model.Authored).Concat(ObjectRenderer.Authored(objects)),
-                new AssetTable(inputs.Assets.Items, inputs.Documents.Items)),
-            Diagnostics = new([.. diagnostics]),
-        };
     }
 
     private static DiagnosticDescriptor? Reported(SceneFault fault) => fault switch
@@ -100,7 +96,7 @@ internal static class SceneResolver
         _ => null,
     };
 
-    // The document a sound class composes. The key comes from where the type is declared, so it is not
+    // The document a sound class composes. The key comes from where the type is declared. It is not
     // settled until the assembly's root namespace is known.
     private static void Claim(
         List<Diagnostic> diagnostics,
@@ -115,7 +111,7 @@ internal static class SceneResolver
             return;
         }
 
-        // An explicit claim is normalized like the document's path, so any spelling of the claim
+        // An explicit claim is normalized like the document's path. Any spelling of the claim
         // meets the document at the key it ships under.
         string? documentName = model.Declared is { } declared
             ? Normalized(diagnostics, model, declared)
@@ -163,8 +159,7 @@ internal static class SceneResolver
             DeclarationOrder.Compare(left.QualifiedName, left.At, right.QualifiedName, right.At));
         foreach (SceneModel model in ineligible)
         {
-            string key = model.Declared ?? TypeNaming.KeyFor(model.ContainingNamespace, model.TypeName, rootNamespace);
-            if (!keyed.ContainsKey(key))
+            if (RegistryPass.KeyOf(model, rootNamespace) is { } key && !keyed.ContainsKey(key))
             {
                 keyed.Add(key, model);
             }

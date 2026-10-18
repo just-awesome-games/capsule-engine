@@ -31,7 +31,7 @@ public sealed class SpriteRotationTests
     }
 
     // A whole extra turn in the written value is not a turn on screen: the arc is the wrapped
-    // difference, so an angle that grew past a full turn interpolates as the small turn it is.
+    // difference. An angle that grew past a full turn interpolates as the small turn it is.
     [Fact]
     public void Interpolation_IgnoresWholeTurnsInTheDifference()
     {
@@ -99,7 +99,7 @@ public sealed class SpriteRotationTests
         Assert.Equal(new RenderMetrics(Submitted: 0, Visible: 0), view.Metrics);
     }
 
-    // Refused as a scale that is not a scale is: by the cull, so a frame with no camera to cull
+    // Refused as a scale that is not a scale is: by the cull. A frame with no camera to cull
     // against is the host's to refuse.
     [Fact]
     public void AView_DrawsNothingForANonFiniteRotation()

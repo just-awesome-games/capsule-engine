@@ -110,7 +110,7 @@ public sealed class FocusNeighbourTests
         Assert.Throws<ArgumentException>(() => menu.Navigator.Add(outsider));
     }
 
-    // A neighbour named after the add is never checked, so a direction whose chain reaches an item
+    // A neighbour named after the add is never checked. A direction whose chain reaches an item
     // this navigator does not hold moves nothing.
     [Fact]
     public void ANamedNeighbourTheNavigatorDoesNotHold_MovesNothing()

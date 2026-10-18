@@ -60,7 +60,7 @@ public sealed class CursorApplierTests
         Assert.Equal(wanted, texels);
     }
 
-    // A cursor is what a plain draw shows, so an r8 image reads as white with its value as opacity.
+    // A cursor is what a plain draw shows. An r8 image reads as white with its value as opacity.
     [Fact]
     public void AnR8Image_IsReadAsWhiteAtItsValuesOpacity()
     {

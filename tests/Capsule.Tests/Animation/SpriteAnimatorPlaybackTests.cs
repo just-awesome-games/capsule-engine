@@ -65,13 +65,13 @@ public sealed class SpriteAnimatorPlaybackTests
             entity.Add(new Driver(entity.Animator, Blink));
         }
 
-        SimulationHost run = site == PlaySite.BeforeJoiningMidStep ? Spawn(entity) : Simulate(entity);
+        SimulationHost run = site == PlaySite.BeforeJoiningMidStep ? SceneFixtures.Simulate(new Spawner(entity)) : SceneFixtures.Simulate(entity);
 
         Assert.Equal([Frame(5), Frame(6), Frame(6), Frame(6), Frame(6)], DrawnOver(run, 5));
     }
 
-    // A finished clip holds its last frame and is still the clip playing, so the state that started
-    // it may keep asking for it; re-triggering it is restart.
+    // A finished clip holds its last frame and is still the clip playing. The state that started
+    // it may keep asking for it. Re-triggering it is restart.
     [Fact]
     public void AFinishedClipIsStillPlaying_AndRestartReplaysIt()
     {
@@ -124,7 +124,7 @@ public sealed class SpriteAnimatorPlaybackTests
         Assert.Same(first, scene.Entities[0]);
     }
 
-    // The point of playing a variant at the animator's own tick: the cursor is reproduced, so the
+    // The point of playing a variant at the animator's own tick: the cursor is reproduced. The
     // variant continues on the frame and the part-spent tick the outgoing clip stood on.
     [Fact]
     public void PlayingAVariantAtTheAnimatorsTickKeepsTheFrameAndTheTicksAlreadySpentOnIt()
@@ -148,26 +148,18 @@ public sealed class SpriteAnimatorPlaybackTests
         Assert.Equal(Frame(12), renderer.Sprite);
     }
 
-    // The variant comes from a component the entity attached after the animator, so the animator
-    // has already stepped and written its own frame this tick; the variant must still be drawn.
+    // The variant comes from a component the entity attached after the animator. The animator
+    // has already stepped and written its own frame this tick. The variant must still be drawn.
     [Fact]
     public void PlayingAVariantDrawsItOnTheStepItIsAskedFor()
     {
         Animated entity = new(onStart: Walk);
         entity.Add(new Variant(entity.Animator, WalkArmed, onTick: 2));
-        SimulationHost run = Simulate(entity);
+        SimulationHost run = SceneFixtures.Simulate(entity);
 
         Assert.Equal(
             [Frame(0), Frame(0), Frame(11), Frame(11), Frame(12)],
             DrawnOver(run, 5));
-    }
-
-    private static SimulationHost Spawn(Animated entity)
-    {
-        SceneFixtures.HookScene scene = new();
-        scene.Add(new Spawner(entity));
-
-        return new SimulationHost(scene);
     }
 
     // Plays Blink on an entity out of the scene and adds it, on its own first step.

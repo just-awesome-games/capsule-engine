@@ -11,13 +11,15 @@ using Capsule.Build.Textures;
 namespace Capsule.Build;
 
 /// <summary>
-/// One run over the asset tree. It walks and keys every source, derives each type, and writes two
-/// things under the output directory: <c>assets/</c> holding exactly what the game ships, laid out as
-/// the game authored it, and <c>CapsuleAssets.g.cs</c> declaring every asset. A run reports every
-/// authoring defect instead of stopping at the first. A run holds the output directory for its whole
-/// duration. A second run over the same directory waits for it. Every build runs it, and its
-/// <see cref="DerivationCache"/> decides what runs again.
+/// One run over the asset tree. A run holds the output directory for its whole duration.
 /// </summary>
+/// <remarks>
+/// It walks and keys every source, derives each type, and writes two things under the output
+/// directory: <c>assets/</c> holding exactly what the game ships, laid out as the game authored it,
+/// and <c>CapsuleAssets.g.cs</c> declaring every asset. A run reports every authoring defect instead
+/// of stopping at the first. A second run over the same directory waits for it. Every build runs it,
+/// and its <see cref="DerivationCache"/> decides what runs again.
+/// </remarks>
 internal static class AssetPipeline
 {
     private const string Step = "capsule";
@@ -102,7 +104,7 @@ internal static class AssetPipeline
 
             try
             {
-                // A step reports each defective source and the rest still build, so every step runs.
+                // Every step runs because a step reports each defective source and the rest still build.
                 // Each cached step reuses what the last run derived where its stamp still matches.
                 FontStep.Run(pass);             // .fnt sources -> font descriptions, FontPages, font members
                 AtlasDeclarationStep.Run(pass); // .atlas.json files -> Atlases
@@ -117,7 +119,7 @@ internal static class AssetPipeline
                 // Shipped whatever failed, as every file the steps shipped already is.
                 pass.TextureMap.Ship(pass.Shipped);
 
-                // Rendered whatever failed, so a name C# would refuse is reported beside every other defect.
+                // Rendered whatever failed. A name C# would refuse is reported beside every other defect.
                 string? generated = pass.Assets.Render(pass);
                 if (pass.Failures > 0 || generated is null)
                 {

@@ -1,7 +1,3 @@
-using System.Numerics;
-using Capsule.Physics;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>A box that overlaps every collider under it once a step, as a screen-clearing bomb would, and folds the count into <see cref="Found"/>, which keeps the query from being elided.</summary>

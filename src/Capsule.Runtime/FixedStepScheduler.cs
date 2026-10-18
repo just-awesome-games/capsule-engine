@@ -17,7 +17,7 @@ internal sealed class FixedStepScheduler
     private readonly InputState _input;
     private readonly SnapshotLatch _latch = new();
 
-    // Null unless the run is driven. A driver supplies one snapshot per fixed step, so the
+    // Null unless the run is driven. A driver supplies one snapshot per fixed step. The
     // simulation sees the same input whatever the frame rate.
     private readonly IInputDriver? _driver;
 
@@ -28,6 +28,19 @@ internal sealed class FixedStepScheduler
     private double _timeScale = 1;
     private bool _driverFinished;
     private bool _held;
+
+    internal long Tick { get; private set; }
+
+    internal int StepsThisFrame { get; private set; }
+
+    // The extent in pixels of the output the host draws this run to. Driven runs get it too: a
+    // driver scripts input, the host still owns the output.
+    internal Vector2 Output { get; set; }
+
+    // Raised after each step completes, before the next is scheduled. A step rewrites what the host
+    // acts on and a frame may run several, and a per-frame call would lose all but the last. Null
+    // unless the host set one.
+    internal Action? StepCompleted { get; set; }
 
     internal FixedStepScheduler(
         double stepSeconds,
@@ -60,8 +73,6 @@ internal sealed class FixedStepScheduler
         _scenes = scenes;
     }
 
-    internal long Tick { get; private set; }
-
     // The device the last consumed step read as active, for the host's pad-facing output.
     internal InputDevice ActiveDevice => _input.ActiveDevice;
 
@@ -87,8 +98,6 @@ internal sealed class FixedStepScheduler
         }
     }
 
-    internal int StepsThisFrame { get; private set; }
-
     // Host pace: the simulation seconds a wall second is worth, finite and greater than zero. It
     // changes only how many steps a frame's elapsed time buys. The step length, the tick and the
     // time a step is handed stay the same. A run at 0.25x is the 1x run played slower, and the
@@ -107,15 +116,6 @@ internal sealed class FixedStepScheduler
             _timeScale = value;
         }
     }
-
-    // The extent in pixels of the output the host draws this run to. Driven runs get it too: a
-    // driver scripts input, the host still owns the output.
-    internal Vector2 Output { get; set; }
-
-    // Raised after each step completes, before the next is scheduled. A step rewrites what the host
-    // acts on and a frame may run several, and a per-frame call would lose all but the last. Null
-    // unless the host set one.
-    internal Action? StepCompleted { get; set; }
 
     internal double AccumulatorSeconds => _accumulatorSeconds;
 
@@ -160,7 +160,7 @@ internal sealed class FixedStepScheduler
         {
             // A frame stops catching up at the step bound, or once its steps have taken a step length
             // of real time. Steps that cost more than they cover only lengthen the next frame and
-            // grow its backlog. The first due step always runs, so an overloaded game slows down
+            // grow its backlog. The first due step always runs. An overloaded game slows down
             // and keeps its frame rate.
             if (stepsRun == _maxStepsPerFrame || (stepsRun > 0 && _timestamp() - started >= _budgetTicks))
             {

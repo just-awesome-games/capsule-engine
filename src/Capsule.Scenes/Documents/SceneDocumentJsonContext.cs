@@ -1,11 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Capsule.Scenes.Documents;
+namespace Capsule.Scenes;
 
-// Reflection-based serialization is off solution-wide, so this generated context is the only way to read or
-// write a scene document. A field the format does not declare fails the document, except where a class takes
-// its undeclared keys as authorable members, which the writer writes from a dictionary.
+// Reflection-based serialization is off solution-wide. This generated context is the only way to read or
+// write a scene document. The document and each entry skip undeclared keys here, and the generated applier
+// refuses any that no authorable member takes. The writer writes those members from a dictionary.
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,

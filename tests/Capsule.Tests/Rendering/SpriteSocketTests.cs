@@ -1,13 +1,12 @@
 using System.Numerics;
 using Capsule.Animation;
-using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Rendering;
 
-// A socket is a point on a frame; the renderer drawing that frame places a child entity at it.
+// A socket is a point on a frame. The renderer drawing that frame places a child entity at it.
 // What is held here: where the child lands, when it moves, and what the tree does to it above.
 public sealed class SpriteSocketTests
 {
@@ -15,9 +14,7 @@ public sealed class SpriteSocketTests
 
     private const float Tolerance = 1e-5f;
 
-    private static readonly TextureHandle Sheet = new("player", ".png");
-
-    // Every frame is 8x8 pivoted bottom-centre; the muzzle sits on the right edge, bobbing.
+    // Every frame is 8x8 pivoted bottom-centre. The muzzle sits on the right edge, bobbing.
     private static readonly SpriteMarks Mid = new([new(Muzzle, new Vector2(8f, 4f))]);
     private static readonly SpriteMarks High = new([new(Muzzle, new Vector2(8f, 3f))]);
     private static readonly SpriteMarks Low = new([new(Muzzle, new Vector2(8f, 5f))]);
@@ -33,7 +30,7 @@ public sealed class SpriteSocketTests
         SpriteRenderer renderer = new(FrameMid);
         Assert.Throws<InvalidOperationException>(() => renderer.Socket(Muzzle));
 
-        Root root = new(Vector2.Zero);
+        EntityHierarchyFixtures.Node root = new(Vector2.Zero);
         root.Add(renderer);
         Entity muzzle = renderer.Socket(Muzzle);
 
@@ -44,12 +41,12 @@ public sealed class SpriteSocketTests
         Assert.Throws<ArgumentException>(() => renderer.Socket(string.Empty));
     }
 
-    // The clip's frames each carry the socket at a different height; the child follows the frame
+    // The clip's frames each carry the socket at a different height. The child follows the frame
     // drawn on each step, placed by the entity as the frame is.
     [Fact]
     public void SteppingAClip_PlacesTheChildAtEachFramesSocketFromThePivot()
     {
-        (Root root, SpriteRenderer renderer, SpriteAnimator animator, SimulationHost run) = Animating(new Vector2(100f, 50f));
+        (EntityHierarchyFixtures.Node root, SpriteRenderer renderer, SpriteAnimator animator, SimulationHost run) = Animating(new Vector2(100f, 50f));
         Entity muzzle = renderer.Socket(Muzzle);
 
         animator.Play(new SpriteClip([FrameMid, FrameHigh, FrameLow], [1, 1, 1], loop: true));
@@ -73,7 +70,7 @@ public sealed class SpriteSocketTests
     [Fact]
     public void AFlipMirrorsTheSocketAboutThePivotAndAnOffsetShiftsIt()
     {
-        Root root = new(Vector2.Zero);
+        EntityHierarchyFixtures.Node root = new(Vector2.Zero);
         SpriteRenderer renderer = new(FrameMid);
         root.Add(renderer);
         Entity muzzle = renderer.Socket(Muzzle);
@@ -97,7 +94,7 @@ public sealed class SpriteSocketTests
     [Fact]
     public void AParentsScaleAndTurn_PlaceTheSocketAsTheyPlaceTheFrame()
     {
-        Root facing = new(new Vector2(100f, 100f)) { Scale = new Vector2(-1f, 1f) };
+        EntityHierarchyFixtures.Node facing = new(new Vector2(100f, 100f)) { Scale = new Vector2(-1f, 1f) };
         SpriteRenderer renderer = new(FrameMid);
         facing.Add(renderer);
         Entity muzzle = renderer.Socket(Muzzle);
@@ -105,7 +102,7 @@ public sealed class SpriteSocketTests
         Assert.Equal(new Vector2(4f, -4f), muzzle.Position);
         Assert.Equal(new Vector2(96f, 96f), muzzle.WorldPosition);
 
-        Root turned = new(new Vector2(100f, 100f)) { Rotation = MathF.PI / 2f };
+        EntityHierarchyFixtures.Node turned = new(new Vector2(100f, 100f)) { Rotation = MathF.PI / 2f };
         SpriteRenderer turnedRenderer = new(FrameMid);
         turned.Add(turnedRenderer);
         Vector2 placed = turnedRenderer.Socket(Muzzle).WorldPosition;
@@ -138,7 +135,7 @@ public sealed class SpriteSocketTests
     [Fact]
     public void AFrameWithoutTheSocket_LeavesTheChildWhereTheLastCarryingFramePutIt()
     {
-        Root root = new(Vector2.Zero);
+        EntityHierarchyFixtures.Node root = new(Vector2.Zero);
         SpriteRenderer renderer = new(FrameBare) { Offset = new Vector2(3f, 3f) };
         root.Add(renderer);
         Entity muzzle = renderer.Socket(Muzzle);
@@ -155,22 +152,22 @@ public sealed class SpriteSocketTests
         Assert.Equal(new Vector2(-1f, -2f), muzzle.Position);
     }
 
-    // Two reads of a frame over one marks table are the same frame, so an animator comparing
+    // Two reads of a frame over one marks table are the same frame. An animator comparing
     // frames or a test asserting one sees no difference from the table.
     [Fact]
     public void SpritesOverOneMarksTable_AreEqual()
     {
-        Sprite first = new(Sheet, new TextureRegion(0, 0, 8, 8), new Vector2(4f, 8f), Mid);
-        Sprite second = new(Sheet, new TextureRegion(0, 0, 8, 8), new Vector2(4f, 8f), Mid);
+        Sprite first = SceneFixtures.Frame(0, Mid);
+        Sprite second = SceneFixtures.Frame(0, Mid);
 
         Assert.Equal(first, second);
         Assert.NotEqual(first, first with { Marks = High });
         Assert.NotEqual(first, first with { Marks = null });
     }
 
-    private static (Root Root, SpriteRenderer Renderer, SpriteAnimator Animator, SimulationHost Run) Animating(Vector2 at)
+    private static (EntityHierarchyFixtures.Node Root, SpriteRenderer Renderer, SpriteAnimator Animator, SimulationHost Run) Animating(Vector2 at)
     {
-        Root root = new(at);
+        EntityHierarchyFixtures.Node root = new(at);
         SpriteRenderer renderer = new(FrameBare);
         SpriteAnimator animator = new(renderer);
         root.Add(renderer);
@@ -182,8 +179,5 @@ public sealed class SpriteSocketTests
         return (root, renderer, animator, new SimulationHost(scene));
     }
 
-    private static Sprite Frame(int index, SpriteMarks? marks) =>
-        new(Sheet, new TextureRegion(index * 8, 0, 8, 8), new Vector2(4f, 8f), marks);
-
-    private sealed class Root(Vector2 position) : Entity(position);
+    private static Sprite Frame(int index, SpriteMarks? marks) => SceneFixtures.Frame(index, marks);
 }

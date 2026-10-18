@@ -50,7 +50,7 @@ public sealed class TileTransformTests
     }
 
     // Where the renderer puts each texel of a drawn tile is where the transform puts that point. The
-    // corners are taken through the renderer's own vertex placement, so a mirror composed on the
+    // corners are taken through the renderer's own vertex placement. A mirror composed on the
     // wrong side of the quarter turn fails here.
     [Theory]
     [InlineData(TileTransform.None)]

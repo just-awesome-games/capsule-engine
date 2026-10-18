@@ -6,31 +6,28 @@ namespace Capsule.Animation;
 /// </summary>
 /// <remarks>
 /// A sequence holds whenever its owner does, through a pause or a freeze. Beats that pause the scene
-/// belong to the scene or to an entity whose step mode keeps it stepping. A sequence whose owner leaves
-/// the scene simply stops being stepped, and an owner that must release something calls
-/// <see cref="Stop"/>. Starting one allocates its iterator. Stepping allocates nothing beyond what the
-/// beats do. Behaviour a pooled entity restarts on every spawn is a state machine stepping
+/// belong to the scene or to an entity whose step mode keeps it stepping. An owner that leaves the
+/// scene stops stepping it, and one that must release something calls <see cref="Stop"/>. Starting
+/// allocates the iterator. Behaviour a pooled entity restarts on every spawn steps
 /// <see cref="Countdown"/> values instead.
 /// <para>
-/// The beats include their conditions and the <c>finally</c> blocks a stop runs. An exception they
-/// throw leaves the sequence stopped and propagates from the call that ran them.
+/// When the beats, their conditions or the <c>finally</c> blocks a stop runs throw, the sequence stops
+/// and the exception propagates from the call that ran them.
 /// </para>
 /// </remarks>
 /// <example>
 /// <code>
-/// private readonly Sequence _showLift = new();
+/// private readonly Sequence _showDoor = new();
 ///
-/// protected override void OnStep(in StepContext context) => _showLift.Step();
+/// protected override void OnStep(in StepContext context) => _showDoor.Step();
 ///
-/// private IEnumerable&lt;Wait&gt; ShowLift(Player player)
+/// private IEnumerable&lt;Wait&gt; ShowDoor(Entity followed)
 /// {
-///     player.HasControl = false;
-///     Scene.Camera.Follow(_lift);
+///     Scene.Camera.Follow(_door);
 ///     yield return Wait.Ticks(40);
-///     _lift.Running = true;
-///     yield return Wait.Until(() =&gt; _lift.HasRisen);
-///     Scene.Camera.Follow(player);
-///     player.HasControl = true;
+///     _door.Opening = true;
+///     yield return Wait.Until(() =&gt; _door.IsOpen);
+///     Scene.Camera.Follow(followed);
 /// }
 /// </code>
 /// </example>

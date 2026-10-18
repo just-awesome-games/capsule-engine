@@ -4,7 +4,6 @@ using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
 using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Runtime;
@@ -17,7 +16,7 @@ public sealed class FrameCaptureTests : IDisposable
     private static readonly InputAction Shoot = new("Shoot");
 
     // Where BoundCaptureScene asks for its capture: the registry builds it from a parameterless
-    // factory, so the path the headless test wants cannot be handed to its constructor.
+    // factory. The path the headless test wants cannot be handed to its constructor.
     private static string BoundPath = "shot.png";
 
     private readonly TempWorkspace _workspace = new(nameof(FrameCaptureTests));
@@ -39,7 +38,7 @@ public sealed class FrameCaptureTests : IDisposable
         Assert.False(host.TryTakeFrameCapture(out _));
     }
 
-    // The host takes at most one request per drawn frame, so a scene that asks twice between two
+    // The host takes at most one request per drawn frame. A scene that asks twice between two
     // frames is served the second path and never the first.
     [Fact]
     public void ASecondRequestBeforeTheTake_ReplacesTheFirst()
@@ -54,7 +53,7 @@ public sealed class FrameCaptureTests : IDisposable
         Assert.Equal("second.png", path);
     }
 
-    // A headless run draws nothing, so it takes and drops every request. One the final step raised
+    // A headless run draws nothing. It takes and drops every request. One the final step raised
     // is dropped too, and nothing stays pending on a scene no frame will draw.
     [Fact]
     public void RunHeadless_DropsARequestRaisedOnTheFinalStepAndWritesNoFile()
@@ -81,7 +80,7 @@ public sealed class FrameCaptureTests : IDisposable
         Assert.False(Directory.Exists(Path.GetDirectoryName(BoundPath)!));
     }
 
-    // A capture stages beside its destination, so a write that cannot land leaves what is already
+    // A capture stages beside its destination. A write that cannot land leaves what is already
     // there whole and leaves no temporary behind. A directory on the destination path denies the
     // move on every platform, where an exclusive handle on a file only denies it where locks are
     // mandatory.
@@ -112,7 +111,7 @@ public sealed class FrameCaptureTests : IDisposable
         Assert.Empty(Directory.GetFiles(_workspace.Root));
     }
 
-    // The staging name is unique per capture, so a file already sitting on the plain staging name
+    // The staging name is unique per capture. A file already sitting on the plain staging name
     // is neither overwritten by a capture nor deleted by one.
     [Fact]
     public void WriteCapture_LeavesAFileOnThePlainStagingNameUntouched()

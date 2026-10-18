@@ -38,7 +38,7 @@ public sealed class AudioProbeWavTests
         Assert.Equal(0.08, AudioProbe.Measure("clip.wav").DurationSeconds, 9);
     }
 
-    // A sampler chunk's loop end is the last sample sounded, so the region ends one past it.
+    // A sampler chunk's loop end is the last sample sounded. The region ends one past it.
     [Fact]
     public void AWavsLoopRegion_IsTheFirstSampleLoopOfItsSamplerChunk()
     {
@@ -51,24 +51,24 @@ public sealed class AudioProbeWavTests
         Assert.Equal(882 / 22050.0, region.EndSeconds, 12);
     }
 
-    // 0x11 is IMA ADPCM. The other shapes measure cleanly but the host cannot play them.
+    // An extensible file carries its real format tag in its sub-format. PCM and float measure as a
+    // plain file does, and any other sub-format is refused naming the fix.
     [Theory]
-    [InlineData(0x11, 1, 16, "PCM")]
-    [InlineData(1, 1, 40, "40 bits")]
-    [InlineData(3, 1, 64, "64 bits")]
-    [InlineData(1, 6, 16, "6 channels")]
-    public void AWavCapsuleCannotPlay_IsRefused(int tag, int channels, int bits, string expected)
+    [InlineData(1, null)]
+    [InlineData(3, null)]
+    [InlineData(2, "Re-encode it as 16-bit PCM.")]
+    public void AnExtensibleWav_IsReadByItsSubFormat(int subFormat, string? refused)
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        byte[] file = Wav(channels, bits, 22050, 8);
+        File.WriteAllBytes("clip.wav", Wav(2, subFormat == 3 ? 32 : 16, 22050, 1764, formatTag: subFormat, extensible: true));
 
-        // The format tag, at the head of the 'fmt ' chunk.
-        file[20] = (byte)tag;
-        File.WriteAllBytes("clip.wav", file);
-
-        FormatException refused =
-            Assert.Throws<FormatException>(() => AudioProbe.Measure("clip.wav"));
-
-        Assert.Contains(expected, refused.Message, StringComparison.Ordinal);
+        if (refused is null)
+        {
+            Assert.Equal(0.08, AudioProbe.Measure("clip.wav").DurationSeconds, 9);
+        }
+        else
+        {
+            Assert.EndsWith(refused, Assert.Throws<FormatException>(() => AudioProbe.Measure("clip.wav")).Message, StringComparison.Ordinal);
+        }
     }
 }

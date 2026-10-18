@@ -1,10 +1,3 @@
-using System.Numerics;
-using Capsule.Animation;
-using Capsule.Particles;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace MinimalGame.Game.Entities;
 
 /// <summary>A portal the player walks into to leave for another room.</summary>
@@ -34,7 +27,7 @@ public sealed class Door : Entity
         ZIndex = -5;
         Add(new SpriteRenderer(Arch));
 
-        // Motes drawn in to the portal's heart. Local, so they stay with the door wherever it stands.
+        // Motes drawn in to the portal's heart. Local space keeps them with the door wherever it stands.
         // Each is brightest on the rim and fades before it reaches the centre.
         Add(new ParticleEmitter(Sprite.White, capacity: 24)
         {
@@ -46,7 +39,7 @@ public sealed class Door : Entity
             Lifetime = (0.3f, 0.3f),
             Scale = (2f, 2f),
             ScaleOverLifetime = Curve.Linear(1f, 0.5f),
-            Color = Gradient.Linear(PortalGlow, PortalGlow with { A = 0 }),
+            Color = Glow.FadeToClear(PortalGlow),
             Blend = BlendMode.Additive,
         });
     }

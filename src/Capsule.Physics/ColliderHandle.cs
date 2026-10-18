@@ -10,6 +10,12 @@ namespace Capsule.Physics;
 /// </remarks>
 public readonly record struct ColliderHandle
 {
+    internal int World { get; }
+
+    internal int Index { get; }
+
+    internal int Generation { get; }
+
     internal ColliderHandle(int world, int index, int generation)
     {
         World = world;
@@ -22,10 +28,4 @@ public readonly record struct ColliderHandle
 
     /// <summary>Whether this handle is <see cref="None"/>.</summary>
     public bool IsNone => Generation == 0;
-
-    internal int World { get; }
-
-    internal int Index { get; }
-
-    internal int Generation { get; }
 }

@@ -12,23 +12,20 @@ namespace Capsule.UI;
 /// Moves a focus between <see cref="Focusable"/> items and presses the focused one.
 /// </summary>
 /// <remarks>
-/// This is the state machine behind a menu, a tab strip, a grid or a talent tree. It steps itself
-/// and draws nothing. The items supply the focus visuals and decide what pressing means. The items
-/// need not sit on this component's entity, or even on one entity. An item counts as live while its
+/// It steps itself and draws nothing. The items supply the focus visuals and decide what pressing
+/// means, and they need not sit on this component's entity. An item is live while its
 /// <see cref="Component.Entity"/> is in a scene, or queued to join one and not queued to leave, and
 /// is shown by <see cref="Entity.Visible"/> up its ancestry. Only live items take part in
 /// directions, the pointer and the press.
 /// <para>
 /// A direction first takes the neighbour the focused item names for that side. When the item names
-/// none, the navigator ranks the items lying that way from the focused item's
-/// <see cref="Focusable.Bounds"/> centre by <c>dot(direction, delta) / |delta|²</c> and takes the
-/// highest score, which lets a near diagonal beat a far aligned item. Deltas of <c>(40, 0)</c> and
-/// <c>(10, 10)</c> score 0.025 and 0.05, and right moves to the diagonal. Ties go to list order,
-/// and when nothing lies that way the focus wraps to the item farthest the other way. An item that
-/// names itself blocks that direction. A named item that is not live passes the move on to the item
-/// it names in the same direction, which keeps a column working while one of its items is out of
-/// the scene. A chain that names nothing further, returns to an item it already visited, or reaches
-/// an item this navigator does not hold moves nothing.
+/// none, the focus moves to the item lying that way with the highest
+/// <c>dot(direction, delta) / |delta|²</c> from the focused item's <see cref="Focusable.Bounds"/>
+/// centre, with ties to list order. When nothing lies that way, the focus wraps to the item farthest
+/// the other way. An item that names itself blocks that direction. A named item that is not live
+/// passes the move on to the item it names in the same direction. A chain that names nothing
+/// further, returns to an item it already visited, or reaches an item this navigator does not hold
+/// moves nothing.
 /// </para>
 /// <para>
 /// A focus that lands on an item by a direction, a <see cref="Focus"/> call, the start or a repair scrolls the
@@ -89,7 +86,7 @@ public sealed class FocusNavigator : Component
     /// press, at most once per step.
     /// </summary>
     /// <remarks>
-    /// It is raised while this navigator holds no live focus too, so an empty menu can still be left. It
+    /// It is raised while this navigator holds no live focus too, and an empty menu can still be left. It
     /// is gated by <see cref="Interactable"/> as every other action is.
     /// </remarks>
     public event Action? Canceled;
@@ -271,7 +268,8 @@ public sealed class FocusNavigator : Component
             throw new ArgumentException($"{nameof(Focusable)} is not an item of this navigator. Add it first.", nameof(item));
         }
 
-        Move(_started ? Live(item) ? item : FirstLive() : item);
+        // Before the start, liveness is not read yet.
+        Move(!_started || Live(item) ? item : FirstLive());
     }
 
     /// <summary>Gives the starting item the focus.</summary>
@@ -312,34 +310,30 @@ public sealed class FocusNavigator : Component
     /// steps.
     /// </summary>
     /// <remarks>
-    /// One counter serves every direction and runs while any direction is held and no direction was
-    /// pressed this step. A step holding two directions uses the first of up, down, left and right. A
-    /// direction on the focused item's <see cref="Focusable.Adjusts"/> axis adjusts that item in place of
-    /// moving the focus.
-    /// The press actions are read on their press edge only.
+    /// One repeat counter serves every direction. A step holding two directions uses the first of up,
+    /// down, left and right. A direction on the focused item's <see cref="Focusable.Adjusts"/> axis
+    /// adjusts that item in place of moving the focus. The press actions are read on their press edge
+    /// only.
     /// <para>
-    /// A pointer that moved this step and lies inside an item's bounds focuses that item. A mouse
-    /// resting on the menu does not fight a player on a gamepad. Items are hit-tested in list order
-    /// and the first one containing the pointer wins. An item with empty bounds is never under the
-    /// pointer. Both the pointer and its buttons only reach items on a <see cref="ScreenEntity"/>, and
-    /// only where its <see cref="ClipRect"/> shows it. The directions ignore a clip. A mouse button
-    /// bound to a press action presses the item under the pointer whether or not the pointer moved,
-    /// and does nothing over empty space. A step that finds no live focus spends itself moving to one
-    /// and reads nothing else but <see cref="FocusActions.Cancel"/>. The item it lands on cannot be
-    /// pressed by an action aimed at the previously focused item. A handler that takes the landing
-    /// item out of its scene drops the press.
+    /// A pointer that moved this step focuses the first item in list order whose bounds contain it.
+    /// The pointer and its buttons reach only items on a <see cref="ScreenEntity"/>, and only where its
+    /// <see cref="ClipRect"/> shows it. A mouse button bound to a press action presses the item under
+    /// the pointer whether or not the pointer moved, and does nothing over empty space.
     /// </para>
     /// <para>
-    /// A mouse button bound to confirm that presses an item captures the pointer for it. While the
-    /// button is held the pointer focuses nothing, and the item raises <see cref="Focusable.Dragged"/>
-    /// on the press and on each move. The capture ends when the button is released or the focus leaves
-    /// the item.
+    /// A step that finds no live focus moves to one and reads nothing else but
+    /// <see cref="FocusActions.Cancel"/>. A handler that takes the landing item out of its scene drops
+    /// the press.
+    /// </para>
+    /// <para>
+    /// A mouse button bound to confirm that presses an item captures the pointer for it until the
+    /// button is released or the focus leaves the item. While captured, the pointer focuses nothing and
+    /// the item raises <see cref="Focusable.Dragged"/> on the press and on each move.
     /// </para>
     /// <para>
     /// The wheel adjusts the focused item when that item has an <see cref="Focusable.Adjusts"/> axis and
-    /// the pointer is over it. Each whole notch raises one adjust, and a part notch waits for the
-    /// rest. The vertical wheel always counts, and the horizontal wheel counts only on a horizontal
-    /// item. The wheel over an item without the focus does nothing.
+    /// the pointer is over it. Each whole notch raises one adjust. The vertical wheel always counts, and
+    /// the horizontal wheel counts only on a horizontal item.
     /// </para>
     /// </remarks>
     protected internal override void OnStep(in StepContext context)
@@ -381,7 +375,7 @@ public sealed class FocusNavigator : Component
         bool fromPointer = false;
 
         // One hit test per step. Pointer focusing requires the pointer to have moved, but a click does
-        // not, so clicking without nudging the mouse still picks the item under it.
+        // not. Clicking without nudging the mouse still picks the item under it.
         bool clicking = Clicked(input);
         bool hovering = input.PointerMoved && !captured;
         Focusable? under = hovering || clicking ? Under(input.Pointer) : null;
@@ -545,19 +539,34 @@ public sealed class FocusNavigator : Component
                 navigator.RequireNotRaising();
                 navigator._items.Add(item);
                 navigator.Seat(item);
+
+                // A torn-down menu added back gives its remembered focus back to the item it left with. The
+                // repair the item's departure queued is dropped with it.
+                if (ReferenceEquals(navigator.Focused, item) && item.Holder is null)
+                {
+                    item.HoldQuietly(navigator);
+                    navigator._focusDeparted = false;
+                }
             }
 
             return;
         }
     }
 
-    // Drops a gathered item leaving its scene and raises nothing. A focus left on it moves on at the next
-    // step. A torn-down menu never steps again.
+    // Drops a gathered item leaving its scene and raises nothing. The item stops being focused at once,
+    // since a torn-down menu never steps again to clear it. The navigator's focus moves on at its next step.
     internal void Leave(Focusable item)
     {
-        if (_items.Remove(item) && ReferenceEquals(Focused, item))
+        if (!_items.Remove(item) || !ReferenceEquals(Focused, item))
         {
-            _focusDeparted = true;
+            return;
+        }
+
+        _focusDeparted = true;
+
+        if (ReferenceEquals(item.Holder, this))
+        {
+            item.HoldQuietly(null);
         }
     }
 
@@ -710,7 +719,8 @@ public sealed class FocusNavigator : Component
         };
 
     // Returns the live item `direction` reaches from `from`, or the wrap target when nothing lies that
-    // way.
+    // way. Items lying that way rank by dot(direction, delta) / |delta|², which lets a near diagonal beat
+    // a far aligned item. Ties go to list order, and the wrap target is the item farthest the other way.
     private Focusable? Neighbour(Focusable from, Vector2 direction)
     {
         Vector2 origin = Centre(from);
@@ -720,10 +730,8 @@ public sealed class FocusNavigator : Component
         Focusable? wrap = null;
         float wrapDistance = 0f;
 
-        for (int i = 0; i < _items.Count; i++)
+        foreach (Focusable item in Items)
         {
-            Focusable item = _items[i];
-
             if (ReferenceEquals(item, from) || !Live(item))
             {
                 continue;

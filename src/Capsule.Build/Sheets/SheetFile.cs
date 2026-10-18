@@ -4,13 +4,14 @@ using Capsule.Build.Configuration;
 namespace Capsule.Build.Sheets;
 
 /// <summary>
-/// Reads the sheet document format. The sheet is known at build time. The generated registry
-/// carries it as literal data, and no document ships or is parsed at run time.
+/// Reads the sheet document format. The sheet is known at build time.
 /// </summary>
+/// <remarks>
+/// The generated registry carries it as literal data, and no document ships or is parsed at
+/// run time.
+/// </remarks>
 internal static class SheetFile
 {
-    internal const int SupportedFormat = 1;
-
     /// <summary>Reads and validates the sheet at <paramref name="path"/>.</summary>
     /// <exception cref="FormatException">The JSON is malformed or the document breaks the format.</exception>
     internal static Sheet Read(string path)
@@ -24,13 +25,13 @@ internal static class SheetFile
     {
         if (json.FormatVersion is not { } format)
         {
-            throw new FormatException($"has no formatVersion. This build supports formatVersion {SupportedFormat}.");
+            throw new FormatException($"has no formatVersion. This build supports formatVersion {SheetJson.SupportedFormat}. Set \"formatVersion\": {SheetJson.SupportedFormat}.");
         }
 
-        if (format != SupportedFormat)
+        if (format != SheetJson.SupportedFormat)
         {
             throw new FormatException(
-                $"declares formatVersion {format}, which is unsupported. This build supports formatVersion {SupportedFormat}.");
+                $"declares formatVersion {format}, which is unsupported. This build supports formatVersion {SheetJson.SupportedFormat}. Write the sheet in that version.");
         }
 
         (string key, string extension) = Texture(json.Texture);
@@ -46,9 +47,9 @@ internal static class SheetFile
 
     private static (string Key, string Extension) Texture(string? path)
     {
-        if (path is not { Length: > 0 })
+        if (path is not { Length: >= SheetJson.NonEmpty })
         {
-            throw new FormatException("names no texture. A sheet cuts its frames from one texture.");
+            throw new FormatException("names no texture. A sheet cuts its frames from one texture. Set \"texture\" to its key, as \"player.png\".");
         }
 
         if (!AssetPaths.TrySplit(path, out string name, out string extension))
@@ -82,9 +83,9 @@ internal static class SheetFile
 
     private static SheetFrame[] Frames(List<FrameJson>? declared, string[] sockets, string[] boxes)
     {
-        if (declared is not { Count: > 0 })
+        if (declared is not { Count: >= SheetJson.NonEmpty })
         {
-            throw new FormatException("has no frames. A sheet names at least one region of its texture.");
+            throw new FormatException("has no frames. A sheet names at least one region of its texture. Add a frame to \"frames\".");
         }
 
         SheetFrame[] frames = new SheetFrame[declared.Count];
@@ -96,7 +97,7 @@ internal static class SheetFile
         {
             if (declared[i] is not { } frame)
             {
-                throw new FormatException($"has frames[{i}] as null. Every frame is an object.");
+                throw new FormatException($"has frames[{i}] as null. Every frame is an object. Write the frame, or remove the null.");
             }
 
             string name = named.Read(frame.Name, $"frames[{i}]");
@@ -104,19 +105,19 @@ internal static class SheetFile
             if (frame.X is not { } x || frame.Y is not { } y || frame.Width is not { } width || frame.Height is not { } height)
             {
                 throw new FormatException(
-                    $"has frame \"{name}\" with no {Missing(frame)}. Every frame carries x, y, width and height in texels.");
+                    $"has frame \"{name}\" with no {Missing(frame)}. Every frame carries x, y, width and height in texels. Add the missing one.");
             }
 
-            if (x < 0 || y < 0)
+            if (x < SheetJson.LeastOrigin || y < SheetJson.LeastOrigin)
             {
                 throw new FormatException(
-                    $"has frame \"{name}\" at ({x}, {y}). A region starts inside its texture, so x and y are not negative.");
+                    $"has frame \"{name}\" at ({x}, {y}). A region starts inside its texture, and x and y are not negative. Move the frame inside the texture.");
             }
 
-            if (width <= 0 || height <= 0)
+            if (width < SheetJson.LeastExtent || height < SheetJson.LeastExtent)
             {
                 throw new FormatException(
-                    $"has frame \"{name}\" {width}x{height}. A region has at least one texel on each axis.");
+                    $"has frame \"{name}\" {width}x{height}. A region has at least one texel on each axis. Give it a positive width and height.");
             }
 
             (float pivotX, float pivotY) = frame.Pivot is { } pivot ? Point(pivot, name, "a pivot") : (0F, 0F);
@@ -128,104 +129,73 @@ internal static class SheetFile
                 height,
                 pivotX,
                 pivotY,
-                FrameSockets(frame, name, sockets, set),
-                FrameBoxes(frame, name, boxes, boxesSet));
+                FrameMarks(frame.Sockets, name, sockets, set, "socket", "sockets", Socket),
+                FrameMarks(frame.Boxes, name, boxes, boxesSet, "box", "boxes", Box));
         }
 
-        for (int i = 0; i < sockets.Length; i++)
-        {
-            if (!set[i])
-            {
-                throw new FormatException(
-                    $"declares socket \"{sockets[i]}\", which no frame sets. A socket is a point on the frames that carry it, so either a frame sets it or the declaration goes.");
-            }
-        }
-
-        for (int i = 0; i < boxes.Length; i++)
-        {
-            if (!boxesSet[i])
-            {
-                throw new FormatException(
-                    $"declares box \"{boxes[i]}\", which no frame sets. A box is a rect on the frames that carry it, so either a frame sets it or the declaration goes.");
-            }
-        }
+        RequireAllSet(sockets, set, "socket", "a point");
+        RequireAllSet(boxes, boxesSet, "box", "a rect");
 
         return frames;
     }
 
-    // A frame sets the sockets it has a point for and leaves the rest out. They are emitted in the
-    // order the sheet declares them, whatever order the frame listed them in.
-    private static SheetSocket[] FrameSockets(FrameJson frame, string name, string[] declared, bool[] set)
+    private static void RequireAllSet(string[] declared, bool[] set, string kind, string shape)
     {
-        if (frame.Sockets is not { Count: > 0 } points)
+        int unset = Array.IndexOf(set, false);
+        if (unset >= 0)
         {
-            return [];
+            throw new FormatException(
+                $"declares {kind} \"{declared[unset]}\", which no frame sets. A {kind} is {shape} on the frames that carry it. Set it on a frame, or remove its declaration.");
         }
-
-        List<SheetSocket> sockets = new(points.Count);
-
-        for (int i = 0; i < declared.Length; i++)
-        {
-            if (!points.TryGetValue(declared[i], out float[]? point))
-            {
-                continue;
-            }
-
-            (float x, float y) = Point(point, name, $"socket \"{declared[i]}\"");
-            set[i] = true;
-            sockets.Add(new SheetSocket(declared[i], x, y));
-        }
-
-        if (sockets.Count != points.Count)
-        {
-            foreach (string point in points.Keys)
-            {
-                if (Array.IndexOf(declared, point) < 0)
-                {
-                    throw new FormatException(
-                        $"has frame \"{name}\" setting socket \"{point}\", which the sheet does not declare. Every socket a frame sets is named in the sheet's sockets list.");
-                }
-            }
-        }
-
-        return [.. sockets];
     }
 
-    // A frame sets the boxes it has a rect for. They are emitted in the order the sheet declares them,
-    // as sockets are.
-    private static SheetBox[] FrameBoxes(FrameJson frame, string name, string[] declared, bool[] set)
+    // A frame sets the sockets or boxes it has a value for and leaves the rest out. They are emitted in
+    // the order the sheet declares them, whatever order the frame listed them in.
+    private static TMark[] FrameMarks<TJson, TMark>(
+        Dictionary<string, TJson>? values,
+        string name,
+        string[] declared,
+        bool[] set,
+        string kind,
+        string list,
+        Func<TJson, string, string, TMark> read)
     {
-        if (frame.Boxes is not { Count: > 0 } rects)
+        if (values is not { Count: > 0 })
         {
             return [];
         }
 
-        List<SheetBox> boxes = new(rects.Count);
+        List<TMark> marks = new(values.Count);
 
         for (int i = 0; i < declared.Length; i++)
         {
-            if (!rects.TryGetValue(declared[i], out FrameBoxJson? rect))
+            if (values.TryGetValue(declared[i], out TJson? value))
             {
-                continue;
+                marks.Add(read(value, name, declared[i]));
+                set[i] = true;
             }
-
-            set[i] = true;
-            boxes.Add(Box(rect, name, declared[i]));
         }
 
-        if (boxes.Count != rects.Count)
+        if (marks.Count != values.Count)
         {
-            foreach (string rect in rects.Keys)
+            foreach (string mark in values.Keys)
             {
-                if (Array.IndexOf(declared, rect) < 0)
+                if (Array.IndexOf(declared, mark) < 0)
                 {
                     throw new FormatException(
-                        $"has frame \"{name}\" setting box \"{rect}\", which the sheet does not declare. Every box a frame sets is named in the sheet's boxes list.");
+                        $"has frame \"{name}\" setting {kind} \"{mark}\", which the sheet does not declare. Every {kind} a frame sets is named in the sheet's {list} list. Declare it there, or remove it from the frame.");
                 }
             }
         }
 
-        return [.. boxes];
+        return [.. marks];
+    }
+
+    private static SheetSocket Socket(float[] point, string frame, string socket)
+    {
+        (float x, float y) = Point(point, frame, $"socket \"{socket}\"");
+
+        return new SheetSocket(socket, x, y);
     }
 
     // A box is x, y, width and height in texels of the frame from its top-left corner. It may reach
@@ -236,19 +206,19 @@ internal static class SheetFile
         {
             string missing = rect?.X is null ? "x" : rect.Y is null ? "y" : rect.Width is null ? "width" : "height";
             throw new FormatException(
-                $"has frame \"{frame}\" with box \"{box}\" and no {missing}. A box carries x, y, width and height in texels of the frame.");
+                $"has frame \"{frame}\" with box \"{box}\" and no {missing}. A box carries x, y, width and height in texels of the frame. Add the missing one.");
         }
 
         if (!float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(width) || !float.IsFinite(height))
         {
             throw new FormatException(
-                $"has frame \"{frame}\" with box \"{box}\" that is not finite. A box's x, y, width and height are texel offsets and extents.");
+                $"has frame \"{frame}\" with box \"{box}\" that is not finite. A box's x, y, width and height are texel offsets and extents. Write each as a finite number.");
         }
 
-        return width > 0F && height > 0F
+        return width > SheetJson.BoxExtentAbove && height > SheetJson.BoxExtentAbove
             ? new SheetBox(box, x, y, width, height)
             : throw new FormatException(
-                $"has frame \"{frame}\" with box \"{box}\" {width}x{height}. A box has a positive width and height.");
+                $"has frame \"{frame}\" with box \"{box}\" {width}x{height}. A box has a positive width and height. Give it some area.");
     }
 
     private static SheetClip[] Clips(List<ClipJson>? declared, SheetFrame[] frames, string[] events)
@@ -262,7 +232,7 @@ internal static class SheetFile
             if (!raised[i])
             {
                 throw new FormatException(
-                    $"declares event \"{events[i]}\", which no clip entry raises. An event is raised by the entries that list it, so either an entry lists it or the declaration goes.");
+                    $"declares event \"{events[i]}\", which no clip entry raises. An event is raised by the entries that list it. List it on an entry, or remove its declaration.");
             }
         }
 
@@ -271,7 +241,6 @@ internal static class SheetFile
 
     private static SheetClip[] ReadClips(List<ClipJson> declared, SheetFrame[] frames, string[] events, bool[] raised)
     {
-
         HashSet<string> frameNames = frames.Select(static frame => frame.Name).ToHashSet(StringComparer.Ordinal);
 
         SheetClip[] clips = new SheetClip[declared.Count];
@@ -283,14 +252,14 @@ internal static class SheetFile
         {
             if (declared[i] is not { } clip)
             {
-                throw new FormatException($"has clips[{i}] as null. Every clip is an object.");
+                throw new FormatException($"has clips[{i}] as null. Every clip is an object. Write the clip, or remove the null.");
             }
 
             string name = named.Read(clip.Name, $"clips[{i}]");
 
-            if (clip.Frames is not { Count: > 0 } played)
+            if (clip.Frames is not { Count: >= SheetJson.NonEmpty } played)
             {
-                throw new FormatException($"has clip \"{name}\" with no frames. A clip plays at least one frame.");
+                throw new FormatException($"has clip \"{name}\" with no frames. A clip plays at least one frame. Add an entry to its \"frames\".");
             }
 
             SheetClipFrame[] sequence = new SheetClipFrame[played.Count];
@@ -298,22 +267,22 @@ internal static class SheetFile
             {
                 ClipFrameJson? entry = played[j];
 
-                if (entry?.Frame is not { Length: > 0 } frame || !frameNames.Contains(frame))
+                if (entry?.Frame is not { Length: >= SheetJson.NonEmpty } frame || !frameNames.Contains(frame))
                 {
                     throw new FormatException(
-                        $"has clip \"{name}\" frame {j} playing \"{entry?.Frame}\", which this sheet has no frame named. A clip plays frames of its own sheet.");
+                        $"has clip \"{name}\" frame {j} playing \"{entry?.Frame}\", which this sheet has no frame named. A clip plays frames of its own sheet. Name one of this sheet's frames.");
                 }
 
                 if (entry.Ticks is not { } ticks)
                 {
                     throw new FormatException(
-                        $"has clip \"{name}\" frame {j} with no ticks. Every entry states how many fixed steps its frame is held for.");
+                        $"has clip \"{name}\" frame {j} with no ticks. Every entry states how many fixed steps its frame is held for. Add \"ticks\".");
                 }
 
-                if (ticks <= 0)
+                if (ticks < SheetJson.LeastTicks)
                 {
                     throw new FormatException(
-                        $"has clip \"{name}\" frame {j} held for {ticks} ticks. A frame is held for at least one fixed step, and a duration counts fixed steps, not milliseconds.");
+                        $"has clip \"{name}\" frame {j} held for {ticks} ticks. A frame is held for at least one fixed step, and a duration counts fixed steps, not milliseconds. Set \"ticks\" to 1 or more.");
                 }
 
                 sequence[j] = new SheetClipFrame(frame, ticks, EntryEvents(entry.Events, name, j, events, raised));
@@ -342,13 +311,13 @@ internal static class SheetFile
             if (index < 0)
             {
                 throw new FormatException(
-                    $"has clip \"{clip}\" frame {entry} raising event \"{name}\", which the sheet does not declare. Every event an entry raises is named in the sheet's events list.");
+                    $"has clip \"{clip}\" frame {entry} raising event \"{name}\", which the sheet does not declare. Every event an entry raises is named in the sheet's events list. Declare it there, or remove it from the entry.");
             }
 
             if (Array.IndexOf(names, name, 0, i) >= 0)
             {
                 throw new FormatException(
-                    $"has clip \"{clip}\" frame {entry} raising event \"{name}\" twice. An entry lists each event once.");
+                    $"has clip \"{clip}\" frame {entry} raising event \"{name}\" twice. An entry lists each event once. Remove the repeat.");
             }
 
             raised[index] = true;
@@ -365,15 +334,15 @@ internal static class SheetFile
     // large for a float reads as an infinity, which is no texel offset.
     private static (float X, float Y) Point(float[] point, string frame, string what)
     {
-        if (point.Length != 2)
+        if (point.Length != SheetJson.PointLength)
         {
             throw new FormatException(
-                $"has frame \"{frame}\" with {what} of {point.Length} components. A point on a frame is written [x, y] in texels from its top-left corner.");
+                $"has frame \"{frame}\" with {what} of {point.Length} components. A point on a frame is written [x, y] in texels from its top-left corner. Write it as two numbers.");
         }
 
         return float.IsFinite(point[0]) && float.IsFinite(point[1])
             ? (point[0], point[1])
-            : throw new FormatException($"has frame \"{frame}\" with {what} that is not finite. A point on a frame is a pair of texel offsets.");
+            : throw new FormatException($"has frame \"{frame}\" with {what} that is not finite. A point on a frame is a pair of texel offsets. Write each as a finite number.");
     }
 
     // One rule for every name space: non-empty, unique, an identifier, and not the name of the
@@ -387,31 +356,31 @@ internal static class SheetFile
         {
             if (authored is not { Length: > 0 } name)
             {
-                throw new FormatException($"has {position} with no name. Every frame, clip, socket, box and event is named.");
+                throw new FormatException($"has {position} with no name. Every frame, clip, socket, box and event is named. Give it a \"name\".");
             }
 
             if (!_byName.Add(name))
             {
                 throw new FormatException(
-                    $"has {position} as a second \"{name}\". Names are unique within their list, since a game reaches each by name.");
+                    $"has {position} as a second \"{name}\". A game reaches each by name, and names are unique within their list. Rename one.");
             }
 
             if (AssetPaths.ToIdentifier(name) is not { } identifier)
             {
                 throw new FormatException(
-                    $"has {position} named \"{name}\", which is no C# name. A name is letters, digits, '-' and '_', and does not start with a digit.");
+                    $"has {position} named \"{name}\", which is no C# name. A name is letters, digits, '-' and '_', and does not start with a digit. Rename it.");
             }
 
             if (string.Equals(identifier, reserved, StringComparison.Ordinal))
             {
                 throw new FormatException(
-                    $"has {position} named \"{name}\", which is the generated '{reserved}' class it would be declared on, so name it something else.");
+                    $"has {position} named \"{name}\", which is the generated '{reserved}' class it would be declared on. Rename it.");
             }
 
             if (_byIdentifier.TryGetValue(identifier, out string? claimed))
             {
                 throw new FormatException(
-                    $"has {position} named \"{name}\" where \"{claimed}\" is already declared as '{identifier}'. Two names differing only in their separators are one C# name.");
+                    $"has {position} named \"{name}\" where \"{claimed}\" is already declared as '{identifier}'. Two names differing only in their separators are one C# name. Rename one.");
             }
 
             _byIdentifier[identifier] = name;

@@ -1,8 +1,3 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Physics;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
 /// <summary>A root that sways side to side over 63 links nested one below the next, with a collider on the last link.</summary>

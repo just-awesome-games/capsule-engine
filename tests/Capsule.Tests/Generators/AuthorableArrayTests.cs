@@ -6,7 +6,6 @@ using System.Runtime.InteropServices;
 using Capsule.Assets;
 using Capsule.Audio;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
 using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
@@ -25,7 +24,6 @@ public sealed class AuthorableArrayTests
         using Capsule.Assets;
         using Capsule.Audio;
         using Capsule.Scenes;
-        using Capsule.Scenes.Spawning;
 
         namespace Game;
 
@@ -122,8 +120,8 @@ public sealed class AuthorableArrayTests
     }
 
     // A collection is written as an array. A converter type or a game interface that is also enumerable keeps
-    // its own form, so the collection refusal comes after every form a single member accepts. A ReadOnlyMemory
-    // is shared by every scene, so it holds only values whose read takes nothing from the scene.
+    // its own form. The collection refusal comes after every form a single member accepts. A ReadOnlyMemory
+    // is shared by every scene. It holds only values whose read takes nothing from the scene.
     [Theory]
     [InlineData("System.Collections.Generic.List<int> Stops { get; set; } = [];", "Declare 'int[]'")]
     [InlineData("System.Collections.Generic.IReadOnlyList<int> Stops { get; set; } = [];", "Declare 'int[]'")]
@@ -188,10 +186,7 @@ public sealed class AuthorableArrayTests
             {"id": 5, "type": "shuttle", "x": 0, "y": 0}
             """;
 
-        SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(() => Composed(entries));
-
-        Assert.StartsWith("scene document 'scenes/room': entities[1] ('gate') ", failure.Message, StringComparison.Ordinal);
-        Assert.Contains(fix, failure.Message, StringComparison.Ordinal);
+        GeneratorHarness.AssertLoadRefused(() => Composed(entries), "scene document 'scenes/room': entities[1] ('gate') ", fix);
     }
 
     private static string Document(string entries) =>

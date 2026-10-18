@@ -48,16 +48,21 @@ public sealed class ShaderBuildTests
         Assert.Equal(["shaders/effects/stone.mgfx"], workspace.Shipped);
     }
 
+    // A tool's package folder is named for its version. A shader built by one version is rebuilt by
+    // the next, never reused.
     [Fact]
-    public void AShaderThatDoesNotCompile_FailsAtTheGamesFileAndLine()
+    public void AShaderToolUpgrade_MissesTheCache()
     {
         using ToolWorkspace workspace = new();
-        workspace.Write("Assets/Shaders/broken.fx", "float4 Fragment(SpritePixel pixel)\n{\n    return pixel.Texel * Glow;\n}\n");
+        workspace.Write("Assets/Shaders/stone.fx", Stone);
+        workspace.Succeed();
+        workspace.Succeed();
+        Assert.Contains("shaders: 1 reused", workspace.Output, StringComparison.Ordinal);
 
-        Assert.Contains(
-            "Assets/Shaders/broken.fx(3,26): error : use of undeclared identifier 'Glow'",
-            workspace.Fail(),
-            StringComparison.Ordinal);
+        workspace.Tools = ToolWorkspace.ShaderTools with { Dxc = Path.Combine(Path.GetDirectoryName(ToolWorkspace.ShaderTools.Dxc)!, "0.0.0") };
+        workspace.Run();
+
+        Assert.DoesNotContain("shaders: 1 reused", workspace.Output, StringComparison.Ordinal);
     }
 
     // The container is read back by MonoGame's own effect reader, run without a device, and every
@@ -90,27 +95,6 @@ public sealed class ShaderBuildTests
         Assert.DoesNotContain("SPIRV_Cross", Encoding.ASCII.GetString(effect), StringComparison.Ordinal);
     }
 
-    // A read OpenGL 2.1 cannot compile fails the build, naming what to write instead, rather than
-    // failing or reading a wrong value when the game draws.
-    [Theory]
-    [InlineData("return Grain.Load(int3(2, 3, 0));", "reads a texel with Load or an index, which OpenGL 2.1 lacks. Read it with Sample(texture, (texel + 0.5) / TextureSize(texture)).")]
-    [InlineData("uint w, h; Grain.GetDimensions(w, h); return Sample(Grain, pixel.UV) * w;", "reads a texture's size with GetDimensions, which OpenGL 2.1 lacks. Read it with TextureSize(texture).")]
-    [InlineData("return pixel.Texel * round(pixel.UV.x * 4.0);", "needs the GLSL extension GL_EXT_gpu_shader4, which OpenGL 2.1 lacks.")]
-    public void AReadOpenGl21Lacks_FailsTheBuildNamingItsAlternative(string body, string failure)
-    {
-        using ToolWorkspace workspace = new();
-        workspace.Write("Assets/Shaders/table.fx", $$"""
-            Texture2D Grain;
-
-            float4 Fragment(SpritePixel pixel)
-            {
-                {{body}}
-            }
-            """);
-
-        Assert.Contains("Assets/Shaders/table.fx: " + failure, workspace.Fail(), StringComparison.Ordinal);
-    }
-
     // A game name that only contains a GLSL built-in's name is the game's own. This table, written
     // and indexed as the fragment runs, reaches the GLSL under its own name.
     [Fact]
@@ -132,25 +116,23 @@ public sealed class ShaderBuildTests
         Assert.Null(ShaderCompiler.Compile(ToolWorkspace.ShaderTools, "table.fx").Failure);
     }
 
-    // The host binds the engine's parameters by name. A game parameter carrying the engine's prefix
-    // fails the build rather than being bound as one.
+    // A fragment that does not compile fails at the game's file and line. A read OpenGL 2.1 lacks fails
+    // naming what to write instead, rather than failing or reading a wrong value when the game draws.
+    // The host binds the engine's parameters by name, and a game parameter carrying its prefix fails
+    // rather than being bound as one.
     [Theory]
-    [InlineData("float2 CapsuleTextureSize1;", "pixel.UV / CapsuleTextureSize1", "declares parameter 'CapsuleTextureSize1', a name the engine reserves. Rename it without the Capsule prefix.")]
-    [InlineData("Texture2D CapsuleGrain;", "pixel.UV + Sample(CapsuleGrain, pixel.UV).rg", "declares texture 'CapsuleGrain', a name the engine reserves. Rename it without the Capsule prefix.")]
-    public void AParameterNamedAsTheEngines_FailsTheBuildAskingForARename(string declaration, string uv, string failure)
+    [InlineData("float4 Fragment(SpritePixel pixel)\n{\n    return pixel.Texel * Glow;\n}\n", "(3,26): error : use of undeclared identifier 'Glow'")]
+    [InlineData("Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Grain.Load(int3(2, 3, 0)); }", ": reads a texel with Load or an index, which OpenGL 2.1 lacks. Read it with Sample(texture, (texel + 0.5) / TextureSize(texture)).")]
+    [InlineData("Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { uint w, h; Grain.GetDimensions(w, h); return Sample(Grain, pixel.UV) * w; }", ": reads a texture's size with GetDimensions, which OpenGL 2.1 lacks. Read it with TextureSize(texture).")]
+    [InlineData("float4 Fragment(SpritePixel pixel) { return pixel.Texel * round(pixel.UV.x * 4.0); }", ": needs the GLSL extension GL_EXT_gpu_shader4, which OpenGL 2.1 lacks.")]
+    [InlineData("float2 CapsuleTextureSize1;\nTexture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Sample(Grain, pixel.UV / CapsuleTextureSize1) * pixel.Texel; }", ": declares parameter 'CapsuleTextureSize1', a name the engine reserves. Rename it without the Capsule prefix.")]
+    [InlineData("Texture2D CapsuleGrain;\nTexture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Sample(Grain, pixel.UV + Sample(CapsuleGrain, pixel.UV).rg) * pixel.Texel; }", ": declares texture 'CapsuleGrain', a name the engine reserves. Rename it without the Capsule prefix.")]
+    public void AShaderTheBuildCannotShip_FailsAtTheGamesFileNamingTheFix(string source, string failure)
     {
         using ToolWorkspace workspace = new();
-        workspace.Write("Assets/Shaders/named.fx", $$"""
-            {{declaration}}
-            Texture2D Grain;
+        workspace.Write("Assets/Shaders/refused.fx", source);
 
-            float4 Fragment(SpritePixel pixel)
-            {
-                return Sample(Grain, {{uv}}) * pixel.Texel;
-            }
-            """);
-
-        Assert.Contains("Assets/Shaders/named.fx: " + failure, workspace.Fail(), StringComparison.Ordinal);
+        Assert.Contains("Assets/Shaders/refused.fx" + failure, workspace.Fail(), StringComparison.Ordinal);
     }
 
     // The runtime embeds the committed sprite shader. A game drawing only with it needs no shader tools.

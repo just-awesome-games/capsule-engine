@@ -34,5 +34,5 @@ internal readonly record struct ObjectModel(
     EquatableArray<string> Subclasses) : IClaimingClass
 {
     /// <summary>Every member the object's keys set.</summary>
-    internal IEnumerable<PropertyModel> Authored => Properties.Items.Where(static property => property.Authorable && property.Settable);
+    internal IEnumerable<PropertyModel> Authored => PropertyModel.AuthoredIn(Properties);
 }

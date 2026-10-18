@@ -9,13 +9,13 @@ namespace Capsule.Animation;
 /// </remarks>
 /// <example>
 /// <code>
-/// _knockback.Start(12, Ease.OutQuad);
+/// _slide.Start(12, Ease.OutQuad);
 /// ...
-/// _knockback.Step();
-/// Position = Vector2.Lerp(_struckAt, _restsAt, _knockback.Value);
-/// if (_knockback.JustFinished)
+/// _slide.Step();
+/// Position = Vector2.Lerp(_closedAt, _openAt, _slide.Value);
+/// if (_slide.JustFinished)
 /// {
-///     _state = State.Idle;
+///     _state = State.Open;
 /// }
 /// </code>
 /// </example>

@@ -5,11 +5,10 @@ namespace Capsule.Tests.Physics;
 
 public sealed class OverlapTests
 {
-
-    // The span is the destination, never the question: the count is what the world holds, and the
-    // handle order decides which of them fit, so an unrelated move cannot change the answer.
+    // The span bounds the answer. A crowd larger than the span fills it and returns its length, and the
+    // handle order decides which of them fit. An unrelated move cannot change the answer.
     [Fact]
-    public void OverlapAll_ReportsEveryOverlapAndKeepsTheSameFewWhicheverOrderItMetThem()
+    public void OverlapAll_FillsASpanTooSmallAndKeepsTheSameFewWhicheverOrderItMetThem()
     {
         CollisionWorld2D world = new();
         CollisionLayer item = world.Layer("item");
@@ -25,24 +24,15 @@ public sealed class OverlapTests
         Aabb2D probe = CollisionFixtures.Box(0f, 0f, 40f, 8f);
         Span<Contact2D> room = stackalloc Contact2D[3];
 
-        // Each arrangement sends every collider away and back in its own order, which rebuilds the
-        // broadphase in that order, and the same three survive the span.
         for (int arrangement = 0; arrangement < 8; arrangement++)
         {
-            foreach (Vector2 position in (ReadOnlySpan<Vector2>)[new(1_000f, 0f), Vector2.Zero])
-            {
-                for (int step = 0; step < handles.Length; step++)
-                {
-                    world.SetPosition(handles[((step * 5) + (arrangement * 3)) % handles.Length], position);
-                }
-            }
-
-            Assert.Equal(16, world.OverlapBoxAll(probe, CollisionFilter.Everything, room));
+            CollisionFixtures.Rearrange(world, handles, CollisionFixtures.Shuffled(handles.Length, arrangement));
+            Assert.Equal(room.Length, world.OverlapBoxAll(probe, CollisionFilter.Everything, room));
             Assert.Equal(handles[..3], room.ToArray().Select(static contact => contact.Target.Collider));
         }
 
-        // An empty span still counts them.
-        Assert.Equal(16, world.OverlapBoxAll(probe, CollisionFilter.Everything, default));
+        // An empty span holds none of them.
+        Assert.Equal(0, world.OverlapBoxAll(probe, CollisionFilter.Everything, default));
     }
 
     [Fact]
@@ -61,7 +51,7 @@ public sealed class OverlapTests
         Assert.Equal(0, world.OverlapAll(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, CollisionFilter.Of(item), contacts, self));
     }
 
-    // A collider's own query takes the filter the caller hands it, so the mask the collider was
+    // A collider's own query takes the filter the caller hands it. The mask the collider was
     // registered with is a default and never an override.
     [Fact]
     public void OverlapColliderAll_MatchesTheFilterItIsGivenRatherThanTheCollidersOwn()
@@ -125,7 +115,6 @@ public sealed class OverlapTests
             CollisionFilter.Everything,
             out _));
     }
-
 
     // Depth is the way out: stepping the query by Normal * Depth leaves it touching and no deeper.
     // One box overlaps another by 3 across X and a lone solid cell by 2 down Y.

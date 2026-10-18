@@ -31,7 +31,7 @@ public static class Easing
     /// </remarks>
     public static float Apply(Ease ease, float t)
     {
-        // Checked ahead of the clamp, so an undeclared curve is refused at the endpoints too.
+        // Checked ahead of the clamp. An undeclared curve is refused at the endpoints too.
         Guard.RequireEase(ease, nameof(ease));
 
         if (t <= 0f || float.IsNaN(t))
@@ -110,8 +110,8 @@ public static class Easing
 
     private static float InBack(float t) => ((BackOvershoot + 1f) * t * t * t) - (BackOvershoot * t * t);
 
-    // Uses its own overshoot constant, not the halved InBack curve, so each half pulls back as far as the
-    // one-sided curves do.
+    // Each half pulls back as far as the one-sided curves do. The overshoot constant is its own, not the
+    // halved InBack curve's.
     private static float InOutBack(float t)
     {
         float scaled = t + t;
@@ -125,8 +125,7 @@ public static class Easing
     private static float InElastic(float t) =>
         -DeterministicMath.Exp2((10f * t) - 10f) * DeterministicMath.Sin(((10f * t) - 10.75f) * ElasticPeriod);
 
-    // Uses its own period, so each half oscillates at the rate the one-sided curves do over half the
-    // span.
+    // Each half oscillates at the rate the one-sided curves do over half the span. The period is its own.
     private static float InOutElastic(float t)
     {
         float phase = DeterministicMath.Sin(((20f * t) - 11.125f) * ElasticInOutPeriod);

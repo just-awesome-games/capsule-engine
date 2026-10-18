@@ -47,8 +47,21 @@ internal sealed record BuildRequests(string AssetRoot, ShaderTools ShaderTools, 
         return new BuildRequests(root, shaderTools, shipping, sources);
     }
 
-    // Every path a message names is relative to the project, the working directory, so a build log
-    // and a document's provenance carry no machine's own layout.
+    // Every path a message names is relative to the project, the working directory. A build log and
+    // a document's provenance then carry no machine's own layout.
     internal static string Relative(string path) =>
         Path.GetRelativePath(Environment.CurrentDirectory, path).Replace('\\', '/');
+
+    /// <summary>Adds <paramref name="path"/> to <paramref name="read"/> relative to the working directory, unless it already holds it.</summary>
+    /// <returns>The path relative to the working directory, as the walk spells it.</returns>
+    internal static string Record(List<string> read, string path)
+    {
+        string relative = Relative(path);
+        if (!read.Contains(relative, Keys.PathComparer))
+        {
+            read.Add(relative);
+        }
+
+        return relative;
+    }
 }

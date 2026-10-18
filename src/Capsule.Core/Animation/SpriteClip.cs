@@ -17,7 +17,7 @@ public sealed class SpriteClip
     private readonly int[] _frameTicks;
 
     // Every entry's event names end to end, and where each entry's run starts. Entry i's run ends
-    // where entry i + 1's starts, so the starts hold one more element than there are frames. Both
+    // where entry i + 1's starts. The starts hold one more element than there are frames. Both
     // are null on a clip with no events.
     private readonly string[]? _events;
     private readonly int[]? _eventStarts;

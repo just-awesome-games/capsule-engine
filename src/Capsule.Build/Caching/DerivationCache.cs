@@ -8,11 +8,13 @@ namespace Capsule.Build.Caching;
 
 /// <summary>
 /// Every derivation the last run completed, read from <see cref="FileName"/> under the output
-/// directory, and every one this run completes, written back when it ends. A derivation is reused when
-/// its stamp matches its entry and every file the entry wrote is still there at the length and write
-/// time it recorded. Otherwise it runs, and its entry is replaced.
+/// directory, and every one this run completes, written back when it ends.
 /// </summary>
 /// <remarks>
+/// <para>
+/// A derivation is reused when its stamp matches its entry and every file the entry wrote is still
+/// there at the length and write time it recorded. Otherwise it runs, and its entry is replaced.
+/// </para>
 /// <para>
 /// The file holds exactly the derivations the run that wrote it completed. It is written after every
 /// file it vouches for, and a derivation that failed leaves no entry. A stale entry never skips the
@@ -173,9 +175,6 @@ internal sealed class DerivationCache
         return new DerivationJson
         {
             Stamp = Stamp(step, derivation, read),
-            Tool = derivation.Tool.GetName().Name!,
-            Settings = derivation.Settings,
-            Inputs = [.. derivation.Inputs],
             Read = read.Length == 0 ? null : read,
             Outputs = files.Written.ToDictionary(
                 static file => file.Path,
@@ -216,7 +215,7 @@ internal sealed class DerivationCache
         File.Move(temporary, _path, overwrite: true);
     }
 
-    // Each part is prefixed with its length, so no two lists of parts hash the same bytes.
+    // Each part is prefixed with its length. No two lists of parts hash the same bytes.
     private static void Add(IncrementalHash hash, string part)
     {
         byte[] bytes = Encoding.UTF8.GetBytes(part);

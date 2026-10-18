@@ -1,9 +1,3 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.UI;
-
 namespace MinimalGame.Game.UI;
 
 /// <summary>A slim bar beside a scrolling list, with a thumb that shows and sets how far the list has scrolled.</summary>

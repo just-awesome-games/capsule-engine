@@ -8,9 +8,9 @@ internal static class SceneHostFixtures
         where TScene : Scene
         => SceneTransition.ToScene(typeof(TScene), payload);
 
-    /// <summary>Requests the document "boss-room", the named target these specs resolve.</summary>
-    internal static void RequestsBossRoom(Scene scene, in StepContext context) =>
-        scene.Run.RequestScene(new SceneKey("boss-room"));
+    /// <summary>Requests the document "target-room", the named target these specs resolve.</summary>
+    internal static void RequestsNamedTarget(Scene scene, in StepContext context) =>
+        scene.Run.RequestScene(new SceneKey("target-room"));
 
     /// <summary>A payload these specs tell apart by its name.</summary>
     internal sealed record Tag(string Name) : IScenePayload;

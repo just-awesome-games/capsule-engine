@@ -34,7 +34,7 @@ namespace Capsule.Runtime.Audio.Vorbis
 
         // Capsule: growable instance scratch for Decode/WriteVectors, replacing `new int[_channels,
         // partitionWords][]` and `new int[steps]` per call. Decode is not reentrant for one
-        // Residue0 instance, so one field per array is safe. partWordCache is flat (channel *
+        // Residue0 instance. One field per array is safe. partWordCache is flat (channel *
         // partitionWords + entry) instead of 2D, since a 2D array cannot grow one dimension in
         // place without discarding the whole array.
         int[][] _partWordCache;

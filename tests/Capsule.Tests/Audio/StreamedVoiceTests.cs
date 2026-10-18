@@ -31,7 +31,7 @@ public sealed class StreamedVoiceTests
 
         first.Dispose();
 
-        // The worker releases the source and only then pools the voice, so this is also the assertion
+        // The worker releases the source and only then pools the voice. This is also the assertion
         // that a reused voice is one no decode still holds.
         Wait(() => streamer.Pooled == 1);
 
@@ -49,7 +49,7 @@ public sealed class StreamedVoiceTests
         }
     }
 
-    // A voice's queue and buffers are sized for one rate and channel count, so the pool is keyed by
+    // A voice's queue and buffers are sized for one rate and channel count. The pool is keyed by
     // format: a clip of another shape is never sounded on them.
     [Fact]
     public void AVoiceOfAnotherFormat_TakesAQueueOfItsOwn()
@@ -78,7 +78,7 @@ public sealed class StreamedVoiceTests
 
     // The retention constraint the pool is under: a voice reports its retirement through a callback
     // holding the resident sound whose samples it streamed, and reads those samples through a cursor
-    // of its own, so an idle voice keeping either would keep the sound decoded for the rest of the
+    // of its own. An idle voice keeping either would keep the sound decoded for the rest of the
     // run. What reaches the pool holds nothing of the play it ended from, and is still a voice.
     [Fact]
     public void ARetiredVoice_IsPooledHoldingNothingOfThePlayItRetiredFrom()
@@ -91,7 +91,7 @@ public sealed class StreamedVoiceTests
 
         (WeakReference Owner, WeakReference Samples) held = Retired(streamer, clip, retirements);
 
-        // The worker releases the source and only then pools the voice, so what is idle here is what
+        // The worker releases the source and only then pools the voice. What is idle here is what
         // the next play is handed.
         Wait(() => streamer.Pooled == 1);
         Assert.Equal(1, retirements.Value);
@@ -137,7 +137,7 @@ public sealed class StreamedVoiceTests
     }
 
     // Sounds one voice over a stand-in resident sound and retires it, leaving nothing on this stack
-    // that could keep that sound or its samples alive. The count it reported into outlives it, so the
+    // that could keep that sound or its samples alive. The count it reported into outlives it. The
     // retirement is still readable once the sound itself is gone.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static (WeakReference Owner, WeakReference Samples) Retired(
@@ -182,59 +182,5 @@ public sealed class StreamedVoiceTests
     private sealed class Resident(StrongBox<int> retirements)
     {
         internal void Retire() => retirements.Value++;
-    }
-
-    // A device queue that counts rather than sounds, and remembers every distinct buffer it was
-    // handed: what the voice reusing its own buffers is read off.
-    private sealed class FakeQueue : IPcmQueue
-    {
-        private int _pending;
-
-        internal List<byte[]> Buffers { get; } = [];
-
-        public int Pending => Volatile.Read(ref _pending);
-
-        public bool Stopped { get; private set; } = true;
-
-        public void SetGain(float gain)
-        {
-        }
-
-        public void SetPitch(float pitch)
-        {
-        }
-
-        public void SetPan(float pan)
-        {
-        }
-
-        public void Submit(byte[] buffer, int bytes)
-        {
-            // Contains rather than a predicate: the game thread submits inside the window a replay's
-            // allocations are measured in, and a closure over the buffer would be one of them.
-            if (!Buffers.Contains(buffer))
-            {
-                Buffers.Add(buffer);
-            }
-
-            Interlocked.Increment(ref _pending);
-        }
-
-        public void Play() => Stopped = false;
-
-        public void Pause() => Stopped = true;
-
-        public void Resume() => Stopped = false;
-
-        public void Stop()
-        {
-            Stopped = true;
-            Volatile.Write(ref _pending, 0);
-        }
-
-        public void Dispose() => Stop();
-
-        // One frame of the device consuming what it was queued.
-        internal void PlayOut() => Volatile.Write(ref _pending, 0);
     }
 }

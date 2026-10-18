@@ -120,9 +120,9 @@ public sealed class SceneMembershipTests
             input1.Advance(DeviceSnapshot.Empty);
             input2.Advance(DeviceSnapshot.Empty);
 
-            StepContext context = new(StageWorkload.StepSeconds, input1, step);
+            StepContext context = new(StepMeasurement.StepSeconds, input1, step);
             first.Step(context);
-            context = new(StageWorkload.StepSeconds, input2, step);
+            context = new(StepMeasurement.StepSeconds, input2, step);
             second.Step(context);
 
             Entity[] entities1 = first.Scene.Entities.ToArray();

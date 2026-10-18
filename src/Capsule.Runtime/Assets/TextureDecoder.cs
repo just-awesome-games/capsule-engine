@@ -7,7 +7,7 @@ namespace Capsule.Runtime.Assets;
 // RGBA at four bytes a texel, or an r8 texture's raw values at one.
 internal readonly record struct DecodedTexture(byte[] Texels, int Width, int Height, int BytesPerTexel = 4);
 
-// Decodes an image into the texels Texture2D.FromStream uploads with PremultiplyAlpha, on any thread.
+// Decodes an image into premultiplied texels, on any thread.
 // A single-channel texture decodes to its one channel and is never premultiplied.
 internal static class TextureDecoder
 {
@@ -69,7 +69,8 @@ internal static class TextureDecoder
         }
     }
 
-    // DefaultColorProcessors.PremultiplyAlpha's arithmetic to the bit, float scale included.
+    // Truncates each channel times a float alpha scale. A texture decoded here holds the bytes of the
+    // same file loaded by the device, as the engine's own font page is.
     private static void Premultiply(ReadOnlySpan<byte> straight, Span<byte> premultiplied)
     {
         for (int index = 0; index < straight.Length; index += 4)

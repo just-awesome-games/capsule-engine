@@ -9,6 +9,9 @@ internal readonly record struct RegisteredEntity(string Key, EntityModel Model);
 /// <param name="Assets">Each declared asset of the form, by key, with the member it is read from.</param>
 internal readonly record struct AssetLookup(AssetForm Form, EquatableArray<(string Key, string Member)> Assets);
 
+/// <summary>One object class with the subclasses a type key constructs, each by the key it claims.</summary>
+internal readonly record struct KeyedObject(ObjectModel Model, EquatableArray<(string Key, string Type)> Types);
+
 /// <summary>What <c>CapsuleEntities.g.cs</c> holds, resolved from every entity class and every faulted claim.</summary>
 /// <param name="Generates">Whether the assembly gets the file at all: only a logic assembly does.</param>
 /// <param name="Registered">Every sound class by key, one per key, a class only code can place included.</param>

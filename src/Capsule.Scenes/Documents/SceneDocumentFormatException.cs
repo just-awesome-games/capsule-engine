@@ -1,4 +1,4 @@
-namespace Capsule.Scenes.Documents;
+namespace Capsule.Scenes;
 
 /// <summary>A scene document is malformed. The message states the defect and the fix when there is one.</summary>
 public sealed class SceneDocumentFormatException : Exception

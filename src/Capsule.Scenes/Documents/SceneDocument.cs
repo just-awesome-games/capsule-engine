@@ -3,9 +3,8 @@ using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using Capsule.Assets;
-using Capsule.Scenes.Spawning;
 
-namespace Capsule.Scenes.Documents;
+namespace Capsule.Scenes;
 
 /// <summary>A scene as data: its ordered entries and the members it authors, each as raw JSON its class reads.</summary>
 /// <remarks>
@@ -41,19 +40,20 @@ public sealed class SceneDocument
     /// </code>
     /// </example>
     public SceneDocument(IReadOnlyList<SceneDocumentEntry> entries, JsonElement? members = null, string? baseScene = null)
-        : this([.. entries ?? throw new ArgumentNullException(nameof(entries))], ObjectOf(members), baseScene)
+        : this([.. entries ?? throw new ArgumentNullException(nameof(entries))], ObjectOf(members), baseScene, parsed: false)
     {
     }
 
-    // A document over entries, which it keeps.
-    internal SceneDocument(SceneDocumentEntry[] entries, AuthoredObject? members, string? baseScene)
+    // A document over entries, which it keeps. A parsed document refuses a defect as a malformed file, and
+    // one an importer builds refuses it as a bad argument.
+    internal SceneDocument(SceneDocumentEntry[] entries, AuthoredObject? members, string? baseScene, bool parsed)
     {
         _entries = entries;
         Authored = members;
         BaseScene = baseScene;
 
-        ValidateRoot();
-        ValidateEntries();
+        ValidateRoot(parsed);
+        ValidateEntries(parsed);
     }
 
     /// <summary>Every entry, in composition order.</summary>
@@ -81,16 +81,7 @@ public sealed class SceneDocument
     // never changes them afterwards.
     internal static SceneDocument ParseUtf8(byte[] utf8)
     {
-        try
-        {
-            return SceneDocumentJson.Read(utf8);
-        }
-        catch (ArgumentException ex)
-        {
-            // The document model reports a defect as a bad argument. Coming from a file, the same
-            // defect is a malformed document.
-            throw new SceneDocumentFormatException(ex.Message, ex);
-        }
+        return SceneDocumentJson.Read(utf8);
     }
 
     /// <summary>Writes the document as compact JSON, which <see cref="Parse"/> reads back to the same entries and members.</summary>
@@ -101,7 +92,7 @@ public sealed class SceneDocument
     private static string Describe(SceneDocumentEntry entry, int index) =>
         string.Create(CultureInfo.InvariantCulture, $"entities[{index}] ('{entry.Type}' at ({entry.Spawn.Position.X}, {entry.Spawn.Position.Y}))");
 
-    private void ValidateEntries()
+    private void ValidateEntries(bool parsed)
     {
         HashSet<int> seen = [];
         for (int i = 0; i < _entries.Length; i++)
@@ -109,31 +100,32 @@ public sealed class SceneDocument
             SceneDocumentEntry entry = _entries[i];
             if (string.IsNullOrWhiteSpace(entry.Type))
             {
-                throw Malformed($"entities[{i}] has no type. Name the type key of the entity class it places.");
+                throw Malformed(parsed, $"entities[{i}] has no type. Name the type key of the entity class it places.");
             }
 
             if (entry.Id is < 1)
             {
-                throw Malformed(string.Create(CultureInfo.InvariantCulture, $"{Describe(entry, i)} has id {entry.Id}. Make it positive, or omit it."));
+                throw Malformed(parsed, string.Create(CultureInfo.InvariantCulture, $"{Describe(entry, i)} has id {entry.Id}. Make it positive, or omit it."));
             }
 
             if (entry.Id is { } id && !seen.Add(id))
             {
-                throw Malformed(string.Create(CultureInfo.InvariantCulture, $"{Describe(entry, i)} has id {id}, which an earlier entry has. Give every entry a unique id."));
+                throw Malformed(parsed, string.Create(CultureInfo.InvariantCulture, $"{Describe(entry, i)} has id {id}, which an earlier entry has. Give every entry a unique id."));
             }
 
-            // NaN and the infinities have no JSON number, so such a document could not be written out.
+            // NaN and the infinities have no JSON number. A document holding one could not be written out.
             EntitySpawn spawn = entry.Spawn;
             Vector2 factor = spawn.ScrollFactor ?? Vector2.One;
-            if (!float.IsFinite(spawn.Position.X + spawn.Position.Y + spawn.Rotation + factor.X + factor.Y))
+            if (!float.IsFinite(spawn.Position.X) || !float.IsFinite(spawn.Position.Y) || !float.IsFinite(spawn.Rotation)
+                || !float.IsFinite(factor.X) || !float.IsFinite(factor.Y))
             {
-                throw Malformed($"{Describe(entry, i)} places with a number that is not finite. Make its position, rotation and scroll factor finite.");
+                throw Malformed(parsed, $"{Describe(entry, i)} places with a number that is not finite. Make its position, rotation and scroll factor finite.");
             }
 
             // A scale of zero or less has no size, and a non-finite one has no JSON number.
             if (!IsScale(spawn.Scale.X) || !IsScale(spawn.Scale.Y))
             {
-                throw Malformed(string.Create(
+                throw Malformed(parsed, string.Create(
                     CultureInfo.InvariantCulture,
                     $"{Describe(entry, i)} is scaled ({spawn.Scale.X}, {spawn.Scale.Y}), which is not a scale. Make both factors finite and greater than zero."));
             }
@@ -141,26 +133,26 @@ public sealed class SceneDocument
             // What each key means is the claiming class's contract, checked when the entry spawns.
             if (entry.NotAnObject is not null)
             {
-                throw Malformed($"{Describe(entry, i)} has members that are not an object. Write them as {{ \"name\": value }}, or omit them.");
+                throw Malformed(parsed, $"{Describe(entry, i)} has members that are not an object. Write them as {{ \"name\": value }}, or omit them.");
             }
 
             if (Array.Find(entry.Authored?.Keys ?? [], SceneDocumentKeys.Entry.Contains) is { } entryKey)
             {
-                throw Malformed($"{Describe(entry, i)} has a member '{entryKey}', which the format reserves for the entry itself. Set it on the entry.");
+                throw Malformed(parsed, $"{Describe(entry, i)} has a member '{entryKey}', which the format reserves for the entry itself. Set it on the entry.");
             }
         }
     }
 
-    private void ValidateRoot()
+    private void ValidateRoot(bool parsed)
     {
         if (BaseScene is { } baseScene && !AssetPaths.IsKey(baseScene))
         {
-            throw Malformed($"baseScene is '{baseScene}', which is not a key. {KeyForm}", "baseScene");
+            throw Malformed(parsed, $"baseScene is '{baseScene}', which is not a key. {KeyForm}", "baseScene");
         }
 
         if (Array.Find(Authored?.Keys ?? [], SceneDocumentKeys.Document.Contains) is { } rootKey)
         {
-            throw Malformed($"the scene's members include '{rootKey}', which the format reserves for the document itself.", "members");
+            throw Malformed(parsed, $"the scene's members include '{rootKey}', which the format reserves for the document itself. Set it on the document.", "members");
         }
     }
 
@@ -169,11 +161,11 @@ public sealed class SceneDocument
     {
         null => null,
         { ValueKind: JsonValueKind.Object } authored => AuthoredObject.From(authored),
-        _ => throw Malformed("the scene's members are not an object. Write them as { \"name\": value }, or omit them.", "members"),
+        _ => throw new ArgumentException("the scene's members are not an object. Write them as { \"name\": value }, or omit them.", nameof(members)),
     };
 
     private static bool IsScale(float factor) => float.IsFinite(factor) && factor > 0f;
 
-    private static ArgumentException Malformed(string message, string parameterName = "entries") =>
-        new(message, parameterName);
+    private static Exception Malformed(bool parsed, string message, string parameterName = "entries") =>
+        parsed ? new SceneDocumentFormatException(message) : new ArgumentException(message, parameterName);
 }

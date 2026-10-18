@@ -1,3 +1,5 @@
+using Capsule.Build.Audio;
+
 namespace Capsule.Build;
 
 /// <summary>One type of authored source, admitted by its extension wherever it sits under <c>Assets/</c>.</summary>
@@ -7,7 +9,7 @@ internal sealed class AssetType(string suffix, params string[] extensions)
 {
     internal static readonly AssetType Textures = new("Texture", ".png");
 
-    internal static readonly AssetType Audio = new("Sound", ".ogg", ".wav");
+    internal static readonly AssetType Audio = new("Sound", OggProbe.Extension, WavProbe.Extension);
 
     internal static readonly AssetType Fonts = new("Font", ".fnt");
 
@@ -21,10 +23,12 @@ internal sealed class AssetType(string suffix, params string[] extensions)
     internal static readonly AssetType Atlases = new("Atlas", ".atlas.json");
 
     /// <summary>
-    /// A <c>*.config.json</c>, which configures other assets and is never an asset itself. A
-    /// <c>.config.json</c> keys as its folder's key and a trailing '/'. A sidecar keys as the key and
-    /// lower-case extension of the file it names, as <c>textures/glow.png</c>.
+    /// A <c>*.config.json</c>, which configures other assets and is never an asset itself.
     /// </summary>
+    /// <remarks>
+    /// A <c>.config.json</c> keys as its folder's key and a trailing '/'. A sidecar keys as the key
+    /// and lower-case extension of the file it names, as <c>textures/glow.png</c>.
+    /// </remarks>
     internal static readonly AssetType Configs = new("Config", ".config.json");
 
     private static readonly AssetType[] Admitting = [Textures, Audio, Fonts, Shaders, Scenes, Sheets, Atlases, Configs];

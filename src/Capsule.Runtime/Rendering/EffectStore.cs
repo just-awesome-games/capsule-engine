@@ -9,7 +9,7 @@ namespace Capsule.Runtime.Rendering;
 
 // The effects sprites draw with: Capsule's own sprite shader, and every game shader, loaded at the scene
 // boundary that first holds it or on its first draw, and kept for the run. Applying a material sets
-// the transform and every parameter through handles resolved at load, so a frame at steady state
+// the transform and every parameter through handles resolved at load. A frame at steady state
 // looks nothing up by name and allocates nothing.
 internal sealed class EffectStore : IDisposable
 {
@@ -31,6 +31,12 @@ internal sealed class EffectStore : IDisposable
     // Keyed by reference: each generated shader is one instance for the run.
     private readonly Dictionary<Shader, Binding> _loaded = [];
 
+    // Resolves a texture a material binds whole. The frame renderer sets it, since it owns the
+    // engine's textures and the scene's.
+    internal Func<TextureHandle, Texture2D>? WholeTexture { get; set; }
+
+    internal ShaderGlobals Globals { get; set; } = new();
+
     internal EffectStore(GraphicsDevice device, HostPlatform platform)
     {
         _device = device;
@@ -40,12 +46,6 @@ internal sealed class EffectStore : IDisposable
             ?? throw new InvalidOperationException($"The embedded sprite shader '{SpriteShaderResource}' is missing.");
         _sprite = new Binding(new Effect(device, ReadAll(resource)), null);
     }
-
-    // Resolves a texture a material binds whole. The frame renderer sets it, since it owns the
-    // engine's textures and the scene's.
-    internal Func<TextureHandle, Texture2D>? WholeTexture { get; set; }
-
-    internal ShaderGlobals Globals { get; set; } = new();
 
     // Loads the shaders a scene boundary collected that no earlier scene loaded.
     internal void Load(IReadOnlyList<Shader> shaders)
@@ -166,10 +166,26 @@ internal sealed class EffectStore : IDisposable
     }
 
     // One loaded effect and its parameters in the shader's table order. Several materials share one
-    // effect, so each application writes every parameter. The scene globals it reads are resolved to
+    // effect. Each application writes every parameter. The scene globals it reads are resolved to
     // indices into a scene's values once, and again when the scene or its set of names changes.
     private sealed class Binding
     {
+        internal Effect Effect { get; }
+
+        internal EffectPass Pass { get; }
+
+        internal EffectParameter Transform { get; }
+
+        internal EffectParameter Coverage { get; }
+
+        internal EffectParameter[] Parameters { get; }
+
+        // By texture slot, null where the shader never reads that texture's size.
+        internal EffectParameter?[] Sizes { get; }
+
+        // Null for the engine's own shader, which declares none.
+        internal GlobalSlots? Globals { get; }
+
         internal Binding(Effect effect, Shader? shader)
         {
             Effect = effect;
@@ -198,22 +214,6 @@ internal sealed class EffectStore : IDisposable
                 Sizes[slot] = effect.Parameters[SizeParameter + slot.ToString(System.Globalization.CultureInfo.InvariantCulture)];
             }
         }
-
-        internal Effect Effect { get; }
-
-        internal EffectPass Pass { get; }
-
-        internal EffectParameter Transform { get; }
-
-        internal EffectParameter Coverage { get; }
-
-        internal EffectParameter[] Parameters { get; }
-
-        // By texture slot, null where the shader never reads that texture's size.
-        internal EffectParameter?[] Sizes { get; }
-
-        // Null for the engine's own shader, which declares none.
-        internal GlobalSlots? Globals { get; }
 
         // Writes each scene global the shader declares: the scene's value, or zero where it set none.
         internal void ApplyGlobals(ShaderGlobals globals)

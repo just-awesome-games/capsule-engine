@@ -8,7 +8,7 @@
     <RootNamespace>Capsule.Bench</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsPackable>false</IsPackable>
-    <!-- Nothing here is a reference a consumer compiles against, so it carries no API reference. -->
+    <!-- Nothing here is a reference a consumer compiles against. It carries no API reference. -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <CapsuleGameShell>true</CapsuleGameShell>
     <!-- Every method is compiled optimised on first call, as a NativeAOT publish ships it: under

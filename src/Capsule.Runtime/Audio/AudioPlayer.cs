@@ -14,7 +14,7 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
     private readonly Entry[] _slots = new Entry[AudioMixer.MaxVoices];
 
     // The host's suspension, a layer over each voice's own pause. While it is on, every voice is held
-    // whatever the game asked, and what the game asks meanwhile is remembered instead of applied, so a
+    // whatever the game asked, and what the game asks meanwhile is remembered instead of applied. A
     // resume restores the voices the game has playing.
     private bool _suspended;
 
@@ -68,7 +68,7 @@ internal sealed class AudioPlayer(SoundStore sounds) : IDisposable
             if (command.Kind == AudioCommandKind.Play)
             {
                 // A steal raises the old voice's Stop first, but an expired one-shot raises
-                // nothing, so the slot may still hold a voice the device has already finished.
+                // nothing. The slot may still hold a voice the device has already finished.
                 Retire(slot);
 
                 IAudioVoice started = sounds.Play(

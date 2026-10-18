@@ -32,21 +32,22 @@ internal static class EntityRenderer
         string members = string.Concat(registrations
                 .Where(static entry => entry.Model.Required)
                 .Select(static entry => EntityAccessorRenderer.Constructor(
-                    entry.Model.QualifiedName, entry.Model.SpawnModifier + "global::Capsule.Scenes.Spawning.EntitySpawn spawn")))
+                    entry.Model.QualifiedName, entry.Model.SpawnModifier + "global::Capsule.Scenes.EntitySpawn spawn")))
             + ObjectRenderer.Methods(plan.Objects, authored)
             + EntityAccessorRenderer.Accessors(authored.Concat(ObjectRenderer.Authored(plan.Objects)))
             + string.Concat(plan.Lookups.Items.Select(Lookup));
 
         return GeneratedFile.Write(claims, $$"""
-                /// <summary>Every spawnable entity this assembly declares, as one registry. Generated code. Do not edit.</summary>
+                /// <summary>Every spawnable entity this assembly declares, as one registry.</summary>
+                /// <remarks>Generated code. Do not edit.</remarks>
                 {{GeneratedFile.ExcludeFromCodeCoverage}}
                 public static class CapsuleEntities
                 {
-            {{GeneratedFile.Registrations("global::Capsule.Scenes.Spawning.EntityRegistration", registrations.Select(Registration))}}
+            {{GeneratedFile.Registrations("global::Capsule.Scenes.EntityRegistration", registrations.Select(Registration))}}
 
                     /// <summary>The registry a scene resolves its type keys through.</summary>
-                    public static global::Capsule.Scenes.Spawning.EntityRegistry Registry { get; } =
-                        new global::Capsule.Scenes.Spawning.EntityRegistry(Registrations);
+                    public static global::Capsule.Scenes.EntityRegistry Registry { get; } =
+                        new global::Capsule.Scenes.EntityRegistry(Registrations);
             {{members}}    }
             """);
     }
@@ -56,16 +57,16 @@ internal static class EntityRenderer
     {
         EntityModel model = entry.Model;
         string spawner = model.Required
-            ? $"static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => {EntityAccessorRenderer.ConstructorName(model.QualifiedName)}(spawn)"
-            : $"static (global::Capsule.Scenes.Spawning.EntitySpawn spawn) => new {model.QualifiedName}(spawn)";
+            ? $"static (global::Capsule.Scenes.EntitySpawn spawn) => {EntityAccessorRenderer.ConstructorName(model.QualifiedName)}(spawn)"
+            : $"static (global::Capsule.Scenes.EntitySpawn spawn) => new {model.QualifiedName}(spawn)";
         if (!model.Authored.Any())
         {
-            return $"new global::Capsule.Scenes.Spawning.EntityRegistration({CodeText.Literal(entry.Key)}, {spawner})";
+            return $"new global::Capsule.Scenes.EntityRegistration({CodeText.Literal(entry.Key)}, {spawner})";
         }
 
         string[] arguments = [CodeText.Literal(entry.Key), spawner, Applier(model)];
 
-        return "new global::Capsule.Scenes.Spawning.EntityRegistration(\n"
+        return "new global::Capsule.Scenes.EntityRegistration(\n"
             + string.Join(",\n", arguments.Select(static argument => ArgumentIndent + argument))
             + ")";
     }

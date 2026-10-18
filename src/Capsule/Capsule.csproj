@@ -8,12 +8,12 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <PackageId>JAG.Capsule</PackageId>
-    <Description>Everything a Capsule game's logic is written against, and the build targets that turn its authoring tree into assets: the simulation seam and its fixed step, input as named actions, render intent, save documents, tile grids, collision shapes and queries, and the world of scenes, entities, components and the camera, together with the scene document format and its loader. Substrate-free throughout, so game logic cannot reach a graphics device and a scene is assertable headlessly.</Description>
+    <Description>Everything a Capsule game's logic is written against, and the build targets that turn its authoring tree into assets: the simulation seam and its fixed step, input as named actions, render intent, save documents, tile grids, collision shapes and queries, and the world of scenes, entities, components and the camera, together with the scene document format and its loader. Nothing in it reaches a graphics device, and a scene is assertable headlessly.</Description>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeCapsulePureModules;IncludeCapsuleGenerators</TargetsForTfmSpecificContentInPackage>
     <TargetsForTfmSpecificDebugSymbolsInPackage>$(TargetsForTfmSpecificDebugSymbolsInPackage);IncludeCapsulePureModuleSymbols</TargetsForTfmSpecificDebugSymbolsInPackage>
   </PropertyGroup>
 
-  <!-- Private, so pack lists none of them as a dependency. Their assemblies ship inside this package,
+  <!-- Private. Pack lists none of them as a dependency. Their assemblies ship inside this package,
        and CapsuleReturnPureModules below hands them to a referencing project. -->
   <ItemGroup>
     <ProjectReference Include="../Capsule.Core/Capsule.Core.csproj" PrivateAssets="all" />
@@ -23,7 +23,7 @@
 
   <!-- The native shader tools are the package's only dependencies. Restore downloads them beside
        the game's other packages, and neither the build nor the game takes an asset from them. Pack
-       drops a dependency that excludes all assets and never writes contentFiles to its exclude, so
+       drops a dependency that excludes all assets and never writes contentFiles to its exclude.
        contentFiles stays included here. Neither package has any. -->
   <Import Project="../../build/Capsule.ShaderTools.targets" />
   <ItemGroup>
@@ -35,7 +35,7 @@
     <!-- The asset config files' JSON Schemas, for a consumer to read offline beside the API reference. -->
     <None Include="../../schemas/*.schema.json" Pack="true" PackagePath="schemas/" Visible="false" />
     <!-- Everything directly under build/ is what a consumer imports, and build/engine/ is not. The
-         files keep their layout, so $(MSBuildThisFileDirectory) finds the same neighbours from a
+         files keep their layout. $(MSBuildThisFileDirectory) finds the same neighbours from a
          package or an engine clone. The entry files take the package's name, for NuGet to import
          them. Capsule.Build.props is a clone's entry alone. -->
     <None Include="../../build/*" Exclude="../../build/Capsule.Build.targets;../../build/Capsule.Defaults.props;../../build/Capsule.Build.props" Pack="true" PackagePath="buildTransitive/" Visible="false" />
@@ -43,7 +43,7 @@
     <None Include="../../build/Capsule.Defaults.props" Pack="true" PackagePath="buildTransitive/JAG.Capsule.props" Visible="false" />
   </ItemGroup>
 
-  <!-- Derived from the reference list rather than restated, so a module joins the package by
+  <!-- Derived from the reference list rather than restated. A module joins the package by
        being admitted above and nowhere else. -->
   <Target Name="_CapsuleCollectPureModuleAssets">
     <ItemGroup>
@@ -93,7 +93,7 @@
   </Target>
 
   <!-- The generator, outside analyzers/ so NuGet hands it to no consumer. Capsule.Compiler.targets
-       adds it for a role. Nothing references its project, so a pack builds the solution first, as CI
+       adds it for a role. Nothing references its project. A pack builds the solution first, as CI
        does. TargetFramework is removed because the generator targets netstandard2.0. -->
   <Target Name="IncludeCapsuleGenerators">
     <MSBuild Projects="../Capsule.Generators/Capsule.Generators.csproj"

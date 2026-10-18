@@ -36,9 +36,9 @@ public abstract class Renderer : Component
                 return;
             }
 
-            Entity?.SceneOrNull?.ThrowIfDrawing("set a renderer's ZIndex");
+            Entity?.SceneOrNull?.Drawing.ThrowIfDrawing("set a renderer's ZIndex");
             field = value;
-            Entity?.SceneOrNull?.InvalidateRenderers();
+            Entity?.SceneOrNull?.Drawing.Invalidate();
         }
     }
 

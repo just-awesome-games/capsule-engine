@@ -4,11 +4,14 @@ using Capsule.Assets;
 namespace Capsule.Build.Registry;
 
 /// <summary>
-/// The generated <c>CapsuleAssets</c> class, mirroring the folders under <c>Assets/</c>. Each file is
-/// a member named for its file name and its type, as <c>player.png</c> declares <c>PlayerTexture</c>,
-/// so files of two types share a name and a file may share its folder's. A misspelt asset is a
-/// compile error and nothing is read at run time to learn what the build already measured.
+/// The generated <c>CapsuleAssets</c> class, mirroring the folders under <c>Assets/</c>.
 /// </summary>
+/// <remarks>
+/// Each file is a member named for its file name and its type, as <c>player.png</c> declares
+/// <c>PlayerTexture</c>. Files of two types can share a name, and a file can share its folder's. A
+/// misspelt asset is a compile error, and nothing is read at run time to learn what the build
+/// already measured.
+/// </remarks>
 internal sealed class CapsuleAssetsFile
 {
     internal const string FileName = "CapsuleAssets.g.cs";

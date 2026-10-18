@@ -10,6 +10,19 @@ namespace Capsule.Scenes;
 /// <remarks>One input state holds buttons and detects press edges for the whole run.</remarks>
 public sealed class SimulationHost : IDisposable
 {
+    /// <summary>The simulation being advanced, for the lifetime of this host.</summary>
+    public SceneSimulation Simulation { get; }
+
+    /// <summary>Simulated seconds per step, the reciprocal of the host's step rate and constant for its life.</summary>
+    public double StepSeconds { get; }
+
+    /// <summary>The input state every step of this host advances.</summary>
+    public InputState Input { get; }
+
+    /// <summary>The tick the next step will run at. It starts at 0 and is never reset.</summary>
+    /// <remarks>A step whose scene throws has still spent its tick.</remarks>
+    public long Tick { get; private set; }
+
     /// <summary>
     /// Starts <paramref name="scene"/> under a default or supplied run and advances it from tick 0. A host
     /// whose scene needs an entry payload builds the <see cref="SceneSimulation"/> itself and uses the other
@@ -22,15 +35,8 @@ public sealed class SimulationHost : IDisposable
         Scene scene,
         int stepHertz = StepContext.DefaultStepHertz,
         Run? run = null)
+        : this(Start(scene, stepHertz, run), stepHertz)
     {
-        ArgumentNullException.ThrowIfNull(scene);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stepHertz);
-
-        // Check every argument before building the simulation, because building it starts the scene and a
-        // rejected host would leave a started scene with nothing to stop it.
-        StepSeconds = 1.0 / stepHertz;
-        Simulation = new SceneSimulation(scene, run: run);
-        Input = new InputState(Simulation.Run.Input.Bindings);
     }
 
     /// <summary>Runs <paramref name="simulation"/> from tick 0 and takes over disposing it.</summary>
@@ -46,24 +52,11 @@ public sealed class SimulationHost : IDisposable
         Input = new InputState(simulation.Run.Input.Bindings);
     }
 
-    /// <summary>The simulation being advanced, for the lifetime of this host.</summary>
-    public SceneSimulation Simulation { get; }
-
     /// <summary>The run shared by the simulation's scenes.</summary>
     public Run Run => Simulation.Run;
 
-    /// <summary>Simulated seconds per step, the reciprocal of the host's step rate and constant for its life.</summary>
-    public double StepSeconds { get; }
-
     /// <summary>The scene the simulation is running.</summary>
     public Scene Scene => Simulation.Scene;
-
-    /// <summary>The input state every step of this host advances.</summary>
-    public InputState Input { get; }
-
-    /// <summary>The tick the next step will run at. It starts at 0 and is never reset.</summary>
-    /// <remarks>A step whose scene throws has still spent its tick.</remarks>
-    public long Tick { get; private set; }
 
     /// <summary>
     /// Advances <see cref="Input"/> to <paramref name="snapshot"/> and steps the simulation once at
@@ -153,4 +146,13 @@ public sealed class SimulationHost : IDisposable
     /// </summary>
     /// <exception cref="AggregateException">More than one stop hook failed. Each failure is an inner exception.</exception>
     public void Dispose() => Simulation.Dispose();
+
+    // Checks every argument before building the simulation. Building it starts the scene, and a rejected
+    // host would leave a started scene with nothing to stop it.
+    private static SceneSimulation Start(Scene scene, int stepHertz, Run? run)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stepHertz);
+        return new SceneSimulation(scene, run: run);
+    }
 }

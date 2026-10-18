@@ -26,7 +26,7 @@ public sealed class KinematicBodyTests
         Assert.Same(held, carrier.Get<KinematicBody2D>());
     }
 
-    // The pair is judged when the entity joins a scene, not as each component is attached, so a
+    // The pair is judged when the entity joins a scene, not as each component is attached. A
     // constructor may add them in either order.
     [Fact]
     public void AnEntityAddingItsBodyBeforeItsCollider_JoinsASceneAndMoves()
@@ -83,7 +83,7 @@ public sealed class KinematicBodyTests
         Assert.Equal(24f, body.Position.Y, CollisionFixtures.Tolerance);
     }
 
-    // Airborne, so nothing but the wall can be reported; the normal points back from the wall, which
+    // Airborne. Nothing but the wall can be reported. The normal points back from the wall, which
     // is what tells the caller which side it is on.
     [Theory]
     [InlineData(30f, -1f)]
@@ -116,7 +116,7 @@ public sealed class KinematicBodyTests
         Assert.False(body.Mover.IsOnWall);
     }
 
-    // The axes are swept separately, so one diagonal step can be stopped by two different surfaces.
+    // The axes are swept separately. One diagonal step can be stopped by two different surfaces.
     [Fact]
     public void ABodySteppingDiagonallyIntoACorner_ReportsBothTheFloorAndTheWall()
     {
@@ -134,7 +134,7 @@ public sealed class KinematicBodyTests
     }
 
     // A step that ends exactly flush against a surface records a contact at fraction 1 and is still
-    // applied in full, so the span holds a surface that stopped nothing. The axis's blocked flag is
+    // applied in full. The span holds a surface that stopped nothing. The axis's blocked flag is
     // the only thing separating the two, and this is the case that says so.
     [Fact]
     public void ABodyStepDownEndingFlushOnAFloor_RecordsTheContactWithoutReportingAFloor()

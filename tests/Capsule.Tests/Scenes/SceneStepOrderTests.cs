@@ -210,7 +210,7 @@ public sealed class SceneStepOrderTests
         Assert.Equal(new Vector2(10, 9), grandchild.Position);
     }
 
-    // Spawn and despawn in one step: the drain attaches it and then detaches it, so its hooks run
+    // Spawn and despawn in one step: the drain attaches it and then detaches it. Its hooks run
     // in pairs rather than the remove being refused for an entity the scene does not yet hold.
     [Fact]
     public void AnEntityAddedAndRemovedInOneStep_AttachesThenDetachesInTheSameDrain()

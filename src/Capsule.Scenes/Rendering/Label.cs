@@ -12,16 +12,14 @@ namespace Capsule.Rendering;
 /// space times the scale of the entity's <see cref="Entity.WorldTransform"/>.
 /// </summary>
 /// <remarks>
-/// Text cannot turn. Rotation anywhere in the entity's ancestry is refused while a label is
-/// present. Coordinates are Y-down, in world units under a world root and canvas pixels under a
-/// screen root.
+/// Rotation anywhere in the entity's ancestry is refused while a label is present. A negative scale
+/// axis mirrors the placed run about the entity's position. Coordinates are Y-down, in world units under a world root and canvas pixels
+/// under a screen root.
 /// <para>
-/// The box's <see cref="Pivot"/> sits at the entity's position plus <see cref="Offset"/>, and
-/// defaults to the box's top-left corner. <see cref="HorizontalAlignment"/> and
-/// <see cref="VerticalAlignment"/> then move the text inside the box and never move the box. A
-/// <see cref="Size"/> of zero makes the box the rect of the <see cref="ScreenEntity"/> holding it, or
-/// else the measured run. To centre a label on its point, use
-/// <see cref="Capsule.Rendering.Pivot.Center"/>.
+/// The box's <see cref="Pivot"/> sits at the entity's position plus <see cref="Offset"/>.
+/// <see cref="HorizontalAlignment"/> and <see cref="VerticalAlignment"/> move the text inside the box
+/// and never move the box. A <see cref="Size"/> of zero makes the box the rect of the
+/// <see cref="ScreenEntity"/> holding it, or else the measured run.
 /// </para>
 /// </remarks>
 /// <param name="font">The font the run is drawn with.</param>
@@ -42,12 +40,12 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
 
     // The text in the form it was last written: either a string, or a span copied into a buffer this label
     // owns and grows only when a longer span arrives. _text holds the string form and is null after a span
-    // write until Text builds it. Layout reads _memory, so neither path allocates in Draw.
+    // write until Text builds it. Layout reads _memory, and neither path allocates in Draw.
     private string? _text = text ?? throw new ArgumentNullException(nameof(text));
     private ReadOnlyMemory<char> _memory = text.AsMemory();
     private char[] _buffer = [];
 
-    // Counts every write to the text, so the cached layout can tell the characters changed.
+    // Counts every write to the text. The cached layout reads it to tell the characters changed.
     private int _textVersion;
 
     // The run laid out, built on the first draw or bounds read and kept until something it depends on changes.
@@ -155,7 +153,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// </remarks>
     /// <example>
     /// <code>
-    /// new Label(font, "Press [color=#ffd060]Jump[/color]") { RichText = true };
+    /// new Label(font, "Press [color=#ffd060]Start[/color]") { RichText = true };
     /// </code>
     /// </example>
     public bool RichText { get; set; }
@@ -187,9 +185,9 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
             }
 
             Transform2D current = RenderTransform;
-            LabelLayout layout = Laid(current.Scale, out Vector2 box, out Vector2 size);
+            LabelLayout layout = Placed(current.Scale, current.TransformPoint(Offset), out Rect placed, out _, out _);
 
-            return layout.IsEmpty ? default : Place(layout, current.TransformPoint(Offset), current.Scale, box, size, out _);
+            return layout.IsEmpty ? default : placed;
         }
     }
 
@@ -198,7 +196,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// when it draws nothing.
     /// </summary>
     /// <remarks>
-    /// It ignores the box, so a parent can fit itself to what a label filling it draws, or place something
+    /// It ignores the box. A parent can fit itself to what a label filling it draws, or place something
     /// where the text ends.
     /// </remarks>
     public Vector2 ContentSize
@@ -210,7 +208,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
                 return default;
             }
 
-            LabelLayout layout = Laid(RenderTransform.Scale, out _, out _);
+            LabelLayout layout = Laid(Vector2.Abs(RenderTransform.Scale), out _, out _);
 
             return layout.IsEmpty ? default : new Vector2(layout.Width, layout.Height);
         }
@@ -231,27 +229,25 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
 
         Transform2D current = RenderTransform;
         Vector2 scale = current.Scale;
-        LabelLayout layout = Laid(scale, out Vector2 box, out Vector2 size);
+        Vector2 position = current.TransformPoint(Offset);
+        Vector2 previous = PreviousRenderTransform.TransformPoint(Offset);
+        LabelLayout layout = Placed(scale, position, out Rect placed, out Vector2 origin, out Vector2 size);
         if (layout.IsEmpty)
         {
             return;
         }
 
-        Vector2 position = current.TransformPoint(Offset);
-        Vector2 previous = PreviousRenderTransform.TransformPoint(Offset);
-        Rect placed = Place(layout, position, scale, box, size, out Vector2 origin);
-
-        if (view.Rejects(TextBox.Reach(previous, position, size, scale, Font.Overhang, placed), view.Space))
+        if (view.Rejects(TextBox.Reach(previous, position, size, Vector2.Abs(scale), Font.Overhang, placed), view.Space))
         {
             return;
         }
 
         ReadOnlySpan<TextureHandle> pages = Font.Pages;
 
-        // The run is laid out in full whatever the visible count, so revealing it never moves a glyph.
+        // The run is laid out in full whatever the visible count. Revealing it never moves a glyph.
         int visible = VisibleCharacters ?? int.MaxValue;
 
-        // The box is the same shape at both ends of the step, so the previous origin differs by travel.
+        // The box is the same shape at both ends of the step. The previous origin differs only by travel.
         Vector2 travel = previous - position;
 
         foreach (LabelGlyph glyph in layout.Glyphs)
@@ -263,6 +259,8 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
 
             Sprite sprite = new(pages[glyph.Page], glyph.Region);
             Vector2 at = origin + (new Vector2(glyph.X, glyph.Y) * scale);
+            // A negative scale axis folds into the flip, and the backend draws the magnitude of the extent.
+            Vector2 extent = new Vector2(sprite.Region.Width, sprite.Region.Height) * scale;
 
             view.Add(
                 new SpriteIntent(
@@ -271,9 +269,9 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
                     at,
                     PreviousRotation: 0f,
                     Rotation: 0f,
-                    new Vector2(sprite.Region.Width, sprite.Region.Height) * scale,
-                    FlipX: false,
-                    FlipY: false,
+                    Vector2.Abs(extent),
+                    FlipX: extent.X < 0f,
+                    FlipY: extent.Y < 0f,
                     glyph.Tint == ColorRgba.White ? Color : ColorRgba.Multiply(glyph.Tint, Color)));
         }
     }
@@ -297,6 +295,23 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         _layout.Update(_memory.Span, in key);
 
         return _layout;
+    }
+
+    // Lays the run out and places it as an unmirrored scale would, then mirrors the placed box and the pen start
+    // about position on each axis the scale turns negative. size is the box in the drawn space's units.
+    private LabelLayout Placed(Vector2 scale, Vector2 position, out Rect placed, out Vector2 origin, out Vector2 size)
+    {
+        Vector2 magnitude = Vector2.Abs(scale);
+        LabelLayout layout = Laid(magnitude, out Vector2 box, out size);
+        Rect upright = Place(layout, position, magnitude, box, size, out Vector2 pen);
+
+        Vector2 sign = new(scale.X < 0f ? -1f : 1f, scale.Y < 0f ? -1f : 1f);
+        Vector2 near = position + ((upright.Position - position) * sign);
+        Vector2 far = position + ((new Vector2(upright.Right, upright.Bottom) - position) * sign);
+        placed = new Rect(Vector2.Min(near, far), Vector2.Abs(far - near));
+        origin = position + ((pen - position) * sign);
+
+        return layout;
     }
 
     private Rect Place(LabelLayout layout, Vector2 position, Vector2 scale, Vector2 box, Vector2 size, out Vector2 origin)

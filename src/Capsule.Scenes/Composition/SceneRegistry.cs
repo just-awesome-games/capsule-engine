@@ -1,7 +1,5 @@
 using System.ComponentModel;
 using System.Reflection;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 
 namespace Capsule.Scenes;
 
@@ -12,6 +10,7 @@ namespace Capsule.Scenes;
 /// <remarks>
 /// A game passes the registry its source generator emits. Build one by hand only in tests.
 /// </remarks>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class SceneRegistry
 {
     private readonly Dictionary<Type, SceneRegistration> _byType = [];
@@ -33,7 +32,6 @@ public sealed class SceneRegistry
     /// <exception cref="ArgumentException">
     /// A registration names no class and no document, or a class or a document is registered twice.
     /// </exception>
-    [EditorBrowsable(EditorBrowsableState.Never)]
     public SceneRegistry(
         EntityRegistry entities,
         IEnumerable<SceneRegistration> scenes,
@@ -56,13 +54,13 @@ public sealed class SceneRegistry
             {
                 if (!_byType.TryAdd(sceneType, registration))
                 {
-                    throw new ArgumentException($"The scene '{sceneType}' is registered more than once.", nameof(scenes));
+                    throw new ArgumentException($"The scene '{sceneType}' is registered more than once. Register each scene class once.", nameof(scenes));
                 }
             }
 
             if (registration.DocumentName is { } name && !_byDocumentName.TryAdd(name, registration))
             {
-                throw new ArgumentException($"The scene document '{name}' backs more than one scene.", nameof(scenes));
+                throw new ArgumentException($"The scene document '{name}' backs more than one scene. Give each scene its own document.", nameof(scenes));
             }
 
             _registrations.Add(registration);
@@ -129,8 +127,8 @@ public sealed class SceneRegistry
         if (registration.DocumentName is { } name)
         {
             throw new InvalidOperationException(
-                $"The scene '{sceneType}' is composed from scene document '{name}', so it is built through that "
-                + $"key, not its class: Create(new SceneKey(\"{name}\"), document).");
+                $"The scene '{sceneType}' is composed from scene document '{name}' and cannot be created by its class. "
+                + $"Create it through that key: Create(new SceneKey(\"{name}\"), document).");
         }
 
         return registration.Create();

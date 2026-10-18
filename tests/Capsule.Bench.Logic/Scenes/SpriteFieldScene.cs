@@ -1,13 +1,10 @@
-using System.Numerics;
 using Capsule.Bench.Logic.Cameras;
 using Capsule.Bench.Logic.Components;
 using Capsule.Bench.Logic.Entities;
-using Capsule.Rendering;
-using Capsule.Scenes;
 
 namespace Capsule.Bench.Logic.Scenes;
 
-/// <summary>A parked camera over one <see cref="SpriteField"/>; a subclass states its count and is a workload.</summary>
+/// <summary>A parked camera over one <see cref="SpriteField"/>, with the count stated by each workload subclass.</summary>
 public abstract class SpriteFieldScene : Scene
 {
     protected SpriteFieldScene(int count, bool switches = false)

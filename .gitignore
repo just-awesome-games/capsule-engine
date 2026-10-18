@@ -16,14 +16,11 @@ coverage*.info
 coverage*.cobertura.xml
 *.coverage
 *.coveragexml
-BenchmarkDotNet.Artifacts/
 
 ## NuGet
 *.nupkg
 *.snupkg
 .nuget/
-**/packages/*
-!**/packages/build/
 # packages.lock.json is committed on purpose - the dependency manifest.
 
 ## Visual Studio / Rider / VS Code
@@ -37,17 +34,10 @@ BenchmarkDotNet.Artifacts/
 *.user
 *.userosscache
 *.sln.docstates
-*.userprefs
-*.svclog
-*.psess
-*.vsp
-*.vspx
-*.sap
 
 ## Build artifacts and intermediates
 *.pdb
 *.dll.config
-*.pidb
 *.svclog
 *.tlog
 *.ilk

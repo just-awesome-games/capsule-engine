@@ -2,8 +2,6 @@ using System.Numerics;
 using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 using Capsule.Tests.Scenes;
 using Capsule.Tiles;
 
@@ -11,10 +9,9 @@ namespace Capsule.Tests.Allocation;
 
 internal static class StageWorkload
 {
-    internal const int TileSize = 16;
+    internal const int TileSize = CollisionWorkload.TileSize;
     internal const int TilesWide = 512;
     internal const int TilesHigh = 64;
-    internal const double StepSeconds = 1.0 / 60.0;
 
     internal const string DocumentName = "stage";
 
@@ -34,8 +31,6 @@ internal static class StageWorkload
 
     // One atlas of two cells across, the shape a real terrain tileset takes.
     private static readonly TextureHandle Atlas = SceneFixtures.TerrainAtlas;
-    private static readonly TileType Solid = new() { Name = "solid", Cell = 0 };
-    private static readonly TileType Platform = new() { Name = "platform", Cell = 1 };
 
     private static readonly Sprite HeroFrame = new(Atlas, new TextureRegion(0, 0, 16, 24));
     private static readonly Sprite ActorFrame = new(Atlas, new TextureRegion(0, 0, 16, 16));
@@ -90,7 +85,7 @@ internal static class StageWorkload
             }
         }
 
-        return new TileGrid(TileSize, TilesWide, TilesHigh, [TileGrid.EmptyTile, Solid, Platform], tiles, Atlas, 2);
+        return new TileGrid(TileSize, TilesWide, TilesHigh, CollisionWorkload.Palette, tiles, Atlas, 2);
     }
 
     internal static SceneRegistry Scenes() =>
@@ -205,37 +200,23 @@ internal static class StageWorkload
                 Camera.Shake(0.5f);
             }
 
-            switch (_churn)
+            if (_churn == StageChurn.DrawListOnly)
             {
-                case StageChurn.DrawListOnly:
-                    // One structural change a step and nothing else: the population, the update
-                    // work and the draw work are the same as StageChurn.None either side of it.
-                    if (_flicker.SceneOrNull is null)
-                    {
-                        Add(_flicker);
-                    }
-                    else
-                    {
-                        Remove(_flicker);
-                    }
-
-                    break;
-
-                case StageChurn.Spawning:
-                    if (context.Tick % StepsBetweenSpawns == 0)
-                    {
-                        Add(new Spark().Fire(_hero.Position, new Vector2(4f, ((_spawned++ % 5) - 2) * 0.5f)));
-                    }
-
-                    break;
-
-                case StageChurn.Pooled:
-                    if (context.Tick % StepsBetweenSpawns == 0)
-                    {
-                        Add(_sparkPool!.Take().Fire(_hero.Position, new Vector2(4f, ((_spawned++ % 5) - 2) * 0.5f)));
-                    }
-
-                    break;
+                // One structural change a step and nothing else. The population, the update work and
+                // the draw work are the same as StageChurn.None either side of it.
+                if (_flicker.SceneOrNull is null)
+                {
+                    Add(_flicker);
+                }
+                else
+                {
+                    Remove(_flicker);
+                }
+            }
+            else if (_churn != StageChurn.None && context.Tick % StepsBetweenSpawns == 0)
+            {
+                Spark spark = _sparkPool is null ? new Spark() : _sparkPool.Take();
+                Add(spark.Fire(_hero.Position, new Vector2(4f, ((_spawned++ % 5) - 2) * 0.5f)));
             }
         }
     }

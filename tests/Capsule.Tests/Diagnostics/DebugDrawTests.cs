@@ -2,15 +2,14 @@ using System.Numerics;
 using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Rendering;
-using Capsule.Runtime;
-using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
-using Capsule.Tests.Runtime;
+using Capsule.Tests.DevTools;
 
 namespace Capsule.Tests.Diagnostics;
 
-// The debug draw buffer is one process-wide slot, attached by whichever overlay was built last.
+// The debug draw buffer is per thread, attached by whichever overlay this thread built last. The
+// channel colours are process-wide, which keeps these specs from running beside another collection.
 [Collection(LogSinkCollection.Name)]
 public sealed class DebugDrawTests
 {
@@ -51,10 +50,16 @@ public sealed class DebugDrawTests
         // and follows a change on the overlay's next frame with no game step between.
         Assert.Equal(ColorRgba.White, view.Lines[0].Color);
         DebugDraw.SetColor(Hitboxes, ColorRgba.Orange);
-        rig.Frame();
-        Assert.Equal(ColorRgba.Orange, view.Lines[0].Color);
-        Assert.Equal(1, rig.Scheduler.Tick);
-        DebugDraw.SetColor(Hitboxes, ColorRgba.White);
+        try
+        {
+            rig.Frame();
+            Assert.Equal(ColorRgba.Orange, view.Lines[0].Color);
+            Assert.Equal(1, rig.Scheduler.Tick);
+        }
+        finally
+        {
+            DebugDraw.SetColor(Hitboxes, ColorRgba.White);
+        }
 
         rig.Press(Key.Down);
         rig.Press(Key.Enter);
@@ -83,7 +88,7 @@ public sealed class DebugDrawTests
     }
 
     // A left click over a row of the Debug Draw menu, opened by its hotkey, toggles that row's
-    // channel; the click is the menu's and never reaches the game.
+    // channel. The click is the menu's and never reaches the game.
     [Fact]
     public void ALeftClickOverARow_TogglesItsChannelAndIsWithheldFromTheGame()
     {
@@ -235,7 +240,7 @@ public sealed class DebugDrawTests
         new(SceneTransition.ToScene(scene.GetType(), null), (in SceneTransition _) => scene, new Run());
 
     // Emits a hitbox line and a label on the named tick, or on every tick when none is named. The
-    // line's start is the tick, so a test can tell which step's draw it is looking at. A third
+    // line's start is the tick. A test can tell which step's draw it is looking at. A third
     // channel first emits on the step after the named one.
     private sealed class DrawingScene(long? emitOnTick, int steps) : Scene
     {
@@ -266,7 +271,7 @@ public sealed class DebugDrawTests
                 return;
             }
 
-            DebugDraw.Rect(Hitboxes, new Rect(0f, 0f, 4f, 2f), ColorRgba.White);
+            DebugDraw.Rect(Hitboxes, Rect.FromEdges(0f, 0f, 4f, 2f), ColorRgba.White);
             DebugDraw.Circle(Hitboxes, new Vector2(10f, 10f), 2f, ColorRgba.White);
             DebugDraw.Capsule(Hitboxes, new Vector2(0f, 0f), new Vector2(6f, 0f), 1f, ColorRgba.White);
             DebugDraw.Polygon(Hitboxes, [new Vector2(20f, 20f), new Vector2(21f, 20f), new Vector2(21f, 21f)], ColorRgba.White);

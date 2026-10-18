@@ -10,7 +10,7 @@ namespace Capsule.Input;
 /// </remarks>
 public readonly record struct RumbleHandle
 {
-    // Slot in the low bits and generation above it. The generation advances when a slot is freed, so a
+    // Slot in the low bits and generation above it. The generation advances when a slot is freed. A
     // handle to the pulse that used to live there cannot address the pulse living there now.
     private const int SlotBits = 8;
     private const int SlotMask = (1 << SlotBits) - 1;

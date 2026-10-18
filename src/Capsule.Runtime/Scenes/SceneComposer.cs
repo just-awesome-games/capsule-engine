@@ -1,7 +1,5 @@
 using Capsule.Assets;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 
 namespace Capsule.Runtime.Scenes;
 
@@ -54,12 +52,12 @@ internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
         }
         catch (SpawnException exception)
         {
-            // The scene layer is pure and knows no paths, so this layer names the document.
+            // The scene layer is pure and knows no paths. This layer names the document.
             throw new SpawnException($"{path}: {exception.Message}", exception);
         }
     }
 
-    // A SceneDocument is immutable and its grid hands out read-only spans, so every scene composed from
+    // A SceneDocument is immutable and its grid hands out read-only spans. Every scene composed from
     // one document may share it.
     private SceneDocument Hold(string name, string path)
     {

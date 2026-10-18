@@ -6,7 +6,7 @@ namespace Capsule.Generators;
 // Reads the two things a scene document resolves against: every Scene class, and every document the build shipped.
 internal static class SceneDescriber
 {
-    // A document's baseScene is resolved against every Scene subclass the assembly declares, so every one is
+    // A document's baseScene is resolved against every Scene subclass the assembly declares. Every one is
     // modeled here whether or not a document ever names it.
     internal static SceneModel? Describe(INamedTypeSymbol type, TypeDeclarationSyntax declaration, Compilation compilation)
     {

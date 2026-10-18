@@ -1,7 +1,6 @@
 using Capsule.Animation;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Capsule.Tests.Scenes;
 using static Capsule.Tests.Animation.SpriteAnimatorFixtures;
 
 namespace Capsule.Tests.Animation;
@@ -14,7 +13,7 @@ public sealed class SpriteAnimatorTickTests
         (_, SpriteAnimator animator, SimulationHost run) = Animating();
         animator.Play(Shoot);
 
-        // Frame 0 holds four ticks, so three steps in the cursor is three ticks into the first.
+        // Frame 0 holds four ticks. Three steps in the cursor is three ticks into the first.
         run.Step(4);
 
         Assert.Equal(0, animator.FrameIndex);
@@ -37,7 +36,7 @@ public sealed class SpriteAnimatorTickTests
         Assert.Equal(Frame(20), renderer.Sprite);
         Assert.False(animator.IsFinished);
 
-        // Two of frame 0's four ticks are already spent, so it holds for two steps and no more.
+        // Two of frame 0's four ticks are already spent. It holds for two steps and no more.
         run.Step(2);
 
         Assert.Equal(0, animator.FrameIndex);
@@ -63,7 +62,7 @@ public sealed class SpriteAnimatorTickTests
         Assert.Equal(1, animator.FrameTick);
         Assert.Equal(Frame(31), renderer.Sprite);
 
-        // One of the variant frame's four ticks is spent, so it holds for three more.
+        // One of the variant frame's four ticks is spent. It holds for three more.
         run.Step(3);
 
         Assert.Equal(1, animator.FrameIndex);

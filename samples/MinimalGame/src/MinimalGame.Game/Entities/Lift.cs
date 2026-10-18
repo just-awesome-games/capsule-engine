@@ -1,16 +1,8 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Animation;
-using Capsule.Physics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
-
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// A slab that rises and sinks on an eased swing. A body moved by its layer rides it and is shoved
-/// by it: the lift only moves itself.
+/// A slab that rises and sinks on an eased swing. A body moved by its layer rides it and is shoved by
+/// it, and the lift only moves itself.
 /// </summary>
 public sealed class Lift : Entity
 {

@@ -3,7 +3,7 @@ using Capsule.Input;
 
 namespace Capsule.Tests.Persistence;
 
-// A game's settings as a spec sees them: a mutable class, so a test can mutate what it wrote and
+// A game's settings as a spec sees them: a mutable class. A test can mutate what it wrote and
 // what it read and prove neither reaches the store.
 public sealed class Settings
 {

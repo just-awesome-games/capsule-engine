@@ -31,7 +31,7 @@ internal static class AudioPlaybackFixtures
         protected override void OnStart()
         {
             Speaker speaker = new();
-            speaker.Add(new AudioSource(Step) { PlayOnStart = true, Loop = true });
+            speaker.Add(new AudioSource(Step) { AutoPlay = true, Loop = true });
             Add(speaker);
         }
     }
@@ -40,17 +40,17 @@ internal static class AudioPlaybackFixtures
 
     internal sealed class Fixture : IDisposable
     {
-        internal Fixture()
-        {
-            Store = new SoundStore(Backend);
-            Player = new AudioPlayer(Store);
-        }
-
         internal FakeBackend Backend { get; } = new();
 
         internal SoundStore Store { get; }
 
         internal AudioPlayer Player { get; }
+
+        internal Fixture()
+        {
+            Store = new SoundStore(Backend);
+            Player = new AudioPlayer(Store);
+        }
 
         internal void Preload(params AudioClip[] clips)
         {
@@ -103,7 +103,7 @@ internal static class AudioPlaybackFixtures
         }
     }
 
-    // Pools its voice as the device backend does, so what the store counts is exercised against the
+    // Pools its voice as the device backend does. What the store counts is exercised against the
     // one object a repeated play reuses rather than a fresh one per play.
     internal sealed class FakeSound(FakeBackend backend, AudioClip clip) : IResidentSound
     {
@@ -134,7 +134,7 @@ internal static class AudioPlaybackFixtures
 
     internal sealed class FakeVoice(AudioClip clip, float gain = 1f, float pitch = 1f, bool loop = false) : IAudioVoice
     {
-        // Set for a resident voice, which is pooled and told to report its retirement; a streamed
+        // Set for a resident voice, which is pooled and told to report its retirement. A streamed
         // one is neither.
         private Action? _ended;
         private Stack<FakeVoice>? _pool;
@@ -158,7 +158,7 @@ internal static class AudioPlaybackFixtures
 
         internal int Resumes { get; private set; }
 
-        // How many times the pool has handed this voice out; 0 for a streamed one, which is not pooled.
+        // How many times the pool has handed this voice out. It is 0 for a streamed one, which is not pooled.
         internal int Plays { get; private set; }
 
         internal bool Disposed { get; private set; }

@@ -6,7 +6,9 @@ using Capsule.Physics;
 using Capsule.Runtime;
 using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
-using static Capsule.Tests.Packaging.Surface;
+using Capsule.Tests.Generators;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace Capsule.Tests.Packaging;
 
@@ -24,17 +26,21 @@ public sealed class ApiReferenceTests
     [MemberData(nameof(ShippedAssemblies))]
     public void TheShippedDocumentation_ListsOnlyThePublicSurface(string assemblyName)
     {
-        Dictionary<string, MemberInfo> surface = Members(Assembly.Load(assemblyName));
+        // Internal symbols are imported, and each identifier resolves through the compiler to the one overload it names.
+        Compilation compilation = CSharpCompilation.Create(
+            "ApiReference",
+            references: GeneratorHarness.Referenced(null, Assembly.Load(assemblyName)),
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary).WithMetadataImportOptions(MetadataImportOptions.All));
         List<string> hidden = [];
 
         foreach (string identifier in DocumentedMembers(assemblyName))
         {
-            if (!surface.TryGetValue(identifier, out MemberInfo? member))
+            if (DocumentationCommentId.GetFirstSymbolForDeclarationId(identifier, compilation) is not { } symbol)
             {
-                // An identifier this builder cannot spell is reported, never assumed public.
+                // An identifier the compiler cannot resolve is reported, never assumed public.
                 hidden.Add($"{identifier} (unresolved)");
             }
-            else if (!IsReachable(member))
+            else if (!IsReachable(symbol))
             {
                 hidden.Add(identifier);
             }
@@ -44,125 +50,41 @@ public sealed class ApiReferenceTests
         Assert.True(hidden.Count == 0, $"{assemblyName}.xml ships documentation a consumer cannot reach:{Environment.NewLine}{string.Join(Environment.NewLine, hidden)}");
     }
 
-    private static IEnumerable<string> DocumentedMembers(string assemblyName)
+    // A null or out-of-range argument throws by the .NET convention, which no member restates.
+    [Theory]
+    [MemberData(nameof(ShippedAssemblies))]
+    public void TheShippedDocumentation_DocumentsNoArgumentValidation(string assemblyName)
+    {
+        List<string> documented = [.. Documentation(assemblyName)
+            .Descendants("member")
+            .Where(member => member.Elements("exception").Any(exception =>
+                (string?)exception.Attribute("cref") is "T:System.ArgumentNullException" or "T:System.ArgumentOutOfRangeException"))
+            .Select(member => (string?)member.Attribute("name") ?? "(unnamed)")];
+
+        Assert.True(documented.Count == 0, $"{assemblyName}.xml documents argument validation. Delete the <exception> tag from each:{Environment.NewLine}{string.Join(Environment.NewLine, documented)}");
+    }
+
+    private static XDocument Documentation(string assemblyName)
     {
         string path = Path.Combine(AppContext.BaseDirectory, assemblyName + ".xml");
         Assert.True(File.Exists(path), $"{assemblyName} ships no API reference beside its assembly.");
 
-        return XDocument.Load(path)
+        return XDocument.Load(path);
+    }
+
+    private static IEnumerable<string> DocumentedMembers(string assemblyName) =>
+        Documentation(assemblyName)
             .Descendants("member")
             .Select(member => (string?)member.Attribute("name"))
             .Where(name => !string.IsNullOrEmpty(name))
             .Select(name => name!)
             .ToList();
-    }
 
-    // Every declared type and member under the identifier the compiler writes for it, so an entry
-    // resolves to the one overload it names rather than to any sibling sharing its name.
-    private static Dictionary<string, MemberInfo> Members(Assembly assembly)
-    {
-        Dictionary<string, MemberInfo> surface = new(StringComparer.Ordinal);
-
-        foreach (Type type in assembly.GetTypes())
-        {
-            surface["T:" + Signature(type)] = type;
-
-            foreach (MemberInfo member in type.GetMembers(DeclaredMembers))
-            {
-                if (member is not Type)
-                {
-                    surface[DocumentationIdentifier(member)] = member;
-                }
-            }
-        }
-
-        return surface;
-    }
-
-    private static string DocumentationIdentifier(MemberInfo member)
-    {
-        // Explicit interface implementations spell the interface with '#'; a constructor is #ctor.
-        string name = member.Name switch
-        {
-            ".ctor" => "#ctor",
-            ".cctor" => "#cctor",
-            _ => member.Name.Replace('.', '#'),
-        };
-
-        string declaring = Signature(member.DeclaringType!) + ".";
-
-        return member switch
-        {
-            FieldInfo => "F:" + declaring + name,
-            EventInfo => "E:" + declaring + name,
-            PropertyInfo property => "P:" + declaring + name + Parameters(property.GetIndexParameters()),
-            MethodBase method => "M:" + declaring + name + Arity(method) + Parameters(method.GetParameters()) + Conversion(method),
-            _ => "?:" + declaring + name,
-        };
-    }
-
-    private static string Arity(MethodBase method) =>
-        method.IsGenericMethodDefinition ? "``" + method.GetGenericArguments().Length : string.Empty;
-
-    private static string Parameters(ParameterInfo[] parameters) =>
-        parameters.Length == 0 ? string.Empty : "(" + string.Join(",", parameters.Select(parameter => Signature(parameter.ParameterType))) + ")";
-
-    // A conversion operator is distinguished only by what it returns.
-    private static string Conversion(MethodBase method) =>
-        method is MethodInfo { Name: "op_Implicit" or "op_Explicit" } conversion ? "~" + Signature(conversion.ReturnType) : string.Empty;
-
-    private static string Signature(Type type)
-    {
-        if (type.IsByRef)
-        {
-            return Signature(type.GetElementType()!) + "@";
-        }
-
-        if (type.IsPointer)
-        {
-            return Signature(type.GetElementType()!) + "*";
-        }
-
-        if (type.IsArray)
-        {
-            int rank = type.GetArrayRank();
-            return Signature(type.GetElementType()!) + (rank == 1 ? "[]" : "[" + string.Join(",", Enumerable.Repeat("0:", rank)) + "]");
-        }
-
-        // A method's own type parameters take a second backtick; the declaring type's take one.
-        if (type.IsGenericParameter)
-        {
-            return (type.DeclaringMethod is null ? "`" : "``") + type.GenericParameterPosition;
-        }
-
-        List<Type> chain = [];
-        for (Type? segment = type; segment is not null; segment = segment.DeclaringType)
-        {
-            chain.Insert(0, segment);
-        }
-
-        // An instantiation names its arguments on the segment that introduced them, replacing that
-        // segment's arity marker; a segment introducing none keeps its bare name.
-        Type[] arguments = type.IsGenericType && !type.IsGenericTypeDefinition ? type.GetGenericArguments() : [];
-        List<string> segments = [];
-        int assigned = 0;
-
-        foreach (Type segment in chain)
-        {
-            int introduced = TypeArity(segment) - TypeArity(segment.DeclaringType);
-            segments.Add(introduced > 0 && arguments.Length > 0
-                ? segment.Name[..segment.Name.LastIndexOf('`')]
-                    + "{" + string.Join(",", arguments.Skip(assigned).Take(introduced).Select(Signature)) + "}"
-                : segment.Name);
-            assigned += introduced;
-        }
-
-        return (type.Namespace is null ? string.Empty : type.Namespace + ".") + string.Join(".", segments);
-    }
-
-    private static int TypeArity(Type? type) => type is { IsGenericType: true } ? type.GetGenericArguments().Length : 0;
-
-    // A member is no more reachable than the type declaring it.
-    private static bool IsReachable(MemberInfo member) =>
-        (member.DeclaringType?.IsVisible ?? true) && IsVisibleOutsideTheAssembly(member);
+    // A type is reachable when it and every type around it are public. A member is reachable when its
+    // declaring type is and it is public or protected. A property or event takes its most visible accessor.
+    private static bool IsReachable(ISymbol symbol) =>
+        (symbol is ITypeSymbol
+            ? symbol.DeclaredAccessibility is Accessibility.Public
+            : symbol.DeclaredAccessibility is Accessibility.Public or Accessibility.Protected or Accessibility.ProtectedOrInternal)
+        && (symbol.ContainingType is not { } outer || IsReachable(outer));
 }

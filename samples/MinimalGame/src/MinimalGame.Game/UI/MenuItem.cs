@@ -1,18 +1,8 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Input;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.UI;
-
 namespace MinimalGame.Game.UI;
 
 /// <summary>
-/// One item of a menu: a focus box, its caption and its highlight bar, all filling the item, and an
-/// optional <see cref="ActionPrompt"/> after the caption. It spans its slot's width, so a column's items
-/// are all as wide as the widest. It reacts to its own focus and says it was pressed, never what pressing
-/// means. Everything is attached in its constructor so the font and the prompt art are collected for the
-/// scene's preload.
+/// One menu item as wide as its slot, holding a focus box, a caption, a highlight bar and an optional
+/// <see cref="ActionPrompt"/>, which says it was pressed and never what pressing means.
 /// </summary>
 public sealed class MenuItem : ScreenEntity
 {
@@ -37,11 +27,16 @@ public sealed class MenuItem : ScreenEntity
     private readonly ColorRect _bar;
     private readonly ActionPrompt? _prompt;
 
+    // Handed to the menu's navigator, which is the only thing that may move this item's focus.
+    internal Focusable Focusable { get; }
+
     /// <param name="text">The caption drawn inside the box.</param>
     /// <param name="prompt">The action whose button is shown after the caption, or null for none.</param>
     public MenuItem(string text, InputAction? prompt = null)
         : base(Anchor.TopWide, Vector2.Zero)
     {
+        // Everything is attached here, where the font and the prompt art join the scene's preload.
+        // Spanning the slot makes a column's items all as wide as the widest.
         _bar = new ColorRect { Visible = false };
 
         _caption = new Label(CapsuleAssets.Fonts.MenuFont, text)
@@ -52,10 +47,8 @@ public sealed class MenuItem : ScreenEntity
         };
 
         Focusable = new Focusable();
-        Focusable.Focused += OnFocused;
-        Focusable.Unfocused += OnUnfocused;
 
-        // The bar is attached first, so the caption draws over it.
+        // The caption draws over the bar attached before it.
         Add(_bar);
         Add(_caption);
         Add(Focusable);
@@ -64,6 +57,8 @@ public sealed class MenuItem : ScreenEntity
         {
             _prompt = new ActionPrompt(this, action);
         }
+
+        Highlight(Focusable, _caption, _bar, _prompt);
 
         Size = new Vector2(WidthFor(text), BoxHeight);
     }
@@ -96,29 +91,26 @@ public sealed class MenuItem : ScreenEntity
         set => _prompt?.Visible = value;
     }
 
-    // Handed to the menu's navigator, which is the only thing that may move this item's focus.
-    internal Focusable Focusable { get; }
-
-    private void OnFocused()
+    // Inks a row's caption, and its prompt when it has one, and shows its bar while the row holds the focus.
+    internal static void Highlight(Focusable focus, Label caption, ColorRect bar, ActionPrompt? prompt = null)
     {
-        _caption.Color = FocusedInk;
-        _prompt?.NameColor = FocusedInk;
-        _bar.Visible = true;
-    }
+        focus.Focused += () => Ink(FocusedInk, focused: true);
+        focus.Unfocused += () => Ink(RestingInk, focused: false);
 
-    private void OnUnfocused()
-    {
-        _caption.Color = RestingInk;
-        _prompt?.NameColor = RestingInk;
-        _bar.Visible = false;
+        void Ink(ColorRgba ink, bool focused)
+        {
+            caption.Color = ink;
+            prompt?.NameColor = ink;
+            bar.Visible = focused;
+        }
     }
 
     /// <summary>The width in canvas pixels an item captioned <paramref name="text"/> with no prompt takes.</summary>
     public static float WidthFor(string text) =>
         Math.Max(MinWidth, CapsuleAssets.Fonts.MenuFont.Measure(text).X + (2f * HorizontalPadding));
 
-    // The caption and its prompt are centred together, and the box grows to hold both so focused ink never
-    // runs off the bar. The prompt has stepped by now, so its width is this step's.
+    // The caption and its prompt are centred together, and the box grows to hold both. Focused ink never
+    // runs off the bar. The prompt has stepped by now, and its width is this step's.
     /// <inheritdoc/>
     protected override void OnLateStep(in StepContext context)
     {
@@ -135,7 +127,7 @@ public sealed class MenuItem : ScreenEntity
             return;
         }
 
-        // The caption fills the item, so its bounds are the slot the item was given, which may be wider.
+        // The caption fills the item. Its bounds are the slot the item was given, which may be wider.
         float slot = _caption.Bounds.Size.X;
         _caption.Offset = new Vector2(-trail / 2f, 0f);
         _prompt.Position = new Vector2(((slot + caption - trail) / 2f) + PromptGap, (BoxHeight - ActionPrompt.Height) / 2f);

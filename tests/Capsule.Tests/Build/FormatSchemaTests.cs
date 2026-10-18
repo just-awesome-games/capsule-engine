@@ -16,7 +16,7 @@ public sealed class FormatSchemaTests
         {
             string generated = FormatSchemas.Generate(file, title, parser);
             string path = Path.Combine(committed, file);
-            // Byte for byte, so a committed CRLF or BOM is stale too. The schemas are UTF-8 without a BOM.
+            // Byte for byte. A committed CRLF or BOM is stale too. The schemas are UTF-8 without a BOM.
             if (!File.Exists(path) || !File.ReadAllBytes(path).AsSpan().SequenceEqual(Encoding.UTF8.GetBytes(generated)))
             {
                 File.WriteAllText(Path.Combine(fresh, file), generated);
@@ -24,7 +24,7 @@ public sealed class FormatSchemaTests
             }
         }
 
-        // The package takes every file here, so one left behind by a removed format would still ship.
+        // The package takes every file here. One left behind by a removed format would still ship.
         string[] strays = [.. Directory.EnumerateFiles(committed, "*.schema.json").Select(Path.GetFileName)
             .Except(FormatSchemas.Formats.Select(static format => format.File)).Order(StringComparer.Ordinal)!];
         Assert.True(
@@ -35,6 +35,6 @@ public sealed class FormatSchemaTests
         Assert.True(
             stale.Count == 0,
             $"schemas/{string.Join(", schemas/", stale)} differ from what the parser classes generate. "
-                + $"The schemas are generated, so a hand edit or a parser change alone makes them stale. Copy the fresh output from '{fresh}' over '{committed}' and commit it.");
+                + $"The schemas are generated. A hand edit or a parser change alone makes them stale. Copy the fresh output from '{fresh}' over '{committed}' and commit it.");
     }
 }

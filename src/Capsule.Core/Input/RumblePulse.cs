@@ -23,9 +23,6 @@ public readonly record struct RumblePulse(float Low, float High, float Seconds)
     public float LeftTrigger { get; init; }
 
     /// <summary>The right impulse trigger's amplitude in [0, 1], and 0 by default.</summary>
-    /// <remarks>
-    /// The impulse triggers are the motors in an Xbox pad's triggers. A pad without them plays
-    /// nothing for this value.
-    /// </remarks>
+    /// <inheritdoc cref="LeftTrigger" path="/remarks"/>
     public float RightTrigger { get; init; }
 }

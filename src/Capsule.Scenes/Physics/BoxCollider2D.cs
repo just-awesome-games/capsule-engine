@@ -18,14 +18,14 @@ namespace Capsule.Physics;
 /// </remarks>
 /// <example>
 /// <code>
-/// BoxCollider2D hurtbox = new(new Vector2(6f, 6f))
+/// BoxCollider2D reach = new(new Vector2(16f, 24f))
 /// {
-///     Offset = new Vector2(1f, 1f),
+///     Offset = new Vector2(0f, -12f),
 ///     ReportsContacts = true,
-///     Detects = CollisionLayers.Damaging,
+///     Detects = CollisionLayers.Actors,
 /// };
-/// hurtbox.ContactEntered += OnHurtboxEntered;
-/// Add(hurtbox);
+/// reach.ContactEntered += OnApproached;
+/// Add(reach);
 /// </code>
 /// </example>
 public sealed class BoxCollider2D : Collider2D
@@ -88,7 +88,7 @@ public sealed class BoxCollider2D : Collider2D
     protected internal override void OnDebugDraw()
     {
         Aabb2D box = WorldShape.Bounds;
-        DebugDraw.Rect(DebugDraw.Colliders, new Rect(box.Min.X, box.Min.Y, box.Max.X, box.Max.Y), DebugColor, Motion);
+        DebugDraw.Rect(DebugDraw.Colliders, Rect.FromEdges(box.Min.X, box.Min.Y, box.Max.X, box.Max.Y), DebugColor, Motion);
     }
 
     /// <inheritdoc/>

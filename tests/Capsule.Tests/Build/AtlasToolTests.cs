@@ -1,5 +1,4 @@
 using Capsule.Build.Textures;
-using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
 
@@ -71,7 +70,7 @@ public sealed class AtlasToolTests
         Assert.Equal(["atlases: Assets/actors.atlas.json", "atlases: Assets/world.atlas.json"], workspace.Built);
     }
 
-    // A page holds one format and one sampling, so a draw never splits for sampling inside a page.
+    // A page holds one format and one sampling. A draw never splits for sampling inside a page.
     [Fact]
     public void MembersOfOneAtlasDifferingInFormatOrSampling_LandOnDifferentPages()
     {
@@ -92,7 +91,7 @@ public sealed class AtlasToolTests
             File.ReadAllText(Map));
     }
 
-    // The runtime finds a packed texture by its handle, which the map spells in lower case, so an
+    // The runtime finds a packed texture by its handle, which the map spells in lower case. An
     // extension the author capitalized is lowered everywhere the build writes it.
     [Fact]
     public void ATextureSpelledInUpperCase_IsNamedAndShippedInLowerCase()

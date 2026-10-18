@@ -1,10 +1,6 @@
-using System.Numerics;
-using Capsule.Audio;
-using Capsule.Scenes;
-
 namespace Capsule.Bench.Logic.Entities;
 
-// A looping voice whose volume and pan are rewritten every step, so the mixer has a command to
+// A looping voice whose volume and pan are rewritten every step. The mixer has a command to
 // generate for it on every one.
 public sealed class Hummer : Entity
 {
@@ -25,7 +21,7 @@ public sealed class Hummer : Entity
         {
             Bus = index % 2 == 0 ? Ambience : Sfx,
             Loop = true,
-            PlayOnStart = true,
+            AutoPlay = true,
         };
         Add(_source);
     }

@@ -10,26 +10,27 @@ internal static class TexturePixels
     internal static int Channels(TextureFormatSetting format) => format == TextureFormatSetting.R8 ? 1 : 4;
 
     /// <summary>A texture's texels in its format: RGBA8 as authored, or an r8 texture's one channel.</summary>
-    /// <exception cref="FormatException">The file cannot be read or decoded, or an r8 source is of a kind with no single channel.</exception>
+    /// <exception cref="FormatException">The file cannot be decoded, or an r8 source is of a kind with no single channel.</exception>
     internal static Texels Decode(string path, TextureFormatSetting format)
     {
+        byte[] file = File.ReadAllBytes(path);
+        if (format == TextureFormatSetting.R8)
+        {
+            return SingleChannelPng.Read(file);
+        }
+
+        ImageResult image;
         try
         {
-            byte[] file = File.ReadAllBytes(path);
-            if (format == TextureFormatSetting.R8)
-            {
-                return SingleChannelPng.Read(file);
-            }
-
-            ImageResult image = ImageResult.FromMemory(file, ColorComponents.RedGreenBlueAlpha);
-
-            return new Texels(image.Data, image.Width, image.Height, 4);
+            image = ImageResult.FromMemory(file, ColorComponents.RedGreenBlueAlpha);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or IndexOutOfRangeException or IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or IndexOutOfRangeException)
         {
-            // How the decoder and the disk fail, as one defect of the file.
-            throw new FormatException($"is not a PNG the build can decode: {ex.Message}", ex);
+            // How the decoder fails, as one defect of the file.
+            throw new FormatException($"is not a PNG the build can decode: {ex.Message.TrimEnd('.')}. Export it again as a PNG.", ex);
         }
+
+        return new Texels(image.Data, image.Width, image.Height, 4);
     }
 
     /// <summary>
@@ -60,3 +61,6 @@ internal static class TexturePixels
         }
     }
 }
+
+/// <summary>Texels in rows, <paramref name="Channels"/> bytes each and no padding.</summary>
+internal readonly record struct Texels(byte[] Data, int Width, int Height, int Channels);

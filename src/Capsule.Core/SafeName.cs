@@ -21,21 +21,21 @@ internal static class SafeName
             return false;
         }
 
-        // Windows trims trailing dots and spaces, so such a name silently resolves to a different
-        // directory than it reads as. This also catches "." and "..".
+        // Windows trims trailing dots and spaces. Such a name silently resolves to a different directory
+        // than it reads as. This also catches "." and "..".
         if (name[^1] is '.' or ' ')
         {
             return false;
         }
 
-        // Windows matches a device name on the stem before the first dot, so "CON" and "CON.log"
-        // both fail instead of creating a directory.
+        // Windows matches a device name on the stem before the first dot. "CON" and "CON.log" both fail
+        // instead of creating a directory.
         int dot = name.IndexOf('.', StringComparison.Ordinal);
 
         return !AssetPaths.IsReservedDeviceName(dot >= 0 ? name[..dot] : name);
     }
 
-    // A display name lowercased, with each run of non-alphanumeric characters collapsed to one hyphen, so
+    // A display name lowercased, with each run of non-alphanumeric characters collapsed to one hyphen.
     // "My Game" becomes "my-game". Returns null when the result is not a safe directory name, as happens
     // for a name of only punctuation or a reserved device name.
     internal static string? Slug(string name)

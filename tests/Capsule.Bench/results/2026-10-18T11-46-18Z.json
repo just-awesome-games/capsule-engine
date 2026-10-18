@@ -1,0 +1,359 @@
+{
+  "timestamp": "2026-10-18T11:46:18Z",
+  "label": "audit-render-after",
+  "lane": "rendering",
+  "uncapped": false,
+  "commit": "5c8f2ea",
+  "configuration": "Release",
+  "os": "Microsoft Windows 10.0.26200",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+  "gpu": "AMD Radeon RX 9070 XT",
+  "engineVersion": "0.0.0+5c8f2ea85eff490e0ff2526d6b655c3dd50372b5",
+  "workloads": [
+    {
+      "name": "HdField2k",
+      "mode": "windowed",
+      "surface": "1920x1080-linear",
+      "steps": null,
+      "frames": 867,
+      "drawMs": {
+        "median": 0.083,
+        "p95": 0.098,
+        "max": 0.184
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.063,
+        "p95": 6.226,
+        "max": 7.471
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "HdTransition",
+      "mode": "windowed",
+      "surface": "1920x1080-linear",
+      "steps": null,
+      "frames": 866,
+      "drawMs": {
+        "median": 0.033,
+        "p95": 0.062,
+        "max": 0.219
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.062,
+        "p95": 6.21,
+        "max": 7.771
+      },
+      "gen0Collections": 3,
+      "captureSha256": null
+    },
+    {
+      "name": "Lights256",
+      "mode": "windowed",
+      "surface": "1920x1080-linear",
+      "steps": null,
+      "frames": 867,
+      "drawMs": {
+        "median": 0.103,
+        "p95": 0.117,
+        "max": 0.229
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.065,
+        "p95": 6.187,
+        "max": 8.694
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Lines10k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 867,
+      "drawMs": {
+        "median": 0.532,
+        "p95": 0.86,
+        "max": 0.997
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.062,
+        "p95": 6.186,
+        "max": 6.365
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Particles10k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 867,
+      "drawMs": {
+        "median": 0.103,
+        "p95": 0.205,
+        "max": 0.269
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.064,
+        "p95": 6.189,
+        "max": 8.624
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "SpriteField20k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 867,
+      "drawMs": {
+        "median": 0.562,
+        "p95": 0.908,
+        "max": 1.055
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.063,
+        "p95": 6.196,
+        "max": 6.431
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "SpriteField50k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 866,
+      "drawMs": {
+        "median": 1.346,
+        "p95": 1.692,
+        "max": 2.283
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.063,
+        "p95": 6.195,
+        "max": 8.762
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "SpriteField5k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 867,
+      "drawMs": {
+        "median": 0.178,
+        "p95": 0.353,
+        "max": 0.387
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.063,
+        "p95": 6.198,
+        "max": 6.383
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Text10k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 867,
+      "drawMs": {
+        "median": 0.261,
+        "p95": 0.492,
+        "max": 0.553
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.061,
+        "p95": 6.191,
+        "max": 6.433
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "TextureSwitches50k",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 865,
+      "drawMs": {
+        "median": 2.587,
+        "p95": 2.88,
+        "max": 3.166
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.062,
+        "p95": 6.191,
+        "max": 8.176
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Transition",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 867,
+      "drawMs": {
+        "median": 0.046,
+        "p95": 0.088,
+        "max": 0.228
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.062,
+        "p95": 6.191,
+        "max": 6.791
+      },
+      "gen0Collections": 3,
+      "captureSha256": null
+    },
+    {
+      "name": "Parallax8",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 867,
+      "drawMs": {
+        "median": 0.031,
+        "p95": 0.06,
+        "max": 0.072
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.063,
+        "p95": 6.186,
+        "max": 6.443
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "Still",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 109,
+      "drawMs": {
+        "median": 0.049,
+        "p95": 0.094,
+        "max": 0.1
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.06,
+        "p95": 6.198,
+        "max": 6.301
+      },
+      "gen0Collections": 0,
+      "captureSha256": "3259dd6c2b3426e3282ac81f0780345bd3a34741e8af3490b6ac4ec112724927"
+    },
+    {
+      "name": "StillLit",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 109,
+      "drawMs": {
+        "median": 0.058,
+        "p95": 0.108,
+        "max": 0.251
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.058,
+        "p95": 6.169,
+        "max": 6.275
+      },
+      "gen0Collections": 0,
+      "captureSha256": "735fce736220c4f518bf0601095149042fcb0691f0717a8d9a75ebd80932ff60"
+    },
+    {
+      "name": "TileScroll",
+      "mode": "windowed",
+      "surface": "640x360-point",
+      "steps": null,
+      "frames": 867,
+      "drawMs": {
+        "median": 0.042,
+        "p95": 0.086,
+        "max": 0.168
+      },
+      "stepMs": null,
+      "viewMs": null,
+      "stepBytes": null,
+      "viewBytes": null,
+      "intervalMs": {
+        "median": 6.065,
+        "p95": 6.177,
+        "max": 6.423
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    }
+  ]
+}

@@ -16,12 +16,12 @@ namespace Capsule.Rendering;
 /// It draws the engine's white texel (<see cref="Sprite.White"/>) and loads no asset.
 /// </para>
 /// </remarks>
-/// <param name="size">The extent the rectangle covers. A non-positive axis draws nothing.</param>
+/// <param name="size">The extent the rectangle covers. See <see cref="Size"/>.</param>
 public sealed class ColorRect(Vector2 size) : Renderer
 {
     /// <summary>
-    /// The extent the rectangle covers, in the entity's units. A component that is not positive and
-    /// finite draws nothing.
+    /// The extent the rectangle covers, in the entity's units. A negative axis swings the rectangle to the
+    /// other side of its corner, and a zero or non-finite axis draws nothing.
     /// </summary>
     /// <remarks>A zero axis on a <see cref="ScreenEntity"/> takes the entity's rect extent on that axis.</remarks>
     public Vector2 Size { get; set; } = size;

@@ -10,20 +10,19 @@ namespace Capsule.UI;
 /// <see cref="ScrollOffset"/>.
 /// </summary>
 /// <remarks>
-/// The children are placed as a plain parent places them, in the padded inside. On each axis a child's slot is the
-/// larger of the padded inside and the child's preferred extent, moved back by <see cref="ScrollOffset"/>. An
-/// axis scrolls only where its content overflows. The container never grows to fit its children. It clips
-/// with a <see cref="ClipRect"/> of its own.
+/// On each axis a child's slot is the larger of the padded inside and the child's preferred extent, moved back
+/// by <see cref="ScrollOffset"/>. An axis scrolls only where its content overflows. The container never grows to
+/// fit its children, and it clips with a <see cref="ClipRect"/> of its own.
 /// <para>
 /// The wheel scrolls the innermost container under the pointer, each axis by its own wheel axis, and never
 /// chains to the one above at a limit. A focused <see cref="Focusable"/> under the pointer keeps the wheel axes
 /// its <see cref="Focusable.Adjusts"/> reads.
 /// </para>
 /// <para>
-/// A <see cref="FocusNavigator"/> that moves the focus onto an item inside the container by a direction, a
-/// <see cref="FocusNavigator.Focus"/> call or its start scrolls the item into view by the smallest scroll,
-/// within <see cref="ScreenEntity.Padding"/>. A pointer hover or click never scrolls. Rows would otherwise slide
-/// under a resting mouse. A scroll bar or a drag is the game's, written through <see cref="ScrollOffset"/>.
+/// A <see cref="FocusNavigator"/> focus landing on an item inside by a direction, a
+/// <see cref="FocusNavigator.Focus"/> call or the start scrolls the item into view by the smallest scroll,
+/// within <see cref="ScreenEntity.Padding"/>. A pointer hover or click never scrolls. A scroll bar or a drag is
+/// the game's, written through <see cref="ScrollOffset"/>.
 /// </para>
 /// </remarks>
 /// <example>
@@ -44,7 +43,7 @@ public class ScrollContainer : ScreenEntity
     private Vector2 _previousOffset;
 
     // The scene's StepsBegun at the last write. A write in a later step first keeps the offset it replaces
-    // as the previous one, which saves the container from a per-step save over every entity.
+    // as the previous one, which spares a per-step save over every entity.
     private int _writtenInStep;
 
     /// <summary>
@@ -88,12 +87,7 @@ public class ScrollContainer : ScreenEntity
     public float WheelStep
     {
         get;
-
-        set
-        {
-            Guard.NonNegative(value, nameof(value));
-            field = value;
-        }
+        set => field = Guard.NonNegative(value, nameof(value));
     }
 
     /// <param name="anchor">Where the container sits in the slot its parent gives it, or in the canvas for a root.</param>
@@ -122,7 +116,7 @@ public class ScrollContainer : ScreenEntity
         Rect outer = ClipRect.OuterRect(this, previous: false);
         Vector2 scale = World.Scale;
         Insets padding = Padding;
-        Rect inside = new(
+        Rect inside = Rect.FromEdges(
             outer.Left + (padding.Left * scale.X),
             outer.Top + (padding.Top * scale.Y),
             outer.Right - (padding.Right * scale.X),

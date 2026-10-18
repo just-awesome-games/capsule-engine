@@ -1,8 +1,3 @@
-using System.Numerics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.UI;
-
 namespace Capsule.Bench.Logic.UI;
 
 // A row of eight columns of forty rows. Each row is a caption cell and a bar in a horizontal box, and

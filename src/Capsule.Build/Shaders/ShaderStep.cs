@@ -4,11 +4,16 @@ namespace Capsule.Build.Shaders;
 
 /// <summary>
 /// Compiles every shader, its fragment wrapped in the engine's template, with the parameter table it
-/// declares. Ships each at its path as <c>.mgfx</c> and declares it as a <c>Shader</c>. A misspelt
-/// shader is a compile error, and a misspelt parameter throws where the material is written.
+/// declares.
 /// </summary>
+/// <remarks>
+/// Ships each at its path as <c>.mgfx</c> and declares it as a <c>Shader</c>. A misspelt shader is a
+/// compile error, and a misspelt parameter throws where the material is written.
+/// </remarks>
 internal static class ShaderStep
 {
+    private const string Step = "shaders";
+
     // Where each composed source is written for the compiler, and deleted once it has compiled.
     private const string ComposedDirectory = "shaders";
 
@@ -19,7 +24,7 @@ internal static class ShaderStep
         // Each tool's package folder is named for its version.
         string versions = $"dxc={Path.GetFileName(tools.Dxc)}; spirv-cross={Path.GetFileName(tools.SpirvCross)}";
         foreach ((Source shader, ShaderFacts compiled) in pass.Each(
-            "shaders",
+            Step,
             pass.Of(AssetType.Shaders),
             source => Derivation.Of(source, versions),
             (source, files) => Compile(pass, tools, source, files),

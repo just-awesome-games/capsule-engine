@@ -57,8 +57,8 @@ public sealed class FocusPointerTests
         Assert.Empty(menu.Log);
     }
 
-    // Whether items overlap is the game's business; which one the pointer picks is not. The second item
-    // here has no extent, so it is never under the pointer, and a direction still reaches it: its centre
+    // Whether items overlap is the game's business. Which one the pointer picks is not. The second item
+    // here has no extent. It is never under the pointer, and a direction still reaches it: its centre
     // is its position, which is the nearest one below the first item.
     [Fact]
     public void OverlappingItems_AreHitTestedInListOrderAndAnItemWithNoExtentIsNeverUnderThePointer()
@@ -90,12 +90,12 @@ public sealed class FocusPointerTests
         menu.Open().Pointer(new Vector2(175f, 100f)).Rest();
 
         // The panel's inside is (135, 75) to (185, 105), the row its bottom ten pixels, and the cell the row's right end.
-        Assert.Equal(new Rect(165f, 95f, 185f, 105f), nested.Bounds);
+        Assert.Equal(Rect.FromEdges(165f, 95f, 185f, 105f), nested.Bounds);
         Assert.Equal(1, menu.FocusedIndex);
     }
 
     // The pointer is a canvas position and a world item's bounds are world units under a camera that
-    // moves, so the two are never compared: a world item is reached by the directions and confirm alone.
+    // moves. The two are never compared: a world item is reached by the directions and confirm alone.
     [Fact]
     public void APointerOverAWorldItem_NeverPicksOrPressesIt()
     {

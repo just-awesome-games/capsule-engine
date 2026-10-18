@@ -8,17 +8,14 @@ namespace Capsule.Physics;
 /// Every collider a game can hit, and the queries and sweeps that ask about them.
 /// </summary>
 /// <remarks>
-/// A scene's collider components register its collision in its world. A tile map's collider
-/// component is <c>TileMapCollider2D</c>. A world detects collision only. It has no dynamics and
-/// no solver. Shape colliders sit in a bounding-volume tree, and terrain sits in grids of layered
-/// cells. A world is single-threaded, and no query allocates once
-/// its colliders exist. Results never depend on how the tree happens to be arranged. The same
-/// colliders under the same handles give the same results in the same order.
+/// A world detects collision only, with no dynamics and no solver. A scene's colliders and its
+/// <c>TileMapCollider2D</c> register in it. A world is single-threaded, and a query by filter
+/// allocates nothing. The same colliders under the same handles give the same results in the same
+/// order.
 /// <para>
-/// A world accepts only the handles, layers and filters it issued. Every query takes the filter it
-/// matches by. A collider's stored filter does not decide what a query finds.
-/// <see cref="CollisionFilter.None"/> and <see cref="CollisionFilter.Everything"/> name no table
-/// and are accepted anywhere.
+/// A world accepts only the handles, layers and filters it issued, and
+/// <see cref="CollisionFilter.None"/> and <see cref="CollisionFilter.Everything"/> anywhere. A query
+/// matches by the filter it is given, never by a collider's own.
 /// </para>
 /// </remarks>
 public sealed partial class CollisionWorld2D
@@ -42,7 +39,7 @@ public sealed partial class CollisionWorld2D
     private static int WorldsCreated;
 
     private readonly int _id = Interlocked.Increment(ref WorldsCreated);
-    // Sized for every layer a world can intern, so interning never grows them.
+    // Sized for every layer a world can intern. Interning never grows them.
     private readonly Dictionary<string, int> _layerIndices = new(MaxLayers, StringComparer.Ordinal);
     private readonly List<string> _layerNames = new(MaxLayers);
     private readonly List<CollisionGrid2D> _grids = [];
@@ -79,21 +76,21 @@ public sealed partial class CollisionWorld2D
     private readonly BandHit[] _band = new BandHit[32];
     private int _bandCount;
 
-    // A world holding nothing, with only DefaultLayerName interned.
-    internal CollisionWorld2D() => Layer(DefaultLayerName);
-
     // How many colliders and collision grids the world holds.
     internal int ColliderCount { get; private set; }
-
-    // How many distinct layers have been interned, DefaultLayerName included.
-    internal int LayerCount => _layerIndices.Count;
-
-    // The collision grids the world holds, in the order they were added.
-    internal ReadOnlySpan<CollisionGrid2D> Grids => CollectionsMarshal.AsSpan(_grids);
 
     // How many grid cells this world's queries have reached since the last ResetDiagnostics, empty
     // ones included. No query result depends on it.
     internal long GridCellsTested { get; private set; }
+
+    // A world holding nothing, with only DefaultLayerName interned.
+    internal CollisionWorld2D() => Layer(DefaultLayerName);
+
+    // How many distinct layers have been interned, DefaultLayerName included.
+    internal int LayerCount => _layerIndices.Count;
+
+    // The collision grids the world holds, in slot order. Every grid walk visits them in this order.
+    internal ReadOnlySpan<CollisionGrid2D> Grids => CollectionsMarshal.AsSpan(_grids);
 
     /// <summary>
     /// Declares the layer <paramref name="name"/>, interning it the first time it is seen. The same
@@ -111,7 +108,7 @@ public sealed partial class CollisionWorld2D
 
         if (_layerNames.Count == MaxLayers)
         {
-            throw new InvalidOperationException($"The world already holds its {MaxLayers} layers, so '{name}' cannot be added. Reuse an existing layer.");
+            throw new InvalidOperationException($"The world already holds its {MaxLayers} layers and cannot add '{name}'. Reuse an existing layer.");
         }
 
         CollisionLayer layer = new(_id, _layerNames.Count);
@@ -179,7 +176,7 @@ public sealed partial class CollisionWorld2D
         CollisionLayer layer,
         object? userData = null)
     {
-        RequireShape(shape, nameof(shape));
+        Shape2D.RequireBuilt(shape, nameof(shape));
         Guard.Finite(position, nameof(position));
         RequireOwn(layer);
 
@@ -236,7 +233,8 @@ public sealed partial class CollisionWorld2D
 
     // Sizes the slot table, each slot's candidate list, the shove gather and the tree for colliders
     // held at once, and the grid list for grids held at once. Adding, moving and removing up to that
-    // many then allocates nothing. Never shrinks.
+    // many then allocates nothing until a collider gathers more contact candidates than its list
+    // holds. Never shrinks.
     internal void Reserve(int colliders, int grids)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(colliders);
@@ -297,7 +295,7 @@ public sealed partial class CollisionWorld2D
     // Replaces a collider's shape, keeping its position.
     internal void SetShape(ColliderHandle handle, in Shape2D shape)
     {
-        RequireShape(shape, nameof(shape));
+        Shape2D.RequireBuilt(shape, nameof(shape));
 
         int index = RequireShapeSlot(handle);
         ref ColliderSlot slot = ref _slots[index];
@@ -315,7 +313,7 @@ public sealed partial class CollisionWorld2D
     // Sets whether a collider blocks only a mover landing on it from above.
     internal void SetOneWay(ColliderHandle handle, bool oneWay) => _slots[RequireShapeSlot(handle)].OneWay = oneWay;
 
-    // Sets whether a one-way collider also blocks from the sides.
+    // Sets whether a one-way collider also blocks from the sides. Readers consult it only under one-way.
     internal void SetSolidSides(ColliderHandle handle, bool solidSides) => _slots[RequireShapeSlot(handle)].SolidSides = solidSides;
 
     // Whether a target blocks only from above, as a one-way collider or cell without solid sides does.
@@ -502,7 +500,16 @@ public sealed partial class CollisionWorld2D
             profiles);
 
         slot.Grid = grid;
-        _grids.Add(grid);
+
+        // Kept in slot order, which a ray or sweep tie between two grids also follows. A grid may
+        // take a slot freed below the ones in use.
+        int at = _grids.Count;
+        while (at > 0 && _grids[at - 1].Handle.Index > slotIndex)
+        {
+            at--;
+        }
+
+        _grids.Insert(at, grid);
 
         return grid;
     }
@@ -522,9 +529,7 @@ public sealed partial class CollisionWorld2D
         out RayHit2D hit,
         ColliderHandle ignore = default)
     {
-        Vector2 unit = RequireRay(origin, direction, distance);
-        RequireOwn(filter, nameof(filter));
-        RequireIgnorable(ignore);
+        Vector2 unit = RequireRayQuery(origin, direction, distance, filter, ignore);
 
         return RaycastWalk(origin, unit, distance, filter, ignore, out hit);
     }
@@ -554,9 +559,7 @@ public sealed partial class CollisionWorld2D
         Span<RayHit2D> hits,
         ColliderHandle ignore = default)
     {
-        Vector2 unit = RequireRay(origin, direction, distance);
-        RequireOwn(filter, nameof(filter));
-        RequireIgnorable(ignore);
+        Vector2 unit = RequireRayQuery(origin, direction, distance, filter, ignore);
 
         return RaycastAllWalk(origin, unit, distance, filter, hits, ignore);
     }
@@ -580,12 +583,11 @@ public sealed partial class CollisionWorld2D
     /// <paramref name="ignore"/>.
     /// </summary>
     /// <remarks>
-    /// A shape that starts more than <see cref="CollisionTolerance.ContactSkin"/> inside something
-    /// reports it at fraction 0 whichever way it sweeps, a zero translation included. That hit's normal
-    /// is the shortest way out, and its point is the shape's centre clamped to the bounds of what it
-    /// is inside. A shape merely touching something reports it at fraction 0 when the sweep drives into
-    /// it, and passes it by when the sweep moves away. A one-way surface never reports a shape that
-    /// starts inside it.
+    /// A shape starting more than <see cref="CollisionTolerance.ContactSkin"/> inside something reports
+    /// it at fraction 0 whatever the translation. The normal is then the shortest way out, and the point
+    /// is the shape's centre clamped to the bounds of what it is inside. A shape merely touching
+    /// something reports it at fraction 0 only when the sweep drives into it. A one-way surface never
+    /// reports a shape that starts inside it.
     /// </remarks>
     /// <returns>Whether the sweep met anything. <paramref name="hit"/> is the nearest when it did.</returns>
     /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or <paramref name="ignore"/> names no live collider of this world, or the filter belongs to another one.</exception>
@@ -597,11 +599,7 @@ public sealed partial class CollisionWorld2D
         out ShapeCastHit2D hit,
         ColliderHandle ignore = default)
     {
-        RequireShape(shape, nameof(shape));
-        Guard.Finite(origin, nameof(origin));
-        Guard.Finite(translation, nameof(translation));
-        RequireOwn(filter, nameof(filter));
-        RequireIgnorable(ignore);
+        RequireCastQuery(shape, origin, translation, filter, ignore);
 
         return ShapeCastSweep(shape, origin, translation, filter, ignore, true, out hit);
     }
@@ -640,12 +638,12 @@ public sealed partial class CollisionWorld2D
     /// Everything a shape at <paramref name="origin"/> is inside or touching.
     /// </summary>
     /// <remarks>
-    /// Grid cells come first, in the order their grids were added and then row-major within each.
-    /// Colliders follow by handle.
+    /// Grid cells come first, grid by grid in slot order and row-major within each grid. Colliders follow
+    /// in slot order. A collider or grid added after a removal may take the freed slot.
     /// </remarks>
     /// <returns>
-    /// How many overlaps there were. The span holds as many as fit, in that order, and the rest are
-    /// counted only.
+    /// How many overlaps were written, at most the span's length. The span holds the first that fit, in
+    /// that order, and a full span means there may have been more.
     /// </returns>
     /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or <paramref name="ignore"/> names no live collider of this world, or the filter belongs to another one.</exception>
     public int OverlapAll(
@@ -655,10 +653,7 @@ public sealed partial class CollisionWorld2D
         Span<Contact2D> contacts,
         ColliderHandle ignore = default)
     {
-        RequireShape(shape, nameof(shape));
-        Guard.Finite(origin, nameof(origin));
-        RequireOwn(filter, nameof(filter));
-        RequireIgnorable(ignore);
+        RequireOverlapQuery(shape, origin, filter, ignore);
 
         return FindContacts(shape.Translated(origin), filter, 0f, ignore, contacts);
     }
@@ -667,7 +662,7 @@ public sealed partial class CollisionWorld2D
     /// Everything an axis-aligned box, already placed, is inside or touching. The box form of
     /// <see cref="OverlapAll(in Shape2D, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
     /// </summary>
-    /// <returns>How many overlaps there were, of which the span holds the first.</returns>
+    /// <returns>How many overlaps were written, at most the span's length. A full span means there may have been more.</returns>
     /// <exception cref="ArgumentException">The box is one <see cref="Shape2D.Box(in Aabb2D)"/> refuses, or <paramref name="ignore"/> names no live collider of this world, or the filter belongs to another one.</exception>
     public int OverlapBoxAll(
         in Aabb2D box,
@@ -680,7 +675,7 @@ public sealed partial class CollisionWorld2D
     /// Everything that contains <paramref name="point"/> or has it on an edge. The point form of
     /// <see cref="OverlapAll(in Shape2D, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
     /// </summary>
-    /// <returns>How many overlaps there were, of which the span holds the first.</returns>
+    /// <returns>How many overlaps were written, at most the span's length. A full span means there may have been more.</returns>
     /// <exception cref="ArgumentException"><paramref name="ignore"/> names no live collider of this world, or the filter belongs to another one.</exception>
     public int OverlapPointAll(
         Vector2 point,
@@ -688,9 +683,7 @@ public sealed partial class CollisionWorld2D
         Span<Contact2D> contacts,
         ColliderHandle ignore = default)
     {
-        Guard.Finite(point, nameof(point));
-        RequireOwn(filter, nameof(filter));
-        RequireIgnorable(ignore);
+        RequirePointQuery(point, filter, ignore);
 
         return FindContacts(Shape2D.OfPoint(point), filter, 0f, ignore, contacts);
     }
@@ -703,13 +696,11 @@ public sealed partial class CollisionWorld2D
     /// The collider itself is excluded. Ordering matches
     /// <see cref="OverlapAll(in Shape2D, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
     /// </remarks>
-    /// <returns>How many overlaps there were, of which the span holds the first.</returns>
+    /// <returns>How many overlaps were written, at most the span's length. A full span means there may have been more.</returns>
     /// <exception cref="ArgumentException">The handle names no live collider, or names a grid, or the filter belongs to another world.</exception>
     public int OverlapColliderAll(ColliderHandle handle, CollisionFilter filter, Span<Contact2D> contacts)
     {
-        RequireOwn(filter, nameof(filter));
-
-        int index = RequireShapeSlot(handle);
+        int index = RequireColliderQuery(handle, filter);
 
         return FindContacts(_slots[index].World, filter, CollisionTolerance.ContactSkin, handle, contacts);
     }
@@ -732,13 +723,13 @@ public sealed partial class CollisionWorld2D
 
         // The same measurement the overlap walk makes. A pair test and an overlap query describe a
         // contact identically.
-        float separation = Separation(_slots[index].World, target.World, out Vector2 normal, out Vector2 point);
+        float separation = Narrowphase2D.Separation(_slots[index].World, target.World, out Vector2 normal, out Vector2 point);
         if (separation > CollisionTolerance.ContactSkin)
         {
             return false;
         }
 
-        contact = new Contact2D(CollisionTarget.ForCollider(other, target.Layer), point, normal, DepthOf(separation));
+        contact = new Contact2D(CollisionTarget.ForCollider(other, target.Layer), point, normal, Narrowphase2D.DepthOf(separation));
 
         return true;
     }
@@ -791,7 +782,7 @@ public sealed partial class CollisionWorld2D
             }
 
             slot.Candidates[kept++] = other;
-            float separation = Separation(slot.World, target.World, out Vector2 normal, out Vector2 point);
+            float separation = Narrowphase2D.Separation(slot.World, target.World, out Vector2 normal, out Vector2 point);
             if (separation > CollisionTolerance.ContactSkin)
             {
                 continue;
@@ -800,7 +791,7 @@ public sealed partial class CollisionWorld2D
             found++;
             if (written < contacts.Length)
             {
-                contacts[written++] = new Contact2D(CollisionTarget.ForCollider(other, target.Layer), point, normal, DepthOf(separation));
+                contacts[written++] = new Contact2D(CollisionTarget.ForCollider(other, target.Layer), point, normal, Narrowphase2D.DepthOf(separation));
             }
         }
 
@@ -809,8 +800,8 @@ public sealed partial class CollisionWorld2D
         return found;
     }
 
-    // Orders two targets the way an overlap query writes them. A cell of a grid that has left the
-    // world sorts ahead of every other target.
+    // Orders two targets the way an overlap query writes them, which is the order a ray or sweep breaks
+    // a tie in. A target that has left the world keeps its place by slot and generation.
     internal int OverlapOrder(in CollisionTarget left, in CollisionTarget right)
     {
         if (left.IsGridCell != right.IsGridCell)
@@ -818,31 +809,17 @@ public sealed partial class CollisionWorld2D
             return left.IsGridCell ? -1 : 1;
         }
 
-        if (!left.IsGridCell)
+        if (left.Collider.Index != right.Collider.Index)
         {
             return left.Collider.Index.CompareTo(right.Collider.Index);
         }
 
-        if (left.Collider != right.Collider)
+        if (left.Collider.Generation != right.Collider.Generation)
         {
-            return GridRank(left.Collider).CompareTo(GridRank(right.Collider));
+            return left.Collider.Generation.CompareTo(right.Collider.Generation);
         }
 
         return left.CellY != right.CellY ? left.CellY.CompareTo(right.CellY) : left.CellX.CompareTo(right.CellX);
-    }
-
-    // A grid's place in the order grids were added, or -1 once it has left the world.
-    private int GridRank(ColliderHandle grid)
-    {
-        for (int rank = 0; rank < _grids.Count; rank++)
-        {
-            if (_grids[rank].Handle == grid)
-            {
-                return rank;
-            }
-        }
-
-        return -1;
     }
 
     private void NoteMoved(int index)
@@ -856,7 +833,7 @@ public sealed partial class CollisionWorld2D
     }
 
     // Pairs each moved proxy with every collider near it, making each side a candidate of the other
-    // where the other's contact filter admits it. Tight bounds stay inside fat ones, so two shapes
+    // where the other's contact filter admits it. Tight bounds stay inside fat ones, and two shapes
     // within the skin have fat boxes within the skin too. The query reaches twice that and finds a
     // pair ContactsOf keeps whichever side moved, rounding included. It visits only the layers the
     // moved collider detects, and the layers of colliders that may detect it.
@@ -936,13 +913,12 @@ public sealed partial class CollisionWorld2D
     /// as far along <paramref name="translation"/> world units as it can go.
     /// </summary>
     /// <remarks>
-    /// The move sweeps to the first surface, stops a slop short of it, and slides what is left along
-    /// that surface, in at most four sweeps. It tunnels through nothing at any speed. It skips
-    /// <paramref name="ignore"/>. <paramref name="contacts"/> receives the surfaces reached, pass by
-    /// pass. A pass reaches the nearest surface and every other within a ten-thousandth of the
-    /// translation of it. Within each pass, grid cells come in traversal order and then colliders by
-    /// handle. The span may be empty. Nothing in the world moves. The caller adds
-    /// <see cref="MoveResult2D.Translation"/> to its own position.
+    /// The move stops a slop short of the first surface and slides the rest along it, in at most four
+    /// sweeps, and tunnels through nothing at any speed. It passes through <paramref name="ignore"/>.
+    /// Nothing in the world moves, and the caller adds <see cref="MoveResult2D.Translation"/> to its own
+    /// position. <paramref name="contacts"/> may be empty. Pass by pass, it receives the nearest surface
+    /// and every other within a ten-thousandth of the translation of it, grid cells first and then
+    /// colliders in slot order.
     /// </remarks>
     /// <returns>How far the shape actually moved, whether anything stopped it, and how many surfaces it reached.</returns>
     /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/>, or <paramref name="ignore"/> names no live collider of this world, or the filter belongs to another one.</exception>
@@ -954,15 +930,7 @@ public sealed partial class CollisionWorld2D
         Span<Contact2D> contacts,
         ColliderHandle ignore = default)
     {
-        RequireShape(shape, nameof(shape));
-        Guard.Finite(origin, nameof(origin));
-        Guard.Finite(translation, nameof(translation));
-
-        // The move runs from the origin to this point, so every position between is finite once both
-        // ends are.
-        Guard.Finite(origin + translation, nameof(translation));
-        RequireOwn(filter, nameof(filter));
-        RequireIgnorable(ignore);
+        RequireMoveQuery(shape, origin, translation, filter, ignore);
 
         return Slide(shape, origin, translation, filter, contacts, ignore);
     }
@@ -999,6 +967,60 @@ public sealed partial class CollisionWorld2D
         return direction / length;
     }
 
+    // The checks each query shares between its filter and mask overloads. A mask overload passes
+    // CollisionFilter.None, which every world accepts, and resolves its mask only once these pass.
+    private Vector2 RequireRayQuery(Vector2 origin, Vector2 direction, float distance, CollisionFilter filter, ColliderHandle ignore)
+    {
+        Vector2 unit = RequireRay(origin, direction, distance);
+        RequireOwn(filter, nameof(filter));
+        RequireIgnorable(ignore);
+
+        return unit;
+    }
+
+    private void RequireCastQuery(in Shape2D shape, Vector2 origin, Vector2 translation, CollisionFilter filter, ColliderHandle ignore)
+    {
+        Shape2D.RequireBuilt(shape, nameof(shape));
+        Guard.Finite(origin, nameof(origin));
+        Guard.Finite(translation, nameof(translation));
+        RequireOwn(filter, nameof(filter));
+        RequireIgnorable(ignore);
+    }
+
+    private void RequireOverlapQuery(in Shape2D shape, Vector2 origin, CollisionFilter filter, ColliderHandle ignore)
+    {
+        Shape2D.RequireBuilt(shape, nameof(shape));
+        Guard.Finite(origin, nameof(origin));
+        RequireOwn(filter, nameof(filter));
+        RequireIgnorable(ignore);
+    }
+
+    private void RequirePointQuery(Vector2 point, CollisionFilter filter, ColliderHandle ignore)
+    {
+        Guard.Finite(point, nameof(point));
+        RequireOwn(filter, nameof(filter));
+        RequireIgnorable(ignore);
+    }
+
+    private int RequireColliderQuery(ColliderHandle handle, CollisionFilter filter)
+    {
+        RequireOwn(filter, nameof(filter));
+
+        return RequireShapeSlot(handle);
+    }
+
+    // The move runs from the origin to origin + translation. Every position between is finite once
+    // both ends are.
+    private void RequireMoveQuery(in Shape2D shape, Vector2 origin, Vector2 translation, CollisionFilter filter, ColliderHandle ignore)
+    {
+        Shape2D.RequireBuilt(shape, nameof(shape));
+        Guard.Finite(origin, nameof(origin));
+        Guard.Finite(translation, nameof(translation));
+        Guard.Finite(origin + translation, nameof(translation));
+        RequireOwn(filter, nameof(filter));
+        RequireIgnorable(ignore);
+    }
+
     // A grid cell's shape is a plain convex polygon inside its cell.
     private static void RequireCellShape(in Shape2D shape, int cellSize, int index)
     {
@@ -1014,16 +1036,6 @@ public sealed partial class CollisionWorld2D
             throw new ArgumentException(
                 $"profiles[{index}] has a shape reaching outside its {cellSize}-unit cell. Keep every point within [0, {cellSize}].",
                 "profiles");
-        }
-    }
-
-    private static void RequireShape(in Shape2D shape, string parameterName)
-    {
-        if (shape.PointCount == 0)
-        {
-            throw new ArgumentException(
-                "Shape is a default Shape2D. Build one with Shape2D.Box, Circle, Capsule or Polygon.",
-                parameterName);
         }
     }
 
@@ -1055,7 +1067,7 @@ public sealed partial class CollisionWorld2D
         }
     }
 
-    // None and Everything index no table, so they pass everywhere.
+    // None and Everything index no table and pass everywhere.
     private void RequireOwn(CollisionFilter filter, string parameterName)
     {
         if (filter.World != 0 && filter.World != _id)

@@ -27,7 +27,7 @@ internal static class StrictJson
         }
         catch (JsonException ex)
         {
-            throw new FormatException($"is not valid JSON at line {ex.LineNumber + 1}, byte {ex.BytePositionInLine + 1}.", ex);
+            throw new FormatException($"is not valid JSON at line {ex.LineNumber + 1}, byte {ex.BytePositionInLine + 1}. Correct the JSON there.", ex);
         }
 
         using (document)
@@ -37,7 +37,7 @@ internal static class StrictJson
                 throw new FormatException($"has a null at {at}. {nullFix} {shape}");
             }
 
-            // Read from the bytes, not the document, so a refusal carries the line and byte it is at.
+            // Read from the bytes, not the document. A refusal carries the line and byte it is at.
             try
             {
                 return JsonSerializer.Deserialize(json, type) ?? throw new FormatException($"is not a JSON object. {shape}");

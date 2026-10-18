@@ -20,19 +20,9 @@ public sealed class ShaderGlobalsAllocationTests
         Material material = new(new Shader("effects/stone", new ShaderParameter("Stain", ShaderParameterKind.Vector3), new ShaderParameter("Glow", ShaderParameterKind.Vector4)));
         float read = 0f;
 
-        for (int frame = 0; frame < 100; frame++)
-        {
-            Frame(scene, slots, material, frame, ref read);
-        }
+        long bytes = StepMeasurement.Bytes(frame => Frame(scene, slots, material, frame, ref read), warmup: 100, measured: 1000);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-
-        for (int frame = 0; frame < 1000; frame++)
-        {
-            Frame(scene, slots, material, frame, ref read);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, bytes);
         Assert.True(read > 0f);
     }
 

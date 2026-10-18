@@ -10,8 +10,6 @@ using Capsule.Rendering;
 using Capsule.Runtime.Persistence;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
-using Capsule.Scenes.Spawning;
 
 namespace Capsule.Runtime;
 
@@ -54,26 +52,6 @@ public sealed class EngineBuilder
     private IScenePayload? _commandLinePayload;
     private bool _headless;
 
-    internal EngineBuilder(string gameName, HostPlatform platform, SceneRegistry scenes, InputDriverRegistry drivers, ScenePayloadRegistry payloads)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
-        ArgumentNullException.ThrowIfNull(platform);
-        ArgumentNullException.ThrowIfNull(scenes);
-        ArgumentNullException.ThrowIfNull(drivers);
-        ArgumentNullException.ThrowIfNull(payloads);
-
-        Platform = platform;
-        Scenes = scenes;
-        _drivers = drivers;
-        _payloads = payloads;
-        _gameName = gameName;
-        WindowTitle = gameName;
-        _localFolderName = SafeName.Slug(gameName)
-            ?? throw new ArgumentException(
-                $"Game name '{gameName}' slugs to no safe directory name for its local folder. Include letters or digits, or set the folder with WithLocalFolder.",
-                nameof(gameName));
-    }
-
     // The settled configuration the host reads. Each value is validated by the WithX that wrote it.
     internal HostPlatform Platform { get; }
 
@@ -104,6 +82,29 @@ public sealed class EngineBuilder
 
     // Null unless the run is driven in code instead of from the devices.
     internal IInputDriver? Driver { get; private set; }
+
+    // The clock a headless run paces its frames and times its steps by. A test replaces it.
+    internal Func<long> Timestamp { get; set; } = Stopwatch.GetTimestamp;
+
+    internal EngineBuilder(string gameName, HostPlatform platform, SceneRegistry scenes, InputDriverRegistry drivers, ScenePayloadRegistry payloads)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
+        ArgumentNullException.ThrowIfNull(platform);
+        ArgumentNullException.ThrowIfNull(scenes);
+        ArgumentNullException.ThrowIfNull(drivers);
+        ArgumentNullException.ThrowIfNull(payloads);
+
+        Platform = platform;
+        Scenes = scenes;
+        _drivers = drivers;
+        _payloads = payloads;
+        _gameName = gameName;
+        WindowTitle = gameName;
+        _localFolderName = SafeName.Slug(gameName)
+            ?? throw new ArgumentException(
+                $"Game name '{gameName}' slugs to no safe directory name for its local folder. Include letters or digits, or set the folder with WithLocalFolder.",
+                nameof(gameName));
+    }
 
     /// <summary>
     /// The scene class name or scene document key <c>--scene</c> resolved to, or null.
@@ -139,7 +140,6 @@ public sealed class EngineBuilder
     /// game boots fullscreen, and returns to it whenever fullscreen is left.
     /// </summary>
     /// <remarks>Defaults to 1280x720, resizable.</remarks>
-    /// <exception cref="ArgumentOutOfRangeException">Either dimension is not positive.</exception>
     public EngineBuilder WithWindow(int width, int height, bool resizable = true)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
@@ -165,7 +165,6 @@ public sealed class EngineBuilder
     /// It is also the canvas unless <see cref="WithCanvas"/> declares one. Pixel art then draws its
     /// interface in the same pixels as its world.
     /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">Either dimension is not positive.</exception>
     public EngineBuilder WithRenderResolution(int width, int height)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
@@ -183,7 +182,6 @@ public sealed class EngineBuilder
     /// Defaults to the render resolution, then to the window size. The game may change it during
     /// the run through <see cref="Run.Canvas"/>. A larger canvas gives a smaller interface.
     /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">Either dimension is not positive.</exception>
     public EngineBuilder WithCanvas(int width, int height)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
@@ -193,7 +191,6 @@ public sealed class EngineBuilder
     }
 
     /// <summary>The simulation's fixed step rate in steps per second of simulated time. Defaults to 60.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The rate is not positive.</exception>
     public EngineBuilder WithFixedStep(int hertz)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hertz);
@@ -210,7 +207,6 @@ public sealed class EngineBuilder
     /// that cost more than their length then run one a frame, and the game slows down at the frame rate
     /// they allow. A bound of 1 slows down at any stall.
     /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">The bound is not positive.</exception>
     public EngineBuilder WithMaxStepsPerFrame(int steps)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(steps);
@@ -223,7 +219,6 @@ public sealed class EngineBuilder
     /// slugged from the game's name. A game renamed after release sets its old name here to keep its
     /// players' saves.
     /// </summary>
-    /// <exception cref="ArgumentException">It is not a single safe directory name.</exception>
     public EngineBuilder WithLocalFolder(string folderName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
@@ -308,7 +303,6 @@ public sealed class EngineBuilder
     /// How every scene filters world-space textures unless it sets its own. Defaults to
     /// <see cref="TextureSampling.Linear"/>.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">The mode is not a declared one.</exception>
     public EngineBuilder WithSampling(TextureSampling sampling)
     {
         if (sampling is not TextureSampling.Linear and not TextureSampling.Point)
@@ -339,17 +333,10 @@ public sealed class EngineBuilder
     /// Writes host timing to a CSV at <paramref name="path"/>. Off by default.
     /// </summary>
     /// <remarks>
-    /// The file holds a boot trace of the milliseconds from process start to each boot stage. One row
-    /// per frame follows, with its interval, its update and draw milliseconds, the fixed steps it ran
-    /// and the process's cumulative gen-0 collection count. The file's directory is created and an
-    /// existing file is overwritten.
-    /// <para>
-    /// A headless run writes the same file, with its frames paced to the fixed step's rate as a window
-    /// presenting at that rate runs them. Each frame advances by the wall time since the last began,
-    /// so a stall makes the next frame catch up as <see cref="WithMaxStepsPerFrame"/> describes.
-    /// The draw column then times the frame's build, and the trace leaves out the device and media
+    /// The file holds a boot trace in milliseconds from process start, then one row per frame. Its
+    /// directory is created and an existing file is overwritten. A headless run paces its frames to the
+    /// fixed step's rate. Its draw column times the frame's build, and its trace has no device or media
     /// stages.
-    /// </para>
     /// </remarks>
     /// <param name="path">The CSV to write.</param>
     /// <param name="exitAfterSeconds">
@@ -391,27 +378,16 @@ public sealed class EngineBuilder
 
     /// <summary>Applies Capsule's standard command line, the flags <c>--help</c> prints.</summary>
     /// <remarks>
-    /// Nothing is read ambiently. A shell that never passes its <c>args</c> has no command line. A
-    /// shipping build (<see cref="Development.IsSupported"/> false) keeps <c>--saves</c> and
-    /// <c>--help</c> and refuses the development flags as unknown options.
-    /// <para>
-    /// <c>--driver</c> on its own opens the window and plays that driver in it, and a later
-    /// <see cref="WithInputDriver"/> replaces it. <c>--headless</c> alongside it opens no window.
-    /// <c>--scene</c> replaces the scene the <c>RunScene</c> call names and keeps that call's boot
-    /// payload. It takes a registered scene class name, else a scene document key such as
-    /// <c>halls/hall</c>. A scene a document backs is opened through that document.
-    /// <c>--payload</c> replaces that call's payload with a new instance of the
-    /// <see cref="IScenePayload"/> class it names, with or without <c>--scene</c>. Only
-    /// <c>RunScene</c> applies <c>--scene</c> and <c>--payload</c>, windowed or under
-    /// <c>--headless</c>. <c>RunHeadless</c> boots the scene and payload it is given. <c>--seed</c>
-    /// configures the seed as <see cref="WithRandomSeed"/> does, and a later call replaces it.
-    /// </para>
+    /// A shipping build (<see cref="Development.IsSupported"/> false) accepts only <c>--saves</c> and
+    /// <c>--help</c>. A later <see cref="WithInputDriver"/> or <see cref="WithRandomSeed"/> call
+    /// replaces what <c>--driver</c> or <c>--seed</c> set. Only <c>RunScene</c> applies <c>--scene</c>
+    /// and <c>--payload</c>, and each replaces only its own half of that call's opening scene.
     /// </remarks>
     /// <param name="args">
     /// The process arguments, holding standard flags only. Capsule refuses a flag it does not
     /// declare, and a game strips its own flags first.
     /// </param>
-    /// <exception cref="CommandLineException">The command line is malformed, names a driver, scene or payload nothing registered, asks for a headless run with no driver, or asked for <c>--help</c>.</exception>
+    /// <exception cref="CommandLineException">The command line is malformed, names a driver, scene or payload nothing registered, or asked for <c>--help</c>.</exception>
     public EngineBuilder WithCommandLine(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -466,10 +442,6 @@ public sealed class EngineBuilder
         Uncapped = parsed.Uncapped;
 
         _headless = parsed.Headless;
-        if (_headless && Driver is null)
-        {
-            throw CommandLine.Refuse(_gameName, "--headless has nobody to play the game. Name an input driver with --driver.");
-        }
 
         return this;
     }
@@ -479,13 +451,12 @@ public sealed class EngineBuilder
     /// device or textures, until the driver reports it is finished or the game requests exit.
     /// </summary>
     /// <remarks>
-    /// Every setting except the window's applies, and scene transitions are honoured.
-    /// <paramref name="driver"/> replaces any driver <see cref="WithInputDriver"/> set. A headless run
-    /// writes no crash log, and an escaping exception propagates to the caller. It persists nothing
-    /// unless <see cref="WithSaveDirectory"/> or <see cref="WithSaveStorage"/> named a medium. It
-    /// boots <typeparamref name="TScene"/> with <paramref name="payload"/> and ignores
-    /// <c>--scene</c> and <c>--payload</c>. It steps as fast as the driver allows, or in real-time
-    /// frames under <see cref="WithFrameDiagnostics"/>.
+    /// Every setting except the window's applies. <paramref name="driver"/> replaces any driver
+    /// <see cref="WithInputDriver"/> set, and <c>--scene</c> and <c>--payload</c> are ignored. A
+    /// headless run writes no crash log and lets an escaping exception reach the caller. It persists
+    /// nothing unless <see cref="WithSaveDirectory"/> or <see cref="WithSaveStorage"/> named a medium.
+    /// It steps as fast as the driver allows, or in real-time frames under
+    /// <see cref="WithFrameDiagnostics"/>.
     /// </remarks>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
     /// <param name="driver">The run's input, one snapshot per fixed step.</param>
@@ -508,7 +479,6 @@ public sealed class EngineBuilder
     /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
     /// <param name="driver">The run's input, one snapshot per fixed step.</param>
     /// <param name="payload">The opening scene's payload, as <see cref="RunScene(SceneKey, IScenePayload?)"/> takes it.</param>
-    /// <exception cref="ArgumentException">The key is not '/'-joined safe segments.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's type key is claimed by no entity.</exception>
     public HeadlessRunResult RunHeadless(SceneKey scene, IInputDriver driver, IScenePayload? payload = null) =>
@@ -527,6 +497,7 @@ public sealed class EngineBuilder
     /// <exception cref="InvalidOperationException">The registry holds no such class.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's type key is claimed by no entity.</exception>
+    /// <exception cref="CommandLineException"><c>--headless</c> was applied and no driver was set.</exception>
     public int RunScene<TScene>(IScenePayload? payload = null)
         where TScene : Scene
         => RunWindowed(SceneTransition.ToScene(typeof(TScene), payload));
@@ -538,9 +509,9 @@ public sealed class EngineBuilder
     /// </summary>
     /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
     /// <param name="payload">The opening scene's payload, as <see cref="RunScene{TScene}(IScenePayload?)"/> takes it.</param>
-    /// <exception cref="ArgumentException">The key is not '/'-joined safe segments.</exception>
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's type key is claimed by no entity.</exception>
+    /// <exception cref="CommandLineException"><c>--headless</c> was applied and no driver was set.</exception>
     public int RunScene(SceneKey scene, IScenePayload? payload = null) =>
         RunWindowed(SceneTransition.ToName(scene.Required(nameof(scene)), payload));
 
@@ -552,7 +523,13 @@ public sealed class EngineBuilder
 
         if (_headless)
         {
-            RunHeadless(in opening, Driver!);
+            // Checked here, not by WithCommandLine. A WithInputDriver call after it supplies the driver.
+            if (Driver is not { } driver)
+            {
+                throw CommandLine.Refuse(_gameName, "--headless has nobody to play the game. Name an input driver with --driver or WithInputDriver.");
+            }
+
+            RunHeadless(in opening, driver);
 
             return 0;
         }
@@ -594,28 +571,16 @@ public sealed class EngineBuilder
     private void RunHost(SceneHost scenes)
     {
         // Declared first so the host is disposed before it, with its last frame already written.
-        using FrameDiagnostics? diagnostics = _frameDiagnosticsPath is null
-            ? null
-            : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds);
+        using FrameDiagnostics? diagnostics = OpenFrameDiagnostics();
 
         using CapsuleGame game = new(this, scenes, diagnostics);
+        using TickStamp stamp = StampTicks(() => game.SimulationTick);
 
-        // The host owns the clock only while it runs. A line written after the run, or by the next
-        // run's scene construction, has no clock.
-        _consoleSink?.Tick = () => game.SimulationTick;
-
-        try
-        {
-            game.Run();
-        }
-        finally
-        {
-            _consoleSink?.Tick = null;
-        }
+        game.Run();
     }
 
-    // No window, device or media loading. The scene host is the same a windowed run drives, so
-    // transitions, the seed and the run settings behave identically.
+    // No window, device or media loading. The scene host is the same a windowed run drives.
+    // Transitions, the seed and the run settings behave identically.
     private HeadlessRunResult RunHeadless(in SceneTransition initialTarget, IInputDriver driver)
     {
         ArgumentNullException.ThrowIfNull(driver);
@@ -623,46 +588,37 @@ public sealed class EngineBuilder
         InstallLogging();
 
         // Declared first so the host is disposed before it, with its last frame already written.
-        using FrameDiagnostics? diagnostics = _frameDiagnosticsPath is null
-            ? null
-            : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds);
+        using FrameDiagnostics? diagnostics = OpenFrameDiagnostics();
 
         // No medium unless one was named, which keeps a developer's local folder out of the run.
         using SceneHost host = CreateHost(initialTarget, NamedSaveStorage(), RunSeed(played: false));
         diagnostics?.Mark(FrameDiagnostics.Stage.HostConstructed);
-        FixedStepScheduler scheduler = new(StepSeconds, MaxStepsPerFrame, Input.Bindings, driver, host);
-        _consoleSink?.Tick = () => scheduler.Tick;
+        FixedStepScheduler scheduler = new(StepSeconds, MaxStepsPerFrame, Input.Bindings, driver, host, Timestamp);
+        using TickStamp stamp = StampTicks(() => scheduler.Tick);
 
-        try
+        if (diagnostics is null)
         {
-            if (diagnostics is null)
+            // One step's worth of time per call. The accumulator drains a single step and
+            // neither the step bound nor the step budget can bind.
+            while (!scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, host))
             {
-                // One step's worth of time per call, so the accumulator drains a single step and
-                // neither the step bound nor the step budget can bind.
-                while (!scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, host))
-                {
-                    // Nothing is drawn here. A capture request is taken and dropped instead of waiting
-                    // for a frame that never comes.
-                    host.TryTakeFrameCapture(out _);
-                    host.FlushSaves();
-                }
+                // Nothing is drawn here. A capture request is taken and dropped instead of waiting
+                // for a frame that never comes.
+                host.TryTakeFrameCapture(out _);
+                host.FlushSaves();
             }
-            else
-            {
-                PaceFrames(scheduler, host, diagnostics);
-            }
-
-            // The advance that ends the run may have run a step whose request and writes the loop
-            // body never sees.
-            host.TryTakeFrameCapture(out _);
-            host.FlushSaves();
-
-            return new HeadlessRunResult(scheduler.Tick, host.ExitRequested, host.View.Metrics);
         }
-        finally
+        else
         {
-            _consoleSink?.Tick = null;
+            PaceFrames(scheduler, host, diagnostics);
         }
+
+        // The advance that ends the run may have run a step whose request and writes the loop
+        // body never sees.
+        host.TryTakeFrameCapture(out _);
+        host.FlushSaves();
+
+        return new HeadlessRunResult(scheduler.Tick, host.ExitRequested, host.View.Metrics);
     }
 
     // Frames as a window presenting once per fixed step runs them. Each frame advances by the wall
@@ -671,13 +627,13 @@ public sealed class EngineBuilder
     private void PaceFrames(FixedStepScheduler scheduler, SceneHost host, FrameDiagnostics diagnostics)
     {
         long period = (long)(StepSeconds * Stopwatch.Frequency);
-        long previous = Stopwatch.GetTimestamp();
+        long previous = Timestamp();
         while (true)
         {
-            long start = Stopwatch.GetTimestamp();
+            long start = Timestamp();
             diagnostics.BeginUpdate();
             scheduler.TimeScale = host.Run.TimeScale;
-            bool exiting = scheduler.Advance(Stopwatch.GetElapsedTime(previous, start).TotalSeconds, DeviceSnapshot.Empty, host);
+            bool exiting = scheduler.Advance((start - previous) / (double)Stopwatch.Frequency, DeviceSnapshot.Empty, host);
             previous = start;
             diagnostics.EndUpdate(scheduler.StepsThisFrame);
 
@@ -692,7 +648,7 @@ public sealed class EngineBuilder
             host.FlushSaves();
 
             // The present's wait for the next refresh. A frame that overran it starts at once.
-            while (Stopwatch.GetTimestamp() - start < period)
+            while (Timestamp() - start < period)
             {
                 Thread.Yield();
             }
@@ -731,6 +687,20 @@ public sealed class EngineBuilder
     private ISaveStorage? NamedSaveStorage() =>
         _saveStorage ?? (_saveDirectory is { } directory ? new DirectorySaveStorage(directory) : null);
 
+    private FrameDiagnostics? OpenFrameDiagnostics() =>
+        _frameDiagnosticsPath is null
+            ? null
+            : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds, Timestamp);
+
+    // Prefixes console lines with tick until the stamp is disposed. The host owns the clock only while
+    // it runs. A line written after the run, or by the next run's scene construction, has no clock.
+    private TickStamp StampTicks(Func<long> tick)
+    {
+        _consoleSink?.Tick = tick;
+
+        return new TickStamp(_consoleSink);
+    }
+
     private void InstallLogging()
     {
         if (_loggingSilenced)
@@ -740,5 +710,10 @@ public sealed class EngineBuilder
         }
 
         Log.UseSink(_logSink ?? (_consoleSink ??= new ConsoleLogSink()));
+    }
+
+    private readonly struct TickStamp(ConsoleLogSink? sink) : IDisposable
+    {
+        public void Dispose() => sink?.Tick = null;
     }
 }

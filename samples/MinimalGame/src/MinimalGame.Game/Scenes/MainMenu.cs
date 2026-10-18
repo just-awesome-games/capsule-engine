@@ -1,5 +1,3 @@
-using Capsule;
-using Capsule.Scenes;
 using MinimalGame.Game.UI;
 
 namespace MinimalGame.Game.Scenes;
@@ -10,13 +8,13 @@ namespace MinimalGame.Game.Scenes;
 /// </summary>
 public sealed class MainMenu : Scene
 {
-    // Added in the constructor rather than in OnStart, which puts the menu's font in the scene's preload.
+    // A menu added in the constructor puts its font in the scene's preload, which OnStart is too late for.
     public MainMenu() => Add(new TitleMenu());
 
     /// <inheritdoc/>
     protected override void OnStart()
     {
-        // A track already playing is left alone, so a trip through Options does not restart it.
+        // A track already playing is left alone. A trip through Options does not restart it.
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.TitleSound);
 
         // A room's crosshair does not follow the player out.

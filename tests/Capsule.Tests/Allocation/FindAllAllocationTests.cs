@@ -32,7 +32,7 @@ public sealed class FindAllAllocationTests
 
         int count = 0;
         long before = GC.GetAllocatedBytesForCurrentThread();
-        foreach (IMarked marked in scene.FindAll<IMarked>())
+        foreach (IMarked _ in scene.FindAll<IMarked>())
         {
             count++;
         }

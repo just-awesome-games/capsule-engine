@@ -89,7 +89,7 @@ internal static class PropertyReadRenderer
         _ => $"{from}.Read<{property.Type}, {property.Converter}>({key})",
     };
 
-    // A switch the compiler checks, so a renamed member or definition fails the build and not the load.
+    // A switch the compiler checks. A renamed member or definition fails the build and not the load.
     private static string NameSwitch(PropertyModel property, string from, string key, string indent)
     {
         StringBuilder read = new StringBuilder(from).Append(".Name(").Append(key).Append(") switch\n").Append(indent).Append("{\n");
@@ -103,7 +103,7 @@ internal static class PropertyReadRenderer
             .Append(indent).Append('}').ToString();
     }
 
-    // The flags each name stands for, ORed at load. A switch the compiler checks, so a renamed member fails
+    // The flags each name stands for, ORed at load. A switch the compiler checks. A renamed member fails
     // the build. The casts are unchecked, since a flag of a signed enum may be negative.
     private static string FlagSwitch(PropertyModel property, string from, string key, string indent)
     {

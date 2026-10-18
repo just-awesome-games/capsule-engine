@@ -1,45 +1,28 @@
-using System.Numerics;
-using Capsule;
-using Capsule.Animation;
-using Capsule.Assets;
-using Capsule.Audio;
-using Capsule.Diagnostics;
-using Capsule.Input;
-using Capsule.Particles;
-using Capsule.Physics;
-using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Scenes.Spawning;
 using MinimalGame.Game.Tiles;
 
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// The walking, falling, jumping body the <c>player</c> document entries spawn.
-/// <see cref="Entity.Position"/> is the top-left corner of the 8x8 body. The body collider is what
-/// the <see cref="KinematicBody2D"/> sweeps and blocks on; the inset hurtbox blocks nothing and
-/// reports <c>hazard</c> contacts alone. A trigger area detects the body and reacts itself, such as the
-/// <see cref="Gust"/> that sets its <see cref="Wind"/> and the <see cref="Waterfall"/> that sets its
-/// <see cref="GravityOverride"/>. The body rides and is shoved by anything on the <c>platform</c> layer,
-/// keeps a moving floor's sideways speed after leaving it until it lands, and being crushed kills.
-/// Everything visual hangs on the nested <see cref="Visual"/> child, which reads the facts this root
-/// publishes; a shot leaves from the muzzle socket of the frame that child draws, so the root fires
-/// in its late step, once the frame has settled. On keyboard and mouse a shot aims at the pointer,
-/// and on a pad it flies along the facing. Its levers live in <see cref="PlayerTuning"/>, the
-/// bolt's in <see cref="BoltTuning"/>.
+/// The 8x8 body the <c>player</c> document entries spawn, which walks, jumps and shoots, with its
+/// top-left corner at <see cref="Entity.Position"/>. Everything visual hangs on the
+/// <see cref="PlayerVisual"/> child, which steps after this root and reads the facts it publishes.
 /// </summary>
 public sealed class Player : Entity
 {
     /// <summary>The body's edge in world units, and the frame's in texels: one texel per unit.</summary>
     private const int BodyPixels = 8;
 
+    // A countdown is stepped at the top of each step, before this step can start one. The extra tick
+    // keeps the step that starts a grace from spending any of it.
+    private const int StartingStep = 1;
+
     private static readonly Vector2 Body = new(BodyPixels, BodyPixels);
 
-    // Authored bottom-centre in every frame, so a flip keeps the frame over the body and a squash
-    // keeps its feet on the floor.
+    // Authored bottom-centre in every frame. A flip keeps the frame over the body, and a squash keeps
+    // its feet on the floor.
     private static readonly Vector2 FramePivot = CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Idle0.Pivot;
 
-    private readonly Visual _visual;
+    private readonly PlayerVisual _visual;
     private readonly KinematicBody2D _body;
     private readonly BoxCollider2D _hurtbox;
     private readonly AudioSource _footfall;
@@ -61,13 +44,13 @@ public sealed class Player : Entity
     /// <summary>What is left of <see cref="PlayerTuning.MaxHealth"/>: one spent per hazard contact, never below zero.</summary>
     public int Health { get; private set; }
 
-    /// <summary>Whether the last step took off from the floor; cleared as each step begins.</summary>
+    /// <summary>Whether the last step took off from the floor, cleared as each step begins.</summary>
     public bool JumpedThisStep { get; private set; }
 
-    /// <summary>Whether the last step landed on a floor; cleared as each step begins.</summary>
+    /// <summary>Whether the last step landed on a floor, cleared as each step begins.</summary>
     public bool LandedThisStep { get; private set; }
 
-    /// <summary>Whether the last step fired a bolt; cleared as each step begins.</summary>
+    /// <summary>Whether the last step fired a bolt, cleared as each step begins.</summary>
     public bool ShotThisStep { get; private set; }
 
     /// <summary>Whether input moves, jumps and shoots, defaulting to true. A cutscene clears it while it plays.</summary>
@@ -84,7 +67,7 @@ public sealed class Player : Entity
     {
         Health = _tuning.MaxHealth;
 
-        _visual = new Visual(this, FramePivot, _tuning);
+        _visual = new PlayerVisual(this, FramePivot, _tuning);
 
         BoxCollider2D bodyCollider = new(Body) { Layer = CollisionLayers.Player };
         Add(bodyCollider);
@@ -118,7 +101,7 @@ public sealed class Player : Entity
         Add(_footfall);
 
         // A burst on landing, from the body's bottom centre: the pattern for a one-shot effect tied
-        // to an entity's own lifetime. On the root, it draws under the Visual child at the same key.
+        // to an entity's own lifetime. On the root, it draws under the PlayerVisual child at the same key.
         _dust = new ParticleEmitter(Sprite.White, capacity: 32)
         {
             Offset = new Vector2(BodyPixels / 2f, BodyPixels),
@@ -161,19 +144,19 @@ public sealed class Player : Entity
         _coyote.Step();
         _jumpBuffer.Step();
 
-        // The edges are this step's facts: the visual, stepping after this root, reads them once.
+        // The edges are this step's facts. The visual steps after this root and reads them once.
         JumpedThisStep = false;
         LandedThisStep = false;
         ShotThisStep = HasControl && context.Input.WasPressed(GameInput.Shoot);
 
-        // The body applies no forces: velocity is the game's, every step.
+        // The body applies no forces. Velocity is the game's, every step.
         float move = HasControl ? context.Input.Axis(GameInput.Move) : 0f;
-        float target = move * WalkSpeed(move);
+        float target = move * SlopedWalkSpeed(move);
         _velocity.X = IceUnderfoot() is { } ice ? MoveTowards(_velocity.X, target, ice.Friction * delta) : target;
 
         _velocity.Y += (GravityOverride ?? _tuning.Gravity) * delta;
 
-        // IsOnFloor is state as of the last Move, so this reads the previous step's landing. The floor's
+        // IsOnFloor is state as of the last Move, which is the previous step's landing. The floor's
         // speed is read before the move that may leave it.
         bool wasOnFloor = _body.IsOnFloor;
         Vector2 platform = _body.PlatformVelocity;
@@ -191,10 +174,10 @@ public sealed class Player : Entity
         else
         {
             // A press is kept a few steps for the landing after it, and a ledge walked off keeps a few steps
-            // of floor. The step that starts either spends none of it.
+            // of floor.
             if (pressed)
             {
-                _jumpBuffer.Start(_tuning.JumpBufferTicks + 1);
+                _jumpBuffer.Start(_tuning.JumpBufferTicks + StartingStep);
             }
 
             if (HasControl && _jumpBuffer.IsRunning && (wasOnFloor || _coyote.IsRunning))
@@ -231,7 +214,7 @@ public sealed class Player : Entity
             _velocity.Y += MathF.Min(platform.Y, 0f);
             if (!JumpedThisStep && !dropped)
             {
-                _coyote.Start(_tuning.CoyoteTicks + 1);
+                _coyote.Start(_tuning.CoyoteTicks + StartingStep);
             }
         }
 
@@ -245,7 +228,7 @@ public sealed class Player : Entity
     // The body keeps the horizontal speed it is given on a slope. The game decides how a climb feels.
     // A floor facing the way the player walks is a descent and speeds the walk. One facing back slows
     // it.
-    private float WalkSpeed(float move)
+    private float SlopedWalkSpeed(float move)
     {
         if (!_body.IsOnFloor || move == 0f)
         {
@@ -272,10 +255,10 @@ public sealed class Player : Entity
     }
 
     // Steps current toward target by at most maxStep, landing on it exactly.
-    private static float MoveTowards(float current, float target, float maxStep) =>
+    internal static float MoveTowards(float current, float target, float maxStep) =>
         MathF.Abs(target - current) <= maxStep ? target : current + (MathF.Sign(target - current) * maxStep);
 
-    // A brick struck from below breaks: terrain that changes at run time.
+    // A brick struck from below breaks.
     private void BreakBricksOverhead()
     {
         foreach (ColliderContact2D contact in _body.MoveContacts)
@@ -288,8 +271,9 @@ public sealed class Player : Entity
         }
     }
 
-    // The muzzle is a point on the frame drawn, and the frame is the visual's, stepped after this
-    // root: the bolt leaves in the late step, from the socket of the frame this step settled on.
+    // The muzzle is a point on the frame the visual draws, and the visual steps after this root. The
+    // bolt leaves in the late step, from the socket of the frame this step settled on. On keyboard and
+    // mouse it aims at the pointer, and on a pad it flies along the facing.
     /// <inheritdoc/>
     protected override void OnLateStep(in StepContext context)
     {
@@ -304,7 +288,7 @@ public sealed class Player : Entity
     }
 
     // The pointer is in canvas pixels, and the camera maps it onto the world of the frame the player
-    // clicked on. A pointer on the muzzle itself names no direction, so the shot keeps the facing.
+    // clicked on. A pointer on the muzzle itself names no direction, and the shot keeps the facing.
     private Vector2 Aim(InputState input, Vector2 muzzle)
     {
         if (input.ActiveDevice == InputDevice.KeyboardMouse)
@@ -319,8 +303,8 @@ public sealed class Player : Entity
         return new Vector2(_visual.Facing, 0f);
     }
 
-    // The player declares what it takes from the scene's pools, which preloads them: its bolts, its puffs, and
-    // the sparks it shares with its bolts.
+    // The player declares what it takes from the scene's pools, which preloads them: its bolts, its puffs,
+    // and the sparks it shares with its bolts.
     /// <inheritdoc/>
     protected override void CollectAssets(AssetCollection assets)
     {
@@ -359,106 +343,5 @@ public sealed class Player : Entity
     {
         Health = 0;
         Log.Info("crushed");
-    }
-
-    /// <summary>
-    /// Everything the player looks like: the sprite, its animator, facing and squash-and-stretch,
-    /// composed into this child's <see cref="Entity.Scale"/>, and the footsteps the walk cycle
-    /// raises. It reads what the root publishes and reacts; a child steps after its parent, so it
-    /// reads this step's facts. The muzzle socket is placed under this child, so the facing scale
-    /// mirrors it with the frame.
-    /// </summary>
-    private sealed class Visual : Entity
-    {
-        private readonly Player _player;
-        private readonly PlayerTuning _tuning;
-        private readonly SpriteAnimator _animator;
-        private readonly AudioSource _footstep;
-
-        private float _facing = 1f;
-        private Vector2 _squash = Vector2.One;
-
-        /// <summary>The child the sprite places at its <c>muzzle</c> socket.</summary>
-        internal Entity Muzzle { get; }
-
-        internal Visual(Player player, Vector2 pivot, PlayerTuning tuning)
-            : base(player, pivot)
-        {
-            _player = player;
-            _tuning = tuning;
-
-            SpriteRenderer sprite = new(CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Idle0);
-            Add(sprite);
-            Muzzle = sprite.Socket(CapsuleAssets.Sprites.Actors.PlayerSheet.Sockets.Muzzle);
-
-            _animator = new SpriteAnimator(sprite);
-            Add(_animator);
-
-            _footstep = new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx };
-            Add(_footstep);
-        }
-
-        /// <summary>The sign of the X the player faces along; the scale the frame is mirrored by.</summary>
-        internal float Facing => _facing;
-
-        /// <inheritdoc/>
-        protected override void OnStep(in StepContext context)
-        {
-            float step = _tuning.ScaleRecovery * context.DeltaSeconds;
-            Vector2 velocity = _player.Velocity;
-
-            // Recovery runs before this step's impulses, so an impulse is drawn whole.
-            _squash = new Vector2(MoveTowards(_squash.X, 1f, step), MoveTowards(_squash.Y, 1f, step));
-
-            // Facing is kept through a standstill, so the player stops looking where it walked.
-            if (velocity.X != 0f)
-            {
-                _facing = velocity.X < 0f ? -1f : 1f;
-            }
-
-            // Airborne, the clip holds on its frame. The grounded clip is chosen again on landing.
-            _animator.Paused = !_player.IsOnFloor;
-            if (!_animator.Paused)
-            {
-                // Asked every step: the animator ignores the clip already playing, so the cycle runs
-                // instead of restarting on frame 0.
-                bool walking = velocity.X != 0f;
-                _animator.Play(walking ? CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Walk : CapsuleAssets.Sprites.Actors.PlayerSheet.Clips.Idle);
-
-                // The stride keeps pace with the ground covered. A downhill run or an ice slide plays
-                // it faster.
-                _animator.Speed = walking ? MathF.Abs(velocity.X) / _tuning.WalkSpeed : 1f;
-            }
-
-            if (_player.JumpedThisStep)
-            {
-                _squash = _tuning.JumpStretch;
-            }
-            else if (_player.LandedThisStep)
-            {
-                _squash = _tuning.LandSquash;
-            }
-
-            Scale = new Vector2(_facing * _squash.X, _squash.Y);
-        }
-
-        // A hit flashes white and fades, then the grace reads as a red blink. The root owns the rule
-        // and this child owns the look. Read after contacts, so the step a hit lands on draws white
-        // and the hitstop holds it. The late step also follows the animator, so a footstep sounds on
-        // the step its frame is drawn.
-        protected override void OnLateStep(in StepContext context)
-        {
-            if (_animator.Reached(CapsuleAssets.Sprites.Actors.PlayerSheet.Events.Footstep))
-            {
-                _footstep.Play();
-            }
-
-            int grace = _player.InvulnerableTicksLeft;
-            int sinceHit = _tuning.InvulnerableTicks - grace;
-
-            Flash = grace > 0 ? 1f - Math.Min(sinceHit / (float)_tuning.HurtFlashTicks, 1f) : 0f;
-            Tint = grace > 0 ? _tuning.HurtTint : ColorRgba.White;
-            Visible = Flash > 0f || grace / _tuning.BlinkTicks % 2 == 0;
-        }
     }
 }

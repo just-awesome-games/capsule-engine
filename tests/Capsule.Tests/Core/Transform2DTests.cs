@@ -6,20 +6,16 @@ public sealed class Transform2DTests
 {
     private const float Tolerance = 1e-5f;
 
-    // Scale, then turn, then offset, through the deterministic sine. The placed point is exact against
-    // the same arithmetic.
+    // (10, -4) scales to (20, -12), a quarter turn takes that to (12, 20), and the offset lands it.
     [Fact]
     public void TransformPoint_ScalesThenTurnsThenOffsets()
     {
-        Transform2D transform = new(new Vector2(100f, 50f), 0.5f, new Vector2(2f, 3f));
+        Transform2D transform = new(new Vector2(100f, 50f), MathF.PI / 2f, new Vector2(2f, 3f));
 
-        float cos = DeterministicMath.Cos(0.5f);
-        float sin = DeterministicMath.Sin(0.5f);
-        Vector2 scaled = new(20f, -12f);
+        Vector2 placed = transform.TransformPoint(new Vector2(10f, -4f));
 
-        Assert.Equal(
-            new Vector2(100f + (scaled.X * cos) - (scaled.Y * sin), 50f + (scaled.X * sin) + (scaled.Y * cos)),
-            transform.TransformPoint(new Vector2(10f, -4f)));
+        Assert.Equal(112f, placed.X, Tolerance);
+        Assert.Equal(70f, placed.Y, Tolerance);
     }
 
     [Fact]
@@ -70,7 +66,7 @@ public sealed class Transform2DTests
     }
 
     // The composed turn is carried as a sine and cosine derived from the parts' rather than
-    // evaluated from the summed angle; a transform built fresh from the composed values places a
+    // evaluated from the summed angle. A transform built fresh from the composed values places a
     // point the same way.
     private static void AssertPlacesLike(Transform2D expected, Transform2D actual)
     {

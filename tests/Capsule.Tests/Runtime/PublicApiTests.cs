@@ -48,7 +48,7 @@ public sealed class PublicApiTests
     {
         foreach (Type type in assembly.GetExportedTypes())
         {
-            // GetExportedTypes already flattens public nested types; recursing from the
+            // GetExportedTypes already flattens public nested types. Recursing from the
             // top level instead reaches the protected ones it leaves out, without repeats.
             if (type.IsNested)
             {

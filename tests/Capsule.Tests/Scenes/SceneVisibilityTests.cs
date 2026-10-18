@@ -13,7 +13,7 @@ public sealed class SceneVisibilityTests
     {
         SceneSimulation simulation = Run(SceneFixtures.Opens(new Vector2(100f, 50f), Span));
 
-        Assert.Equal(new Rect(95f, 45f, 105f, 55f), simulation.Scene.Camera.VisibleRegion);
+        Assert.Equal(Rect.FromEdges(95f, 45f, 105f, 55f), simulation.Scene.Camera.VisibleRegion);
     }
 
     [Fact]
@@ -22,11 +22,11 @@ public sealed class SceneVisibilityTests
         SceneSimulation simulation = Run(scene =>
         {
             SceneFixtures.Open(scene, new Vector2(100f, 0f), Span);
-            scene.Camera.Bounds = new Rect(0f, -20f, 40f, 20f);
+            scene.Camera.Bounds = Rect.FromEdges(0f, -20f, 40f, 20f);
         });
 
         // Confined on X to the right edge and free on Y. The centre settles where the region is.
-        Assert.Equal(new Rect(30f, -5f, 40f, 5f), simulation.Scene.Camera.VisibleRegion);
+        Assert.Equal(Rect.FromEdges(30f, -5f, 40f, 5f), simulation.Scene.Camera.VisibleRegion);
         Assert.Equal(new Vector2(35f, 0f), simulation.Scene.Camera.Center);
     }
 
@@ -36,10 +36,10 @@ public sealed class SceneVisibilityTests
         SceneSimulation simulation = Run(scene =>
         {
             SceneFixtures.Open(scene, new Vector2(100f, 0f), Span);
-            scene.Camera.Bounds = new Rect(0f, -20f, 4f, 20f);
+            scene.Camera.Bounds = Rect.FromEdges(0f, -20f, 4f, 20f);
         });
 
-        Assert.Equal(new Rect(-3f, -5f, 7f, 5f), simulation.Scene.Camera.VisibleRegion);
+        Assert.Equal(Rect.FromEdges(-3f, -5f, 7f, 5f), simulation.Scene.Camera.VisibleRegion);
     }
 
     // With no output on the step, every fit resolves to the declared span.
@@ -58,7 +58,7 @@ public sealed class SceneVisibilityTests
             },
             output ? new Vector2(1000f, 500f) : default).Scene.Camera.VisibleRegion;
 
-        Assert.Equal(new Rect(-halfWidth, -9f, halfWidth, 9f), region);
+        Assert.Equal(Rect.FromEdges(-halfWidth, -9f, halfWidth, 9f), region);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class SceneVisibilityTests
         Assert.Empty(log);
         Assert.False(marker.Notifier.IsOnScreen);
 
-        // The camera reaches 16, so the region runs 11..21 and meets the marker's 20..21.
+        // The camera reaches 16. The region runs 11..21 and meets the marker's 20..21.
         run.Step();
         Assert.Equal(["entered"], log);
         Assert.True(marker.Notifier.IsOnScreen);
@@ -348,8 +348,8 @@ public sealed class SceneVisibilityTests
     {
         VisibleOnScreenNotifier2D notifier = new();
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Rect = new Rect(1f, 0f, 0f, 1f));
-        Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Rect = new Rect(float.NaN, 0f, 1f, 1f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Rect = Rect.FromEdges(1f, 0f, 0f, 1f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Rect = Rect.FromEdges(float.NaN, 0f, 1f, 1f));
         Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Margin = new Vector2(0f, -1f));
     }
 
@@ -374,6 +374,8 @@ public sealed class SceneVisibilityTests
 
     private class Watched : Entity
     {
+        internal VisibleOnScreenNotifier2D Notifier { get; }
+
         internal Watched(Vector2 position, List<string> log)
             : base(position)
         {
@@ -382,8 +384,6 @@ public sealed class SceneVisibilityTests
             Notifier.ScreenExited += () => log.Add("exited");
             Add(Notifier);
         }
-
-        internal VisibleOnScreenNotifier2D Notifier { get; }
     }
 
     /// <summary>Records what its own notifier reads on each of its steps.</summary>

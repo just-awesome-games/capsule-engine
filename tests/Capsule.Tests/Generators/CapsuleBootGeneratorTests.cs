@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.Reflection;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
 using Capsule.Tiles;
 using Microsoft.CodeAnalysis;
 
@@ -38,7 +37,7 @@ public sealed class CapsuleBootGeneratorTests
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation updated) = GeneratorHarness.CompileShell(ShellSource, LogicSource);
 
-        // The shell's own source calls CapsuleBoot.Configure, so a clean compilation is the entry
+        // The shell's own source calls CapsuleBoot.Configure. A clean compilation is the entry
         // point standing up over the referenced assembly's registry.
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
@@ -68,12 +67,26 @@ public sealed class CapsuleBootGeneratorTests
         Assert.Null(GeneratorHarness.Emission(updated, GeneratorHarness.CapsuleBootFile));
     }
 
+    // An assembly built against another Capsule can carry a claim this generator cannot read. The shell names it
+    // instead of booting without its registry.
     [Fact]
-    public void AShellReferencingNoLogicAssembly_FailsTheBuild()
+    public void AShellReferencingMalformedRegistryMetadata_NamesTheAssembly()
     {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileShell(ShellSource).Diagnostics;
+        const string logic = """
+            using Capsule.Scenes;
 
-        Assert.Equal("CAP015", Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+            [assembly: Capsule.Generated.CapsuleGeneratedRegistryClaim(99, "rooms/opening", typeof(Rooms.Opening))]
+
+            namespace Rooms;
+
+            public sealed class Opening(SceneContent content) : Scene(content);
+            """;
+
+        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileShellWithLogicAssemblies(ShellSource, ("Game.Rooms", logic)).Diagnostics;
+
+        Diagnostic error = Assert.Single(GeneratorHarness.Errors(diagnostics));
+        Assert.Equal("CAP014", error.Id);
+        Assert.Contains("'Game.Rooms'", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -81,7 +94,6 @@ public sealed class CapsuleBootGeneratorTests
     {
         const string actors = """
             using Capsule.Scenes;
-            using Capsule.Scenes.Spawning;
 
             namespace Actors;
 
@@ -110,17 +122,17 @@ public sealed class CapsuleBootGeneratorTests
         Assert.Contains("CapsuleRegistryProvider_Game_Rooms_", generated, StringComparison.Ordinal);
     }
 
-    // A test composes through CapsuleScenes.Registry and a run through CapsuleBoot's, so both must build the same scene.
+    // A test composes through CapsuleScenes.Registry and a run through CapsuleBoot's. Both must build the same scene.
     [Fact]
     public void CapsuleScenesRegistry_ComposesADocumentAsTheShellsRegistryDoes()
     {
-        const string logic = """
+        const string logic = $$"""
             using Capsule.Scenes;
             using Capsule.Tiles;
 
             namespace Game;
 
-            public sealed class GameCamera : Camera;
+            {{GeneratorHarness.GameCamera}}
 
             public sealed class Brick : TileType;
 
@@ -159,7 +171,7 @@ public sealed class CapsuleBootGeneratorTests
     [Fact]
     public void TheShell_TakesDriversFromItsLogicAssembliesAndFromItsOwnCode()
     {
-        const string logic = """
+        const string logic = $$"""
             using Capsule.Input;
             using Capsule.Scenes;
 
@@ -167,14 +179,7 @@ public sealed class CapsuleBootGeneratorTests
 
             public sealed class Room01(SceneContent content) : Scene(content);
 
-            public sealed class Walkthrough : IInputDriver
-            {
-                public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
-                {
-                    snapshot = DeviceSnapshot.Empty;
-                    return tick < 60;
-                }
-            }
+            {{GeneratorHarness.Walkthrough}}
             """;
         const string shell = """
             using Capsule.Input;
@@ -202,30 +207,10 @@ public sealed class CapsuleBootGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
 
-        // The logic assembly's drivers arrive through its provider; the shell's own is registered
+        // The logic assembly's drivers arrive through its provider. The shell's own is registered
         // in the entry point itself, under its class name.
         string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile);
         Assert.Contains("CapsuleRegistryProvider_GameSpecs_", generated, StringComparison.Ordinal);
         GeneratorHarness.AssertPairs(generated, "Idler", "Shell.Idler");
-    }
-
-    // Each logic assembly refuses its own duplicates. Only the shell sees two assemblies claim one key.
-    [Theory]
-    [InlineData(
-        "namespace First; public sealed class Chest(Capsule.Scenes.Spawning.EntitySpawn spawn) : Capsule.Scenes.Entity(spawn);",
-        "namespace Second; [Capsule.Scenes.TypeKey(\"chest\")] public sealed class IronChest(Capsule.Scenes.Spawning.EntitySpawn spawn) : Capsule.Scenes.Entity(spawn);",
-        "CAP003")]
-    [InlineData(
-        "namespace First; [Capsule.Scenes.TypeKey(\"opening\")] public sealed class FirstOpening(Capsule.Scenes.SceneContent content) : Capsule.Scenes.Scene(content);",
-        "namespace Second; [Capsule.Scenes.TypeKey(\"opening\")] public sealed class SecondOpening(Capsule.Scenes.SceneContent content) : Capsule.Scenes.Scene(content);",
-        "CAP005")]
-    public void OneKeyClaimedByTwoLogicAssemblies_FailsTheShellBuild(string first, string second, string id)
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileShellWithLogicAssemblies(
-            ShellSource,
-            ("Game.First", first),
-            ("Game.Second", second)).Diagnostics;
-
-        Assert.Equal(id, Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
     }
 }

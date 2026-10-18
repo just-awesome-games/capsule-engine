@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace Capsule.Scenes.Spawning;
+namespace Capsule.Scenes;
 
 /// <summary>
 /// One <see cref="EntityRegistry"/> entry: the document type an entity answers to and the delegate that

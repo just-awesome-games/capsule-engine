@@ -112,7 +112,7 @@ internal sealed class Tracks
             int row = cells / Columns;
             child.Cell = cells++;
 
-            // Cells fill in order, so a new track is always the next one.
+            // Cells fill in order. A new track is always the next one.
             if (column == columns)
             {
                 Open(ref _columnOffsets, ref _columnSizes, columns++);

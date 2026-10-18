@@ -16,10 +16,6 @@ public sealed class ActionBindings
     /// Adds <paramref name="buttons"/> to <paramref name="action"/>, and any of them then stands for
     /// it. Keys and pad buttons mix freely, and a second bind unions with the first.
     /// </summary>
-    /// <exception cref="ArgumentException">
-    /// The action is unnamed, or a button is <see cref="InputButton.None"/> or outside its device's
-    /// capacity.
-    /// </exception>
     public ActionBindings Bind(InputAction action, params ReadOnlySpan<InputButton> buttons)
     {
         Require(action, buttons);
@@ -32,7 +28,6 @@ public sealed class ActionBindings
     /// Adds the position of <paramref name="axis"/> to what <paramref name="action"/> reads. A second
     /// bind accumulates with the first, and binding the same source again changes nothing.
     /// </summary>
-    /// <exception cref="ArgumentException">The action is unnamed, or the axis is <see cref="PadAxis.None"/>.</exception>
     public ActionBindings BindAxis(AxisAction action, PadAxis axis)
     {
         RequireName(action.Index, nameof(action));
@@ -49,8 +44,6 @@ public sealed class ActionBindings
     /// Adds the notches <paramref name="axis"/> of the mouse wheel turns each step to what
     /// <paramref name="action"/> reads, unclamped. A second bind accumulates with the first.
     /// </summary>
-    /// <exception cref="ArgumentException">The action is unnamed.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">The axis names no wheel axis.</exception>
     public ActionBindings BindAxis(AxisAction action, MouseAxis axis)
     {
         RequireName(action.Index, nameof(action));
@@ -67,10 +60,6 @@ public sealed class ActionBindings
     /// Adds a digital pair to <paramref name="action"/>, reading -1 while <paramref name="negative"/>
     /// is held and +1 while <paramref name="positive"/> is. Holding both contributes 0.
     /// </summary>
-    /// <exception cref="ArgumentException">
-    /// The action is unnamed, or either button is <see cref="InputButton.None"/> or outside its
-    /// device's capacity.
-    /// </exception>
     public ActionBindings BindAxis(AxisAction action, InputButton negative, InputButton positive)
     {
         RequireName(action.Index, nameof(action));
@@ -84,10 +73,6 @@ public sealed class ActionBindings
     /// Replaces every button bound to <paramref name="action"/> with <paramref name="buttons"/>,
     /// effective from the next read.
     /// </summary>
-    /// <exception cref="ArgumentException">
-    /// The action is unnamed, or a button is <see cref="InputButton.None"/> or outside its device's
-    /// capacity.
-    /// </exception>
     public ActionBindings Rebind(InputAction action, params ReadOnlySpan<InputButton> buttons)
     {
         Require(action, buttons);
@@ -97,7 +82,6 @@ public sealed class ActionBindings
     }
 
     /// <summary>Removes every button bound to <paramref name="action"/>, which then reads as unbound.</summary>
-    /// <exception cref="ArgumentException">The action is unnamed.</exception>
     public ActionBindings Unbind(InputAction action)
     {
         RequireName(action.Index, nameof(action));
@@ -107,7 +91,6 @@ public sealed class ActionBindings
     }
 
     /// <summary>Removes every source bound to <paramref name="action"/>, which then reads as unbound.</summary>
-    /// <exception cref="ArgumentException">The action is unnamed.</exception>
     public ActionBindings Unbind(AxisAction action)
     {
         RequireName(action.Index, nameof(action));
@@ -207,7 +190,7 @@ public sealed class ActionBindings
         }
 
         // Checked once here so reading a snapshot never has to. A snapshot cannot hold a key or button
-        // outside its device's capacity, so binding one would silently never fire.
+        // outside its device's capacity. Binding one would silently never fire.
         if (!button.IsRepresentable)
         {
             throw new ArgumentException(
@@ -238,7 +221,7 @@ public sealed class ActionBindings
     }
 
     // One contribution to an axis action: a pad axis, a wheel axis, or a digital pair. A wheel source
-    // reads a count of notches, not a bounded position, so AxisValue keeps it out of the clamp.
+    // reads a count of notches, not a bounded position. AxisValue keeps it out of the clamp.
     private readonly record struct AxisSource(PadAxis Analog, MouseAxis? Wheel, InputButton Negative, InputButton Positive)
     {
         internal float Read(in DeviceSnapshot snapshot) => Wheel switch

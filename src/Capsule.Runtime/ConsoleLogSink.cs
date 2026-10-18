@@ -24,7 +24,7 @@ internal sealed class ConsoleLogSink : ILogSink
         }
     }
 
-    // The tick column keeps one width, so lines written before the clock line up.
+    // The tick column keeps one width. Lines written before the clock line up.
     internal static string Format(LogLevel level, long? tick, string message)
     {
         string label = level switch

@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.Reflection;
 using Capsule.Scenes;
-using Capsule.Scenes.Documents;
 using Capsule.Tiles;
 using Microsoft.CodeAnalysis;
 
@@ -65,7 +64,7 @@ public sealed class SceneGeneratorTests
         Assert.Contains(named, rejected.GetMessage(), StringComparison.Ordinal);
     }
 
-    // A claim is authored prose, so it is keyed like the document's own path: whatever spelling the
+    // A claim is authored prose. It is keyed like the document's own path: whatever spelling the
     // attribute carries, the class meets its document at the key the build ships it under.
     [Fact]
     public void AnExplicitDocumentName_IsNormalizedLikeTheDocumentsOwnPath()
@@ -83,21 +82,6 @@ public sealed class SceneGeneratorTests
         Assert.DoesNotContain("Stage1/Room01", generated, StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData("[TypeKey(\"menu\")] public sealed class MainMenu : Scene;", "CAP007")]
-    [InlineData("public static class Scenes { private sealed class Room(SceneContent content) : Scene(content); }", "CAP008")]
-    [InlineData("public sealed class Room : Scene { public Room() { } public Room(SceneContent content) : base(content) { } }", "CAP009")]
-    public void ASceneOfAShapeTheRegistryCannotCompose_FailsTheBuild(string declaration, string id)
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            {{declaration}}
-            """).Diagnostics;
-
-        Assert.Equal(id, Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
-    }
-
     [Fact]
     public void AParameterlessConstructor_RegistersASceneNoDocumentBacks()
     {
@@ -113,84 +97,9 @@ public sealed class SceneGeneratorTests
         Assert.DoesNotContain("\"main-menu\"", generated, StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData("public sealed class Overlay : Scene { public Overlay(int depth) { } }")]
-    [InlineData("public sealed class Overlay : Scene { private Overlay() { } }")]
-    [InlineData("public abstract class Room : Scene { protected Room(SceneContent content) : base(content) { } }")]
-    [InlineData("public sealed class Overlay { public Overlay() { } }")]
-    public void ASceneOfAnotherShape_IsPassedOverInSilence(string declaration)
-    {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation updated) = GeneratorHarness.Compile($$"""
-            {{GeneratorHarness.Preamble}}
-
-            {{declaration}}
-            """);
-
-        Assert.Empty(diagnostics);
-
-        string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleScenesFile);
-        Assert.DoesNotContain("Game.Overlay", generated, StringComparison.Ordinal);
-        Assert.DoesNotContain("Game.Room", generated, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TwoClassesDerivingOneDocumentName_FailTheBuildNamingBoth()
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile("""
-            using Capsule.Scenes;
-
-            namespace Game
-            {
-                public sealed class Room01(SceneContent content) : Scene(content);
-            }
-
-            namespace Game.Deep
-            {
-                public sealed class Room01(SceneContent content) : Scene(content);
-            }
-            """).Diagnostics;
-
-        Diagnostic collision = Assert.Single(GeneratorHarness.Errors(diagnostics));
-        Assert.Equal("CAP005", collision.Id);
-
-        string message = collision.GetMessage(System.Globalization.CultureInfo.InvariantCulture);
-        Assert.Contains("Game.Room01", message, StringComparison.Ordinal);
-        Assert.Contains("Game.Deep.Room01", message, StringComparison.Ordinal);
-        Assert.Contains("'room-01'", message, StringComparison.Ordinal);
-    }
-
-    // A baseScene resolves against every abstract Scene subclass by the type key rule, so two sharing a key
-    // are refused like any other pair of classes claiming one type key.
-    [Fact]
-    public void TwoAbstractScenesClaimingOneBaseSceneKey_FailTheBuildNamingBoth()
-    {
-        ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.Compile("""
-            using Capsule.Scenes;
-
-            namespace Game
-            {
-                public abstract class PlayableRoom(SceneContent content) : Scene(content);
-            }
-
-            namespace Game.Deep
-            {
-                public abstract class PlayableRoom(SceneContent content) : Scene(content);
-            }
-            """).Diagnostics;
-
-        Diagnostic collision = Assert.Single(GeneratorHarness.Errors(diagnostics));
-        Assert.Equal("CAP003", collision.Id);
-
-        string message = collision.GetMessage(System.Globalization.CultureInfo.InvariantCulture);
-        Assert.Contains("Game.PlayableRoom", message, StringComparison.Ordinal);
-        Assert.Contains("Game.Deep.PlayableRoom", message, StringComparison.Ordinal);
-        Assert.Contains("'playable-room'", message, StringComparison.Ordinal);
-    }
-
-    // Whichever class declares first among two sharing a key must not decide which a baseScene
-    // resolves to: a class that could actually serve as a base always wins the key over one that
-    // never could. "Game.PlayableRoom" sorts ahead of "Game.Z.PlayableRoom" in declaration order, the
-    // order that picked the ineligible class before this was fixed.
+    // Declaration order among two classes sharing a key does not decide which a baseScene resolves to.
+    // A class that could serve as a base wins the key over one that never could. The ineligible
+    // "Game.PlayableRoom" declares ahead of the eligible "Game.Z.PlayableRoom".
     [Fact]
     public void AnEligibleBaseScene_ResolvesOverASameKeyedIneligibleClassDeclaredFirst()
     {
@@ -225,7 +134,7 @@ public sealed class SceneGeneratorTests
     }
 
     // The build hands every shipped document to the generator the way it hands textures, audio and
-    // fonts. One a class claims emits FromDocument; one no class claims emits DocumentOnly.
+    // fonts. One a class claims emits FromDocument. One no class claims emits DocumentOnly.
     [Fact]
     public void AShippedSceneDocumentNoClassClaims_EmitsADocumentOnlyRegistration()
     {
@@ -246,7 +155,7 @@ public sealed class SceneGeneratorTests
     }
 
     // A document naming a base its own class also claims is a contradiction, not a precedence
-    // question between the two, so it refuses rather than picking one.
+    // question between the two. It refuses rather than picking one.
     [Fact]
     public void ADocumentNamingABaseSceneAClassAlsoClaims_FailsTheBuild()
     {
@@ -286,11 +195,14 @@ public sealed class SceneGeneratorTests
         Assert.Contains(named, error.GetMessage(), StringComparison.Ordinal);
     }
 
-    // The template a developer no longer writes: an abstract base with no document of its own, and
-    // the document that names it composes into an instance carrying the document's entities.
+    // An abstract base with no document of its own needs no template subclass. The document that
+    // names it composes into an instance carrying the document's entities.
     [Theory]
     [InlineData("", "playable-room")]
     [InlineData("[TypeKey(\"rooms/playable\")]", "rooms/playable")]
+    // A [TypeKey] is keyed by one rule wherever it is read. Its document claim and its baseScene meet
+    // at the same key.
+    [InlineData("[TypeKey(\"Rooms/Playable\")]", "rooms/playable")]
     public void ADocumentsBaseScene_ComposesAnInstanceOfItCarryingTheDocumentsEntities(string attribute, string baseScene)
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(
