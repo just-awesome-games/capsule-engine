@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using Capsule.Input;
 using Capsule.Runtime.Scenes;
@@ -8,6 +9,11 @@ internal sealed class FixedStepScheduler
 {
     private readonly double _stepSeconds;
     private readonly int _maxStepsPerFrame;
+
+    // The real time, in Stopwatch ticks, a frame's steps may take before it stops catching up: one
+    // step length.
+    private readonly long _budgetTicks;
+    private readonly Func<long> _timestamp;
     private readonly InputState _input;
     private readonly SnapshotLatch _latch = new();
 
@@ -28,7 +34,8 @@ internal sealed class FixedStepScheduler
         int maxStepsPerFrame,
         ActionBindings bindings,
         IInputDriver? driver = null,
-        SceneHost? scenes = null)
+        SceneHost? scenes = null,
+        Func<long>? timestamp = null)
     {
         ArgumentNullException.ThrowIfNull(bindings);
 
@@ -46,6 +53,8 @@ internal sealed class FixedStepScheduler
 
         _stepSeconds = stepSeconds;
         _maxStepsPerFrame = maxStepsPerFrame;
+        _budgetTicks = (long)(stepSeconds * Stopwatch.Frequency);
+        _timestamp = timestamp ?? Stopwatch.GetTimestamp;
         _input = new InputState(bindings);
         _driver = driver;
         _scenes = scenes;
@@ -83,8 +92,8 @@ internal sealed class FixedStepScheduler
     // Host pace: the simulation seconds a wall second is worth, finite and greater than zero. It
     // changes only how many steps a frame's elapsed time buys. The step length, the tick and the
     // time a step is handed stay the same. A run at 0.25x is the 1x run played slower, and the
-    // simulation cannot read or record it. The frame's step bound still binds, so past it a frame
-    // drops its backlog instead of running faster.
+    // simulation cannot read or record it. A frame still stops catching up at the step bound or the
+    // step budget, and drops its backlog there instead of running faster.
     internal double TimeScale
     {
         get => _timeScale;
@@ -145,12 +154,15 @@ internal sealed class FixedStepScheduler
 
         double stepEpsilon = _stepSeconds * 1e-12;
         int stepsRun = 0;
+        long started = _timestamp();
         while (_accumulatorSeconds >= _stepSeconds ||
                Math.Abs(_accumulatorSeconds - _stepSeconds) <= stepEpsilon)
         {
-            // Without this bound a step costing more than the step length schedules two steps next
-            // frame, then three, and the frame time spirals.
-            if (stepsRun == _maxStepsPerFrame)
+            // A frame stops catching up at the step bound, or once its steps have taken a step length
+            // of real time. Steps that cost more than they cover only lengthen the next frame and
+            // grow its backlog. The first due step always runs, so an overloaded game slows down
+            // and keeps its frame rate.
+            if (stepsRun == _maxStepsPerFrame || (stepsRun > 0 && _timestamp() - started >= _budgetTicks))
             {
                 _accumulatorSeconds = 0;
                 StepsThisFrame = stepsRun;

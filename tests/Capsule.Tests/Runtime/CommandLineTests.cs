@@ -58,11 +58,13 @@ public sealed class CommandLineTests : IDisposable
     [InlineData("2.5")]
     public void Frames_TakesAnOptionalDuration(string? seconds)
     {
-        string[] frames = seconds is null
-            ? ["--frames", Path.Combine(_workspace.Root, "frames.csv")]
-            : ["--frames", Path.Combine(_workspace.Root, "frames.csv"), seconds];
+        string[] frames = seconds is null ? ["--frames", "frames.csv"] : ["--frames", "frames.csv", seconds];
 
-        Assert.Equal(0, Builder().WithCommandLine([.. frames, "--headless", "--driver", "Idler"]).RunScene<Idle>());
+        CommandLine parsed = CommandLine.Parse([.. frames, "--headless"], "Game", development: true);
+
+        Assert.Equal("frames.csv", parsed.FramesPath);
+        Assert.Equal(seconds is null ? null : 2.5, parsed.FramesSeconds);
+        Assert.True(parsed.Headless);
     }
 
     [Fact]

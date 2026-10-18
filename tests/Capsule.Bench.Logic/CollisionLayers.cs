@@ -9,4 +9,10 @@ public static class CollisionLayers
 
     /// <summary>Walkers and posts; walkers never collide with each other.</summary>
     public const string Actor = "actor";
+
+    /// <summary>A solid object that shoves the bodies it moves into.</summary>
+    public const string Crate = "crate";
+
+    /// <summary>A box no body is on, which blocks nothing.</summary>
+    public const string Sensor = "sensor";
 }

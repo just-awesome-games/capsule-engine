@@ -213,6 +213,57 @@ public sealed class RidingTests
         Assert.Equal(32f, far.Position.X, CollisionFixtures.Tolerance);
     }
 
+    // A pusher searches only the layers bodies are on. A body whose collider moves to the crate layer,
+    // in place or while it is out of the scene, is found there after the only other crate body leaves.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AShove_FindsABodyOnItsCollidersCurrentLayer(bool detached)
+    {
+        Scene scene = new Scene().Started();
+        Slab pusher = new(new Vector2(60f, 20f), Platform, new Vector2(8f, 16f));
+        Rider body = new(new Vector2(50f, 24f), Platform);
+        Rider leaving = new(new Vector2(200f, 24f), Platform) { Collider = { Layer = Crate } };
+        scene.Add(pusher);
+        scene.Add(body);
+        scene.Add(leaving);
+
+        if (detached)
+        {
+            body.Remove(body.Collider);
+            body.Collider.Layer = Crate;
+            body.Add(body.Collider);
+        }
+        else
+        {
+            body.Collider.Layer = Crate;
+        }
+
+        leaving.Remove(leaving.Mover);
+        pusher.Position += new Vector2(-20f, 0f);
+
+        Assert.Equal(32f, body.Position.X, CollisionFixtures.Tolerance);
+    }
+
+    // A shove judges each body as it reaches it in handle order. The crush of the first makes the
+    // second, on another layer, moved by the pusher, and the same move shoves it.
+    [Fact]
+    public void AShove_PushesABodyThatAnEarlierCrushMadeMovedByThePusher()
+    {
+        Scene scene = SceneFixtures.Terrain("#....", "#....", "#....").Started();
+        Slab pusher = new(new Vector2(40f, 20f), Platform, new Vector2(8f, 16f));
+        Rider pinned = new(new Vector2(16f, 24f), Platform) { Collider = { Layer = Crate } };
+        Rider later = new(new Vector2(30f, 24f));
+        pinned.Mover.Crushed += _ => later.Mover.MovedBy = new(Platform);
+        scene.Add(pusher);
+        scene.Add(pinned);
+        scene.Add(later);
+
+        pusher.Position = new Vector2(22f, 20f);
+
+        Assert.True(later.Position.X < 30f, $"the later body stayed at {later.Position.X}");
+    }
+
     // A collider moved off its body's entity still names that body. A pusher driving into the collider
     // on its new entity has no body to shove and crushes nothing.
     [Fact]

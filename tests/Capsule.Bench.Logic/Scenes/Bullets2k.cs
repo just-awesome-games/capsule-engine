@@ -7,6 +7,7 @@ namespace Capsule.Bench.Logic.Scenes;
 
 /// <summary>About 2 000 pooled bullets a second fired across the pillared room of <c>bullets-2k.scene.json</c>, each reporting contacts until a wall ends it: collider registration churn and per-collider contact tracking.</summary>
 [Workload(WorkloadKind.Simulation)]
+[Workload(WorkloadKind.Paced)]
 public sealed class Bullets2k : Scene
 {
     // The room's extent in tiles, as the document authors it.

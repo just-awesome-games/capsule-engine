@@ -7,20 +7,25 @@ using Capsule.Bench.Logic.Drivers;
 
 namespace Capsule.Bench;
 
-// `suite [--label <text>] [--lane simulation|rendering] [--uncapped]`: every workload in Workloads.All,
-// or those of one lane, each in a child process of this same binary on the engine's own command line,
-// in the lane its [Workload] attribute names, then one record under results/ beside this source.
+// `suite [--label <text>] [--lane simulation|rendering|paced] [--uncapped]`: every workload in
+// Workloads.All, or those of one lane, each in a child process of this same binary on the engine's own
+// command line, once in each lane its [Workload] attributes name, then one record under results/
+// beside this source.
 internal static class Suite
 {
     private const string ArtifactsDirectory = "artifacts/bench";
 
-    private const double SecondsPerWindowedWorkload = 6d;
+    private const double SecondsPerFramedWorkload = 6d;
 
     // The window settles one late present within its first 80 frames on every run; 120 keeps it
     // out of the measured window at 165 Hz and a fortiori at 60.
     private const int WarmUpFrames = 120;
 
-    private const string Usage = "usage: Capsule.Bench suite [--label <text>] [--lane simulation|rendering] [--uncapped]";
+    // The paced lane drops its first second instead, which carries the run's first compilations. An
+    // overloaded workload runs a frame a second or slower, and a frame count would drop all of them.
+    private const double PacedWarmUpMs = 1000d;
+
+    private const string Usage = "usage: Capsule.Bench suite [--label <text>] [--lane simulation|rendering|paced] [--uncapped]";
 
     internal static int Run(string[] args)
     {
@@ -54,9 +59,9 @@ internal static class Suite
         }
 
         // Only the windowed lane presents, so an uncapped headless record would claim a flag that did nothing.
-        if (uncapped && only == WorkloadKind.Simulation)
+        if (uncapped && only is WorkloadKind.Simulation or WorkloadKind.Paced)
         {
-            Console.Error.WriteLine("--uncapped paces the rendering lane and --lane simulation runs none of it. Drop one of them.");
+            Console.Error.WriteLine($"--uncapped paces the rendering lane and --lane {LaneName(only.Value)} runs none of it. Drop one of them.");
             Console.Error.WriteLine(Usage);
             return 2;
         }
@@ -67,15 +72,19 @@ internal static class Suite
         List<(string Name, WorkloadAttribute Lane)> lanes = [];
         foreach (Type scene in Workloads.All)
         {
-            if (scene.GetCustomAttribute<WorkloadAttribute>() is not { } lane)
+            WorkloadAttribute[] declared = [.. scene.GetCustomAttributes<WorkloadAttribute>()];
+            if (declared.Length == 0)
             {
-                Console.Error.WriteLine($"bench: {scene.Name} is a registered scene with no [Workload(WorkloadKind.Simulation)] or [Workload(WorkloadKind.Rendering)] attribute.");
+                Console.Error.WriteLine($"bench: {scene.Name} is a registered scene with no [Workload(...)] attribute naming its lane.");
                 return 1;
             }
 
-            if (only is null || lane.Kind == only)
+            foreach (WorkloadAttribute lane in declared)
             {
-                lanes.Add((scene.Name, lane));
+                if (only is null || lane.Kind == only)
+                {
+                    lanes.Add((scene.Name, lane));
+                }
             }
         }
 
@@ -88,9 +97,12 @@ internal static class Suite
         {
             Console.WriteLine($"bench: {name} ({lane.Kind}, {Program.Describe(lane.Surface)})");
 
-            WorkloadRecord? workload = lane.Kind == WorkloadKind.Simulation
-                ? Headless(executable, name, lane)
-                : Windowed(executable, name, lane, label, uncapped);
+            WorkloadRecord? workload = lane.Kind switch
+            {
+                WorkloadKind.Simulation => Headless(executable, name, lane),
+                WorkloadKind.Paced => Paced(executable, name, lane),
+                _ => Windowed(executable, name, lane, label, uncapped),
+            };
             if (workload is null)
             {
                 return 1;
@@ -162,7 +174,7 @@ internal static class Suite
         string csv = Path.Combine(ArtifactsDirectory, workload + ".csv");
         bool captured = workload is "Still" or "StillLit";
 
-        List<string> arguments = ["--frames", csv, SecondsPerWindowedWorkload.ToString(CultureInfo.InvariantCulture)];
+        List<string> arguments = ["--frames", csv, SecondsPerFramedWorkload.ToString(CultureInfo.InvariantCulture)];
         if (captured)
         {
             arguments.AddRange(["--driver", nameof(StillCapture)]);
@@ -173,20 +185,10 @@ internal static class Suite
             arguments.Add("--uncapped");
         }
 
-        if (!RunChild(executable, workload, arguments, static _ => false))
+        if (!RunChild(executable, workload, arguments, static _ => false) || MeasuredFrames(csv, workload, static _ => WarmUpFrames, out int gen0) is not { } frames)
         {
             return null;
         }
-
-        List<FrameRow> frames = FrameRow.Read(csv);
-        if (frames.Count <= WarmUpFrames)
-        {
-            Console.Error.WriteLine($"bench: {workload} drew {frames.Count} frames, none past warm-up.");
-            return null;
-        }
-
-        int gen0 = frames[^1].Gen0 - frames[WarmUpFrames - 1].Gen0;
-        frames.RemoveRange(0, WarmUpFrames);
 
         string? sha256 = null;
         if (captured)
@@ -211,6 +213,68 @@ internal static class Suite
             Percentiles.Of(frames.ConvertAll(static frame => frame.IntervalMs).ToArray()),
             gen0,
             sha256);
+    }
+
+    // `--scene X --headless --driver Idle --frames <csv> 6`: the host's frame loop with no window, paced to
+    // the step rate. Each frame runs the steps its wall time bought, up to the step bound, so a step that
+    // overruns its length shows in the frames a player would see. The draw column is the frame's build.
+    private static WorkloadRecord? Paced(string executable, string workload, WorkloadAttribute lane)
+    {
+        string csv = Path.Combine(ArtifactsDirectory, workload + ".paced.csv");
+        List<string> arguments = ["--headless", "--driver", nameof(Idle), "--frames", csv, SecondsPerFramedWorkload.ToString(CultureInfo.InvariantCulture)];
+        if (!RunChild(executable, workload, arguments, static _ => false) || MeasuredFrames(csv, workload, PacedWarmUp, out int gen0) is not { } frames)
+        {
+            return null;
+        }
+
+        Percentiles view = Percentiles.Of(frames.ConvertAll(static frame => frame.DrawMs).ToArray());
+
+        return new WorkloadRecord(
+            workload,
+            "paced",
+            Program.Describe(lane.Surface),
+            frames.Sum(static frame => frame.Steps),
+            frames.Count,
+            null,
+            null,
+            new StepTiming(view.Median, view.P95),
+            null,
+            null,
+            Percentiles.Of(frames.ConvertAll(static frame => frame.IntervalMs).ToArray()),
+            gen0,
+            null);
+    }
+
+    // The CSV's frames past the warm-up frames warmUp counts, and the gen-0 collections over them,
+    // counted from the last warm-up row so the first measured frame counts. Null when none is past
+    // warm-up.
+    private static List<FrameRow>? MeasuredFrames(string csv, string workload, Func<List<FrameRow>, int> warmUp, out int gen0)
+    {
+        gen0 = 0;
+        List<FrameRow> frames = FrameRow.Read(csv);
+        int dropped = Math.Max(1, warmUp(frames));
+        if (frames.Count <= dropped)
+        {
+            Console.Error.WriteLine($"bench: {workload} ran {frames.Count} frames, none past warm-up.");
+            return null;
+        }
+
+        gen0 = frames[^1].Gen0 - frames[dropped - 1].Gen0;
+        frames.RemoveRange(0, dropped);
+
+        return frames;
+    }
+
+    // The frames that began within the run's first PacedWarmUpMs.
+    private static int PacedWarmUp(List<FrameRow> frames)
+    {
+        int count = 0;
+        for (double elapsed = 0d; count < frames.Count && elapsed < PacedWarmUpMs; count++)
+        {
+            elapsed += frames[count].IntervalMs;
+        }
+
+        return count;
     }
 
     // Runs the child to its end, offering each line it prints to report and relaying the ones it declines.
@@ -243,21 +307,33 @@ internal static class Suite
         return true;
     }
 
-    private static string LaneName(WorkloadKind kind) => kind == WorkloadKind.Simulation ? "simulation" : "rendering";
+    private static string LaneName(WorkloadKind kind) => kind switch
+    {
+        WorkloadKind.Simulation => "simulation",
+        WorkloadKind.Paced => "paced",
+        _ => "rendering",
+    };
 
     private static bool TryLane(string name, out WorkloadKind kind)
     {
-        kind = name == "rendering" ? WorkloadKind.Rendering : WorkloadKind.Simulation;
-        return name is "simulation" or "rendering";
+        kind = name switch
+        {
+            "rendering" => WorkloadKind.Rendering,
+            "paced" => WorkloadKind.Paced,
+            _ => WorkloadKind.Simulation,
+        };
+        return name is "simulation" or "rendering" or "paced";
     }
 
-    private static string Summary(WorkloadRecord workload) =>
-        workload.DrawMs is { } draw && workload.IntervalMs is { } interval
-            ? string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} frames={workload.Frames} drawMs median={draw.Median:F3} p95={draw.P95:F3} max={draw.Max:F3} intervalMs max={interval.Max:F3} gen0={workload.Gen0Collections}")
-            : string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} steps={workload.Steps} stepMs median={workload.StepMs!.Median:F3} p95={workload.StepMs.P95:F3} viewMs median={workload.ViewMs!.Median:F3} p95={workload.ViewMs.P95:F3} stepBytes={workload.StepBytes} viewBytes={workload.ViewBytes} gen0={workload.Gen0Collections}");
+    private static string Summary(WorkloadRecord workload) => workload switch
+    {
+        { Mode: "windowed", DrawMs: { } draw, IntervalMs: { } interval } => string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} frames={workload.Frames} drawMs median={draw.Median:F3} p95={draw.P95:F3} max={draw.Max:F3} intervalMs max={interval.Max:F3} gen0={workload.Gen0Collections}"),
+        { Mode: "paced", IntervalMs: { } interval } => string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} paced frames={workload.Frames} steps={workload.Steps} intervalMs median={interval.Median:F3} p95={interval.P95:F3} max={interval.Max:F3} gen0={workload.Gen0Collections}"),
+        _ => string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} steps={workload.Steps} stepMs median={workload.StepMs!.Median:F3} p95={workload.StepMs.P95:F3} viewMs median={workload.ViewMs!.Median:F3} p95={workload.ViewMs.P95:F3} stepBytes={workload.StepBytes} viewBytes={workload.ViewBytes} gen0={workload.Gen0Collections}"),
+    };
 
     // One row of the CSV FrameDiagnostics writes, after its commented boot trace and header.
-    private readonly record struct FrameRow(double IntervalMs, double DrawMs, int Gen0)
+    private readonly record struct FrameRow(double IntervalMs, double DrawMs, int Steps, int Gen0)
     {
         internal static List<FrameRow> Read(string path)
         {
@@ -273,6 +349,7 @@ internal static class Suite
                 rows.Add(new FrameRow(
                     double.Parse(fields[0], CultureInfo.InvariantCulture),
                     double.Parse(fields[2], CultureInfo.InvariantCulture),
+                    int.Parse(fields[3], CultureInfo.InvariantCulture),
                     int.Parse(fields[4], CultureInfo.InvariantCulture)));
             }
 

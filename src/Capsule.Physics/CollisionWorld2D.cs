@@ -34,6 +34,9 @@ public sealed partial class CollisionWorld2D
     // How many candidates a collider's list holds from registration on. A larger crowd doubles it.
     private const int StartingCandidates = 8;
 
+    // How many colliders the slot table and the shove gather hold before either first grows.
+    private const int StartingSlots = 16;
+
     // Worlds are numbered from one. A default handle or layer carries world zero and belongs to no
     // world. The interlock covers test hosts that build worlds on several threads.
     private static int WorldsCreated;
@@ -49,12 +52,16 @@ public sealed partial class CollisionWorld2D
     // The slots whose proxy was inserted or reinserted since contacts last settled, each listed once.
     private readonly List<int> _moved = [];
 
+    // The slots the running CollidersNear query has met, in the order it met them. It is sized with
+    // the slot table, which no gather outgrows.
+    private readonly List<int> _near = new(StartingSlots);
+
     // Every layer any contact filter has named, and every layer a collider with a contact filter has
     // been on. Both only grow, which keeps them supersets for the pair query's mask.
     private ulong _detected;
     private ulong _detectors;
 
-    private ColliderSlot[] _slots = new ColliderSlot[16];
+    private ColliderSlot[] _slots = new ColliderSlot[StartingSlots];
     private int _slotsUsed;
 
     // What each CollisionMask resolved to here, indexed by the mask's id. A resolved entry stays
@@ -227,9 +234,9 @@ public sealed partial class CollisionWorld2D
         Remove(grid.Handle);
     }
 
-    // Sizes the slot table, each slot's candidate list and the tree for colliders held at once, and the
-    // grid list for grids held at once. Adding, moving and removing up to that many then allocates
-    // nothing. Never shrinks.
+    // Sizes the slot table, each slot's candidate list, the shove gather and the tree for colliders
+    // held at once, and the grid list for grids held at once. Adding, moving and removing up to that
+    // many then allocates nothing. Never shrinks.
     internal void Reserve(int colliders, int grids)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(colliders);
@@ -247,6 +254,7 @@ public sealed partial class CollisionWorld2D
         }
 
         _freeSlots.EnsureCapacity(_slots.Length);
+        _near.EnsureCapacity(_slots.Length);
         _moved.EnsureCapacity(colliders);
         _tree.Reserve(colliders);
     }
@@ -885,15 +893,26 @@ public sealed partial class CollisionWorld2D
     }
 
     // Keeps the list in slot order with one entry per slot. A handle to a reused slot replaces the
-    // stale one.
+    // stale one. A binary search finds the place among the hundreds a sensor in a crowd holds.
     private static void AddCandidate(ref ColliderSlot slot, ColliderHandle handle)
     {
         slot.Candidates ??= new ColliderHandle[StartingCandidates];
         int count = slot.CandidateCount;
-        int position = count;
-        while (position > 0 && slot.Candidates[position - 1].Index > handle.Index)
+
+        // The first entry past the handle's slot.
+        int position = 0;
+        int end = count;
+        while (position < end)
         {
-            position--;
+            int middle = (position + end) >>> 1;
+            if (slot.Candidates[middle].Index > handle.Index)
+            {
+                end = middle;
+            }
+            else
+            {
+                position = middle + 1;
+            }
         }
 
         if (position > 0 && slot.Candidates[position - 1].Index == handle.Index)
@@ -1059,6 +1078,7 @@ public sealed partial class CollisionWorld2D
             {
                 Array.Resize(ref _slots, _slots.Length * 2);
                 _freeSlots.EnsureCapacity(_slots.Length);
+                _near.EnsureCapacity(_slots.Length);
             }
 
             index = _slotsUsed++;

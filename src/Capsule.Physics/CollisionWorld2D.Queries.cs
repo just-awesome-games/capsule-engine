@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Capsule.Physics.Internal;
 
 namespace Capsule.Physics;
@@ -104,6 +105,10 @@ public sealed partial class CollisionWorld2D
         contacts[position] = contact;
         written++;
     }
+
+    // Handles are unique within a query. The unstable sort then yields one order.
+    private static void SortByHandle(Span<Contact2D> contacts) =>
+        contacts.Sort(static (left, right) => left.Target.Collider.Index.CompareTo(right.Target.Collider.Index));
 
     // Tiles before colliders, then by slot, then by cell.
     private static bool TargetPrecedes(in CollisionTarget left, in CollisionTarget right)
@@ -858,6 +863,7 @@ public sealed partial class CollisionWorld2D
         int written = FindGridContacts(world, filter, tolerance, ignore, contacts, out int found);
         TouchVisitor visitor = new(this, world, filter, tolerance, ignore, contacts, written, found);
         _tree.Query(world.Bounds.Expanded(tolerance), filter.Bits, ref visitor);
+        visitor.Order();
 
         return visitor.Found;
     }
@@ -1363,15 +1369,27 @@ public sealed partial class CollisionWorld2D
         }
     }
 
-    // Writes the handles of every shape collider whose broadphase box meets `box` in handle order,
-    // skipping grids and `ignore`, and returns how many there were. A collider's shove gathers its
-    // candidates here.
-    internal int CollidersNear(in Aabb2D box, ColliderHandle ignore, Span<ColliderHandle> found)
+    // Writes the handles of every shape collider on a layer in `layers` whose broadphase box meets
+    // `box` in handle order, skipping grids and `ignore`, and returns how many there were. A short span
+    // keeps the lowest handles. A collider's shove gathers its candidates here, and the order it pushes
+    // in then does not depend on the tree's arrangement.
+    internal int CollidersNear(in Aabb2D box, ulong layers, ColliderHandle ignore, Span<ColliderHandle> found)
     {
-        NearVisitor visitor = new(this, ignore, found);
-        _tree.Query(box, ulong.MaxValue, ref visitor);
+        _near.Clear();
+        NearVisitor visitor = new(this, ignore);
+        _tree.Query(box, layers, ref visitor);
 
-        return visitor.Found;
+        // One sort once the query ends. Placing each slot as the query meets it costs the square of
+        // a crowd.
+        Span<int> near = CollectionsMarshal.AsSpan(_near);
+        near.Sort();
+        int written = Math.Min(near.Length, found.Length);
+        for (int index = 0; index < written; index++)
+        {
+            found[index] = HandleAt(near[index]);
+        }
+
+        return near.Length;
     }
 
     // Sweeps a collider's shape from `from` along `translation` against one other collider standing
@@ -1431,42 +1449,14 @@ public sealed partial class CollisionWorld2D
         }
     }
 
-    private ref struct NearVisitor(CollisionWorld2D world, ColliderHandle ignore, Span<ColliderHandle> found) : ITreeVisitor2D
+    private readonly ref struct NearVisitor(CollisionWorld2D world, ColliderHandle ignore) : ITreeVisitor2D
     {
-        private readonly Span<ColliderHandle> _found = found;
-
-        // How many colliders the box met, span or no span.
-        internal int Found;
-
         public bool Visit(int proxyId)
         {
-            if (!world.TryProxy(proxyId, CollisionFilter.Everything, ignore, out int index))
+            if (world.TryProxy(proxyId, CollisionFilter.Everything, ignore, out int index))
             {
-                return true;
+                world._near.Add(index);
             }
-
-            // Kept in handle order, and a short span keeps the lowest handles. The order a shove
-            // pushes in then does not depend on the tree's arrangement.
-            int written = Math.Min(Found, _found.Length);
-            Found++;
-            if (written == _found.Length)
-            {
-                if (written == 0 || _found[written - 1].Index <= index)
-                {
-                    return true;
-                }
-
-                written--;
-            }
-
-            int position = written;
-            while (position > 0 && _found[position - 1].Index > index)
-            {
-                _found[position] = _found[position - 1];
-                position--;
-            }
-
-            _found[position] = world.HandleAt(index);
 
             return true;
         }
@@ -1487,8 +1477,20 @@ public sealed partial class CollisionWorld2D
         private readonly int _first = written;
         private int _written = written;
 
+        // Whether the span has filled. Filling orders the colliders written so far.
+        private bool _full;
+
         // How many overlaps there are, span or no span.
         internal int Found = found;
+
+        // Orders the colliders by handle once the query ends. A span that filled is in order already.
+        internal readonly void Order()
+        {
+            if (!_full)
+            {
+                SortByHandle(_contacts[_first.._written]);
+            }
+        }
 
         public bool Visit(int proxyId)
         {
@@ -1506,11 +1508,23 @@ public sealed partial class CollisionWorld2D
             }
 
             Found++;
-            InsertByHandle(
-                _contacts,
-                _first,
-                ref _written,
-                new Contact2D(CollisionTarget.ForCollider(world.HandleAt(index), slot.Layer), point, normal, DepthOf(separation)));
+            Contact2D contact = new(CollisionTarget.ForCollider(world.HandleAt(index), slot.Layer), point, normal, DepthOf(separation));
+
+            // Contacts land unordered while the span has room, and one sort orders a crowd of them. A
+            // span that fills is ordered then and keeps its lowest handles from there.
+            if (_written < _contacts.Length)
+            {
+                _contacts[_written++] = contact;
+                return true;
+            }
+
+            if (!_full)
+            {
+                SortByHandle(_contacts[_first.._written]);
+                _full = true;
+            }
+
+            InsertByHandle(_contacts, _first, ref _written, contact);
 
             return true;
         }

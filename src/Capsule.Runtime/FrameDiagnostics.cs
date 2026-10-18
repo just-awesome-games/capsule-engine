@@ -191,6 +191,12 @@ internal sealed class FrameDiagnostics : IDisposable
         _writer.WriteLine("# capsule boot trace: milliseconds since process start");
         for (int i = 0; i < StageNames.Length; i++)
         {
+            // A headless run has no device and loads no media, and never crosses those stages.
+            if (_stages[i] < 0)
+            {
+                continue;
+            }
+
             NumberText stage = new(_row);
             stage.Add("# ");
             stage.Add(StageNames[i]);

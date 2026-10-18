@@ -205,6 +205,11 @@ public sealed class EngineBuilder
     /// The most fixed steps one frame may run to catch up on a stall, 8 by default. At the bound
     /// the frame drops the time it did not run, and the simulation falls behind wall clock.
     /// </summary>
+    /// <remarks>
+    /// A frame also stops catching up once its steps have taken one step length of real time. Steps
+    /// that cost more than their length then run one a frame, and the game slows down at the frame rate
+    /// they allow. A bound of 1 slows down at any stall.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">The bound is not positive.</exception>
     public EngineBuilder WithMaxStepsPerFrame(int steps)
     {
@@ -338,6 +343,13 @@ public sealed class EngineBuilder
     /// per frame follows, with its interval, its update and draw milliseconds, the fixed steps it ran
     /// and the process's cumulative gen-0 collection count. The file's directory is created and an
     /// existing file is overwritten.
+    /// <para>
+    /// A headless run writes the same file, with its frames paced to the fixed step's rate as a window
+    /// presenting at that rate runs them. Each frame advances by the wall time since the last began,
+    /// so a stall makes the next frame catch up as <see cref="WithMaxStepsPerFrame"/> describes.
+    /// The draw column then times the frame's build, and the trace leaves out the device and media
+    /// stages.
+    /// </para>
     /// </remarks>
     /// <param name="path">The CSV to write.</param>
     /// <param name="exitAfterSeconds">
@@ -472,7 +484,8 @@ public sealed class EngineBuilder
     /// writes no crash log, and an escaping exception propagates to the caller. It persists nothing
     /// unless <see cref="WithSaveDirectory"/> or <see cref="WithSaveStorage"/> named a medium. It
     /// boots <typeparamref name="TScene"/> with <paramref name="payload"/> and ignores
-    /// <c>--scene</c> and <c>--payload</c>.
+    /// <c>--scene</c> and <c>--payload</c>. It steps as fast as the driver allows, or in real-time
+    /// frames under <see cref="WithFrameDiagnostics"/>.
     /// </remarks>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
     /// <param name="driver">The run's input, one snapshot per fixed step.</param>
@@ -609,21 +622,34 @@ public sealed class EngineBuilder
 
         InstallLogging();
 
+        // Declared first so the host is disposed before it, with its last frame already written.
+        using FrameDiagnostics? diagnostics = _frameDiagnosticsPath is null
+            ? null
+            : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds);
+
         // No medium unless one was named, which keeps a developer's local folder out of the run.
         using SceneHost host = CreateHost(initialTarget, NamedSaveStorage(), RunSeed(played: false));
+        diagnostics?.Mark(FrameDiagnostics.Stage.HostConstructed);
         FixedStepScheduler scheduler = new(StepSeconds, MaxStepsPerFrame, Input.Bindings, driver, host);
         _consoleSink?.Tick = () => scheduler.Tick;
 
         try
         {
-            // One step's worth of time per call, so the accumulator drains a single step and the
-            // per-frame step bound cannot bind.
-            while (!scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, host))
+            if (diagnostics is null)
             {
-                // Nothing is drawn here. A capture request is taken and dropped instead of waiting
-                // for a frame that never comes.
-                host.TryTakeFrameCapture(out _);
-                host.FlushSaves();
+                // One step's worth of time per call, so the accumulator drains a single step and
+                // neither the step bound nor the step budget can bind.
+                while (!scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, host))
+                {
+                    // Nothing is drawn here. A capture request is taken and dropped instead of waiting
+                    // for a frame that never comes.
+                    host.TryTakeFrameCapture(out _);
+                    host.FlushSaves();
+                }
+            }
+            else
+            {
+                PaceFrames(scheduler, host, diagnostics);
             }
 
             // The advance that ends the run may have run a step whose request and writes the loop
@@ -636,6 +662,40 @@ public sealed class EngineBuilder
         finally
         {
             _consoleSink?.Tick = null;
+        }
+    }
+
+    // Frames as a window presenting once per fixed step runs them. Each frame advances by the wall
+    // time since the last one began, and the scheduler decides how much of it to catch up. The draw
+    // column times the frame's build, as nothing is submitted.
+    private void PaceFrames(FixedStepScheduler scheduler, SceneHost host, FrameDiagnostics diagnostics)
+    {
+        long period = (long)(StepSeconds * Stopwatch.Frequency);
+        long previous = Stopwatch.GetTimestamp();
+        while (true)
+        {
+            long start = Stopwatch.GetTimestamp();
+            diagnostics.BeginUpdate();
+            scheduler.TimeScale = host.Run.TimeScale;
+            bool exiting = scheduler.Advance(Stopwatch.GetElapsedTime(previous, start).TotalSeconds, DeviceSnapshot.Empty, host);
+            previous = start;
+            diagnostics.EndUpdate(scheduler.StepsThisFrame);
+
+            diagnostics.BeginDraw();
+            _ = host.View;
+            if (diagnostics.EndDraw() || exiting)
+            {
+                return;
+            }
+
+            host.TryTakeFrameCapture(out _);
+            host.FlushSaves();
+
+            // The present's wait for the next refresh. A frame that overran it starts at once.
+            while (Stopwatch.GetTimestamp() - start < period)
+            {
+                Thread.Yield();
+            }
         }
     }
 

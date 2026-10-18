@@ -2,9 +2,10 @@ namespace Capsule.Bench.Logic;
 
 /// <summary>
 /// Declares a scene a workload: which lane measures it and, windowed, which surface it boots on.
-/// The suite refuses a registered scene without one.
+/// The suite refuses a registered scene without one, and measures a scene that declares several
+/// lanes once in each.
 /// </summary>
-[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
 public sealed class WorkloadAttribute(WorkloadKind kind, Surface surface = Surface.Canvas360) : Attribute
 {
     public WorkloadKind Kind { get; } = kind;
@@ -19,6 +20,9 @@ public enum WorkloadKind
 
     /// <summary>Windowed: a fixed real duration of frames; submission and frame interval, media loaded.</summary>
     Rendering,
+
+    /// <summary>Headless: a fixed real duration of frames paced to the step rate, each catching up the steps its time bought; frame interval, no window, device or media.</summary>
+    Paced,
 }
 
 public enum Surface

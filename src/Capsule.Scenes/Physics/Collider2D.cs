@@ -337,6 +337,7 @@ public abstract class Collider2D : Component
                 CollisionLayer layer = scene.Collision.Layer(value);
                 _layerIndex = layer.Index;
                 _world?.SetLayer(_handle, layer);
+                Body?.FollowLayer(scene, layer.Index);
             }
 
             _layer = value;
@@ -596,6 +597,9 @@ public abstract class Collider2D : Component
         {
             Register();
         }
+
+        // The layer may have changed while this collider was out of the scene.
+        Body?.FollowLayer(_scene, _scene.Collision.Layer(_layer).Index);
     }
 
     /// <inheritdoc/>
@@ -841,11 +845,11 @@ public abstract class Collider2D : Component
         Aabb2D reach = new(path.Min, path.Max + new Vector2(0f, _scene.DeepestSink));
 
         _near ??= new ColliderHandle[8];
-        int count = world.CollidersNear(reach, _handle, _near);
+        int count = world.CollidersNear(reach, _scene.BodyLayers, _handle, _near);
         if (count > _near.Length)
         {
             Grow(ref _near, count);
-            count = world.CollidersNear(reach, _handle, _near);
+            count = world.CollidersNear(reach, _scene.BodyLayers, _handle, _near);
         }
 
         for (int index = 0; index < count && _world is not null; index++)

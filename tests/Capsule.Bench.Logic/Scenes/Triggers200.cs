@@ -7,6 +7,7 @@ namespace Capsule.Bench.Logic.Scenes;
 
 /// <summary>200 overlapping 96 by 96 sensors over the ledges of <c>triggers-200.scene.json</c>, with 1 000 actors drifting through them: contact reporting and its per-step settle. A sensor's contact buffers double when it meets more at once than ever before, and those rare steps are the one allocation, by design.</summary>
 [Workload(WorkloadKind.Simulation)]
+[Workload(WorkloadKind.Paced)]
 public sealed class Triggers200 : Scene
 {
     // The room's extent in tiles, as the document authors it.

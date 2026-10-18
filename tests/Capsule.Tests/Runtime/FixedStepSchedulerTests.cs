@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Capsule.Input;
 using Capsule.Runtime;
 
@@ -26,24 +27,30 @@ public sealed class FixedStepSchedulerTests
     }
 
     // The spiral of death: a step costing more than the step length would otherwise queue two steps
-    // next frame, then three, until every frame drains the whole backlog.
-    [Fact]
-    public void Advance_HoldsTheStepBoundWhenEveryFrameArrivesLateAndNeverCarriesABacklog()
+    // next frame, then three, until every frame drains the whole backlog. Free steps catch up to the
+    // bound, cheap ones until they have taken a step length of real time, and overrunning ones run
+    // one a frame.
+    [Theory]
+    [InlineData(0.0, 5)]
+    [InlineData(0.3, 4)]
+    [InlineData(1.5, 1)]
+    public void Advance_CatchesUpToTheBoundOrAStepLengthOfRealTimeAndNeverCarriesABacklog(double stepCost, int stepsPerFrame)
     {
         RecordingSimulation simulation = new(Jump);
-        FixedStepScheduler scheduler = CreateScheduler(maxStepsPerFrame: 3);
-        const double FrameSecondsWorthOfSteps = StepSeconds * 4.5;
+        long now = 0;
+        FixedStepScheduler scheduler = CreateScheduler(timestamp: () => now);
+        scheduler.StepCompleted = () => now += (long)(stepCost * StepSeconds * Stopwatch.Frequency);
 
         for (int frame = 0; frame < 10; frame++)
         {
             simulation.Recorded.Clear();
-            scheduler.Advance(FrameSecondsWorthOfSteps, DeviceSnapshot.Empty, simulation);
+            scheduler.Advance(StepSeconds * 6.5, DeviceSnapshot.Empty, simulation);
 
-            Assert.Equal(3, simulation.Recorded.Count);
+            Assert.Equal(stepsPerFrame, simulation.Recorded.Count);
             Assert.Equal(0, scheduler.AccumulatorSeconds);
         }
 
-        Assert.Equal(30, scheduler.Tick);
+        Assert.Equal(10 * stepsPerFrame, scheduler.Tick);
     }
 
     [Fact]
@@ -209,8 +216,8 @@ public sealed class FixedStepSchedulerTests
         Assert.NotEqual(AnHourOfTicks * (double)(float)Sixty, context.TotalSeconds);
     }
 
-    private static FixedStepScheduler CreateScheduler(int maxStepsPerFrame = 5) =>
-        new(StepSeconds, maxStepsPerFrame, new ActionBindings().Bind(Jump, Key.Space));
+    private static FixedStepScheduler CreateScheduler(int maxStepsPerFrame = 5, Func<long>? timestamp = null) =>
+        new(StepSeconds, maxStepsPerFrame, new ActionBindings().Bind(Jump, Key.Space), timestamp: timestamp);
 
     private static void AssertStep(in RecordedStep step, long tick)
     {

@@ -122,6 +122,10 @@ public sealed class KinematicBody2D : Component
 
     private Scene? _scene;
 
+    // The interned index of its collider's layer in the current scene's world, which the scene counts
+    // among its body layers.
+    private int _layerIndex;
+
     // BlockedBy resolved in the current scene's world. Filter adds the MovedBy layers to it.
     private CollisionFilter _blockedByFilter;
 
@@ -1047,6 +1051,20 @@ public sealed class KinematicBody2D : Component
     // Whether this body is moved by the layer with this interned index.
     internal bool IsMovedBy(int layerIndex) => (MovedByFilter.Bits & (1UL << layerIndex)) != 0;
 
+    // Recounts this body under its collider's layer, interned in scene. A collider moved to another
+    // scene changes nothing here.
+    internal void FollowLayer(Scene scene, int layerIndex)
+    {
+        if (!ReferenceEquals(scene, _scene) || layerIndex == _layerIndex)
+        {
+            return;
+        }
+
+        scene.CountBodyLayer(_layerIndex, -1);
+        _layerIndex = layerIndex;
+        scene.CountBodyLayer(_layerIndex, 1);
+    }
+
     // Sweeps a riding body along its floor's motion with its own blocking filter. A body writing its
     // own position is never moved again. A rider is in a scene with its collider registered, because
     // every path that breaks either ends the ride first.
@@ -1355,6 +1373,10 @@ public sealed class KinematicBody2D : Component
         MovedByFilter = Collider2D.ResolveFilter(_scene.Collision, _movedBy);
         Filter = _blockedByFilter | MovedByFilter;
         _scene.CountMovedBy(MovedByFilter, 1);
+
+        // Interned by name, as the collider may join the scene after this body.
+        _layerIndex = _scene.Collision.Layer(_collider.Layer).Index;
+        _scene.CountBodyLayer(_layerIndex, 1);
         _collider.Body = this;
     }
 
@@ -1365,6 +1387,7 @@ public sealed class KinematicBody2D : Component
         _moveContactCount = 0;
         Classify();
         _scene?.CountMovedBy(MovedByFilter, -1);
+        _scene?.CountBodyLayer(_layerIndex, -1);
         _scene = null;
 
         // A new scene's host may count its ticks from zero again.

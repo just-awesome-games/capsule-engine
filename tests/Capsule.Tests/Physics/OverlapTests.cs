@@ -13,7 +13,7 @@ public sealed class OverlapTests
     {
         CollisionWorld2D world = new();
         CollisionLayer item = world.Layer("item");
-        ColliderHandle[] handles = new ColliderHandle[6];
+        ColliderHandle[] handles = new ColliderHandle[16];
         for (int index = 0; index < handles.Length; index++)
         {
             handles[index] = world.Add(
@@ -22,25 +22,27 @@ public sealed class OverlapTests
                 item);
         }
 
-        Aabb2D probe = CollisionFixtures.Box(0f, 0f, 8f, 8f);
-        Span<Contact2D> room = stackalloc Contact2D[2];
+        Aabb2D probe = CollisionFixtures.Box(0f, 0f, 40f, 8f);
+        Span<Contact2D> room = stackalloc Contact2D[3];
 
-        Assert.Equal(6, world.OverlapBoxAll(probe, CollisionFilter.Everything, room));
-        Assert.Equal(handles[0], room[0].Target.Collider);
-        Assert.Equal(handles[1], room[1].Target.Collider);
-
-        // Moving every collider rearranges the broadphase, and the same two survive the span.
-        for (int index = handles.Length - 1; index >= 0; index--)
+        // Each arrangement sends every collider away and back in its own order, which rebuilds the
+        // broadphase in that order, and the same three survive the span.
+        for (int arrangement = 0; arrangement < 8; arrangement++)
         {
-            world.SetPosition(handles[index], new Vector2(0.25f * index, 0f));
+            foreach (Vector2 position in (ReadOnlySpan<Vector2>)[new(1_000f, 0f), Vector2.Zero])
+            {
+                for (int step = 0; step < handles.Length; step++)
+                {
+                    world.SetPosition(handles[((step * 5) + (arrangement * 3)) % handles.Length], position);
+                }
+            }
+
+            Assert.Equal(16, world.OverlapBoxAll(probe, CollisionFilter.Everything, room));
+            Assert.Equal(handles[..3], room.ToArray().Select(static contact => contact.Target.Collider));
         }
 
-        Assert.Equal(6, world.OverlapBoxAll(probe, CollisionFilter.Everything, room));
-        Assert.Equal(handles[0], room[0].Target.Collider);
-        Assert.Equal(handles[1], room[1].Target.Collider);
-
         // An empty span still counts them.
-        Assert.Equal(6, world.OverlapBoxAll(probe, CollisionFilter.Everything, default));
+        Assert.Equal(16, world.OverlapBoxAll(probe, CollisionFilter.Everything, default));
     }
 
     [Fact]

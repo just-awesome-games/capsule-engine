@@ -52,7 +52,7 @@ internal static class Program
         // The surface is a boot option, so it is the attribute's of whichever scene the command
         // line named; none, or one this assembly does not know, boots the default.
         Type? scene = Workloads.All.FirstOrDefault(scene => scene.Name == engine.SceneOverride);
-        Surface surface = scene?.GetCustomAttribute<WorkloadAttribute>()?.Surface ?? Surface.Canvas360;
+        Surface surface = scene?.GetCustomAttributes<WorkloadAttribute>().FirstOrDefault(static lane => lane.Kind == WorkloadKind.Rendering)?.Surface ?? Surface.Canvas360;
 
         engine = surface == Surface.Hd1080
             ? engine.WithWindow(1920, 1080).WithRenderResolution(1920, 1080).WithSampling(TextureSampling.Linear)

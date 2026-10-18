@@ -7,6 +7,7 @@ namespace Capsule.Bench.Logic.Scenes;
 
 /// <summary>64 swinging one-way platforms in the room of <c>platforms-64.scene.json</c>, each carrying 16 pacing riders: carrying, shoving and riding bodies on moving colliders.</summary>
 [Workload(WorkloadKind.Simulation)]
+[Workload(WorkloadKind.Paced)]
 public sealed class Platforms64 : Scene
 {
     // The room's extent in tiles, as the document authors it.

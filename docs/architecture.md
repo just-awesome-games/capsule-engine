@@ -69,8 +69,9 @@ extents, a simulation produces the same state transitions and render intents.
   `RandomSource.DefaultSeed`.
 - Simulation arithmetic is IEEE-exact. Transcendental functions differ between operating systems, and
   simulation code calls `DeterministicMath` in place of `MathF`.
-- A frame runs at most the configured number of fixed steps. Reaching the limit drops the remaining
-  accumulated wall-clock time and alters no step that runs.
+- A frame runs at most the configured number of fixed steps, and starts no further step once its steps
+  have taken one step length of real time. Reaching either limit drops the remaining accumulated
+  wall-clock time and alters no step that runs.
 - `Run.TimeScale` is host pace. It sets how many simulation seconds a wall second is worth. It alters no
   step that runs, and simulation code must not read it.
 

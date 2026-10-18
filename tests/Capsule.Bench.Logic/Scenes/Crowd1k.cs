@@ -7,6 +7,7 @@ namespace Capsule.Bench.Logic.Scenes;
 
 /// <summary>1 000 walkers on the walled tile ring of <c>crowd-1k.scene.json</c>: the entity pipeline, bodies and broadphase at that density.</summary>
 [Workload(WorkloadKind.Simulation)]
+[Workload(WorkloadKind.Paced)]
 public sealed class Crowd1k : Scene
 {
     // The room's extent in tiles, as the document authors it.
