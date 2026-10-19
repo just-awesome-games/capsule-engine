@@ -241,7 +241,14 @@ public partial class Scene
     /// Every entity held in step order: roots in addition order, each followed by its subtree. The span
     /// is invalid once an entity is added, removed or reparented.
     /// </summary>
-    public ReadOnlySpan<Entity> Entities => _tree.Held;
+    public ReadOnlySpan<Entity> Entities
+    {
+        get
+        {
+            SettleOrder();
+            return _tree.Held;
+        }
+    }
 
     /// <summary>
     /// Holds the entities <see cref="Paused"/> would hold for the next <paramref name="ticks"/> steps,
@@ -313,6 +320,7 @@ public partial class Scene
     public EntityWalk<T> FindAll<T>()
         where T : class
     {
+        SettleOrder();
         _tree.Compact();
         return new(this);
     }

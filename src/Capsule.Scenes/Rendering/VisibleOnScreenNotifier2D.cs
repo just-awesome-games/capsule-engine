@@ -33,7 +33,7 @@ namespace Capsule.Rendering;
 /// Add(new VisibleOnScreenNotifier2D { Margin = new Vector2(32f) });
 /// </code>
 /// </example>
-public sealed class VisibleOnScreenNotifier2D : Component
+public sealed class VisibleOnScreenNotifier2D : Component, ISettleListEntry
 {
     private Rect _rect;
     private Vector2 _margin;
@@ -91,6 +91,9 @@ public sealed class VisibleOnScreenNotifier2D : Component
     internal override bool Steps => false;
 
     internal override TransformSupport Supports => TransformSupport.Resize;
+
+    // Its place among its scene's notifiers.
+    int ISettleListEntry.SettleSlot { get; set; }
 
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()

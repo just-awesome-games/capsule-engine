@@ -8,13 +8,14 @@ using Capsule.Scenes;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// Draws its entity as one sprite at one texel per unit of the entity's space. The frame's pivot
-/// lands on <see cref="Offset"/> as placed by the entity's world transform, and the frame turns
-/// about that point and takes its scale from the transform.
+/// Draws its entity as one sprite, or that sprite tiled across <see cref="Tiling"/>, at one texel
+/// per unit of the entity's space.
 /// </summary>
 /// <remarks>
-/// A negative scale axis mirrors the frame about the pivot, the same way a flip does. Coordinates
-/// are Y-down, in world units under a world root and canvas pixels under a screen root. A frame's
+/// The frame's pivot lands on <see cref="Offset"/> as placed by the entity's world transform, and
+/// the frame turns about that point and takes its scale from the transform. A negative scale axis
+/// mirrors the frame about the pivot, the same way a flip does. Coordinates are Y-down, in world
+/// units under a world root and canvas pixels under a screen root. A frame's
 /// sockets are placed the same way, as child entities bound through <see cref="Socket"/>, and its
 /// boxes as colliders bound through <see cref="Box"/>. Detaching the renderer disables its boxes, and
 /// attaching it to the same entity again re-places them. Attaching it to any other entity throws
@@ -67,16 +68,15 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     }
 
     /// <summary>
-    /// How far the frame repeats on each axis, in the entity's own units. Zero, the default, draws
-    /// it once.
+    /// How far the frame tiles on each axis, in the entity's own units. Zero, the default, draws it
+    /// once.
     /// </summary>
     /// <remarks>
     /// A finite extent covers that distance from the frame's low edge towards +X or +Y, repeating
-    /// at the frame's drawn extent and cropping the last copy at the far edge.
-    /// <see cref="float.PositiveInfinity"/> repeats without bound on both sides, and draws once
-    /// when nothing culls. A negative or NaN component draws nothing, as does a world scale with a
-    /// zero axis. A tiled frame cannot turn. A non-zero tiling on an entity whose
-    /// <see cref="Entity.WorldTransform"/> is turned draws nothing.
+    /// at the frame's drawn size and cropping the last copy at the far edge.
+    /// <see cref="float.PositiveInfinity"/> repeats without bound on both sides. A negative or NaN
+    /// component draws nothing, as does a non-zero tiling on an entity whose
+    /// <see cref="Entity.WorldTransform"/> is turned.
     /// </remarks>
     public Vector2 Tiling { get; set; }
 

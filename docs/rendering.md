@@ -71,7 +71,7 @@ a sprite that turns or flips in place.
 
 | Renderer | Draws |
 | --- | --- |
-| `SpriteRenderer` | One `Sprite`. |
+| `SpriteRenderer` | One `Sprite`, or that sprite tiled across `Tiling`. |
 | `ColorRect` | A flat rect of `Size`. |
 | `Label` | A run of a `BitmapFont`, wrapped and aligned inside `Size`. |
 | `NineSlice` | A sprite stretched to `Size` with its corners kept. |

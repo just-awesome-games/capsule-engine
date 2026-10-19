@@ -57,10 +57,9 @@ public sealed partial class CollisionWorld2D
     // table, which no query's colliders outnumber.
     private int[] _sortKeys = new int[StartingSlots];
 
-    // Every layer any contact filter has named, and every layer a collider with a contact filter has
-    // been on. Both only grow, which keeps them supersets for the pair query's mask.
-    private ulong _detected;
-    private ulong _detectors;
+    // Indexed by layer: every layer a collider whose contact filter names that layer has been on. Each
+    // entry only grows, which keeps it a superset for the pair query's mask.
+    private readonly ulong[] _detectorsOf = new ulong[MaxLayers];
 
     private ColliderSlot[] _slots = new ColliderSlot[StartingSlots];
     private int _slotsUsed;
@@ -86,6 +85,10 @@ public sealed partial class CollisionWorld2D
     // How many grid cells this world's queries have reached since the last ResetDiagnostics, empty
     // ones included. No query result depends on it.
     internal long GridCellsTested { get; private set; }
+
+    // How many proxies the pair query has visited since the last ResetDiagnostics, whether or not
+    // either side's filter admitted the pair. No query result depends on it.
+    internal long PairProxiesVisited { get; private set; }
 
     // A world holding nothing, with only DefaultLayerName interned.
     internal CollisionWorld2D() => Layer(DefaultLayerName);
@@ -348,10 +351,7 @@ public sealed partial class CollisionWorld2D
         int index = RequireShapeSlot(handle);
         _slots[index].Layer = layer;
         _tree.SetProxyMask(_slots[index].ProxyId, CollisionFilter.Of(layer).Bits);
-        if (!_slots[index].ContactFilter.IsEmpty)
-        {
-            _detectors |= CollisionFilter.Of(layer).Bits;
-        }
+        NoteDetector(_slots[index].ContactFilter, layer);
 
         NoteMoved(index);
     }
@@ -750,11 +750,7 @@ public sealed partial class CollisionWorld2D
         int index = RequireShapeSlot(handle);
         _slots[index].ContactFilter = filter;
         _slots[index].CandidateCount = 0;
-        if (!filter.IsEmpty)
-        {
-            _detected |= filter.Bits;
-            _detectors |= CollisionFilter.Of(_slots[index].Layer).Bits;
-        }
+        NoteDetector(filter, _slots[index].Layer);
 
         NoteMoved(index);
     }
@@ -845,7 +841,8 @@ public sealed partial class CollisionWorld2D
     // where the other's contact filter admits it. Tight bounds stay inside fat ones, and two shapes
     // within the skin have fat boxes within the skin too. The query reaches twice that and finds a
     // pair ContactsOf keeps whichever side moved, rounding included. It visits only the layers the
-    // moved collider detects, and the layers of colliders that may detect it.
+    // moved collider detects, and the layers of colliders that may detect its layer. A crowd on one
+    // layer passes over itself unless that layer detects itself.
     private void FindNewPairs()
     {
         foreach (int index in _moved)
@@ -857,7 +854,7 @@ public sealed partial class CollisionWorld2D
                 continue;
             }
 
-            ulong mask = slot.ContactFilter.Bits | ((_detected & CollisionFilter.Of(slot.Layer).Bits) != 0 ? _detectors : 0);
+            ulong mask = slot.ContactFilter.Bits | _detectorsOf[slot.Layer.Index];
             PairVisitor visitor = new(this, index);
             _tree.Query(_tree.FatBoxOf(slot.ProxyId).Expanded(2f * CollisionTolerance.ContactSkin), mask, ref visitor);
         }
@@ -865,8 +862,19 @@ public sealed partial class CollisionWorld2D
         _moved.Clear();
     }
 
+    // Records that a collider on layer detects every layer filter admits.
+    private void NoteDetector(CollisionFilter filter, CollisionLayer layer)
+    {
+        ulong detector = CollisionFilter.Of(layer).Bits;
+        for (ulong detected = filter.Bits; detected != 0; detected &= detected - 1)
+        {
+            _detectorsOf[BitOperations.TrailingZeroCount(detected)] |= detector;
+        }
+    }
+
     private void Pair(int first, int second)
     {
+        PairProxiesVisited++;
         if (_slots[first].ContactFilter.Admits(_slots[second].Layer))
         {
             AddCandidate(ref _slots[first], HandleAt(second));
@@ -958,8 +966,12 @@ public sealed partial class CollisionWorld2D
         ColliderHandle ignore = default) =>
         Move(Shape2D.Box(box), Vector2.Zero, translation, filter, contacts, ignore);
 
-    // Zeroes GridCellsTested and changes nothing else.
-    internal void ResetDiagnostics() => GridCellsTested = 0;
+    // Zeroes GridCellsTested and PairProxiesVisited and changes nothing else.
+    internal void ResetDiagnostics()
+    {
+        GridCellsTested = 0;
+        PairProxiesVisited = 0;
+    }
 
     private static Vector2 RequireRay(Vector2 origin, Vector2 direction, float distance)
     {

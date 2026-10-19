@@ -267,7 +267,7 @@ public sealed class ColliderContactEventTests
     }
 
 
-    // Sixteen and thirty-two are buffer sizes, not contact limits: a collider spanning a long floor
+    // A buffer's starting size is not a contact limit: a collider spanning a long floor
     // must enter every cell it stands on, and Move must name every one it landed against.
     [Fact]
     public void AColliderTouchingMoreThingsThanItsBufferHolds_ReportsEveryOneOfThem()

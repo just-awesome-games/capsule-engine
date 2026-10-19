@@ -51,14 +51,18 @@ internal sealed class EntityTree(Scene scene)
     }
 
     // Lands after the held subtree of its nearest earlier held sibling, else right after its parent.
-    // An entity no held parent places is a root and joins the end of the roots.
-    internal void Insert(Entity entity)
+    // An entity no held parent places is a root and joins the end of the roots. In a batch, one that
+    // would land before the end joins it instead and leaves the list stale. Each mid-list insert would
+    // shift and renumber everything after it, and a batch of them costs one rebuild instead.
+    internal void Insert(Entity entity, bool batch)
     {
         // A subtree's span is contiguous only once the holes are gone.
         Compact();
         int index = _entities.Count;
         bool placed = PlacedByParent(entity);
-        if (placed)
+
+        // A stale list's slots place nothing. The rebuild will.
+        if (placed && !(batch && _stale))
         {
             Entity parent = entity.Parent!;
             index = parent.SceneSlot + 1;
@@ -71,6 +75,12 @@ internal sealed class EntityTree(Scene scene)
                     break;
                 }
             }
+        }
+
+        if (batch && index < _entities.Count)
+        {
+            index = _entities.Count;
+            _stale = true;
         }
 
         _entities.Insert(index, entity);

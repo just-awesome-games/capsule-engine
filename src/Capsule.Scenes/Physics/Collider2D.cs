@@ -25,7 +25,7 @@ namespace Capsule.Physics;
 /// <see cref="SolidSides"/> and attaching the collider throw for the length of the dispatch.
 /// </para>
 /// </remarks>
-public abstract partial class Collider2D : Component
+public abstract partial class Collider2D : Component, ISettleListEntry
 {
     private Shape2D _shape;
 
@@ -59,15 +59,19 @@ public abstract partial class Collider2D : Component
     private Scene? _scene;
     private ColliderHandle _handle;
 
-    // The contact buffers grow together. Swapping _touching and _wasTouching never resizes.
-    private Contact2D[] _found = new Contact2D[16];
-    private ColliderContact2D[] _touching = new ColliderContact2D[16];
-    private ColliderContact2D[] _wasTouching = new ColliderContact2D[16];
+    // How many contacts a reporter holds from when it first reports on. A crowd grows the buffers.
+    private const int StartingContacts = 4;
+
+    // The contact buffers grow together. Swapping _touching and _wasTouching never resizes. They stay
+    // empty until the collider reports contacts, as most colliders never do.
+    private Contact2D[] _found = [];
+    private ColliderContact2D[] _touching = [];
+    private ColliderContact2D[] _wasTouching = [];
     private int _touchingCount;
 
     // Whether each entry of _touching has been raised through ContactEntered and is owed a
     // ContactExited.
-    private bool[] _announced = new bool[16];
+    private bool[] _announced = [];
 
     // True while this collider's own enter and exit handlers are running.
     private bool _dispatching;
@@ -115,6 +119,9 @@ public abstract partial class Collider2D : Component
 
     // The body that sweeps this collider while both are in a scene, or null.
     internal KinematicBody2D? Body { get; set; }
+
+    // Its place among its scene's contact reporters.
+    int ISettleListEntry.SettleSlot { get; set; }
 
     /// <summary>The collider's starting shape, expressed relative to the entity's position.</summary>
     /// <exception cref="ArgumentException">The shape is a default <see cref="Shape2D"/> with no points.</exception>
@@ -192,6 +199,10 @@ public abstract partial class Collider2D : Component
 
             RequireNotDispatching();
             _reportsContacts = value;
+            if (value)
+            {
+                ReserveContacts(StartingContacts);
+            }
 
             if (_world is null)
             {
@@ -716,10 +727,7 @@ public abstract partial class Collider2D : Component
         int count = world.ContactsOf(_handle, _found);
         if (count > _found.Length)
         {
-            Grow(ref _found, count);
-            Grow(ref _touching, count);
-            Grow(ref _wasTouching, count);
-            Grow(ref _announced, count);
+            ReserveContacts(count);
             count = world.ContactsOf(_handle, _found);
         }
 
@@ -875,6 +883,17 @@ public abstract partial class Collider2D : Component
                 "A default Shape2D holds no points. Build one with Shape2D.Box, Shape2D.Circle, Shape2D.Capsule or Shape2D.Polygon.",
                 nameof(shape));
         }
+    }
+
+    // Grows the contact buffers together to hold count. Turning reporting on reserves the starting size,
+    // most often while the collider is built. A pooled reporter then pays for them when its pool
+    // preloads, and its first contacts, up to the starting size, allocate nothing inside the settle.
+    private void ReserveContacts(int count)
+    {
+        Grow(ref _found, count);
+        Grow(ref _touching, count);
+        Grow(ref _wasTouching, count);
+        Grow(ref _announced, count);
     }
 
     // Grows a contact buffer to the power of two that holds count, and leaves one that holds it already.

@@ -22,6 +22,10 @@ public partial class Scene
     private int _attaching;
     private bool _starting;
 
+    // Set while the drain attaches its queued adds. A child landing mid-list then joins the end, and the
+    // order rebuilds once after the batch.
+    private bool _batchingAdds;
+
     // Whether a step is running, from BeginStep until EndStep finishes. A structural change waits for the drain.
     internal bool Stepping => _stepping;
 
@@ -160,6 +164,7 @@ public partial class Scene
         while (_pendingAdds.Count > 0 || _pendingRemoves.Count > 0 || _pendingStarts.Count > 0)
         {
             int processed = 0;
+            _batchingAdds = true;
             try
             {
                 while (processed < _pendingAdds.Count)
@@ -173,7 +178,14 @@ public partial class Scene
             }
             finally
             {
+                _batchingAdds = false;
                 DropProcessed(_pendingAdds, _pendingAddSet, processed);
+
+                // Before the removals and the starts, which run parent-first by slot.
+                if (_tree.Stale)
+                {
+                    RebuildOrder();
+                }
             }
 
             processed = 0;
@@ -284,7 +296,7 @@ public partial class Scene
 
     private void Place(Entity entity)
     {
-        _tree.Insert(entity);
+        _tree.Insert(entity, _batchingAdds);
         entity.SceneOrNull = this;
         entity.PendingScene = null;
     }
@@ -377,6 +389,16 @@ public partial class Scene
         _tree.Reparented(entity, wasRoot);
 
         if (!_stepping || _drained)
+        {
+            RebuildOrder();
+        }
+    }
+
+    // A join hook inside the drain's add batch reads a list that mid-list joins left stale. No walk
+    // runs then, and the read rebuilds it into the order an eager insert would have kept.
+    private void SettleOrder()
+    {
+        if (_batchingAdds && _tree.Stale)
         {
             RebuildOrder();
         }
