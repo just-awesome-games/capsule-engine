@@ -57,9 +57,13 @@ public sealed partial class CollisionWorld2D
     // table, which no query's colliders outnumber.
     private int[] _sortKeys = new int[StartingSlots];
 
-    // Indexed by layer: every layer a collider whose contact filter names that layer has been on. Each
-    // entry only grows, which keeps it a superset for the pair query's mask.
+    // Indexed by layer: every layer that holds a collider whose contact filter names that layer, which
+    // the pair query adds to its mask. A bit is set exactly while its count below is above zero.
     private readonly ulong[] _detectorsOf = new ulong[MaxLayers];
+
+    // Indexed by detected layer times MaxLayers plus detector layer: how many colliders on the detector
+    // layer have a contact filter naming the detected layer.
+    private readonly int[] _detectorCounts = new int[MaxLayers * MaxLayers];
 
     private ColliderSlot[] _slots = new ColliderSlot[StartingSlots];
     private int _slotsUsed;
@@ -349,9 +353,10 @@ public sealed partial class CollisionWorld2D
         // A grid has no single layer to write. Its cells carry the layers their profiles named, and
         // tile queries read those.
         int index = RequireShapeSlot(handle);
+        CountDetector(_slots[index].ContactFilter, _slots[index].Layer, -1);
         _slots[index].Layer = layer;
         _tree.SetProxyMask(_slots[index].ProxyId, CollisionFilter.Of(layer).Bits);
-        NoteDetector(_slots[index].ContactFilter, layer);
+        CountDetector(_slots[index].ContactFilter, layer, 1);
 
         NoteMoved(index);
     }
@@ -748,9 +753,10 @@ public sealed partial class CollisionWorld2D
     internal void SetContactFilter(ColliderHandle handle, CollisionFilter filter)
     {
         int index = RequireShapeSlot(handle);
+        CountDetector(_slots[index].ContactFilter, _slots[index].Layer, -1);
         _slots[index].ContactFilter = filter;
         _slots[index].CandidateCount = 0;
-        NoteDetector(filter, _slots[index].Layer);
+        CountDetector(filter, _slots[index].Layer, 1);
 
         NoteMoved(index);
     }
@@ -841,7 +847,7 @@ public sealed partial class CollisionWorld2D
     // where the other's contact filter admits it. Tight bounds stay inside fat ones, and two shapes
     // within the skin have fat boxes within the skin too. The query reaches twice that and finds a
     // pair ContactsOf keeps whichever side moved, rounding included. It visits only the layers the
-    // moved collider detects, and the layers of colliders that may detect its layer. A crowd on one
+    // moved collider detects, and the layers of colliders that detect its layer now. A crowd on one
     // layer passes over itself unless that layer detects itself.
     private void FindNewPairs()
     {
@@ -862,13 +868,18 @@ public sealed partial class CollisionWorld2D
         _moved.Clear();
     }
 
-    // Records that a collider on layer detects every layer filter admits.
-    private void NoteDetector(CollisionFilter filter, CollisionLayer layer)
+    // Adds delta colliders on layer to the detectors of every layer filter admits. Every write of a
+    // shape slot's ContactFilter or Layer passes through here, removal included. Each count then
+    // matches the live slots, and a freed slot leaves nothing counted.
+    private void CountDetector(CollisionFilter filter, CollisionLayer layer, int delta)
     {
-        ulong detector = CollisionFilter.Of(layer).Bits;
+        int detector = layer.Index;
+        ulong detectorBit = CollisionFilter.Of(layer).Bits;
         for (ulong detected = filter.Bits; detected != 0; detected &= detected - 1)
         {
-            _detectorsOf[BitOperations.TrailingZeroCount(detected)] |= detector;
+            int index = BitOperations.TrailingZeroCount(detected);
+            int count = _detectorCounts[(index * MaxLayers) + detector] += delta;
+            _detectorsOf[index] = count > 0 ? _detectorsOf[index] | detectorBit : _detectorsOf[index] & ~detectorBit;
         }
     }
 
