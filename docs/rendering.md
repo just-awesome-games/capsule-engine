@@ -136,6 +136,18 @@ Add(new ParticleEmitter(Sprite.White, capacity: 32)
 });
 ```
 
+An emitter built from a sheet's clip plays it on every particle, each frame for its authored steps, and a
+clip that does not loop ends its particle. `FrameMode` stretches the clip over each particle's life instead,
+or picks one frame at spawn. `FlipX` mirrors each new particle as a negative X scale on the entity would,
+and a particle keeps that mirror for its life:
+
+```csharp
+_puff = new ParticleEmitter(CapsuleAssets.Sprites.PuffSheet.Clips.Puff, capacity: 4) { Direction = -Vector2.UnitX, Speed = 12f };
+...
+_puff.FlipX = facingLeft;
+_puff.Emit(1);
+```
+
 ## Lighting
 
 A scene lowers the light with `Scene.Ambient`. A `PointLight` draws into the frame's light map, which the

@@ -126,6 +126,20 @@ public sealed class SpriteClip
     /// <summary>How many fixed steps each frame is held for, in frame order.</summary>
     public ReadOnlySpan<int> FrameTicks => _frameTicks;
 
+    // The frame shown tick steps into a run from the first frame. A looping clip wraps, and a non-looping one holds its
+    // last frame past its end.
+    internal int FrameIndexAt(int tick)
+    {
+        int remaining = Loop ? tick % Duration : Math.Min(tick, Duration - 1);
+        int index = 0;
+        while (remaining >= _frameTicks[index])
+        {
+            remaining -= _frameTicks[index++];
+        }
+
+        return index;
+    }
+
     // The event names the entry at frameIndex raises as it starts, in the order the clip listed them.
     internal ReadOnlySpan<string> EventsAt(int frameIndex) =>
         _eventStarts is null

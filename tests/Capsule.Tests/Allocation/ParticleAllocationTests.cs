@@ -45,4 +45,38 @@ public sealed class ParticleAllocationTests
         Assert.Equal(0, bytes);
         Assert.True(emitter.Alive > 0);
     }
+
+    // A pooled entity's emitter is built ahead and first starts mid-run, when the entity first joins. Starting and
+    // bursting then allocate nothing.
+    [Fact]
+    public void AnEmitterBuiltAhead_StartsAndBurstsMidRun_AllocatingNothing()
+    {
+        const int Warmup = 10;
+        const int Measured = 50;
+        EntityHierarchyFixtures.Node[] built = new EntityHierarchyFixtures.Node[Warmup + Measured];
+        for (int index = 0; index < built.Length; index++)
+        {
+            built[index] = new EntityHierarchyFixtures.Node(Vector2.Zero);
+            built[index].Add(new ParticleEmitter(SceneFixtures.Frame(4, 4), capacity: 4)
+            {
+                Lifetime = new FloatRange(0.05f, 0.05f),
+                RemovesEntityWhenFinished = true,
+            });
+        }
+
+        SimulationHost host = new(new SceneFixtures.HookScene());
+
+        long bytes = StepMeasurement.Bytes(
+            step =>
+            {
+                built[step].Get<ParticleEmitter>().Emit(4);
+                host.Scene.Add(built[step]);
+                host.Step();
+                _ = host.Simulation.View;
+            },
+            warmup: Warmup,
+            measured: Measured);
+
+        Assert.Equal(0, bytes);
+    }
 }

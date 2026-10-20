@@ -16,6 +16,11 @@ namespace Capsule.Particles;
 /// entity. In <see cref="ParticleSpace.Local"/> it rides the entity's position, turn and mirror.
 /// Neither space applies the entity's scale to a particle's motion or size.
 /// <para>
+/// The sign of the entity's world scale, <see cref="FlipX"/> and <see cref="FlipY"/> mirror each spawn: where
+/// it starts, which way it launches and spins, and its frame. A particle keeps the mirror it spawned with.
+/// Turning the entity round flips no particle already in the world.
+/// </para>
+/// <para>
 /// The simulation is seeded from the run's seed, and two runs of one seed emit identical intents.
 /// Particles draw in spawn order with the newest last. A spawn into a full pool replaces the live
 /// particle nearest the end of its life and takes its place in that order.
@@ -57,11 +62,12 @@ public sealed class ParticleEmitter : Renderer
     private const float DefaultDeltaSeconds = 1f / StepContext.DefaultStepHertz;
 
     private readonly Particle[] _particles;
-    private readonly Sprite _defaultSprite;
+    private readonly SpriteClip _clip;
+    private readonly float _boundsRadius;
 
-    private RandomSource _random = null!;
+    // Built with the emitter and seeded as it starts. An emitter built ahead for a pool then starts without allocating.
+    private readonly RandomSource _random = new();
     private ulong _particleStream;
-    private float _boundsRadius;
 
     // Live particles fill the front of the pool in spawn order.
     private int _alive;
@@ -132,6 +138,7 @@ public sealed class ParticleEmitter : Renderer
     /// Seconds a particle lives, one by default. The drawn value rounds up to whole steps at spawn, one
     /// step at least.
     /// </summary>
+    /// <remarks>Under <see cref="FrameMode.Clip"/> a non-looping clip ends a particle sooner if it runs out first.</remarks>
     public FloatRange Lifetime { get; set; } = new(1f, 1f);
 
     /// <summary>Acceleration on every live particle, in units per second squared along world directions in either <see cref="Space"/>, zero by default.</summary>
@@ -163,23 +170,20 @@ public sealed class ParticleEmitter : Renderer
     /// <summary>The tint read at the particle's age fraction from 0 to 1. White by default.</summary>
     public Gradient Color { get; set; }
 
+    /// <summary>How a particle plays the constructor's clip, <see cref="Particles.FrameMode.Clip"/> by default.</summary>
+    /// <remarks>A new value reaches live particles on their next draw. A particle's life is fixed at its spawn.</remarks>
+    public FrameMode FrameMode { get; set; }
+
     /// <summary>
-    /// The frames a particle draws from. Empty, the default, draws the constructor's sprite.
+    /// Whether each new particle is mirrored left to right about the entity's origin, as a negative X scale on
+    /// the entity would mirror it: <see cref="Offset"/>, the <see cref="Shape"/>, <see cref="Direction"/>, its spin
+    /// and its frame.
     /// </summary>
-    /// <remarks>A new value reaches live particles on their next draw.</remarks>
-    public ReadOnlyMemory<Sprite> Sprites
-    {
-        get;
+    /// <remarks><see cref="Gravity"/> is a world direction and never mirrors. A live particle keeps the mirror it spawned with.</remarks>
+    public bool FlipX { get; set; }
 
-        set
-        {
-            field = value;
-            _boundsRadius = LargestHalfDiagonal(Frames);
-        }
-    }
-
-    /// <summary>How a particle picks which of <see cref="Sprites"/> to draw. <see cref="Particles.SpriteMode.RandomAtSpawn"/> by default.</summary>
-    public SpriteMode SpriteMode { get; set; }
+    /// <summary>Whether each new particle is mirrored top to bottom about the entity's origin, as <see cref="FlipX"/> mirrors it left to right.</summary>
+    public bool FlipY { get; set; }
 
     /// <summary>
     /// The fraction of the emitter's own velocity that a particle spawned by <see cref="Rate"/> or
@@ -249,14 +253,24 @@ public sealed class ParticleEmitter : Renderer
     /// </remarks>
     public bool RemovesEntityWhenFinished { get; set; }
 
-    /// <param name="sprite">The frame a particle draws when <see cref="Sprites"/> is empty.</param>
+    /// <summary>Creates an emitter whose particles draw one still frame for their whole life.</summary>
+    /// <param name="sprite">The frame every particle draws.</param>
     /// <param name="capacity">The pool's fixed size, the most particles alive at once.</param>
     public ParticleEmitter(Sprite sprite, int capacity)
+        : this(new SpriteClip([sprite], [1], loop: true), capacity)
     {
+    }
+
+    /// <summary>Creates an emitter whose particles draw <paramref name="clip"/>'s frames as <see cref="FrameMode"/> says.</summary>
+    /// <param name="clip">The frames every particle draws, each held for its own steps by default.</param>
+    /// <param name="capacity">The pool's fixed size, the most particles alive at once.</param>
+    public ParticleEmitter(SpriteClip clip, int capacity)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(capacity, 0);
 
-        _defaultSprite = sprite;
-        _boundsRadius = LargestHalfDiagonal(Frames);
+        _clip = clip;
+        _boundsRadius = LargestHalfDiagonal(clip.Frames);
         Capacity = capacity;
         _particles = new Particle[capacity];
     }
@@ -378,7 +392,7 @@ public sealed class ParticleEmitter : Renderer
     {
         base.OnStart();
 
-        _random = new RandomSource(Run.Random.Seed, ParticleStreamBase ^ _particleStream);
+        _random.Reset(Run.Random.Seed, ParticleStreamBase ^ _particleStream);
         _started = true;
         SpawnPending();
     }
@@ -445,8 +459,9 @@ public sealed class ParticleEmitter : Renderer
             return;
         }
 
-        int frameCount = Frames.Length;
-        bool overLife = SpriteMode == SpriteMode.OverLife;
+        SpriteClip clip = _clip;
+        ReadOnlySpan<Sprite> frames = clip.Frames;
+        FrameMode mode = frames.Length == 1 ? FrameMode.RandomAtSpawn : FrameMode;
         Curve scaleOverLifetime = ScaleOverLifetime;
         Gradient color = Color;
 
@@ -460,8 +475,8 @@ public sealed class ParticleEmitter : Renderer
         Transform2D currentFrame = default;
         float previousTurn = 1f;
         float currentTurn = 1f;
-        bool flipX = false;
-        bool flipY = false;
+        bool frameFlipX = false;
+        bool frameFlipY = false;
         if (local)
         {
             previousFrame = Frame(PreviousRenderTransform);
@@ -470,8 +485,8 @@ public sealed class ParticleEmitter : Renderer
             // A mirror conjugates a particle's own turn, as it does a child entity's.
             previousTurn = previousFrame.Mirrored ? -1f : 1f;
             currentTurn = currentFrame.Mirrored ? -1f : 1f;
-            flipX = currentFrame.Scale.X < 0f;
-            flipY = currentFrame.Scale.Y < 0f;
+            frameFlipX = currentFrame.Scale.X < 0f;
+            frameFlipY = currentFrame.Scale.Y < 0f;
         }
 
         for (int index = 0; index < _alive; index++)
@@ -480,7 +495,12 @@ public sealed class ParticleEmitter : Renderer
             bool still = held && particle.SpawnStep != step;
 
             float t = (float)particle.Age / particle.Lifetime;
-            Sprite frame = FrameAt(overLife ? (int)(t * frameCount) : particle.SpriteIndex);
+            Sprite frame = frames[mode switch
+            {
+                FrameMode.Clip => clip.FrameIndexAt(particle.Age),
+                FrameMode.OverLife => clip.FrameIndexAt((int)((long)particle.Age * clip.Duration / particle.Lifetime)),
+                _ => particle.SpriteIndex,
+            }];
             float scale = particle.Scale * scaleOverLifetime.Evaluate(t);
             Vector2 size = new Vector2(frame.Region.Width, frame.Region.Height) * scale;
 
@@ -503,8 +523,8 @@ public sealed class ParticleEmitter : Renderer
                 previousRotation,
                 rotation,
                 size,
-                flipX,
-                flipY,
+                particle.FlipX != frameFlipX,
+                particle.FlipY != frameFlipY,
                 color.Evaluate(t),
                 Blend);
 
@@ -599,13 +619,16 @@ public sealed class ParticleEmitter : Renderer
         if (owed > 0)
         {
             // A local particle spawns in the entity's frame, which carries the move.
-            Vector2 previousCentre = local ? LocalCentre(Offset, current) : previous.TransformPoint(Offset);
-            Vector2 currentCentre = local ? previousCentre : current.TransformPoint(Offset);
+            Vector2 flip = Flip;
+            Vector2 offset = Offset * flip;
+            Vector2 previousCentre = local ? LocalCentre(offset, current) : previous.TransformPoint(offset);
+            Vector2 currentCentre = local ? previousCentre : current.TransformPoint(offset);
+            Transform2D launch = Launch(turn, flip);
 
             for (int index = 0; index < owed; index++)
             {
                 float f = (index + 0.5f) / owed;
-                SpawnOne(Shape.Sample(_random), previousCentre, currentCentre, emitterVelocity, f, dt, turn);
+                SpawnOne(Shape.Sample(_random), previousCentre, currentCentre, emitterVelocity, f, dt, launch);
             }
         }
     }
@@ -628,19 +651,21 @@ public sealed class ParticleEmitter : Renderer
         float ringStart = shape.IsRing ? shape.BurstStart(_random) : 0f;
 
         Transform2D current = RenderTransform;
-        Transform2D turn = Turn(current);
-        Vector2 centre = Space == ParticleSpace.Local ? LocalCentre(at, current) : current.TransformPoint(at);
+        Vector2 flip = Flip;
+        Vector2 flipped = at * flip;
+        Vector2 centre = Space == ParticleSpace.Local ? LocalCentre(flipped, current) : current.TransformPoint(flipped);
+        Transform2D launch = Launch(Turn(current), flip);
 
         for (int index = 0; index < count; index++)
         {
             Vector2 sample = shape.IsRing ? shape.BurstPoint(ringStart, index, count) : shape.Sample(_random);
-            SpawnOne(sample, centre, centre, Vector2.Zero, 0.5f, _lastDeltaSeconds, turn);
+            SpawnOne(sample, centre, centre, Vector2.Zero, 0.5f, _lastDeltaSeconds, launch);
         }
     }
 
     // Places one particle at fraction f of the centre's move, offset by its shape sample. The launch is
-    // drawn in the entity's unit frame, and in World space turn maps it into the world.
-    private void SpawnOne(Vector2 sample, Vector2 previousCentre, Vector2 currentCentre, Vector2 emitterVelocity, float f, float dt, in Transform2D turn)
+    // drawn in the entity's unit frame, and launch mirrors it and, in World space, turns it into the world.
+    private void SpawnOne(Vector2 sample, Vector2 previousCentre, Vector2 currentCentre, Vector2 emitterVelocity, float f, float dt, in Transform2D launch)
     {
         Vector2 localDirection = Direction == Vector2.Zero
             ? Rotate(Vector2.UnitX, float.DegreesToRadians(_random.Range(0f, 360f)))
@@ -660,37 +685,47 @@ public sealed class ParticleEmitter : Renderer
         Vector2 origin;
         if (Space == ParticleSpace.Local)
         {
-            origin = currentCentre + sample;
+            origin = currentCentre + (sample * launch.Scale);
+            velocity *= launch.Scale;
         }
         else
         {
-            origin = Vector2.Lerp(previousCentre, currentCentre, f) + turn.TransformPoint(sample);
-            velocity = turn.TransformPoint(velocity) + (InheritVelocity * emitterVelocity);
+            origin = Vector2.Lerp(previousCentre, currentCentre, f) + launch.TransformPoint(sample);
+            velocity = launch.TransformPoint(velocity) + (InheritVelocity * emitterVelocity);
         }
 
         float lifetimeSeconds = _random.Range(Lifetime);
         int lifetimeTicks = Math.Max(1, (int)MathF.Ceiling(lifetimeSeconds / MathF.Max(dt, 1e-6f)));
+        if (FrameMode == FrameMode.Clip && !_clip.Loop)
+        {
+            lifetimeTicks = Math.Min(lifetimeTicks, _clip.Duration);
+        }
 
         float rotationDegrees = _random.Range(Rotation);
         float angularVelocityDegreesPerSecond = _random.Range(AngularVelocity);
         float scale = _random.Range(Scale);
 
-        int frameCount = Frames.Length;
-        int spriteIndex = SpriteMode == SpriteMode.RandomAtSpawn && frameCount > 1
+        int frameCount = _clip.Frames.Length;
+        int spriteIndex = FrameMode == FrameMode.RandomAtSpawn && frameCount > 1
             ? _random.Range(0, frameCount)
             : 0;
+
+        // A mirror conjugates the spin, as it does a child entity's turn.
+        float spin = launch.Mirrored ? -1f : 1f;
 
         ref Particle particle = ref _particles[_alive < _particles.Length ? _alive++ : NearestEnd()];
         _spawned = true;
 
         particle.Velocity = velocity;
-        particle.Rotation = float.DegreesToRadians(rotationDegrees);
+        particle.Rotation = spin * float.DegreesToRadians(rotationDegrees);
         particle.PreviousRotation = particle.Rotation;
-        particle.AngularVelocity = float.DegreesToRadians(angularVelocityDegreesPerSecond) * dt;
+        particle.AngularVelocity = spin * float.DegreesToRadians(angularVelocityDegreesPerSecond) * dt;
         particle.Age = 0;
         particle.Lifetime = lifetimeTicks;
         particle.Scale = scale;
         particle.SpriteIndex = spriteIndex;
+        particle.FlipX = launch.Scale.X < 0f;
+        particle.FlipY = launch.Scale.Y < 0f;
         particle.Position = origin + (velocity * (1f - f) * dt);
         particle.PreviousPosition = origin - (velocity * f * dt);
         // A prewarmed particle counts as spawned the step before. Later prewarm ticks then age it.
@@ -728,14 +763,11 @@ public sealed class ParticleEmitter : Renderer
         return nearestEnd;
     }
 
-    private ReadOnlySpan<Sprite> Frames => Sprites.IsEmpty ? new ReadOnlySpan<Sprite>(in _defaultSprite) : Sprites.Span;
+    private Vector2 Flip => new(FlipX ? -1f : 1f, FlipY ? -1f : 1f);
 
-    // Clamped because a particle's index outlives a shorter Sprites assigned later.
-    private Sprite FrameAt(int index)
-    {
-        ReadOnlySpan<Sprite> frames = Frames;
-        return frames[Math.Min(index, frames.Length - 1)];
-    }
+    // What mirrors and turns a spawn. A local particle takes only the flip, since the entity's frame carries the rest.
+    private Transform2D Launch(in Transform2D turn, Vector2 flip) =>
+        Space == ParticleSpace.Local ? turn.With(Vector2.Zero, flip) : turn.With(Vector2.Zero, turn.Scale * flip);
 
     // The transform's position, turn and mirror at unit size: the frame a local particle moves in.
     private static Transform2D Frame(in Transform2D transform) => transform.With(transform.Position, Mirror(transform.Scale));
@@ -808,6 +840,8 @@ public sealed class ParticleEmitter : Renderer
         internal int Lifetime;
         internal float Scale;
         internal int SpriteIndex;
+        internal bool FlipX;
+        internal bool FlipY;
 
         // The scene's StepsBegun when this particle spawned.
         internal int SpawnStep;

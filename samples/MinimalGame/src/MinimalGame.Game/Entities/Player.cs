@@ -27,6 +27,7 @@ public sealed class Player : Entity
     private readonly BoxCollider2D _hurtbox;
     private readonly AudioSource _footfall;
     private readonly ParticleEmitter _dust;
+    private readonly ParticleEmitter _puff;
     private readonly BoltTuning _bolt = BoltTuning.Default;
 
     [Authorable]
@@ -115,6 +116,14 @@ public sealed class Player : Entity
             Color = ColorRgba.FromHex("#a09682"),
         };
         Add(_dust);
+
+        // The dust a jump kicks up where it leaves the ground: one puff that plays its clip at the clip's own
+        // steps and ends when the clip does.
+        _puff = new ParticleEmitter(CapsuleAssets.Sprites.Effects.PuffSheet.Clips.Puff, capacity: 4)
+        {
+            Offset = new Vector2(BodyPixels / 2f, BodyPixels),
+        };
+        Add(_puff);
     }
 
     /// <summary>The levers this player runs on, fixed for its lifetime. A placement names one as <c>"tuning": "default"</c>.</summary>
@@ -186,7 +195,7 @@ public sealed class Player : Entity
                 _coyote.Stop();
                 _velocity.Y = -_tuning.JumpSpeed;
                 JumpedThisStep = true;
-                Scene.Add(Scene.Pool<Puff>().Take().Place(Position + new Vector2(BodyPixels / 2f, BodyPixels)));
+                _puff.Emit(1);
                 Log.Info("jumped");
             }
         }
@@ -303,13 +312,12 @@ public sealed class Player : Entity
         return new Vector2(_visual.Facing, 0f);
     }
 
-    // The player declares what it takes from the scene's pools, which preloads them: its bolts, its puffs,
-    // and the sparks it shares with its bolts.
+    // The player declares what it takes from the scene's pools, which preloads them: its bolts and the
+    // sparks it shares with its bolts.
     /// <inheritdoc/>
     protected override void CollectAssets(AssetCollection assets)
     {
         assets.Pool<Bolt>(capacity: 8);
-        assets.Pool<Puff>(capacity: 4);
         assets.Pool<SparkBurst>(capacity: 2);
     }
 
