@@ -46,4 +46,40 @@ public sealed class ContactPairTests
         Assert.Equal(Crowd, scene.Collision.PairProxiesVisited);
         Assert.Equal(Crowd, sensor.Collider.Touching.Length);
     }
+
+    // A component re-applies its layer each time its entity joins a scene. Setting Detects to the
+    // layers it already detects keeps the collider's candidates and costs no pairing. Adding a layer
+    // pairs the collider once and keeps what it touched.
+    [Fact]
+    public void SettingDetectsToTheLayersItAlreadyDetects_PairsNothing()
+    {
+        const int Crowd = 16;
+        Scene scene = new();
+        Prober sensor = new(Vector2.Zero, new Vector2(32f, 32f), CrowdLayer);
+        sensor.Collider.Layer = SensorLayer;
+        sensor.Collider.ReportsContacts = true;
+        scene.Add(sensor);
+        for (int index = 0; index < Crowd; index++)
+        {
+            Prober member = new(new Vector2(8f, 8f));
+            member.Collider.Layer = CrowdLayer;
+            scene.Add(member);
+        }
+
+        using SimulationHost host = new(scene);
+        host.Step();
+        scene.Collision.ResetDiagnostics();
+        sensor.Collider.Detects = new(CrowdLayer);
+        sensor.Collider.Detects = sensor.Collider.Detects.With(CrowdLayer);
+        host.Step();
+
+        Assert.Equal(0, scene.Collision.PairProxiesVisited);
+        Assert.Equal(Crowd, sensor.Collider.Touching.Length);
+
+        sensor.Collider.Detects = sensor.Collider.Detects.With(CollisionFixtures.Solid);
+        host.Step();
+
+        Assert.Equal(Crowd, scene.Collision.PairProxiesVisited);
+        Assert.Equal(Crowd, sensor.Collider.Touching.Length);
+    }
 }

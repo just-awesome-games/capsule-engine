@@ -319,7 +319,10 @@ public abstract partial class Collider2D : Component, ISettleListEntry
             // collider still detects what it did.
             CollisionFilter filter = ResolveFilter(_scene?.Physics.World, value);
             _detects = value;
-            if (_world is not null)
+
+            // A mask naming the layers it already detects keeps the contact candidates it has. Any
+            // change drops them and pairs the collider afresh on the next contact pass.
+            if (_world is not null && filter != Filter)
             {
                 Filter = filter;
                 SyncContactFilter();

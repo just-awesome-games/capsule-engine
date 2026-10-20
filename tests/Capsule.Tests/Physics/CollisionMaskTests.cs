@@ -129,6 +129,58 @@ public sealed class CollisionMaskTests
         Assert.InRange(after.MaskTableLength - before.MaskTableLength, 1, Churn / 10);
     }
 
+    // A component re-applies its layer each time its entity joins a scene. Composing what a mask
+    // already says hands back the same instance, which allocates nothing after the first time.
+    [Fact]
+    public void ComposingAMaskWithNoChange_ReturnsTheSameInstance()
+    {
+        CollisionMask unset = new Body(Vector2.Zero).Collider.Detects;
+        Assert.False(unset.Contains(CollisionFixtures.Solid));
+        Assert.Same(unset, unset.Without(CollisionFixtures.Solid));
+
+        CollisionMask solid = unset.With(CollisionFixtures.Solid, CollisionFixtures.Solid);
+        Assert.True(solid.Contains(CollisionFixtures.Solid));
+        Assert.Same(solid, solid.With(CollisionFixtures.Solid));
+        Assert.Same(solid, solid.Without(CollisionFixtures.Climb));
+
+        CollisionMask both = solid.With(CollisionFixtures.Climb);
+        Assert.NotSame(solid, both);
+        Assert.False(solid.Contains(CollisionFixtures.Climb));
+        Assert.True(both.Without(CollisionFixtures.Solid).Contains(CollisionFixtures.Climb));
+        Assert.False(both.Without(CollisionFixtures.Solid).Contains(CollisionFixtures.Solid));
+        Assert.Throws<ArgumentException>(() => solid.With(" "));
+    }
+
+    // A component adds a layer to a collider its owner configured. The collider then reports
+    // contacts on the owner's layer and the added one, and a layer removed again stops reporting.
+    [Fact]
+    public void AColliderDetectingAComposedMask_ReportsContactsOnEveryLayerInIt()
+    {
+        Scene scene = new();
+        Body sensor = new(Vector2.Zero);
+        sensor.Collider.Detects = new(CollisionFixtures.Solid);
+        sensor.Collider.ReportsContacts = true;
+        Body crate = new(new Vector2(4f, 0f));
+        Body wall = new(new Vector2(0f, 4f));
+        crate.Collider.Layer = CollisionFixtures.Solid;
+        wall.Collider.Layer = CollisionFixtures.Climb;
+        scene.Add(sensor);
+        scene.Add(crate);
+        scene.Add(wall);
+        sensor.Collider.Detects = sensor.Collider.Detects.With(CollisionFixtures.Climb);
+
+        using SimulationHost run = new(scene);
+        run.Step();
+        ColliderContact2D[] touching = sensor.Collider.Touching.ToArray();
+        Assert.Equal(2, touching.Length);
+        Assert.Contains(touching, contact => contact.OtherCollider == crate.Collider);
+        Assert.Contains(touching, contact => contact.OtherCollider == wall.Collider);
+
+        sensor.Collider.Detects = sensor.Collider.Detects.Without(CollisionFixtures.Solid);
+        run.Step();
+        Assert.Equal(wall.Collider, Assert.Single(sensor.Collider.Touching.ToArray()).OtherCollider);
+    }
+
     // A world declaring two layers in the given order, with a solid wall at x 10 and a climbable
     // wall behind it at x 40.
     private static CollisionWorld2D TwoWalls(string first, string second)

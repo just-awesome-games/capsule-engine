@@ -9,8 +9,8 @@ namespace MinimalGame.Game.Entities;
 /// </summary>
 public sealed class Bolt : Entity
 {
-    // Platforms let bolts through.
-    private static readonly CollisionMask Strikes = new(CollisionLayers.Solid);
+    // What stops the player stops a bolt, except platforms, which let bolts through.
+    private static readonly CollisionMask Strikes = CollisionLayers.Blocking.Without(CollisionLayers.Platform);
 
     private readonly SpriteRenderer _sprite;
 

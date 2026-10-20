@@ -42,6 +42,11 @@ Add(box);
 Add(new KinematicBody2D(box) { BlockedBy = CollisionLayers.Blocking });
 ```
 
+A mask is immutable. `With` and `Without` return a new mask with layers added or removed. A component
+adds a layer to a collider this way without wiping what its owner set:
+`collider.Detects = collider.Detects.With(CollisionLayers.Wind);`. Compose a mask at setup, not in a
+per-step query.
+
 ## Triggers
 
 A trigger is a collider that reports contacts on the layers it detects, and its entity reacts in its own
