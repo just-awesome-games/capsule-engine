@@ -22,6 +22,7 @@ public sealed class SparkBurst : Entity
             ScaleOverLifetime = Curve.Linear(1f, 0f),
             Color = Glow.FadeToClear(BoltTuning.Default.Tint),
             Blend = BlendMode.Additive,
+            RemovesEntityWhenFinished = true,
         };
         Add(_emitter);
     }
@@ -35,14 +36,5 @@ public sealed class SparkBurst : Entity
         _emitter.Emit(6);
 
         return this;
-    }
-
-    /// <inheritdoc/>
-    protected override void OnStep(in StepContext context)
-    {
-        if (_emitter.Alive == 0)
-        {
-            Scene.Remove(this);
-        }
     }
 }

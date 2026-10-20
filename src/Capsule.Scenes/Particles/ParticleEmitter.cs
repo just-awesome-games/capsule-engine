@@ -41,17 +41,10 @@ namespace Capsule.Particles;
 ///             ScaleOverLifetime = Curve.Linear(1f, 0f),
 ///             Color = Gradient.Linear(ColorRgba.Yellow, new ColorRgba(255, 255, 0, 0)),
 ///             Blend = BlendMode.Additive,
+///             RemovesEntityWhenFinished = true,
 ///         };
 ///         Add(_emitter);
 ///         _emitter.Emit(6);
-///     }
-///
-///     protected override void OnStep(in StepContext context)
-///     {
-///         if (_emitter.Alive == 0)
-///         {
-///             Scene.Remove(this);
-///         }
 ///     }
 /// }
 /// </code>
@@ -75,11 +68,18 @@ public sealed class ParticleEmitter : Renderer
     private bool _prewarmed;
     private bool _prewarming;
     private bool _started;
+
+    // Set from joining a scene to leaving it. A queued add can give the entity its scene before this.
+    private bool _inScene;
+
+    // Whether a particle has spawned in this life. A burst finishes only after it has.
+    private bool _spawned;
     private float _lastDeltaSeconds = DefaultDeltaSeconds;
     private float _rateAccumulator;
     private float _distanceAccumulator;
 
-    // An Emit before OnStart has no transform or random source yet. OnStart places it.
+    // An Emit before OnStart has no transform or random source yet, and one out of a scene has no stream
+    // for its next life. OnStart or the next join places it.
     private int _pendingCount;
     private Vector2 _pendingAt;
 
@@ -233,6 +233,22 @@ public sealed class ParticleEmitter : Renderer
         set => field = Guard.NonNegative(value, nameof(value));
     }
 
+    /// <summary>
+    /// Whether the emitter removes its entity from the scene when it finishes. False by default.
+    /// </summary>
+    /// <remarks>
+    /// The emitter calls <see cref="Scene.Remove(Entity)"/> on its own entity in the step that finds
+    /// <see cref="IsFinished"/>, and the removal lands at that step's end. A pooled entity returns to its
+    /// <see cref="EntityPool{T}"/> as any removal returns it, and starts unfinished when reused. The
+    /// setting survives removal.
+    /// <para>
+    /// An emitter that spawns on its own never removes its entity while <see cref="Emitting"/>. A hold by
+    /// <see cref="Scene.Freeze(int)"/> or <see cref="Scene.Paused"/> delays the removal by as many steps as
+    /// the hold lasts.
+    /// </para>
+    /// </remarks>
+    public bool RemovesEntityWhenFinished { get; set; }
+
     /// <param name="sprite">The frame a particle draws when <see cref="Sprites"/> is empty.</param>
     /// <param name="capacity">The pool's fixed size, the most particles alive at once.</param>
     public ParticleEmitter(Sprite sprite, int capacity)
@@ -247,6 +263,14 @@ public sealed class ParticleEmitter : Renderer
 
     /// <summary>How many particles are alive now.</summary>
     public int Alive => _alive;
+
+    /// <summary>
+    /// Whether the emitter has spawned a particle, none is alive, and none will spawn without an
+    /// <see cref="Emit(int)"/>: <see cref="Emitting"/> is false, or <see cref="Rate"/> and
+    /// <see cref="RateOverDistance"/> are zero.
+    /// </summary>
+    /// <remarks>Removal from the scene clears it. A reused emitter finishes only after it spawns again.</remarks>
+    public bool IsFinished => _spawned && _alive == 0 && (!Emitting || (Rate == 0f && RateOverDistance == 0f));
 
     /// <summary>
     /// The rect covering every live particle's last move, grown by the largest frame's reach at its
@@ -278,7 +302,8 @@ public sealed class ParticleEmitter : Renderer
     /// placed by the entity's transform at this call.
     /// </summary>
     /// <remarks>
-    /// Before the emitter has started, the spawn waits and is placed when it starts.
+    /// Before the emitter has started, or while it is out of a scene, the spawn waits and is placed when it
+    /// starts or joins a scene.
     /// <para>On a ring <see cref="Shape"/> the particles spread evenly round the rim from one drawn start.</para>
     /// </remarks>
     /// <param name="count">How many to spawn. Zero or fewer spawns nothing.</param>
@@ -290,8 +315,9 @@ public sealed class ParticleEmitter : Renderer
     /// is a world point.
     /// </summary>
     /// <remarks>
-    /// Before the emitter has started, the spawn waits and is placed at the transform the entity starts
-    /// with. Counts from several early calls add up and spawn at the last call's point.
+    /// Before the emitter has started, or while it is out of a scene, the spawn waits and is placed at the
+    /// transform the entity starts or joins with. Counts from several early calls add up and spawn at the
+    /// last call's point.
     /// <para>On a ring <see cref="Shape"/> the particles spread evenly round the rim from one drawn start.</para>
     /// </remarks>
     /// <param name="count">How many to spawn. Zero or fewer spawns nothing.</param>
@@ -303,7 +329,7 @@ public sealed class ParticleEmitter : Renderer
             return;
         }
 
-        if (!_started)
+        if (!_started || !_inScene)
         {
             _pendingCount += count;
             _pendingAt = at;
@@ -317,7 +343,7 @@ public sealed class ParticleEmitter : Renderer
     /// <summary>
     /// Removes every live particle, drops the fractional <see cref="Rate"/> and
     /// <see cref="RateOverDistance"/> remainders, and cancels any <see cref="Emit(int)"/> count waiting
-    /// for the emitter to start.
+    /// for the emitter to start or join a scene.
     /// </summary>
     public void Clear()
     {
@@ -336,11 +362,14 @@ public sealed class ParticleEmitter : Renderer
         // Reserved in scene-add order, which does not depend on when the scene starts. Run is not
         // readable yet for an entity a scene document composes.
         _particleStream = Entity!.Scene.NextParticleStream();
+        _inScene = true;
 
-        // A rejoining emitter does not start again. It draws its new stream from the start, as a new emitter would.
+        // A rejoining emitter does not start again. It draws its new stream from the start, as a new emitter
+        // would, and the spawn it queued while out of the scene is the first draw.
         if (_started)
         {
             _random.Reset(Entity.Scene.RunOrNull?.Random.Seed ?? _random.Seed, ParticleStreamBase ^ _particleStream);
+            SpawnPending();
         }
     }
 
@@ -351,10 +380,7 @@ public sealed class ParticleEmitter : Renderer
 
         _random = new RandomSource(Run.Random.Seed, ParticleStreamBase ^ _particleStream);
         _started = true;
-
-        int count = _pendingCount;
-        _pendingCount = 0;
-        SpawnImmediate(count, _pendingAt);
+        SpawnPending();
     }
 
     /// <summary>Clears every particle and the prewarm. A reused emitter starts its next life as a new one would.</summary>
@@ -364,6 +390,8 @@ public sealed class ParticleEmitter : Renderer
         base.OnRemovedFromScene();
 
         Clear();
+        _inScene = false;
+        _spawned = false;
         _prewarmed = false;
         _lastDeltaSeconds = DefaultDeltaSeconds;
     }
@@ -396,6 +424,11 @@ public sealed class ParticleEmitter : Renderer
         }
 
         Step(dt, previous, current);
+
+        if (RemovesEntityWhenFinished && IsFinished)
+        {
+            Entity!.Scene.Remove(Entity);
+        }
     }
 
     /// <inheritdoc/>
@@ -577,6 +610,13 @@ public sealed class ParticleEmitter : Renderer
         }
     }
 
+    private void SpawnPending()
+    {
+        int count = _pendingCount;
+        _pendingCount = 0;
+        SpawnImmediate(count, _pendingAt);
+    }
+
     private void SpawnImmediate(int count, Vector2 at)
     {
         if (count <= 0)
@@ -641,6 +681,7 @@ public sealed class ParticleEmitter : Renderer
             : 0;
 
         ref Particle particle = ref _particles[_alive < _particles.Length ? _alive++ : NearestEnd()];
+        _spawned = true;
 
         particle.Velocity = velocity;
         particle.Rotation = float.DegreesToRadians(rotationDegrees);
