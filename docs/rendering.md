@@ -60,7 +60,7 @@ public PlayField()
 | Slack before the camera moves, or an aim off the subject | `Deadzone`, `FollowOffset` |
 | A change of bounds that glides | `SetBounds` with a `BoundsTransition` |
 | A push the game owns, such as a recoil | `Offset` |
-| A shake | `Shake` |
+| A shake, or one shaped per call | `Shake`, with a `CameraShake` |
 | A cut with no glide | `Teleport` |
 
 ## Renderers

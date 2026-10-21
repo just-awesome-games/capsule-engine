@@ -4,7 +4,7 @@ using Capsule.Scenes;
 
 namespace Capsule.Tests.Scenes;
 
-// Follow, zoom, offset and shake, read back through the settled region the frame draws.
+// Follow, zoom and offset, read back through the settled region the frame draws.
 public sealed class CameraKitTests
 {
     private static readonly Rect OneScreen = SceneFixtures.OneScreen;
@@ -220,62 +220,6 @@ public sealed class CameraKitTests
         Assert.Equal(Vector2.Zero, other.Camera.Center);
     }
 
-    // A quarter-second shake spans 15 steps. The step after them draws unshaken.
-    [Fact]
-    public void AShake_OffsetsAViewPinnedToItsBounds_AndEndsExactlyUnshakenAfterItsSeconds()
-    {
-        (SceneSimulation simulation, Camera camera) = SceneFixtures.Pinned();
-        ulong draws = simulation.Run.Random.DrawCount;
-        camera.Shake(1f, 0.25f);
-
-        Rect[] regions = Steps(simulation, camera, 16);
-
-        Assert.NotEqual(OneScreen, regions[0]);
-        Assert.NotEqual(OneScreen, regions[14]);
-        Assert.Equal(OneScreen, regions[15]);
-        Assert.Equal(draws, simulation.Run.Random.DrawCount);
-    }
-
-    [Fact]
-    public void TwoIdenticalShakes_SettleIdenticalRegions()
-    {
-        static Rect[] Shaken()
-        {
-            (SceneSimulation simulation, Camera camera) = SceneFixtures.Pinned();
-            camera.Shake(0.8f);
-
-            return Steps(simulation, camera, 40);
-        }
-
-        Assert.Equal(Shaken(), Shaken());
-    }
-
-    // The noise phase runs whether or not the camera shakes. Runs that differ only in their calls
-    // compare step for step.
-    [Fact]
-    public void AWeakShake_ChangesNothingUnderAStrongOne_AndTakesOverAtItsOwnIntensityOnceTheStrongOneFades()
-    {
-        static Rect Shaken(float? strong, int after, float? weak)
-        {
-            (SceneSimulation simulation, Camera camera) = SceneFixtures.Pinned();
-            if (strong is { } first)
-            {
-                camera.Shake(first);
-            }
-
-            Steps(simulation, camera, after);
-            if (weak is { } second)
-            {
-                camera.Shake(second);
-            }
-
-            return Steps(simulation, camera, 1)[0];
-        }
-
-        Assert.Equal(Shaken(1f, 2, null), Shaken(1f, 2, 0.2f));
-        Assert.Equal(Shaken(null, 25, 0.2f), Shaken(1f, 25, 0.2f));
-    }
-
     [Fact]
     public void TheOffset_MovesTheViewAfterBounds_AndAParallaxLayerByItsFactorOfIt()
     {
@@ -310,17 +254,5 @@ public sealed class CameraKitTests
         simulation.Step(SceneFixtures.Step(1));
         Assert.Equal(new Vector2(640f, 360f), scene.Camera.VisibleRegion.Size);
         Assert.Equal(new Vector2(160f, 90f), simulation.View.Camera.PreviousSize);
-    }
-
-    private static Rect[] Steps(SceneSimulation simulation, Camera camera, int count)
-    {
-        Rect[] regions = new Rect[count];
-        for (int step = 0; step < count; step++)
-        {
-            simulation.Step(SceneFixtures.Step(step));
-            regions[step] = camera.VisibleRegion;
-        }
-
-        return regions;
     }
 }

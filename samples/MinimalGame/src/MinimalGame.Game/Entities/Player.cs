@@ -205,6 +205,7 @@ public sealed class Player : Entity
 
         if (_body.IsOnFloor)
         {
+            float fall = _velocity.Y;
             _velocity.Y = 0f;
             _drift = 0f;
 
@@ -214,6 +215,10 @@ public sealed class Player : Entity
                 _footfall.Play();
                 Run.Rumble.Play(_tuning.LandRumbleLow, _tuning.LandRumbleHigh, _tuning.LandRumbleSeconds);
                 _dust.Emit(6);
+                if (fall >= _tuning.HardLandingSpeed)
+                {
+                    Scene.Camera.Shake(_tuning.HardLandingShake);
+                }
             }
         }
         else if (wasOnFloor)

@@ -26,6 +26,8 @@ namespace MinimalGame.Game.Entities;
 /// <param name="HurtFlashTicks">Steps the white flash on a hit takes to fade.</param>
 /// <param name="HurtFreezeTicks">Steps the room holds still when a hit lands.</param>
 /// <param name="HurtShake">How hard the camera shakes when a hit lands, from 0 to 1.</param>
+/// <param name="HardLandingSpeed">The fall speed at or above which a landing thuds the camera, in px/s.</param>
+/// <param name="HardLandingShake">The thud a hard landing gives the camera.</param>
 public sealed record class PlayerTuning(
     float WalkSpeed,
     float SlopeSpeed,
@@ -48,7 +50,9 @@ public sealed record class PlayerTuning(
     ColorRgba HurtTint,
     int HurtFlashTicks,
     int HurtFreezeTicks,
-    float HurtShake)
+    float HurtShake,
+    float HardLandingSpeed,
+    CameraShake HardLandingShake)
 {
     /// <summary>The feel the sample ships with.</summary>
     public static readonly PlayerTuning Default = new(
@@ -73,5 +77,7 @@ public sealed record class PlayerTuning(
         HurtTint: new ColorRgba(255, 96, 96),
         HurtFlashTicks: 10,
         HurtFreezeTicks: 6,
-        HurtShake: 0.6f);
+        HurtShake: 0.6f,
+        HardLandingSpeed: 300f,
+        HardLandingShake: new CameraShake(new Vector2(0f, 2f), 0.15f) { Wave = ShakeWave.Sine, Frequency = 30f });
 }
