@@ -14,4 +14,8 @@ public enum FrameMode
     /// <summary>A frame picked at random at spawn and kept for the particle's life.</summary>
     /// <remarks>A one-frame clip consumes no random draw.</remarks>
     RandomAtSpawn,
+
+    /// <summary>The clip's frames dealt in turn at spawn, from the first, each kept for the particle's life.</summary>
+    /// <remarks>The emitter's particles in one scene life take its frames in order and wrap after the last. A burst of the clip's frame count draws each frame once.</remarks>
+    InOrderAtSpawn,
 }

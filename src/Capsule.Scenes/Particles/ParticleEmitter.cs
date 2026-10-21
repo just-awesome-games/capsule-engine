@@ -80,6 +80,9 @@ public sealed class ParticleEmitter : Renderer
 
     // Whether a particle has spawned in this life. A burst finishes only after it has.
     private bool _spawned;
+
+    // The frame the next particle takes under FrameMode.InOrderAtSpawn, from the first in each life.
+    private int _nextFrame;
     private float _lastDeltaSeconds = DefaultDeltaSeconds;
     private float _rateAccumulator;
     private float _distanceAccumulator;
@@ -406,6 +409,7 @@ public sealed class ParticleEmitter : Renderer
         Clear();
         _inScene = false;
         _spawned = false;
+        _nextFrame = 0;
         _prewarmed = false;
         _lastDeltaSeconds = DefaultDeltaSeconds;
     }
@@ -706,9 +710,16 @@ public sealed class ParticleEmitter : Renderer
         float scale = _random.Range(Scale);
 
         int frameCount = _clip.Frames.Length;
-        int spriteIndex = FrameMode == FrameMode.RandomAtSpawn && frameCount > 1
-            ? _random.Range(0, frameCount)
-            : 0;
+        int spriteIndex = 0;
+        if (frameCount > 1 && FrameMode == FrameMode.RandomAtSpawn)
+        {
+            spriteIndex = _random.Range(0, frameCount);
+        }
+        else if (FrameMode == FrameMode.InOrderAtSpawn)
+        {
+            spriteIndex = _nextFrame;
+            _nextFrame = (_nextFrame + 1) % frameCount;
+        }
 
         // A mirror conjugates the spin, as it does a child entity's turn.
         float spin = launch.Mirrored ? -1f : 1f;

@@ -50,6 +50,28 @@ public sealed class ParticleFrameTests
         Assert.True(first.Distinct().Count() > 1, "every particle drew one frame");
     }
 
+    // InOrderAtSpawn deals the frames in turn and wraps after the last, and a new scene life deals from the first again.
+    [Fact]
+    public void InOrderAtSpawn_DealsTheFramesInTurn_FromTheFirstEachLife()
+    {
+        SpriteClip clip = new([SceneFixtures.Frame(0), SceneFixtures.Frame(1), SceneFixtures.Frame(2)], [1, 1, 1]);
+        ParticleEmitter emitter = new(clip, capacity: 8) { FrameMode = FrameMode.InOrderAtSpawn };
+        EntityHierarchyFixtures.Node entity = new(Vector2.Zero);
+        SimulationHost host = Host(emitter, entity);
+
+        emitter.Emit(5);
+        host.Step();
+        Assert.Equal([0, 1, 2, 0, 1], host.Simulation.View.Sprites.ToArray().Select(intent => Cell(intent)));
+
+        Scene scene = entity.Scene;
+        scene.Remove(entity);
+        host.Step();
+        scene.Add(entity);
+        emitter.Emit(2);
+        host.Step();
+        Assert.Equal([0, 1], host.Simulation.View.Sprites.ToArray().Select(intent => Cell(intent)));
+    }
+
     // The entity's mirror and FlipX each mirror a spawn's offset, launch, spin and frame, and two cancel. A live
     // particle keeps its spawn's mirror after both are cleared. A local particle takes FlipX the same way.
     [Theory]
