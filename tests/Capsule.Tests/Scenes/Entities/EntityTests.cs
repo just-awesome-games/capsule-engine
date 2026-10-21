@@ -74,6 +74,25 @@ public sealed class EntityTests
         Assert.False(leaf.TryGetInParent<SceneFixtures.RecordingComponent>(out _));
     }
 
+    // Entities climb as components do, by any type an entity is assignable to, an interface included.
+    [Fact]
+    public void FindInParent_PrefersSelfThenTheNearestAncestor()
+    {
+        MarkedEntity root = new();
+        MarkedEntity middle = new() { Parent = root };
+        TestEntity leaf = new(Vector2.Zero) { Parent = middle };
+
+        Assert.Same(middle, leaf.FindInParent<IMarked>());
+        Assert.Same(root, root.FindInParent<MarkedEntity>());
+
+        TestEntity plain = new(Vector2.Zero);
+        TestEntity plainLeaf = new(Vector2.Zero) { Parent = plain };
+        _ = new MarkedEntity { Parent = plain };
+        _ = new MarkedEntity { Parent = plainLeaf };
+
+        Assert.Null(plainLeaf.FindInParent<IMarked>());
+    }
+
     [Fact]
     public void GetInParent_ThrowsWhenNoEntityInTheChainMatches()
     {
@@ -237,6 +256,10 @@ public sealed class EntityTests
     }
 
     private sealed class TestEntity(Vector2 position) : Entity(position);
+
+    private interface IMarked;
+
+    private sealed class MarkedEntity() : Entity(Vector2.Zero), IMarked;
 
     private abstract class BaseComponent : Component;
 

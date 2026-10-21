@@ -624,6 +624,24 @@ public partial class Entity
                 $"A {GetType().Name} and its ancestors have no component assignable to {typeof(T).Name}.");
 
     /// <summary>
+    /// This entity, its parent or the nearest ancestor assignable to <typeparamref name="T"/>, or null when there is none.
+    /// </summary>
+    /// <remarks>The search does not visit siblings or <see cref="Children"/>.</remarks>
+    public T? FindInParent<T>()
+        where T : class
+    {
+        for (Entity? entity = this; entity is not null; entity = entity.Parent)
+        {
+            if (entity is T found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Advances this entity by one fixed step, before its components and its <see cref="Children"/>
     /// step. The scene steps in tree order, and a child sees the world position its parent just
     /// moved to.

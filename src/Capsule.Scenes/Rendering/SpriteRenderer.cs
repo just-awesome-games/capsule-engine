@@ -194,12 +194,11 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     }
 
     /// <summary>
-    /// Returns the collider covering the box named <paramref name="name"/>. The first call creates it
-    /// on a child entity of this renderer's entity, and every later call returns the same instance.
+    /// Returns the collider covering the box named <paramref name="name"/>. The first call attaches it
+    /// to this renderer's entity, and every later call returns the same instance.
     /// </summary>
     /// <remarks>
-    /// The renderer owns the child entity, which is named for the box and leaves the scene with its
-    /// parent. The renderer writes the collider's <see cref="Collider2D.Enabled"/>,
+    /// A contact with the box reports that entity. The renderer writes the collider's <see cref="Collider2D.Enabled"/>,
     /// <see cref="Collider2D.Offset"/> and <see cref="BoxCollider2D.Size"/>, and a game's own write to
     /// those lasts until the renderer next places the box. The game sets the rest, such as
     /// <see cref="Collider2D.Layer"/>, <see cref="Collider2D.Detects"/> and the handlers.
@@ -231,7 +230,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         if (Entity is not { } entity)
         {
             throw new InvalidOperationException(
-                "This renderer is attached to no entity. Attach it before binding a box, whose collider sits on a child of that entity.");
+                "This renderer is attached to no entity. Attach it before binding a box, whose collider sits on that entity.");
         }
 
         _boxes ??= [];
@@ -244,14 +243,11 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
             }
         }
 
-        // The collider is attached before the child is parented. A turned ancestry then refuses the
-        // child before it is linked, and nothing is left behind.
+        // A turned ancestry refuses the collider before the binding is kept, and nothing is left behind.
         BoxBinding binding = new(name);
         Read(binding);
         binding.Collider = new BoxCollider2D(Spans(binding) ? Extent(binding.Area) : Vector2.One) { Enabled = false };
-        Entity child = new() { Name = name };
-        child.Add(binding.Collider);
-        child.Parent = entity;
+        entity.Add(binding.Collider);
 
         _boxes.Add(binding);
         Place(binding);
@@ -361,7 +357,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         }
     }
 
-    // Bound boxes return to the world with the renderer. Their children never left the entity.
+    // Bound boxes return to the world with the renderer. Their colliders never left the entity.
     internal override void OnAttachedTo(Entity entity)
     {
         base.OnAttachedTo(entity);
@@ -372,10 +368,10 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
 
         foreach (BoxBinding binding in _boxes)
         {
-            if (!ReferenceEquals(binding.Collider.Entity?.Parent, entity))
+            if (!ReferenceEquals(binding.Collider.Entity, entity))
             {
                 throw new InvalidOperationException(
-                    $"This renderer's box '{binding.Name}' sits under the entity it was bound on, not this one. Bind boxes on a new renderer for this entity.");
+                    $"This renderer's box '{binding.Name}' sits on the entity it was bound on, not this one. Bind boxes on a new renderer for this entity.");
             }
         }
 
@@ -400,9 +396,8 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         }
     }
 
-    // Writes the rect in the entity's own space, mirrored about the pivot as the frame is drawn. The
-    // child sits at the entity's origin, and the collider scales the rect from there. Only changed
-    // values are written.
+    // Writes the rect in the entity's own space, mirrored about the pivot as the frame is drawn, and
+    // the collider scales it from the entity's origin. Only changed values are written.
     private void Place(BoxBinding binding)
     {
         BoxCollider2D collider = binding.Collider;

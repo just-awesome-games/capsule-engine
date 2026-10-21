@@ -30,6 +30,8 @@ public sealed class SpriteBoxTests
         BoxCollider2D box = fighter.Renderer.Box(Hurt);
         List<string> log = Log(box);
 
+        // On the renderer's own entity, which a contact with it names.
+        Assert.Same(fighter, box.Entity);
         Assert.False(box.Enabled);
 
         fighter.Animator.Play(new SpriteClip([FrameFull, FrameBare, FrameFull], [1, 1, 1]));
@@ -81,7 +83,7 @@ public sealed class SpriteBoxTests
         Assert.False(box.Enabled);
         Assert.Equal(["+", "-"], log);
 
-        // The box's child sits under the fighter. Another entity cannot take the renderer.
+        // The box sits on the fighter. Another entity cannot take the renderer.
         Assert.Throws<InvalidOperationException>(() => new Entity().Add(fighter.Renderer));
 
         fighter.Add(fighter.Renderer);
