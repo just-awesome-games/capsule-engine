@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
+using Capsule.Diagnostics;
 using Capsule.Runtime.Audio;
 
 namespace Capsule.Runtime.Desktop.Audio;
@@ -9,16 +10,26 @@ namespace Capsule.Runtime.Desktop.Audio;
 // which announce that the default moved, and reopen, which moves the device's sources and buffers to
 // the new default with everything still playing. When either extension is missing nothing attaches and
 // sound stays on the output the run opened.
+//
+// The device also plays plain stereo on every output, whether or not the watch attaches. On an output
+// the system calls headphones the library otherwise filters the whole mix through a head-related
+// transfer function, which dulls the treble of sound authored for a stereo pair and makes one build
+// sound different per output.
 internal sealed class OpenAlOutput : AudioOutput
 {
     private const string LibraryName = "openal";
 
     private const int AlcConnected = 0x313;
+    private const int AlcHrtf = 0x1992;
     private const int AlcAllDevicesSpecifier = 0x1013;
     private const int EventDefaultDeviceChanged = 0x19D6;
     private const int PlaybackDevice = 0x19D4;
     private const byte AlcTrue = 1;
     private const byte AlcFalse = 0;
+
+    // Every reset and reopen passes this. A reopen given no attributes would decide the headphone
+    // filter afresh for the new output.
+    private static readonly int[] PlainStereo = [AlcHrtf, AlcFalse, 0];
 
     private readonly nint _device;
     private readonly ReopenDevice _reopen;
@@ -54,7 +65,10 @@ internal sealed class OpenAlOutput : AudioOutput
     private delegate void EventCallbackControl(nint callback, nint userParam);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    private delegate byte ReopenDevice(nint device, nint deviceName, nint attribs);
+    private delegate byte ReopenDevice(nint device, nint deviceName, int[] attribs);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate byte ResetDevice(nint device, int[] attribs);
 
     protected override bool Connected
     {
@@ -68,16 +82,23 @@ internal sealed class OpenAlOutput : AudioOutput
 
     protected override string Name => Marshal.PtrToStringUTF8(alcGetString(_device, AlcAllDevicesSpecifier)) ?? "";
 
-    // Subscribes defaultChanged to the system's default playback device changing, or returns null when
-    // the device or the extensions are absent. defaultChanged runs on one of the library's own threads,
-    // possibly at real-time priority with a small stack. It may only note the change. Call once,
-    // after the backend has opened its device.
+    // Switches the device to plain stereo, then subscribes defaultChanged to the system's default
+    // playback device changing, or returns null when the device or the extensions are absent.
+    // defaultChanged runs on one of the library's own threads, possibly at real-time priority with a
+    // small stack. It may only note the change. Call once, after the backend has opened its device
+    // and before anything plays.
     internal static OpenAlOutput? TryAttach(Action defaultChanged)
     {
         nint context = alcGetCurrentContext();
         nint device = context == nint.Zero ? nint.Zero : alcGetContextsDevice(context);
-        if (device == nint.Zero
-            || alcIsExtensionPresent(device, "ALC_SOFT_system_events") != AlcTrue
+        if (device == nint.Zero)
+        {
+            return null;
+        }
+
+        PlayPlainStereo(device);
+
+        if (alcIsExtensionPresent(device, "ALC_SOFT_system_events") != AlcTrue
             || alcIsExtensionPresent(device, "ALC_SOFT_reopen_device") != AlcTrue)
         {
             return null;
@@ -113,7 +134,7 @@ internal sealed class OpenAlOutput : AudioOutput
     // On failure the library's error for the device is reported and cleared.
     protected override bool TryReopen([NotNullWhen(false)] out string? reason)
     {
-        if (_reopen(_device, nint.Zero, nint.Zero) == AlcTrue)
+        if (_reopen(_device, nint.Zero, PlainStereo) == AlcTrue)
         {
             reason = null;
 
@@ -129,6 +150,24 @@ internal sealed class OpenAlOutput : AudioOutput
     {
         _control(1, EventDefaultDeviceChanged, AlcFalse);
         _subscribe(nint.Zero, nint.Zero);
+    }
+
+    // A reset that fails leaves the filter as the library chose it. A reset can also leave the device
+    // disconnected, which the follower's poll then reopens.
+    private static void PlayPlainStereo(nint device)
+    {
+        nint reset = alcIsExtensionPresent(device, "ALC_SOFT_HRTF") == AlcTrue
+            ? alcGetProcAddress(device, "alcResetDeviceSOFT")
+            : nint.Zero;
+        if (reset == nint.Zero)
+        {
+            return;
+        }
+
+        if (Marshal.GetDelegateForFunctionPointer<ResetDevice>(reset)(device, PlainStereo) != AlcTrue)
+        {
+            Log.Warning($"audio output could not switch off headphone filtering (OpenAL error 0x{alcGetError(device):X})");
+        }
     }
 
     private void OnEvent(int eventType, int deviceType, nint device, int length, nint message, nint userParam)

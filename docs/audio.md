@@ -6,7 +6,7 @@ give a settings screen volume sliders. Each type's XML docs hold its rules.
 Capsule mixes clips on buses and computes every voice's state from the clip's measured duration, in fixed
 steps. Which sound answers which event, and where the music handle lives, are the game's. Volumes are
 linear amplitude in [0, 1]. A voice has no position, and an `AudioSource` plays at its own `Pan` wherever
-its entity stands.
+its entity stands. Speakers and headphones receive the same stereo mix, with no headphone processing.
 
 | Need | Piece |
 | --- | --- |
