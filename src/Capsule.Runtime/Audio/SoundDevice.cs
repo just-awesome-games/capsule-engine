@@ -43,8 +43,6 @@ internal sealed class SoundDevice : IAudioBackend
         SoundDevice device = new(platform);
         device.FollowDefaultOutput();
 
-        Log.Info(device._output is { } output ? $"audio device opened on '{output.Name}'" : "audio device opened");
-
         return device;
     }
 

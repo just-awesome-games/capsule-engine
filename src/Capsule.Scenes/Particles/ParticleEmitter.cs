@@ -88,9 +88,11 @@ public sealed class ParticleEmitter : Renderer
     private float _distanceAccumulator;
 
     // An Emit before OnStart has no transform or random source yet, and one out of a scene has no stream
-    // for its next life. OnStart or the next join places it.
-    private int _pendingCount;
-    private Vector2 _pendingAt;
+    // for its next life. OnStart or the next join spawns each waiting call in order, at its own point. A
+    // call spawns at least one particle, and a pool holds as many calls as particles. A call past that
+    // joins the last.
+    private readonly PendingEmit[] _pending;
+    private int _pendingCalls;
 
     // The box over every live particle's previous and current position, inflated only when Bounds is
     // read. Each step rebuilds it and every spawn extends it.
@@ -276,6 +278,7 @@ public sealed class ParticleEmitter : Renderer
         _boundsRadius = LargestHalfDiagonal(clip.Frames);
         Capacity = capacity;
         _particles = new Particle[capacity];
+        _pending = new PendingEmit[capacity];
     }
 
     /// <summary>How many particles are alive now.</summary>
@@ -333,8 +336,9 @@ public sealed class ParticleEmitter : Renderer
     /// </summary>
     /// <remarks>
     /// Before the emitter has started, or while it is out of a scene, the spawn waits and is placed at the
-    /// transform the entity starts or joins with. Counts from several early calls add up and spawn at the
-    /// last call's point.
+    /// transform the entity starts or joins with. Waiting calls spawn in call order, each at its own point,
+    /// up to <see cref="Capacity"/> calls. A call past that adds its count to the last waiting call and
+    /// spawns at that call's point.
     /// <para>On a ring <see cref="Shape"/> the particles spread evenly round the rim from one drawn start.</para>
     /// </remarks>
     /// <param name="count">How many to spawn. Zero or fewer spawns nothing.</param>
@@ -348,8 +352,15 @@ public sealed class ParticleEmitter : Renderer
 
         if (!_started || !_inScene)
         {
-            _pendingCount += count;
-            _pendingAt = at;
+            if (_pendingCalls == _pending.Length)
+            {
+                PendingEmit last = _pending[_pendingCalls - 1];
+                _pending[_pendingCalls - 1] = last with { Count = last.Count + count };
+            }
+            else
+            {
+                _pending[_pendingCalls++] = new PendingEmit(count, at);
+            }
 
             return;
         }
@@ -359,13 +370,13 @@ public sealed class ParticleEmitter : Renderer
 
     /// <summary>
     /// Removes every live particle, drops the fractional <see cref="Rate"/> and
-    /// <see cref="RateOverDistance"/> remainders, and cancels any <see cref="Emit(int)"/> count waiting
+    /// <see cref="RateOverDistance"/> remainders, and cancels every <see cref="Emit(int)"/> call waiting
     /// for the emitter to start or join a scene.
     /// </summary>
     public void Clear()
     {
         _alive = 0;
-        _pendingCount = 0;
+        _pendingCalls = 0;
         _rateAccumulator = 0f;
         _distanceAccumulator = 0f;
         _hasBounds = false;
@@ -639,9 +650,12 @@ public sealed class ParticleEmitter : Renderer
 
     private void SpawnPending()
     {
-        int count = _pendingCount;
-        _pendingCount = 0;
-        SpawnImmediate(count, _pendingAt);
+        int calls = _pendingCalls;
+        _pendingCalls = 0;
+        for (int call = 0; call < calls; call++)
+        {
+            SpawnImmediate(_pending[call].Count, _pending[call].At);
+        }
     }
 
     private void SpawnImmediate(int count, Vector2 at)
@@ -857,4 +871,7 @@ public sealed class ParticleEmitter : Renderer
         // The scene's StepsBegun when this particle spawned.
         internal int SpawnStep;
     }
+
+    // One Emit call waiting for the emitter to start or join a scene.
+    private readonly record struct PendingEmit(int Count, Vector2 At);
 }

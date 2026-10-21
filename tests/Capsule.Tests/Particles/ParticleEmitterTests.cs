@@ -126,6 +126,32 @@ public sealed class ParticleEmitterTests
         Assert.Equal(6, entity.Emitter.Alive);
     }
 
+    // Early calls at different points, as a burst from several places queues before its entity joins.
+    [Fact]
+    public void EmitsBeforeTheEmitterStarts_EachSpawnAtItsOwnPoint()
+    {
+        ParticleEmitter emitter = new(Tile, capacity: 8) { Lifetime = new FloatRange(2f, 2f) };
+        EntityHierarchyFixtures.Node root = new(Vector2.Zero);
+        root.Add(emitter);
+
+        SceneFixtures.HookScene scene = new(
+            step: (Scene s, in StepContext context) =>
+            {
+                if (context.Tick == 0)
+                {
+                    emitter.Emit(1, new Vector2(-10f, 0f));
+                    emitter.Emit(2, new Vector2(10f, 0f));
+                    s.Add(root);
+                }
+            });
+
+        SimulationHost host = new(scene);
+        host.Step(2);
+
+        float[] xPositions = [.. host.Simulation.View.Sprites.ToArray().Select(static intent => intent.Position.X)];
+        Assert.Equal([-10f, 10f, 10f], xPositions);
+    }
+
     [Fact]
     public void ClearBeforeTheEmitterStarts_CancelsTheWaitingEmit()
     {
