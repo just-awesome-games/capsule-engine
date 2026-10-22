@@ -31,6 +31,35 @@ public sealed class SpriteAnimatorPlaybackTests
         Assert.Same(Walk, animator.Clip);
     }
 
+    // Layers drawn over the renderer show its frame on every step, never one behind it.
+    [Fact]
+    public void EveryLayer_HoldsTheFrameTheAnimatorWritesIntoTheRenderer()
+    {
+        SpriteRenderer body = new(Frame(9));
+        SpriteRenderer hat = new(Frame(3));
+        SpriteRenderer scarf = new(Frame(4));
+        SpriteAnimator animator = new(body, hat, scarf);
+        SceneFixtures.Recorder entity = new("layered", []);
+        entity.Add(body);
+        entity.Add(hat);
+        entity.Add(scarf);
+        entity.Add(animator);
+        SceneFixtures.HookScene scene = new();
+        scene.Add(entity);
+        using SimulationHost run = new(scene);
+
+        Assert.All([hat, scarf], layer => Assert.Equal(Frame(9), layer.Sprite));
+
+        animator.Play(Walk);
+        for (int step = 0; step < 4; step++)
+        {
+            run.Step();
+            Assert.All([body, hat, scarf], layer => Assert.Equal(animator.Frame, layer.Sprite));
+        }
+
+        Assert.Equal(Frame(1), hat.Sprite);
+    }
+
     [Fact]
     public void AnAnimatorWithNothingToPlayLeavesTheRenderersOwnFrameAlone()
     {

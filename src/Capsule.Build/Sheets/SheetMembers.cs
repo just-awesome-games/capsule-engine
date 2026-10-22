@@ -37,13 +37,120 @@ internal static class SheetMembers
         code.Append(indent).Append("public static class ").AppendLine(identifier);
         code.Append(indent).AppendLine("{");
 
-        code.Append(frames).AppendLine("/// <summary>Every frame this sheet cuts, as sprites.</summary>");
-        code.Append(frames).Append("public static class ").AppendLine(FramesClass);
+        WriteFrames(code, frames, texture, document.Frames);
+
+        // A sheet declaring no socket gets no empty class. Naming Sockets is then a compile error
+        // instead of a member that never resolves. Boxes, events and clips work the same way.
+        WriteNames(code, frames, SocketsClass, "Every socket this sheet's frames set, by name.", document.Sockets);
+        WriteNames(code, frames, BoxesClass, "Every box this sheet's frames set, by name.", document.Boxes);
+        WriteNames(code, frames, EventsClass, "Every event this sheet's clip entries raise, by name.", document.Events);
+
+        if (document.Clips.Length == 0)
+        {
+            code.Append(indent).AppendLine("}");
+
+            return;
+        }
+
+        code.AppendLine();
+        code.Append(frames).AppendLine("/// <summary>Every clip this sheet plays over those frames.</summary>");
+        code.Append(frames).Append("public static class ").AppendLine(ClipsClass);
         code.Append(frames).AppendLine("{");
 
-        for (int i = 0; i < document.Frames.Length; i++)
+        for (int i = 0; i < document.Clips.Length; i++)
         {
-            SheetFrame frame = document.Frames[i];
+            SheetClip clip = document.Clips[i];
+            if (i > 0)
+            {
+                code.AppendLine();
+            }
+
+            code.Append(member).Append("/// <summary><c>").Append(clip.Name).Append("</c>: ")
+                .Append(Literal.Of(clip.Frames.Length)).Append(clip.Frames.Length == 1 ? " frame, " : " frames, ")
+                .Append(Literal.Of(clip.Frames.Sum(static frame => frame.Ticks))).Append(" ticks, ")
+                .Append(clip.Loop ? "looping" : "played once").AppendLine(".</summary>");
+
+            // A property with a field initializer, not an expression body. A clip is immutable. Every
+            // entity playing it reads the same instance.
+            code.Append(member).Append("public static ").Append(GeneratedTypes.SpriteClip).Append(' ')
+                .Append(Identifier(clip.Name)).Append(" { get; } = new ").Append(GeneratedTypes.SpriteClip).AppendLine("(");
+            code.Append(member).Append("    new ").Append(GeneratedTypes.Sprite).Append("[] { ")
+                .AppendJoin(", ", clip.Frames.Select(static frame => FramesClass + "." + Identifier(frame.Frame))).AppendLine(" },");
+            code.Append(member).Append("    new int[] { ")
+                .AppendJoin(", ", clip.Frames.Select(static frame => Literal.Of(frame.Ticks))).AppendLine(" },");
+            code.Append(member).Append("    ").Append(clip.Loop ? "true" : "false");
+            if (clip.Frames.Any(static frame => frame.Events.Length > 0))
+            {
+                code.AppendLine(",").Append(member).Append("    new string[][] { ")
+                    .AppendJoin(", ", clip.Frames.Select(static frame => frame.Events.Length == 0
+                        ? "global::System.Array.Empty<string>()"
+                        : "new string[] { " + string.Join(", ", frame.Events.Select(Literal.Of)) + " }"))
+                    .Append(" }");
+            }
+
+            code.AppendLine(");");
+        }
+
+        code.Append(frames).AppendLine("}");
+        code.Append(indent).AppendLine("}");
+    }
+
+    /// <summary>
+    /// Writes a variant sheet's member: a class holding the frames it draws, as sprites, and the
+    /// <c>Variant</c> mapping each of its base's frames to the frame of the same name.
+    /// </summary>
+    internal static void WriteVariant(StringBuilder code, string indent, string identifier, Source sheet, SheetVariant model)
+    {
+        Sheet document = model.Variant;
+        string texture = $"new {GeneratedTypes.TextureHandle}({Literal.Of(document.TextureKey)}, {Literal.Of(document.TextureExtension)})";
+        string frames = indent + "    ";
+        string member = frames + "    ";
+        string baseSheet = BaseClass(model.BaseKey);
+        SheetFrame[] drawn = [.. document.Frames.Where(static frame => !frame.IsEmpty)];
+        Dictionary<string, SheetFrame> byName = document.Frames.ToDictionary(static frame => frame.Name, StringComparer.Ordinal);
+
+        code.Append(indent).Append("/// <summary>The frames of <c>").Append(model.BaseKey).Append(AssetType.Sheets.Extensions[0])
+            .Append("</c> drawn from <c>").Append(document.TextureKey).Append(document.TextureExtension).AppendLine("</c>.</summary>");
+        code.Append(indent).Append("public static class ").AppendLine(identifier);
+        code.Append(indent).AppendLine("{");
+
+        // A variant whose every frame draws nothing gets no empty Frames class.
+        if (drawn.Length > 0)
+        {
+            WriteFrames(code, frames, texture, drawn);
+            code.AppendLine();
+        }
+
+        // A property with a field initializer: every renderer holding the variant reads one instance.
+        code.Append(frames).AppendLine("/// <summary>Each base frame mapped to this sheet's frame of the same name, or to nothing where that frame draws nothing.</summary>");
+        code.Append(frames).Append("public static ").Append(GeneratedTypes.SpriteVariant).Append(" Variant { get; } = new ")
+            .Append(GeneratedTypes.SpriteVariant).AppendLine("(");
+        code.Append(member).Append("new ").Append(GeneratedTypes.Sprite).Append("[] { ")
+            .AppendJoin(", ", model.Base.Frames.Select(frame => baseSheet + "." + FramesClass + "." + Identifier(frame.Name))).AppendLine(" },");
+        code.Append(member).Append("new ").Append(GeneratedTypes.Sprite).Append("?[] { ")
+            .AppendJoin(", ", model.Base.Frames.Select(frame => byName[frame.Name].IsEmpty ? "null" : FramesClass + "." + Identifier(frame.Name))).AppendLine(" });");
+        code.Append(indent).AppendLine("}");
+    }
+
+    // The generated class of the sheet keyed `key`, fully qualified, as CapsuleAssetsFile declares it.
+    private static string BaseClass(string key)
+    {
+        int slash = key.LastIndexOf('/');
+        string folders = slash < 0 ? string.Empty : string.Concat(key[..slash].Split('/').Select(static folder => "." + Identifier(folder)));
+
+        return GeneratedTypes.CapsuleAssets + folders + "." + Identifier(key[(slash + 1)..]) + AssetType.Sheets.Suffix;
+    }
+
+    private static void WriteFrames(StringBuilder code, string indent, string texture, SheetFrame[] list)
+    {
+        string member = indent + "    ";
+        code.Append(indent).AppendLine("/// <summary>Every frame this sheet cuts, as sprites.</summary>");
+        code.Append(indent).Append("public static class ").AppendLine(FramesClass);
+        code.Append(indent).AppendLine("{");
+
+        for (int i = 0; i < list.Length; i++)
+        {
+            SheetFrame frame = list[i];
             if (i > 0)
             {
                 code.AppendLine();
@@ -112,61 +219,6 @@ internal static class SheetMembers
             code.AppendLine(");");
         }
 
-        code.Append(frames).AppendLine("}");
-
-        // A sheet declaring no socket gets no empty class. Naming Sockets is then a compile error
-        // instead of a member that never resolves. Boxes, events and clips work the same way.
-        WriteNames(code, frames, SocketsClass, "Every socket this sheet's frames set, by name.", document.Sockets);
-        WriteNames(code, frames, BoxesClass, "Every box this sheet's frames set, by name.", document.Boxes);
-        WriteNames(code, frames, EventsClass, "Every event this sheet's clip entries raise, by name.", document.Events);
-
-        if (document.Clips.Length == 0)
-        {
-            code.Append(indent).AppendLine("}");
-
-            return;
-        }
-
-        code.AppendLine();
-        code.Append(frames).AppendLine("/// <summary>Every clip this sheet plays over those frames.</summary>");
-        code.Append(frames).Append("public static class ").AppendLine(ClipsClass);
-        code.Append(frames).AppendLine("{");
-
-        for (int i = 0; i < document.Clips.Length; i++)
-        {
-            SheetClip clip = document.Clips[i];
-            if (i > 0)
-            {
-                code.AppendLine();
-            }
-
-            code.Append(member).Append("/// <summary><c>").Append(clip.Name).Append("</c>: ")
-                .Append(Literal.Of(clip.Frames.Length)).Append(clip.Frames.Length == 1 ? " frame, " : " frames, ")
-                .Append(Literal.Of(clip.Frames.Sum(static frame => frame.Ticks))).Append(" ticks, ")
-                .Append(clip.Loop ? "looping" : "played once").AppendLine(".</summary>");
-
-            // A property with a field initializer, not an expression body. A clip is immutable. Every
-            // entity playing it reads the same instance.
-            code.Append(member).Append("public static ").Append(GeneratedTypes.SpriteClip).Append(' ')
-                .Append(Identifier(clip.Name)).Append(" { get; } = new ").Append(GeneratedTypes.SpriteClip).AppendLine("(");
-            code.Append(member).Append("    new ").Append(GeneratedTypes.Sprite).Append("[] { ")
-                .AppendJoin(", ", clip.Frames.Select(static frame => FramesClass + "." + Identifier(frame.Frame))).AppendLine(" },");
-            code.Append(member).Append("    new int[] { ")
-                .AppendJoin(", ", clip.Frames.Select(static frame => Literal.Of(frame.Ticks))).AppendLine(" },");
-            code.Append(member).Append("    ").Append(clip.Loop ? "true" : "false");
-            if (clip.Frames.Any(static frame => frame.Events.Length > 0))
-            {
-                code.AppendLine(",").Append(member).Append("    new string[][] { ")
-                    .AppendJoin(", ", clip.Frames.Select(static frame => frame.Events.Length == 0
-                        ? "global::System.Array.Empty<string>()"
-                        : "new string[] { " + string.Join(", ", frame.Events.Select(Literal.Of)) + " }"))
-                    .Append(" }");
-            }
-
-            code.AppendLine(");");
-        }
-
-        code.Append(frames).AppendLine("}");
         code.Append(indent).AppendLine("}");
     }
 

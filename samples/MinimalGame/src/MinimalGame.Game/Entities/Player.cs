@@ -331,6 +331,7 @@ public sealed class Player : Entity
         panel.Field("Current Health", Health);
         panel.Field("Bolts active", Scene.Pool<Bolt>().Active);
         panel.Command("Heal", () => Health++);
+        panel.Toggle("Cap", _visual.WearsCap, on => _visual.WearsCap = on);
     }
 
     private void OnHurtboxEntered(ColliderContact2D contact)

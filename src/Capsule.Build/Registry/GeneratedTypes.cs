@@ -27,6 +27,8 @@ internal static class GeneratedTypes
 
     internal const string Rect = "global::Capsule.Rendering.Rect";
 
+    internal const string SpriteVariant = "global::Capsule.Rendering.SpriteVariant";
+
     internal const string SpriteClip = "global::Capsule.Animation.SpriteClip";
 
     internal const string Shader = "global::Capsule.Rendering.Shader";
@@ -38,4 +40,6 @@ internal static class GeneratedTypes
     internal const string SceneKey = "global::Capsule.Scenes.SceneKey";
 
     internal const string Vector2 = "global::System.Numerics.Vector2";
+
+    internal const string CapsuleAssets = "global::Capsule.Generated.CapsuleAssets";
 }

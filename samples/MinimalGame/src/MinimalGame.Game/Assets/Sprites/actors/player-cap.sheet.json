@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/sheet.schema.json",
+  "formatVersion": 1,
+  "texture": "textures/actors/player-cap.png",
+  "variantOf": "Sprites/actors/player.sheet.json",
+  "frames": [
+    { "name": "idle-0", "x": 0, "y": 0, "width": 7, "height": 3, "pivot": [3, 10] },
+    { "name": "idle-1", "x": 0, "y": 0, "width": 7, "height": 3, "pivot": [3, 9] },
+    { "name": "walk-0", "x": 0, "y": 0, "width": 7, "height": 3, "pivot": [3, 10] },
+    { "name": "walk-1", "x": 0, "y": 0, "width": 7, "height": 3, "pivot": [3, 10] },
+    { "name": "walk-2", "x": 0, "y": 0, "width": 7, "height": 3, "pivot": [3, 10] },
+    { "name": "walk-3", "x": 0, "y": 0, "width": 7, "height": 3, "pivot": [3, 10] }
+  ]
+}

@@ -7,7 +7,7 @@ namespace Capsule.Tests.Build;
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class SheetToolTests
 {
-    private const string Player = """
+    internal const string Player = """
         { "formatVersion": 1,
           "texture": "actors/player.png",
           "frames": [
@@ -353,7 +353,7 @@ public sealed class SheetToolTests
     public void JsonTheReaderRefuses_FailsTheBuild(string json) =>
         Assert.Contains("Assets/Sprites/prop.sheet.json", Refused(("prop", json)), StringComparison.Ordinal);
 
-    private static string Emitted(params (string Key, string Json)[] sheets)
+    internal static string Emitted(params (string Key, string Json)[] sheets)
     {
         using ToolWorkspace workspace = Authored(sheets);
         workspace.Succeed();
@@ -361,7 +361,7 @@ public sealed class SheetToolTests
         return workspace.Generated;
     }
 
-    private static string Refused(params (string Key, string Json)[] sheets)
+    internal static string Refused(params (string Key, string Json)[] sheets)
     {
         using ToolWorkspace workspace = Authored(sheets);
 

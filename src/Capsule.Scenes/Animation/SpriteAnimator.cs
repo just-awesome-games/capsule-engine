@@ -8,24 +8,42 @@ namespace Capsule.Animation;
 
 /// <summary>
 /// Plays a <see cref="SpriteClip"/> on the fixed step and writes its current frame into the
-/// <see cref="SpriteRenderer"/> given at construction. It owns that renderer's
-/// <see cref="SpriteRenderer.Sprite"/> and nothing else.
+/// <see cref="SpriteRenderer"/> given at construction and into each layer given with it. It owns
+/// those renderers' <see cref="SpriteRenderer.Sprite"/> and nothing else.
 /// </summary>
 /// <remarks>
 /// Playback advances on ticks, and the frame an entity is on is simulation state.
+/// <para>
+/// Every write reaches the renderer and every layer together. A layer never drifts from the renderer.
+/// Each layer draws the frame through its own <see cref="SpriteRenderer.Variant"/>, such as a hat
+/// drawn over an avatar. Construction writes the renderer's frame into each layer.
+/// </para>
 /// <para>
 /// A component steps after its entity. An entity reading the animator in <see cref="Entity.OnStep"/>
 /// sees the frame the previous step drew. Put logic that depends on the frame drawn in a component
 /// attached after the animator.
 /// </para>
 /// </remarks>
-/// <param name="renderer">The renderer whose frame this animator writes.</param>
-public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
+/// <example>
+/// An avatar with a hat drawn over every frame it plays:
+/// <code>
+/// SpriteRenderer avatar = new(CapsuleAssets.Sprites.AvatarSheet.Frames.Idle0);
+/// SpriteRenderer hat = new(avatar.Sprite)
+/// {
+///     Variant = CapsuleAssets.Sprites.AvatarHatSheet.Variant,
+/// };
+/// Add(avatar);
+/// Add(hat);
+/// Add(new SpriteAnimator(avatar, hat));
+/// </code>
+/// </example>
+public sealed class SpriteAnimator : Component
 {
     // Both event buffers start at this many names, and a step reporting more doubles them.
     private const int InitialEvents = 4;
 
-    private readonly SpriteRenderer _renderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
+    private readonly SpriteRenderer _renderer;
+    private readonly SpriteRenderer[] _layers;
 
     private AnimationPlayback _playback;
     private bool _pendingStart;
@@ -118,6 +136,26 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
     /// </code>
     /// </example>
     public bool RemovesEntityWhenFinished { get; set; }
+
+    /// <summary>Creates an animator writing its frame into <paramref name="renderer"/> and each of <paramref name="layers"/>.</summary>
+    /// <param name="renderer">The renderer whose frame this animator writes, and which <see cref="Frame"/> reads before a clip plays.</param>
+    /// <param name="layers">More renderers shown the same frame, each through its own <see cref="SpriteRenderer.Variant"/>. None by default.</param>
+    public SpriteAnimator(SpriteRenderer renderer, params ReadOnlySpan<SpriteRenderer> layers)
+    {
+        ArgumentNullException.ThrowIfNull(renderer);
+
+        foreach (SpriteRenderer layer in layers)
+        {
+            ArgumentNullException.ThrowIfNull(layer, nameof(layers));
+        }
+
+        _renderer = renderer;
+        _layers = layers.ToArray();
+        foreach (SpriteRenderer layer in _layers)
+        {
+            layer.Sprite = renderer.Sprite;
+        }
+    }
 
     /// <summary>How many clip ticks each step advances. One by default, and zero holds the frame.</summary>
     /// <remarks>
@@ -315,7 +353,7 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
             Report(clip.EventsAt(_playback.FrameIndex), ref _pending, ref _pendingCount);
         }
 
-        _renderer.Sprite = clip.Frames[_playback.FrameIndex];
+        Write(clip.Frames[_playback.FrameIndex]);
     }
 
     /// <summary>Counts a clip played or rewound out of a scene from the tick the entity joins this one.</summary>
@@ -347,7 +385,7 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         _pendingStart = true;
         _startedOnTick = null;
         Report(clip.EventsAt(0), ref _pending, ref _pendingCount);
-        _renderer.Sprite = clip.Frames[0];
+        Write(clip.Frames[0]);
     }
 
     /// <inheritdoc/>
@@ -392,12 +430,21 @@ public sealed class SpriteAnimator(SpriteRenderer renderer) : Component
         // Only a new frame is written. Writing re-reads the frame's sockets and boxes.
         if (_playback.FrameIndex != drawn)
         {
-            _renderer.Sprite = clip.Frames[_playback.FrameIndex];
+            Write(clip.Frames[_playback.FrameIndex]);
         }
 
         if (RemovesEntityWhenFinished && _playback.IsFinished)
         {
             Entity!.Scene.Remove(Entity);
+        }
+    }
+
+    private void Write(Sprite frame)
+    {
+        _renderer.Sprite = frame;
+        foreach (SpriteRenderer layer in _layers)
+        {
+            layer.Sprite = frame;
         }
     }
 

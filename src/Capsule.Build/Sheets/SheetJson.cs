@@ -8,15 +8,15 @@ namespace Capsule.Build.Sheets;
 
 // The document as the JSON spells it. Every member is optional here. A missing one is then refused
 // by name instead of as a parse failure, and a member the format does not declare fails the sheet.
-[Description("A sprite sheet: the texture it cuts from, the sockets and boxes its frames set, the events its clips raise, its frames and the clips played over them.")]
+[Description("A sprite sheet: the texture it cuts from, the sockets and boxes its frames set, the events its clips raise, its frames and the clips played over them. A variant sheet draws another sheet's frames from its own texture, and holds only frames.")]
 internal sealed class SheetJson
 {
     /// <summary>What a refusal calls a sheet's members and values.</summary>
     internal const string Members = "member or value";
 
     /// <summary>Every member a sheet and its parts may hold, as a refusal lists them.</summary>
-    internal const string Shape = "A sheet holds \"formatVersion\", \"texture\" and \"frames\", and may hold \"sockets\", \"boxes\", \"events\", \"clips\" and \"source\". "
-        + "A frame holds \"name\", \"x\", \"y\", \"width\" and \"height\", and may hold \"pivot\", \"sockets\" and \"boxes\". A frame's box holds \"x\", \"y\", \"width\" and \"height\". "
+    internal const string Shape = "A sheet holds \"formatVersion\", \"texture\" and \"frames\", and may hold \"variantOf\", \"sockets\", \"boxes\", \"events\", \"clips\" and \"source\". "
+        + "A frame holds \"name\", \"x\", \"y\", \"width\" and \"height\", and may hold \"pivot\", \"sockets\" and \"boxes\". A variant's frame that draws nothing holds only \"name\". A frame's box holds \"x\", \"y\", \"width\" and \"height\". "
         + "A clip holds \"name\" and \"frames\", each a \"frame\" and its \"ticks\", and may hold \"loop\". An entry may hold \"events\". "
         + "A socket, a box or an event holds \"name\", and \"source\" holds \"tool\", \"path\" and \"hash\".";
 
@@ -55,6 +55,9 @@ internal sealed class SheetJson
     [Required]
     [SchemaLength(NonEmpty)]
     public string? Texture { get; set; }
+
+    [Description("The path under Assets/ of the sheet whose frames this one draws another way, extension included, as \"Sprites/avatar.sheet.json\". Absent is a sheet of its own. A variant lists every frame of that sheet once, and declares no sockets, boxes, events or clips.")]
+    public string? VariantOf { get; set; }
 
     [Description("The sockets the frames set. Absent or empty generates no Sockets class.")]
     public List<SocketJson>? Sockets { get; set; }
@@ -104,7 +107,7 @@ internal sealed class EventJson
     public string? Name { get; set; }
 }
 
-[Description("One region of the sheet's texture, with the pivot, sockets and boxes it carries.")]
+[Description("One region of the sheet's texture, with the pivot, sockets and boxes it carries. A variant's frame carries no sockets or boxes, and one giving only its name draws nothing.")]
 internal sealed class FrameJson
 {
     [Description("The frame's name, unique among the frames. Letters, digits, '-' and '_', not starting with a digit.")]
@@ -112,23 +115,19 @@ internal sealed class FrameJson
     [RegularExpression(FormatSchemas.NamePattern)]
     public string? Name { get; set; }
 
-    [Description("The frame's left edge in texels of the texture.")]
-    [Required]
+    [Description("The frame's left edge in texels of the texture. Required, except on a variant's frame that draws nothing, which gives only its name.")]
     [Range(SheetJson.LeastOrigin, int.MaxValue)]
     public int? X { get; set; }
 
-    [Description("The frame's top edge in texels of the texture.")]
-    [Required]
+    [Description("The frame's top edge in texels of the texture. Required, except on a variant's frame that draws nothing, which gives only its name.")]
     [Range(SheetJson.LeastOrigin, int.MaxValue)]
     public int? Y { get; set; }
 
-    [Description("The frame's width in texels.")]
-    [Required]
+    [Description("The frame's width in texels. Required, except on a variant's frame that draws nothing, which gives only its name.")]
     [Range(SheetJson.LeastExtent, int.MaxValue)]
     public int? Width { get; set; }
 
-    [Description("The frame's height in texels.")]
-    [Required]
+    [Description("The frame's height in texels. Required, except on a variant's frame that draws nothing, which gives only its name.")]
     [Range(SheetJson.LeastExtent, int.MaxValue)]
     public int? Height { get; set; }
 

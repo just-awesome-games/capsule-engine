@@ -35,6 +35,11 @@ internal static class SheetFile
         }
 
         (string key, string extension) = Texture(json.Texture);
+        if (json.VariantOf is { } variantOf)
+        {
+            return new Sheet(key, extension, [], [], [], VariantFrames(json), [], BaseSheet(variantOf));
+        }
+
         // Sockets, boxes and events each have their own name space. One may share a name with a frame,
         // a clip or a member of another list.
         string[] sockets = Declared(json.Sockets?.ConvertAll(static socket => socket?.Name), SheetMembers.SocketsClass, "sockets");
@@ -42,9 +47,67 @@ internal static class SheetFile
         string[] events = Declared(json.Events?.ConvertAll(static raised => raised?.Name), SheetMembers.EventsClass, "events");
         SheetFrame[] frames = Frames(json.Frames, sockets, boxes);
 
-        return new Sheet(key, extension, sockets, boxes, events, frames, Clips(json.Clips, frames, events));
+        return new Sheet(key, extension, sockets, boxes, events, frames, Clips(json.Clips, frames, events), VariantOf: null);
     }
 
+    // The base is named by its path under Assets/ as a texture is, and reached by its key however it is spelled.
+    private static string BaseSheet(string path)
+    {
+        string suffix = AssetType.Sheets.Extensions[0];
+        if (!path.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) || !AssetPaths.TrySplit(path, out _, out _))
+        {
+            throw new FormatException(
+                $"is a variant of \"{path}\". A base sheet is named by its path under Assets/, extension included, as \"Sprites/avatar.sheet.json\", with forward slashes and no empty, \".\" or \"..\" segment.");
+        }
+
+        return Keys.Of(path[..^suffix.Length], $"is a variant of \"{path}\"");
+    }
+
+    // A variant draws its base's frames from its own texture. The clips, events and marks are the base's.
+    private static SheetFrame[] VariantFrames(SheetJson json)
+    {
+        string? declared = json.Clips is { Count: > 0 } ? "clips"
+            : json.Events is { Count: > 0 } ? "events"
+            : json.Sockets is { Count: > 0 } ? "sockets"
+            : json.Boxes is { Count: > 0 } ? "boxes"
+            : null;
+        if (declared is not null)
+        {
+            throw new FormatException(
+                $"declares \"{declared}\" and is a variant of \"{json.VariantOf}\". A variant only draws its base's frames another way, and plays, raises and places what its base declares. Remove \"{declared}\".");
+        }
+
+        if (json.Frames is not { Count: >= SheetJson.NonEmpty } declaredFrames)
+        {
+            throw new FormatException(
+                $"has no frames and is a variant of \"{json.VariantOf}\". A variant lists every frame of its base once. Add each base frame to \"frames\".");
+        }
+
+        SheetFrame[] frames = new SheetFrame[declaredFrames.Count];
+        Names named = new(SheetMembers.FramesClass);
+
+        for (int i = 0; i < declaredFrames.Count; i++)
+        {
+            if (declaredFrames[i] is not { } frame)
+            {
+                throw new FormatException($"has frames[{i}] as null. Every frame is an object. Write the frame, or remove the null.");
+            }
+
+            string name = named.Read(frame.Name, $"frames[{i}]");
+
+            if (frame.Sockets is { Count: > 0 } || frame.Boxes is { Count: > 0 })
+            {
+                throw new FormatException(
+                    $"has frame \"{name}\" setting a {(frame.Sockets is { Count: > 0 } ? "socket" : "box")}, and is a variant. Sockets and boxes come from the base's frame, and a variant never moves them. Remove them from the variant's frame.");
+            }
+
+            frames[i] = frame.X is null && frame.Y is null && frame.Width is null && frame.Height is null && frame.Pivot is null
+                ? new SheetFrame(name, 0, 0, 0, 0, 0F, 0F, [], [], IsEmpty: true)
+                : Region(frame, name, [], []);
+        }
+
+        return frames;
+    }
     private static (string Key, string Extension) Texture(string? path)
     {
         if (path is not { Length: >= SheetJson.NonEmpty })
@@ -101,34 +164,9 @@ internal static class SheetFile
             }
 
             string name = named.Read(frame.Name, $"frames[{i}]");
-
-            if (frame.X is not { } x || frame.Y is not { } y || frame.Width is not { } width || frame.Height is not { } height)
-            {
-                throw new FormatException(
-                    $"has frame \"{name}\" with no {Missing(frame)}. Every frame carries x, y, width and height in texels. Add the missing one.");
-            }
-
-            if (x < SheetJson.LeastOrigin || y < SheetJson.LeastOrigin)
-            {
-                throw new FormatException(
-                    $"has frame \"{name}\" at ({x}, {y}). A region starts inside its texture, and x and y are not negative. Move the frame inside the texture.");
-            }
-
-            if (width < SheetJson.LeastExtent || height < SheetJson.LeastExtent)
-            {
-                throw new FormatException(
-                    $"has frame \"{name}\" {width}x{height}. A region has at least one texel on each axis. Give it a positive width and height.");
-            }
-
-            (float pivotX, float pivotY) = frame.Pivot is { } pivot ? Point(pivot, name, "a pivot") : (0F, 0F);
-            frames[i] = new SheetFrame(
+            frames[i] = Region(
+                frame,
                 name,
-                x,
-                y,
-                width,
-                height,
-                pivotX,
-                pivotY,
                 FrameMarks(frame.Sockets, name, sockets, set, "socket", "sockets", Socket),
                 FrameMarks(frame.Boxes, name, boxes, boxesSet, "box", "boxes", Box));
         }
@@ -137,6 +175,31 @@ internal static class SheetFile
         RequireAllSet(boxes, boxesSet, "box", "a rect");
 
         return frames;
+    }
+
+    private static SheetFrame Region(FrameJson frame, string name, SheetSocket[] sockets, SheetBox[] boxes)
+    {
+        if (frame.X is not { } x || frame.Y is not { } y || frame.Width is not { } width || frame.Height is not { } height)
+        {
+            throw new FormatException(
+                $"has frame \"{name}\" with no {Missing(frame)}. Every frame carries x, y, width and height in texels. Add the missing one.");
+        }
+
+        if (x < SheetJson.LeastOrigin || y < SheetJson.LeastOrigin)
+        {
+            throw new FormatException(
+                $"has frame \"{name}\" at ({x}, {y}). A region starts inside its texture, and x and y are not negative. Move the frame inside the texture.");
+        }
+
+        if (width < SheetJson.LeastExtent || height < SheetJson.LeastExtent)
+        {
+            throw new FormatException(
+                $"has frame \"{name}\" {width}x{height}. A region has at least one texel on each axis. Give it a positive width and height.");
+        }
+
+        (float pivotX, float pivotY) = frame.Pivot is { } pivot ? Point(pivot, name, "a pivot") : (0F, 0F);
+
+        return new SheetFrame(name, x, y, width, height, pivotX, pivotY, sockets, boxes);
     }
 
     private static void RequireAllSet(string[] declared, bool[] set, string kind, string shape)

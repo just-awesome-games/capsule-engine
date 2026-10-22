@@ -3,7 +3,7 @@
   "$id": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/sheet.schema.json",
   "$comment": "Generated from Capsule.Build.Sheets.SheetJson.",
   "title": "Capsule sprite sheet",
-  "description": "A sprite sheet: the texture it cuts from, the sockets and boxes its frames set, the events its clips raise, its frames and the clips played over them.",
+  "description": "A sprite sheet: the texture it cuts from, the sockets and boxes its frames set, the events its clips raise, its frames and the clips played over them. A variant sheet draws another sheet's frames from its own texture, and holds only frames.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -19,6 +19,10 @@
       "description": "The key of the texture every frame is cut from, extension included, with forward slashes and no empty, \".\" or \"..\" segment. Any spelling of the key reads.",
       "type": "string",
       "minLength": 1
+    },
+    "variantOf": {
+      "description": "The path under Assets/ of the sheet whose frames this one draws another way, extension included, as \"Sprites/avatar.sheet.json\". Absent is a sheet of its own. A variant lists every frame of that sheet once, and declares no sockets, boxes, events or clips.",
+      "type": "string"
     },
     "sockets": {
       "description": "The sockets the frames set. Absent or empty generates no Sockets class.",
@@ -86,22 +90,22 @@
             "pattern": "^[-_]*[A-Za-z][A-Za-z0-9_-]*$"
           },
           "x": {
-            "description": "The frame's left edge in texels of the texture.",
+            "description": "The frame's left edge in texels of the texture. Required, except on a variant's frame that draws nothing, which gives only its name.",
             "type": "integer",
             "minimum": 0
           },
           "y": {
-            "description": "The frame's top edge in texels of the texture.",
+            "description": "The frame's top edge in texels of the texture. Required, except on a variant's frame that draws nothing, which gives only its name.",
             "type": "integer",
             "minimum": 0
           },
           "width": {
-            "description": "The frame's width in texels.",
+            "description": "The frame's width in texels. Required, except on a variant's frame that draws nothing, which gives only its name.",
             "type": "integer",
             "minimum": 1
           },
           "height": {
-            "description": "The frame's height in texels.",
+            "description": "The frame's height in texels. Required, except on a variant's frame that draws nothing, which gives only its name.",
             "type": "integer",
             "minimum": 1
           },
@@ -161,11 +165,7 @@
         },
         "additionalProperties": false,
         "required": [
-          "name",
-          "x",
-          "y",
-          "width",
-          "height"
+          "name"
         ]
       },
       "minItems": 1

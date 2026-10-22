@@ -15,6 +15,8 @@ and a duration typed `float` counts seconds. `Countdown.Start(30)` is half a sec
 | Frames cut from a texture, and the clips played over them | A `*.sheet.json` sprite sheet |
 | A clip playing on a sprite | `SpriteAnimator` on a `SpriteRenderer` |
 | A point or a collider the drawn frame places | `SpriteRenderer.Socket` and `SpriteRenderer.Box` |
+| Another drawing of a sheet's frames, such as a hat | A `"variantOf"` sheet's `Variant`, set on `SpriteRenderer.Variant` |
+| Layers showing the frame an animator plays | `new SpriteAnimator(avatar, hat)` |
 | A moment in a clip, such as a sound cue | The sheet's `events`, read with `SpriteAnimator.Reached` |
 | A value eased from 0 to 1 over steps | `Tween`, with an `Ease` and a `TweenLoop` |
 | An ease applied to a progress of your own | `Easing.Apply` |
@@ -62,6 +64,18 @@ _animator.Play(CapsuleAssets.Sprites.DoorSheet.Clips.Opening);
 
 A step reads `_animator.Reached(CapsuleAssets.Sprites.DoorSheet.Events.Opened)` to play its sound on the
 frame the door opens.
+
+## Variants and layers
+
+A sheet naming its base sheet in `"variantOf"` redraws each base frame from its own texture, and a frame
+giving only its name draws nothing. A renderer draws its `Variant` while sockets and boxes stay the held
+frame's. An animator writes every layer it is given:
+
+```csharp
+SpriteRenderer hat = new(avatar.Sprite) { Variant = CapsuleAssets.Sprites.AvatarHatSheet.Variant };
+Add(hat);
+_animator = new SpriteAnimator(avatar, hat);
+```
 
 ## Tweens and timers
 

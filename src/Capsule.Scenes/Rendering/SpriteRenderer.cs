@@ -29,16 +29,17 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     private bool _flipX;
     private bool _flipY;
 
-    // The first Socket or Box call allocates its list, because most renderers bind neither.
-    private List<SocketBinding>? _sockets;
-    private List<BoxBinding>? _boxes;
+    // The first Socket, Box or Variant call allocates this, because most renderers use none of them.
+    private Extras? _extras;
 
     /// <summary>
-    /// The frame this renderer draws. Swap it to animate, or to change a static frame.
+    /// The frame this renderer holds, which it draws unless <see cref="Variant"/> maps it. Swap it to
+    /// animate, or to change a static frame.
     /// </summary>
     /// <remarks>
     /// Writing it re-places every bound socket the new frame carries and every bound box, under the
-    /// rules <see cref="Socket"/> and <see cref="Box"/> describe, before returning.
+    /// rules <see cref="Socket"/> and <see cref="Box"/> describe, before returning. Sockets and boxes
+    /// always come from this frame, whatever <see cref="Variant"/> draws in its place.
     /// </remarks>
     public Sprite Sprite
     {
@@ -47,7 +48,47 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         set
         {
             _sprite = value;
+            Resolve();
             Place(frameChanged: true);
+        }
+    }
+
+    /// <summary>
+    /// The other look this renderer draws <see cref="Sprite"/> through, and null by default, which
+    /// draws <see cref="Sprite"/> itself.
+    /// </summary>
+    /// <remarks>
+    /// A frame the variant maps draws as its mapped sprite, or draws nothing where the variant maps it
+    /// to nothing. A frame it does not map draws as itself. <see cref="Sprite"/>, sockets and boxes
+    /// still read the held frame. A variant never moves a socket or a box. <see cref="Bounds"/>
+    /// covers the frame drawn. A variant held when the scene collects its assets is preloaded with
+    /// the scene. One set later loads each texture on its first draw, and its owner preloads it by
+    /// adding <see cref="SpriteVariant.Textures"/> in its own <c>CollectAssets</c>.
+    /// </remarks>
+    /// <example>
+    /// A hat drawn over an avatar, one drawing for each of the avatar's frames:
+    /// <code>
+    /// SpriteRenderer hat = new(CapsuleAssets.Sprites.AvatarSheet.Frames.Idle0)
+    /// {
+    ///     Variant = CapsuleAssets.Sprites.AvatarHatSheet.Variant,
+    /// };
+    /// </code>
+    /// </example>
+    public SpriteVariant? Variant
+    {
+        get => _extras?.Look?.Variant;
+
+        set
+        {
+            if (value is not null)
+            {
+                (_extras ??= new()).Look = new VariantLook(value);
+                Resolve();
+            }
+            else if (_extras is { } extras)
+            {
+                extras.Look = null;
+            }
         }
     }
 
@@ -120,14 +161,15 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     /// <remarks>
     /// On an entity with a non-zero world rotation this reports the box of the frame's bounding
     /// circle about the pivot, which covers it at every angle, instead of the tighter rect it
-    /// draws. Reads empty whenever the frame draws nothing: a region with no texels, an invalid
-    /// tiling, a world scale with a zero axis, or a turned frame that tiles.
+    /// draws. It measures the frame drawn, which <see cref="Variant"/> may replace. Reads empty
+    /// whenever the frame draws nothing: a variant mapping it to nothing, a region with no texels,
+    /// an invalid tiling, a world scale with a zero axis, or a turned frame that tiles.
     /// </remarks>
     public override Rect Bounds
     {
         get
         {
-            if (Entity is null || !(Tiling.X >= 0f) || !(Tiling.Y >= 0f))
+            if (Entity is null || DrawnFrame is null || !(Tiling.X >= 0f) || !(Tiling.Y >= 0f))
             {
                 return default;
             }
@@ -175,9 +217,9 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
                 "This renderer is attached to no entity. Attach it before binding a socket, which becomes a child of that entity.");
         }
 
-        _sockets ??= [];
+        List<SocketBinding> sockets = (_extras ??= new()).Sockets ??= [];
 
-        foreach (SocketBinding bound in _sockets)
+        foreach (SocketBinding bound in sockets)
         {
             if (bound.Name == name)
             {
@@ -186,7 +228,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         }
 
         SocketBinding binding = new(name, new Entity(entity) { Name = name });
-        _sockets.Add(binding);
+        sockets.Add(binding);
         Read(binding);
         Place(binding);
 
@@ -233,9 +275,9 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
                 "This renderer is attached to no entity. Attach it before binding a box, whose collider sits on that entity.");
         }
 
-        _boxes ??= [];
+        List<BoxBinding> boxes = (_extras ??= new()).Boxes ??= [];
 
-        foreach (BoxBinding bound in _boxes)
+        foreach (BoxBinding bound in boxes)
         {
             if (bound.Name == name)
             {
@@ -249,7 +291,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         binding.Collider = new BoxCollider2D(Spans(binding) ? Extent(binding.Area) : Vector2.One) { Enabled = false };
         entity.Add(binding.Collider);
 
-        _boxes.Add(binding);
+        boxes.Add(binding);
         Place(binding);
 
         return binding.Collider;
@@ -260,7 +302,15 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     {
         ArgumentNullException.ThrowIfNull(assets);
 
-        assets.Add(Sprite.Texture);
+        if (DrawnFrame is { } drawn)
+        {
+            assets.Add(drawn.Texture);
+        }
+
+        if (_extras?.Look is { } look)
+        {
+            assets.Add(look.Variant.Textures);
+        }
     }
 
     /// <inheritdoc/>
@@ -268,14 +318,33 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     {
         ArgumentNullException.ThrowIfNull(view);
 
+        if (DrawnFrame is null)
+        {
+            return;
+        }
+
         view.Add(Intent(PreviousRenderTransform, RenderTransform), Tiling);
+    }
+
+    // The frame drawn: the held one, or what Variant maps it to, and null where that is nothing.
+    private Sprite? DrawnFrame => _extras?.Look is { } look ? look.Drawn : _sprite;
+
+    // Settled on every write to Sprite or Variant, and never by a draw.
+    private void Resolve()
+    {
+        if (_extras?.Look is not { } look)
+        {
+            return;
+        }
+
+        look.Drawn = look.Variant.TryGet(_sprite, out Sprite? drawn) ? drawn : _sprite;
     }
 
     // A negative world scale axis mirrors the frame about the pivot as a flip does. It folds into the flip
     // flags, and the backend draws the magnitude of the extent.
     private SpriteIntent Intent(in Transform2D previous, in Transform2D current)
     {
-        Sprite frame = Sprite;
+        Sprite frame = DrawnFrame.GetValueOrDefault();
         Vector2 size = new Vector2(frame.Region.Width, frame.Region.Height) * current.Scale;
 
         return new SpriteIntent(
@@ -330,9 +399,9 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
 
     private void Place(bool frameChanged)
     {
-        if (_sockets is not null)
+        if (_extras?.Sockets is { } sockets)
         {
-            foreach (SocketBinding binding in _sockets)
+            foreach (SocketBinding binding in sockets)
             {
                 if (frameChanged)
                 {
@@ -343,9 +412,9 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
             }
         }
 
-        if (_boxes is not null)
+        if (_extras?.Boxes is { } boxes)
         {
-            foreach (BoxBinding binding in _boxes)
+            foreach (BoxBinding binding in boxes)
             {
                 if (frameChanged)
                 {
@@ -361,12 +430,12 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     internal override void OnAttachedTo(Entity entity)
     {
         base.OnAttachedTo(entity);
-        if (_boxes is null)
+        if (_extras?.Boxes is not { } boxes)
         {
             return;
         }
 
-        foreach (BoxBinding binding in _boxes)
+        foreach (BoxBinding binding in boxes)
         {
             if (!ReferenceEquals(binding.Collider.Entity, entity))
             {
@@ -375,7 +444,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
             }
         }
 
-        foreach (BoxBinding binding in _boxes)
+        foreach (BoxBinding binding in boxes)
         {
             Place(binding);
         }
@@ -385,12 +454,12 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     internal override void OnDetachingFrom(Entity entity)
     {
         base.OnDetachingFrom(entity);
-        if (_boxes is null)
+        if (_extras?.Boxes is not { } boxes)
         {
             return;
         }
 
-        foreach (BoxBinding binding in _boxes)
+        foreach (BoxBinding binding in boxes)
         {
             binding.Collider.Enabled = false;
         }
@@ -462,6 +531,13 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         base.OnDebugPanel(panel);
         TextureRegion region = Sprite.Region;
         panel.Field("Sprite", string.Create(CultureInfo.InvariantCulture, $"({region.X}, {region.Y}) {region.Width}x{region.Height}"));
+        if (_extras?.Look is { } look)
+        {
+            panel.Field(
+                "Variant draws",
+                look.Drawn is { Region: var drawn } ? string.Create(CultureInfo.InvariantCulture, $"({drawn.X}, {drawn.Y}) {drawn.Width}x{drawn.Height}") : "nothing");
+        }
+
         panel.Field("Offset", Offset);
         panel.Field("Tiling", Tiling);
         panel.Field("Color", Color);
@@ -469,7 +545,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         panel.Toggle("FlipX", FlipX, on => FlipX = on);
         panel.Toggle("FlipY", FlipY, on => FlipY = on);
 
-        foreach (SocketBinding binding in _sockets ?? [])
+        foreach (SocketBinding binding in _extras?.Sockets ?? [])
         {
             panel.Field(
                 "Socket " + binding.Name,
@@ -477,7 +553,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
                     + (binding.Carried ? " on this frame" : binding.Placed ? " held from an earlier frame" : " on no frame yet"));
         }
 
-        foreach (BoxBinding binding in _boxes ?? [])
+        foreach (BoxBinding binding in _extras?.Boxes ?? [])
         {
             panel.Field("Box " + binding.Name, binding.Carried ? "on this frame" : "off");
         }
@@ -493,6 +569,21 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         internal Vector2 Pivot;
         internal bool Placed;
         internal bool Carried;
+    }
+
+    // What a renderer holds only once it binds a socket or a box or draws through a variant.
+    private sealed class Extras
+    {
+        internal List<SocketBinding>? Sockets;
+        internal List<BoxBinding>? Boxes;
+        internal VariantLook? Look;
+    }
+
+    // The variant set and what it resolves the held frame to, null where that is nothing.
+    private sealed class VariantLook(SpriteVariant variant)
+    {
+        internal readonly SpriteVariant Variant = variant;
+        internal Sprite? Drawn;
     }
 
     // One bound box: the collider it places and the rect the current frame carries for it, if any.
