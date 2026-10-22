@@ -36,7 +36,7 @@ tenth of the view's visible span.
 
 | Row | Key | Action |
 |---|---|---|
-| Scene | `S` | Opens the scene page. It lists the scene's panel, a Camera row that opens the camera's panel, and the entities as a tree. An entity row opens that entity's panel. |
+| Scene | `S` | Opens the scene page. It lists the scene's panel, a Camera row that opens the camera's panel, and the entities as a tree. An entity row opens that entity's panel, which lists its parent and then its children, each of which opens its own. |
 | Step | Right | Runs one fixed step and holds again. |
 | Debug Draw | `D` | Lists the channels that have emitted and switches each on or off. |
 | Time Scale | `T` | Sets `Run.TimeScale` from 0.25x to 4x. |

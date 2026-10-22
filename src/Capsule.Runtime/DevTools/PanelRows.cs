@@ -65,12 +65,25 @@ internal sealed class PanelRows
         return scene.GetType().Name;
     }
 
-    // A field naming an entity, such as Parent, opens that entity's panel and steps nothing.
+    // A field naming an entity, such as Parent, opens that entity's panel and steps nothing, as does a
+    // child's row. The children list under Parent, each with a count of its own.
     internal string EntityPanel(Entity entity, List<OverlayRow> rows)
     {
         _panel.Clear();
         entity.RunDebugPanel(_panel);
         AddRows(rows);
+
+        ReadOnlySpan<Entity> children = entity.Children;
+        if (!children.IsEmpty)
+        {
+            // The entity writes its heading, then Parent when it has one.
+            int at = entity.Parent is null ? 1 : 2;
+            rows.Insert(at++, new OverlayRow("Children", null));
+            foreach (Entity child in children)
+            {
+                rows.Insert(at++, new OverlayRow(Indent + DisplayName(child), () => _open(child), ChildCount(child)));
+            }
+        }
 
         return DisplayName(entity);
     }
@@ -107,6 +120,15 @@ internal sealed class PanelRows
 
         return before == 0 ? name : string.Create(CultureInfo.InvariantCulture, $"{name} ({before})");
     }
+
+    // Null for a leaf, which leaves its value column empty.
+    private static string? ChildCount(Entity entity) =>
+        entity.Children.Length switch
+        {
+            0 => null,
+            1 => "1 child",
+            int count => string.Create(CultureInfo.InvariantCulture, $"{count} children"),
+        };
 
     // Fields, then commands and toggles under a Commands sub-heading. Only those and a field naming an
     // entity in the held scene are focusable.

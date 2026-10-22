@@ -96,11 +96,11 @@ public sealed class OverlayPanelTests
         Assert.Equal("Walker", rig.Overlay.Title);
         Assert.Equal(4, rig.Overlay.Depth);
         Assert.Equal(0, rig.Scheduler.Tick);
-        Assert.Equal("Transform     (10, 0) r 0 s (1, 1)", Drawn(rig, 1));
+        Assert.Equal("Transform     (10, 0) r 0 s (1, 1)", Drawn(rig, 5));
 
         rig.Press(Key.Right);
         Assert.Equal(1, rig.Scheduler.Tick);
-        Assert.Equal("Transform     (11, 0) r 0 s (1, 1)", Drawn(rig, 1));
+        Assert.Equal("Transform     (11, 0) r 0 s (1, 1)", Drawn(rig, 5));
 
         rig.Press(Key.Backspace);
         Assert.Equal("Spark (1)", rig.Overlay.Title);
@@ -113,6 +113,35 @@ public sealed class OverlayPanelTests
         rig.Press(Key.Enter);
         Assert.Equal("Entity (1)", rig.Overlay.Title);
         Assert.Equal("Parent           Spark", Drawn(rig, 1));
+    }
+
+    // The children list under Parent, each counting its own, and a child's row opens its panel without a
+    // tick. A leaf lists none.
+    [Fact]
+    public void APanel_ListsItsChildrenUnderParentAndAChildsRowOpensWithoutATick()
+    {
+        using OverlayRig rig = new(CreateHost(new Nested()));
+
+        rig.OpenEntityPanel("Spark");
+        Assert.Equal(
+            ["[Entity]", "Parent", "Children", "  Entity", "  Entity (1)", "Name", "Transform", "World Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [x] Visible", "  Remove"],
+            rig.Rows());
+
+        rig.Press(Key.Enter);
+        Assert.Equal("Walker", rig.Overlay.Title);
+        Assert.Equal(["[Entity]", "Children", "  Spark", "  Entity", "  Spark (1)", "Transform"], rig.Rows()[..6]);
+        Assert.Equal("  Spark       2 children", Drawn(rig, 2));
+        Assert.Equal("  Spark (1)", Drawn(rig, 4));
+        Assert.Equal(2, rig.Overlay.Focus);
+
+        rig.Press(Key.Down);
+        rig.Press(Key.Down);
+        rig.Press(Key.Enter);
+
+        Assert.Equal("Spark (1)", rig.Overlay.Title);
+        Assert.Equal(5, rig.Overlay.Depth);
+        Assert.Equal(0, rig.Scheduler.Tick);
+        Assert.DoesNotContain("Children", rig.Rows());
     }
 
     // A panel's title drops its suffix when an earlier entity of its type leaves.
