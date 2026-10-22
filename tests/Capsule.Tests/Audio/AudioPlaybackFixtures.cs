@@ -109,6 +109,8 @@ internal static class AudioPlaybackFixtures
     {
         private readonly Stack<FakeVoice> _idle = new();
 
+        internal AudioClip Clip => clip;
+
         internal bool Disposed { get; private set; }
 
         public IAudioVoice Play(float gain, float pitch, float pan, bool loop, Action ended)

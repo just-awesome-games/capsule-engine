@@ -9,7 +9,8 @@ namespace Capsule.Audio;
 /// </summary>
 /// <remarks>
 /// A voice survives a scene transition until something stops it. A call taking a voice that has
-/// ended does nothing. The host applies what a step changed after that step.
+/// ended does nothing. The host applies what a step changed after that step, and what it changed
+/// before a scene transition ahead of that transition.
 /// <para>
 /// Voice lifetimes are computed from the clip's duration, the voice's pitch and the step length.
 /// Nothing is read back from a device. A headless run reaches the same state as a windowed one.
@@ -27,6 +28,9 @@ public sealed class AudioMixer
     private const int MaxGeneration = 0xFFFFFF;
 
     private readonly List<AudioCommand> _commands = [];
+
+    // How many of _commands the host has taken this step.
+    private int _taken;
 
     // Index 0 is the master bus. It sits in the table like any other bus, which keeps gain resolution to
     // two multiplications with no name comparison.
@@ -56,6 +60,16 @@ public sealed class AudioMixer
     // The commands the last step raised, in the order they were raised. The next mixer call
     // invalidates the span. A command raised outside a step is appended to the last step's list.
     internal ReadOnlySpan<AudioCommand> Commands => CollectionsMarshal.AsSpan(_commands);
+
+    // The step's commands no earlier take returned, which the host applies once each. The next
+    // step starts the count over.
+    internal ReadOnlySpan<AudioCommand> TakeCommands()
+    {
+        ReadOnlySpan<AudioCommand> taken = CollectionsMarshal.AsSpan(_commands)[_taken..];
+        _taken = _commands.Count;
+
+        return taken;
+    }
 
     /// <summary>
     /// The linear amplitude every voice is scaled by while the run's input reads unfocused, in [0, 1].
@@ -484,6 +498,7 @@ public sealed class AudioMixer
     internal void BeginStep(in StepContext context)
     {
         _commands.Clear();
+        _taken = 0;
         _tick = context.Tick;
 
         if (context.StepSeconds > 0.0 && context.StepSeconds != _stepSeconds)

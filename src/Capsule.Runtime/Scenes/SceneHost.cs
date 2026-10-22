@@ -1,7 +1,9 @@
 using Capsule.Assets;
+using Capsule.Audio;
 using Capsule.Diagnostics;
 using Capsule.Persistence;
 using Capsule.Rendering;
+using Capsule.Runtime.Audio;
 using Capsule.Scenes;
 
 namespace Capsule.Runtime.Scenes;
@@ -36,6 +38,11 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
     // Null until the device is ready, and for a run with none.
     internal Action<AssetCollection>? PrefetchAssets { get; set; }
+
+    // Runs once a step's transition is taken, before the boundary exchanges or releases the scene's
+    // assets. What the outgoing scene raised is delivered here, against the assets it declared. Null
+    // for a run without a device.
+    internal Action? BoundaryReached { get; set; }
 
     // Runs once a transition's incoming scene has started and the outgoing one is gone, before the incoming
     // scene steps or draws. Null for a run without a device.
@@ -139,6 +146,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
             return;
         }
 
+        BoundaryReached?.Invoke();
+
         switch (transition.Kind)
         {
             case SceneTransitionKind.Exit:
@@ -234,6 +243,33 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
 
         return _current.TryTakeFrameCapture(out path);
+    }
+
+    // Delivers each step's sound and saves per step, because the mixer rewrites its commands every
+    // step and a frame may run several. Each command is applied once: one raised before a scene
+    // boundary ahead of it, against the stores the outgoing scene declared, and the rest after the
+    // step, which carries what an incoming scene's start raised. The flush after the step that
+    // requests exit persists that step's writes.
+    internal void FollowSteps(FixedStepScheduler scheduler, AudioPlayer? audio)
+    {
+        if (audio is null)
+        {
+            scheduler.StepCompleted = FlushSaves;
+
+            return;
+        }
+
+        AudioMixer mixer = Run.Audio;
+        BoundaryReached = () => audio.Apply(mixer.TakeCommands());
+        scheduler.StepCompleted = () =>
+        {
+            audio.Apply(mixer.TakeCommands());
+            FlushSaves();
+        };
+
+        // The initial scene started before the device existed. What its start raised is still on
+        // the mixer and the first BeginStep would clear it unheard.
+        audio.Apply(mixer.TakeCommands());
     }
 
     // Called after each step, which persists a document written in the step that requests exit, and

@@ -163,24 +163,9 @@ internal sealed class CapsuleGame : Game
         {
             // The overlay's hold is a standstill, and the ear should hear it as one.
             _followOverlayHold?.Invoke(audio);
-
-            // Per step, because the mixer rewrites its commands every step and a frame may run
-            // several. The flush after the step that requests exit persists that step's writes.
-            _scheduler.StepCompleted = () =>
-            {
-                audio.Apply(scenes.Run.Audio.Commands);
-                scenes.FlushSaves();
-            };
-
-            // The initial scene started before the device existed. What its start raised is still
-            // on the mixer and the first BeginStep would clear it unheard. A later scene starts inside
-            // the step that asked for it and is delivered with that step's commands.
-            audio.Apply(scenes.Run.Audio.Commands);
         }
-        else
-        {
-            _scheduler.StepCompleted = scenes.FlushSaves;
-        }
+
+        scenes.FollowSteps(_scheduler, _audio);
 
         _diagnostics?.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
         _renderer = new FrameRenderer(GraphicsDevice, _builder.RenderResolution, _textures, _effects);
@@ -368,6 +353,7 @@ internal sealed class CapsuleGame : Game
 
             // The scheduler outlives this host, and the mixer it fed commands from is the run's.
             _scheduler.StepCompleted = null;
+            _scenes.BoundaryReached = null;
 
             // Voices before the sounds they play and the device that opened them.
             _audio?.Dispose();
