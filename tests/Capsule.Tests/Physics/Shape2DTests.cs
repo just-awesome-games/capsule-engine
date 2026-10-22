@@ -160,6 +160,19 @@ public sealed class Shape2DTests
         Assert.Equal(new Vector2(7f, 15f), capsule.Bounds.Max);
     }
 
+    // The inside and the edge count, as a point query finds them. A point near a zero-radius hull's corner
+    // leaves GJK a rounding residue that must still read as inside.
+    [Theory]
+    [InlineData(0.03f, 0.03f, true)]
+    [InlineData(0.5f, 0.5f, true)]
+    [InlineData(1f, 0.5f, true)]
+    [InlineData(1.01f, 0.5f, false)]
+    [InlineData(-0.01f, 0f, false)]
+    public void Contains_TakesTheInsideAndTheEdge(float x, float y, bool inside)
+    {
+        Assert.Equal(inside, Shape2D.Box(Vector2.Zero, Vector2.One).Contains(new Vector2(x, y)));
+    }
+
     // About the shape's own origin. A box offset from it moves with its corners rather than
     // growing in place.
     [Fact]

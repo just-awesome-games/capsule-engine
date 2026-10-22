@@ -179,7 +179,7 @@ internal static class SheetMembers
                 {
                     code.AppendLine(separator).Append(member).Append("    boxes: new ").Append(GeneratedTypes.SpriteBox).AppendLine("[]");
                     code.Append(member).AppendLine("    {").AppendJoin("," + Environment.NewLine, frame.Boxes.Select(box =>
-                        $"{member}        new {GeneratedTypes.SpriteBox}({Literal.Of(box.Name)}, new {GeneratedTypes.Rect}(new {GeneratedTypes.Vector2}({Literal.Of(box.X)}, {Literal.Of(box.Y)}), new {GeneratedTypes.Vector2}({Literal.Of(box.Width)}, {Literal.Of(box.Height)})))"));
+                        $"{member}        new {GeneratedTypes.SpriteBox}({Literal.Of(box.Name)}, new {GeneratedTypes.Rect}({Literal.Of(box.X)}, {Literal.Of(box.Y)}, {Literal.Of(box.Width)}, {Literal.Of(box.Height)}))"));
                     code.AppendLine().Append(member).Append("    }");
                 }
 

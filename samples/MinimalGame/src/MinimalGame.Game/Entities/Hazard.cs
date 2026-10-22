@@ -131,7 +131,7 @@ public sealed class Hazard : Entity
 
             // A notifier refuses a turned ancestry. The spark drops the orbit's turn first.
             Rotation = 0f;
-            VisibleOnScreenNotifier2D notifier = new() { Rect = new Rect(new Vector2(-2f, -2f), new Vector2(4f, 4f)) };
+            VisibleOnScreenNotifier2D notifier = new() { Rect = new Rect(-2f, -2f, 4f, 4f) };
             notifier.ScreenExited += OnLeftView;
             Add(notifier);
         }

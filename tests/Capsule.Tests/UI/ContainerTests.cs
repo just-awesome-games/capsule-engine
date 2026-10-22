@@ -31,11 +31,11 @@ public sealed class ContainerTests
 
         // The inside starts at (6, 6) and is as wide as the widest child. The hidden child takes no
         // slot. The rows are 4, 4, 3 and 5 tall with 2 between them.
-        Assert.Equal(new Rect(new Vector2(6f, 13f), new Vector2(10f, 4f)), nudged.Bounds);
-        Assert.Equal(new Rect(new Vector2(13f, 12f), new Vector2(6f, 4f)), centred.Bounds);
-        Assert.Equal(new Rect(new Vector2(6f, 18f), new Vector2(20f, 3f)), wide.Bounds);
-        Assert.Equal(new Rect(new Vector2(6f, 23f), new Vector2(20f, 5f)), widest.Bounds);
-        Assert.Equal(new Rect(new Vector2(5f, 5f), new Vector2(22f, 24f)), frame.Bounds);
+        Assert.Equal(new Rect(6f, 13f, 10f, 4f), nudged.Bounds);
+        Assert.Equal(new Rect(13f, 12f, 6f, 4f), centred.Bounds);
+        Assert.Equal(new Rect(6f, 18f, 20f, 3f), wide.Bounds);
+        Assert.Equal(new Rect(6f, 23f, 20f, 5f), widest.Bounds);
+        Assert.Equal(new Rect(5f, 5f, 22f, 24f), frame.Bounds);
     }
 
     // The real risk of a cached layout: a change deep in the tree must reach every container above it
@@ -50,11 +50,11 @@ public sealed class ContainerTests
 
         using SimulationHost run = Run(outer);
 
-        Assert.Equal(new Rect(new Vector2(0f, 4f), new Vector2(10f, 5f)), after.Bounds);
+        Assert.Equal(new Rect(0f, 4f, 10f, 5f), after.Bounds);
 
         ((ScreenEntity)leaf.Entity!).Size = new Vector2(30f, 9f);
 
-        Assert.Equal(new Rect(new Vector2(0f, 9f), new Vector2(30f, 5f)), after.Bounds);
+        Assert.Equal(new Rect(0f, 9f, 30f, 5f), after.Bounds);
     }
 
     [Fact]

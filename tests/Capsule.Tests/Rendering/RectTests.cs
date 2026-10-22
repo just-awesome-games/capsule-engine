@@ -12,7 +12,7 @@ public sealed class RectTests
     [Fact]
     public void EdgesAndACornerWithAnExtent_BuildTheSameRect()
     {
-        Assert.Equal(Box, new Rect(new Vector2(10f, 20f), new Vector2(20f, 20f)));
+        Assert.Equal(Box, new Rect(10f, 20f, 20f, 20f));
     }
 
     // Inside, then the low edges and the corner they meet at, then the high edges and their corner,

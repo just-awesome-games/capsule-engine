@@ -29,7 +29,7 @@ namespace Capsule.Rendering;
 /// A falling leaf watches its body and leaves once all of it is off screen. A spawner watches its own position and fires
 /// 32 units before that position reaches the view:
 /// <code>
-/// Add(new VisibleOnScreenNotifier2D { Rect = new Rect(new Vector2(2f, -4f), new Vector2(12f, 8f)) });
+/// Add(new VisibleOnScreenNotifier2D { Rect = new Rect(2f, -4f, 12f, 8f) });
 /// Add(new VisibleOnScreenNotifier2D { Margin = new Vector2(32f) });
 /// </code>
 /// </example>

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Particles;
+using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
@@ -75,6 +76,50 @@ public sealed class ParticleSpaceTests
         SpriteIntent intent = host.Simulation.View.Sprites.ToArray().Single();
         Assert.Equal(expectedStep, (intent.Position - intent.PreviousPosition).Length(), Tolerance);
         Assert.Equal(expectedStep, intent.PreviousPosition.Length() - intent.Position.Length(), Tolerance);
+    }
+
+    // The zone sits along the launch line in the entity's own space. A turned, mirrored and doubled entity
+    // must place it there, scaled, in either space, while the particle moves one world unit a step.
+    [Theory]
+    [InlineData(ParticleSpace.World)]
+    [InlineData(ParticleSpace.Local)]
+    public void KillZone_KillsAParticleBeforeItDrawsInsideTheZoneOnAPlacedEntity(ParticleSpace space)
+    {
+        Shape2D zone = Shape2D.Circle(new Vector2(6f, 0f), 1f);
+        Driven entity = new(Vector2.Zero, 0f)
+        {
+            Position = new Vector2(30f, -20f),
+            Rotation = 1f,
+            Scale = new Vector2(-2f, 2f),
+        };
+        ParticleEmitter emitter = new(Tile, capacity: 1)
+        {
+            Space = space,
+            Speed = (60f, 60f),
+            Lifetime = (5f, 5f),
+            KillZone = zone,
+        };
+        entity.Add(emitter);
+        SimulationHost host = new(new SceneFixtures.HookScene(start: s => s.Add(entity)));
+
+        emitter.Emit(1);
+        float reached = 0f;
+        for (int step = 0; step < 20; step++)
+        {
+            host.Step();
+
+            foreach (SpriteIntent intent in host.Simulation.View.Sprites.ToArray())
+            {
+                Vector2 own = entity.WorldTransform.InverseTransformPoint(intent.Position);
+                Assert.False(zone.Contains(own), $"drew inside the zone at {own}");
+                reached = MathF.Max(reached, own.X);
+            }
+        }
+
+        Assert.True(reached > 4.5f, $"reached only {reached}");
+        Assert.Equal(0, emitter.Alive);
+        Assert.True(emitter.IsFinished);
+        Assert.Equal(default, emitter.Bounds);
     }
 
     [Fact]

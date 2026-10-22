@@ -167,6 +167,12 @@ public readonly struct Shape2D : IEquatable<Shape2D>
         return new Shape2D(ShapeKind2D.Circle, points, 1, 0f, new Aabb2D(point, point));
     }
 
+    // Whether point lies inside the shape or on its edge, as a point query finds it, in the space its points
+    // are in. The caller validated the point.
+    internal bool Contains(Vector2 point) =>
+        point.X >= Bounds.Min.X && point.X <= Bounds.Max.X && point.Y >= Bounds.Min.Y && point.Y <= Bounds.Max.Y
+        && Narrowphase2D.Separation(OfPoint(point), this, out _, out _) <= 0f;
+
     // One edge of a grid cell, from start to end at any angle. The grid validated both points.
     internal static Shape2D Segment(Vector2 start, Vector2 end)
     {

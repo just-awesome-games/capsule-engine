@@ -36,6 +36,16 @@ public readonly record struct Rect
         Bottom = position.Y + size.Y;
     }
 
+    /// <summary>The rect spanning <paramref name="width"/> and <paramref name="height"/> from the corner at (<paramref name="x"/>, <paramref name="y"/>).</summary>
+    /// <param name="x">The low edge on X.</param>
+    /// <param name="y">The low edge on Y, the upper one on screen.</param>
+    /// <param name="width">The extent spanned on X. A non-positive width encloses nothing.</param>
+    /// <param name="height">The extent spanned on Y. A non-positive height encloses nothing.</param>
+    public Rect(float x, float y, float width, float height)
+        : this(new Vector2(x, y), new Vector2(width, height))
+    {
+    }
+
     /// <summary>The top-left corner, which is the low edge on each axis.</summary>
     public Vector2 Position => new(Left, Top);
 

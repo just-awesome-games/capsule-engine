@@ -28,7 +28,8 @@ public sealed class Door : Entity
         Add(new SpriteRenderer(Arch));
 
         // Motes drawn in to the portal's heart. Local space keeps them with the door wherever it stands.
-        // Each is brightest on the rim and fades before it reaches the centre.
+        // Each is brightest on the rim, dims on the way in and vanishes on reaching the heart, whatever its
+        // speed. The lifetime only bounds a mote that never arrives.
         Add(new ParticleEmitter(Sprite.White, capacity: 24)
         {
             Space = ParticleSpace.Local,
@@ -36,7 +37,8 @@ public sealed class Door : Entity
             Shape = EmitShape.Ring(7f),
             RadialSpeed = (-20f, -16f),
             Rate = 40f,
-            Lifetime = (0.3f, 0.3f),
+            Lifetime = (0.5f, 0.5f),
+            KillZone = Shape2D.Circle(PortalCentre, 2f),
             Scale = (2f, 2f),
             ScaleOverLifetime = Curve.Linear(1f, 0.5f),
             Color = Glow.FadeToClear(PortalGlow),

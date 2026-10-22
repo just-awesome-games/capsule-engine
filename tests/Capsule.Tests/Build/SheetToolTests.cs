@@ -107,7 +107,7 @@ public sealed class SheetToolTests
 
         Assert.Contains("public const string Hurt = \"hurt\";", generated, StringComparison.Ordinal);
         Assert.Contains(
-            "new global::Capsule.Rendering.SpriteBox(\"hurt\", new global::Capsule.Rendering.Rect(new global::System.Numerics.Vector2(-1F, 0.5F), new global::System.Numerics.Vector2(10F, 7F)))",
+            "new global::Capsule.Rendering.SpriteBox(\"hurt\", new global::Capsule.Rendering.Rect(-1F, 0.5F, 10F, 7F))",
             generated,
             StringComparison.Ordinal);
         Assert.Contains("<c>walk-0</c>: 8x8 at (0, 0), sockets <c>muzzle</c>, <c>off-hand</c>, box <c>hurt</c>.", generated, StringComparison.Ordinal);

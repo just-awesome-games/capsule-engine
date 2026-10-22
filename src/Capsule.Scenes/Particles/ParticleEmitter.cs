@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Animation;
 using Capsule.Diagnostics;
+using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
 
@@ -145,6 +146,30 @@ public sealed class ParticleEmitter : Renderer
     /// </summary>
     /// <remarks>Under <see cref="FrameMode.Clip"/> a non-looping clip ends a particle sooner if it runs out first.</remarks>
     public FloatRange Lifetime { get; set; } = new(1f, 1f);
+
+    /// <summary>
+    /// A shape in the entity's own space where a particle dies in the step that moves it inside or onto its edge,
+    /// before it draws there. Null by default, which kills none.
+    /// </summary>
+    /// <remarks>
+    /// Each step places it as <see cref="Offset"/> is, in either <see cref="Space"/>: it follows the entity's
+    /// position, turn, mirror and scale, and <see cref="FlipX"/> and <see cref="FlipY"/> mirror it, though the
+    /// entity's scale still sizes no particle's motion. A particle spawned inside it draws there until its first
+    /// step.
+    /// </remarks>
+    public Shape2D? KillZone
+    {
+        get;
+        set
+        {
+            if (value is { } shape)
+            {
+                Shape2D.RequireBuilt(shape, nameof(value));
+            }
+
+            field = value;
+        }
+    }
 
     /// <summary>Acceleration on every live particle, in units per second squared along world directions in either <see cref="Space"/>, zero by default.</summary>
     public Vector2 Gravity { get; set; }
@@ -577,6 +602,17 @@ public sealed class ParticleEmitter : Renderer
         Vector2 gravityStep = local ? turn.InverseTransformPoint(Gravity * dt) : Gravity * dt;
         float drag = MathF.Max(0f, 1f - (Damping * dt));
 
+        // The kill zone tests a particle in the entity's own space, through the frame that places Offset.
+        bool kills = KillZone.HasValue;
+        Shape2D zone = KillZone.GetValueOrDefault();
+        Transform2D zoneFrame = default;
+        if (kills)
+        {
+            zoneFrame = local
+                ? new Transform2D(Vector2.Zero, 0f, Vector2.Abs(current.Scale) * Flip)
+                : current.With(current.Position, current.Scale * Flip);
+        }
+
         // Survivors move down over the dead in order, one run of them at a time. Draw order never
         // changes between steps.
         // A particle spawned this step, such as by the entity's own OnStep, first draws as spawned.
@@ -593,22 +629,26 @@ public sealed class ParticleEmitter : Renderer
             }
 
             particle.Age++;
-            if (particle.Age >= particle.Lifetime)
+            if (particle.Age < particle.Lifetime)
             {
-                Array.Copy(_particles, run, _particles, live, index - run);
-                live += index - run;
-                run = index + 1;
-                continue;
+                particle.PreviousPosition = particle.Position;
+                particle.PreviousRotation = particle.Rotation;
+                particle.Velocity += gravityStep;
+                particle.Velocity *= drag;
+                particle.Position += particle.Velocity * dt;
+                particle.Rotation += particle.AngularVelocity;
+
+                if (!kills || !zone.Contains(zoneFrame.InverseTransformPoint(particle.Position)))
+                {
+                    ExtendBounds(particle.PreviousPosition, particle.Position);
+                    continue;
+                }
             }
 
-            particle.PreviousPosition = particle.Position;
-            particle.PreviousRotation = particle.Rotation;
-            particle.Velocity += gravityStep;
-            particle.Velocity *= drag;
-            particle.Position += particle.Velocity * dt;
-            particle.Rotation += particle.AngularVelocity;
-
-            ExtendBounds(particle.PreviousPosition, particle.Position);
+            // Expired or killed, it leaves the live set the same way.
+            Array.Copy(_particles, run, _particles, live, index - run);
+            live += index - run;
+            run = index + 1;
         }
 
         Array.Copy(_particles, run, _particles, live, _alive - run);
