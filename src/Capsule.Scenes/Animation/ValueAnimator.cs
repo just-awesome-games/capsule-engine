@@ -13,6 +13,11 @@ namespace Capsule.Animation;
 /// every <c>Play</c> and then whenever the value changes. Code setting the same property elsewhere is
 /// overwritten on the setter's next run.
 /// <para>
+/// The animator never runs the setter on its own while its entity is out of a scene. Removal, including a
+/// scene stopping, rewinds the clip without running it, and the first value reaches the setter as the
+/// entity next joins a scene. Only a <c>Play</c> made out of a scene runs it there.
+/// </para>
+/// <para>
 /// A component steps after its entity. An entity reading the animator in <see cref="Entity.OnStep"/>
 /// sees the value the previous step set. Put logic that depends on the value set in a late step or in
 /// a component attached after the animator.
@@ -43,10 +48,16 @@ public sealed class ValueAnimator<T> : Component
     // The value class of the value last set, which a stepping clip's keys are compared by.
     private int _valueId;
 
+    // Whether a rewind out of a scene still owes the setter the clip's first value, which it hears on joining one.
+    private bool _rewound;
+
     /// <summary>The clip playing, or null until one is played.</summary>
     public ValueClip<T>? Clip { get; private set; }
 
-    /// <summary>The value last handed to the setter. Reads the type's default until a clip plays.</summary>
+    /// <summary>
+    /// The value last handed to the setter. Reads the type's default until a clip plays, and the value before
+    /// a removal until the entity joins a scene again.
+    /// </summary>
     public T Value { get; private set; } = default!;
 
     /// <summary>
@@ -104,7 +115,7 @@ public sealed class ValueAnimator<T> : Component
     /// <remarks>
     /// The first key holds for exactly its own ticks, counted from the tick of this call wherever in the
     /// step it came from. Called outside a step, it holds from the next step. Called on an animator in
-    /// no scene, it counts from the tick its entity joins one.
+    /// no scene, it still hands the value over at once, and counts from the tick its entity joins one.
     /// <para>
     /// Playing the clip already playing does nothing unless <paramref name="restart"/> is true. A
     /// finished non-looping clip still counts as playing.
@@ -126,10 +137,14 @@ public sealed class ValueAnimator<T> : Component
         _pendingStart = true;
         _startedOnTick = Entity?.SceneOrNull?.SteppingTick;
         _carry = 0f;
+        _rewound = false;
         Write(clip.Values[0], clip.ValueId(0));
     }
 
-    /// <summary>Counts a clip played out of a scene from the tick the entity joins this one.</summary>
+    /// <summary>
+    /// Counts a clip played out of a scene from the tick the entity joins this one, and hands a clip rewound
+    /// by a removal its first value.
+    /// </summary>
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()
     {
@@ -137,15 +152,25 @@ public sealed class ValueAnimator<T> : Component
         {
             _startedOnTick = Entity!.SceneOrNull!.SteppingTick;
         }
+
+        if (_rewound && Clip is { } clip)
+        {
+            _rewound = false;
+            Write(clip.Values[0], clip.ValueId(0));
+        }
     }
 
-    /// <summary>Rewinds to <see cref="Clip"/>'s first key, keeps the clip and clears <see cref="Paused"/>. A reused entity replays it as a new one would.</summary>
+    /// <summary>
+    /// Rewinds to <see cref="Clip"/>'s first key, keeps the clip and clears <see cref="Paused"/>, without
+    /// running the setter: it hears the first key as the entity joins a scene again. A reused entity replays
+    /// the clip as a new one would.
+    /// </summary>
     /// <inheritdoc/>
     protected internal override void OnRemovedFromScene()
     {
         Paused = false;
         _carry = 0f;
-        if (Clip is not { } clip)
+        if (Clip is null)
         {
             return;
         }
@@ -153,7 +178,7 @@ public sealed class ValueAnimator<T> : Component
         _playback.Restart();
         _pendingStart = true;
         _startedOnTick = null;
-        Write(clip.Values[0], clip.ValueId(0));
+        _rewound = true;
     }
 
     /// <inheritdoc/>

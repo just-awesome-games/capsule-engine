@@ -137,9 +137,10 @@ public sealed class ValueAnimatorTests
         Assert.False(animator.IsFinished);
     }
 
-    // A reused entity replays its clip as a new one would.
+    // A reused entity replays its clip as a new one would, and the setter hears nothing while it is out of
+    // the scene.
     [Fact]
-    public void Removal_RewindsToTheFirstKeySetsItAndClearsThePause()
+    public void Removal_RewindsAndClearsThePause_AndTheSetterHearsTheFirstKeyOnRejoining()
     {
         (ValueAnimator<float> animator, List<float> set, SimulationHost run) = Animating();
         ValueClip<float> clip = new([(1f, 1), (2f, 1)], loop: true);
@@ -147,13 +148,58 @@ public sealed class ValueAnimatorTests
         run.Step(2);
         animator.Paused = true;
 
-        run.Simulation.Scene.Remove(animator.Entity!);
+        Entity entity = animator.Entity!;
+        run.Simulation.Scene.Remove(entity);
         run.Step();
 
-        Assert.Equal([1f, 2f, 1f], set);
-        Assert.Equal(1f, animator.Value);
+        Assert.Equal([1f, 2f], set);
+        Assert.Equal(2f, animator.Value);
         Assert.False(animator.Paused);
         Assert.Same(clip, animator.Clip);
+
+        run.Simulation.Scene.Add(entity);
+        Assert.Equal([1f, 2f, 1f], set);
+        Assert.Equal([1f, 2f, 1f], ValuesOver(run, animator, 3));
+    }
+
+    // A setter that reaches the scene is never run out of one, by a removal or by the scene stopping.
+    [Fact]
+    public void ASetterReachingTheScene_SurvivesRemovalAndTheSceneStopping()
+    {
+        SceneFixtures.Recorder entity = new("animated", []);
+        List<float> set = [];
+        ValueAnimator<float> animator = new(value => set.Add(entity.Scene.Paused ? -value : value));
+        entity.Add(animator);
+        SceneFixtures.HookScene scene = new();
+        scene.Add(entity);
+        SimulationHost run = new(scene);
+        animator.Play(new ValueClip<float>([(1f, 1), (2f, 1)]));
+        run.Step(2);
+
+        run.Simulation.Scene.Remove(entity);
+        run.Step();
+        run.Simulation.Scene.Add(entity);
+        run.Step();
+        run.Dispose();
+
+        Assert.Equal([1f, 2f, 1f], set);
+    }
+
+    // A pooled entity played again before it rejoins hears that play once, and the rewind it replaced never.
+    [Fact]
+    public void APlayOutOfTheScene_ReplacesTheRewind_AndRunsTheSetterOnce()
+    {
+        (ValueAnimator<float> animator, List<float> set, SimulationHost run) = Animating();
+        animator.Play(new ValueClip<float>([(1f, 1), (2f, 1)]));
+        run.Step(2);
+        Entity entity = animator.Entity!;
+        run.Simulation.Scene.Remove(entity);
+
+        animator.Play(new ValueClip<float>([(5f, 2), (6f, 1)]));
+        run.Simulation.Scene.Add(entity);
+
+        Assert.Equal([1f, 2f, 5f], set);
+        Assert.Equal([5f, 5f, 6f], ValuesOver(run, animator, 3));
     }
 
     // Wherever in a step the Play came from, the first key holds for exactly its own ticks.
