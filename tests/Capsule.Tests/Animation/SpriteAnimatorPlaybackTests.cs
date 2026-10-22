@@ -91,7 +91,7 @@ public sealed class SpriteAnimatorPlaybackTests
 
         if (site == PlaySite.ComponentAfterTheAnimator)
         {
-            entity.Add(new Driver(entity.Animator, Blink));
+            entity.Add(new Driver(() => entity.Animator.Play(Blink)));
         }
 
         SimulationHost run = site == PlaySite.BeforeJoiningMidStep ? SceneFixtures.Simulate(new Spawner(entity)) : SceneFixtures.Simulate(entity);

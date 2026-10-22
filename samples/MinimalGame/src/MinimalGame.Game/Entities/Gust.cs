@@ -7,10 +7,7 @@ namespace MinimalGame.Game.Entities;
 public sealed class Gust : Entity
 {
     private readonly ParticleEmitter _streaks;
-
-    // Steps into the loop, whether it blows now, and the player inside.
-    private int _cycleTick;
-    private bool _blowing = true;
+    private readonly ValueAnimator<bool> _blowing;
     private Player? _player;
 
     /// <summary>The area's width and height in world units.</summary>
@@ -52,22 +49,17 @@ public sealed class Gust : Entity
             Color = ColorRgba.FromHex("#ffffff78"),
         };
         Add(_streaks);
+
+        // Blowing and calm in turn from the scene's first step, or blowing throughout with no calm.
+        _blowing = new ValueAnimator<bool>(blowing => _streaks.Emitting = blowing);
+        Add(_blowing);
+        _blowing.Play(new ValueClip<bool>(CalmTicks > 0 ? [(true, BlowTicks), (false, CalmTicks)] : [(true, 1)], loop: true));
     }
 
     // Decided for the next step. The push and the streaks change on the same step whichever steps first,
     // the player or the gust. The streaks already out blow on as the push stops.
     /// <inheritdoc/>
-    protected override void OnLateStep(in StepContext context)
-    {
-        if (CalmTicks > 0)
-        {
-            _cycleTick = (_cycleTick + 1) % (BlowTicks + CalmTicks);
-            _blowing = _cycleTick < BlowTicks;
-            _streaks.Emitting = _blowing;
-        }
-
-        _player?.Wind = _blowing ? Velocity : Vector2.Zero;
-    }
+    protected override void OnLateStep(in StepContext context) => _player?.Wind = _blowing.Value ? Velocity : Vector2.Zero;
 
     private void OnPlayerEntered(ColliderContact2D contact) => _player = (Player)contact.OtherEntity!;
 

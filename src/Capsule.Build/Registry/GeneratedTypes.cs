@@ -31,6 +31,8 @@ internal static class GeneratedTypes
 
     internal const string SpriteClip = "global::Capsule.Animation.SpriteClip";
 
+    internal const string ValueClip = "global::Capsule.Animation.ValueClip";
+
     internal const string Shader = "global::Capsule.Rendering.Shader";
 
     internal const string ShaderParameter = "global::Capsule.Rendering.ShaderParameter";

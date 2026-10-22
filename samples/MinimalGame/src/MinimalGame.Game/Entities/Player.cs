@@ -73,12 +73,11 @@ public sealed class Player : Entity
         BoxCollider2D bodyCollider = new(Body) { Layer = CollisionLayers.Player };
         Add(bodyCollider);
 
-        // Grounded walks the hill at the speed it is given and follows the ground down its far side. The
+        // A body walks the hill at the speed it is given and follows the ground down its far side. The
         // step height walks it over the curb without a jump. Resting on the center stands the player's
         // feet on the hill instead of on the corner of its box.
         _body = new KinematicBody2D(bodyCollider)
         {
-            Mode = BodyMode.Grounded,
             StepHeight = _tuning.StepHeight,
             RestsOnCenter = true,
             BlockedBy = CollisionLayers.Blocking,

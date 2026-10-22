@@ -28,7 +28,8 @@ public sealed class Prober : Entity
         collider.Detects = new(CollisionLayers.Solid, CollisionLayers.Platform);
         Add(collider);
 
-        _mover = new KinematicBody2D(collider);
+        // Floating keeps the mover step the committed records measured.
+        _mover = new KinematicBody2D(collider) { Mode = BodyMode.Floating };
         _mover.BlockedBy = new(CollisionLayers.Solid, CollisionLayers.Platform);
         Add(_mover);
     }

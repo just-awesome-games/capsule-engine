@@ -10,6 +10,7 @@ An asset is a file under the logic project's `Assets/`. The build names each one
 | --- | --- | --- |
 | `.png` | A texture | `Textures/lamp.png` is `CapsuleAssets.Textures.LampTexture`, a `TextureHandle` |
 | `.sheet.json` | A sprite sheet | `Sprites/lamp.sheet.json` is `CapsuleAssets.Sprites.LampSheet`, a class of frames, clips and sockets |
+| `.clip.json` | A [value clip](animation.md#value-clips) | `Clips/pulse.clip.json` is `CapsuleAssets.Clips.PulseClip`, a `ValueClip<float>` |
 | `.wav`, `.ogg` | A sound | `Audio/click.wav` is `CapsuleAssets.Audio.ClickSound`, an `AudioClip` |
 | `.fnt` | A bitmap font | `Fonts/menu.fnt` is `CapsuleAssets.Fonts.MenuFont`, a `BitmapFont` |
 | `.fx` | A shader | `Shaders/fade.fx` is `CapsuleAssets.Shaders.FadeShader`, a `Shader` |
@@ -34,8 +35,8 @@ sees keys only. A document names an asset by key and extension, as `"props/crate
 the key. Two files of one type keying the same, such as `click.wav` and `click.ogg`, fail the build.
 
 What ships beside the executable is the same tree under `assets/`: a texture or sound as authored, and a
-scene document, shader or `r8` texture in its compiled form. A sheet and a font's description compile into
-the game and ship nothing.
+scene document, shader or `r8` texture in its compiled form. A sheet, a value clip and a font's description
+compile into the game and ship nothing.
 
 ## Textures
 

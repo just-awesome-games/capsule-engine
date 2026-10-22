@@ -94,9 +94,10 @@ internal static class SpriteAnimatorFixtures
         }
     }
 
-    internal sealed class Driver(SpriteAnimator animator, SpriteClip clip) : Component
+    // Plays from a component's step, every step. Any animator's Play of the clip already playing does nothing.
+    internal sealed class Driver(Action play) : Component
     {
-        protected internal override void OnStep(in StepContext context) => animator.Play(clip);
+        protected internal override void OnStep(in StepContext context) => play();
     }
 
     internal sealed class Variant(SpriteAnimator animator, SpriteClip clip, long onTick) : Component

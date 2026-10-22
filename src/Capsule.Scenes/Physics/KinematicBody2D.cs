@@ -226,7 +226,7 @@ public sealed partial class KinematicBody2D : Component
         MaxFloorAngle = 45f;
     }
 
-    /// <summary>How a move meets what it hits. <see cref="BodyMode.Floating"/> by default.</summary>
+    /// <summary>How a move meets what it hits. <see cref="BodyMode.Grounded"/> by default.</summary>
     public BodyMode Mode
     {
         get => _mode;

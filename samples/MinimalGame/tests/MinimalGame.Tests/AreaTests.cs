@@ -115,7 +115,7 @@ public sealed class AreaTests
         Vector2 inside = gust.Position + new Vector2(28f, 4f);
         RoomFixture.StandAt(hall, inside);
         Assert.Equal(gust.Velocity, player.Wind);
-        RoomFixture.StandAt(hall, inside, gust.BlowTicks - 1);
+        RoomFixture.StandAt(hall, inside, gust.BlowTicks);
         Assert.Equal(Vector2.Zero, player.Wind);
         RoomFixture.StandAt(hall, inside, gust.CalmTicks);
         Assert.Equal(gust.Velocity, player.Wind);

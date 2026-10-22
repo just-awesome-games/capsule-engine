@@ -8,6 +8,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
 using System.Text.Json.Serialization.Metadata;
 using Capsule.Assets;
+using Capsule.Build.Clips;
 using Capsule.Build.Configuration;
 using Capsule.Build.Sheets;
 using Capsule.Build.Textures;
@@ -44,6 +45,7 @@ internal static class FormatSchemas
         ("texture.config.schema.json", "Capsule texture sidecar", AssetConfigJsonContext.Default.TextureConfigJson),
         ("atlas.schema.json", "Capsule atlas", AssetConfigJsonContext.Default.AtlasConfigJson),
         ("sheet.schema.json", "Capsule sprite sheet", SheetJsonContext.Default.SheetJson),
+        ("clip.schema.json", "Capsule value clip", ClipJsonContext.Default.ClipJson),
         ("scene.schema.json", "Capsule scene document", SceneDocumentJsonContext.Default.SceneDocumentJson),
     ];
 

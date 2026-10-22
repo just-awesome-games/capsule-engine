@@ -138,22 +138,38 @@ public sealed class SlopeTests
         Assert.Equal(-1f / run, (body.Position.Y - start.Y) / (body.Position.X - start.X), 0.01f);
     }
 
-    // A floor stops a fall outright. Gravity alone never walks a body down a slope.
-    [Fact]
-    public void AGroundedBodyStandingOnASlope_DoesNotDrift()
+    // A body is grounded by default, and a floor stops its fall outright: gravity alone never walks it
+    // down a slope. A floating body slides the same push down the slope instead.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ABodyStandingOnASlope_DoesNotDriftByDefault_ButDriftsDownItFloating(bool floating)
     {
         Scene scene = SceneFixtures.Terrain("....", "./..", "####").Started();
-        SceneFixtures.Body body = Grounded(scene, new Vector2(20f, 0f));
+        SceneFixtures.Body body = new(new Vector2(20f, 0f), blocksOn: "solid");
+        scene.Add(body);
+        body.Mover.Move(new Vector2(0f, 40f));
         Vector2 landed = body.Position;
         Assert.True(body.Mover.FloorNormal.X < 0f);
+        if (floating)
+        {
+            body.Mover.Mode = BodyMode.Floating;
+        }
 
         for (int step = 0; step < 120; step++)
         {
             body.Mover.Move(new Vector2(0f, 0.5f));
-            Assert.True(body.Mover.IsOnFloor);
         }
 
-        Assert.Equal(landed, body.Position);
+        if (floating)
+        {
+            Assert.True(body.Position.X < landed.X, $"the floating body stayed at x={body.Position.X}");
+        }
+        else
+        {
+            Assert.True(body.Mover.IsOnFloor);
+            Assert.Equal(landed, body.Position);
+        }
     }
 
     // Down a 1:2 slope whose foot meets a 1:4 slope starting 4 units higher. The box's bottom lands on

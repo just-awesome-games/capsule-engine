@@ -1,6 +1,7 @@
 using Capsule.Build.Atlases;
 using Capsule.Build.Audio;
 using Capsule.Build.Caching;
+using Capsule.Build.Clips;
 using Capsule.Build.Fonts;
 using Capsule.Build.Registry;
 using Capsule.Build.Scenes;
@@ -113,6 +114,7 @@ internal static class AssetPipeline
                 TextureStep.Run(pass);          // .png sources, TextureSettings -> unpacked textures, TextureMap facts, texture members
                 AudioStep.Run(pass);            // .ogg and .wav sources -> shipped copies, sound members
                 SheetStep.Run(pass);            // .sheet.json sources, the textures -> sheet members
+                ClipStep.Run(pass);             // .clip.json sources -> clip members
                 ShaderStep.Run(pass);           // .fx sources -> .mgfx effects, shader members
                 SceneStep.Run(pass);            // .scene.json sources -> gzipped documents, scene members
 

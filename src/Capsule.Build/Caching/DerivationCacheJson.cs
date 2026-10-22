@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Capsule.Build.Audio;
+using Capsule.Build.Clips;
 using Capsule.Build.Fonts;
 using Capsule.Build.Shaders;
 using Capsule.Build.Sheets;
@@ -55,6 +56,7 @@ internal sealed class FileRecordJson
 [JsonSerializable(typeof(AudioProbe.Measurement))]
 [JsonSerializable(typeof(BmFontDescription))]
 [JsonSerializable(typeof(Sheet))]
+[JsonSerializable(typeof(Clip))]
 [JsonSerializable(typeof(ShaderFacts))]
 [JsonSerializable(typeof(string[]))]
 [JsonSerializable(typeof(Dictionary<string, FileRecordJson>))]

@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/clip.schema.json",
+  "$comment": "Generated from Capsule.Build.Clips.ClipJson.",
+  "title": "Capsule value clip",
+  "description": "A value clip: an ordered run of numbers, each lasting a whole number of fixed steps, stepped or blended linearly, played once or on a loop.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The URL of this file's JSON Schema, which gives an editor completion and hover. The build ignores its value.",
+      "type": "string"
+    },
+    "formatVersion": {
+      "description": "The document format's version, which must be one this build supports.",
+      "type": "integer",
+      "const": 1
+    },
+    "loop": {
+      "description": "Whether the last key wraps back to the first. Absent plays the clip once and holds its last key.",
+      "default": false,
+      "type": "boolean"
+    },
+    "blend": {
+      "description": "How the value moves between keys. \"step\" shows each key's value whole for its ticks. \"linear\" moves from each key's value toward the next across its ticks, and the last key holds unless the clip loops back to the first.",
+      "default": "step",
+      "enum": [
+        "step",
+        "linear"
+      ]
+    },
+    "keys": {
+      "description": "The keys the clip plays in order, at least one.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "description": "The key's value, a finite number.",
+            "type": "number"
+          },
+          "ticks": {
+            "description": "The fixed steps the key lasts, at least one. Not milliseconds.",
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "value",
+          "ticks"
+        ]
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "formatVersion",
+    "keys"
+  ],
+  "additionalProperties": false
+}
