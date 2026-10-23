@@ -30,6 +30,18 @@
     <CapsuleDocumentedType Include="Capsule.Build.CapsuleBuild;Capsule.Build.IAssetImporter;Capsule.Build.AssetImportContext" />
   </ItemGroup>
 
+  <!-- The Unicode CLDR's cardinal plural rules, which the strings step reads. THIRD-PARTY-NOTICES.md
+       carries their license, and ships beside them. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Strings/plurals.json"
+                      LogicalName="Capsule.Build.Strings.plurals.json"
+                      Visible="false" />
+    <None Include="../../THIRD-PARTY-NOTICES.md"
+          Pack="true"
+          PackagePath="/"
+          Visible="false" />
+  </ItemGroup>
+
   <!-- Atlas packing decodes and encodes PNGs here and nowhere else. Both are pure managed. The
        build stays a plain framework-dependent process on every build host. -->
   <ItemGroup>

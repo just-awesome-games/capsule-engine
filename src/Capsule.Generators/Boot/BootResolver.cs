@@ -31,7 +31,7 @@ internal static class BootResolver
         diagnostics.AddRange(drivers.Diagnostics.Items);
         diagnostics.AddRange(payloads.Diagnostics.Items);
 
-        return new BootPlan(Generates: true, model.Providers, drivers.Registered, payloads.Registered, new([.. diagnostics]));
+        return new BootPlan(Generates: true, model.Providers, drivers.Registered, payloads.Registered, new([.. diagnostics]), model.StringsPresent);
     }
 
     // Each logic assembly refused its own duplicates. Two assemblies claiming one key are caught only here.

@@ -76,7 +76,7 @@ internal static class SceneResolver
             diagnostics);
         EquatableArray<AssetLookup> lookups = EntityResolver.Lookups(
             appliedModels.SelectMany(static model => model.Authored).Concat(ObjectRenderer.Authored(objects)),
-            new AssetTable(inputs.Shared.Assets.Items, inputs.Shared.Documents.Items));
+            inputs.Shared);
 
         return new ScenePlan(
             Generates: true,

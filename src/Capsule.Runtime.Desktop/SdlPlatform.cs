@@ -54,6 +54,50 @@ internal static class SdlPlatform
     internal static void WindowSize(nint window, out int width, out int height) =>
         SDL_GetWindowSize(window, out width, out height);
 
+    // The operating system's preferred languages as BCP 47 tags, most preferred first. SDL answers before
+    // it is initialised. A library older than 2.0.14 lacks the call, and it and a failed call yield none.
+    internal static IReadOnlyList<string> PreferredLocales()
+    {
+        nint locales;
+        try
+        {
+            locales = SDL_GetPreferredLocales();
+        }
+        catch (Exception error) when (error is EntryPointNotFoundException or DllNotFoundException)
+        {
+            return [];
+        }
+
+        if (locales == nint.Zero)
+        {
+            return [];
+        }
+
+        // An SDL_Locale is two string pointers, and a null language ends the array.
+        try
+        {
+            List<string> tags = [];
+            for (int offset = 0; ; offset += 2 * nint.Size)
+            {
+                nint language = Marshal.ReadIntPtr(locales, offset);
+                if (language == nint.Zero)
+                {
+                    return tags;
+                }
+
+                tags.Add(LocaleTag(Marshal.PtrToStringUTF8(language)!, Marshal.PtrToStringUTF8(Marshal.ReadIntPtr(locales, offset + nint.Size))));
+            }
+        }
+        finally
+        {
+            SDL_free(locales);
+        }
+    }
+
+    // One SDL_Locale as a tag: the language alone, or the language and its country.
+    internal static string LocaleTag(string language, string? country) =>
+        string.IsNullOrEmpty(country) ? language : $"{language}-{country}";
+
     // The default probe derives no candidate matching the versioned sonames the backend ships. The
     // file is named per platform, as the backend's own loader names it.
     private static nint Resolve(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
@@ -165,6 +209,12 @@ internal static class SdlPlatform
 
     [DllImport(LibraryName, EntryPoint = "SDL_DelEventWatch")]
     private static extern void SDL_DelEventWatch(SdlEventFilter filter, nint userData);
+
+    [DllImport(LibraryName, EntryPoint = "SDL_GetPreferredLocales")]
+    private static extern nint SDL_GetPreferredLocales();
+
+    [DllImport(LibraryName, EntryPoint = "SDL_free")]
+    private static extern void SDL_free(nint memory);
 
     [DllImport(LibraryName, EntryPoint = "SDL_GetVersion")]
     private static extern void SDL_GetVersion(out SdlVersion version);

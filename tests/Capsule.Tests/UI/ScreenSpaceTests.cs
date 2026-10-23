@@ -8,7 +8,8 @@ using static Capsule.Tests.UI.FocusFixtures;
 namespace Capsule.Tests.UI;
 
 // An entity's type is what routes its renderers: a ScreenEntity is canvas pixels from an anchor on the
-// layer drawn over the world, and a plain entity is world units under the camera.
+// layer drawn over the world, or in the world's order when its root sorts with it, and a plain entity is
+// world units under the camera.
 public sealed class ScreenSpaceTests
 {
     private static readonly Vector2 Canvas = new(100f, 50f);
@@ -185,6 +186,37 @@ public sealed class ScreenSpaceTests
         // say. A high world band cannot reach over it.
         Assert.Single(run.Simulation.View.Sprites.ToArray());
         Assert.Single(run.Simulation.View.ScreenSprites.ToArray());
+    }
+
+    // Y-sorting puts the band's world renderer at the lowest Y first, but a sorted root has no world Y and
+    // draws before every one of them.
+    [Fact]
+    public void AScreenRootSortedWithTheWorld_DrawsAtItsBandAmongTheWorldsRenderers_FirstInAYSortedBand()
+    {
+        Scene scene = new() { YSort = true };
+        scene.Add(new SceneFixtures.Holder(new Vector2(4f, 0f), Square()) { ZIndex = 0 });
+        scene.Add(new SceneFixtures.Holder(new Vector2(0f, -1000f), Square()) { ZIndex = -5 });
+        scene.Add(new ScreenHolder(Anchor.TopLeft, new Vector2(1f, 2f), Square()) { SortsWithWorld = true, ZIndex = -5 });
+        scene.Add(new SceneFixtures.Holder(Vector2.Zero, Square()) { ZIndex = -10 });
+
+        using SimulationHost run = new(scene, run: new Run { Canvas = Canvas });
+        run.Step();
+
+        Assert.Empty(run.Simulation.View.ScreenSprites.ToArray());
+        Assert.Equal(
+            [Vector2.Zero, new Vector2(1f, 2f), new Vector2(0f, -1000f), new Vector2(4f, 0f)],
+            run.Simulation.View.Sprites.ToArray().Select(sprite => sprite.Position));
+    }
+
+    [Fact]
+    public void SortingWithTheWorld_IsARootsAlone()
+    {
+        ScreenEntity root = new(Anchor.TopLeft, Vector2.Zero);
+        ScreenEntity child = new(Anchor.TopLeft, Vector2.Zero) { Parent = root };
+        ScreenEntity sorted = new(Anchor.TopLeft, Vector2.Zero) { SortsWithWorld = true };
+
+        Assert.Throws<InvalidOperationException>(() => child.SortsWithWorld = true);
+        Assert.Throws<InvalidOperationException>(() => sorted.Parent = root);
     }
 
     [Fact]

@@ -356,6 +356,81 @@ public readonly struct Shape2D : IEquatable<Shape2D>
 
     internal Vector2 PointAt(int index) => _hull == 0 ? _points[index] : HullStore2D.Get(_hull)[index] + _points[0];
 
+    // The shape's extent across the horizontal band from top to bottom, which its bounds overlap. A shape is the
+    // union of its hull, a disk at each point and a strip along each edge, each within Radius of the hull. The
+    // extent is exact as theirs combined.
+    internal void Extent(float top, float bottom, out float left, out float right)
+    {
+        if (Kind == ShapeKind2D.Box)
+        {
+            left = Bounds.Min.X;
+            right = Bounds.Max.X;
+
+            return;
+        }
+
+        left = float.PositiveInfinity;
+        right = float.NegativeInfinity;
+
+        for (int index = 0; index < _count; index++)
+        {
+            Vector2 start = PointAt(index);
+            Disk(start, Radius, top, bottom, ref left, ref right);
+            if (_count == 1)
+            {
+                continue;
+            }
+
+            Vector2 end = PointAt((index + 1) % _count);
+            Clip(start, end, top, bottom, ref left, ref right);
+            if (Radius > 0f)
+            {
+                Vector2 edge = end - start;
+                Vector2 normal = Vector2.Normalize(new Vector2(edge.Y, -edge.X)) * Radius;
+                Clip(start + normal, end + normal, top, bottom, ref left, ref right);
+                Clip(end + normal, end - normal, top, bottom, ref left, ref right);
+                Clip(end - normal, start - normal, top, bottom, ref left, ref right);
+                Clip(start - normal, start + normal, top, bottom, ref left, ref right);
+            }
+        }
+    }
+
+    // Widens left and right by the disk's chord across the band.
+    private static void Disk(Vector2 center, float radius, float top, float bottom, ref float left, ref float right)
+    {
+        float off = MathF.Max(MathF.Max(top - center.Y, center.Y - bottom), 0f);
+        if (radius > 0f && off <= radius)
+        {
+            float half = MathF.Sqrt((radius * radius) - (off * off));
+            left = MathF.Min(left, center.X - half);
+            right = MathF.Max(right, center.X + half);
+        }
+    }
+
+    // Widens left and right by the part of the edge from start to end inside the band. Each edge adds only its
+    // start, and a closed outline adds every corner once.
+    private static void Clip(Vector2 start, Vector2 end, float top, float bottom, ref float left, ref float right)
+    {
+        if (start.Y >= top && start.Y <= bottom)
+        {
+            left = MathF.Min(left, start.X);
+            right = MathF.Max(right, start.X);
+        }
+
+        Cross(start, end, top, ref left, ref right);
+        Cross(start, end, bottom, ref left, ref right);
+    }
+
+    private static void Cross(Vector2 start, Vector2 end, float y, ref float left, ref float right)
+    {
+        if ((start.Y < y) != (end.Y < y))
+        {
+            float x = start.X + ((y - start.Y) / (end.Y - start.Y) * (end.X - start.X));
+            left = MathF.Min(left, x);
+            right = MathF.Max(right, x);
+        }
+    }
+
     // The outward unit normal of the edge leaving point index.
     internal Vector2 EdgeNormal(int index)
     {

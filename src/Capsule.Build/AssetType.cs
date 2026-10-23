@@ -21,6 +21,9 @@ internal sealed class AssetType(string suffix, params string[] extensions)
 
     internal static readonly AssetType Clips = new("Clip", ".clip.json");
 
+    /// <summary>A <c>&lt;tag&gt;.strings.json</c>, one language's texts, which <c>CapsuleStrings</c> declares and never <c>CapsuleAssets</c>.</summary>
+    internal static readonly AssetType Strings = new("Strings", Build.Strings.StringFile.Extension);
+
     /// <summary>A <c>&lt;name&gt;.atlas.json</c>, which declares an atlas and is never an asset itself.</summary>
     internal static readonly AssetType Atlases = new("Atlas", ".atlas.json");
 
@@ -33,7 +36,7 @@ internal sealed class AssetType(string suffix, params string[] extensions)
     /// </remarks>
     internal static readonly AssetType Configs = new("Config", ".config.json");
 
-    private static readonly AssetType[] Admitting = [Textures, Audio, Fonts, Shaders, Scenes, Sheets, Clips, Atlases, Configs];
+    private static readonly AssetType[] Admitting = [Textures, Audio, Fonts, Shaders, Scenes, Sheets, Clips, Strings, Atlases, Configs];
 
     internal string Suffix { get; } = suffix;
 

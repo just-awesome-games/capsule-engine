@@ -12,7 +12,8 @@ namespace Capsule.Runtime.Desktop;
 /// <c>saves</c> subfolder of the game's per-user local folder, with <c>crash.log</c> beside it
 /// (<c>docs/persistence.md</c> lists the per-OS paths). The window is raised and claims the
 /// foreground once shown, keeps drawing through a modal resize, and reads focus from the windowing
-/// library. Sound follows the operating system's default output as it moves. Construct one per
+/// library. Sound follows the operating system's default output as it moves. The player's preferred
+/// languages are the operating system's, as the windowing library reports them. Construct one per
 /// boot. It holds no state.
 /// </remarks>
 public sealed class DesktopPlatform : HostPlatform
@@ -63,4 +64,7 @@ public sealed class DesktopPlatform : HostPlatform
     /// <inheritdoc/>
     protected override AudioOutput? WatchDefaultAudioOutput(Action defaultChanged) =>
         OpenAlOutput.TryAttach(defaultChanged);
+
+    /// <inheritdoc/>
+    protected override IReadOnlyList<string> PreferredLanguages() => SdlPlatform.PreferredLocales();
 }

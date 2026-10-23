@@ -117,6 +117,7 @@ format's JSON Schema documents every reserved field
 | an enum | a member's name camel-cased, `"iceCave"`, and a `[Flags]` enum's names joined by commas, `"north, east"` |
 | `TextureHandle`, `AudioClip` | key and extension, `"textures/lamp.png"`, preloaded with the scene |
 | `SceneKey` | the document's key, `"scenes/halls/hall"` |
+| `TextKey` | the text's key path in the source language, `"hints.jump"` |
 | an `Entity` subclass or interface | the target entry's id, readable from `OnStart` on |
 | a definition: a `readonly` struct or immutable record with `public static readonly` instances | an instance's name camel-cased, `"default"`, shared by every placement naming it |
 | a type with `[JsonConverter]` | its converter's form, checked at load |

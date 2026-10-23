@@ -68,7 +68,7 @@ public class TileMap : Entity
     /// <see cref="TileGrid.EmptyTileName"/>, and names are unique.
     /// </summary>
     /// <remarks>
-    /// Each entry composes a <see cref="TileType"/>, or the subclass its <c>type</c> names. <see cref="TileAt"/>
+    /// Each entry composes a <see cref="TileType"/>, or the subclass its <c>type</c> names. <see cref="TileAt(int, int)"/>
     /// and <c>TileContact2D.Type</c> return that instance, read as <c>map.TileAt(x, y).Name</c> or matched as
     /// <c>map.TileAt(x, y) is Ice ice</c>.
     /// </remarks>
@@ -166,6 +166,22 @@ public class TileMap : Entity
     /// </example>
     public TileType TileAt(int x, int y) => _grid.TileTypes[_cells[IndexOf(x, y)]];
 
+    /// <summary>
+    /// Returns the palette entry of the cell a world position falls in, or null where the position lies
+    /// outside the map.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// bool onIce = map.TileAt(Position + new Vector2(0f, 1f)) is Ice;
+    /// </code>
+    /// </example>
+    public TileType? TileAt(Vector2 position)
+    {
+        (int x, int y) = CellAt(position);
+
+        return (uint)x < (uint)Width && (uint)y < (uint)Height ? _grid.TileTypes[_cells[(y * Width) + x]] : null;
+    }
+
     /// <summary>Returns how the tile at a tile coordinate is mirrored or turned.</summary>
     public TileTransform TransformAt(int x, int y) => (TileTransform)_facings[IndexOf(x, y)];
 
@@ -180,7 +196,7 @@ public class TileMap : Entity
 
     /// <summary>
     /// Returns the tile coordinate of the cell a world position falls in. The cell may lie outside the
-    /// map, where <see cref="TileAt"/> throws.
+    /// map, where <see cref="TileAt(int, int)"/> throws.
     /// </summary>
     /// <example>
     /// <code>
@@ -193,6 +209,23 @@ public class TileMap : Entity
         Guard.Finite(position, nameof(position));
 
         return (CollisionGrid2D.FloorDiv(position.X, TileSize), CollisionGrid2D.FloorDiv(position.Y, TileSize));
+    }
+
+    /// <summary>
+    /// Returns the world position of the centre of the cell at a tile coordinate, which may lie outside
+    /// the map.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// var (x, y) = map.CellAt(Position);
+    /// Vector2 topCentre = map.CellCenter(x, y) - new Vector2(0f, map.TileSize / 2f);
+    /// </code>
+    /// </example>
+    public Vector2 CellCenter(int x, int y)
+    {
+        float half = TileSize / 2f;
+
+        return new Vector2((x * (float)TileSize) + half, (y * (float)TileSize) + half);
     }
 
     /// <summary>
@@ -352,7 +385,6 @@ public class TileMap : Entity
             ReadOnlySpan<byte> facings = map._facings;
             ReadOnlySpan<Sprite?> table = sprites.Span;
             Vector2 size = new(grid.TileSize, grid.TileSize);
-            float half = grid.TileSize / 2f;
 
             for (int y = minY; y < maxY; y++)
             {
@@ -366,7 +398,7 @@ public class TileMap : Entity
 
                     // Terrain never moves, and its frames pivot on their centre. The cell's centre serves
                     // as both ends of the interpolation, and a mirror or turn stays inside the cell.
-                    Vector2 centre = new((x * grid.TileSize) + half, (y * grid.TileSize) + half);
+                    Vector2 centre = map.CellCenter(x, y);
                     ref readonly TileTransforms.Pose pose = ref TileTransforms.PoseOf((TileTransform)facings[row + x]);
                     view.AddUnculled(new SpriteIntent(
                         sprite,

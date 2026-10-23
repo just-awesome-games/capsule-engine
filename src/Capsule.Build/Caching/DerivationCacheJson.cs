@@ -5,6 +5,7 @@ using Capsule.Build.Clips;
 using Capsule.Build.Fonts;
 using Capsule.Build.Shaders;
 using Capsule.Build.Sheets;
+using Capsule.Build.Strings;
 
 namespace Capsule.Build.Caching;
 
@@ -58,6 +59,7 @@ internal sealed class FileRecordJson
 [JsonSerializable(typeof(Sheet))]
 [JsonSerializable(typeof(Clip))]
 [JsonSerializable(typeof(ShaderFacts))]
+[JsonSerializable(typeof(StringDocument))]
 [JsonSerializable(typeof(string[]))]
 [JsonSerializable(typeof(Dictionary<string, FileRecordJson>))]
 internal sealed partial class DerivationCacheJsonContext : JsonSerializerContext;

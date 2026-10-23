@@ -34,6 +34,10 @@ internal static class MetadataNames
     internal const string RegistryProviderAttribute = "Capsule.Generated.CapsuleGeneratedRegistryProviderAttribute";
     internal const string RegistryClaimAttribute = "Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute";
 
+    // What the build writes into a logic assembly with string tables, whose table the shell's boot passes and a
+    // document's text keys resolve through.
+    internal const string CapsuleStrings = "Capsule.Generated.CapsuleStrings";
+
     internal const string JsonConverterAttribute = "System.Text.Json.Serialization.JsonConverterAttribute";
     internal const string JsonConverter = "System.Text.Json.Serialization.JsonConverter`1";
     internal const string FlagsAttribute = "System.FlagsAttribute";

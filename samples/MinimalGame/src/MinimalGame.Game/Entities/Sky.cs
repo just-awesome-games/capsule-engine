@@ -1,21 +1,17 @@
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// The dusk backdrop, pinned to the screen under everything else.
+/// The dusk backdrop, laid out on the screen and drawn under everything in the world.
 /// </summary>
-/// <remarks>
-/// It fills the screen when placed at the world origin. Its scroll factor is set in code, where
-/// <see cref="Hills"/> authors its own.
-/// </remarks>
-public sealed class Sky : Entity
+public sealed class Sky : ScreenEntity
 {
     /// <summary>The whole of <c>textures/backdrops/sky.png</c>, anchored at its top-left corner.</summary>
     private static readonly Sprite Dusk = new(CapsuleAssets.Textures.Backdrops.SkyTexture, new TextureRegion(0, 0, 320, 180));
 
-    public Sky(EntitySpawn spawn)
-        : base(spawn)
+    public Sky()
+        : base(Anchor.TopLeft, Vector2.Zero)
     {
-        ScrollFactor = Vector2.Zero;
+        SortsWithWorld = true;
         ZIndex = -20;
         Add(new SpriteRenderer(Dusk) { Tiling = new Vector2(float.PositiveInfinity, 0f) });
     }

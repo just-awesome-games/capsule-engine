@@ -32,6 +32,10 @@ public sealed class Run
     private SceneTransition? _prefetch;
     private object? _state;
 
+    // Whether a step has begun, after which a language request waits for the next one.
+    private bool _stepped;
+    private bool _languagePending;
+
     // Whether this run's scenes draw the engine's debug channels. On for the game's run. A host turns
     // it off on the run backing its own overlay, whose entities are not the game's.
     internal bool EmitsDebugDraw { get; init; } = true;
@@ -68,6 +72,51 @@ public sealed class Run
             field = value;
         }
     } = StandardCanvas;
+
+    /// <summary>
+    /// The language keyed text shows, as a BCP 47 tag such as <c>pt-BR</c>, or null, the default, for each
+    /// string table's fallback language.
+    /// </summary>
+    /// <remarks>
+    /// The getter returns the latest request at once, for a game to save. A request made before the run's
+    /// first step applies at once, and one made after it applies from the start of the next step. A tag no table ships
+    /// shows the closest shipped language, else the fallback, and never throws. A windowed run no driver
+    /// plays starts in the shipped language closest to the player's preference. A headless or driven run
+    /// starts in the fallback language, and a test shows the same text on every machine.
+    /// </remarks>
+    public string? Language
+    {
+        get;
+
+        set
+        {
+            if (value is not null)
+            {
+                ArgumentException.ThrowIfNullOrWhiteSpace(value);
+            }
+
+            if (string.Equals(value, field, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            field = value;
+            if (_stepped)
+            {
+                _languagePending = true;
+            }
+            else
+            {
+                ApplyLanguage();
+            }
+        }
+    }
+
+    // The language keyed text resolves against, the last request applied.
+    internal string? ActiveLanguage { get; private set; }
+
+    // Counts every applied language request. A keyed label re-resolves when it changes.
+    internal int LanguageVersion { get; private set; }
 
     /// <summary>
     /// The sampling for world-space textures in any scene that sets none of its own, defaulting to
@@ -315,6 +364,17 @@ public sealed class Run
         FrameCaptureRequested = path;
     }
 
+    // Opens a step: a language request made since the last one applies from here.
+    internal void BeginStep()
+    {
+        _stepped = true;
+        if (_languagePending)
+        {
+            _languagePending = false;
+            ApplyLanguage();
+        }
+    }
+
     internal bool TryTakeTransition(out SceneTransition transition)
     {
         bool pending = _transition.HasValue;
@@ -359,6 +419,12 @@ public sealed class Run
         ThrowIfExitRequested();
 
         _prefetch = target;
+    }
+
+    private void ApplyLanguage()
+    {
+        ActiveLanguage = Language;
+        LanguageVersion++;
     }
 
     private void ThrowIfExitRequested()

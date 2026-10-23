@@ -42,7 +42,7 @@ public ref struct GlyphRun
     private readonly int _firstLine;
     private readonly int _endLine;
 
-    // The rect lines flow around, or null for a run whose every line spans the box.
+    // The span each row leaves its line, or null for a run whose every line spans the box.
     private readonly TextExclusion? _exclusion;
 
     // The half-open char range of the line being emitted, and where the next line begins. The gap
@@ -94,8 +94,8 @@ public ref struct GlyphRun
     }
 
     // The same layout placing only the lines from firstLine, at most maxLines of them, and every line where
-    // maxLines is null. Line and Index stay counted over the whole text. exclusion narrows the lines it
-    // crosses only in a word-wrapped run with a box, and only where it leaves room in some row of a page.
+    // maxLines is null. Line and Index stay counted over the whole text. exclusion narrows the lines whose
+    // rows it covers only in a word-wrapped run with a box, and only where some row of a page has room.
     internal GlyphRun(
         BitmapFont font,
         ReadOnlySpan<char> text,
@@ -117,7 +117,7 @@ public ref struct GlyphRun
         _endLine = maxLines is { } max ? (int)Math.Min((long)firstLine + max, int.MaxValue) : int.MaxValue;
         _previous = -1;
 
-        if (exclusion is { } area && wrap == TextWrap.Word && boxWidth > 0 && !area.FillsEveryRow(boxWidth))
+        if (exclusion is { } area && wrap == TextWrap.Word && boxWidth > 0 && !area.FillsEveryRow())
         {
             _exclusion = area;
         }
@@ -227,14 +227,14 @@ public ref struct GlyphRun
         _nextLine = _text.Length;
         _shift = 0;
 
-        // The part of the box this line lays out in. Without an exclusion it is the whole box.
+        // The part of the box this line lays out in. Without exclusions it is the whole box.
         int lead = 0;
         int span = _boxWidth;
         if (_exclusion is { } exclusion)
         {
             exclusion.Span(_line, _boxWidth, out lead, out span);
 
-            // A row the exclusion spans edge to edge holds an empty line, and the text goes on below it.
+            // A row with no span left holds an empty line, and the text goes on below it.
             if (span <= 0)
             {
                 _lineEnd = _index;

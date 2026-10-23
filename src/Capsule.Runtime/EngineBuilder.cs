@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Security.Cryptography;
 using Capsule.Diagnostics;
 using Capsule.Input;
+using Capsule.Localization;
 using Capsule.Persistence;
 using Capsule.Rendering;
 using Capsule.Runtime.Persistence;
@@ -27,6 +28,8 @@ public sealed class EngineBuilder
     private readonly InputDriverRegistry _drivers;
     private readonly ScenePayloadRegistry _payloads;
     private readonly string _gameName;
+    // The game's generated string table, null for a game with none.
+    private readonly StringTable? _strings;
 
     private (int Width, int Height)? _canvas;
     private string _localFolderName;
@@ -41,6 +44,8 @@ public sealed class EngineBuilder
     private string? _frameDiagnosticsPath;
     private double? _frameDiagnosticsExitAfterSeconds;
     private Action<Run>? _runStart;
+    // The shipped tag --language matched, applied after the run-start hook. Null without the flag.
+    private string? _commandLineLanguage;
 
     // What the command line asked for: the scene class to boot in place of the RunScene call's, the
     // document to compose it from (or the only thing named, for a document no class claims), the
@@ -82,7 +87,13 @@ public sealed class EngineBuilder
     // The clock a headless run paces its frames and times its steps by. A test replaces it.
     internal Func<long> Timestamp { get; set; } = Stopwatch.GetTimestamp;
 
-    internal EngineBuilder(string gameName, HostPlatform platform, SceneRegistry scenes, InputDriverRegistry drivers, ScenePayloadRegistry payloads)
+    internal EngineBuilder(
+        string gameName,
+        HostPlatform platform,
+        SceneRegistry scenes,
+        InputDriverRegistry drivers,
+        ScenePayloadRegistry payloads,
+        StringTable? strings = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
         ArgumentNullException.ThrowIfNull(platform);
@@ -95,6 +106,7 @@ public sealed class EngineBuilder
         _drivers = drivers;
         _payloads = payloads;
         _gameName = gameName;
+        _strings = strings;
         WindowTitle = gameName;
         _localFolderName = SafeName.Slug(gameName)
             ?? throw new ArgumentException(
@@ -310,7 +322,8 @@ public sealed class EngineBuilder
     /// the first scene starts.
     /// </summary>
     /// <remarks>
-    /// A game binds its input and applies its saved settings here. Repeated calls run in order.
+    /// A game binds its input and applies its saved settings here. Repeated calls run in order. The
+    /// run's starting language is already set, and a language a hook sets wins over it.
     /// </remarks>
     public EngineBuilder WithRunStart(Action<Run> start)
     {
@@ -403,12 +416,14 @@ public sealed class EngineBuilder
     /// <c>--help</c>. A later <see cref="WithInputDriver"/> or <see cref="WithRandomSeed"/> call
     /// replaces what <c>--driver</c> or <c>--seed</c> set. Only <c>RunScene</c> applies <c>--scene</c>
     /// and <c>--payload</c>, and each replaces only its own half of that call's opening scene.
+    /// <c>--language</c> sets <see cref="Run.Language"/> after <see cref="WithRunStart"/> hooks run, in
+    /// every run.
     /// </remarks>
     /// <param name="args">
     /// The process arguments, holding standard flags only. Capsule refuses a flag it does not
     /// declare, and a game strips its own flags first.
     /// </param>
-    /// <exception cref="CommandLineException">The command line is malformed, names a driver, scene or payload nothing registered, or asked for <c>--help</c>.</exception>
+    /// <exception cref="CommandLineException">The command line is malformed, names a driver, scene, payload or language nothing registered or ships, or asked for <c>--help</c>.</exception>
     public EngineBuilder WithCommandLine(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -458,6 +473,11 @@ public sealed class EngineBuilder
             _commandLinePayload = _payloads.TryCreate(payloadName, out IScenePayload? payload)
                 ? payload
                 : throw CommandLine.Refuse(_gameName, $"no payload is named '{payloadName}'. Registered: {_payloads.RegisteredNames()}.");
+        }
+
+        if (parsed.Language is { } language)
+        {
+            _commandLineLanguage = ShippedLanguage(language);
         }
 
         Uncapped = parsed.Uncapped;
@@ -565,7 +585,7 @@ public sealed class EngineBuilder
             ulong seed = RunSeed(played: Driver is null);
             Log.Info($"random seed {seed.ToString(CultureInfo.InvariantCulture)}");
 
-            using SceneHost host = CreateHost(opening, NamedSaveStorage() ?? Platform.OpenSaveStorage(_localFolderName), seed);
+            using SceneHost host = CreateHost(opening, NamedSaveStorage() ?? Platform.OpenSaveStorage(_localFolderName), seed, played: Driver is null);
             RunHost(host);
         }
         catch (Exception exception) when (_writesCrashLog)
@@ -612,7 +632,7 @@ public sealed class EngineBuilder
         using FrameDiagnostics? diagnostics = OpenFrameDiagnostics();
 
         // No medium unless one was named, which keeps a developer's local folder out of the run.
-        using SceneHost host = CreateHost(initialTarget, NamedSaveStorage(), RunSeed(played: false));
+        using SceneHost host = CreateHost(initialTarget, NamedSaveStorage(), RunSeed(played: false), played: false);
         diagnostics?.Mark(FrameDiagnostics.Stage.HostConstructed);
         FixedStepScheduler scheduler = new(StepSeconds, MaxStepsPerFrame, Input.Bindings, driver, host, Timestamp);
         using TickStamp stamp = StampTicks(() => scheduler.Tick);
@@ -697,13 +717,63 @@ public sealed class EngineBuilder
         return BinaryPrimitives.ReadUInt64LittleEndian(entropy);
     }
 
-    private SceneHost CreateHost(in SceneTransition opening, ISaveStorage? storage, ulong seed) =>
+    // A played run is windowed with no driver, and the only kind that asks the platform for a language.
+    internal SceneHost CreateHost(in SceneTransition opening, ISaveStorage? storage, ulong seed, bool played) =>
         new(
             opening,
             new SceneComposer(Scenes, Platform).Resolve,
             new Run(new RandomSource(seed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, Display = Display, RenderResolution = RenderResolution },
             storage,
-            _runStart);
+            RunStart(played));
+
+    // The starting language around the game's hooks. The player's is set before them, and a saved choice
+    // they apply wins over it. --language is set after them and wins over both.
+    private Action<Run>? RunStart(bool played)
+    {
+        if (_strings is not { } strings)
+        {
+            return _runStart;
+        }
+
+        return run =>
+        {
+            string preferred = "";
+            if (played)
+            {
+                string[] languages = [.. Platform.PreferredLanguages()];
+                int matched = LanguageMatcher.Match(strings.Languages, languages);
+                run.Language = strings.Languages[matched < 0 ? strings.Fallback : matched];
+                preferred = languages.Length == 0 ? "none" : string.Join(", ", languages);
+            }
+
+            _runStart?.Invoke(run);
+
+            if (_commandLineLanguage is { } language)
+            {
+                run.Language = language;
+            }
+
+            if (played)
+            {
+                Log.Info($"language {strings.Languages[strings.Resolve(run.Language)]} from preferred {preferred}");
+            }
+        };
+    }
+
+    // The shipped tag --language names, refused when no shipped language matches it.
+    private string ShippedLanguage(string tag)
+    {
+        if (_strings is not { } strings)
+        {
+            throw CommandLine.Refuse(_gameName, "--language has nothing to choose, because this game ships no string tables.");
+        }
+
+        int matched = LanguageMatcher.Match(strings.Languages, new ReadOnlySpan<string>(in tag));
+
+        return matched >= 0
+            ? strings.Languages[matched]
+            : throw CommandLine.Refuse(_gameName, $"no shipped language matches '{tag}'. Shipped: {string.Join(", ", strings.Languages.ToArray())}.");
+    }
 
     // The medium the shell named, which wins over the platform's own.
     private ISaveStorage? NamedSaveStorage() =>

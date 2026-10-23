@@ -723,7 +723,7 @@ public sealed class FocusNavigator : Component
     // a far aligned item. Ties go to list order, and the wrap target is the item farthest the other way.
     private Focusable? Neighbour(Focusable from, Vector2 direction)
     {
-        Vector2 origin = Centre(from);
+        Vector2 origin = from.Bounds.Center;
 
         Focusable? best = null;
         float bestScore = 0f;
@@ -737,7 +737,7 @@ public sealed class FocusNavigator : Component
                 continue;
             }
 
-            Vector2 delta = Centre(item) - origin;
+            Vector2 delta = item.Bounds.Center - origin;
             float along = Vector2.Dot(direction, delta);
 
             if (along > 0f)
@@ -758,14 +758,6 @@ public sealed class FocusNavigator : Component
         }
 
         return best ?? wrap;
-    }
-
-    // A zero-size box centres on its position, which keeps an item with no extent in every direction.
-    private static Vector2 Centre(Focusable item)
-    {
-        Rect bounds = item.Bounds;
-
-        return bounds.Position + (bounds.Size / 2f);
     }
 
     // An entity queued to leave, by itself or with an ancestor, drops out of focus in the same step

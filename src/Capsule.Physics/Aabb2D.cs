@@ -61,6 +61,16 @@ public readonly record struct Aabb2D(Vector2 Min, Vector2 Max)
         Min.X <= other.Min.X && Min.Y <= other.Min.Y
         && other.Max.X <= Max.X && other.Max.Y <= Max.Y;
 
+    /// <summary>The box both boxes cover, or null where they do not <see cref="Overlaps"/>.</summary>
+    /// <remarks>Boxes that only touch share a box of no extent on the axis where they touch.</remarks>
+    /// <example>
+    /// <code>
+    /// if (first.Intersection(second) is { } shared) { Spark(shared.Center); }
+    /// </code>
+    /// </example>
+    public Aabb2D? Intersection(in Aabb2D other) =>
+        Overlaps(other) ? new Aabb2D(Vector2.Max(Min, other.Min), Vector2.Min(Max, other.Max)) : null;
+
     /// <summary>This box moved by <paramref name="offset"/> world units.</summary>
     public Aabb2D Translated(Vector2 offset) => new(Min + offset, Max + offset);
 

@@ -8,9 +8,6 @@
   "track": "audio/music/room.ogg",
   "entities": [
     {
-      "type": "sky"
-    },
-    {
       "type": "hills",
       "y": 112,
       "scrollFactor": [0.5, 1]
@@ -243,7 +240,7 @@
       "x": 16,
       "y": 96,
       "size": [96, 80],
-      "text": "[color=#ffd060]Jump[/color] over gaps and up onto ledges",
+      "text": "hints.jump",
       "prompt": "jump"
     },
     {

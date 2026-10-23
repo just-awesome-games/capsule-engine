@@ -36,8 +36,8 @@ public sealed class ParallaxTests
         Assert.Equal(new Vector2(100, 50), view.Sprites[0].PreviousPosition);
         Assert.Equal(new Vector2(201, 10), view.Sprites[1].Position);
         Assert.Equal(
-            [new ParallaxLayer(0, 0, Half), new ParallaxLayer(1, 0, Vector2.One)],
-            view.ParallaxLayers.ToArray());
+            [new PlacementRun(0, 0, Half), new PlacementRun(1, 0, Vector2.One)],
+            view.PlacementRuns.ToArray());
         Assert.Equal(Vector2.One, view.ScrollFactor);
         Assert.Equal(scene.Camera.Center, view.Camera.Center);
     }
@@ -52,7 +52,7 @@ public sealed class ParallaxTests
 
         SceneSimulation simulation = new(scene);
 
-        Assert.Empty(simulation.View.ParallaxLayers.ToArray());
+        Assert.Empty(simulation.View.PlacementRuns.ToArray());
     }
 
     // Inside a scrolled entity's Draw the view answers as the camera that entity is drawn by. A

@@ -6,9 +6,6 @@
   "track": "audio/music/room.ogg",
   "entities": [
     {
-      "type": "sky"
-    },
-    {
       "type": "tile-map",
       "tileSize": 16,
       "width": 10,

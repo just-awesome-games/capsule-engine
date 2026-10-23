@@ -5,6 +5,9 @@ namespace MinimalGame.Game;
 /// <summary>What the player keeps between runs. One document, written when the options screen changes it.</summary>
 public sealed record GameSettings
 {
+    /// <summary>The language the player chose, as a BCP 47 tag, or null to follow the system's.</summary>
+    public string? Language { get; set; }
+
     /// <summary>The music bus's level, from 0 to 1.</summary>
     public float MusicVolume { get; set; } = 1f;
 

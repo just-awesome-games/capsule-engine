@@ -8,7 +8,8 @@ public enum RenderSpace
 
     /// <summary>
     /// Canvas pixels from the canvas's top-left corner, Y-down, independent of the camera and culled
-    /// against <see cref="FrameView.Canvas"/>. Drawn over the world layer.
+    /// against <see cref="FrameView.Canvas"/>. Drawn over the world layer, or in its order under a screen root
+    /// that sorts with the world.
     /// </summary>
     Screen,
 }

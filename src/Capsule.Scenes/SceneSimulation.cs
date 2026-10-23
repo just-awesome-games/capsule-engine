@@ -169,7 +169,9 @@ public sealed class SceneSimulation : ISimulation, IDisposable
 
     private void RunStep(in StepContext context, Action? before)
     {
-        // Opened first. A sound or rumble pulse played during the step then belongs to this step's tick.
+        // Opened first. A sound or rumble pulse played during the step then belongs to this step's tick,
+        // and the whole step shows one language.
+        Run.BeginStep();
         Run.Audio.BeginStep(in context);
         Run.Rumble.BeginStep(in context);
 

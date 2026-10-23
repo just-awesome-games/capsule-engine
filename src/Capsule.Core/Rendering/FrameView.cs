@@ -14,7 +14,8 @@ namespace Capsule.Rendering;
 /// Text and nine-sliced panels expand onto those lists, one sprite per glyph and one per slice.
 /// Each <c>Add</c> draws onto the layer of the running renderer's entity, or onto the world outside
 /// a renderer, and culls against the camera in world space and against <see cref="Canvas"/> in
-/// screen space.
+/// screen space. Screen intent from under a root that sorts with the world lands on the world's list in
+/// canvas pixels, at its place in the world's draw order.
 /// <para>
 /// World intent sits at its authored position whatever scroll factor its entity carries. The host
 /// moves each entity's intent by its factor at draw time.
@@ -26,10 +27,24 @@ public sealed class FrameView
     // a rect that straddles it.
     private static readonly Rect Nothing = Rect.FromEdges(float.PositiveInfinity, float.PositiveInfinity, float.NegativeInfinity, float.NegativeInfinity);
 
-    private readonly Layer _world = new();
-    private readonly Layer _screen = new();
-    private readonly List<ParallaxLayer> _parallax = [];
+    // A store under no clip. The clip's own serials count up from zero.
+    private const int Unclipped = -1;
+
+    private readonly List<PlacementRun> _placements = [];
     private readonly List<LightIntent> _lights = [];
+
+    // Every level of every clip set this frame, which both lists' clip runs name.
+    private readonly List<ClipRegion> _clipLevels = [];
+
+    // Where each space's intent lands, each from its own list. Each is rewritten as the state behind it
+    // changes, never per store.
+    private readonly Route _worldRoute = new(new Layer(Unclipped), Unclipped);
+    private readonly Route _screenRoute = new(new Layer(0), 0);
+
+    // Where the levels of the clip screen intent is stored under start, and how many there are. Zero
+    // levels is no clip.
+    private int _clipStart;
+    private int _clipCount;
 
     private ColorRgba _ambient = ColorRgba.White;
 
@@ -71,7 +86,7 @@ public sealed class FrameView
     }
 
     // The scroll factor of the entity whose renderer is running, and one outside a renderer. Each change
-    // opens a run in ParallaxLayers. An unchanged factor between two entities costs one comparison.
+    // opens a run in PlacementRuns. An unchanged factor between two entities costs one comparison.
     internal Vector2 ScrollFactor
     {
         get => _scrollFactor;
@@ -83,8 +98,26 @@ public sealed class FrameView
             }
 
             _scrollFactor = value;
-            _parallax.Add(new ParallaxLayer(_world.Sprites.Count, _world.Lines.Count, value, _lights.Count));
+            OpenPlacementRun(canvas: false);
             UpdateCullBounds();
+        }
+    }
+
+    // Whether the running renderer's root sorts with the world, and false outside a renderer. While it
+    // does, screen intent lands on the world's list under a run placed in canvas pixels. An unchanged
+    // value between two renderers costs one comparison.
+    internal bool SortsWithWorld
+    {
+        get => _screenRoute.Canvas;
+        set
+        {
+            if (value == _screenRoute.Canvas)
+            {
+                return;
+            }
+
+            _screenRoute.Canvas = value;
+            _screenRoute.List = value ? WorldList : ScreenList;
         }
     }
 
@@ -108,37 +141,37 @@ public sealed class FrameView
     // Clips the screen intent stored from here on until the next BeginClip or ClearClip. A clip is the
     // intersection of its levels, one per nested ClipRect, each a rect in canvas pixels that moves from
     // previous to current across the step. BeginClip starts one, AddClipLevel adds a level, and EndClip
-    // closes it. An unchanged clip between two renderers is never set again. Each change opens a run in
-    // ScreenClipRuns once something is stored, and narrows the screen layer's cull bounds to the canvas and
-    // the clip's reach.
+    // closes it. An unchanged clip between two renderers is never set again. Each change opens a clip run
+    // on the list screen intent next lands on, and narrows the screen space's cull bounds to the canvas and
+    // the clip's reach. World intent is never clipped.
     internal void BeginClip()
     {
-        _screen.ClipStart = _screen.ClipLevels.Count;
-        _screen.ClipCount = 0;
+        _clipStart = _clipLevels.Count;
+        _clipCount = 0;
     }
 
     internal void AddClipLevel(in Rect previous, in Rect current)
     {
-        _screen.ClipLevels.Add(new ClipRegion(previous, current));
-        _screen.ClipCount++;
+        _clipLevels.Add(new ClipRegion(previous, current));
+        _clipCount++;
     }
 
     internal void EndClip()
     {
-        _screen.ClipSerial++;
+        _screenRoute.ClipSerial++;
         UpdateScreenBounds();
     }
 
     // Ends the clip. The screen intent stored from here on is cut by none.
     internal void ClearClip()
     {
-        if (_screen.ClipCount == 0)
+        if (_clipCount == 0)
         {
             return;
         }
 
-        _screen.ClipCount = 0;
-        _screen.ClipSerial++;
+        _clipCount = 0;
+        _screenRoute.ClipSerial++;
         UpdateScreenBounds();
     }
 
@@ -199,8 +232,11 @@ public sealed class FrameView
         }
     }
 
-    /// <summary>The world-space sprites to draw, in the order added, under the screen sprites. Invalidated by the next mutation.</summary>
-    public ReadOnlySpan<SpriteIntent> Sprites => CollectionsMarshal.AsSpan(_world.Sprites);
+    /// <summary>The world layer's sprites to draw, in the order added, under the screen sprites. Invalidated by the next mutation.</summary>
+    /// <remarks>
+    /// Those a screen root that sorts with the world draws are in canvas pixels, and the rest in world units.
+    /// </remarks>
+    public ReadOnlySpan<SpriteIntent> Sprites => CollectionsMarshal.AsSpan(WorldList.Sprites);
 
     /// <summary>
     /// The lights to draw into the frame's light map, in the order added. World-only: the screen
@@ -213,40 +249,43 @@ public sealed class FrameView
     /// The screen-space sprites to draw, in canvas pixels and in the order added, over every sprite
     /// in <see cref="Sprites"/>. Invalidated by the next mutation.
     /// </summary>
-    public ReadOnlySpan<SpriteIntent> ScreenSprites => CollectionsMarshal.AsSpan(_screen.Sprites);
+    public ReadOnlySpan<SpriteIntent> ScreenSprites => CollectionsMarshal.AsSpan(ScreenList.Sprites);
 
     /// <summary>
-    /// The world-space lines to draw, in the order added, over the world sprites and under the
-    /// screen sprites. Invalidated by the next mutation.
+    /// The world layer's lines to draw, in the order added, over the world sprites and under the
+    /// screen sprites, placed as <see cref="Sprites"/> are. Invalidated by the next mutation.
     /// </summary>
-    public ReadOnlySpan<LineIntent> Lines => CollectionsMarshal.AsSpan(_world.Lines);
+    public ReadOnlySpan<LineIntent> Lines => CollectionsMarshal.AsSpan(WorldList.Lines);
 
     /// <summary>
     /// The screen-space lines to draw, in canvas pixels and in the order added, over every sprite in
     /// <see cref="ScreenSprites"/>. Invalidated by the next mutation.
     /// </summary>
-    public ReadOnlySpan<LineIntent> ScreenLines => CollectionsMarshal.AsSpan(_screen.Lines);
+    public ReadOnlySpan<LineIntent> ScreenLines => CollectionsMarshal.AsSpan(ScreenList.Lines);
 
-    // The runs of Sprites, Lines and Lights whose entity carries a scroll factor, in list order and
-    // back-to-back. A run opens where the factor changed and closes where the next one opens. Intent
-    // before the first run draws with the world. Invalidated by the next mutation.
-    internal ReadOnlySpan<ParallaxLayer> ParallaxLayers => CollectionsMarshal.AsSpan(_parallax);
+    // The runs of Sprites, Lines and Lights drawn by one placement, in list order and back-to-back: a scroll
+    // factor, or canvas pixels for a screen root sorted with the world. A run opens where the placement
+    // changed and closes where the next one opens. Intent before the first run draws with the world.
+    // Invalidated by the next mutation.
+    internal ReadOnlySpan<PlacementRun> PlacementRuns => CollectionsMarshal.AsSpan(_placements);
 
     // The runs of Sprites and of ScreenSprites drawn by one material, in list order and back-to-back. A
     // run opens where the material changed and closes where the next one opens. Invalidated by the
     // next mutation.
-    internal ReadOnlySpan<MaterialRun> MaterialRuns => CollectionsMarshal.AsSpan(_world.Runs);
+    internal ReadOnlySpan<MaterialRun> MaterialRuns => CollectionsMarshal.AsSpan(WorldList.Runs);
 
-    internal ReadOnlySpan<MaterialRun> ScreenMaterialRuns => CollectionsMarshal.AsSpan(_screen.Runs);
+    internal ReadOnlySpan<MaterialRun> ScreenMaterialRuns => CollectionsMarshal.AsSpan(ScreenList.Runs);
 
-    // The runs of ScreenSprites and ScreenLines drawn under one clip, in list order and back-to-back. A
-    // run opens where the clip changed and closes where the next one opens. The world layer has none.
-    // Invalidated by the next mutation.
-    internal ReadOnlySpan<ClipRun> ScreenClipRuns => CollectionsMarshal.AsSpan(_screen.ClipRuns);
+    // The runs of each list drawn under one clip, in list order and back-to-back. A run opens where the
+    // clip changed and closes where the next one opens. The world's list has runs only where a screen root
+    // sorted with the world stores under a clip. Invalidated by the next mutation.
+    internal ReadOnlySpan<ClipRun> ClipRuns => CollectionsMarshal.AsSpan(WorldList.ClipRuns);
 
-    // The levels the runs of ScreenClipRuns name, back-to-back, in the order they were added. Invalidated
-    // by the next mutation.
-    internal ReadOnlySpan<ClipRegion> ScreenClipLevels => CollectionsMarshal.AsSpan(_screen.ClipLevels);
+    internal ReadOnlySpan<ClipRun> ScreenClipRuns => CollectionsMarshal.AsSpan(ScreenList.ClipRuns);
+
+    // The levels both lists' clip runs name, back-to-back, in the order they were added. Invalidated by the
+    // next mutation.
+    internal ReadOnlySpan<ClipRegion> ClipLevels => CollectionsMarshal.AsSpan(_clipLevels);
 
     /// <summary>
     /// Submission counts from the current rewrite, across both layers, lines included.
@@ -258,7 +297,7 @@ public sealed class FrameView
     /// </remarks>
     public RenderMetrics Metrics => new(
         _submitted,
-        _world.Sprites.Count + _screen.Sprites.Count + _world.Lines.Count + _screen.Lines.Count,
+        WorldList.Sprites.Count + ScreenList.Sprites.Count + WorldList.Lines.Count + ScreenList.Lines.Count,
         _lights.Count);
 
     // The colour the running renderer's entity is tinted by, and white outside a renderer, with its
@@ -280,17 +319,17 @@ public sealed class FrameView
     // overload's per-sprite test.
     internal bool TryGetCullRegion(out Rect region)
     {
-        Layer layer = Of(Space);
-        region = layer.Bounds;
+        Route route = RouteOf(Space);
+        region = route.Bounds;
 
-        return layer.Culls;
+        return route.Culls;
     }
 
     // Adds a sprite with no bounds test, for a caller that already tested its own bounds.
     internal void AddUnculled(in SpriteIntent sprite)
     {
         _submitted++;
-        Store(Of(Space), in sprite);
+        Store(RouteOf(Space), in sprite);
     }
 
     /// <summary>Adds a sprite. An unset camera or canvas disables culling.</summary>
@@ -301,13 +340,13 @@ public sealed class FrameView
     {
         _submitted++;
 
-        Layer layer = Of(space);
-        if (layer.Culls && !(sprite.TryGetSweptBounds(out Rect swept) && swept.Intersects(layer.Bounds)))
+        Route route = RouteOf(space);
+        if (route.Culls && !(sprite.TryGetSweptBounds(out Rect swept) && swept.Intersects(route.Bounds)))
         {
             return;
         }
 
-        Store(layer, in sprite);
+        Store(route, in sprite);
     }
 
     /// <summary>Adds a light, culled through its swept region against the world layer as a sprite is.</summary>
@@ -326,9 +365,15 @@ public sealed class FrameView
 
         if (!(light.Intensity > 0f) || !float.IsFinite(light.Intensity) ||
             !light.ToSprite(light.Color).TryGetSweptBounds(out Rect swept) ||
-            (_world.Culls && !swept.Intersects(_world.Bounds)))
+            (_worldRoute.Culls && !swept.Intersects(_worldRoute.Bounds)))
         {
             return;
+        }
+
+        // A light is placed by the world's run, never by a sorted screen root's canvas run before it.
+        if (WorldList.RunCanvas)
+        {
+            OpenPlacementRun(canvas: false);
         }
 
         _lights.Add(_tinted ? light with { Color = ColorRgba.Multiply(light.Color, _tint) } : light);
@@ -371,8 +416,9 @@ public sealed class FrameView
             return;
         }
 
-        Layer layer = Of(space);
-        Rect against = layer.Bounds;
+        Route route = RouteOf(space);
+        bool culls = route.Culls;
+        Rect against = route.Bounds;
 
         TextureRegion region = sprite.Sprite.Region;
         Vector2 texelSize = new(sprite.Size.X / region.Width, sprite.Size.Y / region.Height);
@@ -381,8 +427,8 @@ public sealed class FrameView
         Vector2 corner = sprite.Position - (sprite.DrawOrigin * texelSize);
         Vector2 travel = sprite.PreviousPosition - sprite.Position;
 
-        TileRange columns = TileRange.ForAxis(tiling.X, sprite.Size.X, swept.Left, swept.Right, layer.Culls, against.Left, against.Right);
-        TileRange rows = TileRange.ForAxis(tiling.Y, sprite.Size.Y, swept.Top, swept.Bottom, layer.Culls, against.Top, against.Bottom);
+        TileRange columns = TileRange.ForAxis(tiling.X, sprite.Size.X, swept.Left, swept.Right, culls, against.Left, against.Right);
+        TileRange rows = TileRange.ForAxis(tiling.Y, sprite.Size.Y, swept.Top, swept.Bottom, culls, against.Top, against.Bottom);
 
         for (int row = rows.First; row <= rows.Last; row++)
         {
@@ -433,23 +479,14 @@ public sealed class FrameView
     {
         _submitted++;
 
-        if (!line.TryGetBounds(out Rect bounds))
+        Route route = RouteOf(space);
+        if (!line.TryGetBounds(out Rect bounds) || (route.Culls && !bounds.Intersects(route.Bounds)))
         {
             return;
         }
 
-        Layer layer = Of(space);
-        if (layer.Culls && !bounds.Intersects(layer.Bounds))
-        {
-            return;
-        }
-
-        if (layer.ClipSerial != layer.RunClipSerial)
-        {
-            OpenClipRun(layer);
-        }
-
-        layer.Lines.Add(_tinted ? line with { Color = ColorRgba.Multiply(line.Color, _tint) } : line);
+        Enter(route);
+        route.List.Lines.Add(_tinted ? line with { Color = ColorRgba.Multiply(line.Color, _tint) } : line);
     }
 
     /// <summary>
@@ -512,9 +549,9 @@ public sealed class FrameView
     // before any of its glyphs is built.
     internal bool Rejects(in Rect reach, RenderSpace space)
     {
-        Layer layer = Of(space);
+        Route route = RouteOf(space);
 
-        return layer.Culls && !reach.Intersects(layer.Bounds);
+        return route.Culls && !reach.Intersects(route.Bounds);
     }
 
     /// <summary>
@@ -586,26 +623,54 @@ public sealed class FrameView
 
     // The one store point every sprite passes, where the running entity's tint and flash apply.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void Store(Layer layer, in SpriteIntent sprite)
+    private void Store(Route route, in SpriteIntent sprite)
     {
+        Layer layer = route.List;
         if (!ReferenceEquals(Material, layer.RunMaterial))
         {
             layer.Runs.Add(new MaterialRun(layer.Sprites.Count, Material));
             layer.RunMaterial = Material;
         }
 
-        if (layer.ClipSerial != layer.RunClipSerial)
-        {
-            OpenClipRun(layer);
-        }
-
+        Enter(route);
         layer.Sprites.Add(_styled ? Styled(in sprite) : sprite);
     }
 
-    private static void OpenClipRun(Layer layer)
+    // Opens the clip run and the placement run route's intent is stored under where its list's last ones
+    // differ. The test is one comparison of both packed into a key. Only the world's list opens placement
+    // runs, because the screen layer's route is never in canvas pixels on its own list.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void Enter(Route route)
     {
-        layer.ClipRuns.Add(new ClipRun(layer.Sprites.Count, layer.Lines.Count, layer.ClipStart, layer.ClipCount));
-        layer.RunClipSerial = layer.ClipSerial;
+        if (route.Key != route.List.RunKey)
+        {
+            Reenter(route);
+        }
+    }
+
+    // Screen intent is stored under the running clip, and world intent under none.
+    private void Reenter(Route route)
+    {
+        Layer layer = route.List;
+        if (route.Key >> 1 != layer.RunKey >> 1)
+        {
+            bool clipped = route.ClipSerial != Unclipped;
+            layer.ClipRuns.Add(new ClipRun(layer.Sprites.Count, layer.Lines.Count, clipped ? _clipStart : 0, clipped ? _clipCount : 0));
+        }
+
+        if (route.Canvas != layer.RunCanvas)
+        {
+            OpenPlacementRun(route.Canvas);
+        }
+
+        layer.RunKey = route.Key;
+    }
+
+    // Opens a run on the world's list placed in canvas pixels, or by the running scroll factor.
+    private void OpenPlacementRun(bool canvas)
+    {
+        _placements.Add(new PlacementRun(WorldList.Sprites.Count, WorldList.Lines.Count, _scrollFactor, _lights.Count, canvas));
+        WorldList.RunKey = (WorldList.RunKey & ~1) | (canvas ? 1 : 0);
     }
 
     private SpriteIntent Styled(in SpriteIntent sprite) => sprite with
@@ -617,12 +682,17 @@ public sealed class FrameView
     // Drops the ordered intent and resets Metrics, retaining capacity.
     internal void Clear()
     {
-        _world.Clear();
-        _screen.Clear();
-        _parallax.Clear();
+        WorldList.Clear();
+        ScreenList.Clear();
+        _placements.Clear();
         _lights.Clear();
+        _clipLevels.Clear();
+        _clipStart = 0;
+        _clipCount = 0;
+        _screenRoute.ClipSerial = 0;
         _submitted = 0;
         Space = RenderSpace.World;
+        SortsWithWorld = false;
         SetStyle(ColorRgba.White, default);
         Material = null;
         _scrollFactor = Vector2.One;
@@ -632,7 +702,11 @@ public sealed class FrameView
         UpdateScreenBounds();
     }
 
-    private Layer Of(RenderSpace space) => space == RenderSpace.Screen ? _screen : _world;
+    private Layer WorldList => _worldRoute.Home;
+
+    private Layer ScreenList => _screenRoute.Home;
+
+    private Route RouteOf(RenderSpace space) => space == RenderSpace.Screen ? _screenRoute : _worldRoute;
 
     // The region world intent is culled against: the camera's swept bounds, or the layer's when the
     // running entity carries a scroll factor. A camera that spans nothing culls nothing, because a sliver
@@ -645,8 +719,8 @@ public sealed class FrameView
         }
 
         CameraView camera = Camera;
-        _world.Bounds = camera.SweptBounds;
-        _world.Culls = camera.Size.X > 0f && camera.Size.Y > 0f && !_world.Bounds.IsEmpty;
+        _worldRoute.Bounds = camera.SweptBounds;
+        _worldRoute.Culls = camera.Size.X > 0f && camera.Size.Y > 0f && !camera.SweptBounds.IsEmpty;
     }
 
     // The region screen intent is culled against: the canvas, and inside a clip also the intersection over
@@ -658,16 +732,16 @@ public sealed class FrameView
         Rect canvas = new(Vector2.Zero, _canvas);
         bool bounded = !canvas.IsEmpty;
 
-        if (_screen.ClipCount == 0)
+        if (_clipCount == 0)
         {
-            _screen.Bounds = canvas;
-            _screen.Culls = bounded;
+            _screenRoute.Bounds = canvas;
+            _screenRoute.Culls = bounded;
 
             return;
         }
 
         Rect reach = bounded ? canvas : Rect.FromEdges(float.NegativeInfinity, float.NegativeInfinity, float.PositiveInfinity, float.PositiveInfinity);
-        ReadOnlySpan<ClipRegion> levels = CollectionsMarshal.AsSpan(_screen.ClipLevels).Slice(_screen.ClipStart, _screen.ClipCount);
+        ReadOnlySpan<ClipRegion> levels = CollectionsMarshal.AsSpan(_clipLevels).Slice(_clipStart, _clipCount);
         for (int i = 0; i < levels.Length; i++)
         {
             ClipRegion level = levels[i];
@@ -675,13 +749,16 @@ public sealed class FrameView
             reach = Rect.Intersection(reach, span);
         }
 
-        _screen.Bounds = reach.IsEmpty ? Nothing : reach;
-        _screen.Culls = true;
+        _screenRoute.Bounds = reach.IsEmpty ? Nothing : reach;
+        _screenRoute.Culls = true;
     }
 
-    // One of the frame's two layers: the intent drawn in that space and the region it culls against.
-    private sealed class Layer
+    // One of the frame's two ordered lists, and the runs that cut it by material and by clip.
+    // unclipped: the clip serial the list starts under, which opens no run for intent stored under no clip.
+    private sealed class Layer(int unclipped)
     {
+        private readonly int _unclipped = unclipped;
+
         internal List<SpriteIntent> Sprites { get; } = [];
 
         internal List<LineIntent> Lines { get; } = [];
@@ -690,28 +767,14 @@ public sealed class FrameView
 
         internal List<ClipRun> ClipRuns { get; } = [];
 
-        // Every level of every clip set this frame, and the levels of the clip the layer's intent is stored
-        // under, which are ClipCount from ClipStart. Zero is no clip.
-        internal List<ClipRegion> ClipLevels { get; } = [];
+        // The Route.Key of the last runs opened: the clip serial the clip run was opened for, and whether the
+        // placement run is in canvas pixels, which only the world's list opens.
+        internal int RunKey { get; set; } = unclipped << 1;
 
-        internal int ClipStart { get; set; }
-
-        internal int ClipCount { get; set; }
-
-        // A count of the clip's changes. A store opens a run where the count differs from the one the last
-        // run was opened for. The test is one integer comparison. The world layer is never clipped and
-        // both counts stay zero.
-
-        internal int ClipSerial { get; set; }
-
-        internal int RunClipSerial { get; set; }
+        internal bool RunCanvas => (RunKey & 1) != 0;
 
         // The material of the last run opened, null before the first.
         internal Material? RunMaterial { get; set; }
-
-        internal Rect Bounds { get; set; }
-
-        internal bool Culls { get; set; }
 
         internal void Clear()
         {
@@ -719,12 +782,37 @@ public sealed class FrameView
             Lines.Clear();
             Runs.Clear();
             ClipRuns.Clear();
-            ClipLevels.Clear();
-            ClipStart = 0;
-            ClipCount = 0;
-            ClipSerial = 0;
-            RunClipSerial = 0;
+            RunKey = _unclipped << 1;
             RunMaterial = null;
+        }
+    }
+
+    // Where one space's intent lands: the list, the region it culls against, the clip serial it is stored
+    // under, Unclipped for none, and whether it is placed in canvas pixels on the world's list. Key packs the
+    // last two, the serial above the canvas bit. Home is the space's own list, which List leaves only for a
+    // screen root sorted with the world.
+    private sealed class Route(Layer home, int clipSerial)
+    {
+        internal Layer Home { get; } = home;
+
+        internal Layer List { get; set; } = home;
+
+        internal Rect Bounds { get; set; }
+
+        internal bool Culls { get; set; }
+
+        internal int Key { get; private set; } = clipSerial << 1;
+
+        internal int ClipSerial
+        {
+            get => Key >> 1;
+            set => Key = (value << 1) | (Key & 1);
+        }
+
+        internal bool Canvas
+        {
+            get => (Key & 1) != 0;
+            set => Key = (Key & ~1) | (value ? 1 : 0);
         }
     }
 }

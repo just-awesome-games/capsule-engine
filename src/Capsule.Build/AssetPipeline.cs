@@ -7,6 +7,7 @@ using Capsule.Build.Registry;
 using Capsule.Build.Scenes;
 using Capsule.Build.Shaders;
 using Capsule.Build.Sheets;
+using Capsule.Build.Strings;
 using Capsule.Build.Textures;
 
 namespace Capsule.Build;
@@ -15,10 +16,10 @@ namespace Capsule.Build;
 /// One run over the asset tree. A run holds the output directory for its whole duration.
 /// </summary>
 /// <remarks>
-/// It walks and keys every source, derives each type, and writes two things under the output
-/// directory: <c>assets/</c> holding exactly what the game ships, laid out as the game authored it,
-/// and <c>CapsuleAssets.g.cs</c> declaring every asset. A run reports every authoring defect instead
-/// of stopping at the first. A second run over the same directory waits for it. Every build runs it,
+/// It walks and keys every source, derives each type, and writes under the output directory:
+/// <c>assets/</c> holding exactly what the game ships, laid out as the game authored it,
+/// <c>CapsuleAssets.g.cs</c> declaring every asset, and <c>CapsuleStrings.g.cs</c> declaring every text
+/// when the game authors any. A run reports every authoring defect instead of stopping at the first. A second run over the same directory waits for it. Every build runs it,
 /// and its <see cref="DerivationCache"/> decides what runs again.
 /// </remarks>
 internal static class AssetPipeline
@@ -117,6 +118,7 @@ internal static class AssetPipeline
                 ClipStep.Run(pass);             // .clip.json sources -> clip members
                 ShaderStep.Run(pass);           // .fx sources -> .mgfx effects, shader members
                 SceneStep.Run(pass);            // .scene.json sources -> gzipped documents, scene members
+                string? strings = StringsStep.Run(pass); // .strings.json sources -> CapsuleStrings
 
                 // Shipped whatever failed, as every file the steps shipped already is.
                 pass.TextureMap.Ship(pass.Shipped);
@@ -129,6 +131,17 @@ internal static class AssetPipeline
                 }
 
                 AtomicFile.WriteText(Path.Combine(outputDirectory, CapsuleAssetsFile.FileName), generated);
+
+                // A game with no string table compiles no CapsuleStrings, whatever an earlier run wrote.
+                string stringsFile = Path.Combine(outputDirectory, StringsMembers.FileName);
+                if (strings is null)
+                {
+                    File.Delete(stringsFile);
+                }
+                else
+                {
+                    AtomicFile.WriteText(stringsFile, strings);
+                }
                 pass.Shipped.Prune();
             }
             finally

@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Capsule.Assets;
 using Capsule.Audio;
+using Capsule.Localization;
 using Capsule.Rendering;
 
 namespace Capsule.Scenes;
@@ -240,6 +241,18 @@ public readonly struct AuthoredMembers
             static text => AssetPaths.NormalizeKey(text, out _),
             "a scene document's key, as \"scenes/halls/hall\"",
             "Write the key of a scene document under Assets/, with no extension.",
+            join: null);
+
+    /// <summary>Reads a text, written as its key path exactly as its source language authors it, as <c>"hints.jump"</c>.</summary>
+    /// <param name="key">The member's key.</param>
+    /// <param name="find">The text a key path names, or null for one the game does not ship.</param>
+    public TextKey Text(string key, Func<string, TextKey?> find) =>
+        Asset(
+            key,
+            find,
+            static text => text,
+            "a text's key path, as \"hints.jump\"",
+            "Write the key path of a text in the source language's .strings.json files.",
             join: null);
 
     /// <summary>

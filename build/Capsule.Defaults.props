@@ -22,7 +22,7 @@
        turning ImplicitUsings off. Items evaluate after every property, and the condition sees the role. -->
   <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true' and ('$(ImplicitUsings)' == 'enable' or '$(ImplicitUsings)' == 'true')">
     <Using Include="Capsule;Capsule.Animation;Capsule.Assets;Capsule.Audio;Capsule.Diagnostics;Capsule.Input;Capsule.Particles" />
-    <Using Include="Capsule.Persistence;Capsule.Physics;Capsule.Rendering;Capsule.Scenes;Capsule.Tiles;Capsule.UI;System.Numerics" />
+    <Using Include="Capsule.Localization;Capsule.Persistence;Capsule.Physics;Capsule.Rendering;Capsule.Scenes;Capsule.Tiles;Capsule.UI;System.Numerics" />
   </ItemGroup>
 
   <!-- Source control reports the repository root in the spelling the project was reached by. The SDK

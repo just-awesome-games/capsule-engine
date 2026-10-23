@@ -15,6 +15,12 @@ public sealed class RectTests
         Assert.Equal(Box, new Rect(10f, 20f, 20f, 20f));
     }
 
+    [Fact]
+    public void Center_LiesMidwayBetweenTheEdges()
+    {
+        Assert.Equal(new Vector2(20f, 30f), Box.Center);
+    }
+
     // Inside, then the low edges and the corner they meet at, then the high edges and their corner,
     // then outside on each axis.
     [Theory]

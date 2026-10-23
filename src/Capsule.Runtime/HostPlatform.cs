@@ -4,8 +4,8 @@ using Capsule.Runtime.Audio;
 namespace Capsule.Runtime;
 
 /// <summary>
-/// Where a run reads its shipped content, keeps its saves and its crash log, and how the shipped
-/// backend treats its window and its audio output.
+/// Where a run reads its shipped content, keeps its saves and its crash log, how the shipped backend
+/// treats its window and its audio output, and which languages the player prefers.
 /// </summary>
 /// <remarks>
 /// A shell hands one to <c>CapsuleBoot.Configure</c> beside the game's name.
@@ -97,4 +97,13 @@ public abstract class HostPlatform
     /// Call when the default output changes. Safe from any thread, and only notes the change.
     /// </param>
     protected internal virtual AudioOutput? WatchDefaultAudioOutput(Action defaultChanged) => null;
+
+    /// <summary>
+    /// The player's preferred languages as BCP 47 tags, most preferred first. Empty by default.
+    /// </summary>
+    /// <remarks>
+    /// Asked at most once, when a windowed run no driver plays starts in a game with string tables. A
+    /// console's platform module answers with its system language setting. Must not throw.
+    /// </remarks>
+    protected internal virtual IReadOnlyList<string> PreferredLanguages() => [];
 }

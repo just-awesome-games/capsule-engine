@@ -32,7 +32,7 @@ public sealed class HintZone : Entity
 
     /// <summary>The hint typed while the player is inside, read as <see cref="Label.RichText"/>.</summary>
     [Authorable(Required = true)]
-    public string Text { get; private set; } = string.Empty;
+    public TextKey Text { get; private set; }
 
     /// <summary>The input action whose button is shown before the line, or empty for none.</summary>
     [Authorable]

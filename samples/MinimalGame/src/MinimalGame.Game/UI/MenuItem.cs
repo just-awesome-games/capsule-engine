@@ -32,14 +32,19 @@ public sealed class MenuItem : ScreenEntity
 
     /// <param name="text">The caption drawn inside the box.</param>
     /// <param name="prompt">The action whose button is shown after the caption, or null for none.</param>
-    public MenuItem(string text, InputAction? prompt = null)
+    public MenuItem(TextKey text, InputAction? prompt = null)
+        : this(prompt) => _caption.SetText(text);
+
+    /// <summary>An item whose caption is set once it starts, as a row showing a setting's value is.</summary>
+    /// <param name="prompt">The action whose button is shown after the caption, or null for none.</param>
+    public MenuItem(InputAction? prompt = null)
         : base(Anchor.TopWide, Vector2.Zero)
     {
         // Everything is attached here, where the font and the prompt art join the scene's preload.
         // Spanning the slot makes a column's items all as wide as the widest.
         _bar = new ColorRect { Visible = false };
 
-        _caption = new Label(CapsuleAssets.Fonts.MenuFont, text)
+        _caption = new Label(CapsuleAssets.Fonts.MenuFont)
         {
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Middle,
@@ -59,8 +64,6 @@ public sealed class MenuItem : ScreenEntity
         }
 
         Highlight(Focusable, _caption, _bar, _prompt);
-
-        Size = new Vector2(WidthFor(text), BoxHeight);
     }
 
     /// <summary>Raised when this item is pressed, however the player pressed it.</summary>
@@ -77,12 +80,23 @@ public sealed class MenuItem : ScreenEntity
         remove => Focusable.SecondaryPressed -= value;
     }
 
-    /// <summary>The label drawn inside the box.</summary>
-    public string Caption
-    {
-        get => _caption.Text;
-        set => _caption.Text = value;
-    }
+    /// <summary>
+    /// The width in canvas pixels the caption and the prompt take as they show now, in the run's language,
+    /// and never less than <see cref="MinWidth"/>.
+    /// </summary>
+    public float ContentWidth => Math.Max(MinWidth, _caption.ContentSize.X + Trail + (2f * HorizontalPadding));
+
+    // The gap and the prompt after the caption, or nothing while the prompt shows nothing.
+    private float Trail => _prompt is { Visible: true, Width: > 0f } shown ? PromptGap + shown.Width : 0f;
+
+    /// <summary>The caption as it shows now, in the run's language.</summary>
+    public string Caption => _caption.Text;
+
+    /// <summary>Shows <paramref name="text"/> inside the box.</summary>
+    public void SetCaption(TextKey text) => _caption.SetText(text);
+
+    /// <summary>Shows <paramref name="text"/> inside the box with its placeholder filled by <paramref name="value"/>.</summary>
+    public void SetCaption<T>(TextKey text, T value) => _caption.SetText(text, value);
 
     /// <summary>Whether the prompt after the caption shows. An item built with no prompt shows none.</summary>
     public bool ShowsPrompt
@@ -105,9 +119,9 @@ public sealed class MenuItem : ScreenEntity
         }
     }
 
-    /// <summary>The width in canvas pixels an item captioned <paramref name="text"/> with no prompt takes.</summary>
-    public static float WidthFor(string text) =>
-        Math.Max(MinWidth, CapsuleAssets.Fonts.MenuFont.Measure(text).X + (2f * HorizontalPadding));
+    // The caption resolves against the run's language from here. Sizing here sizes the first frame.
+    /// <inheritdoc/>
+    protected override void OnStart() => Size = new Vector2(ContentWidth, BoxHeight);
 
     // The caption and its prompt are centred together, and the box grows to hold both. Focused ink never
     // runs off the bar. The prompt has stepped by now, and its width is this step's.
@@ -115,8 +129,8 @@ public sealed class MenuItem : ScreenEntity
     protected override void OnLateStep(in StepContext context)
     {
         float caption = _caption.ContentSize.X;
-        float trail = _prompt is { Visible: true, Width: > 0f } shown ? PromptGap + shown.Width : 0f;
-        float width = Math.Max(MinWidth, caption + trail + (2f * HorizontalPadding));
+        float trail = Trail;
+        float width = ContentWidth;
         if (Size.X != width)
         {
             Size = new Vector2(width, BoxHeight);

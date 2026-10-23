@@ -2,8 +2,9 @@
 
   <!-- The asset pipeline, on when CapsuleBuildAssets is true. MSBuild never walks Assets/. Every
        build runs the game's build project once (CapsuleRunBuildTool), which writes everything under
-       obj/capsule/, or obj/capsule-shipping/ for a publish: imported/, assets/, CapsuleAssets.g.cs and
-       derivation-cache.json. CapsuleAddBuildOutputs hands assets/ and CapsuleAssets.g.cs to MSBuild. -->
+       obj/capsule/, or obj/capsule-shipping/ for a publish: imported/, assets/, CapsuleAssets.g.cs,
+       CapsuleStrings.g.cs when the game authors texts, and derivation-cache.json. CapsuleAddBuildOutputs
+       hands assets/ and the generated sources to MSBuild. -->
 
   <!-- Every path the run is handed starts from _CapsuleProjectDirectory, Capsule.Defaults.props's
        spelling of the project directory. -->
@@ -98,6 +99,7 @@
       </Content>
 
       <Compile Condition="'$(CapsuleGameLogic)' == 'true'" Include="$(CapsuleObjDir)/CapsuleAssets.g.cs" />
+      <Compile Condition="'$(CapsuleGameLogic)' == 'true' and Exists('$(CapsuleObjDir)/CapsuleStrings.g.cs')" Include="$(CapsuleObjDir)/CapsuleStrings.g.cs" />
 
       <!-- Everything the tool writes is cleaned together. No clean leaves the cache behind the
            outputs it vouches for. -->

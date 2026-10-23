@@ -8,9 +8,11 @@ namespace Capsule.Generators;
 /// <param name="Drivers">Every sound input driver the shell declares, by qualified name.</param>
 /// <param name="Payloads">Every sound scene payload the shell declares, by qualified name.</param>
 /// <param name="Diagnostics">Every fault found resolving the plan.</param>
+/// <param name="PassesStrings">Whether the entry point passes <c>CapsuleStrings.Table</c> to the engine.</param>
 internal readonly record struct BootPlan(
     bool Generates,
     EquatableArray<RegistryProviderModel> Providers,
     EquatableArray<InputDriverModel> Drivers,
     EquatableArray<ScenePayloadModel> Payloads,
-    EquatableArray<Diagnostic> Diagnostics);
+    EquatableArray<Diagnostic> Diagnostics,
+    bool PassesStrings);

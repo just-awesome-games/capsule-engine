@@ -29,6 +29,11 @@ public sealed class CapsuleBuild
 
     internal int? TileSize { get; private set; }
 
+    internal string SourceLanguage { get; private set; } = "en";
+
+    // Null falls back to the source language.
+    internal string? FallbackLanguage { get; private set; }
+
     // What identifies a derivation's implementing assembly in place of its build, which a test injects.
     // Null reads the build.
     internal Func<Assembly, string>? IdentifyTool { get; set; }
@@ -93,6 +98,26 @@ public sealed class CapsuleBuild
         return this;
     }
 
+    /// <summary>Declares the language the game's texts are authored in, as a BCP 47 tag, defaulting to <c>en</c>.</summary>
+    /// <remarks>
+    /// Its <c>&lt;tag&gt;.strings.json</c> files define every key <c>CapsuleStrings</c> declares, and every other
+    /// language is checked against them.
+    /// </remarks>
+    public CapsuleBuild WithSourceLanguage(string tag)
+    {
+        SourceLanguage = Canonical(tag);
+
+        return this;
+    }
+
+    /// <summary>Declares the language a run shows when no shipped language matches its request, as a BCP 47 tag, defaulting to the source language.</summary>
+    public CapsuleBuild WithFallbackLanguage(string tag)
+    {
+        FallbackLanguage = Canonical(tag);
+
+        return this;
+    }
+
     /// <summary>Runs the build and returns the process's exit code: 0 on success, 1 when a source has a defect, 2 on a usage error.</summary>
     /// <remarks>Each defect is one line on the error stream, naming the file that has it.</remarks>
     public int Run() => Run(Console.Out, Console.Error);
@@ -113,6 +138,20 @@ public sealed class CapsuleBuild
     // The importer claiming the path by its extension, or null when none does.
     internal IAssetImporter? ImporterOf(string path) =>
         _claims.Find(claim => path.Length > claim.Extension.Length && path.EndsWith(claim.Extension, StringComparison.OrdinalIgnoreCase)).Importer;
+
+    // A language tag spelled as a string table's file name must spell it.
+    private static string Canonical(string tag)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tag);
+
+        return string.Equals(tag, Strings.StringFile.CanonicalTag(tag), StringComparison.Ordinal)
+            ? tag
+            : throw new ArgumentException(
+                Strings.StringFile.CanonicalTag(tag) is { Length: > 0 } canonical
+                    ? $"\"{tag}\" is spelled \"{canonical}\" as a BCP 47 tag. Pass \"{canonical}\"."
+                    : $"\"{tag}\" is no language tag. Pass a BCP 47 tag, as \"de\" or \"pt-BR\".",
+                nameof(tag));
+    }
 
     // Two extensions overlap when a file named for one also ends in the other, as ".json" and ".scene.json".
     private static bool Overlaps(string first, string second) =>

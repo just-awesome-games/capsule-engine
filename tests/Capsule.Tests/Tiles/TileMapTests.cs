@@ -259,6 +259,32 @@ public sealed class TileMapTests
         Assert.Equal((cellX, cellY), map.CellAt(new Vector2(x, y)));
     }
 
+    // The strip's first cell, its last, then a fraction past each end and beneath it.
+    [Theory]
+    [InlineData(0f, 0f, "solid")]
+    [InlineData(31.9f, 7.9f, "solid")]
+    [InlineData(-0.1f, 4f, null)]
+    [InlineData(32f, 4f, null)]
+    [InlineData(4f, 8f, null)]
+    public void TileAtAWorldPosition_ReadsTheCellItFallsIn_AndNullOutsideTheMap(float x, float y, string? name)
+    {
+        TileMap map = new(Strip());
+
+        Assert.Equal(name, map.TileAt(new Vector2(x, y))?.Name);
+    }
+
+    // A cell beside the map has a centre too, and the centre falls back in its own cell.
+    [Theory]
+    [InlineData(1, 0, 12f, 4f)]
+    [InlineData(-1, 2, -4f, 20f)]
+    public void CellCenter_IsTheMiddleOfTheCell_InsideTheMapOrNot(int x, int y, float centreX, float centreY)
+    {
+        TileMap map = new(Strip());
+
+        Assert.Equal(new Vector2(centreX, centreY), map.CellCenter(x, y));
+        Assert.Equal((x, y), map.CellAt(map.CellCenter(x, y)));
+    }
+
     // A row of four solid 8-pixel tiles.
     private static TileGrid Strip() =>
         new(

@@ -43,6 +43,7 @@ Four packages ship, and [`PACKAGE.md`](PACKAGE.md) says what each holds. Every p
 - [`docs/audio.md`](docs/audio.md): clips, buses, sources, the mixer.
 - [`docs/collision.md`](docs/collision.md): which collision piece answers which need, and triggers.
 - [`docs/persistence.md`](docs/persistence.md): save documents, writing and reading them, and where they go.
+- [`docs/localization.md`](docs/localization.md): string tables, keyed labels, adding a language, switching it.
 
 ### Content
 

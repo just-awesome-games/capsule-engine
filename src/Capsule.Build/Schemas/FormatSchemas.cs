@@ -11,6 +11,7 @@ using Capsule.Assets;
 using Capsule.Build.Clips;
 using Capsule.Build.Configuration;
 using Capsule.Build.Sheets;
+using Capsule.Build.Strings;
 using Capsule.Build.Textures;
 using Capsule.Scenes;
 
@@ -38,8 +39,11 @@ internal static class FormatSchemas
     private const string SchemaKeyDescription =
         "The URL of this file's JSON Schema, which gives an editor completion and hover. The build ignores its value.";
 
-    /// <summary>Every authored file format: its schema's file name under <c>schemas/</c>, its title and the root class that parses it.</summary>
-    internal static readonly (string File, string Title, JsonTypeInfo Parser)[] Formats =
+    /// <summary>
+    /// Every authored file format: its schema's file name under <c>schemas/</c>, its title and the root class
+    /// that parses it, or null for a string table, whose keys are the author's own.
+    /// </summary>
+    internal static readonly (string File, string Title, JsonTypeInfo? Parser)[] Formats =
     [
         ("folder.config.schema.json", "Capsule folder config", AssetConfigJsonContext.FolderFile),
         ("texture.config.schema.json", "Capsule texture sidecar", AssetConfigJsonContext.Default.TextureConfigJson),
@@ -47,13 +51,19 @@ internal static class FormatSchemas
         ("sheet.schema.json", "Capsule sprite sheet", SheetJsonContext.Default.SheetJson),
         ("clip.schema.json", "Capsule value clip", ClipJsonContext.Default.ClipJson),
         ("scene.schema.json", "Capsule scene document", SceneDocumentJsonContext.Default.SceneDocumentJson),
+        ("strings.schema.json", "Capsule string table", null),
     ];
 
     private static readonly JsonSchemaExporterOptions Exporter = new() { TransformSchemaNode = Transform };
 
-    /// <summary>The schema of the file <paramref name="parser"/> reads, as LF-terminated indented JSON.</summary>
-    internal static string Generate(string file, string title, JsonTypeInfo parser)
+    /// <summary>The schema of the file <paramref name="parser"/> reads, or of a string table for null, as LF-terminated indented JSON.</summary>
+    internal static string Generate(string file, string title, JsonTypeInfo? parser)
     {
+        if (parser is null)
+        {
+            return Written(StringTable(file, title));
+        }
+
         JsonObject exported = parser.GetJsonSchemaAsNode(Exporter).AsObject();
 
         JsonObject root = new()
@@ -89,6 +99,57 @@ internal static class FormatSchemas
             root["additionalProperties"] = false;
         }
 
+        return Written(root);
+    }
+
+    // A string table: nested objects whose leaves are texts or arrays of texts, each key a name with no '.'.
+    private static JsonObject StringTable(string file, string title)
+    {
+        const string Entry = "#/definitions/entry";
+        JsonObject Keys() => new() { ["pattern"] = "^[^.]+$" };
+
+        return new JsonObject
+        {
+            ["$schema"] = Dialect,
+            ["$id"] = BaseUrl + file,
+            ["$comment"] = $"Written by {typeof(FormatSchemas).FullName}, for the files {typeof(StringFile).FullName} reads.",
+            ["title"] = title,
+            ["description"] = "One language's texts, named <tag>.strings.json for its BCP 47 tag. Each key maps to a text, a group of more keys, or a list of texts, and a key path joins the names with '.'.",
+            ["type"] = "object",
+            ["properties"] = new JsonObject { [SchemaKeyConverter.Key] = new JsonObject { ["description"] = SchemaKeyDescription, ["type"] = "string" } },
+            ["propertyNames"] = Keys(),
+            ["additionalProperties"] = new JsonObject { ["$ref"] = Entry },
+            ["definitions"] = new JsonObject
+            {
+                ["entry"] = new JsonObject
+                {
+                    ["oneOf"] = new JsonArray(
+                        new JsonObject
+                        {
+                            ["description"] = "A text. {name} fills an argument, at most three names to a text, and '{' and '}' are literal braces. {n, plural, one {# step} other {# steps}} picks a form by an integer argument, and # shows it. \\n breaks the line.",
+                            ["type"] = "string",
+                        },
+                        new JsonObject
+                        {
+                            ["description"] = "A group of more keys.",
+                            ["type"] = "object",
+                            ["propertyNames"] = Keys(),
+                            ["additionalProperties"] = new JsonObject { ["$ref"] = Entry },
+                        },
+                        new JsonObject
+                        {
+                            ["description"] = "A list of texts in order, each keyed by its position. Every language gives the source language's count.",
+                            ["type"] = "array",
+                            ["minItems"] = 1,
+                            ["items"] = new JsonObject { ["type"] = "string" },
+                        }),
+                },
+            },
+        };
+    }
+
+    private static string Written(JsonObject root)
+    {
         using MemoryStream output = new();
         using (Utf8JsonWriter writer = new(output, new JsonWriterOptions { Indented = true, NewLine = "\n", Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
         {

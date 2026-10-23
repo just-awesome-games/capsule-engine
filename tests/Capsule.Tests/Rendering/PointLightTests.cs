@@ -116,7 +116,7 @@ public sealed class PointLightTests
     }
 
     [Fact]
-    public void ALightOnAScrolledEntity_StartsAParallaxLayerIndexingIt()
+    public void ALightOnAScrolledEntity_StartsAPlacementRunIndexingIt()
     {
         SceneFixtures.Drifter scrolled = new(new Vector2(100, 50)) { ScrollFactor = new Vector2(0.5f, 1f) };
         scrolled.Add(new PointLight { Radius = 20f });
@@ -129,6 +129,6 @@ public sealed class PointLightTests
 
         FrameView view = simulation.View;
         Assert.Equal(1, view.Lights.Length);
-        Assert.Contains(view.ParallaxLayers.ToArray(), layer => layer.FirstLight == 0);
+        Assert.Contains(view.PlacementRuns.ToArray(), layer => layer.FirstLight == 0);
     }
 }

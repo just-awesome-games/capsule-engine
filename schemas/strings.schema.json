@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/strings.schema.json",
+  "$comment": "Written by Capsule.Build.Schemas.FormatSchemas, for the files Capsule.Build.Strings.StringFile reads.",
+  "title": "Capsule string table",
+  "description": "One language's texts, named <tag>.strings.json for its BCP 47 tag. Each key maps to a text, a group of more keys, or a list of texts, and a key path joins the names with '.'.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The URL of this file's JSON Schema, which gives an editor completion and hover. The build ignores its value.",
+      "type": "string"
+    }
+  },
+  "propertyNames": {
+    "pattern": "^[^.]+$"
+  },
+  "additionalProperties": {
+    "$ref": "#/definitions/entry"
+  },
+  "definitions": {
+    "entry": {
+      "oneOf": [
+        {
+          "description": "A text. {name} fills an argument, at most three names to a text, and '{' and '}' are literal braces. {n, plural, one {# step} other {# steps}} picks a form by an integer argument, and # shows it. \\n breaks the line.",
+          "type": "string"
+        },
+        {
+          "description": "A group of more keys.",
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[^.]+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/definitions/entry"
+          }
+        },
+        {
+          "description": "A list of texts in order, each keyed by its position. Every language gives the source language's count.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    }
+  }
+}

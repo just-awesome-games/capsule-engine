@@ -377,6 +377,16 @@ public partial class Entity
     // The render layer this entity draws on as a root.
     internal RenderSpace OwnSpace => OnScreen ? RenderSpace.Screen : RenderSpace.World;
 
+    // Whether this entity's screen intent draws in the world's order, read from the root of the chain.
+    internal bool InWorldOrder => _root.SortedWithWorld;
+
+    // Set by ScreenEntity.SortsWithWorld, on a root alone.
+    internal bool SortedWithWorld
+    {
+        get => (_traits & Traits.WorldOrder) != 0;
+        set => _traits = value ? _traits | Traits.WorldOrder : _traits & ~Traits.WorldOrder;
+    }
+
     // Whether the scene has joined this entity: components entered and OnAddedToScene run. A scene that
     // has not started holds an entity composed, with SceneOrNull set and nothing joined.
     internal bool Joined
@@ -1073,6 +1083,12 @@ public partial class Entity
                 $"A {GetType().Name} carrying a scroll factor cannot be placed by a parent. Set the scroll factor on the root instead.");
         }
 
+        if (SortedWithWorld)
+        {
+            throw new InvalidOperationException(
+                $"A {GetType().Name} that sorts with the world cannot be placed by a parent. Set SortsWithWorld on the root instead.");
+        }
+
         if (parent.ScrollFactor != Vector2.One)
         {
             RequireScrollable();
@@ -1174,6 +1190,7 @@ public partial class Entity
         Marked = 8,
         Joined = 16,
         ClipFresh = 32,
+        WorldOrder = 64,
     }
 
     private struct ComponentWalk(List<Component> components)

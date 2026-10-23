@@ -154,6 +154,7 @@ through its ordinary affordances.
 | --- | --- |
 | Run | `dotnet run --project src/MyGame.Shell`. Restore a fresh clone first with `dotnet restore --locked-mode`. |
 | Run a named scene | `dotnet run --project src/MyGame.Shell -- --scene <Name>`, a scene class name or a scene document key. |
+| Run in one language | `dotnet run --project src/MyGame.Shell -- --language <tag>`, the BCP 47 tag of a shipped language ([`localization.md`](localization.md#switching)). |
 | Run headless with a driver | `dotnet run --project src/MyGame.Shell -- --headless --driver <Name>` ([`input.md`](input.md#the-standard-command-line)). |
 | Test | `dotnet test`. |
 | Format check or fix | `dotnet format --verify-no-changes`, `dotnet format`. |

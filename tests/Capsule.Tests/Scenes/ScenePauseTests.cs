@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Animation;
 using Capsule.Particles;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -105,6 +106,55 @@ public sealed class ScenePauseTests
 
         Assert.Equal([1f, 1f, 1f, 1f, 2f], positions);
         Assert.Empty(log);
+    }
+
+    // Freeze(2) during step 0, stretched by Freeze(3) during step 1, holds steps 1 to 4. The wait the
+    // freezing beat yields resumes on step 5, the step the drifter moves in again.
+    [Fact]
+    public void IsFrozen_ReadsTrueThroughTheLastHeldStep_AndAWaitOnItResumesWithTheHeldEntities()
+    {
+        Drifter drifter = new();
+        Sequence beats = new();
+        long tick = 0;
+        long? resumedOn = null;
+
+        IEnumerable<Wait> Hold(Scene s)
+        {
+            s.Freeze(2);
+            yield return Wait.Until(() => !s.IsFrozen);
+            resumedOn = tick;
+        }
+
+        HookScene scene = new(step: (Scene s, in StepContext context) =>
+        {
+            tick = context.Tick;
+            if (context.Tick == 0)
+            {
+                beats.Start(Hold(s));
+                return;
+            }
+
+            if (context.Tick == 1)
+            {
+                s.Freeze(3);
+            }
+
+            beats.Step();
+        });
+        using SceneSimulation simulation = Simulation(scene, drifter);
+
+        List<bool> frozen = [];
+        List<float> positions = [];
+        for (int step = 0; step < 6; step++)
+        {
+            simulation.Step(Step(step));
+            frozen.Add(scene.IsFrozen);
+            positions.Add(drifter.Position.X);
+        }
+
+        Assert.Equal([true, true, true, true, true, false], frozen);
+        Assert.Equal([1f, 1f, 1f, 1f, 1f, 2f], positions);
+        Assert.Equal(5, resumedOn);
     }
 
     // A held collider stays in the world but settles nothing. It is owed the enter on resume.

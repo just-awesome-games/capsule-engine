@@ -1,0 +1,35 @@
+{
+  "title": "Minimal Game",
+  "menu": {
+    "start": "Start",
+    "options": "Options",
+    "exit": "Exit",
+    "resume": "Resume",
+    "quit": "Quit",
+    "back": "Back"
+  },
+  "options": {
+    "language": "Language: English",
+    "jump": "Jump:",
+    "shoot": "Shoot:",
+    "jumpListening": "Jump: press a button",
+    "shootListening": "Shoot: press a button",
+    "music": "Music",
+    "effects": "Effects",
+    "fullscreen": "Display: Fullscreen",
+    "windowed": "Display: Window",
+    "windowScale": "Window: {scale}x",
+    "vsyncOn": "VSync: On",
+    "vsyncOff": "VSync: Off",
+    "frameCap": "Frame cap: {fps}",
+    "frameCapOff": "Frame cap: Off"
+  },
+  "tips": [
+    "Down + Jump: drop through a ledge",
+    "Rebind Jump and Shoot in Options",
+    "Escape or Start pauses the game"
+  ],
+  "hints": {
+    "jump": "[color=#ffd060]Jump[/color] over gaps and up onto ledges"
+  }
+}

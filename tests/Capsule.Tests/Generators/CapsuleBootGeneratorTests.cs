@@ -48,6 +48,39 @@ public sealed class CapsuleBootGeneratorTests
         Assert.Contains("Configure(string gameName, global::Capsule.Runtime.HostPlatform platform)", generated, StringComparison.Ordinal);
     }
 
+    // The build writes CapsuleStrings into a logic assembly with string tables, and the stand-in here
+    // declares what it does. A game with none has no such type to name.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheShell_PassesTheStringTable_OnlyWhenTheGameHasOne(bool strings)
+    {
+        const string withStrings = """
+            using Capsule.Scenes;
+
+            namespace Game
+            {
+                public sealed class Room01(SceneContent content) : Scene(content);
+            }
+
+            namespace Capsule.Generated
+            {
+                public static class CapsuleStrings
+                {
+                    public static Capsule.Localization.StringTable Table => null!;
+                }
+            }
+            """;
+
+        (ImmutableArray<Diagnostic> diagnostics, Compilation updated) = GeneratorHarness.CompileShell(ShellSource, strings ? withStrings : LogicSource);
+
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
+        Assert.Equal(
+            strings,
+            GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile).Contains("Payloads, global::Capsule.Generated.CapsuleStrings.Table);", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void TheShell_GetsNoRegistryOfItsOwn_ThoughItSeesCapsuleScenesThroughTheGame()
     {

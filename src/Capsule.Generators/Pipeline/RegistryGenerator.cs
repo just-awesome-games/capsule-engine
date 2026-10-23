@@ -24,6 +24,7 @@ public sealed class RegistryGenerator : IIncrementalGenerator
                     declared,
                     ScenesReferenced: compilation.GetTypeByMetadataName(MetadataNames.Scene) is not null,
                     RuntimeReferenced: compilation.GetTypeByMetadataName(MetadataNames.CapsuleEngine) is not null,
+                    StringsShipped: compilation.GetTypeByMetadataName(MetadataNames.CapsuleStrings) is not null,
                     compilation.AssemblyName ?? "Game");
             });
         IncrementalValueProvider<bool> isLogicAssembly = project.Select(static (configured, _) => configured.IsLogicAssembly);
@@ -79,10 +80,11 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .WithTrackingName("BootModel");
 
         // The plans each file is rendered from.
-        IncrementalValueProvider<RegistryInputs> shared = isLogicAssembly
+        IncrementalValueProvider<RegistryInputs> shared = project
             .Combine(rootNamespace)
             .Combine(documents.Combine(assets))
-            .Select(static (input, _) => new RegistryInputs(input.Left.Left, input.Left.Right, input.Right.Left, input.Right.Right));
+            .Select(static (input, _) => new RegistryInputs(
+                input.Left.Left.IsLogicAssembly, input.Left.Right, input.Right.Left, input.Right.Right, input.Left.Left.StringsShipped));
         IncrementalValueProvider<EntityPlan> entityPlan = entities
             .Combine(engineTileMap).Combine(shared)
             .Select(static (input, _) => EntityResolver.Resolve(new EntityInputs(input.Left.Left, input.Left.Right, input.Right)))

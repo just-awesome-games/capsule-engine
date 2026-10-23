@@ -4,8 +4,8 @@ using MinimalGame.Game.UI;
 namespace MinimalGame.Game.Scenes;
 
 /// <summary>
-/// The base of every level document (<c>"baseScene": "playable-scene"</c>): the head-up display, the
-/// pause menu, arriving at the <see cref="Entrance"/> an <see cref="Arrival"/> names, and returning to
+/// The base of every level document (<c>"baseScene": "playable-scene"</c>): the sky, the head-up display,
+/// the pause menu, arriving at the <see cref="Entrance"/> an <see cref="Arrival"/> names, and returning to
 /// the <see cref="MainMenu"/> at no health. The document supplies the level, the camera and the track.
 /// </summary>
 public abstract class PlayableScene : Scene
@@ -24,10 +24,11 @@ public abstract class PlayableScene : Scene
     [Authorable(Required = true)]
     public AudioClip Track { get; private set; }
 
-    // The display and the menu are added here, where their assets join the scene's preload.
+    // The sky, the display and the menu are added here, where their assets join the scene's preload.
     protected PlayableScene(SceneContent content)
         : base(content)
     {
+        Add(new Sky());
         Add(new PlayerHud());
         Add(_pauseMenu);
     }

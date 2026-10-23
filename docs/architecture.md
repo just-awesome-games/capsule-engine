@@ -32,8 +32,8 @@ until the compiler must enforce a reference direction.
 A game-facing namespace is a feature, whichever assembly holds it. `Capsule` is the cross-cutting core of
 the step, the run, transforms, randomness and deterministic math. The features are `Capsule.Scenes`,
 `Capsule.Physics`, `Capsule.Rendering`, `Capsule.Input`, `Capsule.Audio`, `Capsule.Animation`,
-`Capsule.Particles`, `Capsule.Tiles`, `Capsule.UI`, `Capsule.Assets`, `Capsule.Persistence` and
-`Capsule.Diagnostics`, and a new feature adds one. A logic project with `ImplicitUsings` on imports every
+`Capsule.Particles`, `Capsule.Tiles`, `Capsule.UI`, `Capsule.Assets`, `Capsule.Persistence`,
+`Capsule.Localization` and `Capsule.Diagnostics`, and a new feature adds one. A logic project with `ImplicitUsings` on imports every
 feature, `Capsule` and `System.Numerics`, and drops one with `<Using Remove="..." />`. In `Capsule.Core`,
 `Capsule.Physics` and `Capsule.Scenes` a folder named for a feature carries that namespace, and a folder
 that only groups files inside a feature carries its parent's. `Physics/Internal` keeps its own internal
@@ -115,8 +115,8 @@ object a game attaches at run start (`Run.Attach`) and reads anywhere as `Run.St
 A host family is one shell. The desktop shell publishes Windows, Linux and macOS from one project by runtime
 identifier, and a console is another family with a shell of its own. A platform module is one subclass of
 `HostPlatform`, handed to `CapsuleBoot.Configure` beside the game's name. It tells the host where shipped
-content is read from, where saves and the crash log land, how the window is raised, focused and redrawn, and
-how sound follows the default output.
+content is read from, where saves and the crash log land, how the window is raised, focused and redrawn, how
+sound follows the default output, and which languages the player prefers.
 
 `Capsule.Runtime` holds no implicit location and no native binding.
 

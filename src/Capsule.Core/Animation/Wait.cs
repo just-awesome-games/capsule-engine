@@ -33,8 +33,8 @@ public readonly struct Wait
     /// Resumes once <paramref name="condition"/> reads true, checked at the yield and then on each <see cref="Sequence.Step"/>.
     /// </summary>
     /// <remarks>
-    /// A condition already true at the yield continues at once. A lambda capturing state allocates each time its
-    /// yield runs. Nothing allocates while it is checked.
+    /// A condition already true at the yield continues at once. A lambda capturing state, or a method group naming an
+    /// instance method, allocates a delegate each time its yield runs. Nothing allocates while it is checked.
     /// </remarks>
     public static Wait Until(Func<bool> condition)
     {

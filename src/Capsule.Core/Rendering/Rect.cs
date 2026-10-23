@@ -52,6 +52,9 @@ public readonly record struct Rect
     /// <summary>The extent between the edges on each axis, which is negative where they are crossed.</summary>
     public Vector2 Size => new(Right - Left, Bottom - Top);
 
+    /// <summary>The point midway between the edges on each axis.</summary>
+    public Vector2 Center => new((Left + Right) * 0.5f, (Top + Bottom) * 0.5f);
+
     /// <summary>
     /// Whether this rect encloses nothing testable, meaning no area on an axis or a non-finite edge,
     /// NaN included.

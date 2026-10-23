@@ -6,7 +6,8 @@ namespace Capsule.UI;
 
 /// <summary>
 /// An entity on the frame's screen layer, placed as a rect in canvas pixels, Y-down. Every renderer it
-/// holds draws over the world layer whatever the two layers' bands are.
+/// holds draws over the world layer whatever the two layers' bands are, unless its root
+/// <see cref="SortsWithWorld"/>.
 /// </summary>
 /// <remarks>
 /// A screen entity is placed in the slot its parent gives it, or in the canvas when it is a root, by its
@@ -32,6 +33,38 @@ public class ScreenEntity : Entity
     /// <see cref="Anchor.TopLeft"/> by default.
     /// </summary>
     public Anchor Anchor { get; set; }
+
+    /// <summary>
+    /// Whether this root and everything beneath it draw at their band among the world layer's renderers,
+    /// rather than over the whole world.
+    /// </summary>
+    /// <remarks>
+    /// The tree stays placed, clipped and pixel-snapped in canvas pixels, and the camera never moves or
+    /// zooms it. It draws at the render surface's resolution, is lit with the world, and takes no part in
+    /// <see cref="Scene.YSort"/>: it draws first in its band.
+    /// </remarks>
+    /// <example>
+    /// A panel the world's actors pass in front of, over the background at band -10:
+    /// <code>
+    /// ScreenEntity panel = new(Anchor.Center, Vector2.Zero) { Size = new Vector2(160f, 48f), SortsWithWorld = true, ZIndex = -5 };
+    /// </code>
+    /// </example>
+    /// <exception cref="InvalidOperationException">Set on an entity that has a parent.</exception>
+    public bool SortsWithWorld
+    {
+        get => SortedWithWorld;
+
+        set
+        {
+            if (value && Parent is not null)
+            {
+                throw new InvalidOperationException(
+                    $"A {GetType().Name} has a parent and draws in its root's order. Set SortsWithWorld on the root.");
+            }
+
+            SortedWithWorld = value;
+        }
+    }
 
     /// <summary>
     /// This entity's rect extent in canvas pixels, where the default of zero makes the entity a point.

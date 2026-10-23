@@ -176,6 +176,22 @@ public partial class Scene
     /// </remarks>
     public bool Paused { get; set; }
 
+    /// <summary>
+    /// Whether a <see cref="Freeze"/> holds the step in progress or a step still to come.
+    /// </summary>
+    /// <remarks>
+    /// It reads true from the call through the last step the freeze holds. It first reads false at the
+    /// top of the next step, the one whose entities step again unless <see cref="Paused"/> holds them.
+    /// A wait on it resumes on that step, however long a later call stretched the freeze.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// Scene.Freeze(30);
+    /// yield return Wait.Until(() =&gt; !Scene.IsFrozen);
+    /// </code>
+    /// </example>
+    public bool IsFrozen => _freezeTicks > 0 || _frozenThisStep;
+
     /// <summary>State supplied by the transition that opened this scene.</summary>
     protected IScenePayload? EntryPayload { get; private set; }
 

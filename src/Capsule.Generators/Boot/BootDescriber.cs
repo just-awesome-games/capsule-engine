@@ -65,7 +65,11 @@ internal static class BootDescriber
 
         providers.Sort(static (left, right) => string.CompareOrdinal(left.AssemblyName, right.AssemblyName));
 
-        return new BootModel(true, new(providers.ToImmutable()), new(invalid.ToImmutable()));
+        return new BootModel(
+            true,
+            new(providers.ToImmutable()),
+            new(invalid.ToImmutable()),
+            StringsPresent: compilation.GetTypeByMetadataName(MetadataNames.CapsuleStrings) is not null);
     }
 
     // The claim GeneratedFile.ClaimAttribute wrote, or null for an attribute of any other shape.

@@ -27,12 +27,9 @@ public sealed class VolumeSlider : ScreenEntity
     }
 
     /// <param name="text">The caption drawn before the meter.</param>
-    public VolumeSlider(string text)
+    public VolumeSlider(TextKey text)
         : base(Anchor.TopWide, Vector2.Zero)
     {
-        // The narrowest row that holds the caption, the gap and the meter inside the padding.
-        float width = CapsuleAssets.Fonts.MenuFont.Measure(text).X + Gap + _meter.Size.X + (2f * HorizontalPadding);
-        Size = new Vector2(width, MenuItem.BoxHeight);
         Padding = new Insets(HorizontalPadding, 0f, HorizontalPadding, 0f);
 
         _bar = new ColorRect { Visible = false };
@@ -63,6 +60,22 @@ public sealed class VolumeSlider : ScreenEntity
         Add(_bar);
         Add(_caption);
         Add(focus);
+    }
+
+    /// <summary>The narrowest width in canvas pixels that holds the caption, the gap and the meter inside the padding.</summary>
+    public float ContentWidth => _caption.ContentSize.X + Gap + _meter.Size.X + (2f * HorizontalPadding);
+
+    // Sized from the caption in the run's language, and again whenever the language changes it.
+    /// <inheritdoc/>
+    protected override void OnStart() => Size = new Vector2(ContentWidth, MenuItem.BoxHeight);
+
+    /// <inheritdoc/>
+    protected override void OnLateStep(in StepContext context)
+    {
+        if (Size.X != ContentWidth)
+        {
+            Size = new Vector2(ContentWidth, MenuItem.BoxHeight);
+        }
     }
 
     // Rounded to tenths, where a drag and the arrows land on the same levels.

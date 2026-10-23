@@ -48,12 +48,16 @@ internal static class FrameLayout
 
         // A canvas declared apart from the resolution is not in the surface's pixels. Drawn on the
         // surface it would be cropped or left unscaled. It takes its own centred fit of the window
-        // over the presented surface instead.
+        // over the presented surface instead. Where that fit falls on the surface is where a screen
+        // root sorted with the world draws, at the surface's resolution.
         if (canvas != new Vector2(resolution.Width, resolution.Height))
         {
             ScreenPlacement windowed = WindowPlacement(canvas, outputWidth, outputHeight);
+            ScreenPlacement onSurface = presented.Scale > 0f && windowed.Scale > 0f
+                ? new ScreenPlacement((windowed.Origin - presented.Origin) / presented.Scale, windowed.Scale / presented.Scale)
+                : default;
 
-            return new ScreenLayout(span, surface, world, default, presented, windowed, ScreenOnSurface: false);
+            return new ScreenLayout(span, surface, world, onSurface, presented, windowed, ScreenOnSurface: false);
         }
 
         Vector2 slack = ScreenSlack(surface.Width, surface.Height, canvas);

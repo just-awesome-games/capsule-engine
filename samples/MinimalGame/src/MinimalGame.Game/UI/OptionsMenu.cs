@@ -4,39 +4,36 @@ namespace MinimalGame.Game.UI;
 
 /// <summary>
 /// The options screen's menu: a panel showing three and a half rows of a scrolling column of Jump and Shoot
-/// rebinding, the music and effects levels, the display settings and Back, with a <see cref="ScrollBar"/>
-/// beside it, over one <see cref="FocusNavigator"/>.
+/// rebinding, the music and effects levels, the display settings, the language and Back, with a
+/// <see cref="ScrollBar"/> beside it, over one <see cref="FocusNavigator"/>.
 /// </summary>
 public sealed class OptionsMenu : ScreenEntity
 {
     // Canvas pixels between the list and its scroll bar.
     private const float BarGap = 4f;
 
-    // What a row shows at rest, before the prompt that follows the active device and a rebind on its own.
-    private const string JumpCaption = "Jump:";
-    private const string ShootCaption = "Shoot:";
-
-    // What a row shows while it listens for a press. The longer one sizes the panel.
-    private const string JumpPrompt = "Jump: press a button";
-    private const string ShootPrompt = "Shoot: press a button";
-
-    // The display rows' widest caption, which sizes the panel with the prompts.
-    private const string WidestDisplayCaption = "Display: Fullscreen";
-
     // What the Window and Frame cap rows step through. A press moves to the next and wraps.
     private const int SmallestWindowScale = 2;
     private const int LargestWindowScale = 6;
     private static readonly int[] FrameCaps = [0, 30, 60, 120, 144, 240];
 
-    private readonly MenuItem _jump = new(JumpCaption, GameInput.Jump);
-    private readonly MenuItem _shoot = new(ShootCaption, GameInput.Shoot);
-    private readonly VolumeSlider _music = new("Music");
-    private readonly VolumeSlider _effects = new("Effects");
-    private readonly MenuItem _fullscreen = new(WidestDisplayCaption);
-    private readonly MenuItem _windowSize = new(WidestDisplayCaption);
-    private readonly MenuItem _vsync = new(WidestDisplayCaption);
-    private readonly MenuItem _frameCap = new(WidestDisplayCaption);
-    private readonly MenuItem _back = new("Back");
+    private readonly MenuItem _jump = new(CapsuleStrings.Options.Jump, GameInput.Jump);
+    private readonly MenuItem _shoot = new(CapsuleStrings.Options.Shoot, GameInput.Shoot);
+    private readonly VolumeSlider _music = new(CapsuleStrings.Options.Music);
+    private readonly VolumeSlider _effects = new(CapsuleStrings.Options.Effects);
+
+    // Captioned by ShowDisplay from the settings.
+    private readonly MenuItem _fullscreen = new();
+    private readonly MenuItem _windowSize = new();
+    private readonly MenuItem _vsync = new();
+    private readonly MenuItem _frameCap = new();
+
+    private readonly MenuItem _language = new(CapsuleStrings.Options.Language);
+
+    private readonly MenuItem _back = new(CapsuleStrings.Menu.Back);
+
+    // Every row but the sliders, which the panel's width fits with them.
+    private readonly MenuItem[] _items;
 
     private readonly FocusNavigator _navigator;
 
@@ -50,12 +47,7 @@ public sealed class OptionsMenu : ScreenEntity
     public OptionsMenu()
         : base(Anchor.Center, Vector2.Zero)
     {
-        // Wide enough for the longest caption a capture shows, and only half of the fourth row shows, which
-        // tells the player there is more below.
-        float listWidth = Math.Max(
-            Math.Max(_music.Size.X, _effects.Size.X),
-            Math.Max(Math.Max(MenuItem.WidthFor(JumpPrompt), MenuItem.WidthFor(ShootPrompt)), MenuItem.WidthFor(WidestDisplayCaption)));
-        Size = new Vector2(listWidth + BarGap + ScrollBar.Width, 3.5f * (MenuItem.BoxHeight + MenuItem.Spacing));
+        _items = [_jump, _shoot, _fullscreen, _windowSize, _vsync, _frameCap, _language, _back];
 
         ScrollContainer list = new(Anchor.Fill, Vector2.Zero) { Parent = this, Padding = new Insets(0f, 0f, ScrollBar.Width + BarGap, 0f) };
         BoxContainer column = new(Axis.Vertical, Anchor.TopWide, Vector2.Zero) { Parent = list, Spacing = MenuItem.Spacing };
@@ -68,6 +60,7 @@ public sealed class OptionsMenu : ScreenEntity
         _windowSize.Parent = column;
         _vsync.Parent = column;
         _frameCap.Parent = column;
+        _language.Parent = column;
         _back.Parent = column;
 
         _ = new ScrollBar(list) { Parent = this };
@@ -75,6 +68,7 @@ public sealed class OptionsMenu : ScreenEntity
         _navigator = new FocusNavigator(GameInput.MenuFocus);
         Add(_navigator);
 
+        _language.Pressed += NextLanguage;
         _jump.Pressed += () => Listen(_jump);
         _shoot.Pressed += () => Listen(_shoot);
 
@@ -99,8 +93,13 @@ public sealed class OptionsMenu : ScreenEntity
         _music.Value = _settings.MusicVolume;
         _effects.Value = _settings.EffectsVolume;
         ShowDisplay();
+        Fit();
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.TitleSound);
     }
+
+    // The rows' captions follow the language, and a capture's caption is wider than the row at rest.
+    /// <inheritdoc/>
+    protected override void OnLateStep(in StepContext context) => Fit();
 
     // Back cancels a capture here. The navigator reads nothing while a capture listens or on the step
     // it turns back on, and the same press never also leaves the screen.
@@ -127,13 +126,13 @@ public sealed class OptionsMenu : ScreenEntity
     {
         _listening = item;
         _navigator.Interactable = false;
-        item.Caption = item == _jump ? JumpPrompt : ShootPrompt;
+        item.SetCaption(item == _jump ? CapsuleStrings.Options.JumpListening : CapsuleStrings.Options.ShootListening);
         item.ShowsPrompt = false;
     }
 
     private void EndListening(MenuItem item)
     {
-        item.Caption = item == _jump ? JumpCaption : ShootCaption;
+        item.SetCaption(item == _jump ? CapsuleStrings.Options.Jump : CapsuleStrings.Options.Shoot);
         item.ShowsPrompt = true;
         _listening = null;
         _navigator.Interactable = true;
@@ -154,6 +153,16 @@ public sealed class OptionsMenu : ScreenEntity
             Run.Input.Bindings.Rebind(GameInput.Shoot, binding.Key, binding.Pad);
         }
 
+        Run.Saves.Write(GameSaves.Settings, _settings);
+    }
+
+    // A save moment like Apply: every caption shows the next language from the next step.
+    private void NextLanguage()
+    {
+        ReadOnlySpan<string> languages = CapsuleStrings.Languages;
+        int shown = Run.Language is { } language ? languages.IndexOf(language) : -1;
+        _settings.Language = languages[(shown + 1) % languages.Length];
+        Run.Language = _settings.Language;
         Run.Saves.Write(GameSaves.Settings, _settings);
     }
 
@@ -179,10 +188,34 @@ public sealed class OptionsMenu : ScreenEntity
 
     private void ShowDisplay()
     {
-        _fullscreen.Caption = _settings.Fullscreen ? "Display: Fullscreen" : "Display: Window";
-        _windowSize.Caption = $"Window: {_settings.WindowScale}x";
-        _vsync.Caption = _settings.VSync ? "VSync: On" : "VSync: Off";
-        _frameCap.Caption = _settings.MaxFrameRate == 0 ? "Frame cap: Off" : $"Frame cap: {_settings.MaxFrameRate}";
+        _fullscreen.SetCaption(_settings.Fullscreen ? CapsuleStrings.Options.Fullscreen : CapsuleStrings.Options.Windowed);
+        _windowSize.SetCaption(CapsuleStrings.Options.WindowScale, _settings.WindowScale);
+        _vsync.SetCaption(_settings.VSync ? CapsuleStrings.Options.VsyncOn : CapsuleStrings.Options.VsyncOff);
+        if (_settings.MaxFrameRate == 0)
+        {
+            _frameCap.SetCaption(CapsuleStrings.Options.FrameCapOff);
+        }
+        else
+        {
+            _frameCap.SetCaption(CapsuleStrings.Options.FrameCap, _settings.MaxFrameRate);
+        }
+    }
+
+    // As wide as the widest row shows now, and tall enough that only half of the fourth row shows, which
+    // tells the player there is more below.
+    private void Fit()
+    {
+        float widest = Math.Max(_music.ContentWidth, _effects.ContentWidth);
+        foreach (MenuItem item in _items)
+        {
+            widest = Math.Max(widest, item.ContentWidth);
+        }
+
+        Vector2 size = new(widest + BarGap + ScrollBar.Width, 3.5f * (MenuItem.BoxHeight + MenuItem.Spacing));
+        if (Size != size)
+        {
+            Size = size;
+        }
     }
 
     private void Leave() => Run.RequestScene<MainMenu>();

@@ -161,8 +161,8 @@ internal sealed partial class FrameRenderer : IDisposable
                 DrawLightMap(view, alpha, world, layout.Span, layout.World, outputWidth, outputHeight);
             }
 
-            DrawWorld(view, alpha, world, layout.Span, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity);
-            DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ScreenClipLevels, surfaceFactor: 1);
+            DrawWorld(view, alpha, world, layout.Span, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity, layout.OnSurface, surfaceFactor: 1);
+            DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, surfaceFactor: 1);
         }
         else
         {
@@ -177,13 +177,13 @@ internal sealed partial class FrameRenderer : IDisposable
             }
 
             _device.SetRenderTarget(target);
-            DrawWorld(view, alpha, world, layout.Span, drawn.World, target.Width, target.Height, drawn.Present);
+            DrawWorld(view, alpha, world, layout.Span, drawn.World, target.Width, target.Height, drawn.Present, drawn.OnSurface, factor);
 
             // Drawn over the world's bars. The viewport is the full surface again and the canvas sits
             // centred in it on whole pixels. Nothing lands on a grid the world did not use.
             if (layout.ScreenOnSurface)
             {
-                DrawScreen(view, alpha, drawn.OnSurface, target.Width, target.Height, view.Sampling, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ScreenClipLevels, factor);
+                DrawScreen(view, alpha, drawn.OnSurface, target.Width, target.Height, view.Sampling, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, factor);
             }
 
             _device.SetRenderTarget(null);
@@ -191,7 +191,7 @@ internal sealed partial class FrameRenderer : IDisposable
 
             if (!layout.ScreenOnSurface)
             {
-                DrawScreen(view, alpha, layout.Layer, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ScreenClipLevels, surfaceFactor: 1);
+                DrawScreen(view, alpha, layout.Layer, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, surfaceFactor: 1);
             }
         }
 
@@ -256,14 +256,15 @@ internal sealed partial class FrameRenderer : IDisposable
         _batcher.Begin(WorldToSurface(topLeft, fit.Scale), Sampler(view.Sampling), BlendState.AlphaBlend);
 
         Vector2 parallax = ScrollLayout.Parallax(topLeft, span, view.Camera.ScrollCenter);
-        DrawLights(view.Lights, view.ParallaxLayers, parallax, ref pass);
-        DrawAdditiveSprites(view.Sprites, view.ParallaxLayers, parallax, ref pass);
+        DrawLights(view.Lights, view.PlacementRuns, parallax, ref pass);
+        DrawAdditiveSprites(view.Sprites, view.PlacementRuns, parallax, ref pass);
 
         _batcher.End();
         _device.SetRenderTarget(null);
     }
 
-    private void DrawLights(ReadOnlySpan<LightIntent> lights, ReadOnlySpan<ParallaxLayer> layers, Vector2 parallax, ref Pass pass)
+    // A light is always stored under a run of the world's own, never a canvas run.
+    private void DrawLights(ReadOnlySpan<LightIntent> lights, ReadOnlySpan<PlacementRun> layers, Vector2 parallax, ref Pass pass)
     {
         Vector2 frameCorner = pass.FrameCorner;
         int next = 0;
@@ -295,19 +296,22 @@ internal sealed partial class FrameRenderer : IDisposable
         pass.LayerCorner = frameCorner;
     }
 
-    private void DrawAdditiveSprites(ReadOnlySpan<SpriteIntent> sprites, ReadOnlySpan<ParallaxLayer> layers, Vector2 parallax, ref Pass pass)
+    // A screen root sorted with the world is lit with it but lights nothing, and its canvas runs are skipped.
+    private void DrawAdditiveSprites(ReadOnlySpan<SpriteIntent> sprites, ReadOnlySpan<PlacementRun> layers, Vector2 parallax, ref Pass pass)
     {
         Vector2 frameCorner = pass.FrameCorner;
         int next = 0;
+        bool canvas = false;
         for (int index = 0; index < sprites.Length; index++)
         {
             while (next < layers.Length && layers[next].FirstSprite <= index)
             {
                 pass.LayerCorner = ScrollLayout.Corner(frameCorner, parallax, layers[next].ScrollFactor);
+                canvas = layers[next].Canvas;
                 next++;
             }
 
-            if (sprites[index].Blend == BlendMode.Additive)
+            if (!canvas && sprites[index].Blend == BlendMode.Additive)
             {
                 // The flash's colour halves with the tint and its amount stays. The map holds half of
                 // exactly what the world draws.
@@ -362,7 +366,9 @@ internal sealed partial class FrameRenderer : IDisposable
         in Letterbox fit,
         int surfaceWidth,
         int surfaceHeight,
-        in ScreenPlacement present)
+        in ScreenPlacement present,
+        in ScreenPlacement canvas,
+        int surfaceFactor)
     {
         _world = null;
 
@@ -397,14 +403,23 @@ internal sealed partial class FrameRenderer : IDisposable
             _world = new WorldPlacement(topLeft, fit, present, snap, parallax);
         }
 
-        _batcher.Begin(WorldToSurface(topLeft, fit.Scale), Sampler(view.Sampling));
+        Pass pass = WorldPass(alpha, snap, fit.Scale, topLeft);
+
+        // A canvas run lands where the screen layer would on this surface, through the narrowed viewport
+        // the world draws in, on the grid the canvas had at a factor of 1.
+        pass.WorldTransform = WorldToSurface(topLeft, fit.Scale);
+        pass.CanvasTransform = CanvasToSurface(canvas) * Matrix.CreateTranslation(-fit.X, -fit.Y, 0f);
+        pass.CanvasScale = canvas.Scale / surfaceFactor;
+        pass.Placement = canvas;
+        pass.SurfaceWidth = surfaceWidth;
+        pass.SurfaceHeight = surfaceHeight;
+
+        _batcher.Begin(in pass.WorldTransform, Sampler(view.Sampling));
 
         // Drawn through the narrowed world viewport. Presentation bars stay black.
         _batcher.DrawWhole(_white, topLeft, Vector2.Zero, span, rotation: 0f, view.ClearColor);
 
-        Pass pass = WorldPass(alpha, snap, fit.Scale, topLeft);
-
-        DrawIntents(view.Sprites, view.Lines, view.ParallaxLayers, parallax, view.MaterialRuns, default, default, ref pass);
+        DrawIntents(view.Sprites, view.Lines, view.PlacementRuns, parallax, view.MaterialRuns, view.ClipRuns, view.ClipLevels, ref pass);
         _batcher.End();
 
         if (view.LitWorld && _lightMap is { } map)
@@ -439,12 +454,7 @@ internal sealed partial class FrameRenderer : IDisposable
         }
 
         _device.Viewport = new Viewport(0, 0, surfaceWidth, surfaceHeight);
-
-        Matrix canvasToSurface =
-            Matrix.CreateScale(placement.Scale, placement.Scale, 1f) *
-            Matrix.CreateTranslation(placement.Origin.X, placement.Origin.Y, 0f);
-
-        _batcher.Begin(in canvasToSurface, Sampler(sampling));
+        _batcher.Begin(CanvasToSurface(placement), Sampler(sampling));
 
         bool snap = sampling == TextureSampling.Point;
         float grid = placement.Scale / surfaceFactor;
@@ -464,21 +474,20 @@ internal sealed partial class FrameRenderer : IDisposable
         _batcher.End();
     }
 
-    // Draws the sprites, then the lines, each scrolled run from its own layer's corner, formed as the
-    // run opens, each material run with its material, and each clip run cut to its rect. The runs are in
-    // list order, and one cursor walks each kind. A clip run opens at both a sprite and a line index, and
-    // the lines walk it again from the start. Lines draw with Capsule's own shader.
+    // Draws the sprites, then the lines, each placement run as it opens, each material run with its
+    // material, and each clip run cut to its rect. The runs are in list order, and one cursor walks each
+    // kind. A placement or clip run opens at both a sprite and a line index, and the lines walk them again
+    // from the start. Lines draw with Capsule's own shader.
     private void DrawIntents(
         ReadOnlySpan<SpriteIntent> sprites,
         ReadOnlySpan<LineIntent> lines,
-        ReadOnlySpan<ParallaxLayer> layers,
+        ReadOnlySpan<PlacementRun> layers,
         Vector2 parallax,
         ReadOnlySpan<MaterialRun> materials,
         ReadOnlySpan<ClipRun> clips,
         ReadOnlySpan<ClipRegion> clipLevels,
         ref Pass pass)
     {
-        Vector2 frameCorner = pass.FrameCorner;
         int next = 0;
         int nextMaterial = 0;
         int nextClip = 0;
@@ -487,7 +496,7 @@ internal sealed partial class FrameRenderer : IDisposable
         {
             while (next < layers.Length && layers[next].FirstSprite <= index)
             {
-                pass.LayerCorner = ScrollLayout.Corner(frameCorner, parallax, layers[next].ScrollFactor);
+                Place(in layers[next], parallax, ref pass);
                 next++;
             }
 
@@ -511,7 +520,7 @@ internal sealed partial class FrameRenderer : IDisposable
 
         _batcher.SetMaterial(null);
         _batcher.ClearClip();
-        pass.LayerCorner = frameCorner;
+        Place(new PlacementRun(0, 0, Vector2.One), parallax, ref pass);
         next = 0;
         nextClip = 0;
         hidden = false;
@@ -519,7 +528,7 @@ internal sealed partial class FrameRenderer : IDisposable
         {
             while (next < layers.Length && layers[next].FirstLine <= index)
             {
-                pass.LayerCorner = ScrollLayout.Corner(frameCorner, parallax, layers[next].ScrollFactor);
+                Place(in layers[next], parallax, ref pass);
                 next++;
             }
 
@@ -534,6 +543,21 @@ internal sealed partial class FrameRenderer : IDisposable
                 DrawLine(in lines[index], in pass);
             }
         }
+    }
+
+    // Moves the pass onto run's placement: a scroll factor's corner on the world's grid, or canvas pixels on
+    // the canvas's grid. Only a world pass holds a canvas run, and it swaps the batch's transform to reach it.
+    private void Place(in PlacementRun run, Vector2 parallax, ref Pass pass)
+    {
+        if (run.Canvas != pass.OnCanvas)
+        {
+            pass.OnCanvas = run.Canvas;
+            _batcher.SetTransform(run.Canvas ? pass.CanvasTransform : pass.WorldTransform);
+            pass.Scale = pass.LineScale = run.Canvas ? pass.CanvasScale : pass.WorldScale;
+            pass.FrameCorner = run.Canvas ? Vector2.Zero : pass.WorldCorner;
+        }
+
+        pass.LayerCorner = run.Canvas ? Vector2.Zero : ScrollLayout.Corner(pass.FrameCorner, parallax, run.ScrollFactor);
     }
 
     // Cuts the batch to the run's clip, each level moved by alpha between its two ends, intersected, and
@@ -602,11 +626,19 @@ internal sealed partial class FrameRenderer : IDisposable
         internal Vector2 LayerCorner;
         internal Vector2 FrameCorner;
 
-        // Where the canvas lands on the surface, and the surface's extent, which a clip is placed by. Set
-        // on a screen pass only, where the clip runs are.
+        // Where the canvas lands on the surface, and the surface's extent, which a clip is placed by.
         internal ScreenPlacement Placement;
         internal int SurfaceWidth;
         internal int SurfaceHeight;
+
+        // On a world pass: the world's corner, scale and transform, the canvas's grid and transform for a
+        // screen root sorted with the world, and whether the current run is that root's.
+        internal Vector2 WorldCorner;
+        internal float WorldScale;
+        internal Matrix WorldTransform;
+        internal float CanvasScale;
+        internal Matrix CanvasTransform;
+        internal bool OnCanvas;
 
         internal TextureHandle Resolved;
         internal TextureSlice Slice;
@@ -622,6 +654,8 @@ internal sealed partial class FrameRenderer : IDisposable
         LineScale = scale,
         LayerCorner = corner,
         FrameCorner = corner,
+        WorldCorner = corner,
+        WorldScale = scale,
     };
 
     private void DrawSprite(in SpriteIntent sprite, ref Pass pass)
@@ -787,6 +821,10 @@ internal sealed partial class FrameRenderer : IDisposable
 
         return Texture2D.FromStream(device, resource, DefaultColorProcessors.PremultiplyAlpha);
     }
+
+    // Maps canvas pixels to surface pixels at placement.
+    private static Matrix CanvasToSurface(in ScreenPlacement placement) =>
+        Matrix.CreateScale(placement.Scale, placement.Scale, 1f) * Matrix.CreateTranslation(placement.Origin.X, placement.Origin.Y, 0f);
 
     // Maps world units from corner to surface pixels at scale per unit.
     private static Matrix WorldToSurface(Vector2 corner, float scale) =>

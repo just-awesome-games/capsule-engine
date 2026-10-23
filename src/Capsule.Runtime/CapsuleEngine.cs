@@ -1,4 +1,5 @@
 using Capsule.Input;
+using Capsule.Localization;
 using Capsule.Scenes;
 
 namespace Capsule.Runtime;
@@ -16,12 +17,14 @@ public static class CapsuleEngine
     /// <param name="scenes">Every scene the game declares. The host resolves a class or document name through it without reflection.</param>
     /// <param name="drivers">Every input driver the game declares. <c>--driver</c> resolves a name through it. Null registers none.</param>
     /// <param name="payloads">Every scene payload the game declares. <c>--payload</c> resolves a name through it. Null registers none.</param>
+    /// <param name="strings">The game's string table, <c>CapsuleStrings.Table</c>. A played run starts in its closest language to the player's preference, and <c>--language</c> names one of its languages. Null for a game with none.</param>
     /// <exception cref="ArgumentException">The name slugs to no safe directory name.</exception>
     public static EngineBuilder Configure(
         string gameName,
         HostPlatform platform,
         SceneRegistry scenes,
         InputDriverRegistry? drivers = null,
-        ScenePayloadRegistry? payloads = null) =>
-        new(gameName, platform, scenes, drivers ?? InputDriverRegistry.Empty, payloads ?? ScenePayloadRegistry.Empty);
+        ScenePayloadRegistry? payloads = null,
+        StringTable? strings = null) =>
+        new(gameName, platform, scenes, drivers ?? InputDriverRegistry.Empty, payloads ?? ScenePayloadRegistry.Empty, strings);
 }

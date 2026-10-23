@@ -67,16 +67,18 @@ internal sealed class SceneDrawing
                     continue;
                 }
 
-                // The only place the render space, scroll factor, tint, flash and material are chosen.
+                // The only place the render space, draw order, scroll factor, tint, flash and material are
+                // chosen.
                 Entity entity = renderer.Entity!;
                 if (entity.TryGetDrawStyle(out ColorRgba tint, out ColorRgba flash))
                 {
                     view.Space = entity.Space;
+                    view.SortsWithWorld = entity.InWorldOrder;
                     view.ScrollFactor = entity.ScrollFactor;
                     view.SetStyle(tint, flash);
                     view.Material = renderer.Material;
 
-                    // A clip is per renderer state, and only the screen layer has one. A world renderer
+                    // A clip is per renderer state, and only screen space has one. A world renderer
                     // between two clipped ones leaves it alone, and a subtree computes its region once.
                     if (view.Space == RenderSpace.Screen && !ReferenceEquals(entity.NearestClip, clip))
                     {
@@ -105,6 +107,7 @@ internal sealed class SceneDrawing
         finally
         {
             view.Space = RenderSpace.World;
+            view.SortsWithWorld = false;
             view.ScrollFactor = Vector2.One;
             view.SetStyle(ColorRgba.White, default);
             view.Material = null;
@@ -174,7 +177,7 @@ internal sealed class SceneDrawing
                 {
                     long key = band + renderer.ZIndex;
                     banded |= key != 0;
-                    _keys.Add(new DrawKey(key, root?.Position.Y ?? 0f, _renderers.Count, root));
+                    _keys.Add(new DrawKey(key, root?.Position.Y ?? float.NegativeInfinity, _renderers.Count, root));
                     _renderers.Add(renderer);
                 }
             }
@@ -230,7 +233,8 @@ internal sealed class SceneDrawing
 
     // Each key carries its renderer's walk position beside the band and the root's Y. No two keys compare
     // equal, and the runtime's unstable sort produces the same order a stable sort would. Root is
-    // null where Y takes no part: with Y-sorting off, and on the screen layer, whose Y stays zero.
+    // null where Y takes no part: with Y-sorting off, and in screen space, whose Y stays below every root's.
+    // A screen root sorted with the world then draws first in its band.
     private readonly record struct DrawKey(long Band, float Y, int Position, Entity? Root) : IComparable<DrawKey>
     {
         public int CompareTo(DrawKey other)

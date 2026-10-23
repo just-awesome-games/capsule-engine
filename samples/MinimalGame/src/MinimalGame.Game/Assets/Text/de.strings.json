@@ -1,0 +1,35 @@
+{
+  "title": "Minimal Game",
+  "menu": {
+    "start": "Starten",
+    "options": "Optionen",
+    "exit": "Beenden",
+    "resume": "Weiter",
+    "quit": "Beenden",
+    "back": "Zurück"
+  },
+  "options": {
+    "language": "Sprache: Deutsch",
+    "jump": "Springen:",
+    "shoot": "Schießen:",
+    "jumpListening": "Springen: Taste drücken",
+    "shootListening": "Schießen: Taste drücken",
+    "music": "Musik",
+    "effects": "Effekte",
+    "fullscreen": "Anzeige: Vollbild",
+    "windowed": "Anzeige: Fenster",
+    "windowScale": "Fenster: {scale}x",
+    "vsyncOn": "VSync: An",
+    "vsyncOff": "VSync: Aus",
+    "frameCap": "Bildratenlimit: {fps}",
+    "frameCapOff": "Bildratenlimit: Aus"
+  },
+  "tips": [
+    "Unten + Springen: durch Kanten fallen",
+    "Belege Springen und Schießen in Optionen",
+    "Escape oder Start pausiert das Spiel"
+  ],
+  "hints": {
+    "jump": "[color=#ffd060]Springe[/color] über Lücken und hinauf auf Vorsprünge"
+  }
+}

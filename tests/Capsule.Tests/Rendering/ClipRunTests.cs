@@ -27,7 +27,7 @@ public sealed class ClipRunTests
         ClipRegion region = new(Frame, Frame);
         Assert.Equal(3, simulation.View.ScreenSprites.Length);
         Assert.Equal([(0, 0, 1), (1, 0, 0), (2, 0, 1)], simulation.View.ScreenClipRuns.ToArray().Select(run => (run.FirstSprite, run.FirstLine, run.Levels)));
-        Assert.Equal([region, region], simulation.View.ScreenClipLevels.ToArray());
+        Assert.Equal([region, region], simulation.View.ClipLevels.ToArray());
     }
 
     // A run is told apart by where it starts in both lists. The lines draw after every sprite.
@@ -49,7 +49,7 @@ public sealed class ClipRunTests
         view.Add(Quad(new Vector2(500f, 500f)), RenderSpace.Screen);
 
         Assert.Equal([(0, 0, 1), (1, 1, 0)], view.ScreenClipRuns.ToArray().Select(run => (run.FirstSprite, run.FirstLine, run.Levels)));
-        Assert.Equal([new ClipRegion(clip, clip)], view.ScreenClipLevels.ToArray());
+        Assert.Equal([new ClipRegion(clip, clip)], view.ClipLevels.ToArray());
         Assert.Equal(2, view.ScreenSprites.Length);
 
         view.Clear();
@@ -57,7 +57,7 @@ public sealed class ClipRunTests
 
         Assert.Single(view.ScreenSprites.ToArray());
         Assert.True(view.ScreenClipRuns.IsEmpty);
-        Assert.True(view.ScreenClipLevels.IsEmpty);
+        Assert.True(view.ClipLevels.IsEmpty);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class ClipRunTests
         Rect inside = Rect.FromEdges(70f, 40f, 170f, 100f);
         Rect around = Rect.FromEdges(10f, 10f, 110f, 70f);
         Assert.Equal([new ClipRun(0, 0, 0, 2)], simulation.View.ScreenClipRuns.ToArray());
-        Assert.Equal([new ClipRegion(inside, inside), new ClipRegion(around, around)], simulation.View.ScreenClipLevels.ToArray());
+        Assert.Equal([new ClipRegion(inside, inside), new ClipRegion(around, around)], simulation.View.ClipLevels.ToArray());
         Assert.True(ClipRect.Admits(inner, new Vector2(100f, 50f)));
         Assert.False(ClipRect.Admits(inner, new Vector2(120f, 50f)));
         Assert.False(ClipRect.Admits(inner, new Vector2(100f, 80f)));
@@ -89,7 +89,7 @@ public sealed class ClipRunTests
 
         using SceneSimulation simulation = Slide(frame, frame, new Vector2(14f, 10f));
 
-        Assert.Equal([new ClipRegion(Frame, Rect.FromEdges(14f, 10f, 54f, 30f))], simulation.View.ScreenClipLevels.ToArray());
+        Assert.Equal([new ClipRegion(Frame, Rect.FromEdges(14f, 10f, 54f, 30f))], simulation.View.ClipLevels.ToArray());
     }
 
     // The ends of a moving inner clip intersect the outer one in nothing at all, though halfway through the
@@ -108,7 +108,7 @@ public sealed class ClipRunTests
         Rect outerRect = Rect.FromEdges(0f, 0f, 10f, 10f);
         Assert.Equal(
             [new ClipRegion(Rect.FromEdges(-15f, 0f, -5f, 10f), Rect.FromEdges(15f, 0f, 25f, 10f)), new ClipRegion(outerRect, outerRect)],
-            simulation.View.ScreenClipLevels.ToArray());
+            simulation.View.ClipLevels.ToArray());
         Assert.Single(simulation.View.ScreenSprites.ToArray());
     }
 

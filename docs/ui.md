@@ -3,10 +3,11 @@
 After this page you can lay out panels and text on the screen layer and build a menu that the keys, a
 pad and the pointer all drive. Each type's XML docs hold its rules.
 
-The screen layer is in canvas pixels and draws over the world. Capsule places rects, lines them up,
-clips and scrolls them, and moves a focus between items. What an item looks like when focused, and
-what pressing it does, are the game's. Capsule ships no stock widgets. A meter, a slider or a scroll
-bar is a few sprites the game sizes from a value, and the sample's
+The screen layer is in canvas pixels and draws over the world, or among it from a root that sets
+`ScreenEntity.SortsWithWorld` ([`rendering.md`](rendering.md#two-layers-and-draw-order)). Capsule
+places rects, lines them up, clips and scrolls them, and moves a focus between items. What an item
+looks like when focused, and what pressing it does, are the game's. Capsule ships no stock widgets. A
+meter, a slider or a scroll bar is a few sprites the game sizes from a value, and the sample's
 [`UI/`](../samples/MinimalGame/src/MinimalGame.Game/UI/) folder builds all three.
 
 | Need | Piece |

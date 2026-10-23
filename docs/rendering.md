@@ -13,6 +13,7 @@ lights. What a game's world looks like is the game's.
 | What part of the world shows | `Camera` |
 | Hiding, fading or flashing | `Visible`, `Tint` and `Flash` on `Entity`, `Visible` and `Color` on a renderer |
 | What draws over what | `ZIndex`, `Scene.YSort`, and `ScreenEntity` for the screen layer |
+| An interface panel the world draws over | `ScreenEntity.SortsWithWorld` |
 | A layer that scrolls slower than the world | `Entity.ScrollFactor` |
 | Light in a dark scene | `Scene.Ambient` and `PointLight` |
 | A reaction to coming on screen | `VisibleOnScreenNotifier2D` |
@@ -103,6 +104,10 @@ Within a layer, what draws later has the higher sum of the entity's `ZIndex` up 
 renderer's own `ZIndex`. Ties break by file order in a document and then by attachment order. A top-down
 scene sets `Scene.YSort` to order world renderers in one band by their root entity's Y.
 
+A screen root that sets `SortsWithWorld` leaves the screen layer and draws at its band among the
+world's renderers, still laid out and clipped in canvas pixels, and the camera never moves it. A panel
+the actors walk in front of takes a band between the background's and theirs.
+
 ## Parallax
 
 An entity's `ScrollFactor` scales how far it moves with the camera. Zero on both axes pins the entity to
@@ -158,12 +163,13 @@ the map too, and a glow stays bright in a dim room. A scene with white ambient a
 
 A `Label` draws text from a bitmap font baked to texture pages. A run is laid out left to right, one
 glyph per codepoint, with the kerning the font declares. There is no shaping, no bidirectional layout and
-no distance field. `FirstLine` and `MaxLines` page a long text through a fixed box, and `Exclusion` flows
-its lines around one rect, such as a portrait in the box's corner.
+no distance field. `FirstLine` and `MaxLines` page a long text through a fixed box, and `Exclusions` flows
+its lines around any number of `Shape2D` shapes, such as a portrait in the box's corner.
 
 `BitmapFont.Default` ships inside the runtime and needs no asset. Other fonts are authored under `Assets/`
 ([`assets.md`](assets.md#fonts)). `GlyphRun` is the layout every placement comes from, for code that
-emits its own per-glyph sprites.
+emits its own per-glyph sprites. A label given a text key shows it in the run's language
+([`localization.md`](localization.md)).
 
 ## Visibility
 

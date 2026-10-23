@@ -23,7 +23,8 @@ internal readonly record struct ScreenPlacement(Vector2 Origin, float Scale)
 //           back buffer where none is.
 // World     where Span lands on Surface and at what scale, which is the declared pixels per unit on a
 //           render surface, since the surface was sized to the span.
-// OnSurface where a canvas pixel lands on that surface, when the screen layer is drawn on it.
+// OnSurface where a canvas pixel lands on that surface: where the screen layer draws when it is drawn
+//           there, and where a screen root sorted with the world draws on either path.
 // Present   where the surface lands in the back buffer. No scale where there is nothing to present.
 // Layer     where a canvas pixel lands in the back buffer, which maps a sampled mouse position back
 //           to a canvas position.

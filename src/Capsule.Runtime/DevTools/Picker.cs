@@ -11,12 +11,13 @@ internal static class Picker
 {
     // Fills stack with the entities drawn at point, topmost first. Each comes after those of its ancestors
     // not yet listed, root first. A click takes the whole before its parts. parallax is the frame's
-    // ScrollLayout.Parallax, which moves point into each scrolled layer.
+    // ScrollLayout.Parallax, which moves point into each scrolled layer. A screen root sorted with the world
+    // is in canvas pixels and is never picked, as the screen layer is not.
     internal static void Pick(FrameView frame, ReadOnlySpan<DrawRun> runs, Vector2 point, Vector2 parallax, List<Entity> stack)
     {
         stack.Clear();
         ReadOnlySpan<SpriteIntent> sprites = frame.Sprites;
-        ReadOnlySpan<ParallaxLayer> layers = frame.ParallaxLayers;
+        ReadOnlySpan<PlacementRun> layers = frame.PlacementRuns;
         int layer = layers.Length - 1;
         int run = runs.Length - 1;
         for (int index = sprites.Length - 1; index >= 0; index--)
@@ -34,6 +35,11 @@ internal static class Picker
             if (run < 0)
             {
                 return;
+            }
+
+            if (layer >= 0 && layers[layer].Canvas)
+            {
+                continue;
             }
 
             Vector2 factor = layer >= 0 ? layers[layer].ScrollFactor : Vector2.One;

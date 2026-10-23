@@ -1,10 +1,13 @@
+using System.Collections.Immutable;
 using Capsule.Assets;
+using Capsule.Physics;
 
 namespace Capsule.Rendering;
 
 // What a Label's layout depends on besides the text itself. Box is the box width in font pixels where the
-// label's X extent is positive, and -1 where the run sets its own width. Exclusion is the rect the lines flow
-// around, in font pixels from the box's top-left, and null wherever the label's settings leave it no effect.
+// label's X extent is positive, and -1 where the run sets its own width. Exclusions are the shapes the lines
+// flow around, in font pixels from the box's top-left, and default wherever the label's settings leave them no
+// effect. The array compares by reference, one compare however many shapes it holds.
 internal readonly record struct LabelLayoutKey(
     int TextVersion,
     BitmapFont Font,
@@ -15,7 +18,7 @@ internal readonly record struct LabelLayoutKey(
     int FirstLine,
     int? MaxLines,
     int LineSpacing,
-    Rect? Exclusion);
+    ImmutableArray<Shape2D> Exclusions);
 
 // Where one glyph of a laid-out label sits, in font pixels from the run's origin, and the span colour it takes.
 internal readonly record struct LabelGlyph(int Page, TextureRegion Region, int X, int Y, int Index, ColorRgba Tint);
@@ -32,6 +35,12 @@ internal sealed class LabelLayout
     private ColorRgba[] _stack = [];
     private LabelGlyph[] _glyphs = [];
     private int[] _lineStarts = [];
+
+    // The span each row leaves its line, and the shapes' extents over one row as pairs sorted by their left
+    // edge. A rebuild fills both, and they only grow.
+    private TextSpan[] _spans = [];
+    private float[] _blocked = [];
+    private TextExclusion? _exclusion;
     private int _length;
     private int _codepoints;
     private int _runCount;
@@ -102,6 +111,7 @@ internal sealed class LabelLayout
         }
 
         BitmapFont font = key.Font;
+        _exclusion = key.Exclusions.IsDefaultOrEmpty || key.Box <= 0 ? null : Exclude(in key, shown.Length);
 
         // A left-aligned run reads its own extent off the placements. Any other alignment needs the extent
         // first, because an auto-sized box is as wide as the widest line.
@@ -113,7 +123,7 @@ internal sealed class LabelLayout
 
         if (!left)
         {
-            (width, lines) = GlyphRun.Extent(font, shown, key.Wrap == TextWrap.Word ? given : 0, TextWrap.Word, key.FirstLine, key.MaxLines, Exclusion(in key));
+            (width, lines) = GlyphRun.Extent(font, shown, key.Wrap == TextWrap.Word ? given : 0, TextWrap.Word, key.FirstLine, key.MaxLines, _exclusion);
             box = key.Box >= 0 ? key.Box : width;
         }
 
@@ -124,7 +134,7 @@ internal sealed class LabelLayout
         // An unsized box only aligns. Wrapping at the window's width would break lines outside the window.
         TextWrap wrap = key.Box >= 0 ? key.Wrap : TextWrap.None;
 
-        foreach (GlyphPlacement placed in new GlyphRun(font, shown, box, wrap, key.Alignment, key.FirstLine, key.MaxLines, Exclusion(in key)))
+        foreach (GlyphPlacement placed in new GlyphRun(font, shown, box, wrap, key.Alignment, key.FirstLine, key.MaxLines, _exclusion))
         {
             int line = placed.Line - key.FirstLine;
             if (left)
@@ -160,7 +170,7 @@ internal sealed class LabelLayout
 
         ReadOnlySpan<char> shown = _key.Rich ? _chars.AsSpan(0, _length) : text;
         int box = Math.Max(_key.Box, 0);
-        GlyphRun run = new(_key.Font, shown, box, _key.Wrap, HorizontalAlignment.Left, 0, null, Exclusion(in _key));
+        GlyphRun run = new(_key.Font, shown, box, _key.Wrap, HorizontalAlignment.Left, 0, null, _exclusion);
 
         int count = 0;
         while (run.MoveNextLine(out int start, out bool draws))
@@ -180,10 +190,104 @@ internal sealed class LabelLayout
         run.MoveNextLine(out _codepointCount, out _);
     }
 
-    // The key's exclusion as the layout walks it. Its rows repeat every MaxLines lines, one page each.
-    private static TextExclusion? Exclusion(in LabelLayoutKey key) => key.Exclusion is { } area
-        ? new TextExclusion(area, key.Font.LineHeight + key.LineSpacing, key.Font.LineHeight, key.MaxLines ?? 0)
-        : null;
+    // The span each row leaves its line, down to the lowest shape or one page under MaxLines. Every row past
+    // them spans the box. Without MaxLines the rows stop once more of them have room than the text has chars.
+    // Each such row holds at least one char, and the text ends above the next.
+    private TextExclusion Exclude(in LabelLayoutKey key, int chars)
+    {
+        ImmutableArray<Shape2D> shapes = key.Exclusions;
+        int height = key.Font.LineHeight;
+        int pitch = height + key.LineSpacing;
+
+        float lowest = 0f;
+        foreach (Shape2D shape in shapes)
+        {
+            lowest = MathF.Max(lowest, shape.Bounds.Max.Y);
+        }
+
+        int rows = (int)Math.Min(Math.Ceiling((double)lowest / pitch), key.MaxLines ?? int.MaxValue);
+
+        if (_blocked.Length < shapes.Length * 2)
+        {
+            _blocked = new float[shapes.Length * 2];
+        }
+
+        int count = 0;
+        int open = 0;
+        while (count < rows && (key.MaxLines is not null || open <= chars))
+        {
+            float top = count * (float)pitch;
+            TextSpan span = Row(shapes, key.Box, top, top + height);
+            if (count == _spans.Length)
+            {
+                Array.Resize(ref _spans, Math.Max(8, count * 2));
+            }
+
+            _spans[count++] = span;
+            open += span.Width > 0 ? 1 : 0;
+        }
+
+        return new TextExclusion(_spans, count, key.MaxLines ?? 0);
+    }
+
+    // The widest span the shapes leave a box-wide row from top to bottom, the left on a tie. The span is chosen
+    // on the shapes' own edges, and only the chosen one is rounded inward.
+    private TextSpan Row(ImmutableArray<Shape2D> shapes, int box, float top, float bottom)
+    {
+        Span<float> blocked = _blocked;
+        int count = 0;
+        foreach (Shape2D shape in shapes)
+        {
+            if (!(shape.Bounds.Min.Y < bottom && shape.Bounds.Max.Y > top))
+            {
+                continue;
+            }
+
+            shape.Extent(top, bottom, out float left, out float right);
+            if (!(left < box && right > 0f))
+            {
+                continue;
+            }
+
+            // An insertion keeps the extents sorted by their left edge. A label holds a handful of shapes.
+            int at = count++;
+            for (; at > 0 && blocked[(at - 1) * 2] > left; at--)
+            {
+                blocked[at * 2] = blocked[(at - 1) * 2];
+                blocked[(at * 2) + 1] = blocked[((at - 1) * 2) + 1];
+            }
+
+            blocked[at * 2] = left;
+            blocked[(at * 2) + 1] = right;
+        }
+
+        if (count == 0)
+        {
+            return new TextSpan(0, box);
+        }
+
+        float start = 0f;
+        float end = 0f;
+        float cursor = 0f;
+        for (int index = 0; index <= count; index++)
+        {
+            float edge = index < count ? MathF.Min(blocked[index * 2], box) : box;
+            if (edge - cursor > end - start)
+            {
+                start = cursor;
+                end = edge;
+            }
+
+            if (index < count)
+            {
+                cursor = MathF.Max(cursor, blocked[(index * 2) + 1]);
+            }
+        }
+
+        int from = (int)MathF.Ceiling(start);
+
+        return new TextSpan(from, Math.Max((int)MathF.Floor(end) - from, 0));
+    }
 
     // Strips the markup into _chars and records the colour runs it asked for.
     private void Parse(ReadOnlySpan<char> source)

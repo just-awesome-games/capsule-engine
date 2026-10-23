@@ -273,7 +273,7 @@ internal sealed class OverlayScene : Scene
             _rows[index].Offset = new Vector2(Padding, RowTop(_rowsAbove + index));
             if (index >= _shown)
             {
-                _rows[index].SetText(default);
+                _rows[index].SetText(ReadOnlySpan<char>.Empty);
             }
         }
 

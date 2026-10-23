@@ -27,6 +27,7 @@ internal static class BootRenderer
             + string.Concat(plan.Drivers.Items.Select(static driver => $"{Statement}drivers.Add({InputDriverRenderer.Registration(driver)});\n"));
         string addPayloads = string.Concat(plan.Providers.Items.Select(static provider => $"{Statement}{provider.QualifiedName}.AddPayloads(payloads);\n"))
             + string.Concat(plan.Payloads.Items.Select(static payload => $"{Statement}payloads.Add({ScenePayloadRenderer.Registration(payload)});\n"));
+        string strings = plan.PassesStrings ? ", global::Capsule.Generated.CapsuleStrings.Table" : "";
 
         return GeneratedFile.Write([], $$"""
                 /// <summary>This game's entry point.</summary>
@@ -44,7 +45,7 @@ internal static class BootRenderer
                     /// <param name="gameName">The game's display name. It titles the window, and its slug names the local folder that holds the saves and the crash log.</param>
                     /// <param name="platform">The platform module for the host family this shell targets.</param>
                     public static global::Capsule.Runtime.EngineBuilder Configure(string gameName, global::Capsule.Runtime.HostPlatform platform) =>
-                        global::Capsule.Runtime.CapsuleEngine.Configure(gameName, platform, Scenes, Drivers, Payloads);
+                        global::Capsule.Runtime.CapsuleEngine.Configure(gameName, platform, Scenes, Drivers, Payloads{{strings}});
 
                     private static global::Capsule.Scenes.SceneRegistry CreateScenes()
                     {

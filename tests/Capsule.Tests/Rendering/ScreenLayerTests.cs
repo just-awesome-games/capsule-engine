@@ -51,6 +51,34 @@ public sealed class ScreenLayerTests
         Assert.Equal(new RenderMetrics(Submitted: 3, Visible: 1), view.Metrics);
     }
 
+    // A screen root sorted with the world stores on the world's list under a canvas run, culled against the
+    // canvas and its clip rather than the camera. The world intent after it is placed by the world again and
+    // is cut by no clip, though the clip it left behind still stands for the next screen renderer.
+    [Fact]
+    public void ScreenIntentSortedWithTheWorld_LandsOnTheWorldListInCanvasPixels_AndOnlyItIsClipped()
+    {
+        FrameView view = Canvas(100f, 100f);
+        view.Camera = new CameraView(new Vector2(500f, 500f), new Vector2(40f, 40f));
+        Rect clip = Rect.FromEdges(0f, 0f, 50f, 50f);
+
+        view.Add(Quad(new Vector2(500f, 500f)), RenderSpace.World);
+        view.Space = RenderSpace.Screen;
+        view.SortsWithWorld = true;
+        view.BeginClip();
+        view.AddClipLevel(clip, clip);
+        view.EndClip();
+        view.Add(Quad(new Vector2(2f, 2f)));
+        view.Add(Quad(new Vector2(60f, 60f)));
+        view.Space = RenderSpace.World;
+        view.SortsWithWorld = false;
+        view.Add(Quad(new Vector2(501f, 501f)));
+
+        Assert.Empty(view.ScreenSprites.ToArray());
+        Assert.Equal([new Vector2(500f, 500f), new Vector2(2f, 2f), new Vector2(501f, 501f)], view.Sprites.ToArray().Select(sprite => sprite.Position));
+        Assert.Equal([new PlacementRun(1, 0, Vector2.One, Canvas: true), new PlacementRun(2, 0, Vector2.One)], view.PlacementRuns.ToArray());
+        Assert.Equal([new ClipRun(1, 0, 0, 1), new ClipRun(2, 0, 0, 0)], view.ClipRuns.ToArray());
+    }
+
     [Fact]
     public void ACulledScreenSprite_IsOneThatSweepsClearOfTheCanvasAcrossTheWholeStep()
     {

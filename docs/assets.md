@@ -15,6 +15,7 @@ An asset is a file under the logic project's `Assets/`. The build names each one
 | `.fnt` | A bitmap font | `Fonts/menu.fnt` is `CapsuleAssets.Fonts.MenuFont`, a `BitmapFont` |
 | `.fx` | A shader | `Shaders/fade.fx` is `CapsuleAssets.Shaders.FadeShader`, a `Shader` |
 | `.scene.json` | A scene document | `Scenes/hall.scene.json` is `CapsuleAssets.Scenes.HallScene`, a `SceneKey` |
+| `.strings.json` | One language's [texts](localization.md) | Each key of the source language is a `CapsuleStrings` member, a `TextKey` |
 | `.config.json` | [Configuration](configuring-assets.md) of textures | Not named |
 | `.atlas.json` | An [atlas](configuring-assets.md#atlases) declaration | Not named |
 

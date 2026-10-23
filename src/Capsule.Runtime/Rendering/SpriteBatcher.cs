@@ -147,6 +147,19 @@ internal sealed class SpriteBatcher : IDisposable
         _clip = null;
     }
 
+    // Draws the sprites after this by transform, keeping the material, sampler and clip. Flushes what is
+    // staged under the old one. Applying the shader leaves slot 0's sampler as the last run bound it, and
+    // the sampler cache stays true.
+    internal void SetTransform(in Matrix transform)
+    {
+        Flush();
+        _transform = transform * Projection(_device);
+        _effects.Apply(null, in _transform, _sampler, coverage: false, Point.Zero);
+        _applied = null;
+        _appliedCoverage = false;
+        _appliedSpriteSize = null;
+    }
+
     // Cuts the sprites drawn next to a rect of the bound surface, in its pixels. A change flushes what is
     // staged. The scissor is device state and applies to a draw call whole.
     internal void SetClip(int x, int y, int width, int height)

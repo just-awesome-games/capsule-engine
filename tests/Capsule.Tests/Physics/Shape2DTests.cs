@@ -14,6 +14,21 @@ public sealed class Shape2DTests
         Assert.Equal(new Vector2(2.5e38f, -2.5e38f), box.Center);
     }
 
+    // Against a box at (0, 0) to (8, 8): an overlap, a shared face, then a gap.
+    [Theory]
+    [InlineData(4f, 6f, 4f, 6f, 8f, 8f)]
+    [InlineData(8f, 2f, 8f, 2f, 8f, 8f)]
+    [InlineData(9f, 0f, float.NaN, 0f, 0f, 0f)]
+    public void AabbIntersection_IsTheBoxBothCover_OrNullWhereTheyDoNotOverlap(float x, float y, float minX, float minY, float maxX, float maxY)
+    {
+        Aabb2D box = Aabb2D.FromCorner(Vector2.Zero, new Vector2(8f));
+        Aabb2D other = Aabb2D.FromCorner(new Vector2(x, y), new Vector2(8f));
+
+        Aabb2D? expected = float.IsNaN(minX) ? null : new Aabb2D(new Vector2(minX, minY), new Vector2(maxX, maxY));
+        Assert.Equal(expected, box.Intersection(other));
+        Assert.Equal(expected, other.Intersection(box));
+    }
+
     // Each input is a real float while the box or edge it describes is not. The tree's area
     // heuristic and the mover's inset compute with that extent, and an infinity there spreads.
     [Fact]

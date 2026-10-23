@@ -207,8 +207,8 @@ public sealed class CommandLineTests : IDisposable
         ["--headless", "--headless"],
     ];
 
-    // A shipping build declares no development flag. A player cannot drive, probe, reroute or reseed the
-    // game from its command line. The portable-saves lever and help stay.
+    // A shipping build declares no development flag. A player cannot drive, probe, reroute, reseed or
+    // force the language of the game from its command line. The portable-saves lever and help stay.
     [Theory]
     [InlineData("--scene", "Selected")]
     [InlineData("--payload", "Westward")]
@@ -217,6 +217,7 @@ public sealed class CommandLineTests : IDisposable
     [InlineData("--frames", "frames.csv")]
     [InlineData("--uncapped")]
     [InlineData("--seed", "42")]
+    [InlineData("--language", "fr")]
     public void AShippingBuild_RefusesADevelopmentFlagAsUnknown(params string[] args)
     {
         CommandLineException refused = Assert.Throws<CommandLineException>(
@@ -245,6 +246,7 @@ public sealed class CommandLineTests : IDisposable
         Assert.DoesNotContain("--frames", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--uncapped", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--seed", usage, StringComparison.Ordinal);
+        Assert.DoesNotContain("--language", usage, StringComparison.Ordinal);
     }
 
     // The defect and the usage block as the shell prints them, with the exit code it returns.

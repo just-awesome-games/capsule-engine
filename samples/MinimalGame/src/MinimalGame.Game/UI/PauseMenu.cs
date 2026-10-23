@@ -13,8 +13,8 @@ public sealed class PauseMenu : ScreenEntity
     private static readonly ColorRgba DimColor = new(0, 0, 0, 160);
     private static readonly ColorRgba PanelColor = new(24, 24, 32);
 
-    private readonly MenuItem _resume = new("Resume");
-    private readonly MenuItem _quit = new("Quit");
+    private readonly MenuItem _resume = new(CapsuleStrings.Menu.Resume);
+    private readonly MenuItem _quit = new(CapsuleStrings.Menu.Quit);
 
     private readonly FocusNavigator _navigator;
 
