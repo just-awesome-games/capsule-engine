@@ -15,8 +15,6 @@ internal static class TextureMembers
         string? described = Describe(settings);
         code.Append(indent).Append("/// <summary><c>").Append(texture.Key).Append(texture.Extension).Append("</c>")
             .Append(described is null ? string.Empty : ", " + described).AppendLine(".</summary>");
-        code.Append(indent).Append('[').Append(GeneratedAttributes.AssetName).Append('(')
-            .Append(Literal.Of(texture.Key + texture.Extension)).AppendLine(")]");
         code.Append(indent).Append("public static ").Append(GeneratedTypes.TextureHandle).Append(' ').Append(identifier)
             .Append(" => new ").Append(GeneratedTypes.TextureHandle).Append('(').Append(Literal.Of(texture.Key)).Append(", ")
             .Append(Literal.Of(texture.Extension)).AppendLine(");");

@@ -85,19 +85,9 @@ internal static class EntityResolver
         _ => null,
     };
 
-    // One lookup per asset type an authored member takes, in PropertyForms.Assets order, keyed as the build declared each
-    // asset. CapsuleStrings is the only table a form searches.
-    internal static EquatableArray<AssetLookup> Lookups(IEnumerable<PropertyModel> authored, RegistryInputs shared)
-    {
-        AssetTable assets = new(shared.Assets.Items, shared.Documents.Items);
-
-        return new([.. PropertyForms.Assets
+    // One lookup per asset type an authored member takes, in PropertyForms.Assets order.
+    internal static EquatableArray<AssetLookup> Lookups(IEnumerable<PropertyModel> authored, RegistryInputs shared) =>
+        new([.. PropertyForms.Assets
             .Where(form => authored.Any(property => property.Kind == PropertyKind.Asset && property.Type == form.Type))
-            .Select(form => new AssetLookup(
-                form,
-                new([.. assets.Of(form)
-                    .OrderBy(static asset => asset.Key, StringComparer.Ordinal)
-                    .Select(static asset => (asset.Key, asset.Value))]),
-                TableShipped: form.Table is not null && shared.StringsShipped))]);
-    }
+            .Select(form => new AssetLookup(form, TableShipped: shared.ShippedTables.Items.Contains(form.Table)))]);
 }

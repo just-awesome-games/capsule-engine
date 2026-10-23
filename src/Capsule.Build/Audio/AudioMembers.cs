@@ -21,8 +21,6 @@ internal static class AudioMembers
         }
 
         code.AppendLine(".</summary>");
-        code.Append(indent).Append('[').Append(GeneratedAttributes.AssetName).Append('(')
-            .Append(Literal.Of(audio.Key + audio.Extension)).AppendLine(")]");
         code.Append(indent).Append("public static ").Append(GeneratedTypes.AudioClip).Append(' ').Append(identifier)
             .Append(" => new ").Append(GeneratedTypes.AudioClip).Append('(').Append(Literal.Of(audio.Key)).Append(", ")
             .Append(Literal.Of(audio.Extension)).Append(", ").Append(Literal.Of(duration));

@@ -74,9 +74,9 @@ internal static class Keys
     /// <remarks>
     /// Sheets and scenes both key the textures they name here, and check them in different places. A
     /// sheet's texture is checked against what the game ships in <c>SheetStep</c>, because the sheet
-    /// compiles into members holding its handle. A scene document ships as data. The generator checks
-    /// an asset an entity's properties name against the members marked <c>CapsuleGeneratedAsset</c>,
-    /// and a tile map's texture is only keyed.
+    /// compiles into members holding its handle. A scene document ships as data. An asset an entity's
+    /// properties name is checked as the scene loads, against <c>CapsuleAssetIndex</c>, and a tile map's
+    /// texture is only keyed.
     /// </remarks>
     /// <param name="subject">What a refusal says of the source, as <c>is authored at "x"</c>.</param>
     /// <exception cref="FormatException">A segment is no C# name, or names a reserved device.</exception>

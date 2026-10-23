@@ -10,27 +10,8 @@ namespace Capsule.Build.Registry;
 /// </remarks>
 internal static class GeneratedAttributes
 {
-    /// <summary>What marks a texture or sound member with the key and extension a scene document names it by.</summary>
-    internal const string AssetName = "CapsuleGeneratedAsset";
-
     /// <summary>What marks a constant as a shipped scene document.</summary>
     internal const string SceneDocumentName = "CapsuleGeneratedSceneDocument";
-
-    /// <summary>The declaration of <see cref="AssetName"/>.</summary>
-    internal const string AssetDeclaration = """
-            /// <summary>A texture or sound, with the key and extension a scene document names it by. Generated code.</summary>
-            [global::System.AttributeUsage(global::System.AttributeTargets.Property)]
-            [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
-            [global::System.Diagnostics.Conditional("CAPSULE_GENERATED_FACTS")]
-            internal sealed class CapsuleGeneratedAssetAttribute : global::System.Attribute
-            {
-                /// <summary>The asset's key and extension.</summary>
-                public CapsuleGeneratedAssetAttribute(string path)
-                {
-                }
-            }
-
-        """;
 
     /// <summary>The declaration of <see cref="SceneDocumentName"/>.</summary>
     internal const string SceneDocumentDeclaration = """

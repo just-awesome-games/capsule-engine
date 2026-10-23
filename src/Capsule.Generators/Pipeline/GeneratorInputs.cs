@@ -3,12 +3,12 @@ namespace Capsule.Generators;
 /// <summary>What the project declares and references, which decides every file the generator writes.</summary>
 /// <param name="ScenesReferenced">Whether <c>Capsule.Scenes</c> is referenced, without which a logic assembly has no registry to hold.</param>
 /// <param name="RuntimeReferenced">Whether <c>Capsule.Runtime</c> is referenced, without which a shell has no engine to boot.</param>
-/// <param name="StringsShipped">Whether the compilation sees the build's <c>CapsuleStrings</c>, whose table a document's text keys resolve through.</param>
+/// <param name="ShippedTables">Each <see cref="AssetForm.Table"/> the compilation sees, which a document's asset keys resolve through.</param>
 internal readonly record struct ProjectConfiguration(
     GeneratorRole Role,
     bool ScenesReferenced,
     bool RuntimeReferenced,
-    bool StringsShipped,
+    EquatableArray<string> ShippedTables,
     string AssemblyName)
 {
     /// <summary>Whether the game's registries are generated here.</summary>
@@ -20,14 +20,12 @@ internal readonly record struct ProjectConfiguration(
 
 /// <summary>What both registry resolvers read beside their own models: the project and what the build declared.</summary>
 /// <param name="Documents">Every scene document the build shipped.</param>
-/// <param name="Assets">Every texture and sound the build declared.</param>
-/// <param name="StringsShipped">Whether the compilation sees the build's <c>CapsuleStrings</c>.</param>
+/// <param name="ShippedTables">Each <see cref="AssetForm.Table"/> the compilation sees.</param>
 internal readonly record struct RegistryInputs(
     bool IsLogicAssembly,
     string RootNamespace,
     EquatableArray<SceneDocumentModel> Documents,
-    EquatableArray<AssetModel> Assets,
-    bool StringsShipped);
+    EquatableArray<string> ShippedTables);
 
 /// <summary>What the entity resolver reads.</summary>
 /// <param name="EngineTileMap">The engine's tile map, which every logic assembly registers under its key.</param>

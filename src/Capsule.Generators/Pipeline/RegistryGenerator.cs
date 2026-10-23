@@ -24,7 +24,10 @@ public sealed class RegistryGenerator : IIncrementalGenerator
                     declared,
                     ScenesReferenced: compilation.GetTypeByMetadataName(MetadataNames.Scene) is not null,
                     RuntimeReferenced: compilation.GetTypeByMetadataName(MetadataNames.CapsuleEngine) is not null,
-                    StringsShipped: compilation.GetTypeByMetadataName(MetadataNames.CapsuleStrings) is not null,
+                    ShippedTables: new([.. PropertyForms.Assets
+                        .Select(static form => form.Table)
+                        .Distinct(StringComparer.Ordinal)
+                        .Where(table => compilation.GetTypeByMetadataName(table) is not null)]),
                     compilation.AssemblyName ?? "Game");
             });
         IncrementalValueProvider<bool> isLogicAssembly = project.Select(static (configured, _) => configured.IsLogicAssembly);
@@ -49,12 +52,9 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .Select(static (compilation, _) => EntityDescriber.DescribeEngine(compilation, MetadataNames.TileMap));
 
         // What the build declares on CapsuleAssets: every scene document it shipped, whether or not a class
-        // claims it, with the baseScene it names, read once by the build's own parser. And every
-        // texture and sound, which a placement's asset member names by key.
+        // claims it, with the baseScene it names, read once by the build's own parser.
         IncrementalValueProvider<EquatableArray<SceneDocumentModel>> documents = Collected(Marked(
             context, MetadataNames.SceneDocumentKeyAttribute, static marked => SceneDescriber.DescribeDocument(marked)));
-        IncrementalValueProvider<EquatableArray<AssetModel>> assets = Collected(Marked(
-            context, MetadataNames.AssetAttribute, static marked => AssetTable.Describe(marked)));
 
         // What each [Authorable] member is, checked where it is declared, whether or not a class spawns it.
         IncrementalValuesProvider<AuthorableFault> authorableFaults = context.SyntaxProvider
@@ -82,9 +82,9 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         // The plans each file is rendered from.
         IncrementalValueProvider<RegistryInputs> shared = project
             .Combine(rootNamespace)
-            .Combine(documents.Combine(assets))
+            .Combine(documents)
             .Select(static (input, _) => new RegistryInputs(
-                input.Left.Left.IsLogicAssembly, input.Left.Right, input.Right.Left, input.Right.Right, input.Left.Left.StringsShipped));
+                input.Left.Left.IsLogicAssembly, input.Left.Right, input.Right, input.Left.Left.ShippedTables));
         IncrementalValueProvider<EntityPlan> entityPlan = entities
             .Combine(engineTileMap).Combine(shared)
             .Select(static (input, _) => EntityResolver.Resolve(new EntityInputs(input.Left.Left, input.Left.Right, input.Right)))

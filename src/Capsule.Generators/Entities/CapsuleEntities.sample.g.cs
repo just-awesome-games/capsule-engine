@@ -270,17 +270,8 @@ namespace Capsule.Generated
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Grip")]
         private static extern void SetGrip(global::Game.Ice owner, float value);
 
-        private static global::Capsule.Assets.TextureHandle? FindTexture(string key) => key switch
-        {
-            "textures/lamp.png" => global::Capsule.Generated.Documents.Asset0,
-            _ => null,
-        };
+        private static global::Capsule.Assets.TextureHandle? FindTexture(string key) => global::Capsule.Generated.CapsuleAssetIndex.FindTexture(key);
 
-        private static global::Capsule.Scenes.SceneKey? FindScene(string key) => key switch
-        {
-            "scenes/hall" => global::Capsule.Generated.Documents.Document1,
-            "scenes/room" => global::Capsule.Generated.Documents.Document2,
-            _ => null,
-        };
+        private static global::Capsule.Scenes.SceneKey? FindScene(string key) => global::Capsule.Generated.CapsuleAssetIndex.FindScene(key);
     }
 }

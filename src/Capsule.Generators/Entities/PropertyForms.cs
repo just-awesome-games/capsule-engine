@@ -8,9 +8,9 @@ internal sealed record BuiltInForm(string Type, string Read);
 /// <summary>An asset type a scene document names by key, resolved at load through a generated lookup.</summary>
 /// <param name="Type">The type as the generator displays it fully qualified.</param>
 /// <param name="Read">The <c>AuthoredMembers</c> method the spawner reads it with, which also names its lookup.</param>
-/// <param name="Scene">Whether it is keyed as a scene document, without an extension, where otherwise by key and extension.</param>
-/// <param name="Table">The build's generated table that searches its keys, or null when the lookup switches over the members the build marked.</param>
-internal sealed record AssetForm(string Type, string Read, bool Scene, string? Table = null)
+/// <param name="Table">The metadata name of the build's generated class that searches its keys.</param>
+/// <param name="Find">The member of <paramref name="Table"/> that searches them.</param>
+internal sealed record AssetForm(string Type, string Read, string Table, string Find)
 {
     /// <summary>The generated method resolving a key to its asset.</summary>
     internal string Lookup => "Find" + Read;
@@ -31,16 +31,16 @@ internal static class PropertyForms
         new("global::Capsule.Rendering.ColorRgba", "Color"),
     ];
 
-    // A new asset type is one entry here, one read method of the same name on AuthoredMembers, and the build's
-    // CapsuleGeneratedAsset attribute on its CapsuleAssets members. Lookups are generated in this order. A text is
-    // the exception: it is found by searching the build's CapsuleStrings table. A game's texts reach tens of
-    // thousands, and a string switch that long takes minutes to compile.
+    // A new asset type is one entry here, one read method of the same name on AuthoredMembers, and a search the
+    // build writes. Lookups are generated in this order. Each searches data the build wrote, never a switch over
+    // the keys: a game's assets reach thousands and its texts tens of thousands, and a string switch that long
+    // takes minutes to compile.
     internal static readonly AssetForm[] Assets =
     [
-        new("global::Capsule.Assets.TextureHandle", "Texture", Scene: false),
-        new("global::Capsule.Audio.AudioClip", "Sound", Scene: false),
-        new("global::Capsule.Scenes.SceneKey", "Scene", Scene: true),
-        new("global::Capsule.Localization.TextKey", "Text", Scene: false, Table: MetadataNames.CapsuleStrings),
+        new("global::Capsule.Assets.TextureHandle", "Texture", MetadataNames.CapsuleAssetIndex, "FindTexture"),
+        new("global::Capsule.Audio.AudioClip", "Sound", MetadataNames.CapsuleAssetIndex, "FindSound"),
+        new("global::Capsule.Scenes.SceneKey", "Scene", MetadataNames.CapsuleAssetIndex, "FindScene"),
+        new("global::Capsule.Localization.TextKey", "Text", MetadataNames.CapsuleStrings, "Table.Find"),
     ];
 
     /// <summary>Every member type a placement can set, as the refusal of any other type names them.</summary>

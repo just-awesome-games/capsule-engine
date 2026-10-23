@@ -6,9 +6,8 @@ namespace Capsule.Generators;
 internal readonly record struct RegisteredEntity(string Key, EntityModel Model);
 
 /// <summary>The lookup one asset type an authored member takes resolves its keys through.</summary>
-/// <param name="Assets">Each declared asset of the form, by key, with the member it is read from.</param>
 /// <param name="TableShipped">Whether the compilation sees the form's <see cref="AssetForm.Table"/>.</param>
-internal readonly record struct AssetLookup(AssetForm Form, EquatableArray<(string Key, string Member)> Assets, bool TableShipped);
+internal readonly record struct AssetLookup(AssetForm Form, bool TableShipped);
 
 /// <summary>One object class with the subclasses a type key constructs, each by the key it claims.</summary>
 internal readonly record struct KeyedObject(ObjectModel Model, EquatableArray<(string Key, string Type)> Types);

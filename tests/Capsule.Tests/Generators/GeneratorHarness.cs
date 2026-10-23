@@ -1,6 +1,9 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using Capsule.Audio;
+using Capsule.Build;
+using Capsule.Build.Audio;
 using Capsule.Build.Registry;
 using Capsule.Build.Scenes;
 using Capsule.Generators;
@@ -162,37 +165,42 @@ internal static class GeneratorHarness
     }
 
     // Each '<key>.scene.json' document, its path under Assets/, as the build hands it to the
-    // generator: a key member marked with the build's own attribute, carrying what its parser read. A
-    // '.png', '.wav' or '.ogg' path is a texture or sound member marked with the key a document names it by.
+    // generator: a key member marked with the build's own attribute, carrying what its parser read. Every
+    // document and every '.png', '.wav' or '.ogg' path is indexed in the build's own CapsuleAssetIndex, a
+    // sound as half a second long.
     private static string Documents((string Path, string? Content)[] documents)
     {
         const string Extension = ".scene.json";
 
-        IEnumerable<string> members = documents
-            .Select(static (document, index) =>
+        AssetIndex index = new();
+        List<string> members = [];
+        foreach ((string path, string? content) in documents)
+        {
+            if (!path.EndsWith(Extension, StringComparison.Ordinal))
             {
-                if (!document.Path.EndsWith(Extension, StringComparison.Ordinal))
+                string name = path[..Math.Max(0, path.LastIndexOf('.'))];
+                string extension = path[name.Length..];
+                if (extension == ".png")
                 {
-                    string name = document.Path[..Math.Max(0, document.Path.LastIndexOf('.'))];
-                    string extension = document.Path[name.Length..];
-
-                    return extension switch
-                    {
-                        ".png" => $"[{GeneratedAttributes.AssetName}(\"{document.Path}\")] public static global::Capsule.Assets.TextureHandle Asset{index} => new(\"{name}\", \"{extension}\");",
-                        ".wav" or ".ogg" => $"[{GeneratedAttributes.AssetName}(\"{document.Path}\")] public static global::Capsule.Audio.AudioClip Asset{index} => new(\"{name}\", \"{extension}\", 0.5D);",
-                        _ => string.Empty,
-                    };
+                    index.Texture(new Source(AssetType.Textures, name, extension, path));
+                }
+                else if (extension is ".wav" or ".ogg")
+                {
+                    index.Sound(new Source(AssetType.Audio, name, extension, path), new AudioProbe.Measurement(0.5, AudioLoopRegion.None));
                 }
 
-                string key = document.Path[..^Extension.Length];
-                IEnumerable<string> attributes = document.Content is null
-                    ? [$"{GeneratedAttributes.SceneDocumentName}(Key = \"{key}\")"]
-                    : SceneMembers.Attributes(SceneDocument.Parse(document.Content), key);
+                continue;
+            }
 
-                return $"{string.Concat(attributes.Select(static attribute => $"[{attribute}]"))} public static global::Capsule.Scenes.SceneKey Document{index} => new(\"{key}\");";
-            });
+            string key = path[..^Extension.Length];
+            IEnumerable<string> attributes = content is null
+                ? [$"{GeneratedAttributes.SceneDocumentName}(Key = \"{key}\")"]
+                : SceneMembers.Attributes(SceneDocument.Parse(content), key);
+            index.Scene(new Source(AssetType.Scenes, key, Extension, path));
+            members.Add($"{string.Concat(attributes.Select(static attribute => $"[{attribute}]"))} public static global::Capsule.Scenes.SceneKey Document{members.Count} => new(\"{key}\");");
+        }
 
-        return $"namespace Capsule.Generated\n{{\npublic static class Documents\n{{\n{string.Join('\n', members)}\n}}\n{GeneratedAttributes.SceneDocumentDeclaration}{GeneratedAttributes.AssetDeclaration}}}\n";
+        return $"namespace Capsule.Generated\n{{\npublic static class Documents\n{{\n{string.Join('\n', members)}\n}}\n{GeneratedAttributes.SceneDocumentDeclaration}{index.Render()}}}\n";
     }
 
     /// <summary>

@@ -27,7 +27,6 @@ internal static class MetadataNames
     internal const string MemberObjectKeys = "Capsule.Scenes.SceneDocumentKeys+MemberObject";
 
     // What the build marks CapsuleAssets with.
-    internal const string AssetAttribute = "Capsule.Generated.CapsuleGeneratedAssetAttribute";
     internal const string SceneDocumentKeyAttribute = "Capsule.Generated.CapsuleGeneratedSceneDocumentAttribute";
 
     // What a logic assembly's generated registry provider declares, and the shell reads.
@@ -37,6 +36,9 @@ internal static class MetadataNames
     // What the build writes into a logic assembly with string tables, whose table the shell's boot passes and a
     // document's text keys resolve through.
     internal const string CapsuleStrings = "Capsule.Generated.CapsuleStrings";
+
+    // What the build writes beside CapsuleAssets, which a document's texture, sound and scene keys resolve through.
+    internal const string CapsuleAssetIndex = "Capsule.Generated.CapsuleAssetIndex";
 
     internal const string JsonConverterAttribute = "System.Text.Json.Serialization.JsonConverterAttribute";
     internal const string JsonConverter = "System.Text.Json.Serialization.JsonConverter`1";

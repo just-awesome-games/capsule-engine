@@ -1,6 +1,5 @@
 using Capsule.Assets;
 using Capsule.Build.Caching;
-using Capsule.Build.Registry;
 
 namespace Capsule.Build.Textures;
 
@@ -55,7 +54,7 @@ internal static class TextureStep
 
         foreach (Source texture in packed.Concat(shipped))
         {
-            pass.Assets.Beside(GeneratedAttributes.AssetDeclaration);
+            pass.Assets.Index.Texture(texture);
             pass.Declare(texture, pass.TextureSettings[texture.Key], TextureMembers.Write);
         }
     }

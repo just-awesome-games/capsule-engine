@@ -1,5 +1,4 @@
 using Capsule.Build.Caching;
-using Capsule.Build.Registry;
 
 namespace Capsule.Build.Audio;
 
@@ -27,7 +26,7 @@ internal static class AudioStep
             },
             DerivationCacheJsonContext.Default.Measurement))
         {
-            pass.Assets.Beside(GeneratedAttributes.AssetDeclaration);
+            pass.Assets.Index.Sound(clip, measured);
             pass.Declare(clip, measured, AudioMembers.Write);
         }
     }

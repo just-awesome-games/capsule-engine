@@ -33,6 +33,7 @@ internal static class SceneStep
             DerivationCacheJsonContext.Default.StringArray))
         {
             pass.Assets.Beside(GeneratedAttributes.SceneDocumentDeclaration);
+            pass.Assets.Index.Scene(document);
             pass.Declare(document, attributes, SceneMembers.Write);
         }
     }

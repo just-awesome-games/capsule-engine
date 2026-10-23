@@ -111,6 +111,6 @@ internal static class SceneDescriber
 
         return key is null
             ? null
-            : new SceneDocumentModel(key, SymbolShape.QualifiedName(member.ContainingType) + "." + member.Name, baseScene);
+            : new SceneDocumentModel(key, baseScene);
     }
 }

@@ -80,20 +80,11 @@ internal static class EntityRenderer
         + PropertyReadRenderer.Assignments(model.Authored, "entity", model.QualifiedName, StatementIndent)
         + ArgumentIndent + "}";
 
-    // The method one asset type's reads resolve a key through: a search of the build's table, null when the game
-    // ships none, or a switch to the member the build declared it on.
-    internal static string Lookup(AssetLookup lookup) => lookup.Form.Table is { } table
-        ? $$"""
+    // The method one asset type's reads resolve a key through: a search of the build's table, or null when the
+    // compilation has none.
+    internal static string Lookup(AssetLookup lookup) => $$"""
 
-                private static {{lookup.Form.Type}}? {{lookup.Form.Lookup}}(string key) => {{(lookup.TableShipped ? $"global::{table}.Table.Find(key)" : "null")}};
-
-        """
-        : $$"""
-
-                private static {{lookup.Form.Type}}? {{lookup.Form.Lookup}}(string key) => key switch
-                {
-        {{string.Concat(lookup.Assets.Items.Select(static asset => $"            {CodeText.Literal(asset.Key)} => {asset.Member},\n"))}}            _ => null,
-                };
+                private static {{lookup.Form.Type}}? {{lookup.Form.Lookup}}(string key) => {{(lookup.TableShipped ? $"global::{lookup.Form.Table}.{lookup.Form.Find}(key)" : "null")}};
 
         """;
 }
