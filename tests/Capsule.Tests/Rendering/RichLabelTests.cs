@@ -45,6 +45,28 @@ public sealed class RichLabelTests
         Assert.Equal("<ff0000ff>A", Describe(host, ColorRgba.White));
     }
 
+    // The text reads "AB AB\nA\n" once stripped, wrapped after the first space. The trailing blank line is not
+    // counted, and a line past the last starts at the whole text's count.
+    [Fact]
+    public void LineStart_CountsNoTag()
+    {
+        Label label = RichLabel("[color=#ff0000]AB[/color] AB\nA\n");
+        label.Size = new Vector2(15f, 0f);
+        label.Wrap = TextWrap.Word;
+
+        using SimulationHost host = Host(label);
+
+        Assert.Equal(3, label.LineCount);
+        Assert.Equal([0, 3, 6, 8], Enumerable.Range(0, 4).Select(label.LineStart));
+
+        label.FirstLine = 1;
+        label.MaxLines = 1;
+        label.VisibleCharacters = label.LineStart(1) + 1;
+        host.Step();
+
+        Assert.Equal("A", Describe(host, ColorRgba.White));
+    }
+
     // Each change alters what the base label draws. A layout cached across it would fail.
     [Theory]
     [InlineData("text")]
@@ -53,6 +75,8 @@ public sealed class RichLabelTests
     [InlineData("wrap")]
     [InlineData("alignment")]
     [InlineData("rich")]
+    [InlineData("window")]
+    [InlineData("spacing")]
     public void AWarmLayout_DrawsAsAFreshLabelAfterAnythingItDependsOnChanges(string change)
     {
         Label warm = Wrapped();
@@ -100,6 +124,12 @@ public sealed class RichLabelTests
                 case "alignment":
                     label.HorizontalAlignment = HorizontalAlignment.Right;
                     break;
+                case "window":
+                    label.FirstLine = 1;
+                    break;
+                case "spacing":
+                    label.LineSpacing = 4;
+                    break;
                 default:
                     label.RichText = false;
                     break;
@@ -130,7 +160,8 @@ public sealed class RichLabelTests
         return new BitmapFont(lineHeight, 8, [FontFixtures.Page], glyphs, [FontFixtures.AgainstB]);
     }
 
-    private static SimulationHost Host(Label label)
+    // A label on an entity at the origin, alone in a scene.
+    internal static SimulationHost Host(Label label)
     {
         Entity entity = new();
         entity.Add(label);

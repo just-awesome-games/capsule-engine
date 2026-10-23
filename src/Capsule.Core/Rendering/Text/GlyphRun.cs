@@ -37,12 +37,23 @@ public ref struct GlyphRun
     private readonly TextWrap _wrap;
     private readonly HorizontalAlignment _alignment;
 
+    // The half-open range of laid-out lines that place glyphs. Lines before it are walked. Indices
+    // still count the whole text, and the walk stops at its end.
+    private readonly int _firstLine;
+    private readonly int _endLine;
+
+    // The rect lines flow around, or null for a run whose every line spans the box.
+    private readonly TextExclusion? _exclusion;
+
     // The half-open char range of the line being emitted, and where the next line begins. The gap
     // between _lineEnd and _nextLine holds what the break consumed, a newline or the space a wrap broke
     // at.
     private int _lineEnd;
     private int _nextLine;
     private bool _lineOpen;
+
+    // Whether the open line draws a glyph.
+    private bool _lineDraws;
 
     // Font pixels this line is shifted right by to satisfy _alignment.
     private int _shift;
@@ -78,6 +89,22 @@ public ref struct GlyphRun
     /// <param name="wrap">Whether a line too wide for the box breaks inside it.</param>
     /// <param name="alignment">Where each line sits between the box's edges.</param>
     public GlyphRun(BitmapFont font, ReadOnlySpan<char> text, int boxWidth, TextWrap wrap, HorizontalAlignment alignment)
+        : this(font, text, boxWidth, wrap, alignment, 0, null)
+    {
+    }
+
+    // The same layout placing only the lines from firstLine, at most maxLines of them, and every line where
+    // maxLines is null. Line and Index stay counted over the whole text. exclusion narrows the lines it
+    // crosses only in a word-wrapped run with a box, and only where it leaves room in some row of a page.
+    internal GlyphRun(
+        BitmapFont font,
+        ReadOnlySpan<char> text,
+        int boxWidth,
+        TextWrap wrap,
+        HorizontalAlignment alignment,
+        int firstLine,
+        int? maxLines,
+        TextExclusion? exclusion = null)
     {
         ArgumentNullException.ThrowIfNull(font);
 
@@ -86,7 +113,14 @@ public ref struct GlyphRun
         _boxWidth = boxWidth;
         _wrap = wrap;
         _alignment = alignment;
+        _firstLine = firstLine;
+        _endLine = maxLines is { } max ? (int)Math.Min((long)firstLine + max, int.MaxValue) : int.MaxValue;
         _previous = -1;
+
+        if (exclusion is { } area && wrap == TextWrap.Word && boxWidth > 0 && !area.FillsEveryRow(boxWidth))
+        {
+            _exclusion = area;
+        }
     }
 
     /// <summary>Returns a copy of the run. A <c>foreach</c> leaves this one where it was.</summary>
@@ -100,19 +134,25 @@ public ref struct GlyphRun
         {
             if (!_lineOpen)
             {
+                if (_line >= _endLine)
+                {
+                    return false;
+                }
+
                 OpenLine();
+
+                // A line before the window places nothing, and its codepoints are only counted.
+                if (_line < _firstLine)
+                {
+                    SkipTo(_lineEnd);
+                }
             }
 
             if (_index >= _lineEnd)
             {
                 // A break's codepoints are counted but never drawn. Index stays the position in the
                 // text whatever the layout did with the character.
-                while (_index < _nextLine)
-                {
-                    CodepointAt(_index, out int skipped);
-                    _index += skipped;
-                    _codepoint++;
-                }
+                SkipTo(_nextLine);
 
                 if (_index >= _text.Length)
                 {
@@ -146,14 +186,63 @@ public ref struct GlyphRun
         return false;
     }
 
+    // Advances to the next laid-out line without placing its glyphs. start is the codepoint index its first
+    // codepoint sits at, and draws whether it places a glyph. The window does not apply.
+    internal bool MoveNextLine(out int start, out bool draws)
+    {
+        start = _codepoint;
+        draws = false;
+
+        if (_index >= _text.Length)
+        {
+            return false;
+        }
+
+        OpenLine();
+        draws = _lineDraws;
+        SkipTo(_nextLine);
+        _line++;
+
+        return true;
+    }
+
+    // Counts the codepoints up to end without placing them.
+    private void SkipTo(int end)
+    {
+        while (_index < end)
+        {
+            CodepointAt(_index, out int skipped);
+            _index += skipped;
+            _codepoint++;
+        }
+    }
+
     // Finds where the line starting at _index ends and how far it is shifted. This is one measuring walk
     // per line, and laying out a run costs two passes over it.
     private void OpenLine()
     {
         _lineOpen = true;
+        _lineDraws = false;
         _lineEnd = _text.Length;
         _nextLine = _text.Length;
         _shift = 0;
+
+        // The part of the box this line lays out in. Without an exclusion it is the whole box.
+        int lead = 0;
+        int span = _boxWidth;
+        if (_exclusion is { } exclusion)
+        {
+            exclusion.Span(_line, _boxWidth, out lead, out span);
+
+            // A row the exclusion spans edge to edge holds an empty line, and the text goes on below it.
+            if (span <= 0)
+            {
+                _lineEnd = _index;
+                _nextLine = _index;
+
+                return;
+            }
+        }
 
         bool wrapping = _wrap == TextWrap.Word && _boxWidth > 0;
 
@@ -199,7 +288,7 @@ public ref struct GlyphRun
 
             // Checked only past the line's first glyph. A glyph wider than the box has to go somewhere,
             // and breaking before it would place nothing and never advance.
-            if (wrapping && previous >= 0 && start + glyph.XAdvance > _boxWidth)
+            if (wrapping && previous >= 0 && start + glyph.XAdvance > span)
             {
                 if (spaceAt >= 0)
                 {
@@ -220,13 +309,16 @@ public ref struct GlyphRun
             width = pen;
             previous = codepoint;
             cursor += consumed;
+            _lineDraws = true;
         }
 
         if (_boxWidth > 0 && _alignment != HorizontalAlignment.Left)
         {
-            int slack = _boxWidth - width;
+            int slack = span - width;
             _shift = _alignment == HorizontalAlignment.Center ? slack / 2 : slack;
         }
+
+        _shift += lead;
     }
 
     // The codepoint at cursor and the UTF-16 units it spans. ASCII, which covers most runs, is answered
@@ -269,17 +361,25 @@ public ref struct GlyphRun
         return true;
     }
 
-    // The widest line and the line count of a run laid out this way, in font pixels. Measuring walks the
+    // The widest line and the line count of a run laid out this way, in font pixels, over the window's lines.
+    // Lines counts from firstLine to the last line in the window that draws. Measuring walks the
     // placements, and a caller is told what the same layout draws.
-    internal static (int Width, int Lines) Extent(BitmapFont font, ReadOnlySpan<char> text, int boxWidth, TextWrap wrap)
+    internal static (int Width, int Lines) Extent(
+        BitmapFont font,
+        ReadOnlySpan<char> text,
+        int boxWidth,
+        TextWrap wrap,
+        int firstLine = 0,
+        int? maxLines = null,
+        TextExclusion? exclusion = null)
     {
         int width = 0;
         int lines = 0;
 
-        foreach (GlyphPlacement placed in new GlyphRun(font, text, boxWidth, wrap, HorizontalAlignment.Left))
+        foreach (GlyphPlacement placed in new GlyphRun(font, text, boxWidth, wrap, HorizontalAlignment.Left, firstLine, maxLines, exclusion))
         {
             width = Math.Max(width, placed.PenX + placed.Glyph.XAdvance);
-            lines = Math.Max(lines, placed.Line + 1);
+            lines = Math.Max(lines, placed.Line - firstLine + 1);
         }
 
         return (width, lines);

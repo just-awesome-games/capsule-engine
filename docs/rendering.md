@@ -158,7 +158,8 @@ the map too, and a glow stays bright in a dim room. A scene with white ambient a
 
 A `Label` draws text from a bitmap font baked to texture pages. A run is laid out left to right, one
 glyph per codepoint, with the kerning the font declares. There is no shaping, no bidirectional layout and
-no distance field.
+no distance field. `FirstLine` and `MaxLines` page a long text through a fixed box, and `Exclusion` flows
+its lines around one rect, such as a portrait in the box's corner.
 
 `BitmapFont.Default` ships inside the runtime and needs no asset. Other fonts are authored under `Assets/`
 ([`assets.md`](assets.md#fonts)). `GlyphRun` is the layout every placement comes from, for code that

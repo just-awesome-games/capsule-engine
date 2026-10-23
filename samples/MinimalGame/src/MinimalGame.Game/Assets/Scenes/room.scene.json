@@ -243,7 +243,7 @@
       "x": 16,
       "y": 96,
       "size": [96, 80],
-      "text": "[color=#ffd060]Jump[/color]",
+      "text": "[color=#ffd060]Jump[/color] over gaps and up onto ledges",
       "prompt": "jump"
     },
     {

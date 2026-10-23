@@ -162,6 +162,36 @@ public sealed class LabelTests
         Assert.Equal(expected.Sprites.ToArray(), simulation.View.Sprites.ToArray());
     }
 
+    // Four lines: two wraps at a space, then a line break. The window draws lines 1 and 2 and reveals line 1
+    // alone.
+    [Fact]
+    public void AWindowedLabel_DrawsItsRevealedLinesAndCountsLinesOverTheWholeText()
+    {
+        LabelEntity entity = Prompt("AB AB A\nAB");
+        entity.Scale = new Vector2(2f, 3f);
+        Label label = entity.Text;
+        label.Size = new Vector2(15f, 0f);
+        label.Wrap = TextWrap.Word;
+        label.FirstLine = 1;
+        label.MaxLines = 2;
+        label.LineSpacing = 3;
+
+        Assert.Equal(4, label.LineCount);
+        Assert.Equal([0, 3, 6, 8, 10, 10], Enumerable.Range(0, 6).Select(label.LineStart));
+
+        label.VisibleCharacters = label.LineStart(2);
+
+        Scene scene = new();
+        scene.Add(entity);
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal([FontFixtures.A.Region, FontFixtures.B.Region], simulation.View.Sprites.ToArray().Select(static sprite => sprite.Sprite.Region));
+
+        // Lines 1 and 2, "AB" and "A", with one spacing between them.
+        Assert.Equal(new Vector2(FontFixtures.WordWidth, (2 * FontFixtures.LineHeight) + 3f), label.ContentSize);
+    }
+
     // A negative scale axis mirrors the placed run about the entity's position, box, wrap and alignment
     // included. Each glyph folds the sign into its flip and keeps a positive size, which is the only size a
     // sprite draws at. A flipped glyph's position is its mirrored left edge.

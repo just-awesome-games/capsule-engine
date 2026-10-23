@@ -3,14 +3,19 @@ using Capsule.Assets;
 namespace Capsule.Rendering;
 
 // What a Label's layout depends on besides the text itself. Box is the box width in font pixels where the
-// label's X extent is positive, and -1 where the run sets its own width.
+// label's X extent is positive, and -1 where the run sets its own width. Exclusion is the rect the lines flow
+// around, in font pixels from the box's top-left, and null wherever the label's settings leave it no effect.
 internal readonly record struct LabelLayoutKey(
     int TextVersion,
     BitmapFont Font,
     int Box,
     TextWrap Wrap,
     HorizontalAlignment Alignment,
-    bool Rich);
+    bool Rich,
+    int FirstLine,
+    int? MaxLines,
+    int LineSpacing,
+    Rect? Exclusion);
 
 // Where one glyph of a laid-out label sits, in font pixels from the run's origin, and the span colour it takes.
 internal readonly record struct LabelGlyph(int Page, TextureRegion Region, int X, int Y, int Index, ColorRgba Tint);
@@ -26,11 +31,18 @@ internal sealed class LabelLayout
     private ColorRun[] _runs = [];
     private ColorRgba[] _stack = [];
     private LabelGlyph[] _glyphs = [];
+    private int[] _lineStarts = [];
     private int _length;
     private int _codepoints;
     private int _runCount;
     private int _depth;
     private int _glyphCount;
+
+    // The whole text's line starts are walked on the first read after a rebuild. A label that never asks
+    // pays nothing for them.
+    private bool _linesWalked;
+    private int _lineCount;
+    private int _codepointCount;
 
     // Whether the last char put was a high surrogate still waiting for its low half, which then adds no codepoint.
     private bool _openHigh;
@@ -48,6 +60,24 @@ internal sealed class LabelLayout
 
     internal ReadOnlySpan<LabelGlyph> Glyphs => _glyphs.AsSpan(0, _glyphCount);
 
+    // The lines the whole text lays out to, up to the last that draws, whatever the window.
+    // text is the source the layout was last updated with.
+    internal int LineCount(ReadOnlySpan<char> text)
+    {
+        WalkLines(text);
+
+        return _lineCount;
+    }
+
+    // The codepoint index, markup excluded, of the line's first codepoint, and the text's codepoint count at
+    // or past LineCount.
+    internal int LineStart(ReadOnlySpan<char> text, int line)
+    {
+        WalkLines(text);
+
+        return line < _lineCount ? _lineStarts[line] : _codepointCount;
+    }
+
     internal void Update(ReadOnlySpan<char> text, in LabelLayoutKey key)
     {
         if (!_built || !key.Equals(_key))
@@ -62,6 +92,7 @@ internal sealed class LabelLayout
         _key = key;
         _glyphCount = 0;
         _runCount = 0;
+        _linesWalked = false;
 
         ReadOnlySpan<char> shown = text;
         if (key.Rich)
@@ -82,19 +113,24 @@ internal sealed class LabelLayout
 
         if (!left)
         {
-            (width, lines) = GlyphRun.Extent(font, shown, key.Wrap == TextWrap.Word ? given : 0, TextWrap.Word);
+            (width, lines) = GlyphRun.Extent(font, shown, key.Wrap == TextWrap.Word ? given : 0, TextWrap.Word, key.FirstLine, key.MaxLines, Exclusion(in key));
             box = key.Box >= 0 ? key.Box : width;
         }
 
         IsEmpty = shown.IsEmpty;
 
+        int pitch = font.LineHeight + key.LineSpacing;
         int cursor = 0;
-        foreach (GlyphPlacement placed in new GlyphRun(font, shown, box, key.Wrap, key.Alignment))
+        // An unsized box only aligns. Wrapping at the window's width would break lines outside the window.
+        TextWrap wrap = key.Box >= 0 ? key.Wrap : TextWrap.None;
+
+        foreach (GlyphPlacement placed in new GlyphRun(font, shown, box, wrap, key.Alignment, key.FirstLine, key.MaxLines, Exclusion(in key)))
         {
+            int line = placed.Line - key.FirstLine;
             if (left)
             {
                 width = Math.Max(width, placed.PenX + placed.Glyph.XAdvance);
-                lines = Math.Max(lines, placed.Line + 1);
+                lines = Math.Max(lines, line + 1);
             }
 
             Glyph glyph = placed.Glyph;
@@ -102,14 +138,52 @@ internal sealed class LabelLayout
                 glyph.Page,
                 glyph.Region,
                 placed.PenX + glyph.XOffset,
-                (placed.Line * font.LineHeight) + glyph.YOffset,
+                (line * pitch) + glyph.YOffset,
                 placed.Index,
                 TintAt(placed.Index, ref cursor)));
         }
 
         Width = width;
-        Height = lines * font.LineHeight;
+        Height = lines > 0 ? (lines * font.LineHeight) + ((lines - 1) * key.LineSpacing) : 0;
     }
+
+    // Walks the whole text's lines, with the box and wrap the glyphs were laid out under, and no window.
+    private void WalkLines(ReadOnlySpan<char> text)
+    {
+        if (_linesWalked)
+        {
+            return;
+        }
+
+        _linesWalked = true;
+        _lineCount = 0;
+
+        ReadOnlySpan<char> shown = _key.Rich ? _chars.AsSpan(0, _length) : text;
+        int box = Math.Max(_key.Box, 0);
+        GlyphRun run = new(_key.Font, shown, box, _key.Wrap, HorizontalAlignment.Left, 0, null, Exclusion(in _key));
+
+        int count = 0;
+        while (run.MoveNextLine(out int start, out bool draws))
+        {
+            if (count == _lineStarts.Length)
+            {
+                Array.Resize(ref _lineStarts, Math.Max(8, count * 2));
+            }
+
+            _lineStarts[count++] = start;
+            if (draws)
+            {
+                _lineCount = count;
+            }
+        }
+
+        run.MoveNextLine(out _codepointCount, out _);
+    }
+
+    // The key's exclusion as the layout walks it. Its rows repeat every MaxLines lines, one page each.
+    private static TextExclusion? Exclusion(in LabelLayoutKey key) => key.Exclusion is { } area
+        ? new TextExclusion(area, key.Font.LineHeight + key.LineSpacing, key.Font.LineHeight, key.MaxLines ?? 0)
+        : null;
 
     // Strips the markup into _chars and records the colour runs it asked for.
     private void Parse(ReadOnlySpan<char> source)

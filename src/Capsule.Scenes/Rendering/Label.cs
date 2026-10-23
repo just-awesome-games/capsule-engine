@@ -143,6 +143,106 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// </remarks>
     public int? VisibleCharacters { get; set; }
 
+    /// <summary>The first laid-out line drawn, at the box's top. Zero by default, which draws from the first line.</summary>
+    /// <remarks>
+    /// With <see cref="MaxLines"/> it windows the run, and measures and alignment cover only the window.
+    /// <see cref="VisibleCharacters"/> still counts from the start of <see cref="Text"/>. A page reveals
+    /// from <see cref="LineStart"/> of its first line.
+    /// </remarks>
+    /// <example>
+    /// Typing one page, then turning to the next:
+    /// <code>
+    /// int end = label.LineStart(label.FirstLine + label.MaxLines!.Value);
+    /// for (int shown = label.LineStart(label.FirstLine) + 1; shown &lt;= end; shown++)
+    /// {
+    ///     label.VisibleCharacters = shown;
+    ///     yield return Wait.Ticks(2);
+    /// }
+    ///
+    /// label.FirstLine += label.MaxLines.Value;
+    /// </code>
+    /// </example>
+    public int FirstLine
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            field = value;
+        }
+    }
+
+    /// <summary>How many lines from <see cref="FirstLine"/> draw, or null, the default, to draw every line from it.</summary>
+    public int? MaxLines
+    {
+        get;
+        set
+        {
+            if (value is { } max)
+            {
+                ArgumentOutOfRangeException.ThrowIfNegativeOrZero(max, nameof(value));
+            }
+
+            field = value;
+        }
+    }
+
+    /// <summary>
+    /// Font pixels added between one line and the next, before the entity's scale. Zero by default, which
+    /// sets lines <see cref="BitmapFont.LineHeight"/> apart, and negative is refused.
+    /// </summary>
+    /// <remarks><see cref="ContentSize"/> and an unsized box include it, between lines and never below the last.</remarks>
+    public int LineSpacing
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            field = value;
+        }
+    }
+
+    /// <summary>
+    /// A rect the lines flow around, in the box's own units from its top-left corner, or null, the
+    /// default, for lines that span the box.
+    /// </summary>
+    /// <remarks>
+    /// Rows run down from the box's top at the line pitch. A line whose row overlaps the rect wraps in the
+    /// wider side the rect leaves, the left on a tie, and aligns within it. A row with no side left holds
+    /// an empty line. With <see cref="MaxLines"/> the rect stands on every page, line L in row L modulo
+    /// <see cref="MaxLines"/>. Turning a page never reflows. It shapes only a word-wrapped,
+    /// top-aligned label with a box of positive width, and a rect that leaves no room on any row of a
+    /// page shapes nothing.
+    /// </remarks>
+    public Rect? Exclusion { get; set; }
+
+    /// <summary>
+    /// The lines the whole of <see cref="Text"/> lays out to in the box, wraps and <c>\n</c> breaks
+    /// included, whatever <see cref="FirstLine"/> and <see cref="MaxLines"/> say.
+    /// </summary>
+    /// <remarks>
+    /// It counts up to the last line that draws a glyph. A trailing blank line is not counted. Reading it
+    /// lays the run out under the entity's current scale and box, and at unit scale on no entity.
+    /// </remarks>
+    public int LineCount => Laid(LayoutScale, out _, out _).LineCount(_memory.Span);
+
+    /// <summary>
+    /// Where <paramref name="line"/> starts, as a count of <see cref="VisibleCharacters"/> that draws every
+    /// line before it and none of its own.
+    /// </summary>
+    /// <remarks>
+    /// A line a wrap broke at a space starts after the space, and one after a <c>\n</c> after the break. A
+    /// line at or past <see cref="LineCount"/> returns the codepoint count of the whole text, which draws
+    /// everything. With <see cref="RichText"/> no tag is counted.
+    /// </remarks>
+    /// <param name="line">A laid-out line, counted from the first line of the text.</param>
+    public int LineStart(int line)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(line);
+
+        return Laid(LayoutScale, out _, out _).LineStart(_memory.Span, line);
+    }
+
     /// <summary>Whether <see cref="Text"/> is read as markup, defaulting to false to draw it exactly as written.</summary>
     /// <remarks>
     /// <c>[color=#rrggbb]...[/color]</c> tints the glyphs between the tags, and <c>#rrggbbaa</c> adds an
@@ -172,8 +272,9 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// </summary>
     /// <remarks>
     /// The layout is kept until the text, the font, the box width, <see cref="Wrap"/>,
-    /// <see cref="HorizontalAlignment"/> or <see cref="RichText"/> changes, in the space and under the
-    /// rules <see cref="Renderer.Bounds"/> states.
+    /// <see cref="HorizontalAlignment"/>, <see cref="RichText"/>, the line window or
+    /// <see cref="LineSpacing"/> changes, in the space and under the rules <see cref="Renderer.Bounds"/>
+    /// states.
     /// </remarks>
     public override Rect Bounds
     {
@@ -196,8 +297,9 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// when it draws nothing.
     /// </summary>
     /// <remarks>
-    /// It ignores the box. A parent can fit itself to what a label filling it draws, or place something
-    /// where the text ends.
+    /// It ignores the box and counts only the lines <see cref="FirstLine"/> and <see cref="MaxLines"/>
+    /// draw. A parent can fit itself to what a label filling it draws, or place something where the text
+    /// ends.
     /// </remarks>
     public Vector2 ContentSize
     {
@@ -289,13 +391,20 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
             size.X > 0f ? TextBox.WrapWidth(size.X, scale.X) : -1,
             Wrap,
             HorizontalAlignment,
-            RichText);
+            RichText,
+            FirstLine,
+            MaxLines,
+            LineSpacing,
+            Exclusion is { } area && Wrap == TextWrap.Word && VerticalAlignment == VerticalAlignment.Top && size.X > 0f ? area : null);
 
         _layout ??= new LabelLayout();
         _layout.Update(_memory.Span, in key);
 
         return _layout;
     }
+
+    // The scale a line query lays the run out at, which is the one the next draw uses.
+    private Vector2 LayoutScale => Entity is null ? Vector2.One : Vector2.Abs(RenderTransform.Scale);
 
     // Lays the run out and places it as an unmirrored scale would, then mirrors the placed box and the pen start
     // about position on each axis the scale turns negative. size is the box in the drawn space's units.
@@ -339,5 +448,12 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         panel.Field("HorizontalAlignment", HorizontalAlignment);
         panel.Field("VerticalAlignment", VerticalAlignment);
         panel.Field("VisibleCharacters", VisibleCharacters?.ToString(CultureInfo.InvariantCulture));
+        panel.Field("FirstLine", FirstLine);
+        panel.Field("MaxLines", MaxLines?.ToString(CultureInfo.InvariantCulture));
+        panel.Field("LineSpacing", LineSpacing);
+        if (Exclusion is { } exclusion)
+        {
+            panel.Field("Exclusion", exclusion);
+        }
     }
 }
