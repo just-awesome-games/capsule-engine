@@ -54,18 +54,15 @@ internal sealed class SoundDevice : IAudioBackend
         _follower?.Update(elapsedSeconds);
     }
 
-    // A clip with a loop region is decoded here from the bytes just read. Its first looping play then
-    // reads no file and decodes nothing on the game thread.
+    // The shipped FLAC is decoded here, off the game thread. A clip with a loop region is also decoded
+    // to its samples here. Its first looping play then reads no file and decodes nothing on the game
+    // thread.
     public ResidentFile Read(in AudioClip clip)
     {
-        using Stream file = AudioFiles.Open(_platform, clip);
-        MemoryStream bytes = file.CanSeek ? new((int)file.Length) : new();
-        file.CopyTo(bytes);
-        PcmAudio? samples = clip.LoopRegion.HasRegion
-            ? PcmAudio.FromWav(bytes.GetBuffer().AsSpan(0, (int)bytes.Length), clip.Name)
-            : null;
+        byte[] wave = AudioFiles.ReadWave(_platform, clip);
+        PcmAudio? samples = clip.LoopRegion.HasRegion ? PcmAudio.FromWav(wave, clip.Name) : null;
 
-        return new ResidentFile(bytes, samples);
+        return new ResidentFile(new MemoryStream(wave, writable: false), samples);
     }
 
     public IResidentSound Load(in AudioClip clip, ResidentFile file)

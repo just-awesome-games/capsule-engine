@@ -22,30 +22,9 @@ internal sealed class PcmAudio(float[] samples, int channels, int sampleRate)
     // Interleaved and normalised. A cursor reads them in place and never copies.
     internal ReadOnlySpan<float> Samples => samples;
 
-    // Reads all of wav and disposes it. A shipped WAV is usually 16-bit PCM. 8-bit unsigned, 24-bit PCM
-    // and 32-bit IEEE float are the other shapes SoundEffect accepts and the build's probe admits.
-    internal static PcmAudio FromWav(Stream wav, string clipName)
-    {
-        byte[] file;
-        using (wav)
-        {
-            if (wav.CanSeek)
-            {
-                file = new byte[wav.Length];
-                wav.ReadExactly(file);
-            }
-            else
-            {
-                using MemoryStream copy = new();
-                wav.CopyTo(copy);
-                file = copy.ToArray();
-            }
-        }
-
-        return FromWav(file, clipName);
-    }
-
-    // Decodes a WAV file already in memory, which leaves the bytes with the caller.
+    // Decodes a WAVE file already in memory, which leaves the bytes with the caller. A clip's WAVE is
+    // usually 16-bit PCM. 8-bit unsigned, 24- and 32-bit PCM and 32-bit IEEE float are the other
+    // shapes the build's probe admits.
     internal static PcmAudio FromWav(ReadOnlySpan<byte> bytes, string clipName)
     {
         if (bytes.Length < 12 || !Is(bytes[..4], "RIFF") || !Is(bytes[8..12], "WAVE"))

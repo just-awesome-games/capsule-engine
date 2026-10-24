@@ -36,7 +36,7 @@ internal sealed class ResidentSoundEffect(
     // that format.
     public IAudioVoice Stream(float gain, float pitch, float pan, bool loop, double startSeconds, Action ended)
     {
-        _samples ??= PcmAudio.FromWav(AudioFiles.Open(platform, clip), clip.Name);
+        _samples ??= PcmAudio.FromWav(AudioFiles.ReadWave(platform, clip), clip.Name);
 
         return streamer.Play(_samples, clip, gain, pitch, pan, loop, startSeconds, ended);
     }

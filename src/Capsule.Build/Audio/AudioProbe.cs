@@ -13,7 +13,8 @@ internal static class AudioProbe
     /// <summary>What the build reads out of one source's container.</summary>
     /// <param name="DurationSeconds">Seconds the source runs at unit pitch.</param>
     /// <param name="Loop">The region the source authors, or <see cref="AudioLoopRegion.None"/>.</param>
-    internal readonly record struct Measurement(double DurationSeconds, AudioLoopRegion Loop);
+    /// <param name="FloatSamples">Whether the source is a WAVE of float samples, which ships as authored instead of as FLAC.</param>
+    internal readonly record struct Measurement(double DurationSeconds, AudioLoopRegion Loop, bool FloatSamples = false);
 
     /// <summary>Measures <paramref name="path"/>.</summary>
     /// <exception cref="FormatException">

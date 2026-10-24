@@ -44,6 +44,8 @@ internal sealed class AssetIndex
         Keys(data, "Sound", sounds.Select(static sound => sound.Path));
         Doubles(data, "SoundDurations", sounds.Select(static sound => sound.Measured.DurationSeconds));
         Doubles(data, "SoundLoops", sounds.SelectMany(static sound => new[] { sound.Measured.Loop.StartSeconds, sound.Measured.Loop.EndSeconds }));
+        data.AppendLine().Append("        private static global::System.ReadOnlySpan<bool> SoundFloats => [")
+            .AppendJoin(", ", sounds.Select(static sound => sound.Measured.FloatSamples ? "true" : "false")).AppendLine("];");
         Keys(data, "Scene", scenes);
 
         return $$"""
@@ -79,7 +81,8 @@ internal sealed class AssetIndex
                             path[..dot],
                             path[dot..],
                             SoundDurations[index],
-                            new {{GeneratedTypes.AudioLoopRegion}}(SoundLoops[index * 2], SoundLoops[(index * 2) + 1]));
+                            new {{GeneratedTypes.AudioLoopRegion}}(SoundLoops[index * 2], SoundLoops[(index * 2) + 1]),
+                            SoundFloats[index]);
                     }
 
                     /// <summary>The scene document <paramref name="key"/> names, or null for one the game does not ship.</summary>

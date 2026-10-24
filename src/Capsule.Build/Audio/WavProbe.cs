@@ -15,9 +15,23 @@ internal static class WavProbe
     // The 'fmt ' body an extensible file carries through the sub-format's first two bytes.
     private const int ExtensibleFormatBytes = 26;
 
-    // RIFF: a 12-byte header, then 'id' + little-endian size + payload padded to an even length.
-    // Only 'fmt ', 'data' and 'smpl' are read, and every other chunk is skipped.
+    // The format tag of IEEE float samples. 1 is integer PCM.
+    private const int FloatTag = 3;
+
     internal static Measurement Measure(FileStream stream)
+    {
+        Layout wave = Locate(stream);
+
+        return new Measurement(
+            wave.Frames / (double)wave.Rate,
+            Region(wave.LoopStart, wave.LoopEnd, wave.Frames, wave.Rate),
+            FloatSamples: wave.Tag == FloatTag);
+    }
+
+    // RIFF: a 12-byte header, then 'id' + little-endian size + payload padded to an even length.
+    // Only 'fmt ', 'data' and 'smpl' are read, and every other chunk is skipped. Refuses every shape
+    // Measure refuses, and leaves the stream at its end.
+    internal static Layout Locate(FileStream stream)
     {
         Span<byte> riff = stackalloc byte[12];
         Read(stream, riff);
@@ -35,6 +49,7 @@ internal static class WavProbe
         int bits = 0;
         uint rate = 0;
         long dataBytes = -1;
+        long dataOffset = 0;
         long? loopStart = null;
         long? loopEnd = null;
 
@@ -72,6 +87,7 @@ internal static class WavProbe
             else if (Is(chunk[..4], "data"))
             {
                 dataBytes = size;
+                dataOffset = stream.Position;
             }
             else if (Is(chunk[..4], "smpl"))
             {
@@ -105,9 +121,7 @@ internal static class WavProbe
             throw new FormatException("carries no 'data' chunk, and its length cannot be measured. Export the file again.");
         }
 
-        long frames = dataBytes / (channels * (bits / 8));
-
-        return new Measurement(frames / (double)rate, Region(loopStart, loopEnd, frames, rate));
+        return new Layout(tag, channels, bits, rate, dataOffset, dataBytes / (channels * (bits / 8)), loopStart, loopEnd);
     }
 
     // The format tag an extensible 'fmt ' body's sub-format names, read with the stream past the body's
@@ -161,4 +175,23 @@ internal static class WavProbe
         start = BinaryPrimitives.ReadUInt32LittleEndian(loop[8..]);
         end = BinaryPrimitives.ReadUInt32LittleEndian(loop[12..]) + 1L;
     }
+
+    /// <summary>Where a source's samples sit and what shape they are, as <see cref="Locate"/> found them.</summary>
+    /// <param name="Tag">1 for integer PCM, 3 for IEEE float.</param>
+    /// <param name="Channels">1 or 2.</param>
+    /// <param name="Bits">8, 16, 24 or 32. 8-bit samples are unsigned.</param>
+    /// <param name="Rate">Frames per second, above zero.</param>
+    /// <param name="DataOffset">Where the 'data' chunk's samples begin in the file.</param>
+    /// <param name="Frames">Whole frames the 'data' chunk holds. A trailing partial frame is not one.</param>
+    /// <param name="LoopStart">The first 'smpl' loop's first sample, or null.</param>
+    /// <param name="LoopEnd">The sample one past the first 'smpl' loop's last, or null.</param>
+    internal readonly record struct Layout(
+        int Tag,
+        int Channels,
+        int Bits,
+        uint Rate,
+        long DataOffset,
+        long Frames,
+        long? LoopStart,
+        long? LoopEnd);
 }

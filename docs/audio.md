@@ -87,6 +87,7 @@ A fade raises no completion callback. A game that changes scene once the music h
 
 ## Formats and streaming
 
-A short sound effect is a `.wav`, held resident for every scene that uses it. Music and long ambience
-are `.ogg`, decoded on a background worker as they play. A looping voice whose clip carries a loop region
+A short sound effect is a `.wav`. It ships as lossless FLAC ([`assets.md`](assets.md#audio)), is decoded
+when it loads, and is held resident for every scene that uses it. Music and long ambience are `.ogg`,
+decoded on a background worker as they play. A looping voice whose clip carries a loop region
 streams in either format and repeats the region gaplessly.

@@ -204,7 +204,12 @@ silently and logs that once.
 On Windows the native link needs the MSVC Build Tools with the C++ workload, and a Build Tools-only install
 also needs `C:\Program Files (x86)\Microsoft Visual Studio\Installer` on `PATH`.
 
-A publish holds no `.pdb`. A NativeAOT publish defaults `StackTraceSupport` to `false` and
+A shell's publish carries a `licenses/` folder: Capsule's license, its third-party notices for what Capsule carries and a
+game redistributes, OpenAL Soft's corresponding source in `licenses/openal-soft-source/`, which its license, the LGPL
+version 2, asks to travel with `openal.dll`, and, when the runtime ships with the game, the .NET runtime's license and
+notices.
+
+A publish holds no `.pdb`, and a NativeAOT executable names its `.pdb` by file name alone, with no build-machine path. A NativeAOT publish defaults `StackTraceSupport` to `false` and
 `UseSystemResourceKeys` to `true`, which a project can set back. Its symbols go to
 `CapsuleSymbolsDirectory`. A crash log's frames then read `MyGame!<BaseAddress>+0x296cd`. To decode one,
 copy the shipped executable into the symbols directory and run

@@ -37,20 +37,16 @@ internal sealed partial class PluralRules
     internal string Locale { get; }
 
     /// <summary>The categories a plural text in this language must provide: every one a count up to <see cref="RequiredUpTo"/> selects, and other.</summary>
-    internal PluralCategory[] Required { get; }
+    /// <remarks>
+    /// Settled on first read. Every build loads all of CLDR's locales and reads this for a game's few.
+    /// </remarks>
+    internal PluralCategory[] Required => field ??= SelectedUpTo(RequiredUpTo);
 
     private PluralRules(string locale, (PluralCategory, Relation[][])[] rules, Dictionary<PluralCategory, string[]> samples)
     {
         Locale = locale;
         _rules = rules;
         _samples = samples;
-        HashSet<PluralCategory> required = [PluralCategory.Other];
-        for (ulong n = 0; n <= RequiredUpTo; n++)
-        {
-            required.Add(Select(n));
-        }
-
-        Required = [.. required.Order()];
     }
 
     /// <summary>Every CLDR locale's rules, keyed by its tag.</summary>
@@ -171,6 +167,18 @@ internal sealed partial class PluralRules
         }
 
         code.Append(indent).AppendLine("return global::Capsule.Localization.PluralCategory.Other;");
+    }
+
+    // Other, and every category a count up to last selects, in category order.
+    private PluralCategory[] SelectedUpTo(int last)
+    {
+        HashSet<PluralCategory> selected = [PluralCategory.Other];
+        for (ulong n = 0; n <= (ulong)last; n++)
+        {
+            selected.Add(Select(n));
+        }
+
+        return [.. selected.Order()];
     }
 
     private static Dictionary<string, PluralRules> Load()

@@ -9,7 +9,7 @@ internal static class AudioMembers
 {
     internal static void Write(StringBuilder code, string indent, string identifier, Source audio, AudioProbe.Measurement measured)
     {
-        (double duration, AudioLoopRegion loop) = measured;
+        (double duration, AudioLoopRegion loop, bool floatSamples) = measured;
 
         code.Append(indent).Append("/// <summary><c>").Append(audio.Key)
             .Append(audio.Extension).Append("</c>, ").Append(Literal.Number(duration)).Append(" seconds long");
@@ -30,6 +30,16 @@ internal static class AudioMembers
         {
             code.Append(", new ").Append(GeneratedTypes.AudioLoopRegion).Append('(').Append(Literal.Of(loop.StartSeconds))
                 .Append(", ").Append(Literal.Of(loop.EndSeconds)).Append(')');
+        }
+        else if (floatSamples)
+        {
+            code.Append(", default");
+        }
+
+        // Only a float WAV says so. Every other clip's shipped form follows from its extension.
+        if (floatSamples)
+        {
+            code.Append(", floatSamples: true");
         }
 
         code.AppendLine(");");

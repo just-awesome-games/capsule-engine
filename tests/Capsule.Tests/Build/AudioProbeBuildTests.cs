@@ -72,6 +72,6 @@ public sealed class AudioProbeBuildTests
             generated,
             StringComparison.Ordinal);
         Assert.Contains("0.1 seconds long, looping 0.02 to ", generated, StringComparison.Ordinal);
-        Assert.Equal(["audio/music/theme.wav", "audio/steps/stone.wav"], workspace.Shipped);
+        Assert.Equal(["audio/music/theme.flac", "audio/steps/stone.flac"], workspace.Shipped);
     }
 }

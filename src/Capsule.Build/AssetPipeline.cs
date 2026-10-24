@@ -113,7 +113,7 @@ internal static class AssetPipeline
                 TextureSettingsStep.Run(pass);  // .config.json files, FontPages, Atlases -> TextureSettings
                 AtlasStep.Run(pass);            // TextureSettings, Atlases -> atlas pages, TextureMap
                 TextureStep.Run(pass);          // .png sources, TextureSettings -> unpacked textures, TextureMap facts, texture members
-                AudioStep.Run(pass);            // .ogg and .wav sources -> shipped copies, sound members
+                AudioStep.Run(pass);            // .ogg and .wav sources -> .flac encodings or copies, sound members
                 SheetStep.Run(pass);            // .sheet.json sources, the textures -> sheet members
                 ClipStep.Run(pass);             // .clip.json sources -> clip members
                 ShaderStep.Run(pass);           // .fx sources -> .mgfx effects, shader members

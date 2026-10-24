@@ -12,6 +12,12 @@
     <UseSystemResourceKeys Condition="'$(UseSystemResourceKeys)' == ''">true</UseSystemResourceKeys>
   </PropertyGroup>
 
+  <!-- The executable names its pdb by file name alone, never the build machine's path. The pdb's
+       signature, which a crash decodes against, is unchanged. -->
+  <ItemGroup Condition="'$(CapsuleGameShell)' == 'true' and '$(PublishAot)' == 'true' and '$(OS)' == 'Windows_NT'">
+    <LinkerArg Include="/PDBALTPATH:%25_PDB%25" />
+  </ItemGroup>
+
   <!-- Symbols are generated as usual and never copied into the publish directory, and neither is
        reference documentation. Imported after the SDK defaults, and command-line overrides still win. -->
   <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
@@ -43,6 +49,26 @@
       <_CapsulePublishSymbol Include="@(_DebugSymbolsIntermediatePath)" Condition="'$(_DebugSymbolsProduced)' == 'true'">
         <RelativePath>%(Filename)%(Extension)</RelativePath>
       </_CapsulePublishSymbol>
+    </ItemGroup>
+  </Target>
+
+  <!-- The licenses a player's copy carries: Capsule's own, the notices of what Capsule carries and
+       redistributes, OpenAL Soft's corresponding source, which its LGPL asks to travel with openal.dll, and,
+       when the runtime ships with the game, the .NET runtime's from its runtime pack. Capsule's files sit
+       beside the imported hooks' parent in source and package modes. -->
+  <Target Name="CapsulePublishLicenses"
+          Condition="'$(CapsuleGameShell)' == 'true'"
+          AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <_CapsuleLicense Include="$(MSBuildThisFileDirectory)../LICENSE" RelativePath="licenses/LICENSE-Capsule.txt" />
+      <_CapsuleLicense Include="$(MSBuildThisFileDirectory)../THIRD-PARTY-NOTICES.md" RelativePath="licenses/THIRD-PARTY-NOTICES-Capsule.md" />
+      <_CapsuleOpenAlSource Include="$(MSBuildThisFileDirectory)sources/openal-soft/*.tar.gz" />
+      <_CapsuleLicense Include="@(_CapsuleOpenAlSource)" RelativePath="licenses/openal-soft-source/%(Filename)%(Extension)" />
+      <_CapsuleRuntimePack Include="@(ResolvedRuntimePack)"
+                           Condition="'%(FrameworkName)' == 'Microsoft.NETCore.App' and ('$(SelfContained)' == 'true' or '$(PublishAot)' == 'true')" />
+      <_CapsuleLicense Include="@(_CapsuleRuntimePack->'%(PackageDirectory)/LICENSE.TXT')" RelativePath="licenses/LICENSE-dotnet.txt" />
+      <_CapsuleLicense Include="@(_CapsuleRuntimePack->'%(PackageDirectory)/THIRD-PARTY-NOTICES.TXT')" RelativePath="licenses/THIRD-PARTY-NOTICES-dotnet.txt" />
+      <ResolvedFileToPublish Include="@(_CapsuleLicense)" CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
   </Target>
 

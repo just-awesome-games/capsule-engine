@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Capsule.Rendering;
 
 /// <summary>A straight (non-premultiplied) 8-bit-per-channel colour.</summary>
@@ -106,6 +108,8 @@ public readonly partial record struct ColorRgba(byte R, byte G, byte B, byte A)
     private static int HexDigit(char digit) => digit <= '9' ? digit - '0' : (digit | 0x20) - 'a' + 10;
 
     // The result stays within [0, 255] for any t in (0, 1). Rounding is the only conversion needed.
+    // Inlined because a particle's colour lerps every frame, and four calls cost more than the arithmetic.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static byte Channel(byte from, byte to, float t) =>
         (byte)MathF.Round(from + ((to - from) * t), MidpointRounding.AwayFromZero);
 }

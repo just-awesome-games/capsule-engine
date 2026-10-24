@@ -35,8 +35,8 @@ path `assets/props/crate.png`. `Stage1`, `stage1` and `stage-1` are one segment,
 sees keys only. A document names an asset by key and extension, as `"props/crate.png"`, in any spelling of
 the key. Two files of one type keying the same, such as `click.wav` and `click.ogg`, fail the build.
 
-What ships beside the executable is the same tree under `assets/`: a texture or sound as authored, and a
-scene document, shader or `r8` texture in its compiled form. A sheet, a value clip and a font's description
+What ships beside the executable is the same tree under `assets/`: a texture, an `.ogg` or a float `.wav`
+as authored, and a scene document, shader, `r8` texture or integer `.wav` in its compiled form. A sheet, a value clip and a font's description
 compile into the game and ship nothing.
 
 ## Textures
@@ -62,6 +62,11 @@ An importer converting another editor's sheets converts to those units.
 
 A sound is a `.wav` or an `.ogg`. The build measures each into an `AudioClip` carrying its duration and
 any loop region the file declares. Playing them is [`audio.md`](audio.md).
+
+A `.wav` of 8-, 16-, 24- or 32-bit integer samples ships as FLAC, `Audio/click.wav` as
+`assets/audio/click.flac`. FLAC is lossless, and the host decodes it to the source's exact samples when the
+clip loads. A `.wav` of float samples, which FLAC cannot carry, ships as authored. The clip keeps its
+`.wav` name in code and in scene documents.
 
 ## Fonts
 

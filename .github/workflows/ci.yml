@@ -138,6 +138,14 @@ jobs:
           -p:CapsuleSourcePath=
           -p:PublishAot=true
 
+      - name: The sample's publish carries its licenses
+        shell: bash
+        run: |
+          licenses=samples/MinimalGame/src/MinimalGame.Shell/bin/Release/net10.0/${{ matrix.runtime }}/publish/licenses
+          for file in LICENSE-Capsule.txt THIRD-PARTY-NOTICES-Capsule.md LICENSE-dotnet.txt THIRD-PARTY-NOTICES-dotnet.txt; do
+            test -s "$licenses/$file" || { echo "missing $licenses/$file"; exit 1; }
+          done
+
       - name: Publish the AOT smoke
         run: >
           dotnet publish tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj

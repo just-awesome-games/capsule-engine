@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Capsule.Diagnostics;
 using Capsule.Scenes;
 using Capsule.UI;
@@ -86,13 +87,23 @@ public abstract class Renderer : Component
     /// the transform, and its extent from its texels or size times the transform's scale. A renderer
     /// built this way places itself correctly on either layer.
     /// </remarks>
-    protected Transform2D RenderTransform => Entity is { } entity ? Placed(entity.World, entity) : Transform2D.Identity;
+    protected Transform2D RenderTransform
+    {
+        // Every Draw reads both transforms, and a call for each costs the frame build measurably once a
+        // renderer's Draw outgrows the JIT's inlining budget.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Entity is { } entity ? Placed(entity.World, entity) : Transform2D.Identity;
+    }
 
     /// <summary>
     /// <see cref="RenderTransform"/> as of the previous step, which an intent interpolates from. Reads
     /// <see cref="Transform2D.Identity"/> while attached to no entity.
     /// </summary>
-    protected Transform2D PreviousRenderTransform => Entity is { } entity ? PreviousPlaced(entity.PreviousWorld, entity) : Transform2D.Identity;
+    protected Transform2D PreviousRenderTransform
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Entity is { } entity ? PreviousPlaced(entity.PreviousWorld, entity) : Transform2D.Identity;
+    }
 
     private static Transform2D Placed(in Transform2D world, Entity entity) =>
         world.With(world.Position + entity.SpaceOrigin, world.Scale);

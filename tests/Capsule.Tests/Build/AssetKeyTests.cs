@@ -50,7 +50,7 @@ public sealed class AssetKeyTests
 
         workspace.Succeed();
 
-        Assert.Equal(["player/player.png", "player/step-soft.wav", "textures/enemies/bat.png"], workspace.Shipped);
+        Assert.Equal(["player/player.png", "player/step-soft.flac", "textures/enemies/bat.png"], workspace.Shipped);
         Assert.Contains("TextureHandle PlayerTexture => new global::Capsule.Assets.TextureHandle(\"player/player\", \".png\");", workspace.Generated, StringComparison.Ordinal);
         Assert.Contains("public static class PlayerSheet", workspace.Generated, StringComparison.Ordinal);
         Assert.Contains("AudioClip StepSoftSound =>", workspace.Generated, StringComparison.Ordinal);

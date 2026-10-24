@@ -407,6 +407,11 @@ public sealed class FrameView
             return;
         }
 
+        AddTiled(in sprite, tiling, space);
+    }
+
+    private void AddTiled(in SpriteIntent sprite, Vector2 tiling, RenderSpace space)
+    {
         // Negated comparisons refuse a NaN extent along with the negative ones. A turned sprite is refused
         // outright, because turning each copy about its own pivot is not tiling.
         if (!(tiling.X >= 0f) || !(tiling.Y >= 0f) ||

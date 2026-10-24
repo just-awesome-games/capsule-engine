@@ -6,8 +6,9 @@ namespace Capsule.Runtime.Audio;
 // Scene residency, retention and command translation are exercised with no device open.
 internal interface IAudioBackend : IDisposable
 {
-    // A resident clip's file read whole into memory, on any thread. Throws when the shipped file is
-    // missing, which is a build fault and not a device one.
+    // A resident clip's file read whole into memory as a WAVE file, decoding a shipped FLAC, on any
+    // thread. Throws when the shipped file is missing or malformed, which is a build fault and not a
+    // device one.
     ResidentFile Read(in AudioClip clip);
 
     // The sound for a resident clip from what Read returned, on the game thread. Throws when the file
@@ -19,8 +20,8 @@ internal interface IAudioBackend : IDisposable
     IAudioVoice Stream(in AudioClip clip, float gain, float pitch, float pan, bool loop, double startSeconds);
 }
 
-// A resident clip's bytes, plus its samples decoded on the same thread when its loop region means a
-// looping voice will stream them. Samples is null for a clip with no region.
+// A resident clip's WAVE file, plus its samples decoded on the same thread when its loop region means
+// a looping voice will stream them. Samples is null for a clip with no region.
 internal readonly record struct ResidentFile(MemoryStream Bytes, PcmAudio? Samples);
 
 // One clip held in memory for as long as a scene or a live voice wants it.
