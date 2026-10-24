@@ -458,18 +458,41 @@ public sealed partial class KinematicBody2D : Component
     /// <paramref name="from"/> away from its current place. All other rules of
     /// <see cref="TestMove(Vector2)"/> apply, and nothing moves to the offset.
     /// </summary>
-    public bool TestMove(Vector2 translation, Vector2 from)
-    {
-        CollisionWorld2D world = RequireSweepable(out Entity entity);
-        MoveResult2D result = world.Move(
-            world.ShapeOf(_collider.Handle),
-            Swept(entity) + from,
-            translation,
-            Filter,
-            default,
-            _collider.Handle);
+    public bool TestMove(Vector2 translation, Vector2 from) => Test(translation, from, default, out _).Blocked;
 
+    /// <summary>
+    /// Reports whether <see cref="Move(Vector2)"/> of <paramref name="translation"/> would be stopped short,
+    /// and what would stop it first. All other rules of <see cref="TestMove(Vector2)"/> apply.
+    /// </summary>
+    /// <param name="translation">The move to test, in world units.</param>
+    /// <param name="contact">
+    /// The surface that would first cut the move short, as <see cref="MoveContacts"/> describes one, or
+    /// default when nothing would.
+    /// </param>
+    /// <returns>Whether something would stop the move short.</returns>
+    public bool TestMove(Vector2 translation, out ColliderContact2D contact) =>
+        TestMove(translation, Vector2.Zero, out contact);
+
+    /// <summary>
+    /// Reports whether <paramref name="translation"/> would be stopped short if the body stood
+    /// <paramref name="from"/> away from its current place, and what would stop it first. All other rules
+    /// of <see cref="TestMove(Vector2, out ColliderContact2D)"/> apply, and nothing moves to the offset.
+    /// </summary>
+    public bool TestMove(Vector2 translation, Vector2 from, out ColliderContact2D contact)
+    {
+        MoveResult2D result = Test(translation, from, _found, out CollisionWorld2D world);
+
+        // A blocked move's first pass is the one cut short, and its nearest surface comes first.
+        contact = result.Blocked ? Collider2D.Describe(world, _found[0]) : default;
         return result.Blocked;
+    }
+
+    // Sweeps the body's own collider from from away, writing what it reaches into contacts, which may be empty.
+    private MoveResult2D Test(Vector2 translation, Vector2 from, Span<Contact2D> contacts, out CollisionWorld2D world)
+    {
+        world = RequireSweepable(out Entity entity);
+
+        return world.Move(world.ShapeOf(_collider.Handle), Swept(entity) + from, translation, Filter, contacts, _collider.Handle);
     }
 
     private MoveResult2D MoveWith(Vector2 translation, CollisionFilter blocking)

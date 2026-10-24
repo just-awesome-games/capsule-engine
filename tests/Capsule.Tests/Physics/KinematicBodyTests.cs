@@ -250,6 +250,24 @@ public sealed class KinematicBodyTests
         Assert.Equal(new Vector2(28f, 24f), body.Position);
     }
 
+    // The rise comes back with the cell that cuts it short, described as a move's contact is, and the free rise from the
+    // offset with no contact.
+    [Fact]
+    public void TestMove_WithAContact_ReportsWhatFirstStopsTheMove()
+    {
+        Scene scene = SceneFixtures.Terrain("##.#", "....", "####").Started();
+        SceneFixtures.Body body = new(new Vector2(28f, 24f), blocksOn: "solid");
+        scene.Add(body);
+
+        Assert.True(body.Mover.TestMove(new Vector2(0f, -12f), out ColliderContact2D ceiling));
+        Assert.Equal(new Vector2(0f, 1f), ceiling.Normal);
+        Assert.Equal((1, 0), (ceiling.Tile!.Value.X, ceiling.Tile.Value.Y));
+
+        Assert.False(body.Mover.TestMove(new Vector2(0f, -12f), new Vector2(4f, 0f), out ColliderContact2D free));
+        Assert.Null(free.Tile);
+        Assert.Equal(Vector2.Zero, free.Normal);
+    }
+
     // A surface exactly at MaxFloorAngle is a floor despite the rounding in its normal, and a degree
     // past it is a wall. Seen from below, the same two angles are a ceiling and a wall.
     [Theory]
