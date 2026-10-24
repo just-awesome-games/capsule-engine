@@ -77,6 +77,12 @@ internal sealed class ToolWorkspace : IDisposable
             texels[(i * 4) + 3] = 255;
         }
 
+        return WritePng(name, texels, width, height);
+    }
+
+    /// <summary>A PNG of straight-alpha RGBA <paramref name="texels"/>.</summary>
+    internal string WritePng(string name, byte[] texels, int width, int height)
+    {
         using MemoryStream png = new();
         PngWriter.Write(texels, width, height, 4, png);
 

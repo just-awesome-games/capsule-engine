@@ -35,6 +35,15 @@
     </ItemGroup>
   </Target>
 
+  <!-- The publish directory's assets/ is the asset build's alone and is replaced whole. The SDK deletes
+       only what its record of the last publish names, and that record lives in obj/. A record lost
+       with obj/ leaves an earlier publish's assets for an installer to ship. -->
+  <Target Name="CapsuleReplacePublishedAssets"
+          Condition="'$(CapsuleGameShell)' == 'true'"
+          AfterTargets="PrepareForPublish">
+    <RemoveDir Directories="$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(PublishDir)', 'assets'))" />
+  </Target>
+
   <!-- Reference symbols leave the publish list. They are the build's symbols in a managed publish,
        and describe no code in a native one, where the native pdb replaces them. -->
   <Target Name="CapsuleCollectPublishSymbols"

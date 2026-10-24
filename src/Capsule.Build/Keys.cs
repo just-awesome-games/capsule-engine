@@ -1,4 +1,5 @@
 using Capsule.Assets;
+using Capsule.Build.Icons;
 
 namespace Capsule.Build;
 
@@ -40,7 +41,8 @@ internal static class Keys
             try
             {
                 string below = Below(request.Root ?? pass.Requests.AssetRoot, request.Path);
-                if (IsUnder(pass.DevelopmentOnly, below))
+                // The application icon is no asset. IconStep reads it.
+                if (IsUnder(pass.DevelopmentOnly, below) || (request.Root is null && IconStep.IsIcon(below)))
                 {
                     continue;
                 }

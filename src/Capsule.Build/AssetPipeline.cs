@@ -3,6 +3,7 @@ using Capsule.Build.Audio;
 using Capsule.Build.Caching;
 using Capsule.Build.Clips;
 using Capsule.Build.Fonts;
+using Capsule.Build.Icons;
 using Capsule.Build.Registry;
 using Capsule.Build.Scenes;
 using Capsule.Build.Shaders;
@@ -18,8 +19,9 @@ namespace Capsule.Build;
 /// <remarks>
 /// It walks and keys every source, derives each type, and writes under the output directory:
 /// <c>assets/</c> holding exactly what the game ships, laid out as the game authored it,
-/// <c>CapsuleAssets.g.cs</c> declaring every asset, and <c>CapsuleStrings.g.cs</c> declaring every text
-/// when the game authors any. A run reports every authoring defect instead of stopping at the first. A second run over the same directory waits for it. Every build runs it,
+/// <c>CapsuleAssets.g.cs</c> declaring every asset, <c>CapsuleStrings.g.cs</c> declaring every text
+/// when the game authors any, and <c>icon/</c> holding the application icon pair when it authors an
+/// <c>Icon.png</c>. A run reports every authoring defect instead of stopping at the first. A second run over the same directory waits for it. Every build runs it,
 /// and its <see cref="DerivationCache"/> decides what runs again.
 /// </remarks>
 internal static class AssetPipeline
@@ -118,6 +120,7 @@ internal static class AssetPipeline
                 ClipStep.Run(pass);             // .clip.json sources -> clip members
                 ShaderStep.Run(pass);           // .fx sources -> .mgfx effects, shader members
                 SceneStep.Run(pass);            // .scene.json sources -> gzipped documents, scene members
+                IconStep.Run(pass);             // Icon.png at the asset root -> icon/Icon.ico, icon/Icon.bmp
                 string? strings = StringsStep.Run(pass); // .strings.json sources -> CapsuleStrings
 
                 // Shipped whatever failed, as every file the steps shipped already is.

@@ -3,15 +3,13 @@
   <!-- What the shell's executable carries: its icons and its application manifest. Everything here
        answers to the shell role. -->
   <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
-    <_CapsuleGameIcon>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', 'Icon.ico'))</_CapsuleGameIcon>
-    <_CapsuleGameWindowIcon>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', 'Icon.bmp'))</_CapsuleGameWindowIcon>
     <_CapsuleGameManifest>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', 'app.manifest'))</_CapsuleGameManifest>
     <!-- Defaults are beside the imported hooks in source and package modes. -->
     <_CapsuleDefaultIcon>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'Icon.ico'))</_CapsuleDefaultIcon>
     <_CapsuleDefaultWindowIcon>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'Icon.bmp'))</_CapsuleDefaultWindowIcon>
     <_CapsuleDefaultManifest>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'app.manifest'))</_CapsuleDefaultManifest>
 
-    <ApplicationIcon Condition="'$(ApplicationIcon)' == '' and Exists('$(_CapsuleGameIcon)')">$(_CapsuleGameIcon)</ApplicationIcon>
+    <!-- CapsuleApplicationIcon replaces the default with the icon a reference derived. -->
     <ApplicationIcon Condition="'$(ApplicationIcon)' == ''">$(_CapsuleDefaultIcon)</ApplicationIcon>
 
     <!-- The compiler's own default declares no display awareness. Windows stretches a window it draws. -->
@@ -19,31 +17,43 @@
     <ApplicationManifest Condition="'$(ApplicationManifest)' == ''">$(_CapsuleDefaultManifest)</ApplicationManifest>
   </PropertyGroup>
 
-  <Target Name="CapsuleIconInit"
+  <!-- The icon pair the logic library's build derived from its Icon.png, else Capsule's defaults. The
+       references are asked under the global properties ResolveProjectReferences built them with. The
+       call then reuses those builds and builds nothing again. -->
+  <Target Name="CapsuleApplicationIcon"
           Condition="'$(CapsuleGameShell)' == 'true'"
-          BeforeTargets="AssignTargetPaths">
+          DependsOnTargets="ResolveProjectReferences"
+          BeforeTargets="AssignTargetPaths;BeforeCompile;CoreCompile">
 
-    <!-- Read after the consumer's Directory.Build.targets has declared resources. -->
-    <PropertyGroup>
-      <_CapsuleGameDeclaredWindowIcon Condition="'@(EmbeddedResource->WithMetadataValue('LogicalName', 'Icon.bmp'))' != ''">true</_CapsuleGameDeclaredWindowIcon>
+    <MSBuild Projects="@(_MSBuildProjectReferenceExistent)"
+             Targets="CapsuleGetApplicationIcon"
+             BuildInParallel="$(BuildInParallel)"
+             Properties="%(_MSBuildProjectReferenceExistent.SetConfiguration); %(_MSBuildProjectReferenceExistent.SetPlatform); %(_MSBuildProjectReferenceExistent.SetTargetFramework)"
+             RemoveProperties="%(_MSBuildProjectReferenceExistent.GlobalPropertiesToRemove)$(_GlobalPropertiesToRemoveFromProjectReferences)"
+             SkipNonexistentTargets="true"
+             Condition="'@(_MSBuildProjectReferenceExistent)' != ''">
+      <Output TaskParameter="TargetOutputs" ItemName="_CapsuleDerivedIcon" />
+    </MSBuild>
+
+    <ItemGroup>
+      <_CapsuleIconSupplier Include="@(_CapsuleDerivedIcon->'%(MSBuildSourceProjectFile)'->Distinct())" />
+    </ItemGroup>
+    <Error Condition="'@(_CapsuleIconSupplier->Count())' &gt; '1'"
+           Text="Capsule: this shell's references @(_CapsuleIconSupplier, ' and ') each derive an application icon from an Icon.png. Keep the Icon.png of the game's logic library alone." />
+
+    <!-- A project's own ApplicationIcon stands. -->
+    <PropertyGroup Condition="'$(ApplicationIcon)' == '$(_CapsuleDefaultIcon)'">
+      <ApplicationIcon Condition="'@(_CapsuleDerivedIcon->WithMetadataValue('CapsuleIcon', 'Executable'))' != ''">@(_CapsuleDerivedIcon->WithMetadataValue('CapsuleIcon', 'Executable'))</ApplicationIcon>
     </PropertyGroup>
 
-    <ItemGroup Condition="'$(_CapsuleGameDeclaredWindowIcon)' != 'true'">
+    <ItemGroup>
+      <_CapsuleWindowIcon Include="@(_CapsuleDerivedIcon->WithMetadataValue('CapsuleIcon', 'Window'))" />
+      <_CapsuleWindowIcon Include="$(_CapsuleDefaultWindowIcon)" Condition="'@(_CapsuleWindowIcon)' == ''" />
       <!-- The backend requires the literal logical name Icon.bmp. -->
-      <EmbeddedResource Include="$(_CapsuleGameWindowIcon)"
+      <EmbeddedResource Include="@(_CapsuleWindowIcon)"
                         LogicalName="Icon.bmp"
-                        Visible="false"
-                        Condition="Exists('$(_CapsuleGameWindowIcon)')" />
-      <EmbeddedResource Include="$(_CapsuleDefaultWindowIcon)"
-                        LogicalName="Icon.bmp"
-                        Visible="false"
-                        Condition="!Exists('$(_CapsuleGameWindowIcon)')" />
+                        Visible="false" />
     </ItemGroup>
-
-    <Warning Condition="Exists('$(_CapsuleGameIcon)') and !Exists('$(_CapsuleGameWindowIcon)') and '$(_CapsuleGameDeclaredWindowIcon)' != 'true'"
-             Text="Capsule: this shell has an Icon.ico but no Icon.bmp. Its window and taskbar keep Capsule's default icon. Add a 128x128 32-bit uncompressed Icon.bmp beside the project, or remove Icon.ico to take both defaults." />
-    <Warning Condition="!Exists('$(_CapsuleGameIcon)') and Exists('$(_CapsuleGameWindowIcon)') and '$(ApplicationIcon)' == '$(_CapsuleDefaultIcon)'"
-             Text="Capsule: this shell has an Icon.bmp but no Icon.ico. Its executable keeps Capsule's default icon. Add an Icon.ico beside the project, or remove Icon.bmp to take both defaults." />
   </Target>
 
 </Project>

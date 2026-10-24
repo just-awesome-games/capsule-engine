@@ -18,6 +18,7 @@ An asset is a file under the logic project's `Assets/`. The build names each one
 | `.strings.json` | One language's [texts](localization.md) | Each key of the source language is a `CapsuleStrings` member, a `TextKey` |
 | `.config.json` | [Configuration](configuring-assets.md) of textures | Not named |
 | `.atlas.json` | An [atlas](configuring-assets.md#atlases) declaration | Not named |
+| `Icon.png` at the root | The [application icon](build-and-publish.md#application-icons-and-manifest), not a texture | Not named |
 
 One extension is one kind of asset. Variation within a kind is configuration.
 

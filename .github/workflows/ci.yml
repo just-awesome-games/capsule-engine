@@ -127,6 +127,14 @@ jobs:
           -p:CapsuleSourcePath=
           -p:PublishAot=true
 
+      # A fresh checkout holds no record of an earlier publish. The publish removes this asset anyway.
+      - name: Plant an asset no build ships in the sample's publish
+        shell: bash
+        run: |
+          stale=samples/MinimalGame/src/MinimalGame.Shell/bin/Release/net10.0/${{ matrix.runtime }}/publish/assets/stale/stale.png
+          mkdir -p "$(dirname "$stale")"
+          touch "$stale"
+
       # The shell publish verifies the complete game graph is ILC-analyzable.
       - name: Publish sample shell from local packages with NativeAOT
         run: >
@@ -145,6 +153,13 @@ jobs:
           for file in LICENSE-Capsule.txt THIRD-PARTY-NOTICES-Capsule.md LICENSE-dotnet.txt THIRD-PARTY-NOTICES-dotnet.txt; do
             test -s "$licenses/$file" || { echo "missing $licenses/$file"; exit 1; }
           done
+
+      - name: The sample's publish holds only the assets its build ships
+        shell: bash
+        run: |
+          assets=samples/MinimalGame/src/MinimalGame.Shell/bin/Release/net10.0/${{ matrix.runtime }}/publish/assets
+          test ! -e "$assets/stale" || { echo "an earlier publish's asset survived in $assets/stale"; exit 1; }
+          test -d "$assets" || { echo "missing $assets"; exit 1; }
 
       - name: Publish the AOT smoke
         run: >

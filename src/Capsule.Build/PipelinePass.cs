@@ -60,6 +60,9 @@ internal sealed class PipelinePass(string outputDirectory, CapsuleBuild configur
     /// <summary>Every file the importers wrote, laid out under <c>imported/</c> as though authored below the asset root.</summary>
     internal OutputFiles Imported { get; } = new(Path.Combine(outputDirectory, "imported"));
 
+    /// <summary>The application icon pair derived from the asset root's <c>Icon.png</c>, under <c>icon/</c>.</summary>
+    internal OutputFiles Icon { get; } = new(Path.Combine(outputDirectory, "icon"));
+
     /// <summary>The generated <c>CapsuleAssets</c> class every step declares its members on.</summary>
     internal CapsuleAssetsFile Assets { get; } = new();
 

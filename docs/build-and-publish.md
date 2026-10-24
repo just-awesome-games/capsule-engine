@@ -201,6 +201,9 @@ The publish directory carries the host's native libraries beside the executable:
 the window and input, `openal.dll` for sound. Without the sound library or an output device the run plays
 silently and logs that once.
 
+A publish replaces its directory's `assets/` whole. The folder never carries an asset the current build does
+not ship, whatever an earlier publish left there.
+
 On Windows the native link needs the MSVC Build Tools with the C++ workload, and a Build Tools-only install
 also needs `C:\Program Files (x86)\Microsoft Visual Studio\Installer` on `PATH`.
 
@@ -226,7 +229,7 @@ to the importing project unless a row says otherwise.
 | Property | Value | Effect |
 | --- | --- | --- |
 | `CapsuleGameLogic` | `true` | Enables game-boundary analysis, generates the scene, entity and asset registries, and turns `CapsuleBuildAssets` on. Set it on the substrate-free logic library. |
-| `CapsuleGameShell` | `true` | Generates `CapsuleBoot` and supplies the default application icons and manifest. Reads no authoring sources. Set it on the executable shell. |
+| `CapsuleGameShell` | `true` | Generates `CapsuleBoot`, takes the application icons its logic library derives, else Capsule's defaults, and supplies the default application manifest. Reads no authoring sources. Set it on the executable shell. |
 
 ### Authoring sources and output
 
@@ -250,27 +253,14 @@ to the importing project unless a row says otherwise.
 
 ### Application icons and manifest
 
-A shell with no configuration receives Capsule's executable and window icons and its application manifest.
-Override any of them beside the shell project:
+A game authors its icon once, as `Icon.png` at the root of its logic library's asset tree: square, and
+256x256 or larger. Pixel art scales up by a whole factor. The build derives the executable icon, sizes 16 to
+256, and the window and taskbar icon from it. The file is no texture: it gets no `CapsuleAssets` member and
+does not ship under `assets/`. A game that also draws it keeps a copy under its textures. Without one, the
+shell receives Capsule's icons.
 
 | Input | Effect |
 | --- | --- |
-| `Icon.ico` | Becomes the executable icon through the .NET `ApplicationIcon` property. |
-| `Icon.bmp` | Becomes the window and taskbar icon: a 128x128, 32-bit uncompressed BMP, alpha honoured. |
-| `ApplicationIcon` | Overrides the executable icon with any path the .NET SDK accepts. |
-| `EmbeddedResource` with `LogicalName="Icon.bmp"` | Overrides the window icon when the bitmap sits elsewhere. |
+| `ApplicationIcon` | Replaces the executable icon with a hand-made `.ico` at any path the .NET SDK accepts. |
 | `app.manifest` | Replaces Capsule's application manifest whole through the .NET `ApplicationManifest` property. Start from Capsule's `build/app.manifest`, whose per-monitor display awareness keeps Windows from stretching the window. |
 | `ApplicationManifest` | Overrides the application manifest with any path the .NET SDK accepts. |
-
-```xml
-<PropertyGroup>
-  <ApplicationIcon>branding/MyGame.ico</ApplicationIcon>
-</PropertyGroup>
-
-<ItemGroup>
-  <EmbeddedResource Include="branding/MyGame.bmp" LogicalName="Icon.bmp" />
-</ItemGroup>
-```
-
-Defining one half is allowed, and the build warns that the other half keeps Capsule branding. An `Icon.bmp`
-whose alpha is all zero reads as fully opaque.
