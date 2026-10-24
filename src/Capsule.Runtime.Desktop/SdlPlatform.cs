@@ -54,6 +54,20 @@ internal static class SdlPlatform
     internal static void WindowSize(nint window, out int width, out int height) =>
         SDL_GetWindowSize(window, out width, out height);
 
+    // The desktop extent in pixels of the display the window is on, or false when SDL cannot say.
+    internal static bool DisplayExtent(nint window, out int width, out int height)
+    {
+        int display = SDL_GetWindowDisplayIndex(window);
+        if (display < 0 || SDL_GetDesktopDisplayMode(display, out SdlDisplayMode mode) != 0)
+        {
+            (width, height) = (0, 0);
+            return false;
+        }
+
+        (width, height) = (mode.Width, mode.Height);
+        return true;
+    }
+
     // The operating system's preferred languages as BCP 47 tags, most preferred first. SDL answers before
     // it is initialised. A library older than 2.0.14 lacks the call, and it and a failed call yield none.
     internal static IReadOnlyList<string> PreferredLocales()
@@ -204,6 +218,12 @@ internal static class SdlPlatform
     [DllImport(LibraryName, EntryPoint = "SDL_GetWindowSize")]
     private static extern void SDL_GetWindowSize(nint window, out int width, out int height);
 
+    [DllImport(LibraryName, EntryPoint = "SDL_GetWindowDisplayIndex")]
+    private static extern int SDL_GetWindowDisplayIndex(nint window);
+
+    [DllImport(LibraryName, EntryPoint = "SDL_GetDesktopDisplayMode")]
+    private static extern int SDL_GetDesktopDisplayMode(int displayIndex, out SdlDisplayMode mode);
+
     [DllImport(LibraryName, EntryPoint = "SDL_AddEventWatch")]
     private static extern void SDL_AddEventWatch(SdlEventFilter filter, nint userData);
 
@@ -231,6 +251,17 @@ internal static class SdlPlatform
         internal byte Major;
         internal byte Minor;
         internal byte Patch;
+    }
+
+    // SDL_DisplayMode: the pixel format, the extent, the refresh rate and the driver's own data.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SdlDisplayMode
+    {
+        internal uint Format;
+        internal int Width;
+        internal int Height;
+        internal int RefreshRate;
+        internal nint DriverData;
     }
 
     // SDL_SysWMinfo. The first member of its per-platform union is the native window on every platform

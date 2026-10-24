@@ -1,5 +1,6 @@
 using Capsule.Persistence;
 using Capsule.Runtime.Audio;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Capsule.Runtime;
 
@@ -87,6 +88,21 @@ public abstract class HostPlatform
     /// the call.
     /// </param>
     protected internal virtual IDisposable? WatchWindowRedraw(WindowHandle window, Action<int, int> redraw) => null;
+
+    /// <summary>
+    /// The display the window is on: its extent in pixels and its scale factor, 1 at 100%. The
+    /// primary display at a scale of 1 by default.
+    /// </summary>
+    /// <remarks>
+    /// Asked when the window opens and when the run asks for another window size. The host fits
+    /// <see cref="Capsule.Rendering.Display.WindowSize"/>, multiplied by the scale, inside the extent.
+    /// </remarks>
+    protected internal virtual (int Width, int Height, float Scale) WindowDisplay(WindowHandle window)
+    {
+        DisplayMode primary = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+
+        return (primary.Width, primary.Height, 1f);
+    }
 
     /// <summary>
     /// Attaches to the output the sound device opened, for a platform that follows the system's

@@ -33,7 +33,7 @@ public readonly record struct CollisionFilter
 
     internal int World => _world;
 
-    // The raw layer bits, for the broadphase to test against a node's mask.
+    // The raw layer bits. The broadphase walks the tree of each layer they name.
     internal ulong Bits => _mask;
 
     /// <summary>A filter matching <paramref name="layer"/> and nothing else.</summary>

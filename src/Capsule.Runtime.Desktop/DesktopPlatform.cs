@@ -11,10 +11,10 @@ namespace Capsule.Runtime.Desktop;
 /// Content is read beside the executable. Saves are a <see cref="DirectorySaveStorage"/> in the
 /// <c>saves</c> subfolder of the game's per-user local folder, with <c>crash.log</c> beside it
 /// (<c>docs/persistence.md</c> lists the per-OS paths). The window is raised and claims the
-/// foreground once shown, keeps drawing through a modal resize, and reads focus from the windowing
-/// library. Sound follows the operating system's default output as it moves. The player's preferred
-/// languages are the operating system's, as the windowing library reports them. Construct one per
-/// boot. It holds no state.
+/// foreground once shown, keeps drawing through a modal resize, reads focus from the windowing
+/// library, and on Windows opens at its display's scale. Sound follows the operating system's default
+/// output as it moves. The player's preferred languages are the operating system's, as the windowing
+/// library reports them. Construct one per boot. It holds no state.
 /// </remarks>
 public sealed class DesktopPlatform : HostPlatform
 {
@@ -59,6 +59,18 @@ public sealed class DesktopPlatform : HostPlatform
             SdlPlatform.WindowSize(window.Value, out int width, out int height);
             redraw(width, height);
         });
+    }
+
+    /// <inheritdoc/>
+    protected override (int Width, int Height, float Scale) WindowDisplay(WindowHandle window)
+    {
+        float scale = WindowsDisplay.Scale(SdlPlatform.NativeWindowHandle(window.Value));
+        if (!SdlPlatform.DisplayExtent(window.Value, out int width, out int height))
+        {
+            (width, height, _) = base.WindowDisplay(window);
+        }
+
+        return (width, height, scale);
     }
 
     /// <inheritdoc/>

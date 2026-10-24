@@ -31,7 +31,7 @@
   <Import Project="$(MSBuildThisFileDirectory)Capsule.DevelopmentOnly.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Publish.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Compiler.targets" />
-  <Import Project="$(MSBuildThisFileDirectory)Capsule.Icon.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)Capsule.Executable.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.ApiReference.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.Assets.targets" />
   <Import Project="$(MSBuildThisFileDirectory)Capsule.ShaderTools.targets" />

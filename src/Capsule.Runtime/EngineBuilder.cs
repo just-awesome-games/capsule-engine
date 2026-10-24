@@ -147,8 +147,8 @@ public sealed class EngineBuilder
     }
 
     /// <summary>
-    /// The window's starting client size in pixels, which <see cref="Display.WindowSize"/> starts at, and
-    /// whether the player may resize it.
+    /// The window's starting client size at 100% display scaling, which <see cref="Display.WindowSize"/>
+    /// starts at, and whether the player may resize it.
     /// </summary>
     /// <remarks>Defaults to 1280x720, resizable.</remarks>
     public EngineBuilder WithWindow(int width, int height, bool resizable = true)

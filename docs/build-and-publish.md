@@ -226,7 +226,7 @@ to the importing project unless a row says otherwise.
 | Property | Value | Effect |
 | --- | --- | --- |
 | `CapsuleGameLogic` | `true` | Enables game-boundary analysis, generates the scene, entity and asset registries, and turns `CapsuleBuildAssets` on. Set it on the substrate-free logic library. |
-| `CapsuleGameShell` | `true` | Generates `CapsuleBoot` and supplies default application icons. Reads no authoring sources. Set it on the executable shell. |
+| `CapsuleGameShell` | `true` | Generates `CapsuleBoot` and supplies the default application icons and manifest. Reads no authoring sources. Set it on the executable shell. |
 
 ### Authoring sources and output
 
@@ -248,10 +248,10 @@ to the importing project unless a row says otherwise.
 | `CapsuleSubstratePackage` | `MonoGame.Framework.DesktopGL` | The substrate package `Capsule.Runtime` compiles against, with `CapsuleSubstrateVersion` (default `3.8.5.1`). Source mode only, for a private platform module retargeting the host. |
 | `CapsuleSourceConfiguration` | `Release` | The configuration an engine clone's own projects build in, whatever the game builds. Set `Debug` to step into engine source. |
 
-### Application icons
+### Application icons and manifest
 
-A shell with no icon configuration receives Capsule's executable and window icons. Override either or both
-beside the shell project:
+A shell with no configuration receives Capsule's executable and window icons and its application manifest.
+Override any of them beside the shell project:
 
 | Input | Effect |
 | --- | --- |
@@ -259,6 +259,8 @@ beside the shell project:
 | `Icon.bmp` | Becomes the window and taskbar icon: a 128x128, 32-bit uncompressed BMP, alpha honoured. |
 | `ApplicationIcon` | Overrides the executable icon with any path the .NET SDK accepts. |
 | `EmbeddedResource` with `LogicalName="Icon.bmp"` | Overrides the window icon when the bitmap sits elsewhere. |
+| `app.manifest` | Replaces Capsule's application manifest whole through the .NET `ApplicationManifest` property. Start from Capsule's `build/app.manifest`, whose per-monitor display awareness keeps Windows from stretching the window. |
+| `ApplicationManifest` | Overrides the application manifest with any path the .NET SDK accepts. |
 
 ```xml
 <PropertyGroup>

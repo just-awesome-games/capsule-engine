@@ -25,10 +25,11 @@ public sealed class Display
     /// <summary>Whether the window covers its display, borderless and at the display's own resolution.</summary>
     public bool Fullscreen { get; set; }
 
-    /// <summary>The window's client size in pixels while it is not fullscreen, 1280 by 720 by default.</summary>
+    /// <summary>The window's client size at 100% display scaling while it is not fullscreen, 1280 by 720 by default.</summary>
     /// <remarks>
-    /// The host rounds it to whole pixels and shrinks one larger than the display to fit, keeping its
-    /// aspect. A window the player resizes keeps the player's size until the game asks for another.
+    /// The host multiplies it by the scale of the display the window is on, rounds it to whole pixels
+    /// and shrinks one larger than the display to fit, keeping its aspect. A window the player resizes
+    /// keeps the player's size until the game asks for another.
     /// </remarks>
     public Vector2 WindowSize
     {
@@ -82,13 +83,14 @@ public sealed class Display
     {
     }
 
-    // The client size the host gives the window on a display of this extent: the request in whole
-    // pixels, shrunk to fit with its aspect kept.
-    internal (int Width, int Height) WindowPixels(int displayWidth, int displayHeight)
+    // The client size the host gives the window on a display of this extent and scale: the request
+    // scaled, in whole pixels, shrunk to fit with its aspect kept.
+    internal (int Width, int Height) WindowPixels(int displayWidth, int displayHeight, float displayScale)
     {
-        float scale = MathF.Min(1f, MathF.Min(displayWidth / WindowSize.X, displayHeight / WindowSize.Y));
+        Vector2 scaled = WindowSize * displayScale;
+        float fit = MathF.Min(1f, MathF.Min(displayWidth / scaled.X, displayHeight / scaled.Y));
 
-        return (Math.Max(1, (int)MathF.Round(WindowSize.X * scale)), Math.Max(1, (int)MathF.Round(WindowSize.Y * scale)));
+        return (Math.Max(1, (int)MathF.Round(scaled.X * fit)), Math.Max(1, (int)MathF.Round(scaled.Y * fit)));
     }
 
     private static int NonNegativeRate(int value) =>

@@ -13,9 +13,10 @@
   </Target>
 
   <!-- The backend looks the window icon up by its exact manifest resource name. A name derived from
-       the root namespace would silently fall back to the backend's icon. The built assembly is
-       checked, in every consumption mode. -->
-  <UsingTask TaskName="CapsuleAssertWindowIcon"
+       the root namespace would silently fall back to the backend's icon. A shell built without
+       Capsule's application manifest silently takes the compiler's, which leaves Windows stretching
+       the window. The built assembly is checked, in every consumption mode. -->
+  <UsingTask TaskName="CapsuleAssertExecutableResources"
              TaskFactory="RoslynCodeTaskFactory"
              AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
@@ -26,7 +27,8 @@
       <Using Namespace="System.Reflection" />
       <Code Type="Fragment" Language="cs"><![CDATA[
         // From bytes. The build never holds the shell open. Manifest names load no reference.
-        string[] names = Assembly.Load(File.ReadAllBytes(AssemblyPath)).GetManifestResourceNames();
+        byte[] assembly = File.ReadAllBytes(AssemblyPath);
+        string[] names = Assembly.Load(assembly).GetManifestResourceNames();
         if (Array.IndexOf(names, "Icon.bmp") < 0)
         {
             Log.LogError(
@@ -34,19 +36,26 @@
                 + string.Join(", ", names) + ".");
             return false;
         }
+
+        // The Win32 manifest is stored as its UTF-8 text.
+        if (System.Text.Encoding.ASCII.GetString(assembly).IndexOf("PerMonitorV2", StringComparison.Ordinal) < 0)
+        {
+            Log.LogError("'" + AssemblyPath + "' carries no application manifest declaring PerMonitorV2 display awareness.");
+            return false;
+        }
       ]]></Code>
     </Task>
   </UsingTask>
 
   <!-- The stamp is touched only after a pass. A shell that failed is asserted again on the next build. -->
-  <Target Name="CapsuleAssertWindowIconEmbedded"
+  <Target Name="CapsuleAssertExecutableResourcesEmbedded"
           AfterTargets="Build"
           Inputs="$(TargetPath)"
-          Outputs="$(IntermediateOutputPath)window-icon.stamp">
-    <CapsuleAssertWindowIcon AssemblyPath="$(TargetPath)" />
-    <Touch Files="$(IntermediateOutputPath)window-icon.stamp" AlwaysCreate="true" />
+          Outputs="$(IntermediateOutputPath)executable-resources.stamp">
+    <CapsuleAssertExecutableResources AssemblyPath="$(TargetPath)" />
+    <Touch Files="$(IntermediateOutputPath)executable-resources.stamp" AlwaysCreate="true" />
     <ItemGroup>
-      <FileWrites Include="$(IntermediateOutputPath)window-icon.stamp" />
+      <FileWrites Include="$(IntermediateOutputPath)executable-resources.stamp" />
     </ItemGroup>
   </Target>
 

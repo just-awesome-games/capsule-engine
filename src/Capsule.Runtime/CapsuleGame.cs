@@ -108,8 +108,8 @@ internal sealed class CapsuleGame : Game
         // The run has started by now, and the window opens as its start left the display.
         Display display = scenes.Run.Display;
         _applied = new WindowRequest(display.Fullscreen, display.WindowSize, display.VSync);
-        DisplayMode desktop = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
-        (int width, int height) = display.WindowPixels(desktop.Width, desktop.Height);
+        (int displayWidth, int displayHeight, float displayScale) = builder.Platform.WindowDisplay(new WindowHandle(Window.Handle));
+        (int width, int height) = display.WindowPixels(displayWidth, displayHeight, displayScale);
         _graphics = new GraphicsDeviceManager(this)
         {
             PreferredBackBufferWidth = width,
@@ -451,8 +451,8 @@ internal sealed class CapsuleGame : Game
             (int Width, int Height) windowed = (_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
             if (requested.WindowSize != _applied.WindowSize)
             {
-                DisplayMode desktop = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
-                windowed = display.WindowPixels(desktop.Width, desktop.Height);
+                (int displayWidth, int displayHeight, float displayScale) = _builder.Platform.WindowDisplay(new WindowHandle(Window.Handle));
+                windowed = display.WindowPixels(displayWidth, displayHeight, displayScale);
             }
 
             // A reset gives the back buffer the preferred extent, and only a window that changes size

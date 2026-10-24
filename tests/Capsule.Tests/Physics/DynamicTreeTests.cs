@@ -36,10 +36,10 @@ public sealed class DynamicTreeTests
         Assert.Empty(Found(tree, Cell(108, 0), Everything));
     }
 
-    // The rotations a thousand inserts force rewrite parentage. A mask that is not carried through them
-    // loses proxies rather than merely visiting extra ones.
+    // The rotations a thousand inserts force rewrite parentage, each layer's root among it. A root handed
+    // to the wrong layer's tree loses proxies rather than merely visiting extra ones.
     [Fact]
-    public void Query_KeepsTheMaskExactThroughTheRotationsAThousandInsertsForce()
+    public void Query_KeepsEachLayerExactThroughTheRotationsAThousandInsertsForce()
     {
         DynamicTree2D tree = new();
         for (int index = 0; index < 1024; index++)
@@ -51,10 +51,10 @@ public sealed class DynamicTreeTests
         Assert.Equal(Odds(1024), Found(tree, All, Blue));
     }
 
-    // Every path that writes a mask, run over one tree: a node left holding less than its children's
-    // union prunes a subtree the query should have reached. A proxy goes missing.
+    // Every path that moves a proxy between or within the layers' trees: a leaf left in its old layer's
+    // tree, or a root left pointing at a removed node, hides a proxy the query should have reached.
     [Fact]
-    public void MaskWritingPaths_LeaveEveryProxyFindableThroughMovesRewritesAndRemovals()
+    public void LayerWritingPaths_LeaveEveryProxyFindableThroughMovesRewritesAndRemovals()
     {
         DynamicTree2D tree = new();
         int[] proxies = new int[300];
@@ -79,8 +79,7 @@ public sealed class DynamicTreeTests
 
         Assert.Equal(Range(300), Found(tree, All, Red | Blue | Green));
 
-        // Every Blue proxy rewritten to Red. The bit has to leave its ancestors rather than merely
-        // being joined by another.
+        // Every Blue proxy rewritten to Red. Blue's tree empties and has to stop answering.
         for (int index = 0; index < proxies.Length; index++)
         {
             if (Layer(index) == Blue)
@@ -101,6 +100,16 @@ public sealed class DynamicTreeTests
                 [.. Enumerable.Range(index + 1, proxies.Length - index - 1)],
                 Found(tree, All, Red | Green));
         }
+    }
+
+    [Fact]
+    public void AProxysLayer_IsASingleBit()
+    {
+        DynamicTree2D tree = new();
+        int proxy = tree.CreateProxy(Cell(0, 0), 0, Red);
+
+        Assert.Throws<ArgumentException>(() => tree.CreateProxy(Cell(1, 0), 1, Red | Blue));
+        Assert.Throws<ArgumentException>(() => tree.SetProxyMask(proxy, 0));
     }
 
     private static Aabb2D All => Aabb2D.FromCorner(new Vector2(-1000f, -1000f), new Vector2(2000f, 2000f));

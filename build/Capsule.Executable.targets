@@ -1,15 +1,22 @@
 <Project>
 
-  <!-- The shell's executable and window icons. Everything here answers to the shell role. -->
+  <!-- What the shell's executable carries: its icons and its application manifest. Everything here
+       answers to the shell role. -->
   <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
     <_CapsuleGameIcon>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', 'Icon.ico'))</_CapsuleGameIcon>
     <_CapsuleGameWindowIcon>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', 'Icon.bmp'))</_CapsuleGameWindowIcon>
+    <_CapsuleGameManifest>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', 'app.manifest'))</_CapsuleGameManifest>
     <!-- Defaults are beside the imported hooks in source and package modes. -->
     <_CapsuleDefaultIcon>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'Icon.ico'))</_CapsuleDefaultIcon>
     <_CapsuleDefaultWindowIcon>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'Icon.bmp'))</_CapsuleDefaultWindowIcon>
+    <_CapsuleDefaultManifest>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'app.manifest'))</_CapsuleDefaultManifest>
 
     <ApplicationIcon Condition="'$(ApplicationIcon)' == '' and Exists('$(_CapsuleGameIcon)')">$(_CapsuleGameIcon)</ApplicationIcon>
     <ApplicationIcon Condition="'$(ApplicationIcon)' == ''">$(_CapsuleDefaultIcon)</ApplicationIcon>
+
+    <!-- The compiler's own default declares no display awareness. Windows stretches a window it draws. -->
+    <ApplicationManifest Condition="'$(ApplicationManifest)' == '' and Exists('$(_CapsuleGameManifest)')">$(_CapsuleGameManifest)</ApplicationManifest>
+    <ApplicationManifest Condition="'$(ApplicationManifest)' == ''">$(_CapsuleDefaultManifest)</ApplicationManifest>
   </PropertyGroup>
 
   <Target Name="CapsuleIconInit"

@@ -21,11 +21,15 @@ internal interface IRayVisitor2D
 // rotations. The tree is never rebuilt wholesale and is deterministic for a given sequence of
 // operations.
 //
-// Every node carries a layer mask beside its box. A leaf holds its own bit and an internal node the
-// union of its children's, letting a walk prune a subtree that holds nothing its filter names.
+// Each layer's proxies form a tree of their own, rooted apart from the others in one shared node
+// pool, and a walk descends only the roots its filter names. Bodies crowding round the surfaces they
+// query, as riders on a platform, then cost that walk nothing. In one tree a subtree mixing both would
+// carry both bits and could not be pruned. Every node of a layer's tree carries its layer bit.
 internal sealed class DynamicTree2D
 {
     internal const int NullNode = -1;
+
+    private const int Layers = 64;
 
     // World units of slack around a proxy's tight bounds. Ordinary motion then costs a bounds write
     // instead of a reinsertion. The second is world units of lookahead per unit of displacement, and
@@ -39,10 +43,17 @@ internal sealed class DynamicTree2D
     // A walk holds at most one waiting sibling per level below the root plus the root itself. The
     // tree's height bounds it. InsertLeaf grows it, and no walk does.
     private int[] _stack = new int[64];
-    private int _root = NullNode;
+
+    // Each layer's root, indexed by its bit, and the bits whose trees hold a proxy.
+    private readonly int[] _roots = new int[Layers];
+    private ulong _rooted;
     private int _freeList;
 
-    internal DynamicTree2D() => FreeFrom(0);
+    internal DynamicTree2D()
+    {
+        Array.Fill(_roots, NullNode);
+        FreeFrom(0);
+    }
 
     internal int UserDataOf(int proxyId) => _nodes[proxyId].UserData;
 
@@ -81,8 +92,11 @@ internal sealed class DynamicTree2D
 
     internal Aabb2D FatBoxOf(int proxyId) => _nodes[proxyId].Box;
 
+    // mask is the proxy's layer, a single bit.
     internal int CreateProxy(in Aabb2D tight, int userData, ulong mask)
     {
+        RequireLayer(mask);
+
         int proxyId = AllocateNode();
         _nodes[proxyId].Box = tight.Expanded(BoundsMargin);
         _nodes[proxyId].Mask = mask;
@@ -126,85 +140,93 @@ internal sealed class DynamicTree2D
         return true;
     }
 
-    // Rewrites a leaf's layer and recomputes each ancestor mask from its children. A layer the leaf
-    // dropped stops reaching this subtree.
+    // Moves a leaf to the tree of its new layer, a single bit, keeping its id and its fat bounds.
     internal void SetProxyMask(int proxyId, ulong mask)
     {
-        _nodes[proxyId].Mask = mask;
-
-        int index = _nodes[proxyId].Parent;
-        while (index != NullNode)
+        RequireLayer(mask);
+        if (_nodes[proxyId].Mask == mask)
         {
-            _nodes[index].Mask = _nodes[_nodes[index].Child1].Mask | _nodes[_nodes[index].Child2].Mask;
-            index = _nodes[index].Parent;
+            return;
         }
+
+        RemoveLeaf(proxyId);
+        _nodes[proxyId].Mask = mask;
+        InsertLeaf(proxyId);
     }
 
+    // The layers' trees are walked in bit order, and each in the order a single tree is.
     internal void Query<TVisitor>(in Aabb2D box, ulong mask, ref TVisitor visitor)
         where TVisitor : struct, ITreeVisitor2D, allows ref struct
     {
-        if (_root == NullNode)
+        for (ulong layers = mask & _rooted; layers != 0; layers &= layers - 1)
         {
-            return;
-        }
+            int depth = 0;
+            _stack[depth++] = _roots[BitOperations.TrailingZeroCount(layers)];
 
-        int depth = 0;
-        _stack[depth++] = _root;
-
-        while (depth > 0)
-        {
-            int nodeId = _stack[--depth];
-            ref Node node = ref _nodes[nodeId];
-            if ((node.Mask & mask) == 0 || !node.Box.Overlaps(box))
+            while (depth > 0)
             {
-                continue;
-            }
-
-            if (node.IsLeaf)
-            {
-                if (!visitor.Visit(nodeId))
+                int nodeId = _stack[--depth];
+                ref Node node = ref _nodes[nodeId];
+                if (!node.Box.Overlaps(box))
                 {
-                    return;
+                    continue;
                 }
 
-                continue;
-            }
+                if (node.IsLeaf)
+                {
+                    if (!visitor.Visit(nodeId))
+                    {
+                        return;
+                    }
 
-            depth = Push(depth, node.Child1, node.Child2);
+                    continue;
+                }
+
+                depth = Push(depth, node.Child1, node.Child2);
+            }
         }
     }
 
+    // The fraction a visitor narrows to holds into the next layer's tree.
     internal void RayCast<TVisitor>(Vector2 origin, Vector2 direction, float maxFraction, ulong mask, ref TVisitor visitor)
         where TVisitor : struct, IRayVisitor2D, allows ref struct
     {
-        if (_root == NullNode)
+        for (ulong layers = mask & _rooted; layers != 0; layers &= layers - 1)
         {
-            return;
-        }
+            int depth = 0;
+            _stack[depth++] = _roots[BitOperations.TrailingZeroCount(layers)];
 
-        int depth = 0;
-        _stack[depth++] = _root;
-
-        while (depth > 0)
-        {
-            int nodeId = _stack[--depth];
-            ref Node node = ref _nodes[nodeId];
-
-            if ((node.Mask & mask) == 0
-                || !Rays2D.RayBox(node.Box, origin, direction, maxFraction, out _, out _))
+            while (depth > 0)
             {
-                continue;
-            }
+                int nodeId = _stack[--depth];
+                ref Node node = ref _nodes[nodeId];
 
-            if (node.IsLeaf)
-            {
-                maxFraction = visitor.Visit(nodeId, maxFraction);
-                continue;
-            }
+                if (!Rays2D.RayBox(node.Box, origin, direction, maxFraction, out _, out _))
+                {
+                    continue;
+                }
 
-            depth = Push(depth, node.Child1, node.Child2);
+                if (node.IsLeaf)
+                {
+                    maxFraction = visitor.Visit(nodeId, maxFraction);
+                    continue;
+                }
+
+                depth = Push(depth, node.Child1, node.Child2);
+            }
         }
     }
+
+    private static void RequireLayer(ulong mask)
+    {
+        if (BitOperations.PopCount(mask) != 1)
+        {
+            throw new ArgumentException($"A proxy's layer is a single bit, not 0x{mask:x}. Pass the bits of one layer's filter.", nameof(mask));
+        }
+    }
+
+    // The root slot of the tree a node belongs to, by the layer bit every node of that tree carries.
+    private ref int RootOf(int nodeId) => ref _roots[BitOperations.TrailingZeroCount(_nodes[nodeId].Mask)];
 
     private int Push(int depth, int child1, int child2)
     {
@@ -266,15 +288,17 @@ internal sealed class DynamicTree2D
     // pairing the leaf with the node here.
     private void InsertLeaf(int leaf)
     {
-        if (_root == NullNode)
+        ref int root = ref RootOf(leaf);
+        if (root == NullNode)
         {
-            _root = leaf;
+            root = leaf;
             _nodes[leaf].Parent = NullNode;
+            _rooted |= _nodes[leaf].Mask;
             return;
         }
 
         Aabb2D leafBox = _nodes[leaf].Box;
-        int index = _root;
+        int index = root;
         while (!_nodes[index].IsLeaf)
         {
             int child1 = _nodes[index].Child1;
@@ -302,7 +326,7 @@ internal sealed class DynamicTree2D
         int newParent = AllocateNode();
         _nodes[newParent].Parent = oldParent;
         _nodes[newParent].Box = _nodes[sibling].Box.Union(leafBox);
-        _nodes[newParent].Mask = _nodes[sibling].Mask | _nodes[leaf].Mask;
+        _nodes[newParent].Mask = _nodes[leaf].Mask;
         _nodes[newParent].Height = _nodes[sibling].Height + 1;
         ReplaceChild(oldParent, sibling, newParent);
         _nodes[newParent].Child1 = sibling;
@@ -312,7 +336,7 @@ internal sealed class DynamicTree2D
 
         Refit(_nodes[leaf].Parent);
 
-        int deepest = _nodes[_root].Height + 1;
+        int deepest = _nodes[root].Height + 1;
         if (deepest > _stack.Length)
         {
             Array.Resize(ref _stack, deepest * 2);
@@ -330,9 +354,11 @@ internal sealed class DynamicTree2D
 
     private void RemoveLeaf(int leaf)
     {
-        if (leaf == _root)
+        ref int root = ref RootOf(leaf);
+        if (leaf == root)
         {
-            _root = NullNode;
+            root = NullNode;
+            _rooted &= ~_nodes[leaf].Mask;
             return;
         }
 
@@ -346,12 +372,12 @@ internal sealed class DynamicTree2D
         Refit(grandParent);
     }
 
-    // Points parent, or the root when parent is null, at replacement where it pointed at child.
+    // Points parent, or child's root when parent is null, at replacement where it pointed at child.
     private void ReplaceChild(int parent, int child, int replacement)
     {
         if (parent == NullNode)
         {
-            _root = replacement;
+            RootOf(child) = replacement;
         }
         else if (_nodes[parent].Child1 == child)
         {
@@ -374,7 +400,6 @@ internal sealed class DynamicTree2D
             int child2 = _nodes[index].Child2;
             _nodes[index].Height = 1 + Math.Max(_nodes[child1].Height, _nodes[child2].Height);
             _nodes[index].Box = _nodes[child1].Box.Union(_nodes[child2].Box);
-            _nodes[index].Mask = _nodes[child1].Mask | _nodes[child2].Mask;
 
             index = _nodes[index].Parent;
         }
@@ -437,8 +462,6 @@ internal sealed class DynamicTree2D
 
         _nodes[iA].Box = _nodes[iKeep].Box.Union(_nodes[iShort].Box);
         _nodes[iPivot].Box = _nodes[iA].Box.Union(_nodes[iTall].Box);
-        _nodes[iA].Mask = _nodes[iKeep].Mask | _nodes[iShort].Mask;
-        _nodes[iPivot].Mask = _nodes[iA].Mask | _nodes[iTall].Mask;
         _nodes[iA].Height = 1 + Math.Max(_nodes[iKeep].Height, _nodes[iShort].Height);
         _nodes[iPivot].Height = 1 + Math.Max(_nodes[iA].Height, _nodes[iTall].Height);
 
