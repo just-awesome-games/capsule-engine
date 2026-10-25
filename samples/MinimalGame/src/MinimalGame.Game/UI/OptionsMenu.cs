@@ -145,12 +145,12 @@ public sealed class OptionsMenu : ScreenEntity
         if (item == _jump)
         {
             _settings.Input.Jump = binding;
-            Run.Input.Bindings.Rebind(GameInput.Jump, binding.Key, binding.Pad);
+            Run.Input.Rebind(GameInput.Jump, binding.Key, binding.Pad);
         }
         else
         {
             _settings.Input.Shoot = binding;
-            Run.Input.Bindings.Rebind(GameInput.Shoot, binding.Key, binding.Pad);
+            Run.Input.Rebind(GameInput.Shoot, binding.Key, binding.Pad);
         }
 
         Run.Saves.Write(GameSaves.Settings, _settings);

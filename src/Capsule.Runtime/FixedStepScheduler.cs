@@ -84,6 +84,16 @@ internal sealed class FixedStepScheduler
     // Seeds the run's initial active device. Called before the first step.
     internal void SeedDevice(InputDevice device) => _input.Seed(device);
 
+    // Reads key characters from the player's keyboard layout, which the host rewrites in place on a
+    // change. A driven run ignores it and reads a US layout's, as its replay and a headless run do.
+    internal void UseKeyLayout(string?[] characters)
+    {
+        if (_driver is null)
+        {
+            _input.UseKeyLayout(characters);
+        }
+    }
+
     internal bool Held
     {
         get => _held;

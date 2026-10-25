@@ -40,7 +40,8 @@
     </PackageReference>
 
     <!-- A site that seems to need a banned symbol belongs in a platform module, never under a
-         suppression. -->
+         suppression. Sdl/ alone holds a native binding, the SDL3 every platform shares, which its
+         own .editorconfig admits. -->
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -53,6 +54,53 @@
   <ItemGroup>
     <ProjectReference Include="../Capsule/Capsule.csproj" />
   </ItemGroup>
+
+  <!-- The community controller database, committed as plain text so an update is a reviewable diff
+       and embedded gzipped. The shipping runtime already links gzip for scene documents. -->
+  <UsingTask TaskName="CapsuleGzipFile"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Source ParameterType="System.String" Required="true" />
+      <Destination ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.IO.Compression" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        // SmallestSize is 3, which an MSBuild on .NET Framework lacks.
+        CompressionLevel level = Enum.IsDefined(typeof(CompressionLevel), 3) ? (CompressionLevel)3 : CompressionLevel.Optimal;
+        Directory.CreateDirectory(Path.GetDirectoryName(Destination));
+        using (FileStream input = File.OpenRead(Source))
+        using (FileStream output = File.Create(Destination))
+        using (GZipStream gzip = new GZipStream(output, level))
+        {
+            input.CopyTo(gzip);
+        }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <PropertyGroup>
+    <_CapsuleGamepadMappings>$(MSBuildThisFileDirectory)Input/gamecontrollerdb.txt</_CapsuleGamepadMappings>
+  </PropertyGroup>
+
+  <Target Name="CapsuleCompressGamepadMappings"
+          Inputs="$(_CapsuleGamepadMappings)"
+          Outputs="$(IntermediateOutputPath)gamecontrollerdb.txt.gz">
+    <CapsuleGzipFile Source="$(_CapsuleGamepadMappings)" Destination="$(IntermediateOutputPath)gamecontrollerdb.txt.gz" />
+  </Target>
+
+  <!-- Apart from the compression so the resource is declared even when that target is up to date. -->
+  <Target Name="CapsuleEmbedGamepadMappings"
+          BeforeTargets="AssignTargetPaths"
+          DependsOnTargets="CapsuleCompressGamepadMappings">
+    <ItemGroup>
+      <EmbeddedResource Include="$(IntermediateOutputPath)gamecontrollerdb.txt.gz"
+                        LogicalName="Capsule.Runtime.Input.gamecontrollerdb.txt.gz" />
+      <FileWrites Include="$(IntermediateOutputPath)gamecontrollerdb.txt.gz" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Tests" />

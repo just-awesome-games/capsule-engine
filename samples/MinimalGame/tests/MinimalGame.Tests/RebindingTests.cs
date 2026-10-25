@@ -22,8 +22,8 @@ public sealed class RebindingTests
 
         GameBoot.Start(run);
 
-        Assert.Contains((InputButton)Key.F, run.Input.Bindings.ButtonsFor(GameInput.Jump).ToArray());
-        Assert.DoesNotContain((InputButton)Key.Space, run.Input.Bindings.ButtonsFor(GameInput.Jump).ToArray());
+        Assert.Contains((InputButton)Key.F, run.Input.ButtonsFor(GameInput.Jump).ToArray());
+        Assert.DoesNotContain((InputButton)Key.Space, run.Input.ButtonsFor(GameInput.Jump).ToArray());
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public sealed class RebindingTests
 
         GameSettings settings = run.Saves.Read(GameSaves.Settings);
         Assert.Equal((InputButton)Key.F, settings.Input.Jump.Key);
-        Assert.Contains((InputButton)Key.F, run.Input.Bindings.ButtonsFor(GameInput.Jump).ToArray());
+        Assert.Contains((InputButton)Key.F, run.Input.ButtonsFor(GameInput.Jump).ToArray());
     }
 
     // The press that ends a capture is still down when the navigator steps after the menu. The

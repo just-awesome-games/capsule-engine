@@ -23,10 +23,13 @@ internal sealed class CapsuleGame : Game
     private readonly EngineBuilder _builder;
     private readonly SceneHost _scenes;
     private readonly MouseSampler _mouse = new();
-    private readonly GamepadSampler _pad = new();
     private readonly FixedStepScheduler _scheduler;
     private readonly GamepadRumble _rumble = new(GamepadRumble.WriteToPad);
     private readonly FramePacer _pacer = new();
+
+    // What the player's keyboard layout prints on each key, indexed by key, which the run's input
+    // state reads key characters from. Read at load and rewritten in place on a layout change.
+    private readonly string?[] _keyLayout = new string?[KeyboardSampler.KeyCount];
 
     // Null unless the builder opted in. The builder owns it.
     private readonly FrameDiagnostics? _diagnostics;
@@ -40,11 +43,20 @@ internal sealed class CapsuleGame : Game
     private readonly Func<bool>? _overlayHeld;
     private readonly IDisposable? _overlayHost;
 
+    // The latency measurement's three moments, built in the same guarded block as the overlay's and
+    // null unless the builder asked for one.
+    private readonly Action<InputEvents>? _latencyTaken;
+    private readonly Action<int>? _latencyStepped;
+    private readonly Action? _latencyPresented;
+    private readonly IDisposable? _latency;
+
     // Null until LoadContent. Dispose can run without it after a failed construction.
     private TextureStore _textures = null!;
     private EffectStore _effects = null!;
     private FrameRenderer _renderer = null!;
     private CursorApplier _cursor = null!;
+    private InputFeed _input = null!;
+    private GamepadSampler _pad = null!;
 
     // All null when the platform opened no audio output, which makes every command and preload a
     // no-op instead of failing the run. The device owns the store and the player.
@@ -77,6 +89,15 @@ internal sealed class CapsuleGame : Game
         _diagnostics = diagnostics;
         _scenes = scenes;
         _scheduler = new FixedStepScheduler(builder.StepSeconds, builder.MaxStepsPerFrame, builder.Input.Bindings, builder.Driver, scenes);
+
+        if (Development.IsSupported && builder.InputLatencyPath is { } latencyPath)
+        {
+            InputLatency latency = new(latencyPath);
+            _latency = latency;
+            _latencyTaken = events => latency.Take(events.PressTimes);
+            _latencyStepped = latency.Stepped;
+            _latencyPresented = latency.Presented;
+        }
 
         if (Development.IsSupported)
         {
@@ -175,10 +196,18 @@ internal sealed class CapsuleGame : Game
         _diagnostics?.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
         _renderer = new FrameRenderer(GraphicsDevice, _builder.RenderResolution, _textures, _effects);
         _cursor = new CursorApplier(
-            GraphicsDevice,
             _textures,
-            shown => IsMouseVisible = shown,
             confined => _builder.Platform.ConfineCursor(new WindowHandle(Window.Handle), confined));
+
+        // The watch first, and then the pads already connected, which raised their added events before
+        // it existed. A pad plugged in between the two is opened once.
+        _input = new InputFeed();
+        _input.UseTriggerDeadzone(_builder.Input.TriggerDeadzone);
+        _pad = new GamepadSampler(_builder.Platform.OpenContent);
+
+        // The layout gives key characters from the first step, and the feed reports each later change.
+        KeyboardSampler.ReadLayout(_keyLayout);
+        _scheduler.UseKeyLayout(_keyLayout);
 
         // Update samples the mouse before the first Draw places the layer. The mapping is settled
         // here and the first step reads a canvas position.
@@ -199,9 +228,9 @@ internal sealed class CapsuleGame : Game
 
     protected override void Update(GameTime gameTime)
     {
-        // The wait comes before the frame reads input. A capped frame then samples what the player did
-        // while it waited. The period is the one the last frame settled.
-        long frameStarted = _pacer.Wait(_scheduler.FramePeriodSeconds);
+        // The backend pumped SDL's events just before this. The frame starts at its input, and the
+        // capped wait has already passed at the end of the last frame.
+        long frameStarted = Stopwatch.GetTimestamp();
         double elapsedSeconds = (double)(frameStarted - _frameStarted) / Stopwatch.Frequency;
         _frameStarted = frameStarted;
 
@@ -210,13 +239,23 @@ internal sealed class CapsuleGame : Game
         // Sampled every frame, including one that drains no step, and the latch carries that frame's
         // input to the step that eventually runs. The pointer is mapped through the screen layer's
         // placement. It reaches the simulation as a canvas position. IsActive is unusable here
-        // because it reads true before focus is granted. An inactive window reads no device.
+        // because it reads true before focus is granted. An inactive window reads no device. The
+        // presses since the last sample are taken either way, and an inactive window drops them.
         bool active = _builder.Platform.HasInputFocus(new WindowHandle(Window.Handle));
-        PadFilter padFilter = new(_builder.Input.StickDeadzone, _builder.Input.TriggerDeadzone);
-        DeviceSnapshot sampled = _mouse.SampleOnto(
-            _pad.SampleOnto(active ? KeyboardSampler.Sample() : DeviceSnapshot.Empty, padFilter, active),
-            _renderer.ScreenLayer,
-            active);
+        InputEvents events = _input.Take();
+        if (active)
+        {
+            _latencyTaken?.Invoke(events);
+        }
+
+        if (events.KeymapChanged)
+        {
+            KeyboardSampler.ReadLayout(_keyLayout);
+        }
+
+        DeviceSnapshot sampled = active ? KeyboardSampler.Sample(events) : DeviceSnapshot.Empty;
+        sampled = _pad.SampleOnto(sampled, new PadFilter(_builder.Input.StickDeadzone, _builder.Input.TriggerDeadzone), active, events);
+        sampled = _mouse.SampleOnto(sampled, _renderer.ScreenLayer, active, events);
 
         // A window that has never had focus has not lost it. The frames before the first Draw raises
         // the window read focused, and a launch from a terminal raises no loss.
@@ -229,7 +268,7 @@ internal sealed class CapsuleGame : Game
         if (!_deviceSeeded)
         {
             _deviceSeeded = true;
-            _scheduler.SeedDevice(_builder.Driver is null && _pad.IsConnected ? InputDevice.Gamepad : InputDevice.KeyboardMouse);
+            _scheduler.SeedDevice(_builder.Driver is null && _pad.ActivePad != 0 ? InputDevice.Gamepad : InputDevice.KeyboardMouse);
         }
 
         if (_interceptOverlay is { } intercept)
@@ -243,6 +282,12 @@ internal sealed class CapsuleGame : Game
         _scheduler.Output = new System.Numerics.Vector2(GraphicsDevice.PresentationParameters.BackBufferWidth, GraphicsDevice.PresentationParameters.BackBufferHeight);
         bool exiting = _scheduler.Advance(elapsedSeconds, sampled, _scenes);
 
+        // After the steps, which may have changed the trigger deadzone, and before the backend's next
+        // pump. The watch then reads the presses that pump delivers against the deadzone the run settled.
+        _input.UseTriggerDeadzone(_builder.Input.TriggerDeadzone);
+
+        _latencyStepped?.Invoke(_scheduler.StepsThisFrame);
+
         _updateOverlay?.Invoke(_renderer);
 
         // After the steps that may have asked for a prefetch.
@@ -254,16 +299,15 @@ internal sealed class CapsuleGame : Game
         _device?.Update(elapsedSeconds);
 
         // Every frame, after the steps: the level is the run's settled output, and the live window
-        // focus, the hold and the pad's slot are the host's. The applier rests the motors while the
+        // focus, the hold and the active pad are the host's. The applier rests the motors while the
         // window is inactive or the run is held, and rewrites the level when either ends. A driven
         // run's scripted window focus does not reach them.
         _rumble.Apply(
             _scenes.Run.Rumble.Level,
             active,
-            _pad.IsConnected,
             _scheduler.ActiveDevice == InputDevice.Gamepad,
             _scheduler.Held,
-            _pad.ConnectedPlayer,
+            _pad.ActivePad,
             elapsedSeconds);
 
         // Every frame, after the steps. The pointer follows the settled run and the overlay.
@@ -294,8 +338,29 @@ internal sealed class CapsuleGame : Game
         _diagnostics?.EndUpdate(_scheduler.StepsThisFrame);
     }
 
-    // A minimized window shows nothing. Its frames build and draw nothing.
-    protected override bool BeginDraw() => !_minimized && base.BeginDraw();
+    // A minimized window shows nothing. Its frames build and draw nothing, and wait here instead of
+    // after a present.
+    protected override bool BeginDraw()
+    {
+        if (!_minimized && base.BeginDraw())
+        {
+            return true;
+        }
+
+        _pacer.Wait(_scheduler.FramePeriodSeconds);
+        return false;
+    }
+
+    // The present returns inside the backend's EndDraw. The frame cap's wait follows it, once a frame,
+    // and the backend pumps SDL's events after the wait. The next frame then samples what the player
+    // did while it waited. The period is the one this frame settled.
+    protected override void EndDraw()
+    {
+        base.EndDraw();
+
+        _latencyPresented?.Invoke();
+        _pacer.Wait(_scheduler.FramePeriodSeconds);
+    }
 
     protected override void Draw(GameTime gameTime)
     {
@@ -348,7 +413,12 @@ internal sealed class CapsuleGame : Game
             _rumble.Silence();
 
             _overlayHost?.Dispose();
+            _latency?.Dispose();
             _cursor?.Dispose();
+
+            // After the motors rest, which writes to the open pads.
+            _pad?.Dispose();
+            _input?.Dispose();
 
             // Disposed ahead of the renderer, which the watch draws through.
             _redrawWatch?.Dispose();

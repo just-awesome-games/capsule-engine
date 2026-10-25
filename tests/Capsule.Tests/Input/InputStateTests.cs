@@ -90,7 +90,7 @@ public sealed class InputStateTests
     [Fact]
     public void Axis_ReadsTheCurrentStepOnly()
     {
-        InputState input = new(new ActionBindings().BindAxis(Move, PadAxis.LeftStickX));
+        InputState input = new(new ActionBindings().Bind(Move, PadAxis.LeftStickX));
 
         Assert.Equal(0f, input.Axis(Move));
 

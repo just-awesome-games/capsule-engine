@@ -310,7 +310,7 @@ public sealed class FocusLivenessTests
         Scene scene = new();
         scene.Add(root);
         Run game = new() { Canvas = Canvas };
-        game.Input.Bindings.Bind(Confirm, Key.Enter);
+        game.Input.Bind(Confirm, Key.Enter);
         using SimulationHost run = new(scene, run: game);
 
         scene.Remove(first.Entity!);

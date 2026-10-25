@@ -7,7 +7,8 @@ namespace Capsule.Tests.Input;
 
 public sealed class MouseSamplerTests
 {
-    // The OS read itself no spec can stand up. The focus rule around it is what these hold.
+    // The OS read itself no spec can stand up. The focus rule around it and the presses and notches
+    // the event feed adds are what these hold. InputFeedTests holds the feed's reading of SDL's events.
     [Fact]
     public void AnInactiveWindow_HoldsThePointerAndAddsNoButton()
     {
@@ -15,59 +16,80 @@ public sealed class MouseSamplerTests
         ScreenPlacement placement = new(new Vector2(8f, 4f), 2f);
         DeviceSnapshot keyboard = DeviceSnapshot.Of(Key.Space);
 
-        sampler.Resume(keyboard, new Vector2(20f, 30f), 0, 0, MouseButton.Left);
-        DeviceSnapshot sampled = sampler.SampleOnto(keyboard, placement, windowActive: false);
+        sampler.Resume(keyboard, new Vector2(20f, 30f), Vector2.Zero, [MouseButton.Left], []);
+        DeviceSnapshot sampled = sampler.SampleOnto(keyboard, placement, windowActive: false, new InputEvents(new TriggerEdges()));
 
         Assert.Equal(new Vector2(20f, 30f), sampled.Pointer);
         Assert.True(sampled.IsDown(Key.Space));
         Assert.False(sampled.IsDown(MouseButton.Left));
     }
 
+    // A click shorter than a frame is down on the sample after it, released before it, and up on the next.
     [Fact]
-    public void AButtonHeldAcrossAFocusReturn_IsNotAPressUntilItIsReleasedAndPressedAgain()
+    public void AButtonPressedAndReleasedBetweenSamples_IsDownForOneSample()
+    {
+        MouseSampler sampler = new();
+        DeviceSnapshot none = DeviceSnapshot.Empty;
+        sampler.Resume(none, Vector2.Zero, Vector2.Zero, [], []);
+
+        Assert.True(sampler.Resume(none, Vector2.Zero, Vector2.Zero, [], [MouseButton.Right]).IsDown(MouseButton.Right));
+        Assert.False(sampler.Resume(none, Vector2.Zero, Vector2.Zero, [], []).IsDown(MouseButton.Right));
+    }
+
+    [Fact]
+    public void AButtonHeldAcrossAFocusReturn_IsNotAPressUntilItIsReleasedOrPressedAgain()
     {
         MouseSampler sampler = new();
         DeviceSnapshot none = DeviceSnapshot.Empty;
 
         // Launched with nothing held, then pressed in focus.
-        sampler.Resume(none, Vector2.Zero, 0, 0);
-        Assert.True(sampler.Resume(none, Vector2.Zero, 0, 0, MouseButton.Left).IsDown(MouseButton.Left));
+        sampler.Resume(none, Vector2.Zero, Vector2.Zero, [], []);
+        Assert.True(sampler.Resume(none, Vector2.Zero, Vector2.Zero, [MouseButton.Left], [MouseButton.Left]).IsDown(MouseButton.Left));
         Assert.False(sampler.Suspend(none).IsDown(MouseButton.Left));
 
         // Back in focus with the button still down and the pointer somewhere new: a move, no press.
-        DeviceSnapshot returned = sampler.Resume(none, new Vector2(50f, 60f), 0, 0, MouseButton.Left);
+        DeviceSnapshot returned = sampler.Resume(none, new Vector2(50f, 60f), Vector2.Zero, [MouseButton.Left], []);
         Assert.Equal(new Vector2(50f, 60f), returned.Pointer);
         Assert.False(returned.IsDown(MouseButton.Left));
+        Assert.False(sampler.Resume(none, new Vector2(50f, 60f), Vector2.Zero, [MouseButton.Left], []).IsDown(MouseButton.Left));
 
-        Assert.False(sampler.Resume(none, new Vector2(50f, 60f), 0, 0).IsDown(MouseButton.Left));
-        Assert.True(sampler.Resume(none, new Vector2(50f, 60f), 0, 0, MouseButton.Left).IsDown(MouseButton.Left));
+        // Released and pressed again between two samples: held both times, and the press unmasks it.
+        Assert.True(sampler.Resume(none, new Vector2(50f, 60f), Vector2.Zero, [MouseButton.Left], [MouseButton.Left]).IsDown(MouseButton.Left));
+
+        // And a release seen by a sample unmasks it the same way.
+        sampler.Suspend(none);
+        sampler.Resume(none, Vector2.Zero, Vector2.Zero, [MouseButton.Left], []);
+        Assert.False(sampler.Resume(none, Vector2.Zero, Vector2.Zero, [], []).IsDown(MouseButton.Left));
+        Assert.True(sampler.Resume(none, Vector2.Zero, Vector2.Zero, [MouseButton.Left], [MouseButton.Left]).IsDown(MouseButton.Left));
     }
 
     [Fact]
-    public void TheWheelTurnedWhileUnfocused_IsNoNotchOnTheReturn()
+    public void TheWheelTurnedBeforeTheFirstSampleOrWhileUnfocused_IsNoNotch()
     {
         MouseSampler sampler = new();
         DeviceSnapshot none = DeviceSnapshot.Empty;
 
-        // 120 cumulative units per notch, counting up away from the user and to the right.
-        sampler.Resume(none, Vector2.Zero, horizontal: 0, vertical: 0);
-        Assert.Equal(new Vector2(1f, 2f), sampler.Resume(none, Vector2.Zero, horizontal: 120, vertical: 240).Scroll);
+        Assert.Equal(Vector2.Zero, sampler.Resume(none, Vector2.Zero, new Vector2(3f, 3f), [], []).Scroll);
+        Assert.Equal(new Vector2(1f, 2f), sampler.Resume(none, Vector2.Zero, new Vector2(1f, 2f), [], []).Scroll);
 
         Assert.Equal(Vector2.Zero, sampler.Suspend(none).Scroll);
 
-        // Spun far while away: the return re-seeds the baseline instead of reporting the gap.
-        Assert.Equal(Vector2.Zero, sampler.Resume(none, Vector2.Zero, horizontal: 120, vertical: 6000).Scroll);
+        // The turns that reach the return's sample are where the wheel now rests.
+        Assert.Equal(Vector2.Zero, sampler.Resume(none, Vector2.Zero, new Vector2(0f, 50f), [], []).Scroll);
 
         // From there the wheel reads normally again, a notch down reading negative.
-        Assert.Equal(new Vector2(0f, -1f), sampler.Resume(none, Vector2.Zero, horizontal: 120, vertical: 5880).Scroll);
+        Assert.Equal(new Vector2(0f, -1f), sampler.Resume(none, Vector2.Zero, new Vector2(0f, -1f), [], []).Scroll);
     }
 
     [Fact]
-    public void AButtonHeldThroughTheLaunch_IsNotAPress()
+    public void AButtonHeldOrPressedBeforeTheFirstSample_IsNotAPress()
     {
         MouseSampler sampler = new();
 
-        Assert.False(sampler.Resume(DeviceSnapshot.Empty, Vector2.Zero, 0, 0, MouseButton.Left).IsDown(MouseButton.Left));
-        Assert.True(sampler.Resume(DeviceSnapshot.Empty, Vector2.Zero, 0, 0, MouseButton.Right).IsDown(MouseButton.Right));
+        DeviceSnapshot first = sampler.Resume(DeviceSnapshot.Empty, Vector2.Zero, Vector2.Zero, [MouseButton.Left], [MouseButton.Middle]);
+        Assert.False(first.IsDown(MouseButton.Left));
+        Assert.False(first.IsDown(MouseButton.Middle));
+
+        Assert.True(sampler.Resume(DeviceSnapshot.Empty, Vector2.Zero, Vector2.Zero, [MouseButton.Right], []).IsDown(MouseButton.Right));
     }
 }

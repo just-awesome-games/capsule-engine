@@ -66,8 +66,8 @@ public static class GameInput
 
     public static void Configure(InputConfiguration input)
     {
-        input.Bindings.BindAxis(Move, Key.A, Key.D);
-        input.Bindings.BindAxis(Move, PadAxis.LeftStickX);
+        input.Bind(Move, Key.A, Key.D);
+        input.Bind(Move, PadAxis.LeftStickX);
     }
 }
 ```

@@ -59,6 +59,16 @@ public sealed class InputScript
         return this;
     }
 
+    /// <summary>
+    /// Makes the pad the player holds <paramref name="family"/> from the next emitted step on, the way
+    /// a pad of that family picked up would. A script starts on <see cref="Capsule.Input.PadFamily.Generic"/>.
+    /// </summary>
+    public InputScript PadFamily(PadFamily family)
+    {
+        _held = _held.WithPadFamily(family);
+        return this;
+    }
+
     /// <summary>Places <paramref name="axis"/> at <paramref name="value"/> from the next emitted step on.</summary>
     /// <param name="axis">The axis to place. Not <see cref="PadAxis.None"/>.</param>
     /// <param name="value">In [-1, 1] for a stick, or [0, 1] for a trigger.</param>

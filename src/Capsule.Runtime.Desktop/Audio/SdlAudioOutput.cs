@@ -4,69 +4,65 @@ using Capsule.Runtime.Audio;
 
 namespace Capsule.Runtime.Desktop.Audio;
 
-// The host's mix played through SDL's audio output, on the SDL library the backend already ships. The
-// backend initialises SDL's video and input subsystems and never audio, which this owns.
+// The host's mix played through an SDL3 audio stream on the system's default output. The backend
+// initialises SDL's video and input subsystems and never audio, which this owns.
 //
-// The device is opened by no name, which SDL takes as the system default and moves to the new default
-// when it changes or the old one is pulled. Pulled with no other device to move to, it stops for good,
-// and the host reopens the default once Connected reads false.
+// The stream is bound to SDL's default playback device, which SDL moves to the new default when it
+// changes or the old one is pulled. Pulled with no other device to move to, the stream plays into
+// nothing on the clock until a device appears, and the output is never lost.
 //
-// It is opened at the host's own format with no changes allowed, and SDL converts to whatever the
-// hardware runs at. No callback is installed. The host queues frames, and SDL's device thread runs no
-// managed code.
+// The stream takes the host's own format, and SDL converts to whatever the hardware runs at. No
+// callback is installed. The host puts frames on the stream, and SDL's device thread runs no managed
+// code.
 internal sealed class SdlAudioOutput : AudioOutput
 {
     private const uint InitAudio = 0x00000010;
 
-    // AUDIO_F32LSB and AUDIO_F32MSB: 32-bit float samples in either byte order.
-    private const ushort Float32Little = 0x8120;
-    private const ushort Float32Big = 0x9120;
+    // SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, the system default that SDL follows as it moves.
+    private const uint DefaultPlayback = 0xFFFFFFFF;
 
-    // The device's buffer, in frames. SDL pulls from the queue this many at a time.
-    private const ushort DeviceFrames = 512;
+    // SDL_AUDIO_F32LE and SDL_AUDIO_F32BE: 32-bit float samples in either byte order.
+    private const uint Float32Little = 0x8120;
+    private const uint Float32Big = 0x9120;
 
-    // SDL_AUDIO_STOPPED, the status of a device SDL has given up on.
-    private const int Stopped = 0;
+    // The device's buffer, in frames, which SDL pulls from the stream at a time. SDL reads the hint as
+    // it finds each device, and it is set before the subsystem starts.
+    private const string DeviceFramesHint = "SDL_AUDIO_DEVICE_SAMPLE_FRAMES";
+    private const string DeviceFrames = "512";
 
     // SDL_THREAD_PRIORITY_TIME_CRITICAL. On Linux SDL asks RealtimeKit for a higher priority and keeps
     // the thread off real-time scheduling, whose CPU budget kills a process that overruns it.
     private const int TimeCritical = 3;
 
-    // Whether the last open failed. The host retries a lost output on an interval, and a streak of
-    // failures warns once. Read and written on the game thread alone.
-    private static bool LastOpenFailed;
+    private readonly nint _stream;
 
-    private readonly uint _device;
+    private SdlAudioOutput(nint stream) => _stream = stream;
 
-    private SdlAudioOutput(uint device) => _device = device;
-
-    protected override int QueuedFrames => (int)(SDL_GetQueuedAudioSize(_device) / (sizeof(float) * Channels));
-
-    // A device SDL has stopped stays stopped.
-    protected override bool Connected => SDL_GetAudioDeviceStatus(_device) != Stopped;
+    // A failed query reads -1 bytes, which truncates to no frames.
+    protected override int QueuedFrames => SDL_GetAudioStreamQueued(_stream) / (sizeof(float) * Channels);
 
     // Opens the system's default output, or logs why it could not and returns null.
     internal static SdlAudioOutput? TryOpen()
     {
         SdlPlatform.Load();
+        SDL_SetHint(DeviceFramesHint, DeviceFrames);
 
-        if (SDL_InitSubSystem(InitAudio) != 0)
+        if (!SDL_InitSubSystem(InitAudio))
         {
             Unavailable();
 
             return null;
         }
 
-        SdlAudioSpec wanted = new()
+        SdlAudioSpec spec = new()
         {
-            Frequency = SampleRate,
             Format = BitConverter.IsLittleEndian ? Float32Little : Float32Big,
-            Channels = (byte)AudioOutput.Channels,
-            Samples = DeviceFrames,
+            Channels = AudioOutput.Channels,
+            Frequency = SampleRate,
         };
 
-        uint device = SDL_OpenAudioDevice(nint.Zero, 0, ref wanted, out _, 0);
-        if (device == 0)
+        nint stream = SDL_OpenAudioDeviceStream(DefaultPlayback, in spec, nint.Zero, nint.Zero);
+        if (stream == nint.Zero)
         {
             Unavailable();
             SDL_QuitSubSystem(InitAudio);
@@ -75,119 +71,88 @@ internal sealed class SdlAudioOutput : AudioOutput
         }
 
         Log.Info($"audio output opened on {DefaultName()} through SDL's '{Marshal.PtrToStringUTF8(SDL_GetCurrentAudioDriver())}' driver");
-        SDL_PauseAudioDevice(device, 0);
-        LastOpenFailed = false;
+        SDL_ResumeAudioStreamDevice(stream);
 
-        return new SdlAudioOutput(device);
+        return new SdlAudioOutput(stream);
     }
 
     // A failure leaves the thread at the host's own priority.
-    protected override void RaiseMixThreadPriority() => SDL_SetThreadPriority(TimeCritical);
+    protected override void RaiseMixThreadPriority() => SDL_SetCurrentThreadPriority(TimeCritical);
 
     protected override void Submit(ReadOnlySpan<float> frames) =>
-        SDL_QueueAudio(_device, in MemoryMarshal.GetReference(frames), (uint)(frames.Length * sizeof(float)));
+        SDL_PutAudioStreamData(_stream, in MemoryMarshal.GetReference(frames), frames.Length * sizeof(float));
 
-    // Each output initialises the audio subsystem once and quits it once. SDL counts them, and a
-    // reopen that closes the lost output first quits and initialises it again.
+    // Destroying the stream closes the device it opened. Each output initialises the audio subsystem
+    // once and quits it once, and SDL counts them.
     public override void Dispose()
     {
-        SDL_CloseAudioDevice(_device);
+        SDL_DestroyAudioStream(_stream);
         SDL_QuitSubSystem(InitAudio);
     }
 
-    // The default output's name in quotes, from SDL 2.24 on, or a plain description before it.
-    private static string DefaultName()
-    {
-        try
-        {
-            if (SDL_GetDefaultAudioInfo(out nint name, out _, 0) == 0 && name != nint.Zero)
-            {
-                string named = Marshal.PtrToStringUTF8(name) ?? "";
-                SDL_free(name);
+    // The default output's name in quotes. SDL owns the string.
+    private static string DefaultName() =>
+        Marshal.PtrToStringUTF8(SDL_GetAudioDeviceName(DefaultPlayback)) is { Length: > 0 } name
+            ? $"'{name}'"
+            : "the system default";
 
-                return $"'{named}'";
-            }
-        }
-        catch (EntryPointNotFoundException)
-        {
-        }
-
-        return "the system default";
-    }
-
-    private static void Unavailable()
-    {
-        string message = $"audio output unavailable and the game runs silent. {Error()}";
-        if (LastOpenFailed)
-        {
-            Log.Debug(message);
-        }
-        else
-        {
-            Log.Warning(message);
-        }
-
-        LastOpenFailed = true;
-    }
+    private static void Unavailable() =>
+        Log.Warning($"audio output unavailable and the game runs silent. {Error()}");
 
     private static string Error() => Marshal.PtrToStringUTF8(SDL_GetError()) ?? "SDL reported no error";
 
     // LibraryImport generates unsafe marshalling stubs, and these calls do not justify opening the
-    // assembly to unsafe code. A device is an id, the spec is blittable, and the queued frames pass as
-    // a pinned reference to their first sample.
+    // assembly to unsafe code. A stream is an opaque handle, the spec is blittable, the queued frames
+    // pass as a pinned reference to their first sample, and SDL3's bool marshals as one byte.
 #pragma warning disable SYSLIB1054
+    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_SetHint")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static extern bool SDL_SetHint([MarshalAs(UnmanagedType.LPUTF8Str)] string name, [MarshalAs(UnmanagedType.LPUTF8Str)] string value);
+
     [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_InitSubSystem")]
-    private static extern int SDL_InitSubSystem(uint flags);
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static extern bool SDL_InitSubSystem(uint flags);
 
     [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_QuitSubSystem")]
     private static extern void SDL_QuitSubSystem(uint flags);
 
-    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_OpenAudioDevice")]
-    private static extern uint SDL_OpenAudioDevice(nint device, int isCapture, ref SdlAudioSpec desired, out SdlAudioSpec obtained, int allowedChanges);
+    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_OpenAudioDeviceStream")]
+    private static extern nint SDL_OpenAudioDeviceStream(uint device, in SdlAudioSpec spec, nint callback, nint userData);
 
-    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_PauseAudioDevice")]
-    private static extern void SDL_PauseAudioDevice(uint device, int pauseOn);
+    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_ResumeAudioStreamDevice")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static extern bool SDL_ResumeAudioStreamDevice(nint stream);
 
-    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_QueueAudio")]
-    private static extern int SDL_QueueAudio(uint device, in float data, uint length);
+    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_PutAudioStreamData")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static extern bool SDL_PutAudioStreamData(nint stream, in float data, int length);
 
-    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_GetQueuedAudioSize")]
-    private static extern uint SDL_GetQueuedAudioSize(uint device);
+    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_GetAudioStreamQueued")]
+    private static extern int SDL_GetAudioStreamQueued(nint stream);
 
-    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_GetAudioDeviceStatus")]
-    private static extern int SDL_GetAudioDeviceStatus(uint device);
+    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_DestroyAudioStream")]
+    private static extern void SDL_DestroyAudioStream(nint stream);
 
-    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_CloseAudioDevice")]
-    private static extern void SDL_CloseAudioDevice(uint device);
-
-    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_GetDefaultAudioInfo")]
-    private static extern int SDL_GetDefaultAudioInfo(out nint name, out SdlAudioSpec spec, int isCapture);
+    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_GetAudioDeviceName")]
+    private static extern nint SDL_GetAudioDeviceName(uint device);
 
     [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_GetCurrentAudioDriver")]
     private static extern nint SDL_GetCurrentAudioDriver();
 
-    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_SetThreadPriority")]
-    private static extern int SDL_SetThreadPriority(int priority);
+    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_SetCurrentThreadPriority")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static extern bool SDL_SetCurrentThreadPriority(int priority);
 
     [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_GetError")]
     private static extern nint SDL_GetError();
-
-    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_free")]
-    private static extern void SDL_free(nint memory);
 #pragma warning restore SYSLIB1054
 
-    // SDL_AudioSpec, fixed by SDL2's ABI. Silence and size are SDL's to fill, and no callback is set.
+    // SDL_AudioSpec: the sample format, the channels and the frame rate.
     [StructLayout(LayoutKind.Sequential)]
     private struct SdlAudioSpec
     {
+        internal uint Format;
+        internal int Channels;
         internal int Frequency;
-        internal ushort Format;
-        internal byte Channels;
-        internal byte Silence;
-        internal ushort Samples;
-        internal ushort Padding;
-        internal uint Size;
-        internal nint Callback;
-        internal nint UserData;
     }
 }

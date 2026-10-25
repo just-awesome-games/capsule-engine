@@ -23,7 +23,7 @@ public static class FixtureInput
     public static void Configure(Run run)
     {
         ArgumentNullException.ThrowIfNull(run);
-        run.Input.Bindings.Bind(Quit, Key.Escape);
+        run.Input.Bind(Quit, Key.Escape);
     }
 }
 

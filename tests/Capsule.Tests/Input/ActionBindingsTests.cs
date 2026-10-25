@@ -2,6 +2,7 @@ using Capsule.Input;
 
 namespace Capsule.Tests.Input;
 
+// The binding members of InputConfiguration, read through the table behind them.
 public sealed class ActionBindingsTests
 {
     private static readonly InputAction Jump = new("Jump");
@@ -10,126 +11,126 @@ public sealed class ActionBindingsTests
     [Fact]
     public void AnUnboundAction_HasNoButtonsAndReadsNothing()
     {
-        ActionBindings bindings = new();
+        InputConfiguration input = new();
 
-        Assert.True(bindings.ButtonsFor(Jump).IsEmpty);
-        Assert.False(bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
-        Assert.Equal(0f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 1f)));
+        Assert.True(input.ButtonsFor(Jump).IsEmpty);
+        Assert.False(input.Bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
+        Assert.Equal(0f, input.Bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 1f)));
     }
 
     [Fact]
     public void BindingAnActionTwice_UnionsTheButtons()
     {
-        ActionBindings bindings = new ActionBindings()
+        InputConfiguration input = new InputConfiguration()
             .Bind(Jump, Key.Space)
             .Bind(Jump, Key.W, Key.Space)
             .Bind(Jump, PadButton.South);
 
         InputButton[] expected = [Key.Space, Key.W, PadButton.South];
 
-        Assert.Equal(expected, bindings.ButtonsFor(Jump).ToArray());
+        Assert.Equal(expected, input.ButtonsFor(Jump).ToArray());
     }
 
     [Theory]
     [MemberData(nameof(BadBindings))]
-    public void Bind_RejectsBadConfigurations(Action<ActionBindings> badBind)
+    public void Bind_RejectsBadConfigurations(Action<InputConfiguration> badBind)
     {
-        Assert.Throws<ArgumentException>(() => badBind(new ActionBindings()));
+        Assert.Throws<ArgumentException>(() => badBind(new InputConfiguration()));
     }
 
     public static IEnumerable<object[]> BadBindings()
     {
-        yield return [new Action<ActionBindings>(b => b.Bind(default, Key.Space))];
-        yield return [new Action<ActionBindings>(b => b.Bind(new InputAction("  "), Key.Space))];
-        yield return [new Action<ActionBindings>(b => b.Bind(Jump))];
-        yield return [new Action<ActionBindings>(b => b.Bind(Jump, Key.Space, Key.None))];
-        yield return [new Action<ActionBindings>(b => b.Bind(Jump, (Key)DeviceSnapshot.Capacity))];
-        yield return [new Action<ActionBindings>(b => b.BindAxis(Move, PadAxis.None))];
+        yield return [new Action<InputConfiguration>(b => b.Bind(default, Key.Space))];
+        yield return [new Action<InputConfiguration>(b => b.Bind(new InputAction("  "), Key.Space))];
+        yield return [new Action<InputConfiguration>(b => b.Bind(Jump))];
+        yield return [new Action<InputConfiguration>(b => b.Bind(Jump, Key.Space, Key.None))];
+        yield return [new Action<InputConfiguration>(b => b.Bind(Jump, (Key)DeviceSnapshot.Capacity))];
+        yield return [new Action<InputConfiguration>(b => b.Bind(Move, PadAxis.None))];
     }
 
     [Fact]
-    public void BindAxis_ToAnAnalogSource_ReadsThatAxis()
+    public void Bind_ToAnAnalogSource_ReadsThatAxis()
     {
-        ActionBindings bindings = new ActionBindings().BindAxis(Move, PadAxis.LeftStickX);
+        InputConfiguration input = new InputConfiguration().Bind(Move, PadAxis.LeftStickX);
 
-        Assert.Equal(0.5f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 0.5f)), InputFixtures.Tolerance);
-        Assert.Equal(-1f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, -1f)), InputFixtures.Tolerance);
-        Assert.Equal(0f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickY, 1f)), InputFixtures.Tolerance);
+        Assert.Equal(0.5f, input.Bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 0.5f)), InputFixtures.Tolerance);
+        Assert.Equal(-1f, input.Bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, -1f)), InputFixtures.Tolerance);
+        Assert.Equal(0f, input.Bindings.AxisValue(Move, Stick(PadAxis.LeftStickY, 1f)), InputFixtures.Tolerance);
     }
 
     [Fact]
-    public void BindAxis_ToADigitalPair_ReadsMinusOneZeroOrOne()
+    public void Bind_ToADigitalPair_ReadsMinusOneZeroOrOne()
     {
-        ActionBindings bindings = new ActionBindings().BindAxis(Move, Key.A, Key.D);
+        InputConfiguration input = new InputConfiguration().Bind(Move, Key.A, Key.D);
 
-        Assert.Equal(-1f, bindings.AxisValue(Move, DeviceSnapshot.Of(Key.A)), InputFixtures.Tolerance);
-        Assert.Equal(1f, bindings.AxisValue(Move, DeviceSnapshot.Of(Key.D)), InputFixtures.Tolerance);
-        Assert.Equal(0f, bindings.AxisValue(Move, DeviceSnapshot.Of(Key.A, Key.D)), InputFixtures.Tolerance);
+        Assert.Equal(-1f, input.Bindings.AxisValue(Move, DeviceSnapshot.Of(Key.A)), InputFixtures.Tolerance);
+        Assert.Equal(1f, input.Bindings.AxisValue(Move, DeviceSnapshot.Of(Key.D)), InputFixtures.Tolerance);
+        Assert.Equal(0f, input.Bindings.AxisValue(Move, DeviceSnapshot.Of(Key.A, Key.D)), InputFixtures.Tolerance);
     }
 
     [Fact]
     public void EveryContribution_SumsAndTheSumClampsToTheUnitRange()
     {
-        ActionBindings bindings = new ActionBindings()
-            .BindAxis(Move, PadAxis.LeftStickX)
-            .BindAxis(Move, PadAxis.RightStickX)
-            .BindAxis(Move, Key.A, Key.D);
+        InputConfiguration input = new InputConfiguration()
+            .Bind(Move, PadAxis.LeftStickX)
+            .Bind(Move, PadAxis.RightStickX)
+            .Bind(Move, Key.A, Key.D);
 
         DeviceSnapshot halfLeftStick = Stick(PadAxis.LeftStickX, -0.5f);
         DeviceSnapshot bothSticksRight = Stick(PadAxis.LeftStickX, 1f).WithAxis(PadAxis.RightStickX, 1f);
 
-        Assert.Equal(0.5f, bindings.AxisValue(Move, halfLeftStick.With(Key.D)), InputFixtures.Tolerance);
-        Assert.Equal(1f, bindings.AxisValue(Move, bothSticksRight.With(Key.D)), InputFixtures.Tolerance);
-        Assert.Equal(-1f, bindings.AxisValue(Move, halfLeftStick.With(Key.A).WithAxis(PadAxis.RightStickX, -1f)), InputFixtures.Tolerance);
+        Assert.Equal(0.5f, input.Bindings.AxisValue(Move, halfLeftStick.With(Key.D)), InputFixtures.Tolerance);
+        Assert.Equal(1f, input.Bindings.AxisValue(Move, bothSticksRight.With(Key.D)), InputFixtures.Tolerance);
+        Assert.Equal(-1f, input.Bindings.AxisValue(Move, halfLeftStick.With(Key.A).WithAxis(PadAxis.RightStickX, -1f)), InputFixtures.Tolerance);
     }
 
     [Fact]
     public void RegisteringTheSameContributionTwice_DoesNotDoubleCountIt()
     {
-        ActionBindings bindings = new ActionBindings()
-            .BindAxis(Move, PadAxis.LeftStickX)
-            .BindAxis(Move, PadAxis.LeftStickX)
-            .BindAxis(Move, Key.A, Key.D)
-            .BindAxis(Move, Key.A, Key.D);
+        InputConfiguration input = new InputConfiguration()
+            .Bind(Move, PadAxis.LeftStickX)
+            .Bind(Move, PadAxis.LeftStickX)
+            .Bind(Move, Key.A, Key.D)
+            .Bind(Move, Key.A, Key.D);
 
-        Assert.Equal(0.5f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 0.5f)), InputFixtures.Tolerance);
-        Assert.Equal(1f, bindings.AxisValue(Move, DeviceSnapshot.Of(Key.D)), InputFixtures.Tolerance);
+        Assert.Equal(0.5f, input.Bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 0.5f)), InputFixtures.Tolerance);
+        Assert.Equal(1f, input.Bindings.AxisValue(Move, DeviceSnapshot.Of(Key.D)), InputFixtures.Tolerance);
     }
 
     [Fact]
     public void Rebind_DropsThePreviousButtons()
     {
-        ActionBindings bindings = new ActionBindings().Bind(Jump, Key.Space, PadButton.South);
+        InputConfiguration input = new InputConfiguration().Bind(Jump, Key.Space, PadButton.South);
 
-        bindings.Rebind(Jump, Key.F);
+        input.Rebind(Jump, Key.F);
 
         InputButton[] expected = [Key.F];
-        Assert.Equal(expected, bindings.ButtonsFor(Jump).ToArray());
-        Assert.False(bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
-        Assert.True(bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.F)));
+        Assert.Equal(expected, input.ButtonsFor(Jump).ToArray());
+        Assert.False(input.Bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
+        Assert.True(input.Bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.F)));
     }
 
     [Fact]
     public void Unbind_LeavesTheActionUnbound()
     {
-        ActionBindings bindings = new ActionBindings().Bind(Jump, Key.Space).BindAxis(Move, PadAxis.LeftStickX);
+        InputConfiguration input = new InputConfiguration().Bind(Jump, Key.Space).Bind(Move, PadAxis.LeftStickX);
 
-        bindings.Unbind(Jump).Unbind(Move);
+        input.Unbind(Jump).Unbind(Move);
 
-        Assert.True(bindings.ButtonsFor(Jump).IsEmpty);
-        Assert.False(bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
-        Assert.Equal(0f, bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 1f)));
+        Assert.True(input.ButtonsFor(Jump).IsEmpty);
+        Assert.False(input.Bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
+        Assert.Equal(0f, input.Bindings.AxisValue(Move, Stick(PadAxis.LeftStickX, 1f)));
     }
 
     [Fact]
     public void ABooleanAndAnAxisActionOfTheSameName_DoNotCollide()
     {
-        ActionBindings bindings = new ActionBindings()
+        InputConfiguration input = new InputConfiguration()
             .Bind(Jump, Key.Space)
-            .BindAxis(new AxisAction("Jump"), PadAxis.LeftTrigger);
+            .Bind(new AxisAction("Jump"), PadAxis.LeftTrigger);
 
-        Assert.True(bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
-        Assert.Equal(0f, bindings.AxisValue(new AxisAction("Jump"), DeviceSnapshot.Of(Key.Space)));
+        Assert.True(input.Bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
+        Assert.Equal(0f, input.Bindings.AxisValue(new AxisAction("Jump"), DeviceSnapshot.Of(Key.Space)));
     }
 
     private static DeviceSnapshot Stick(PadAxis axis, float value) => DeviceSnapshot.Empty.WithAxis(axis, value);

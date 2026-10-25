@@ -24,7 +24,7 @@ A record is a header (`timestamp`, `label`, `lane`, `uncapped`, `commit`, `confi
 - Paced: `frames`, `steps` for the fixed steps those frames ran, one a frame while the workload keeps pace, `updateMs` {median, p95, max}, `viewMs` {median, p95} for the frame's build over the frames that ran a step, `frameBytes`, and `intervalMs` {median, p95, max} from frame start to frame start.
 - Mixer: `steps` for the blocks mixed, `stepMs` {median, p95} for one block, and `stepBytes`, the bytes the measured blocks allocated.
 
-Changing a workload's definition resets its history. Compare by label and commit. Compare an uncapped record only with another uncapped record. Older records differ:
+Changing a workload's definition resets its history. Compare by label and commit. Compare an uncapped record only with another uncapped record. A light workload's uncapped interval moves with the machine's state between sessions, and a change is measured against a build of the committed tree run back to back with it. Older records differ:
 
 - Before 2026-09-18 they carry other columns.
 - Before 2026-09-30 they carry no `lane` and cover both lanes.
@@ -61,6 +61,14 @@ artifacts/bench/aot/MyGame.exe --driver <Name> --headless --frames artifacts/ben
 ```
 
 The frame CSV's `bytes` column is what the frame thread allocated since the previous frame. A steady allocation in the windowed run that the headless run lacks comes from presentation or media: the renderer, the window or the audio device. One in both can come from the steps, the frame build, the driver or the host's upkeep, and needs those split apart. MonoGame 3.8.5.1, the current substrate, accounts for one known allocation, accepted until it is replaced. `VertexBuffer.SetData` calls `Marshal.SizeOf<T>()` on every sprite upload, 32 bytes a batch flush, and a game drawn through a canvas flushes about four times a frame.
+
+## Input latency
+
+```text
+dotnet run -c Release --project tests/Capsule.Bench -- latency [--label <text>] [--cap <hz>]
+```
+
+`latency` plays `Still` windowed for 25 seconds under vertical sync, or with no vertical sync at the frame cap `--cap` names. A thread in the run presses and releases F13 for 20 seconds, at random gaps of 30 to 110 ms and holds of 10 to 45 ms, after two seconds of warm-up. On Windows each press is a scancode `SendInput`, which reaches SDL through the OS queue as a player's does and is sent only while the window is in front. Leave it in front for the run. Elsewhere the press is an SDL event pushed straight into SDL's queue. The run measures each press from its event's SDL timestamp to the return of the present of the first frame whose steps consumed it. A record goes to `results/latency/<UTC timestamp>.json` with the suite's header less `lane` and `uncapped`, then `workload`, `vsync`, `cap`, `injection` (`SendInput` or `SDL_PushEvent`), `injected` and `presses` counts, `latencyMs` {median, p95, max}, and `injectedLatencyMs`, the same span from the injector's own clock, paired press for press and null when a press went unmeasured. Windows stamps an event with its message time, in whole ticks of a coarse clock, which puts `latencyMs` above `injectedLatencyMs`. Compare by label.
 
 ## Asset build
 

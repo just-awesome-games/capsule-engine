@@ -66,8 +66,8 @@ internal static class OverlayActions
             .Bind(Grab, Key.Space)
             .Bind(Zoom, Key.LeftControl, Key.RightControl)
             .Bind(Sideways, Key.LeftShift, Key.RightShift, Key.LeftAlt, Key.RightAlt)
-            .BindAxis(Scroll, MouseAxis.ScrollY)
-            .BindAxis(ScrollSideways, MouseAxis.ScrollX);
+            .Bind(Scroll, MouseAxis.ScrollY)
+            .Bind(ScrollSideways, MouseAxis.ScrollX);
 
     // The Help page: each input no row shows, by its main keys as a row shows its first. A line with no keys
     // is a heading. Covers names the actions a line teaches, and every action is taught by a root row or a
@@ -94,7 +94,19 @@ internal static class OverlayActions
 
     internal static string KeyName(InputAction action) => KeyName(Bindings.ButtonsFor(action)[0]);
 
-    internal static string KeyName(InputButton button) => button == Key.Grave ? "~" : button.Name;
+    // What a row shows for button: the character a US layout prints on a key, else the constant's bare
+    // name, as F1. The rows are built before the player's layout is read, and the overlay is English.
+    internal static string KeyName(InputButton button)
+    {
+        if (button.AsKey is { } key && KeyCharacters.Us[(int)key] is { } character)
+        {
+            return character;
+        }
+
+        string qualified = button.ToString();
+
+        return qualified[(qualified.IndexOf('.', StringComparison.Ordinal) + 1)..];
+    }
 }
 
 internal readonly record struct HelpLine(string Label, string? Keys = null, params InputAction[] Covers);

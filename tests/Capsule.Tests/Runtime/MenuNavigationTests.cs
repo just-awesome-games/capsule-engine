@@ -57,7 +57,7 @@ public sealed class MenuNavigationTests
     {
         Menu menu = new();
         Run configured = new() { Canvas = Canvas };
-        Bound(configured.Input.Bindings);
+        Bound(configured.Input);
 
         using SimulationHost run = new(menu, run: configured);
         run.Play(driver);
@@ -75,10 +75,10 @@ public sealed class MenuNavigationTests
     private static IInputDriver ByPointer() =>
         new InputScript().MoveTo(OnTheSecondItem).Wait(1).Tap(MouseButton.Left).Build();
 
-    private static void Bind(Run run) => Bound(run.Input.Bindings);
+    private static void Bind(Run run) => Bound(run.Input);
 
-    private static ActionBindings Bound(ActionBindings bindings) =>
-        bindings
+    private static InputConfiguration Bound(InputConfiguration input) =>
+        input
             .Bind(FocusFixtures.Up, Key.Up, PadButton.DPadUp)
             .Bind(FocusFixtures.Down, Key.Down, PadButton.DPadDown)
             .Bind(FocusFixtures.Left, Key.Left, PadButton.DPadLeft)

@@ -4,13 +4,15 @@ using Capsule.Diagnostics;
 
 namespace Capsule.Runtime.Desktop;
 
-// The SDL calls the host makes for itself. The graphics backend keeps its own binding internal and
-// initialises a fixed set of subsystems. These calls are made here against the SDL2 the backend loads,
-// which is sdl2-compat, the bridge that forwards each call to SDL3.
+// The SDL3 calls the host makes for itself. The graphics backend keeps its own SDL2 binding, which
+// sdl2-compat forwards to this same SDL3, and initialises a fixed set of subsystems. The bridge hands
+// out SDL3's own windows, and a backend window handle is an SDL3 window. These calls read state and
+// watch events. The backend pumps them.
 internal static class SdlPlatform
 {
-    // Every SDL binding in this assembly names this library, which the resolver below loads.
-    internal const string LibraryName = "SDL2";
+    // Every SDL binding in this assembly names this library, which the resolver below maps to the
+    // SDL3 the static constructor loads.
+    internal const string LibraryName = "SDL3";
 
     // The bridge loads SDL3 by this file name alone. Windows and Linux look for it beside the
     // executable and in system folders, never beside the bridge, and a development build keeps both
@@ -20,24 +22,34 @@ internal static class SdlPlatform
         : OperatingSystem.IsMacOS() ? "libSDL3.dylib"
         : "libSDL3.so.0";
 
-    private const uint MinimizedFlag = 0x00000040;
-    private const uint InputFocusFlag = 0x00000200;
-    private const uint WindowEventType = 0x200;
-    private const byte WindowExposed = 3;
-    private const byte WindowSizeChanged = 6;
+    // The game's own SDL3, or zero when the load failed and a binding's first call reports it.
+    internal static readonly nint Library;
 
-    // Byte offsets into SDL_WindowEvent, fixed by SDL2's ABI: the union's type, then the per-window
-    // event id after the timestamp and window id.
-    private const int TypeOffset = 0;
-    private const int WindowEventIdOffset = 12;
+    private const ulong MinimizedFlag = 0x40;
+    private const ulong InputFocusFlag = 0x200;
+
+    // The bridge's own event filter consumes SDL3's window events and posts each again as SDL2's
+    // window event, its SDL2 fields copied after SDL3's 16-byte header. A watch sees only the repost:
+    // this type at the event's start, and the SDL2 window event's id after its window id.
+    private const uint BridgeWindowEvent = 0x200;
+    private const int BridgeWindowEventIdOffset = 20;
+    private const byte BridgeExposed = 3;
+    private const byte BridgeSizeChanged = 6;
+
+    private const string Win32WindowProperty = "SDL.window.win32.hwnd";
+
+    // Byte offsets into SDL_DisplayMode: the extent follows the display's id and its pixel format.
+    private const int ModeWidthOffset = 8;
+    private const int ModeHeightOffset = 12;
 
     static SdlPlatform()
     {
-        NativeLibrary.TryLoad(Sdl3File, typeof(SdlPlatform).Assembly, null, out _);
+        NativeLibrary.TryLoad(Sdl3File, typeof(SdlPlatform).Assembly, null, out Library);
         NativeLibrary.SetDllImportResolver(typeof(SdlPlatform).Assembly, Resolve);
     }
 
-    private delegate int SdlEventFilter(nint userData, nint sdlEvent);
+    // SDL3's bool is one byte.
+    private delegate byte SdlEventFilter(nint userData, nint sdlEvent);
 
     // Loads SDL3 and registers the resolver for the whole assembly, once, in this class's static
     // constructor. The backend loads the bridge before the platform's first call, and a binding
@@ -57,70 +69,58 @@ internal static class SdlPlatform
     internal static bool IsMinimized(nint window) => (SDL_GetWindowFlags(window) & MinimizedFlag) != 0;
 
     // SDL releases the grab while the window is unfocused and takes it again on focus return.
-    internal static void ConfineCursor(nint window, bool confined) => SDL_SetWindowMouseGrab(window, confined ? 1 : 0);
+    internal static void ConfineCursor(nint window, bool confined) => SDL_SetWindowMouseGrab(window, confined);
 
-    // The operating system's own handle for the window, an HWND on Windows, or zero when SDL will
-    // not report one. A backend window handle is SDL's own opaque pointer, not this.
-    internal static nint NativeWindowHandle(nint window)
-    {
-        SdlWindowInfo info = default;
-        SDL_GetVersion(out info.Version);
-
-        return SDL_GetWindowWMInfo(window, ref info) == 1 ? info.NativeWindow : nint.Zero;
-    }
+    // The window's HWND on Windows, or zero elsewhere or when SDL will not report one. A backend
+    // window handle is SDL's own opaque pointer, not this.
+    internal static nint NativeWindowHandle(nint window) =>
+        OperatingSystem.IsWindows()
+            ? SDL_GetPointerProperty(SDL_GetWindowProperties(window), Win32WindowProperty, nint.Zero)
+            : nint.Zero;
 
     // The window's current extent in screen coordinates, which SDL updates as the OS reports it,
     // during a modal resize and ahead of the event announcing the new size.
     internal static void WindowSize(nint window, out int width, out int height) =>
         SDL_GetWindowSize(window, out width, out height);
 
-    // The desktop extent in pixels of the display the window is on, or false when SDL cannot say.
+    // The desktop extent of the display the window is on, or false when SDL cannot say. The mode is
+    // SDL's own and is not freed.
     internal static bool DisplayExtent(nint window, out int width, out int height)
     {
-        int display = SDL_GetWindowDisplayIndex(window);
-        if (display < 0 || SDL_GetDesktopDisplayMode(display, out SdlDisplayMode mode) != 0)
+        uint display = SDL_GetDisplayForWindow(window);
+        nint mode = display == 0 ? nint.Zero : SDL_GetDesktopDisplayMode(display);
+        if (mode == nint.Zero)
         {
             (width, height) = (0, 0);
             return false;
         }
 
-        (width, height) = (mode.Width, mode.Height);
+        (width, height) = (Marshal.ReadInt32(mode, ModeWidthOffset), Marshal.ReadInt32(mode, ModeHeightOffset));
         return true;
     }
 
-    // The operating system's preferred languages as BCP 47 tags, most preferred first. SDL answers before
-    // it is initialised. A library older than 2.0.14 lacks the call, and it and a failed call yield none.
+    // The operating system's preferred languages as BCP 47 tags, most preferred first. SDL answers
+    // before it is initialised, and a failed call yields none.
     internal static IReadOnlyList<string> PreferredLocales()
     {
-        nint locales;
-        try
-        {
-            locales = SDL_GetPreferredLocales();
-        }
-        catch (Exception error) when (error is EntryPointNotFoundException or DllNotFoundException)
-        {
-            return [];
-        }
-
+        nint locales = SDL_GetPreferredLocales(out int count);
         if (locales == nint.Zero)
         {
             return [];
         }
 
-        // An SDL_Locale is two string pointers, and a null language ends the array.
+        // One allocation holds the array of SDL_Locale pointers and the locales they point to. An
+        // SDL_Locale is two string pointers, the country null when the locale names none.
         try
         {
-            List<string> tags = [];
-            for (int offset = 0; ; offset += 2 * nint.Size)
+            string[] tags = new string[count];
+            for (int index = 0; index < count; index++)
             {
-                nint language = Marshal.ReadIntPtr(locales, offset);
-                if (language == nint.Zero)
-                {
-                    return tags;
-                }
-
-                tags.Add(LocaleTag(Marshal.PtrToStringUTF8(language)!, Marshal.PtrToStringUTF8(Marshal.ReadIntPtr(locales, offset + nint.Size))));
+                nint locale = Marshal.ReadIntPtr(locales, index * nint.Size);
+                tags[index] = LocaleTag(Marshal.PtrToStringUTF8(Marshal.ReadIntPtr(locale))!, Marshal.PtrToStringUTF8(Marshal.ReadIntPtr(locale, nint.Size)));
             }
+
+            return tags;
         }
         finally
         {
@@ -132,30 +132,9 @@ internal static class SdlPlatform
     internal static string LocaleTag(string language, string? country) =>
         string.IsNullOrEmpty(country) ? language : $"{language}-{country}";
 
-    // The default probe derives no candidate matching the bridge's versioned sonames. The file is
-    // named per platform, as the backend's own loader names it.
-    private static nint Resolve(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
-    {
-        if (libraryName != LibraryName)
-        {
-            return nint.Zero;
-        }
-
-        string[] candidates =
-            OperatingSystem.IsWindows() ? ["SDL2.dll"]
-            : OperatingSystem.IsMacOS() ? ["libSDL2-2.0.0.dylib", "libSDL2.dylib"]
-            : ["libSDL2-2.0.so.0", "libSDL2.so"];
-
-        foreach (string candidate in candidates)
-        {
-            if (NativeLibrary.TryLoad(candidate, assembly, searchPath, out nint handle))
-            {
-                return handle;
-            }
-        }
-
-        return nint.Zero;
-    }
+    // The default probe derives no candidate matching SDL3's versioned soname.
+    private static nint Resolve(string libraryName, Assembly assembly, DllImportSearchPath? searchPath) =>
+        libraryName == LibraryName ? Library : nint.Zero;
 
     // An installed SDL event watch, which calls back whenever its window is resized or exposed.
     // Windows runs a window drag in an OS modal loop that blocks the game loop for its duration, and a
@@ -187,11 +166,11 @@ internal static class SdlPlatform
             }
 
             _disposed = true;
-            SDL_DelEventWatch(_filter, nint.Zero);
+            SDL_RemoveEventWatch(_filter, nint.Zero);
         }
 
         // The return value is ignored for a watch. SDL consults it only for the event filter proper.
-        private int OnSdlEvent(nint userData, nint sdlEvent)
+        private byte OnSdlEvent(nint userData, nint sdlEvent)
         {
             if (_disposed || sdlEvent == nint.Zero || Environment.CurrentManagedThreadId != _thread)
             {
@@ -200,12 +179,8 @@ internal static class SdlPlatform
 
             try
             {
-                if ((uint)Marshal.ReadInt32(sdlEvent, TypeOffset) != WindowEventType)
-                {
-                    return 0;
-                }
-
-                if (Marshal.ReadByte(sdlEvent, WindowEventIdOffset) is WindowSizeChanged or WindowExposed)
+                if ((uint)Marshal.ReadInt32(sdlEvent) == BridgeWindowEvent
+                    && Marshal.ReadByte(sdlEvent, BridgeWindowEventIdOffset) is BridgeSizeChanged or BridgeExposed)
                 {
                     _redraw();
                 }
@@ -222,76 +197,48 @@ internal static class SdlPlatform
     }
 
     // LibraryImport generates unsafe marshalling stubs, and these calls do not justify opening the
-    // assembly to unsafe code. A window and an event are opaque handles, already pointers, and the
-    // filter is a non-generic delegate of blittable arguments, which marshals ahead of time.
+    // assembly to unsafe code. A window and an event are opaque handles, already pointers, the filter
+    // is a non-generic delegate of blittable arguments, which marshals ahead of time, and SDL3's bool
+    // marshals as one byte.
 #pragma warning disable SYSLIB1054
     [DllImport(LibraryName, EntryPoint = "SDL_RaiseWindow")]
-    private static extern void SDL_RaiseWindow(nint window);
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static extern bool SDL_RaiseWindow(nint window);
 
     [DllImport(LibraryName, EntryPoint = "SDL_GetWindowFlags")]
-    private static extern uint SDL_GetWindowFlags(nint window);
+    private static extern ulong SDL_GetWindowFlags(nint window);
 
-    // The grab flag is an SDL_bool, an int in SDL2's ABI.
     [DllImport(LibraryName, EntryPoint = "SDL_SetWindowMouseGrab")]
-    private static extern void SDL_SetWindowMouseGrab(nint window, int grabbed);
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static extern bool SDL_SetWindowMouseGrab(nint window, [MarshalAs(UnmanagedType.U1)] bool grabbed);
 
     [DllImport(LibraryName, EntryPoint = "SDL_GetWindowSize")]
-    private static extern void SDL_GetWindowSize(nint window, out int width, out int height);
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static extern bool SDL_GetWindowSize(nint window, out int width, out int height);
 
-    [DllImport(LibraryName, EntryPoint = "SDL_GetWindowDisplayIndex")]
-    private static extern int SDL_GetWindowDisplayIndex(nint window);
+    [DllImport(LibraryName, EntryPoint = "SDL_GetWindowProperties")]
+    private static extern uint SDL_GetWindowProperties(nint window);
+
+    [DllImport(LibraryName, EntryPoint = "SDL_GetPointerProperty")]
+    private static extern nint SDL_GetPointerProperty(uint properties, [MarshalAs(UnmanagedType.LPUTF8Str)] string name, nint defaultValue);
+
+    [DllImport(LibraryName, EntryPoint = "SDL_GetDisplayForWindow")]
+    private static extern uint SDL_GetDisplayForWindow(nint window);
 
     [DllImport(LibraryName, EntryPoint = "SDL_GetDesktopDisplayMode")]
-    private static extern int SDL_GetDesktopDisplayMode(int displayIndex, out SdlDisplayMode mode);
+    private static extern nint SDL_GetDesktopDisplayMode(uint display);
 
     [DllImport(LibraryName, EntryPoint = "SDL_AddEventWatch")]
-    private static extern void SDL_AddEventWatch(SdlEventFilter filter, nint userData);
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static extern bool SDL_AddEventWatch(SdlEventFilter filter, nint userData);
 
-    [DllImport(LibraryName, EntryPoint = "SDL_DelEventWatch")]
-    private static extern void SDL_DelEventWatch(SdlEventFilter filter, nint userData);
+    [DllImport(LibraryName, EntryPoint = "SDL_RemoveEventWatch")]
+    private static extern void SDL_RemoveEventWatch(SdlEventFilter filter, nint userData);
 
     [DllImport(LibraryName, EntryPoint = "SDL_GetPreferredLocales")]
-    private static extern nint SDL_GetPreferredLocales();
+    private static extern nint SDL_GetPreferredLocales(out int count);
 
     [DllImport(LibraryName, EntryPoint = "SDL_free")]
     private static extern void SDL_free(nint memory);
-
-    [DllImport(LibraryName, EntryPoint = "SDL_GetVersion")]
-    private static extern void SDL_GetVersion(out SdlVersion version);
-
-    // SDL refuses the call unless the version field names a release it can answer for. The struct
-    // is stamped from SDL_GetVersion before every call.
-    [DllImport(LibraryName, EntryPoint = "SDL_GetWindowWMInfo")]
-    private static extern int SDL_GetWindowWMInfo(nint window, ref SdlWindowInfo info);
 #pragma warning restore SYSLIB1054
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct SdlVersion
-    {
-        internal byte Major;
-        internal byte Minor;
-        internal byte Patch;
-    }
-
-    // SDL_DisplayMode: the pixel format, the extent, the refresh rate and the driver's own data.
-    [StructLayout(LayoutKind.Sequential)]
-    private struct SdlDisplayMode
-    {
-        internal uint Format;
-        internal int Width;
-        internal int Height;
-        internal int RefreshRate;
-        internal nint DriverData;
-    }
-
-    // SDL_SysWMinfo. The first member of its per-platform union is the native window on every platform
-    // that has one. The declared size covers the union, which SDL writes through whichever driver
-    // answered.
-    [StructLayout(LayoutKind.Sequential, Size = 128)]
-    private struct SdlWindowInfo
-    {
-        internal SdlVersion Version;
-        internal int Subsystem;
-        internal nint NativeWindow;
-    }
 }

@@ -19,6 +19,11 @@ public sealed class InputState
     private InputDevice _activeDevice;
     private bool _activeDeviceChanged;
 
+    // The characters the player's keyboard layout prints, indexed by key, or null for a US layout's.
+    // A null entry is a key the layout prints no character on. The host owns the array and rewrites it
+    // when the layout changes.
+    private string?[]? _keyLayout;
+
     internal InputState(ActionBindings bindings) => _bindings = bindings;
 
     /// <summary>
@@ -68,6 +73,35 @@ public sealed class InputState
     /// <summary>Whether <see cref="ActiveDevice"/> is not what it was the previous step.</summary>
     public bool ActiveDeviceChanged => _activeDeviceChanged;
 
+    /// <summary>
+    /// The family of the pad the player last used this step, which picks a prompt's art set.
+    /// <see cref="Input.PadFamily.Generic"/> until a pad of a known family is found.
+    /// </summary>
+    /// <remarks>
+    /// It keeps the last pad's family after the pad is disconnected, and a replay reproduces it. A
+    /// change of family alone does not change <see cref="ActiveDevice"/>.
+    /// </remarks>
+    public PadFamily PadFamily => _current.PadFamily;
+
+    /// <summary>
+    /// The character the player's keyboard layout prints on <paramref name="button"/>'s key position,
+    /// uppercased, as <c>Z</c> for <see cref="Key.W"/> on an AZERTY keyboard.
+    /// </summary>
+    /// <remarks>
+    /// Null for a key that prints no character, such as <see cref="Key.LeftShift"/>, <see cref="Key.F1"/>,
+    /// an arrow, <see cref="Key.Enter"/> or <see cref="Key.Space"/>, for every key of the numeric keypad,
+    /// which prints the same on every layout and which a game names itself, and for a button that is not a
+    /// key.
+    /// A run an input driver plays and a headless run read a US layout's characters. A repeated read
+    /// allocates nothing.
+    /// </remarks>
+    public string? KeyCharacter(InputButton button)
+    {
+        string?[] characters = _keyLayout ?? KeyCharacters.Us;
+
+        return button.AsKey is { } key && (uint)key < (uint)characters.Length ? characters[(int)key] : null;
+    }
+
     // Advances to a snapshot. Repeating a snapshot produces no second edge.
     internal void Advance(in DeviceSnapshot snapshot)
     {
@@ -78,6 +112,11 @@ public sealed class InputState
         _activeDeviceChanged = device != _activeDevice;
         _activeDevice = device;
     }
+
+    // Reads key characters from the player's keyboard layout from now on, or from a US layout's when
+    // null. Only a played run installs one, and a driven or headless run keeps the US characters it
+    // replays with.
+    internal void UseKeyLayout(string?[]? characters) => _keyLayout = characters;
 
     // The initial device, part of the run's initial state. Set before the first step and raises no
     // change.

@@ -100,16 +100,38 @@ public sealed class ActiveDeviceTests
         Assert.Equal([false, true, false], scene.Changes);
     }
 
+    // A driver records the pad's family as it records window focus, and a step reads it back. A change
+    // of family alone is no use of the pad.
+    [Fact]
+    public void ADriversPadFamily_ReachesTheStepWithoutMovingTheActiveDevice()
+    {
+        DeviceRecorder scene = new();
+        using SceneHost host = new(SceneTransition.ToScene(typeof(DeviceRecorder), null), (in SceneTransition _) => scene, new Run());
+        DeviceSnapshot playStation = DeviceSnapshot.Empty.WithPadFamily(PadFamily.PlayStation);
+        IInputDriver driver = new ScriptedInputDriver([DeviceSnapshot.Empty, playStation, playStation.With(PadButton.South)]);
+        FixedStepScheduler scheduler = new(0.1, 32, new ActionBindings(), driver, host);
+
+        while (!scheduler.Advance(0.1, DeviceSnapshot.Empty, host))
+        {
+        }
+
+        Assert.Equal([PadFamily.Generic, PadFamily.PlayStation, PadFamily.PlayStation], scene.Families);
+        Assert.Equal([InputDevice.KeyboardMouse, InputDevice.KeyboardMouse, InputDevice.Gamepad], scene.Devices);
+    }
+
     private sealed class DeviceRecorder : Scene
     {
         internal List<InputDevice> Devices { get; } = [];
 
         internal List<bool> Changes { get; } = [];
 
+        internal List<PadFamily> Families { get; } = [];
+
         protected override void OnStep(in StepContext context)
         {
             Devices.Add(context.Input.ActiveDevice);
             Changes.Add(context.Input.ActiveDeviceChanged);
+            Families.Add(context.Input.PadFamily);
         }
     }
 }

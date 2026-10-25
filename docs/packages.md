@@ -86,4 +86,7 @@ A console runtime is a private repository, one per platform:
 3. Consume Capsule in source mode at a pinned tag (`CapsuleSourcePath`) and swap the substrate with
    `CapsuleSubstratePackage` and `CapsuleSubstrateVersion`. An unmodified checkout retargets.
 
+`Capsule.Runtime` calls SDL3 itself for input and the cursor. The module supplies SDL3 for its target,
+linked statically under the library name `SDL3` or shipped beside the game.
+
 A shell references one platform module.

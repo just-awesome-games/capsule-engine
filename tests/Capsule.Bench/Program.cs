@@ -24,6 +24,16 @@ internal static class Program
             return AssetBench.Run(args[1..]);
         }
 
+        if (args.Length > 0 && args[0] == "latency")
+        {
+            return LatencyBench.Run(args[1..]);
+        }
+
+        // The latency run's child: the directory its measurement and injector write to, and the frame
+        // cap it runs at without vertical sync, 0 for vertical sync.
+        string? latency = TakeOption(ref args, LatencyBench.DirectoryOption);
+        int cap = TakeOption(ref args, LatencyBench.CapOption) is { } hertz ? int.Parse(hertz, CultureInfo.InvariantCulture) : 0;
+
         int soak = Array.IndexOf(args, "--soak-seconds");
         if (soak >= 0)
         {
@@ -75,7 +85,33 @@ internal static class Program
             ? engine.WithWindow(1920, 1080).WithRenderResolution(1920, 1080).WithSampling(TextureSampling.Linear)
             : engine.WithWindow(1280, 720).WithRenderResolution(640, 360).WithSampling(TextureSampling.Point);
 
+        if (cap > 0)
+        {
+            engine = engine.WithoutVSync().WithMaxFrameRate(cap);
+        }
+
+        if (latency is not null)
+        {
+            engine = engine.WithInputLatency(Path.Combine(latency, Injector.PressesFile));
+            Injector.Start(latency, LatencyBench.WarmUpMs, LatencyBench.PressingMs);
+        }
+
         return engine.RunScene<Still>();
+    }
+
+    // The value after option, removed from args with the option, or null when args holds none.
+    private static string? TakeOption(ref string[] args, string option)
+    {
+        int at = Array.IndexOf(args, option);
+        if (at < 0 || at + 1 >= args.Length)
+        {
+            return null;
+        }
+
+        string value = args[at + 1];
+        args = [.. args[..at], .. args[(at + 2)..]];
+
+        return value;
     }
 
     internal static string Describe(Surface surface) => surface == Surface.Hd1080 ? "1920x1080-linear" : "640x360-point";

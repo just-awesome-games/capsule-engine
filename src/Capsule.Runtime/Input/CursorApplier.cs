@@ -3,8 +3,7 @@ using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime.Assets;
-using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
+using Capsule.Runtime.Sdl;
 
 namespace Capsule.Runtime.Input;
 
@@ -14,16 +13,16 @@ internal readonly record struct CursorLook(bool Shown, Sprite? Image, bool Confi
 
 // Applies the run's cursor to the window. The only place the pointer is shown, hidden, replaced or
 // confined. One instance per windowed scene run. A headless run constructs none.
-internal sealed class CursorApplier(GraphicsDevice device, TextureStore textures, Action<bool> show, Action<bool> confine) : IDisposable
+internal sealed class CursorApplier(TextureStore textures, Action<bool> confine) : IDisposable
 {
     // SDL accepts larger cursors, but some platforms clip or refuse them.
     internal const int MaxSidePixels = 256;
 
     // Built on first use and kept until the host is disposed, one per image and factor. A failed
-    // build is kept as null and shows the system arrow without retrying.
-    private readonly Dictionary<CursorKey, MouseCursor?> _built = [];
+    // build is kept as zero and shows the system arrow without retrying.
+    private readonly Dictionary<CursorKey, nint> _built = [];
 
-    // The backend's window starts with the pointer hidden and ungrabbed. The impossible factor makes
+    // The window is created with the pointer hidden and ungrabbed. The impossible factor makes
     // the first frame set the cursor.
     private CursorLook _applied = new(Shown: false, Image: null, Confined: false, Factor: -1);
 
@@ -62,15 +61,19 @@ internal sealed class CursorApplier(GraphicsDevice device, TextureStore textures
             return;
         }
 
-        if (look.Shown != _applied.Shown)
+        if (look.Shown && !_applied.Shown)
         {
-            show(look.Shown);
+            Sdl3.SDL_ShowCursor();
+        }
+        else if (!look.Shown && _applied.Shown)
+        {
+            Sdl3.SDL_HideCursor();
         }
 
         if (look.Image != _applied.Image || look.Factor != _applied.Factor)
         {
-            MouseCursor? image = look.Image is { } sprite ? Build(sprite, look.Factor) : null;
-            Mouse.SetCursor(image ?? MouseCursor.Arrow);
+            nint image = look.Image is { } sprite ? Build(sprite, look.Factor) : nint.Zero;
+            Sdl3.SDL_SetCursor(image != nint.Zero ? image : Sdl3.SDL_GetDefaultCursor());
         }
 
         if (look.Confined != _applied.Confined)
@@ -89,30 +92,48 @@ internal sealed class CursorApplier(GraphicsDevice device, TextureStore textures
             return;
         }
 
-        Mouse.SetCursor(MouseCursor.Arrow);
-        foreach (MouseCursor? built in _built.Values)
+        Sdl3.SDL_SetCursor(Sdl3.SDL_GetDefaultCursor());
+        foreach (nint built in _built.Values)
         {
-            built?.Dispose();
+            if (built != nint.Zero)
+            {
+                Sdl3.SDL_DestroyCursor(built);
+            }
         }
 
         _built.Clear();
     }
 
-    private MouseCursor? Build(Sprite sprite, int factor)
+    private unsafe nint Build(Sprite sprite, int factor)
     {
         CursorKey key = new(sprite.Texture, sprite.Region, (int)MathF.Floor(sprite.Pivot.X), (int)MathF.Floor(sprite.Pivot.Y), factor);
-        if (_built.TryGetValue(key, out MouseCursor? cached))
+        if (_built.TryGetValue(key, out nint cached))
         {
             return cached;
         }
 
-        MouseCursor? built = null;
+        nint built = nint.Zero;
         try
         {
             byte[] texels = Enlarge(textures.ReadRegion(sprite.Texture, sprite.Region), sprite.Region.Width, sprite.Region.Height, factor);
-            using Texture2D texture = new(device, sprite.Region.Width * factor, sprite.Region.Height * factor);
-            texture.SetData(texels);
-            built = MouseCursor.FromTexture2D(texture, key.HotX * factor, key.HotY * factor);
+            int width = sprite.Region.Width * factor;
+            int height = sprite.Region.Height * factor;
+
+            // SDL copies the texels into the cursor, and the surface over them goes straight after.
+            fixed (byte* pixels = texels)
+            {
+                nint surface = Sdl3.SDL_CreateSurfaceFrom(width, height, Sdl3.PixelFormatRgba32, pixels, width * 4);
+                if (surface != nint.Zero)
+                {
+                    built = Sdl3.SDL_CreateColorCursor(surface, key.HotX * factor, key.HotY * factor);
+                    Sdl3.SDL_DestroySurface(surface);
+                }
+            }
+
+            if (built == nint.Zero)
+            {
+                throw new InvalidOperationException(Sdl3.Error());
+            }
         }
         catch (Exception failure)
         {

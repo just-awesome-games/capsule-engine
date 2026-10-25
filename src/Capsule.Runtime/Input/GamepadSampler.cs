@@ -1,60 +1,163 @@
+using System.Runtime.InteropServices;
+using Capsule.Diagnostics;
 using Capsule.Input;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Input;
+using Capsule.Runtime.Sdl;
 
 namespace Capsule.Runtime.Input;
 
-// Folds the first connected gamepad into a DeviceSnapshot. The only place pad hardware enters the
-// engine. One instance per host, remembering which player index answered last. The backend reads the
-// pad while another window has focus. An unfocused window folds none of it.
-internal sealed class GamepadSampler
+// Folds the active gamepad into a DeviceSnapshot. The only place pad hardware enters the engine. Every
+// connected pad is opened, and PadRoster keeps the active one: a button or trigger going down on
+// another pad makes that pad active and counts as its press. One instance per windowed host, which
+// holds SDL's gamepad subsystem open for its lifetime. An unfocused window folds none of it but the
+// active pad's family, which every sample carries and which outlasts the pad's disconnection.
+internal sealed class GamepadSampler : IDisposable
 {
-    // How many samples pass between sweeps for a pad on another player index while none is connected.
-    // Each index costs a backend call, and a run played on the keyboard would otherwise pay four of
-    // them every frame for pads it never finds.
-    private const int SweepInterval = 30;
+    private static readonly (PadButton Button, Sdl3.GamepadButton Sdl)[] Mappings = BuildLookup();
 
-    private static readonly (PadButton Button, Buttons Xna)[] XnaMappings = BuildLookup();
+    private readonly PadRoster _pads = new();
+    private readonly Func<uint, Pad?> _openPad;
+    private readonly Action<Pad> _closePad;
 
-    // The player index the last connected pad was found on, tried first every sample.
-    private PlayerIndex _connectedPlayer = PlayerIndex.One;
-    private int _sweepCountdown;
-    private bool _connected;
+    // The joysticks already reported as no gamepad, by SDL instance id.
+    private readonly HashSet<uint> _unmapped = [];
+    private readonly bool _open;
 
-    // The backend slot of the pad the last sample found, 0 to 3, or of the last pad found when none is
-    // connected now. The rumble applier drives this slot.
-    internal int ConnectedPlayer => (int)_connectedPlayer;
+    // The family of the pad last active, kept when it disconnects so a prompt does not flicker.
+    private PadFamily _family;
 
-    // Whether the last sample found a pad.
-    internal bool IsConnected => _connected;
-
-    // snapshot with this frame's pad buttons also held and its axes set through filter. With no pad
-    // connected or the window inactive it is returned untouched. The pad is polled either way. The rumble
-    // and the device seed read its connection.
-    internal DeviceSnapshot SampleOnto(in DeviceSnapshot snapshot, PadFilter filter, bool windowActive)
+    // Pads plugged in before the watch existed raised their added events unheard. They are read from
+    // SDL's list here, after the mappings that make some joysticks gamepads, and every later change
+    // from the feed. openContent reads a player's gamecontrollerdb.txt, and null reads none.
+    internal GamepadSampler(Func<string, Stream>? openContent)
     {
-        GamePadState pad = FirstConnected();
-        _connected = pad.IsConnected;
-        if (!pad.IsConnected || !windowActive)
+        _openPad = Open;
+        _closePad = Close;
+        _open = Sdl3.SDL_InitSubSystem(Sdl3.InitGamepad);
+        if (!_open)
         {
-            return snapshot;
+            Log.Warning($"No gamepad will be read: SDL's gamepad subsystem did not start: {Sdl3.Error()}");
+            return;
         }
 
-        DeviceSnapshot sampled = snapshot;
+        GamepadMappings.Load(openContent);
+        Reconcile();
+    }
 
-        foreach ((PadButton button, Buttons xna) in XnaMappings)
+    // The SDL joystick id of the active pad, or 0 with none connected. The rumble applier drives it.
+    internal uint ActivePad => _pads.ActiveId;
+
+    // A raw SDL axis reading in [-1, 1], scaled by 32768 below centre and 32767 above.
+    internal static float Axis(short raw) => raw < 0 ? raw / 32768f : raw / 32767f;
+
+    // A raw stick reading in the unit square, Y positive up.
+    internal static (float X, float Y) Stick(short x, short y) =>
+        (Math.Clamp(Axis(x), -1f, 1f), Math.Clamp(Axis(y) * -1f, -1f, 1f));
+
+    // A raw trigger reading in [0, 1].
+    internal static float Trigger(short raw) => Math.Clamp(Axis(raw), 0f, 1f);
+
+    // The lowest raw trigger reading that reads pressed under deadzone, the first whose pull
+    // PadFilter.Trigger does not zero, or int.MaxValue when none does.
+    internal static int PressThreshold(float deadzone)
+    {
+        int low = 0;
+        int high = short.MaxValue + 1;
+        while (low < high)
         {
-            if (pad.IsButtonDown(xna))
+            int middle = (low + high) / 2;
+            if (Trigger((short)middle) > deadzone)
+            {
+                high = middle;
+            }
+            else
+            {
+                low = middle + 1;
+            }
+        }
+
+        return low > short.MaxValue ? int.MaxValue : low;
+    }
+
+    // sampled with the buttons and triggers pressed names down, in InputEvents' press bits.
+    internal static DeviceSnapshot WithPresses(DeviceSnapshot sampled, uint pressed)
+    {
+        if (pressed == 0)
+        {
+            return sampled;
+        }
+
+        foreach ((PadButton button, Sdl3.GamepadButton sdl) in Mappings)
+        {
+            if ((pressed & (1u << (int)sdl)) != 0)
             {
                 sampled = sampled.With(button);
             }
         }
 
-        (float leftX, float leftY) = filter.Stick(pad.ThumbSticks.Left.X, pad.ThumbSticks.Left.Y);
-        (float rightX, float rightY) = filter.Stick(pad.ThumbSticks.Right.X, pad.ThumbSticks.Right.Y);
+        if ((pressed & InputEvents.LeftTriggerPressed) != 0)
+        {
+            sampled = sampled.With(PadButton.LeftTrigger);
+        }
 
-        float leftPull = filter.Trigger(pad.Triggers.Left);
-        float rightPull = filter.Trigger(pad.Triggers.Right);
+        return (pressed & InputEvents.RightTriggerPressed) != 0 ? sampled.With(PadButton.RightTrigger) : sampled;
+    }
+
+    // The family a pad of SDL's type belongs to. A Steam pad's face buttons are Xbox-lettered in Xbox
+    // positions.
+    internal static PadFamily Family(Sdl3.GamepadType type) => type switch
+    {
+        Sdl3.GamepadType.Xbox360 or Sdl3.GamepadType.XboxOne or Sdl3.GamepadType.Steam => PadFamily.Xbox,
+        Sdl3.GamepadType.PS3 or Sdl3.GamepadType.PS4 or Sdl3.GamepadType.PS5 => PadFamily.PlayStation,
+        Sdl3.GamepadType.NintendoSwitchPro or Sdl3.GamepadType.NintendoSwitchJoyConLeft
+            or Sdl3.GamepadType.NintendoSwitchJoyConRight or Sdl3.GamepadType.NintendoSwitchJoyConPair => PadFamily.Nintendo,
+        _ => PadFamily.Generic,
+    };
+
+    // snapshot with the active pad's family, held buttons and those that went down since the last
+    // sample, and its axes set through filter. With no pad connected or the window inactive it gains
+    // only the last active pad's family.
+    internal DeviceSnapshot SampleOnto(in DeviceSnapshot snapshot, PadFilter filter, bool windowActive, InputEvents events)
+    {
+        if (events.PadsChanged)
+        {
+            Reconcile();
+        }
+
+        if (windowActive)
+        {
+            _pads.Use(events.LastPadPressed);
+        }
+
+        bool connected = _pads.TryGetActive(out Pad active);
+        if (connected)
+        {
+            _family = active.Family;
+        }
+
+        DeviceSnapshot sampled = snapshot.WithPadFamily(_family);
+        if (!windowActive || !connected)
+        {
+            return sampled;
+        }
+
+        nint pad = active.Handle;
+        sampled = WithPresses(sampled, events.PadButtonsPressed(active.Id));
+
+        foreach ((PadButton button, Sdl3.GamepadButton sdl) in Mappings)
+        {
+            if (Sdl3.SDL_GetGamepadButton(pad, sdl))
+            {
+                sampled = sampled.With(button);
+            }
+        }
+
+        (float leftX, float leftY) = Stick(Sdl3.SDL_GetGamepadAxis(pad, Sdl3.GamepadAxis.LeftX), Sdl3.SDL_GetGamepadAxis(pad, Sdl3.GamepadAxis.LeftY));
+        (float rightX, float rightY) = Stick(Sdl3.SDL_GetGamepadAxis(pad, Sdl3.GamepadAxis.RightX), Sdl3.SDL_GetGamepadAxis(pad, Sdl3.GamepadAxis.RightY));
+        (leftX, leftY) = filter.Stick(leftX, leftY);
+        (rightX, rightY) = filter.Stick(rightX, rightY);
+
+        float leftPull = filter.Trigger(Trigger(Sdl3.SDL_GetGamepadAxis(pad, Sdl3.GamepadAxis.LeftTrigger)));
+        float rightPull = filter.Trigger(Trigger(Sdl3.SDL_GetGamepadAxis(pad, Sdl3.GamepadAxis.RightTrigger)));
 
         // The deadzone is the press threshold. Any pull the filter did not zero is a press.
         if (leftPull > 0f)
@@ -76,52 +179,106 @@ internal sealed class GamepadSampler
             .WithAxis(PadAxis.RightTrigger, rightPull);
     }
 
-    // GamePadDeadZone.None, because the backend's own filtering would apply a second, differently
-    // shaped deadzone under PadFilter's.
-    private GamePadState FirstConnected()
+    public void Dispose()
     {
-        GamePadState remembered = GamePad.GetState(_connectedPlayer, GamePadDeadZone.None);
-        if (remembered.IsConnected)
+        if (!_open)
         {
-            return remembered;
+            return;
         }
 
-        if (--_sweepCountdown > 0)
-        {
-            return default;
-        }
-
-        _sweepCountdown = SweepInterval;
-
-        for (PlayerIndex player = PlayerIndex.One; player <= PlayerIndex.Four; player++)
-        {
-            if (player == _connectedPlayer)
-            {
-                continue;
-            }
-
-            GamePadState state = GamePad.GetState(player, GamePadDeadZone.None);
-            if (state.IsConnected)
-            {
-                _connectedPlayer = player;
-
-                return state;
-            }
-        }
-
-        return default;
+        _pads.Clear(static pad => Sdl3.SDL_CloseGamepad(pad.Handle));
+        Sdl3.SDL_QuitSubSystem(Sdl3.InitGamepad);
     }
 
-    // Buttons without an XNA constant are left out of the lookup. IsButtonDown is never handed an
-    // empty flag set, which every state reports as down.
-    private static (PadButton, Buttons)[] BuildLookup()
+    // Brings the open pads in line with SDL's list. A failed read of the list changes nothing.
+    private unsafe void Reconcile()
     {
-        List<(PadButton, Buttons)> mappings = [];
+        if (!_open)
+        {
+            return;
+        }
+
+        int count;
+        uint* ids = Sdl3.SDL_GetGamepads(&count);
+        if (ids == null)
+        {
+            return;
+        }
+
+        try
+        {
+            _pads.Sync(new ReadOnlySpan<uint>(ids, count), _openPad, _closePad);
+        }
+        finally
+        {
+            Sdl3.SDL_free((nint)ids);
+        }
+
+        ReportUnmapped();
+    }
+
+    // Names, once each, every connected joystick SDL has no gamepad mapping for. A player reading the
+    // log learns the GUID a mapping line needs.
+    private unsafe void ReportUnmapped()
+    {
+        int count;
+        uint* ids = Sdl3.SDL_GetJoysticks(&count);
+        if (ids == null)
+        {
+            return;
+        }
+
+        try
+        {
+            byte* guid = stackalloc byte[33];
+            foreach (uint id in new ReadOnlySpan<uint>(ids, count))
+            {
+                if (Sdl3.SDL_IsGamepad(id) || !_unmapped.Add(id))
+                {
+                    continue;
+                }
+
+                Sdl3.SDL_GUIDToString(Sdl3.SDL_GetJoystickGUIDForID(id), guid, 33);
+                string name = Marshal.PtrToStringUTF8((nint)Sdl3.SDL_GetJoystickNameForID(id)) ?? "unnamed";
+                Log.Info($"joystick '{name}' ({Marshal.PtrToStringUTF8((nint)guid)}) is not a gamepad. A mapping line for its GUID in {GamepadMappings.PlayerFile} beside the game makes it one");
+            }
+        }
+        finally
+        {
+            Sdl3.SDL_free((nint)ids);
+        }
+    }
+
+    private static unsafe Pad? Open(uint id)
+    {
+        nint handle = Sdl3.SDL_OpenGamepad(id);
+        if (handle == nint.Zero)
+        {
+            Log.Warning($"A connected gamepad could not be opened and will not be read: {Sdl3.Error()}");
+            return null;
+        }
+
+        string name = Marshal.PtrToStringUTF8((nint)Sdl3.SDL_GetGamepadName(handle)) ?? "unnamed";
+        Log.Info($"gamepad '{name}' connected");
+
+        return new Pad(id, handle, name, Family(Sdl3.SDL_GetGamepadType(handle)));
+    }
+
+    private static void Close(Pad pad)
+    {
+        Log.Info($"gamepad '{pad.Name}' disconnected");
+        Sdl3.SDL_CloseGamepad(pad.Handle);
+    }
+
+    // Buttons with no SDL button are left out of the lookup.
+    private static (PadButton, Sdl3.GamepadButton)[] BuildLookup()
+    {
+        List<(PadButton, Sdl3.GamepadButton)> mappings = [];
         foreach (PadButton button in Enum.GetValues<PadButton>())
         {
-            if (ToXna(button) is { } xna)
+            if (ToSdl(button) is { } sdl)
             {
-                mappings.Add((button, xna));
+                mappings.Add((button, sdl));
             }
         }
 
@@ -130,31 +287,31 @@ internal sealed class GamepadSampler
 
     // No discard arm: adding a PadButton without a mapping must fail the build (CS8509).
 #pragma warning disable CS8524 // PadButton has no unnamed values; only a cast can produce one.
-    private static Buttons? ToXna(PadButton button) => button switch
+    private static Sdl3.GamepadButton? ToSdl(PadButton button) => button switch
     {
         // None is not a snapshot member, and the triggers derive from the filtered pull.
         PadButton.None => null,
         PadButton.LeftTrigger => null,
         PadButton.RightTrigger => null,
 
-        PadButton.DPadUp => Buttons.DPadUp,
-        PadButton.DPadDown => Buttons.DPadDown,
-        PadButton.DPadLeft => Buttons.DPadLeft,
-        PadButton.DPadRight => Buttons.DPadRight,
+        PadButton.DPadUp => Sdl3.GamepadButton.DPadUp,
+        PadButton.DPadDown => Sdl3.GamepadButton.DPadDown,
+        PadButton.DPadLeft => Sdl3.GamepadButton.DPadLeft,
+        PadButton.DPadRight => Sdl3.GamepadButton.DPadRight,
 
-        PadButton.South => Buttons.A,
-        PadButton.East => Buttons.B,
-        PadButton.West => Buttons.X,
-        PadButton.North => Buttons.Y,
+        PadButton.South => Sdl3.GamepadButton.South,
+        PadButton.East => Sdl3.GamepadButton.East,
+        PadButton.West => Sdl3.GamepadButton.West,
+        PadButton.North => Sdl3.GamepadButton.North,
 
-        PadButton.LeftShoulder => Buttons.LeftShoulder,
-        PadButton.RightShoulder => Buttons.RightShoulder,
+        PadButton.LeftShoulder => Sdl3.GamepadButton.LeftShoulder,
+        PadButton.RightShoulder => Sdl3.GamepadButton.RightShoulder,
 
-        PadButton.LeftStickClick => Buttons.LeftStick,
-        PadButton.RightStickClick => Buttons.RightStick,
+        PadButton.LeftStickClick => Sdl3.GamepadButton.LeftStick,
+        PadButton.RightStickClick => Sdl3.GamepadButton.RightStick,
 
-        PadButton.Start => Buttons.Start,
-        PadButton.Select => Buttons.Back,
+        PadButton.Start => Sdl3.GamepadButton.Start,
+        PadButton.Select => Sdl3.GamepadButton.Back,
     };
 #pragma warning restore CS8524
 }

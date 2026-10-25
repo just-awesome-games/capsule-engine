@@ -138,6 +138,18 @@ public sealed class InputScriptTests
         Assert.Equal([true, false, true], steps.Select(snapshot => snapshot.HasWindowFocus));
     }
 
+    [Fact]
+    public void PadFamily_IsHeldUntilTheScriptChangesIt()
+    {
+        List<DeviceSnapshot> steps = Steps(new InputScript()
+            .Wait(1)
+            .PadFamily(PadFamily.Nintendo)
+            .Wait(2)
+            .Build());
+
+        Assert.Equal([PadFamily.Generic, PadFamily.Nintendo, PadFamily.Nintendo], steps.Select(snapshot => snapshot.PadFamily));
+    }
+
     private static List<DeviceSnapshot> Steps(IInputDriver driver)
     {
         Scene scene = new();

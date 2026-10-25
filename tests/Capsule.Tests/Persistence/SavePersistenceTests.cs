@@ -81,7 +81,7 @@ public sealed class SavePersistenceTests : IDisposable
                     [SceneRegistration.Plain(typeof(Jumping), _ => new Jumping(pressed => pressedOnFirstStep = pressed))]))
             .WithFixedStep(10)
             .WithSaveStorage(storage)
-            .WithRunStart(run => run.Input.Bindings.Bind(Jump, run.Saves.Read(JumpBinding).Button))
+            .WithRunStart(run => run.Input.Bind(Jump, run.Saves.Read(JumpBinding).Button))
             .WithoutCrashLog()
             .WithLogSink(_log)
             .RunHeadless<Jumping>(new InputScript().Tap(Key.F).Build());

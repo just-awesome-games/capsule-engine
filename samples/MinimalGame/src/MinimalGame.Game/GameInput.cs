@@ -60,35 +60,33 @@ public static class GameInput
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(settings);
 
-        ActionBindings bindings = input.Bindings;
-
         // Axis contributions accumulate. Each pair adds another way to push the same axis.
-        bindings.BindAxis(Move, Key.A, Key.D);
-        bindings.BindAxis(Move, Key.Left, Key.Right);
-        bindings.BindAxis(Move, PadButton.DPadLeft, PadButton.DPadRight);
-        bindings.BindAxis(Move, PadAxis.LeftStickX);
+        input.Bind(Move, Key.A, Key.D);
+        input.Bind(Move, Key.Left, Key.Right);
+        input.Bind(Move, PadButton.DPadLeft, PadButton.DPadRight);
+        input.Bind(Move, PadAxis.LeftStickX);
 
-        bindings.Bind(MenuUp, Key.Up, Key.W, PadButton.DPadUp, StickDirection.LeftStickUp);
-        bindings.Bind(MenuDown, Key.Down, Key.S, PadButton.DPadDown, StickDirection.LeftStickDown);
+        input.Bind(MenuUp, Key.Up, Key.W, PadButton.DPadUp, StickDirection.LeftStickUp);
+        input.Bind(MenuDown, Key.Down, Key.S, PadButton.DPadDown, StickDirection.LeftStickDown);
 
         // The same keys MenuDown takes: menus read MenuDown and play reads Drop, never both at once.
-        bindings.Bind(Drop, Key.Down, Key.S, PadButton.DPadDown, StickDirection.LeftStickDown);
+        input.Bind(Drop, Key.Down, Key.S, PadButton.DPadDown, StickDirection.LeftStickDown);
 
         // The same keys the Move axis takes. One device can serve either because no scene reads both.
-        bindings.Bind(MenuLeft, Key.Left, Key.A, PadButton.DPadLeft, StickDirection.LeftStickLeft);
-        bindings.Bind(MenuRight, Key.Right, Key.D, PadButton.DPadRight, StickDirection.LeftStickRight);
-        bindings.Bind(Confirm, Key.Enter, Key.Space, PadButton.South, MouseButton.Left);
-        bindings.Bind(Reset, Key.Delete, Key.Backspace, PadButton.North, MouseButton.Right);
+        input.Bind(MenuLeft, Key.Left, Key.A, PadButton.DPadLeft, StickDirection.LeftStickLeft);
+        input.Bind(MenuRight, Key.Right, Key.D, PadButton.DPadRight, StickDirection.LeftStickRight);
+        input.Bind(Confirm, Key.Enter, Key.Space, PadButton.South, MouseButton.Left);
+        input.Bind(Reset, Key.Delete, Key.Backspace, PadButton.North, MouseButton.Right);
 
         // Quit, Pause and Back share Escape. The title screen reads Quit, play reads Pause and the
         // options screen reads Back, and no scene reads two of them.
-        bindings.Bind(Quit, Key.Escape, PadButton.Start);
-        bindings.Bind(Pause, Key.Escape, PadButton.Start);
-        bindings.Bind(Back, Key.Escape, PadButton.East);
+        input.Bind(Quit, Key.Escape, PadButton.Start);
+        input.Bind(Pause, Key.Escape, PadButton.Start);
+        input.Bind(Back, Key.Escape, PadButton.East);
 
         // Jump and Shoot are the player's. Their defaults sit on InputSettings, and a saved document
         // replaces them before this runs.
-        bindings.Bind(Jump, settings.Input.Jump.Key, settings.Input.Jump.Pad);
-        bindings.Bind(Shoot, settings.Input.Shoot.Key, settings.Input.Shoot.Pad);
+        input.Bind(Jump, settings.Input.Jump.Key, settings.Input.Jump.Pad);
+        input.Bind(Shoot, settings.Input.Shoot.Key, settings.Input.Shoot.Pad);
     }
 }

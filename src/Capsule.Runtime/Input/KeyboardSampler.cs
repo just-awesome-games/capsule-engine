@@ -1,22 +1,33 @@
+using System.Runtime.InteropServices;
 using Capsule.Input;
-using Microsoft.Xna.Framework.Input;
+using Capsule.Runtime.Sdl;
 
 namespace Capsule.Runtime.Input;
 
-// Turns the OS keyboard into a DeviceSnapshot. The only place hardware enters the engine.
+// Turns the OS keyboard into a DeviceSnapshot. The only place hardware enters the engine. A key is
+// read by its scancode, the key's position, whatever character the active layout prints on it, and
+// that character is read separately, for InputState.KeyCharacter.
 internal static class KeyboardSampler
 {
-    private static readonly Keys[] XnaByKey = BuildLookup();
+    private static readonly Scancode[] ScancodeByKey = BuildLookup();
 
-    internal static DeviceSnapshot Sample()
+    // The length of a key layout table, which is indexed by key.
+    internal static int KeyCount => ScancodeByKey.Length;
+
+    // The keys held now, and every key that went down since the last sample, released or not.
+    internal static unsafe DeviceSnapshot Sample(InputEvents events)
     {
-        KeyboardState keyboard = Keyboard.GetState();
+        int count;
+        byte* state = Sdl3.SDL_GetKeyboardState(&count);
+        ReadOnlySpan<byte> held = state == null ? default : new ReadOnlySpan<byte>(state, count);
+        ReadOnlySpan<bool> pressed = events.KeysPressed;
         DeviceSnapshot snapshot = DeviceSnapshot.Empty;
 
         // From 1, because index 0 is Key.None and not a snapshot member.
-        for (int index = 1; index < XnaByKey.Length; index++)
+        for (int index = 1; index < ScancodeByKey.Length; index++)
         {
-            if (keyboard.IsKeyDown(XnaByKey[index]))
+            int code = (int)ScancodeByKey[index];
+            if ((code < held.Length && held[code] != 0) || pressed[code])
             {
                 snapshot = snapshot.With((Key)index);
             }
@@ -25,14 +36,33 @@ internal static class KeyboardSampler
         return snapshot;
     }
 
-    private static Keys[] BuildLookup()
+    // Writes into characters, indexed by key, what the active layout prints on each key's position,
+    // uppercased, and null for a key it prints no character on. Allocates, and runs only when the
+    // layout changes.
+    internal static unsafe void ReadLayout(string?[] characters)
+    {
+        for (int index = 1; index < ScancodeByKey.Length && index < characters.Length; index++)
+        {
+            uint keycode = Sdl3.SDL_GetKeyFromScancode(ScancodeByKey[index], Sdl3.KeymodNone, keyEvent: false);
+            characters[index] = PrintsCharacter(keycode)
+                ? Marshal.PtrToStringUTF8((nint)Sdl3.SDL_GetKeyName(keycode)) is { Length: > 0 } name ? name.ToUpperInvariant() : null
+                : null;
+        }
+    }
+
+    // Whether an SDL keycode is a character the key prints. Space, the control characters and Delete
+    // print none, and neither does a keycode that names a scancode or an extended key.
+    internal static bool PrintsCharacter(uint keycode) =>
+        (keycode & (Sdl3.KeycodeScancodeMask | Sdl3.KeycodeExtendedMask)) == 0 && keycode > ' ' && keycode != 0x7F;
+
+    private static Scancode[] BuildLookup()
     {
         // GetValues sorts by value. The last key is the highest.
         Key[] keys = Enum.GetValues<Key>();
-        Keys[] lookup = new Keys[(int)keys[^1] + 1];
+        Scancode[] lookup = new Scancode[(int)keys[^1] + 1];
         foreach (Key key in keys)
         {
-            lookup[(int)key] = ToXna(key);
+            lookup[(int)key] = ToScancode(key);
         }
 
         return lookup;
@@ -40,124 +70,123 @@ internal static class KeyboardSampler
 
     // No discard arm: adding a Key without a mapping must fail the build (CS8509).
 #pragma warning disable CS8524 // Key has no unnamed values; only a cast can produce one.
-    private static Keys ToXna(Key key) => key switch
+    private static Scancode ToScancode(Key key) => key switch
     {
-        Key.None => Keys.None,
+        Key.None => Scancode.Unknown,
+        Key.A => Scancode.A,
+        Key.B => Scancode.B,
+        Key.C => Scancode.C,
+        Key.D => Scancode.D,
+        Key.E => Scancode.E,
+        Key.F => Scancode.F,
+        Key.G => Scancode.G,
+        Key.H => Scancode.H,
+        Key.I => Scancode.I,
+        Key.J => Scancode.J,
+        Key.K => Scancode.K,
+        Key.L => Scancode.L,
+        Key.M => Scancode.M,
+        Key.N => Scancode.N,
+        Key.O => Scancode.O,
+        Key.P => Scancode.P,
+        Key.Q => Scancode.Q,
+        Key.R => Scancode.R,
+        Key.S => Scancode.S,
+        Key.T => Scancode.T,
+        Key.U => Scancode.U,
+        Key.V => Scancode.V,
+        Key.W => Scancode.W,
+        Key.X => Scancode.X,
+        Key.Y => Scancode.Y,
+        Key.Z => Scancode.Z,
 
-        Key.A => Keys.A,
-        Key.B => Keys.B,
-        Key.C => Keys.C,
-        Key.D => Keys.D,
-        Key.E => Keys.E,
-        Key.F => Keys.F,
-        Key.G => Keys.G,
-        Key.H => Keys.H,
-        Key.I => Keys.I,
-        Key.J => Keys.J,
-        Key.K => Keys.K,
-        Key.L => Keys.L,
-        Key.M => Keys.M,
-        Key.N => Keys.N,
-        Key.O => Keys.O,
-        Key.P => Keys.P,
-        Key.Q => Keys.Q,
-        Key.R => Keys.R,
-        Key.S => Keys.S,
-        Key.T => Keys.T,
-        Key.U => Keys.U,
-        Key.V => Keys.V,
-        Key.W => Keys.W,
-        Key.X => Keys.X,
-        Key.Y => Keys.Y,
-        Key.Z => Keys.Z,
+        Key.Digit0 => Scancode.Digit0,
+        Key.Digit1 => Scancode.Digit1,
+        Key.Digit2 => Scancode.Digit2,
+        Key.Digit3 => Scancode.Digit3,
+        Key.Digit4 => Scancode.Digit4,
+        Key.Digit5 => Scancode.Digit5,
+        Key.Digit6 => Scancode.Digit6,
+        Key.Digit7 => Scancode.Digit7,
+        Key.Digit8 => Scancode.Digit8,
+        Key.Digit9 => Scancode.Digit9,
 
-        Key.Digit0 => Keys.D0,
-        Key.Digit1 => Keys.D1,
-        Key.Digit2 => Keys.D2,
-        Key.Digit3 => Keys.D3,
-        Key.Digit4 => Keys.D4,
-        Key.Digit5 => Keys.D5,
-        Key.Digit6 => Keys.D6,
-        Key.Digit7 => Keys.D7,
-        Key.Digit8 => Keys.D8,
-        Key.Digit9 => Keys.D9,
+        Key.Grave => Scancode.Grave,
 
-        Key.Grave => Keys.OemTilde,
+        Key.Left => Scancode.Left,
+        Key.Right => Scancode.Right,
+        Key.Up => Scancode.Up,
+        Key.Down => Scancode.Down,
 
-        Key.Left => Keys.Left,
-        Key.Right => Keys.Right,
-        Key.Up => Keys.Up,
-        Key.Down => Keys.Down,
+        Key.Escape => Scancode.Escape,
+        Key.Enter => Scancode.Return,
+        Key.Space => Scancode.Space,
+        Key.Tab => Scancode.Tab,
+        Key.Backspace => Scancode.Backspace,
 
-        Key.Escape => Keys.Escape,
-        Key.Enter => Keys.Enter,
-        Key.Space => Keys.Space,
-        Key.Tab => Keys.Tab,
-        Key.Backspace => Keys.Back,
+        Key.LeftShift => Scancode.LeftShift,
+        Key.RightShift => Scancode.RightShift,
+        Key.LeftControl => Scancode.LeftControl,
+        Key.RightControl => Scancode.RightControl,
+        Key.LeftAlt => Scancode.LeftAlt,
+        Key.RightAlt => Scancode.RightAlt,
 
-        Key.LeftShift => Keys.LeftShift,
-        Key.RightShift => Keys.RightShift,
-        Key.LeftControl => Keys.LeftControl,
-        Key.RightControl => Keys.RightControl,
-        Key.LeftAlt => Keys.LeftAlt,
-        Key.RightAlt => Keys.RightAlt,
+        Key.F1 => Scancode.F1,
+        Key.F2 => Scancode.F2,
+        Key.F3 => Scancode.F3,
+        Key.F4 => Scancode.F4,
+        Key.F5 => Scancode.F5,
+        Key.F6 => Scancode.F6,
+        Key.F7 => Scancode.F7,
+        Key.F8 => Scancode.F8,
+        Key.F9 => Scancode.F9,
+        Key.F10 => Scancode.F10,
+        Key.F11 => Scancode.F11,
+        Key.F12 => Scancode.F12,
 
-        Key.F1 => Keys.F1,
-        Key.F2 => Keys.F2,
-        Key.F3 => Keys.F3,
-        Key.F4 => Keys.F4,
-        Key.F5 => Keys.F5,
-        Key.F6 => Keys.F6,
-        Key.F7 => Keys.F7,
-        Key.F8 => Keys.F8,
-        Key.F9 => Keys.F9,
-        Key.F10 => Keys.F10,
-        Key.F11 => Keys.F11,
-        Key.F12 => Keys.F12,
+        Key.Minus => Scancode.Minus,
+        Key.Equals => Scancode.Equals,
+        Key.LeftBracket => Scancode.LeftBracket,
+        Key.RightBracket => Scancode.RightBracket,
+        Key.Backslash => Scancode.Backslash,
+        Key.Semicolon => Scancode.Semicolon,
+        Key.Apostrophe => Scancode.Apostrophe,
+        Key.Comma => Scancode.Comma,
+        Key.Period => Scancode.Period,
+        Key.Slash => Scancode.Slash,
 
-        Key.Minus => Keys.OemMinus,
-        Key.Equals => Keys.OemPlus,
-        Key.LeftBracket => Keys.OemOpenBrackets,
-        Key.RightBracket => Keys.OemCloseBrackets,
-        Key.Backslash => Keys.OemPipe,
-        Key.Semicolon => Keys.OemSemicolon,
-        Key.Apostrophe => Keys.OemQuotes,
-        Key.Comma => Keys.OemComma,
-        Key.Period => Keys.OemPeriod,
-        Key.Slash => Keys.OemQuestion,
+        Key.Insert => Scancode.Insert,
+        Key.Delete => Scancode.Delete,
+        Key.Home => Scancode.Home,
+        Key.End => Scancode.End,
+        Key.PageUp => Scancode.PageUp,
+        Key.PageDown => Scancode.PageDown,
 
-        Key.Insert => Keys.Insert,
-        Key.Delete => Keys.Delete,
-        Key.Home => Keys.Home,
-        Key.End => Keys.End,
-        Key.PageUp => Keys.PageUp,
-        Key.PageDown => Keys.PageDown,
+        Key.CapsLock => Scancode.CapsLock,
+        Key.NumLock => Scancode.NumLockClear,
+        Key.ScrollLock => Scancode.ScrollLock,
+        Key.PrintScreen => Scancode.PrintScreen,
+        Key.Pause => Scancode.Pause,
 
-        Key.CapsLock => Keys.CapsLock,
-        Key.NumLock => Keys.NumLock,
-        Key.ScrollLock => Keys.Scroll,
-        Key.PrintScreen => Keys.PrintScreen,
-        Key.Pause => Keys.Pause,
+        Key.LeftMeta => Scancode.LeftGui,
+        Key.RightMeta => Scancode.RightGui,
+        Key.Menu => Scancode.Application,
 
-        Key.LeftMeta => Keys.LeftWindows,
-        Key.RightMeta => Keys.RightWindows,
-        Key.Menu => Keys.Apps,
-
-        Key.Numpad0 => Keys.NumPad0,
-        Key.Numpad1 => Keys.NumPad1,
-        Key.Numpad2 => Keys.NumPad2,
-        Key.Numpad3 => Keys.NumPad3,
-        Key.Numpad4 => Keys.NumPad4,
-        Key.Numpad5 => Keys.NumPad5,
-        Key.Numpad6 => Keys.NumPad6,
-        Key.Numpad7 => Keys.NumPad7,
-        Key.Numpad8 => Keys.NumPad8,
-        Key.Numpad9 => Keys.NumPad9,
-        Key.NumpadDivide => Keys.Divide,
-        Key.NumpadMultiply => Keys.Multiply,
-        Key.NumpadSubtract => Keys.Subtract,
-        Key.NumpadAdd => Keys.Add,
-        Key.NumpadDecimal => Keys.Decimal,
+        Key.Numpad0 => Scancode.Keypad0,
+        Key.Numpad1 => Scancode.Keypad1,
+        Key.Numpad2 => Scancode.Keypad2,
+        Key.Numpad3 => Scancode.Keypad3,
+        Key.Numpad4 => Scancode.Keypad4,
+        Key.Numpad5 => Scancode.Keypad5,
+        Key.Numpad6 => Scancode.Keypad6,
+        Key.Numpad7 => Scancode.Keypad7,
+        Key.Numpad8 => Scancode.Keypad8,
+        Key.Numpad9 => Scancode.Keypad9,
+        Key.NumpadDivide => Scancode.KeypadDivide,
+        Key.NumpadMultiply => Scancode.KeypadMultiply,
+        Key.NumpadSubtract => Scancode.KeypadMinus,
+        Key.NumpadAdd => Scancode.KeypadPlus,
+        Key.NumpadDecimal => Scancode.KeypadPeriod,
     };
 #pragma warning restore CS8524
 }

@@ -1,22 +1,16 @@
 namespace Capsule.Input;
 
-/// <summary>
-/// Which buttons and axes stand for which actions. Written once at configuration time and read
-/// every step thereafter.
-/// </summary>
-/// <remarks>A read is an array lookup and allocates nothing.</remarks>
-public sealed class ActionBindings
+// Which buttons and axes stand for which actions, the table behind InputConfiguration's binding
+// members. Written at configuration time and on a rebind, and read every step. A read is an array
+// lookup and allocates nothing.
+internal sealed class ActionBindings
 {
     // Indexed by the action's own index. A read hashes nothing. A null row is an unbound action, and
     // index 0 is the unnamed action that binding refuses.
     private InputButton[]?[] _buttons = [];
     private AxisSource[]?[] _sources = [];
 
-    /// <summary>
-    /// Adds <paramref name="buttons"/> to <paramref name="action"/>, and any of them then stands for
-    /// it. Keys and pad buttons mix freely, and a second bind unions with the first.
-    /// </summary>
-    public ActionBindings Bind(InputAction action, params ReadOnlySpan<InputButton> buttons)
+    internal ActionBindings Bind(InputAction action, params ReadOnlySpan<InputButton> buttons)
     {
         Require(action, buttons);
         Union(ref Row(ref _buttons, action.Index), buttons);
@@ -24,11 +18,7 @@ public sealed class ActionBindings
         return this;
     }
 
-    /// <summary>
-    /// Adds the position of <paramref name="axis"/> to what <paramref name="action"/> reads. A second
-    /// bind accumulates with the first, and binding the same source again changes nothing.
-    /// </summary>
-    public ActionBindings BindAxis(AxisAction action, PadAxis axis)
+    internal ActionBindings Bind(AxisAction action, PadAxis axis)
     {
         RequireName(action.Index, nameof(action));
 
@@ -40,11 +30,7 @@ public sealed class ActionBindings
         return Accumulate(action, new AxisSource(axis, null, InputButton.None, InputButton.None));
     }
 
-    /// <summary>
-    /// Adds the notches <paramref name="axis"/> of the mouse wheel turns each step to what
-    /// <paramref name="action"/> reads, unclamped. A second bind accumulates with the first.
-    /// </summary>
-    public ActionBindings BindAxis(AxisAction action, MouseAxis axis)
+    internal ActionBindings Bind(AxisAction action, MouseAxis axis)
     {
         RequireName(action.Index, nameof(action));
 
@@ -56,11 +42,7 @@ public sealed class ActionBindings
         return Accumulate(action, new AxisSource(PadAxis.None, axis, InputButton.None, InputButton.None));
     }
 
-    /// <summary>
-    /// Adds a digital pair to <paramref name="action"/>, reading -1 while <paramref name="negative"/>
-    /// is held and +1 while <paramref name="positive"/> is. Holding both contributes 0.
-    /// </summary>
-    public ActionBindings BindAxis(AxisAction action, InputButton negative, InputButton positive)
+    internal ActionBindings Bind(AxisAction action, InputButton negative, InputButton positive)
     {
         RequireName(action.Index, nameof(action));
         RequireButton(negative, action.Name, nameof(negative));
@@ -69,11 +51,7 @@ public sealed class ActionBindings
         return Accumulate(action, new AxisSource(PadAxis.None, null, negative, positive));
     }
 
-    /// <summary>
-    /// Replaces every button bound to <paramref name="action"/> with <paramref name="buttons"/>,
-    /// effective from the next read.
-    /// </summary>
-    public ActionBindings Rebind(InputAction action, params ReadOnlySpan<InputButton> buttons)
+    internal ActionBindings Rebind(InputAction action, params ReadOnlySpan<InputButton> buttons)
     {
         Require(action, buttons);
         Row(ref _buttons, action.Index) = null;
@@ -81,8 +59,7 @@ public sealed class ActionBindings
         return Bind(action, buttons);
     }
 
-    /// <summary>Removes every button bound to <paramref name="action"/>, which then reads as unbound.</summary>
-    public ActionBindings Unbind(InputAction action)
+    internal ActionBindings Unbind(InputAction action)
     {
         RequireName(action.Index, nameof(action));
         Row(ref _buttons, action.Index) = null;
@@ -90,8 +67,7 @@ public sealed class ActionBindings
         return this;
     }
 
-    /// <summary>Removes every source bound to <paramref name="action"/>, which then reads as unbound.</summary>
-    public ActionBindings Unbind(AxisAction action)
+    internal ActionBindings Unbind(AxisAction action)
     {
         RequireName(action.Index, nameof(action));
         Row(ref _sources, action.Index) = null;
@@ -99,8 +75,7 @@ public sealed class ActionBindings
         return this;
     }
 
-    /// <summary>Buttons bound to <paramref name="action"/>. Empty when the action is unbound.</summary>
-    public ReadOnlySpan<InputButton> ButtonsFor(InputAction action) => Bound(_buttons, action.Index);
+    internal ReadOnlySpan<InputButton> ButtonsFor(InputAction action) => Bound(_buttons, action.Index);
 
     // Whether any button bound to action is held in snapshot, or any of only its mouse buttons or only the rest.
     internal bool IsAnyDown(InputAction action, in DeviceSnapshot snapshot, bool? mouse = null)

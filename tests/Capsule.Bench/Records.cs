@@ -54,4 +54,5 @@ internal readonly record struct Percentiles(double Median, double P95, double Ma
 
 [JsonSerializable(typeof(SuiteRecord))]
 [JsonSerializable(typeof(AssetsRecord))]
+[JsonSerializable(typeof(LatencyRecord))]
 internal sealed partial class RecordJson : JsonSerializerContext;

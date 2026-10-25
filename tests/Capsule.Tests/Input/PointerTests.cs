@@ -113,8 +113,8 @@ public sealed class PointerTests
     public void TheWheel_BindsAsAnAxisBesideAStickAndIsNotClampedAway()
     {
         ActionBindings bindings = new ActionBindings()
-            .BindAxis(Zoom, MouseAxis.ScrollY)
-            .BindAxis(Zoom, PadAxis.RightStickY);
+            .Bind(Zoom, MouseAxis.ScrollY)
+            .Bind(Zoom, PadAxis.RightStickY);
 
         InputState input = new(bindings);
         input.Advance(DeviceSnapshot.Empty.WithAxis(PadAxis.RightStickY, 1f));

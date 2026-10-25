@@ -4,12 +4,18 @@ After this page you can declare a game's actions, read them in a step, and play 
 nobody at the keyboard. Each type's XML docs hold its rules.
 
 A game reads actions, never keys or pad buttons. Capsule samples one keyboard, one mouse and one gamepad,
-and turns them into action state once per fixed step. What each action means is the game's.
+and turns them into action state once per fixed step. What each action means is the game's. The gamepad
+is the connected pad last pressed, and a press shorter than a frame still reaches a step. Capsule
+ships the community controller database. A `gamecontrollerdb.txt` beside the game adds or replaces
+mappings, and the log names each connected joystick that no mapping makes a gamepad, with its GUID.
+Each line is in SDL's mapping format, which SDL_GameControllerDB documents and whose community tools
+write by pressing the pad's buttons in turn. SDL's `SDL_GAMECONTROLLERCONFIG` environment variable,
+which Steam Input sets, applies over both. A game tells its own players where the file goes.
 
 | Need | Piece |
 | --- | --- |
 | A thing the player can do, apart from the device | `InputAction`, `AxisAction` |
-| Which buttons and axes drive an action | `InputConfiguration.Bindings`, an `ActionBindings` |
+| Which buttons and axes drive an action | `InputConfiguration.Bind`, on `Run.Input` |
 | An action's state in a step | `StepContext.Input`, an `InputState` |
 | Gamepad rumble | `Run.Rumble` |
 | The window's cursor | `Run.Cursor` |
@@ -31,14 +37,12 @@ public static class GameInput
     /// <summary>Binds every action to the devices the game supports.</summary>
     public static void Configure(InputConfiguration input)
     {
-        ActionBindings bindings = input.Bindings;
-
         // Axis contributions accumulate. Each pair adds another way to push the same axis.
-        bindings.BindAxis(Move, Key.A, Key.D);
-        bindings.BindAxis(Move, PadButton.DPadLeft, PadButton.DPadRight);
-        bindings.BindAxis(Move, PadAxis.LeftStickX);
+        input.Bind(Move, Key.A, Key.D);
+        input.Bind(Move, PadButton.DPadLeft, PadButton.DPadRight);
+        input.Bind(Move, PadAxis.LeftStickX);
 
-        bindings.Bind(Pause, Key.Escape, PadButton.Start);
+        input.Bind(Pause, Key.Escape, PadButton.Start);
     }
 }
 ```
@@ -61,8 +65,15 @@ protected override void OnStep(in StepContext context)
 ```
 
 Pressed state exists only inside a step, on `StepContext.Input`, and `Run.Input` holds the bindings.
-`InputState` holds the pointer in canvas pixels, and `Camera.CanvasToWorld` maps it into the world. A
-button prompt reads `InputState.ActiveDevice`, the device the player last used.
+`InputState` holds the pointer in canvas pixels, and `Camera.CanvasToWorld` maps it into the world.
+
+## Show a button prompt
+
+A prompt shows the button `Run.Input.ButtonsFor` binds on `InputState.ActiveDevice`, the device the
+player last used. `InputState.PadFamily` picks the art set, and `InputState.KeyCharacter` is the
+character the player's keyboard layout prints on a key. Every word a prompt shows comes from the game's
+string tables ([`localization.md`](localization.md)). The pad family is recorded input like window
+focus, and a driver sets it with `DeviceSnapshot.WithPadFamily`.
 
 ## Rebind at a settings screen
 
@@ -72,12 +83,12 @@ what an action is bound to, and the next read sees it:
 ```csharp
 if (context.Input.WasAnyPressed(out InputButton button))
 {
-    Run.Input.Bindings.Rebind(GameInput.Pause, button);
+    Run.Input.Rebind(GameInput.Pause, button);
 }
 ```
 
 A "press a button" prompt waits on `WasAnyPressed`. Set `FocusNavigator.Interactable` false while it
-waits, and the menu behind it holds still. `InputButton.Name` is the bare name a caption shows.
+waits, and the menu behind it holds still.
 
 The game persists a rebinding. It keeps the buttons the player may change in the settings document,
 where an `InputButton` field saves as `"Key.Space"`, and re-applies them at run start

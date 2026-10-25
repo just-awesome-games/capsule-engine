@@ -73,6 +73,10 @@ public sealed class EngineBuilder
     // frame cap, whatever the run asks for.
     internal bool Uncapped { get; private set; }
 
+    // Where the development plane writes each press's input-to-present latency, or null for none.
+    // Only the bench sets it.
+    internal string? InputLatencyPath { get; private set; }
+
     internal (int Width, int Height)? RenderResolution { get; private set; }
 
     internal double StepSeconds { get; private set; } = 1.0 / StepContext.DefaultStepHertz;
@@ -359,6 +363,15 @@ public sealed class EngineBuilder
     public EngineBuilder WithRandomSeed(ulong seed)
     {
         _randomSeed = seed;
+        return this;
+    }
+
+    // Measures every press's input-to-present latency in a windowed run and writes it to path when the
+    // host closes. A shipping build ignores it.
+    internal EngineBuilder WithInputLatency(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        InputLatencyPath = path;
         return this;
     }
 

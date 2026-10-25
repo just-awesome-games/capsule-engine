@@ -104,6 +104,19 @@ public sealed class DeviceSnapshotTests
         Assert.Equal(DeviceSnapshot.Empty.WithAxis(PadAxis.RightStickY, 0.5f).GetHashCode(), held.GetHashCode());
     }
 
+    // The family is recorded input: a replay compares it, and a latched frame takes the newest pad's.
+    [Fact]
+    public void APadFamilyAlone_DistinguishesTwoSnapshots()
+    {
+        DeviceSnapshot xbox = DeviceSnapshot.Empty.WithPadFamily(PadFamily.Xbox);
+
+        Assert.Equal(PadFamily.Generic, DeviceSnapshot.Empty.PadFamily);
+        Assert.NotEqual(DeviceSnapshot.Empty, xbox);
+        Assert.Equal(DeviceSnapshot.Empty.WithPadFamily(PadFamily.Xbox).GetHashCode(), xbox.GetHashCode());
+        Assert.Equal(PadFamily.PlayStation, xbox.LatchedWith(DeviceSnapshot.Empty.WithPadFamily(PadFamily.PlayStation)).PadFamily);
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithPadFamily((PadFamily)4));
+    }
+
     [Fact]
     public void AButtonPastItsDeviceCapacity_ThrowsOnAWriteAndReadsUp()
     {

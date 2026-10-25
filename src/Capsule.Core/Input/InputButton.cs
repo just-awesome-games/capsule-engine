@@ -86,8 +86,8 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
         : _source is Source.Key or Source.MouseButton ? InputDevice.KeyboardMouse
         : InputDevice.Gamepad;
 
-    /// <summary>The device constant's bare name for a caption, such as <c>Space</c>, or <c>None</c>.</summary>
-    public string Name => IsNone ? nameof(None) : Qualified.Name;
+    // The key this button is, or null for any other button.
+    internal Key? AsKey => _source == Source.Key ? (Key)_value : null;
 
     /// <summary>Whether both name the same device constant.</summary>
     public bool Equals(InputButton other) => _source == other._source && _value == other._value;

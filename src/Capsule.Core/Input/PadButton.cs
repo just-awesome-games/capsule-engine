@@ -54,9 +54,9 @@ public enum PadButton
     /// <summary>The right stick pressed in.</summary>
     RightStickClick,
 
-    /// <summary>The primary menu button: Xbox Menu, PlayStation Options.</summary>
+    /// <summary>The primary menu button: Xbox Menu, PlayStation Options, Nintendo +.</summary>
     Start,
 
-    /// <summary>The secondary menu button: Xbox View, PlayStation Share.</summary>
+    /// <summary>The secondary menu button: Xbox View, PlayStation Create, Nintendo -.</summary>
     Select,
 }

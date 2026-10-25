@@ -130,7 +130,7 @@ public sealed class InputDriverPlaybackTests
                         SceneRegistration.Plain(typeof(Patrol), static _ => new Patrol()),
                     ]))
             .WithFixedStep(10)
-            .WithRunStart(static run => run.Input.Bindings.Bind(Jump, Key.Space))
+            .WithRunStart(static run => run.Input.Bind(Jump, Key.Space))
             .WithoutCrashLog()
             .WithoutLogging();
 
