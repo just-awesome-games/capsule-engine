@@ -67,9 +67,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- A copy of samples/MinimalGame's room.ogg, mono 44.1 kHz, 176 400 frames; the fixture
-         VorbisAllocationTests plays and loops. -->
-    <None Include="Audio/Fixtures/loop.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <!-- loop.ogg is a copy of samples/MinimalGame's room.ogg, mono 44.1 kHz, 176 400 frames, in five
+         pages. many-pages.ogg is stereo noise, 44.1 kHz, 88 200 frames, in 31 pages of uneven size:
+         more pages than the decoder's page caches hold. -->
+    <None Include="Audio/Fixtures/*.ogg" CopyToOutputDirectory="PreserveNewest" />
     <!-- alpha-ramp.png carries every alpha from 0 to 255 over six colours. hd-atlas.png is a copy
          of the bench's RGB atlas, the only colour type the shipped PNGs add. -->
     <None Include="Runtime/Fixtures/*.png" CopyToOutputDirectory="PreserveNewest" />

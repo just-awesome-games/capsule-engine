@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Numerics;
 
 namespace Capsule.Runtime.Audio.Vorbis.Ogg
 {
@@ -65,6 +66,16 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             _pinnedSlot = -1;
         }
 
+        // Capsule: the length a pooled page buffer grows to when a page outgrows it. Growing only to
+        // the page's length reallocated a slot whenever it met a page larger than any it had held, and
+        // a stream with more pages than a pool has slots kept meeting one for as long as it looped.
+        // Pages of one encoder fall in one or two powers of two. A slot grows once or twice.
+        protected static int GrowSize(int size) => (int)BitOperations.RoundUpToPowerOf2((uint)size);
+
+        // Capsule: a pooled packet array's length. A page's segment table has at most 255 entries,
+        // and every packet a page ends takes at least one. One allocation per slot holds any page.
+        protected const int MaxPacketsPerPage = 255;
+
         // Capsule: grows (never shrinks) the next ring slot to at least size bytes, advances the
         // ring, and returns the pooled buffer. The caller must track the page's real length itself
         // rather than trust buffer.Length. A rented buffer can be larger than size. When the next
@@ -84,24 +95,18 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             byte[] buffer = _pageBufferRing[_pageRingSlot];
             if (buffer == null || buffer.Length < size)
             {
-                buffer = new byte[size];
+                buffer = new byte[GrowSize(size)];
                 _pageBufferRing[_pageRingSlot] = buffer;
             }
             return buffer;
         }
 
         // Capsule: paired with the buffer at the current ring slot. Call after RentPageBuffer with
-        // no other rental in between. Grows (never shrinks) in place instead of `new
-        // Memory<byte>[count]` per page.
-        protected Memory<byte>[] RentPacketsArray(int count)
+        // no other rental in between. Allocated once per slot instead of `new Memory<byte>[count]`
+        // per page.
+        protected Memory<byte>[] RentPacketsArray()
         {
-            Memory<byte>[] array = _packetsRing[_pageRingSlot];
-            if (array == null || array.Length < count)
-            {
-                array = new Memory<byte>[count];
-                _packetsRing[_pageRingSlot] = array;
-            }
-            return array;
+            return _packetsRing[_pageRingSlot] ??= new Memory<byte>[MaxPacketsPerPage];
         }
 
         protected long StreamPosition => _stream?.Position ?? throw new ObjectDisposedException(nameof(PageReaderBase));

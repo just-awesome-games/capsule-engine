@@ -90,9 +90,9 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
 
         // Capsule: instance method (was static) so it can rent from the page ring instead of
         // `new Memory<byte>[packetCount]` per page. See RentPacketsArray.
-        private Memory<byte>[] ReadPackets(int packetCount, Span<byte> segments, Memory<byte> dataBuffer)
+        private Memory<byte>[] ReadPackets(Span<byte> segments, Memory<byte> dataBuffer)
         {
-            return ReadPacketsInto(RentPacketsArray(packetCount), segments, dataBuffer);
+            return ReadPacketsInto(RentPacketsArray(), segments, dataBuffer);
         }
 
         // Capsule: split out of ReadPackets so GetPackets's known-page cache (see
@@ -146,7 +146,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             // if the page doesn't have any packets, we can't use it
             if (PacketCount == 0) return false;
 
-            _packets = ReadPackets(PacketCount, new Span<byte>(pageBuf, 27, pageBuf[26]), new Memory<byte>(pageBuf, 27 + pageBuf[26], pageLength - 27 - pageBuf[26]));
+            _packets = ReadPackets(new Span<byte>(pageBuf, 27, pageBuf[26]), new Memory<byte>(pageBuf, 27 + pageBuf[26], pageLength - 27 - pageBuf[26]));
 
             if (_streamReaders.TryGetValue(streamSerial, out var spr))
             {
@@ -261,18 +261,13 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
                     var pageBuf = _knownPageBuffer[slot];
                     if (pageBuf == null || pageBuf.Length < _pageSize)
                     {
-                        pageBuf = new byte[_pageSize];
+                        pageBuf = new byte[GrowSize(_pageSize)];
                         _knownPageBuffer[slot] = pageBuf;
                     }
                     SeekStream(PageOffset);
                     EnsureRead(pageBuf, 0, _pageSize);
 
-                    var packetsArr = _knownPagePackets[slot];
-                    if (packetsArr == null || packetsArr.Length < PacketCount)
-                    {
-                        packetsArr = new Memory<byte>[PacketCount];
-                        _knownPagePackets[slot] = packetsArr;
-                    }
+                    var packetsArr = _knownPagePackets[slot] ??= new Memory<byte>[MaxPacketsPerPage];
                     _packets = ReadPacketsInto(packetsArr, new Span<byte>(pageBuf, 27, pageBuf[26]), new Memory<byte>(pageBuf, 27 + pageBuf[26], _pageSize - 27 - pageBuf[26]));
                     _knownPagePacketCount[slot] = PacketCount;
                 }
