@@ -1,13 +1,14 @@
 # Releasing Capsule
 
 A release is an annotated `v<major>.<minor>.<patch>` tag on `main`. Pushing the tag runs
-`.github/workflows/packages.yml`, which builds, tests, packs every `JAG.Capsule.*` package at that
-version and pushes them to NuGet.org. Nothing else publishes.
+`.github/workflows/packages.yml`, which builds, tests, packs every engine package at that version
+and pushes them to NuGet.org. The two native packages release apart, under
+[Native packages](#native-packages). Nothing else publishes.
 
 ## Publishing ownership
 
 The nuget.org organization `JAG-Studios` owns every `JAG.Capsule*` package. It also owns the
-trusted-publishing policy for this repository's `packages.yml`. The Actions variable `NUGET_USER`
+trusted-publishing policies for this repository's `packages.yml` and `natives.yml`. The Actions variable `NUGET_USER`
 names a member's nuget.org username, which is a user profile name and never the organization. A
 member who takes over releases adds their own organization-owned policy.
 
@@ -88,6 +89,29 @@ releases first, then the module, then the games:
 2. Each game consuming the packages: bump the version on its `JAG.Capsule*` references, including
    `JAG.Capsule.Tiled` once the module has released. Then regenerate its committed lock files in
    package mode with `dotnet restore -p:CapsuleSourcePath= --force-evaluate`.
+
+## Native packages
+
+`JAG.Capsule.Native.SDL3` carries SDL3 and the sdl2-compat bridge, at SDL3's version.
+`JAG.Capsule.ShaderTools` carries DXC and SPIRV-Cross, at a version of its own. `natives/build.sh`
+pins the upstream release each one builds from, and `.github/workflows/natives.yml` builds every
+runtime identifier on its own operating system. A natives release moves no engine version, and a
+bump lands in two changes:
+
+1. Edit the ref in `natives/build.sh` and the `Version` in the package's project under `natives/`.
+   Run the workflow on the branch (`gh workflow run natives.yml --ref <branch>`), and check the
+   `native-packages` artifact it keeps. Merge to `main`, then tag and push:
+
+   ```bash
+   git tag -a natives-v<n> -m "Capsule natives <n>"
+   git push origin natives-v<n>
+   ```
+
+   The tag's run pushes both packages, and NuGet.org skips the one whose version it already holds.
+2. Once the packages index, move the engine to them: `JAG.Capsule.Native.SDL3` in
+   `src/Capsule.Runtime.Desktop/Capsule.Runtime.Desktop.csproj`, or `CapsuleShaderToolsVersion` in
+   `build/Capsule.ShaderTools.targets`. Regenerate the lock files with
+   `dotnet restore --force-evaluate`.
 
 ## Undoing a mistake
 

@@ -1,0 +1,14 @@
+<Project>
+
+  <!-- A package holds every runtime identifier or none. A host missing from its layout would restore
+       cleanly and fail on that host at the first launch or shader. Each project's CapsuleRuntime items
+       name an identifier and its folder. -->
+  <Target Name="CapsuleRequireEveryRuntime" BeforeTargets="GenerateNuspec">
+    <ItemGroup>
+      <_CapsuleMissingRuntime Include="@(CapsuleRuntime)" Condition="!Exists('$(CapsuleNatives)%(Folder)')" />
+    </ItemGroup>
+    <Error Condition="'@(_CapsuleMissingRuntime)' != ''"
+           Text="$(PackageId) packs every runtime identifier natives/build.sh builds, and these are missing: @(_CapsuleMissingRuntime->'%(Identity)', ', '). Build them, or name the identifiers that were built in CapsuleRuntimes." />
+  </Target>
+
+</Project>

@@ -1,0 +1,158 @@
+name: Native packages
+
+# Builds JAG.Capsule.Native.SDL3 and JAG.Capsule.ShaderTools from the upstream releases natives/build.sh
+# pins, each identifier on its own operating system and architecture. A dispatch builds and keeps the
+# packages as an artifact. A natives-v* tag on main also pushes them to NuGet.org. RELEASING.md says when.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["natives-v*"]
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [sdl3, shadertools]
+        rid: [win-x64, win-arm64, linux-x64, linux-arm64, osx]
+        include:
+          - rid: win-x64
+            os: windows-latest
+          - rid: win-arm64
+            os: windows-11-arm
+          # The oldest Ubuntu .NET supports. Its glibc is the libraries' floor, and an older base would
+          # compile out SDL3's PipeWire and libdecor support.
+          - rid: linux-x64
+            os: ubuntu-22.04
+          - rid: linux-arm64
+            os: ubuntu-22.04-arm
+          - rid: osx
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.package }} ${{ matrix.rid }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # The headers of every backend SDL3 loads at run time. SDL links none of them.
+      - name: Install SDL's build dependencies
+        if: runner.os == 'Linux' && matrix.package == 'sdl3'
+        run: >
+          sudo apt-get update &&
+          sudo apt-get install --no-install-recommends -y
+          pkg-config
+          libasound2-dev libpulse-dev libaudio-dev libjack-dev libsndio-dev libpipewire-0.3-dev
+          libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev
+          libxkbcommon-dev libwayland-dev libdecor-0-dev libdrm-dev libgbm-dev
+          libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev
+          libdbus-1-dev libibus-1.0-dev libudev-dev liburing-dev
+
+      - name: Build
+        shell: bash
+        run: bash natives/build.sh ${{ matrix.package }} ${{ matrix.rid }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: natives-${{ matrix.package }}-${{ matrix.rid }}
+          path: artifacts/natives/${{ matrix.package }}
+          if-no-files-found: error
+
+  pack:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Download the built natives
+        uses: actions/download-artifact@v7
+        with:
+          pattern: natives-sdl3-*
+          path: artifacts/natives/sdl3
+          merge-multiple: true
+
+      - name: Download the built tools
+        uses: actions/download-artifact@v7
+        with:
+          pattern: natives-shadertools-*
+          path: artifacts/natives/shadertools
+          merge-multiple: true
+
+      - name: Pack
+        run: |
+          dotnet pack natives/JAG.Capsule.Native.SDL3.csproj --configuration Release --output artifacts/natives/packages
+          dotnet pack natives/JAG.Capsule.ShaderTools.csproj --configuration Release --output artifacts/natives/packages
+
+      - name: Report package storage
+        run: du -ch artifacts/natives/packages/*.nupkg
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-packages
+          path: artifacts/natives/packages/*.nupkg
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/natives-v')
+    needs: pack
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Require a tag on main
+        run: |
+          git fetch origin main --no-tags
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Native packages publish from a tag on main." >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: native-packages
+          path: artifacts/natives/packages
+
+      - name: Require NuGet.org account
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER }}
+        run: |
+          if [[ -z "$NUGET_USER" ]]; then
+            echo "Set the repository Actions variable NUGET_USER to the NuGet.org account name." >&2
+            exit 1
+          fi
+
+      - name: Authenticate to NuGet.org
+        id: nuget
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      # A version already on NuGet.org is skipped, so a tag republishes only the package it bumped.
+      - name: Publish to NuGet.org
+        run: |
+          for package in artifacts/natives/packages/*.nupkg; do
+            dotnet nuget push "$package" \
+              --source https://api.nuget.org/v3/index.json \
+              --api-key "${{ steps.nuget.outputs.NUGET_API_KEY }}" \
+              --skip-duplicate
+          done

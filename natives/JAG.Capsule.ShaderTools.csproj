@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- DXC and SPIRV-Cross for each workstation a shader builds on, which JAG.Capsule depends on and
+       the asset build runs from tools/<runtime identifier>/bin/. Version is the pair's own. A bump of
+       either tool bumps it, and a game's shaders rebuild under the new one. -->
+  <PropertyGroup>
+    <PackageId>JAG.Capsule.ShaderTools</PackageId>
+    <Version>1.0.0</Version>
+    <Description>The DirectX Shader Compiler (DXC) and SPIRV-Cross, built by Capsule for Windows, Linux and macOS workstations, which Capsule's asset build compiles a game's shaders with. A game never references it: JAG.Capsule does.</Description>
+    <PackageLicenseExpression>NCSA AND Apache-2.0 AND MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <CapsuleRuntime Include="$(CapsuleRuntimes)" Folder="shadertools/tools/%(Identity)/bin" />
+    <None Include="$(CapsuleNatives)shadertools/**" Pack="true" PackagePath="%(RecursiveDir)%(Filename)%(Extension)" Visible="false" />
+  </ItemGroup>
+
+</Project>

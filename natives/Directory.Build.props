@@ -1,0 +1,29 @@
+<Project>
+
+  <!-- The native packages pack what build.sh laid out under artifacts/natives/, and none of the engine's
+       build rules applies to them. This file and its .targets sibling stop MSBuild reaching the
+       repository's. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <CapsuleNatives>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '../artifacts/natives'))</CapsuleNatives>
+    <!-- Every identifier build.sh builds. A workstation checking a pack of its own host names only that. -->
+    <CapsuleRuntimes Condition="'$(CapsuleRuntimes)' == ''">win-x64;win-arm64;linux-x64;linux-arm64;osx</CapsuleRuntimes>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <Authors>JAG Studios</Authors>
+    <PackageProjectUrl>https://github.com/just-awesome-games/capsule-engine</PackageProjectUrl>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/just-awesome-games/capsule-engine</RepositoryUrl>
+    <PackageIcon>capsule-package-icon.png</PackageIcon>
+    <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
+    <PackageTags>capsule-engine;native</PackageTags>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)../docs/assets/capsule-package-icon.png" Pack="true" PackagePath="/" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)../PACKAGE.md" Pack="true" PackagePath="/" Visible="false" />
+  </ItemGroup>
+
+</Project>
