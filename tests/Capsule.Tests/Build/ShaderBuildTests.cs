@@ -48,7 +48,7 @@ public sealed class ShaderBuildTests
         Assert.Equal(["shaders/effects/stone.mgfx"], workspace.Shipped);
     }
 
-    // A tool's package folder is named for its version. A shader built by one version is rebuilt by
+    // The tools' package folder is named for its version. A shader built by one version is rebuilt by
     // the next, never reused.
     [Fact]
     public void AShaderToolUpgrade_MissesTheCache()
@@ -59,7 +59,7 @@ public sealed class ShaderBuildTests
         workspace.Succeed();
         Assert.Contains("shaders: 1 reused", workspace.Output, StringComparison.Ordinal);
 
-        workspace.Tools = ToolWorkspace.ShaderTools with { Dxc = Path.Combine(Path.GetDirectoryName(ToolWorkspace.ShaderTools.Dxc)!, "0.0.0") };
+        workspace.Tools = new ShaderTools(Path.Combine(Path.GetDirectoryName(ToolWorkspace.ShaderTools.Package)!, "0.0.0"));
         workspace.Run();
 
         Assert.DoesNotContain("shaders: 1 reused", workspace.Output, StringComparison.Ordinal);

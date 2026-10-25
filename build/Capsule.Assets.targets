@@ -72,12 +72,11 @@
       <_CapsuleAssetsArgument>$([System.IO.Path]::TrimEndingDirectorySeparator('$(CapsuleAssetSourcesDir)'))</_CapsuleAssetsArgument>
       <_CapsuleOutArgument>$([System.IO.Path]::TrimEndingDirectorySeparator('$(CapsuleObjDir)'))</_CapsuleOutArgument>
       <_CapsuleShippingArgument Condition="'$(CapsuleShipping)' == 'true'"> --shipping</_CapsuleShippingArgument>
-      <_CapsuleDxc>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.dxc', '$(CapsuleDxcVersion)'))</_CapsuleDxc>
-      <_CapsuleSpirvCross>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.spirvcross', '$(CapsuleSpirvCrossVersion)'))</_CapsuleSpirvCross>
+      <_CapsuleShaderTools>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'jag.capsule.shadertools', '$(CapsuleShaderToolsVersion)'))</_CapsuleShaderTools>
     </PropertyGroup>
 
     <MakeDir Directories="$(CapsuleObjDir)" />
-    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --assets &quot;$(_CapsuleAssetsArgument)&quot; --out &quot;$(_CapsuleOutArgument)&quot;$(_CapsuleShippingArgument) --shader-tools &quot;$(_CapsuleDxc)&quot; &quot;$(_CapsuleSpirvCross)&quot;"
+    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --assets &quot;$(_CapsuleAssetsArgument)&quot; --out &quot;$(_CapsuleOutArgument)&quot;$(_CapsuleShippingArgument) --shader-tools &quot;$(_CapsuleShaderTools)&quot;"
           WorkingDirectory="$(_CapsuleProjectDirectory)"
           EnvironmentVariables="DOTNET_TieredPGO=0"
           LogStandardErrorAsError="true"

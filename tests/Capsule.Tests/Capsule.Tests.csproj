@@ -57,12 +57,8 @@
       <_Parameter2>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '../..'))</_Parameter2>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
-      <_Parameter1>CapsuleDxc</_Parameter1>
-      <_Parameter2>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.dxc', '$(CapsuleDxcVersion)'))</_Parameter2>
-    </AssemblyAttribute>
-    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
-      <_Parameter1>CapsuleSpirvCross</_Parameter1>
-      <_Parameter2>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'monogame.tool.spirvcross', '$(CapsuleSpirvCrossVersion)'))</_Parameter2>
+      <_Parameter1>CapsuleShaderTools</_Parameter1>
+      <_Parameter2>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'jag.capsule.shadertools', '$(CapsuleShaderToolsVersion)'))</_Parameter2>
     </AssemblyAttribute>
   </ItemGroup>
 

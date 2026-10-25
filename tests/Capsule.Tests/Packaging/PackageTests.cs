@@ -20,7 +20,7 @@ public sealed class PackageTests
     {
         using ZipArchive package = Pack("Capsule", "JAG.Capsule");
 
-        Assert.Equal(["MonoGame.Tool.Dxc", "MonoGame.Tool.Spirvcross"], Dependencies(package, "JAG.Capsule").Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["JAG.Capsule.ShaderTools"], Dependencies(package, "JAG.Capsule").Keys.Order(StringComparer.Ordinal));
         Assert.Equal(["Capsule.Core.dll", "Capsule.Physics.dll", "Capsule.Scenes.dll", "Capsule.dll"], Libraries(package));
         Assert.DoesNotContain(package.Entries, static entry => entry.Name.StartsWith("Capsule.Build.", StringComparison.Ordinal));
         Assert.NotNull(package.GetEntry("LICENSE"));

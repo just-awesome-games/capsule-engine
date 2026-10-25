@@ -73,6 +73,16 @@
     </ItemGroup>
   </Target>
 
+  <!-- MonoGame's SDL2 reaches every project referencing the host through the backend's package graph,
+       under the file names of the sdl2-compat bridge JAG.Capsule.Native.SDL3 carries. Its copy would
+       land on the bridge's path. No project's build output or publish takes it. -->
+  <Target Name="CapsuleDropSubstrateSdl" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)" Condition="'%(NativeCopyLocalItems.NuGetPackageId)' == 'MonoGame.Library.SDL'" />
+      <RuntimeTargetsCopyLocalItems Remove="@(RuntimeTargetsCopyLocalItems)" Condition="'%(RuntimeTargetsCopyLocalItems.NuGetPackageId)' == 'MonoGame.Library.SDL'" />
+    </ItemGroup>
+  </Target>
+
   <!-- The licenses a player's copy carries: Capsule's own, the notices of what Capsule carries and
        redistributes, and, when the runtime ships with the game, the .NET runtime's from its runtime
        pack. Capsule's files sit beside the imported hooks' parent in source and package modes. -->

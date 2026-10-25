@@ -216,11 +216,33 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-## SDL2
+## SDL3
 
-A game's publish carries SDL2 version 2.32.10 as its window, input and sound output library (`SDL2.dll` on Windows), from MonoGame's `MonoGame.Library.SDL` package. It is distributed under the zlib License.
+A game's publish carries SDL3 version 3.4.18 as its window, input and sound output library (`SDL3.dll` on Windows), from Capsule's `JAG.Capsule.Native.SDL3` package. It is distributed under the zlib License.
 
-Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
+
+This software is provided 'as-is', without any express or implied
+warranty.  In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+   claim that you wrote the original software. If you use this software
+   in a product, an acknowledgment in the product documentation would be
+   appreciated but is not required.
+2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution.
+
+## sdl2-compat
+
+A game's publish carries sdl2-compat version 2.32.74 (`SDL2.dll` on Windows), from the same package. It presents SDL2's interface to MonoGame and forwards each call to SDL3. It is distributed under the zlib License.
+
+Copyright (C) 2026 Sam Lantinga <slouken@libsdl.org>
 
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages

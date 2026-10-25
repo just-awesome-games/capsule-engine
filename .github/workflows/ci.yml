@@ -93,12 +93,15 @@ jobs:
           - os: ubuntu-latest
             runtime: linux-x64
             smoke-binary: ./artifacts/aot-smoke/Capsule.AotSmoke
+            game-binary: ./MinimalGame
           - os: windows-latest
             runtime: win-x64
             smoke-binary: ./artifacts/aot-smoke/Capsule.AotSmoke.exe
+            game-binary: ./MinimalGame.exe
           - os: macos-latest
             runtime: osx-arm64
             smoke-binary: ./artifacts/aot-smoke/Capsule.AotSmoke
+            game-binary: ./MinimalGame
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -160,6 +163,51 @@ jobs:
           assets=samples/MinimalGame/src/MinimalGame.Shell/bin/Release/net10.0/${{ matrix.runtime }}/publish/assets
           test ! -e "$assets/stale" || { echo "an earlier publish's asset survived in $assets/stale"; exit 1; }
           test -d "$assets" || { echo "missing $assets"; exit 1; }
+
+      # The sample again with development flags kept, whose command line takes the driver that plays it.
+      - name: Publish the sample to play
+        run: >
+          dotnet publish samples/MinimalGame/src/MinimalGame.Shell/MinimalGame.Shell.csproj
+          --configuration Release
+          --runtime ${{ matrix.runtime }}
+          --self-contained true
+          --no-restore
+          -p:CapsuleSourcePath=
+          -p:PublishAot=true
+          -p:CapsuleShipping=false
+          --output artifacts/sample-play
+
+      # The runners have no GPU. Linux draws through Mesa's software OpenGL on a virtual display, and
+      # macOS through its own software renderer. Windows ships OpenGL 1.1 alone, and Mesa's software
+      # OpenGL, placed beside the executable, takes its place for this run.
+      - name: Install a virtual display and software OpenGL
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y xvfb libgl1-mesa-dri
+
+      - name: Place software OpenGL beside the sample
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          MESA: 26.2.4
+          MESA_SHA256: 351fc8c8b695878ffb3eaa044b3ead08672a48b1a045e3c3e3975811df0f6695
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/mesa.7z" "https://github.com/pal1000/mesa-dist-win/releases/download/$MESA/mesa3d-$MESA-release-msvc.7z"
+          echo "$MESA_SHA256  $RUNNER_TEMP/mesa.7z" | sha256sum --check
+          7z e "$RUNNER_TEMP/mesa.7z" -oartifacts/sample-play x64/opengl32.dll x64/libgallium_wgl.dll
+
+      # SDL3 and the bridge load from beside the executable and open the window and the GL context, and
+      # the Walkthrough driver plays the room to the game's own exit.
+      - name: Play the sample
+        shell: bash
+        timeout-minutes: 5
+        working-directory: artifacts/sample-play
+        run: |
+          play=(${{ matrix.game-binary }} --scene scenes/room --driver Walkthrough)
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" "${play[@]}"
+          else
+            "${play[@]}"
+          fi
 
       - name: Publish the AOT smoke
         run: >

@@ -18,6 +18,9 @@ namespace Capsule.Runtime.Desktop;
 /// </remarks>
 public sealed class DesktopPlatform : HostPlatform
 {
+    /// <summary>Creates the platform, which loads the windowing library before the host does.</summary>
+    public DesktopPlatform() => SdlPlatform.Load();
+
     /// <inheritdoc/>
     protected override Stream OpenContent(string relativePath) =>
         File.OpenRead(Path.Combine(AppContext.BaseDirectory, relativePath));

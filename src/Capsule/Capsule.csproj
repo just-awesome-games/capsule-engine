@@ -2,7 +2,7 @@
 
   <!-- JAG.Capsule, the one package a game's logic references: the pure modules under lib/, the build
        targets under buildTransitive/, the generator under tools/, and the shader tools as its
-       dependencies. The build a build project runs is JAG.Capsule.Build. The ProjectReference list
+       dependency. The build a build project runs is JAG.Capsule.Build. The ProjectReference list
        below is the package's admission list, gated by Capsule.Architecture.targets. This project
        holds no code, and its empty assembly ships anyway. -->
   <PropertyGroup>
@@ -21,14 +21,13 @@
     <ProjectReference Include="../Capsule.Scenes/Capsule.Scenes.csproj" PrivateAssets="all" />
   </ItemGroup>
 
-  <!-- The native shader tools are the package's only dependencies. Restore downloads them beside
-       the game's other packages, and neither the build nor the game takes an asset from them. Pack
-       drops a dependency that excludes all assets and never writes contentFiles to its exclude.
-       contentFiles stays included here. Neither package has any. -->
+  <!-- The native shader tools are the package's only dependency. Restore downloads them beside the
+       game's other packages, and neither the build nor the game takes an asset from them. Pack drops
+       a dependency that excludes all assets and never writes contentFiles to its exclude.
+       contentFiles stays included here. The package has none. -->
   <Import Project="../../build/Capsule.ShaderTools.targets" />
   <ItemGroup>
-    <PackageReference Include="MonoGame.Tool.Dxc" Version="[$(CapsuleDxcVersion)]" ExcludeAssets="compile;runtime;native;build;buildTransitive;analyzers" />
-    <PackageReference Include="MonoGame.Tool.Spirvcross" Version="[$(CapsuleSpirvCrossVersion)]" ExcludeAssets="compile;runtime;native;build;buildTransitive;analyzers" />
+    <PackageReference Include="JAG.Capsule.ShaderTools" Version="[$(CapsuleShaderToolsVersion)]" ExcludeAssets="compile;runtime;native;build;buildTransitive;analyzers" />
   </ItemGroup>
 
   <ItemGroup>

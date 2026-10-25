@@ -21,8 +21,8 @@ internal static class ShaderStep
     {
         ShaderTools tools = pass.Requests.ShaderTools;
 
-        // Each tool's package folder is named for its version.
-        string versions = $"dxc={Path.GetFileName(tools.Dxc)}; spirv-cross={Path.GetFileName(tools.SpirvCross)}";
+        // The tools' package folder is named for its version.
+        string versions = $"shader-tools={Path.GetFileName(tools.Package)}";
         foreach ((Source shader, ShaderFacts compiled) in pass.Each(
             Step,
             pass.Of(AssetType.Shaders),

@@ -21,7 +21,7 @@ namespace Capsule.Build;
 public sealed class CapsuleBuild
 {
     private const string Usage =
-        "usage: <build project> --assets <dir> --out <dir> [--shipping] --shader-tools <dxc> <spirv-cross>. Capsule's build targets run the build project with these.";
+        "usage: <build project> --assets <dir> --out <dir> [--shipping] --shader-tools <dir>. Capsule's build targets run the build project with these.";
 
     private readonly string[] _args;
 
@@ -125,14 +125,14 @@ public sealed class CapsuleBuild
     internal int Run(TextWriter output, TextWriter error)
     {
         // The options come in the order Usage names them.
-        if (_args is not ["--assets", string assets, "--out", string outputDirectory, .. ([] or ["--shipping"]) and var flags, "--shader-tools", string dxc, string spirvCross])
+        if (_args is not ["--assets", string assets, "--out", string outputDirectory, .. ([] or ["--shipping"]) and var flags, "--shader-tools", string shaderTools])
         {
             error.WriteLine(Usage);
 
             return 2;
         }
 
-        return AssetPipeline.Run(assets, new ShaderTools(dxc, spirvCross), shipping: flags is ["--shipping"], outputDirectory, this, output, error);
+        return AssetPipeline.Run(assets, new ShaderTools(shaderTools), shipping: flags is ["--shipping"], outputDirectory, this, output, error);
     }
 
     // The importer claiming the path by its extension, or null when none does.

@@ -1,12 +1,11 @@
 <Project>
 
-  <!-- The two native tools a shader compiles through, one version each, in this file alone. JAG.Capsule
-       depends on these versions. Restore downloads them for every project that references it, from
-       the package or from an engine clone. Capsule.Assets.targets names their package folders to the
-       build tool, and the engine's tests read the same folders. -->
+  <!-- The package of the native tools a shader compiles through, DXC and SPIRV-Cross, at one version in
+       this file alone. natives/ builds it. JAG.Capsule depends on this version. Restore downloads it for
+       every project that references it, from the package or from an engine clone. Capsule.Assets.targets
+       names its package folder to the build tool, and the engine's tests read the same folder. -->
   <PropertyGroup>
-    <CapsuleDxcVersion>1.9.2607.1</CapsuleDxcVersion>
-    <CapsuleSpirvCrossVersion>1.4.350</CapsuleSpirvCrossVersion>
+    <CapsuleShaderToolsVersion>1.0.0</CapsuleShaderToolsVersion>
   </PropertyGroup>
 
 </Project>

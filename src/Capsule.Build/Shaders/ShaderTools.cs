@@ -1,7 +1,7 @@
 namespace Capsule.Build.Shaders;
 
 /// <summary>
-/// The package folders of the two tools a shader compiles through, each holding a binary per host
-/// under <c>binaries/</c>. The build targets download both and name them.
+/// The package folder of the tools a shader compiles through, named for its version, which holds DXC
+/// and SPIRV-Cross per host under <c>tools/</c>. The build targets download it and name it.
 /// </summary>
-internal readonly record struct ShaderTools(string Dxc, string SpirvCross);
+internal readonly record struct ShaderTools(string Package);

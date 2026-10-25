@@ -48,7 +48,7 @@ internal sealed class SdlAudioOutput : AudioOutput
     // Opens the system's default output, or logs why it could not and returns null.
     internal static SdlAudioOutput? TryOpen()
     {
-        SdlPlatform.UseResolver();
+        SdlPlatform.Load();
 
         if (SDL_InitSubSystem(InitAudio) != 0)
         {

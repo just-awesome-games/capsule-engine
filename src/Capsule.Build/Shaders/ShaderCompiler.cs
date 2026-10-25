@@ -38,7 +38,7 @@ internal static partial class ShaderCompiler
         // Run beside the source and handed its bare name. No machine path reaches a diagnostic's
         // anchor or a shipped file.
         (int exit, string output, string errors) = Run(
-            Binary(tools.Dxc, "dxc", inBin: true),
+            Binary(tools, "dxc"),
             directory,
             "-spirv",
             "-T",
@@ -61,7 +61,7 @@ internal static partial class ShaderCompiler
 
         try
         {
-            string crossCompiler = Binary(tools.SpirvCross, "spirv-cross", inBin: false);
+            string crossCompiler = Binary(tools, "spirv-cross");
             (exit, output, errors) = Run(crossCompiler, directory, spirv, "--reflect");
             if (exit != 0)
             {
@@ -316,28 +316,16 @@ internal static partial class ShaderCompiler
         return diagnostics;
     }
 
-    // The tool's binary for this host. Each package lays a folder out per operating system and
-    // architecture, macOS as one universal binary. NuGet extracts without the executable bit. It is
-    // restored before the first run.
-    private static string Binary(string package, string name, bool inBin)
+    // The tool's binary for this host. The package lays a folder out per runtime identifier, macOS as
+    // one universal binary. NuGet extracts without the executable bit. It is restored before the
+    // first run.
+    private static string Binary(ShaderTools tools, string name)
     {
-        string host;
-        if (OperatingSystem.IsWindows())
-        {
-            host = RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "windows-arm64" : "windows-x64";
-        }
-        else if (OperatingSystem.IsMacOS())
-        {
-            host = "osx";
-        }
-        else
-        {
-            host = RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
-        }
-
-        string path = OperatingSystem.IsWindows()
-            ? Path.Combine(package, "binaries", host, name + ".exe")
-            : Path.Combine(package, "binaries", host, inBin ? "bin" : string.Empty, name);
+        string architecture = RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64";
+        string host = OperatingSystem.IsWindows() ? "win-" + architecture
+            : OperatingSystem.IsMacOS() ? "osx"
+            : "linux-" + architecture;
+        string path = Path.Combine(tools.Package, "tools", host, "bin", OperatingSystem.IsWindows() ? name + ".exe" : name);
 
         if (!File.Exists(path))
         {

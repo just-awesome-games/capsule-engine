@@ -17,7 +17,7 @@ internal sealed class ToolWorkspace : IDisposable
     internal const string Imported = Out + "/imported/";
 
     /// <summary>The shader tools this test project restored, which every run names as the targets do.</summary>
-    internal static readonly ShaderTools ShaderTools = new(Metadata("CapsuleDxc"), Metadata("CapsuleSpirvCross"));
+    internal static readonly ShaderTools ShaderTools = new(Metadata("CapsuleShaderTools"));
 
     private readonly SceneDocumentFixtures.Workspace _workspace = new();
 
@@ -105,7 +105,7 @@ internal sealed class ToolWorkspace : IDisposable
     {
         StringWriter output = new WatchedWriter(Watch);
         StringWriter error = new();
-        int exitCode = Configure(CapsuleBuild.Configure(["--assets", Path.GetFullPath(Assets), "--out", Out, .. options, "--shader-tools", Tools.Dxc, Tools.SpirvCross])).Run(output, error);
+        int exitCode = Configure(CapsuleBuild.Configure(["--assets", Path.GetFullPath(Assets), "--out", Out, .. options, "--shader-tools", Tools.Package])).Run(output, error);
         Output = output.ToString();
         Errors = error.ToString();
 

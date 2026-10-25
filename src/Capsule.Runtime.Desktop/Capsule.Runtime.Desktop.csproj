@@ -13,6 +13,12 @@
     <ProjectReference Include="../Capsule.Runtime/Capsule.Runtime.csproj" />
   </ItemGroup>
 
+  <!-- SDL3 for each runtime identifier a shell publishes, which natives/ builds, and the sdl2-compat
+       bridge that takes the graphics substrate's SDL2 calls to it. -->
+  <ItemGroup>
+    <PackageReference Include="JAG.Capsule.Native.SDL3" Version="3.4.18" />
+  </ItemGroup>
+
   <!-- Test access; see AGENTS.md section Public surface. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Tests" />

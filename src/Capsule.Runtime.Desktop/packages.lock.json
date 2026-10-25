@@ -2,6 +2,17 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "JAG.Capsule.Native.SDL3": {
+        "type": "Direct",
+        "requested": "[3.4.18, )",
+        "resolved": "3.4.18",
+        "contentHash": "5dCZJSW2FQUx8V5gV/DWcgOuC9XDvOrOr+vP6s0gbaH52q0PfGdwn0ZcfrECZzj9zHcxFy34o3hcEWSs+nY4Gg=="
+      },
+      "JAG.Capsule.ShaderTools": {
+        "type": "Transitive",
+        "resolved": "1.0.0",
+        "contentHash": "Cpiw9J8BWVpwg0Aat/jGwfJjwZWWdGK1d6WMv72V4DLuJmsqA5YfppjjZlShOnLIuKRG2rGD5K8G8GPT7lOHnw=="
+      },
       "MonoGame.Framework.DesktopGL": {
         "type": "Transitive",
         "resolved": "3.8.5.1",
@@ -22,16 +33,6 @@
         "resolved": "2.32.10.2",
         "contentHash": "mtnmWr50KgH2Ui9fPscHPMI3sXgb5NBRnPS7igi4ViJ23ROdP+MLi/j9CmLWX47KuXvI3Bp5BElCDVwRUlswgg=="
       },
-      "MonoGame.Tool.Dxc": {
-        "type": "Transitive",
-        "resolved": "1.9.2607.1",
-        "contentHash": "s0c2q7Zj/YuuGvDHgCKIV/343j/XJfHS1Gpz6HF4izQFcj+yU30SbYpaI2nrhWOrGkXGpP69usog7QNspINEZg=="
-      },
-      "MonoGame.Tool.Spirvcross": {
-        "type": "Transitive",
-        "resolved": "1.4.350",
-        "contentHash": "dHJzbU44PWN/2LGQVt0MtisD27ot5jJf2c1xizZkTXpKek5S2n4nyQUuvzAb1BZhUuw6A5Ns4g+b5uTLP8nP6A=="
-      },
       "NVorbis": {
         "type": "Transitive",
         "resolved": "0.10.4",
@@ -45,8 +46,7 @@
       "JAG.Capsule": {
         "type": "Project",
         "dependencies": {
-          "MonoGame.Tool.Dxc": "[1.9.2607.1, 1.9.2607.1]",
-          "MonoGame.Tool.Spirvcross": "[1.4.350, 1.4.350]"
+          "JAG.Capsule.ShaderTools": "[1.0.0, 1.0.0]"
         }
       },
       "JAG.Capsule.Runtime": {

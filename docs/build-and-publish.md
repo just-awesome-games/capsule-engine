@@ -197,8 +197,9 @@ Games ship under NativeAOT. No project file sets `PublishAot`. Pass it with a ru
 dotnet publish src/MyGame.Shell --configuration Release --runtime win-x64 --self-contained true -p:PublishAot=true
 ```
 
-The publish directory carries the host's native library beside the executable: on Windows, `SDL2.dll` for
-the window, input and sound output. The host mixes sound itself and plays the mix on the system's default
+The publish directory carries the host's native libraries beside the executable: SDL3 for the window, input
+and sound output, and sdl2-compat, through which the graphics substrate reaches SDL3 (`SDL3.dll` and
+`SDL2.dll` on Windows). The host mixes sound itself and plays the mix on the system's default
 output. Without an output device the run plays silently and logs that once.
 
 A publish replaces its directory's `assets/` whole. The folder never carries an asset the current build does

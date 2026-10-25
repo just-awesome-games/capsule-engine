@@ -5,12 +5,20 @@ using Capsule.Diagnostics;
 namespace Capsule.Runtime.Desktop;
 
 // The SDL calls the host makes for itself. The graphics backend keeps its own binding internal and
-// initialises a fixed set of subsystems. These calls are made here against the library the backend
-// already ships beside the executable.
+// initialises a fixed set of subsystems. These calls are made here against the SDL2 the backend loads,
+// which is sdl2-compat, the bridge that forwards each call to SDL3.
 internal static class SdlPlatform
 {
     // Every SDL binding in this assembly names this library, which the resolver below loads.
     internal const string LibraryName = "SDL2";
+
+    // The bridge loads SDL3 by this file name alone. Windows and Linux look for it beside the
+    // executable and in system folders, never beside the bridge, and a development build keeps both
+    // libraries under runtimes/. Loading the game's own SDL3 first makes that name find it.
+    private static readonly string Sdl3File =
+        OperatingSystem.IsWindows() ? "SDL3.dll"
+        : OperatingSystem.IsMacOS() ? "libSDL3.dylib"
+        : "libSDL3.so.0";
 
     private const uint MinimizedFlag = 0x00000040;
     private const uint InputFocusFlag = 0x00000200;
@@ -23,13 +31,18 @@ internal static class SdlPlatform
     private const int TypeOffset = 0;
     private const int WindowEventIdOffset = 12;
 
-    static SdlPlatform() => NativeLibrary.SetDllImportResolver(typeof(SdlPlatform).Assembly, Resolve);
+    static SdlPlatform()
+    {
+        NativeLibrary.TryLoad(Sdl3File, typeof(SdlPlatform).Assembly, null, out _);
+        NativeLibrary.SetDllImportResolver(typeof(SdlPlatform).Assembly, Resolve);
+    }
 
     private delegate int SdlEventFilter(nint userData, nint sdlEvent);
 
-    // Registers the resolver for the whole assembly, which a binding outside this class needs before
-    // its first call. The resolver is set once per assembly, by this class's static constructor.
-    internal static void UseResolver()
+    // Loads SDL3 and registers the resolver for the whole assembly, once, in this class's static
+    // constructor. The backend loads the bridge before the platform's first call, and a binding
+    // outside this class needs the resolver before its own first call.
+    internal static void Load()
     {
     }
 
@@ -119,8 +132,8 @@ internal static class SdlPlatform
     internal static string LocaleTag(string language, string? country) =>
         string.IsNullOrEmpty(country) ? language : $"{language}-{country}";
 
-    // The default probe derives no candidate matching the versioned sonames the backend ships. The
-    // file is named per platform, as the backend's own loader names it.
+    // The default probe derives no candidate matching the bridge's versioned sonames. The file is
+    // named per platform, as the backend's own loader names it.
     private static nint Resolve(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
     {
         if (libraryName != LibraryName)
