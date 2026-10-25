@@ -178,8 +178,9 @@ jobs:
           --output artifacts/sample-play
 
       # The runners have no GPU. Linux draws through Mesa's software OpenGL on a virtual display, and
-      # macOS through its own software renderer. Windows ships OpenGL 1.1 alone, and Mesa's software
-      # OpenGL, placed beside the executable, takes its place for this run.
+      # macOS through its own software renderer. Windows ships OpenGL 1.1 alone, and Mesa's OpenGL,
+      # placed beside the executable, takes its place for this run on its llvmpipe software driver.
+      # Mesa's default Windows driver fails the context the substrate asks for.
       - name: Install a virtual display and software OpenGL
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y xvfb libgl1-mesa-dri
@@ -193,7 +194,8 @@ jobs:
         run: |
           curl -sSfL -o "$RUNNER_TEMP/mesa.7z" "https://github.com/pal1000/mesa-dist-win/releases/download/$MESA/mesa3d-$MESA-release-msvc.7z"
           echo "$MESA_SHA256  $RUNNER_TEMP/mesa.7z" | sha256sum --check
-          7z e "$RUNNER_TEMP/mesa.7z" -oartifacts/sample-play x64/opengl32.dll x64/libgallium_wgl.dll
+          7z x "$RUNNER_TEMP/mesa.7z" -o"$RUNNER_TEMP/mesa" x64/opengl32.dll x64/libgallium_wgl.dll
+          cp "$RUNNER_TEMP/mesa/x64/opengl32.dll" "$RUNNER_TEMP/mesa/x64/libgallium_wgl.dll" artifacts/sample-play/
 
       # SDL3 and the bridge load from beside the executable and open the window and the GL context, and
       # the Walkthrough driver plays the room to the game's own exit.
@@ -201,6 +203,8 @@ jobs:
         shell: bash
         timeout-minutes: 5
         working-directory: artifacts/sample-play
+        env:
+          GALLIUM_DRIVER: llvmpipe
         run: |
           play=(${{ matrix.game-binary }} --scene scenes/room --driver Walkthrough)
           if [ "$RUNNER_OS" = Linux ]; then
