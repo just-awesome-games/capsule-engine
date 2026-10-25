@@ -13,7 +13,7 @@
 
   <ItemGroup>
     <CapsuleRuntime Include="$(CapsuleRuntimes)" Folder="sdl3/runtimes/%(Identity)/native" />
-    <None Include="$(CapsuleNatives)sdl3/**" Pack="true" PackagePath="%(RecursiveDir)%(Filename)%(Extension)" Visible="false" />
+    <None Include="$(CapsuleNatives)sdl3/**" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 
 </Project>

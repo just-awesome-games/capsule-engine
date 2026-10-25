@@ -94,6 +94,28 @@ jobs:
           dotnet pack natives/JAG.Capsule.Native.SDL3.csproj --configuration Release --output artifacts/natives/packages
           dotnet pack natives/JAG.Capsule.ShaderTools.csproj --configuration Release --output artifacts/natives/packages
 
+      # Each file a host loads or runs, at the exact path it is looked up by. NuGet reads a package
+      # path with no extension as a folder, which an extensionless binary falls into.
+      - name: Check the packages' layout
+        run: |
+          sdl=$(ls artifacts/natives/packages/JAG.Capsule.Native.SDL3.*.nupkg)
+          tools=$(ls artifacts/natives/packages/JAG.Capsule.ShaderTools.*.nupkg)
+          missing=0
+          check() {
+            unzip -Z1 "$1" | grep -qxF "$2" || { echo "$(basename "$1") lacks $2"; missing=1; }
+          }
+          for rid in win-x64 win-arm64; do
+            for file in SDL3.dll SDL2.dll; do check "$sdl" "runtimes/$rid/native/$file"; done
+            for file in dxc.exe dxcompiler.dll spirv-cross.exe; do check "$tools" "tools/$rid/bin/$file"; done
+          done
+          for rid in linux-x64 linux-arm64; do
+            for file in libSDL3.so.0 libSDL2-2.0.so.0; do check "$sdl" "runtimes/$rid/native/$file"; done
+            for file in bin/dxc bin/spirv-cross lib/libdxcompiler.so; do check "$tools" "tools/$rid/$file"; done
+          done
+          for file in libSDL3.dylib libSDL2-2.0.0.dylib; do check "$sdl" "runtimes/osx/native/$file"; done
+          for file in bin/dxc bin/spirv-cross lib/libdxcompiler.dylib; do check "$tools" "tools/osx/$file"; done
+          exit $missing
+
       - name: Report package storage
         run: du -ch artifacts/natives/packages/*.nupkg
 

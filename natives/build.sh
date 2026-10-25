@@ -36,9 +36,11 @@ case $rid in
         ;;
 esac
 
+# Every commit and no tree but the release's. DXC stamps its version with the history's commit count,
+# which a shallow clone reports as 1.
 fetch() {
     if [ ! -d "$work/src/$1" ]; then
-        git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$2" --recurse-submodules --shallow-submodules "$3" "$work/src/$1"
+        git -c advice.detachedHead=false clone --quiet --filter=tree:0 --branch "$2" --recurse-submodules --shallow-submodules "$3" "$work/src/$1"
     fi
 }
 

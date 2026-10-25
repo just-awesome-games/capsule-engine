@@ -12,7 +12,7 @@
 
   <ItemGroup>
     <CapsuleRuntime Include="$(CapsuleRuntimes)" Folder="shadertools/tools/%(Identity)/bin" />
-    <None Include="$(CapsuleNatives)shadertools/**" Pack="true" PackagePath="%(RecursiveDir)%(Filename)%(Extension)" Visible="false" />
+    <None Include="$(CapsuleNatives)shadertools/**" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 
 </Project>
