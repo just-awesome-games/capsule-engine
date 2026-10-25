@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Rendering;
+using Capsule.Runtime.Audio;
 using Capsule.Scenes;
 using Capsule.UI;
 
@@ -37,6 +38,9 @@ internal sealed class FramePane : ScreenEntity
     private int _steps;
 
     internal FrameFigures Figures { get; private set; }
+
+    // The run's sound, whose gaps the pane counts, or null for a silent run.
+    internal SoundDevice? Sound { get; set; }
 
     internal FramePane()
         : base(Anchor.TopRight, Vector2.Zero)
@@ -83,7 +87,7 @@ internal sealed class FramePane : ScreenEntity
         _count = _steps = 0;
     }
 
-    // The GC counts and the heap are read here, at the second's end.
+    // The GC counts, the heap and the sound's gaps are read here, at the second's end.
     private void Publish(double frameMs, double worstMs, double updateMs, double drawMs, double stepsPerSecond)
     {
         double fps = frameMs > 0 ? SecondMs / frameMs : 0;
@@ -112,6 +116,13 @@ internal sealed class FramePane : ScreenEntity
         line.Add("   heap ");
         line.Add(heapMb, "F2", 7);
         line.Add(" MB");
+        if (Sound is { } sound)
+        {
+            line.Add("\naudio  underruns ");
+            line.Add(sound.Underruns, 5);
+            line.Add("   starved ");
+            line.Add(sound.Starved, 5);
+        }
 
         ReadOnlySpan<char> text = line.Written;
         _label.SetText(text);

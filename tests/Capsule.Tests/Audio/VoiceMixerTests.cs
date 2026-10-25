@@ -65,7 +65,7 @@ public sealed class VoiceMixerTests
         }
 
         Assert.Equal(decoded, output);
-        Assert.Equal(0, mixer.Underruns);
+        Assert.Equal(0, mixer.Starved);
     }
 
     // The loop seam: a region repeated in the mix is exactly the same spline run over the region's

@@ -38,11 +38,39 @@ internal static class AudioFiles
 
     // A resident clip's samples, decoded whole. Throws when the file is missing or malformed.
     internal static PcmAudio ReadResident(HostPlatform platform, in AudioClip clip) =>
-        PcmAudio.FromWav(ReadWave(platform, clip), clip.Name);
+        clip.IsVorbis ? DecodeVorbis(platform, clip) : PcmAudio.FromWav(ReadWave(platform, clip), clip.Name);
 
-    // A streamed clip's decoder over its shipped Ogg Vorbis file, for one play. Throws when the file is
-    // missing, malformed or wider than stereo.
-    internal static IPcmSource OpenStream(HostPlatform platform, in AudioClip clip)
+    // A streamed clip's decoder, for one play. Throws when the file is missing, malformed or wider
+    // than stereo.
+    internal static IPcmSource OpenStream(HostPlatform platform, in AudioClip clip) =>
+        new VorbisPcmSource(OpenVorbis(platform, clip));
+
+    // A short Ogg Vorbis clip held at 16 bits, the width a .wav effect is held at. A decoded peak past
+    // full scale saturates.
+    private static PcmAudio DecodeVorbis(HostPlatform platform, in AudioClip clip)
+    {
+        using VorbisReader reader = OpenVorbis(platform, clip);
+
+        // The build measured the clip from this file. A frame of slack covers the measure's rounding, and
+        // decoding stops at it as playback does.
+        short[] samples = new short[((int)Math.Ceiling(clip.DurationSeconds * reader.SampleRate) + 1) * reader.Channels];
+        float[] block = new float[4096 * reader.Channels];
+        int count = 0;
+        int read;
+        while ((read = reader.ReadSamples(block.AsSpan(0, Math.Min(block.Length, samples.Length - count)))) > 0)
+        {
+            for (int i = 0; i < read; i++)
+            {
+                samples[count++] = (short)Math.Clamp(MathF.Round(block[i] * 32768f), short.MinValue, short.MaxValue);
+            }
+        }
+
+        Array.Resize(ref samples, count);
+
+        return new PcmAudio(samples, reader.Channels, reader.SampleRate);
+    }
+
+    private static VorbisReader OpenVorbis(HostPlatform platform, in AudioClip clip)
     {
         Stream file = Open(platform, clip);
         if (!file.CanSeek)
@@ -61,9 +89,9 @@ internal static class AudioFiles
             reader.Dispose();
 
             throw new NotSupportedException(
-                $"Audio clip '{clip.Name}' is {channels}-channel. Capsule streams mono and stereo Ogg Vorbis.");
+                $"Audio clip '{clip.Name}' is {channels}-channel. Capsule plays mono and stereo Ogg Vorbis.");
         }
 
-        return new VorbisPcmSource(reader);
+        return reader;
     }
 }

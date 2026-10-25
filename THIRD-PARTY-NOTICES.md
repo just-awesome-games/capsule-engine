@@ -4,7 +4,7 @@ Third-party software that Capsule carries, or that a game built with Capsule red
 
 ## NVorbis
 
-`JAG.Capsule.Runtime` carries NVorbis (version 0.10.4) as modified source under `src/Capsule.Runtime/Audio/Vorbis/` to decode streamed Ogg Vorbis. It is distributed by its author under the MIT License.
+`JAG.Capsule.Runtime` carries NVorbis (version 0.10.4) as modified source under `src/Capsule.Runtime/Audio/Vorbis/` to decode Ogg Vorbis. It is distributed by its author under the MIT License.
 
 Copyright (c) 2020 Andrew Ward
 

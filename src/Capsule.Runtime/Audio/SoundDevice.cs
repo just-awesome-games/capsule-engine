@@ -31,9 +31,19 @@ internal sealed class SoundDevice : IDisposable
     // Whether this streak of failed reopens has been warned of.
     private bool _reopenWarned;
 
+    // Underruns of the mix threads already replaced, and whether the run's first has been warned of.
+    private long _joinedUnderruns;
+    private bool _underrunWarned;
+
     internal SoundStore Sounds { get; }
 
     internal AudioPlayer Player { get; }
+
+    // Times this run's mix fell behind its output, which then played a gap.
+    internal long Underruns => _joinedUnderruns + _mix.Underruns;
+
+    // Blocks in which a streamed voice's decoding fell behind, which played that voice silent.
+    internal long Starved => _mixer.Starved;
 
     private SoundDevice(HostPlatform platform, AudioOutput output)
     {
@@ -77,6 +87,12 @@ internal sealed class SoundDevice : IDisposable
 
         _streamer.Update();
         Player.Update();
+
+        if (!_underrunWarned && Underruns > 0)
+        {
+            Log.Warning("audio: the mix fell behind the device and a gap was heard. Later gaps are not logged");
+            _underrunWarned = true;
+        }
 
         if (fault is not null)
         {
@@ -139,6 +155,7 @@ internal sealed class SoundDevice : IDisposable
             return;
         }
 
+        _joinedUnderruns += _mix.Underruns;
         _mix = new MixThread(_mixer, next);
     }
 

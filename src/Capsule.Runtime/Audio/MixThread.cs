@@ -9,9 +9,10 @@ namespace Capsule.Runtime.Audio;
 // without threads could pump it from its frame loop instead.
 internal sealed class MixThread : IDisposable
 {
-    // About 20 ms queued ahead of the device. Short enough that a command is heard within a frame or
-    // two, and long enough to ride out a collection.
-    internal const int LeadFrames = VoiceMixer.SampleRate / 50;
+    // About 30 ms queued ahead of the device. A command is still heard within a frame or two. The
+    // device takes about 10 ms from the queue at a time, and the 20 ms left ride out a collection or a
+    // sleep that wakes late on a coarse system timer.
+    internal const int LeadFrames = VoiceMixer.SampleRate * 3 / 100;
 
     private readonly VoiceMixer _mixer;
     private readonly AudioOutput _output;
@@ -27,6 +28,9 @@ internal sealed class MixThread : IDisposable
     private string? _fault;
     private volatile bool _stopping;
 
+    // Times the output was found to have played everything this thread queued.
+    private long _underruns;
+
     internal MixThread(VoiceMixer mixer, AudioOutput output)
     {
         _mixer = mixer;
@@ -41,6 +45,9 @@ internal sealed class MixThread : IDisposable
         _thread.Start();
     }
 
+    // Times the mix fell behind its output, which then plays a gap.
+    internal long Underruns => Volatile.Read(ref _underruns);
+
     // The fault that stopped the mix, once, or null.
     internal string? TakeFault() => Interlocked.Exchange(ref _fault, null);
 
@@ -54,17 +61,29 @@ internal sealed class MixThread : IDisposable
     private void Run()
     {
         float[] block = new float[VoiceMixer.BlockFrames * VoiceMixer.Channels];
+        bool fedDevice = false;
 
         try
         {
+            _output.RaiseMixThreadPriority();
+
             while (!_stopping)
             {
                 AudioOutput output = _output.Connected ? _output : _silence;
                 int queued = output.QueuedFrames;
                 if (queued < LeadFrames)
                 {
+                    // The device has played everything queued: this thread woke a whole lead late, and
+                    // a gap is at most one device buffer away. Silence has no device to leave a gap.
+                    bool device = output is not SilentOutput;
+                    if (device && fedDevice && queued == 0)
+                    {
+                        Volatile.Write(ref _underruns, _underruns + 1);
+                    }
+
                     _mixer.Mix(block);
                     output.Submit(block);
+                    fedDevice |= device;
 
                     continue;
                 }

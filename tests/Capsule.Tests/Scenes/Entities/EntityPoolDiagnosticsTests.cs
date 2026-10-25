@@ -11,7 +11,7 @@ namespace Capsule.Tests.Scenes;
 public sealed class EntityPoolDiagnosticsTests : IDisposable
 {
     private static readonly TextureHandle ShotTexture = new("pooled/shot", ".png");
-    private static readonly AudioClip Streamed = new("pooled/hum", ".ogg", 1d);
+    private static readonly AudioClip Streamed = new("pooled/hum", ".ogg", 4d);
 
     // Each setup takes from a pool and returns what the first-take line names that pool by.
     public static TheoryData<Func<string>, int> FirstTakes => new()

@@ -9,19 +9,24 @@ namespace Capsule.Tests.Audio;
 
 public sealed class AudioResidencyTests
 {
-    [Fact]
-    public void AStreamedClipIsNeverResident()
+    // An .ogg past the cutoff streams and is never resident. One at or under it is preloaded and held
+    // like a .wav, which spares an effect a decoder's setup on every play.
+    [Theory]
+    [InlineData(AudioClip.ResidentVorbisSeconds + 0.01, true)]
+    [InlineData(AudioClip.ResidentVorbisSeconds, false)]
+    public void AnOggStreamsOnlyPastTheResidentCutoff(double seconds, bool streamed)
     {
         using Fixture fixture = new();
+        AudioClip clip = new("clip", ".ogg", seconds);
 
-        fixture.Preload(Music);
-        fixture.Apply(Command(AudioCommandKind.Play, Slot(0, 1), Music));
+        fixture.Preload(clip);
+        fixture.Apply(Command(AudioCommandKind.Play, Slot(0, 1), clip));
 
-        Assert.Empty(fixture.Loaded);
-        Assert.Equal([Music], fixture.Opened);
+        Assert.Equal(streamed ? [] : [clip], fixture.Loaded);
+        Assert.Equal(streamed ? [clip] : [], fixture.Opened);
         MixCommand play = Assert.Single(fixture.Posted);
-        Assert.NotNull(play.Stream);
-        Assert.Null(play.Samples);
+        Assert.Equal(streamed, play.Stream is not null);
+        Assert.Equal(streamed, play.Samples is null);
     }
 
     // A voice holds the samples it plays, and a scene's release only drops the store's hold. A play

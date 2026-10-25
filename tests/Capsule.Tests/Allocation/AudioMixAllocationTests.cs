@@ -57,7 +57,7 @@ public sealed class AudioMixAllocationTests
     public void WarmPlaysStopsAndGainChangesFromTheGameThread_AllocateNothing()
     {
         SampleSource source = new(new float[2 * 20_000], 2, 44_100);
-        AudioClip music = new("hum", ".ogg", 1.0);
+        AudioClip music = new("hum", ".ogg", 4.0);
         AudioBus sfx = new("sfx");
         AudioRing<MixCommand> commands = new(AudioPlayer.CommandCapacity);
         AudioRing<VoiceEnded> ended = new(AudioPlayer.EndedCapacity);

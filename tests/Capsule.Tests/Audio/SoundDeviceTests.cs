@@ -89,6 +89,45 @@ public sealed class SoundDeviceTests : IDisposable
         Assert.Contains(_log.Entries, static entry => entry.Message.Contains("reopened", StringComparison.Ordinal));
     }
 
+    // An output that played everything queued means the mix fell behind it and a gap was heard. The
+    // queue filling at the start is no gap, and each gap counts once. Only the run's first is logged.
+    [Fact]
+    public void AnOutputTheMixLetRunDry_CountsEachGapOnceAndWarnsOfTheFirst()
+    {
+        DrainedOutput output = new();
+        using SoundDevice device = SoundDevice.TryOpen(new OutputPlatform(output))!;
+        Assert.True(SpinWait.SpinUntil(() => output.Full, Patience), "the mix did not fill its lead in time");
+
+        Assert.Equal(0, device.Underruns);
+
+        for (int gap = 0; gap < 2; gap++)
+        {
+            output.Drain();
+            Assert.True(SpinWait.SpinUntil(() => output.Full, Patience), "the mix did not refill its lead in time");
+            device.Update(FrameSeconds);
+        }
+
+        Assert.Equal(2, device.Underruns);
+        Assert.Single(_log.Entries, static entry => entry.Level == LogLevel.Warning && entry.Message.Contains("fell behind", StringComparison.Ordinal));
+    }
+
+    // A mix thread that faulted is kept when its lost output is replaced, and the gaps it counted are
+    // counted once.
+    [Fact]
+    public void AFaultedMix_CountsItsGapsOnceWhenItsOutputIsLost()
+    {
+        DrainedOutput output = new();
+        using SoundDevice device = SoundDevice.TryOpen(new OutputPlatform(output))!;
+        Assert.True(SpinWait.SpinUntil(() => output.Full, Patience), "the mix did not fill its lead in time");
+
+        output.Drain(failing: true);
+        Assert.True(output.Failed.Wait(Patience), "the mix did not fault in time");
+        output.Disconnect();
+        device.Update(SoundDevice.WatchSeconds);
+
+        Assert.Equal(1, device.Underruns);
+    }
+
     // A platform that hands out the outputs a test queues and then none, and serves the ramp for a
     // .wav and the shipped Ogg fixture for an .ogg.
     private sealed class OutputPlatform : HostPlatform
@@ -201,6 +240,47 @@ public sealed class SoundDeviceTests : IDisposable
             }
 
             _pace.Submit(frames);
+        }
+    }
+
+    // An output that plays nothing until a test empties it at once, as a device does through a stall
+    // longer than the mix's lead.
+    private sealed class DrainedOutput : AudioOutput
+    {
+        private int _queued;
+        private volatile bool _failing;
+        private volatile bool _connected = true;
+
+        internal ManualResetEventSlim Failed { get; } = new();
+
+        internal bool Full => QueuedFrames >= MixThread.LeadFrames;
+
+        protected internal override int QueuedFrames => Volatile.Read(ref _queued);
+
+        protected internal override bool Connected => _connected;
+
+        // A failing drain has the next submit throw, after the mix has counted the gap.
+        internal void Drain(bool failing = false)
+        {
+            _failing = failing;
+            Volatile.Write(ref _queued, 0);
+        }
+
+        internal void Disconnect() => _connected = false;
+
+        protected internal override void Submit(ReadOnlySpan<float> frames)
+        {
+            if (_failing)
+            {
+                Failed.Set();
+                throw new InvalidOperationException("device fault");
+            }
+
+            Interlocked.Add(ref _queued, frames.Length / Channels);
+        }
+
+        public override void Dispose()
+        {
         }
     }
 }

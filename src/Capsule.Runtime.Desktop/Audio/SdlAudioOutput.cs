@@ -28,6 +28,10 @@ internal sealed class SdlAudioOutput : AudioOutput
     // SDL_AUDIO_STOPPED, the status of a device SDL has given up on.
     private const int Stopped = 0;
 
+    // SDL_THREAD_PRIORITY_TIME_CRITICAL. On Linux SDL asks RealtimeKit for a higher priority and keeps
+    // the thread off real-time scheduling, whose CPU budget kills a process that overruns it.
+    private const int TimeCritical = 3;
+
     // Whether the last open failed. The host retries a lost output on an interval, and a streak of
     // failures warns once. Read and written on the game thread alone.
     private static bool LastOpenFailed;
@@ -76,6 +80,9 @@ internal sealed class SdlAudioOutput : AudioOutput
 
         return new SdlAudioOutput(device);
     }
+
+    // A failure leaves the thread at the host's own priority.
+    protected override void RaiseMixThreadPriority() => SDL_SetThreadPriority(TimeCritical);
 
     protected override void Submit(ReadOnlySpan<float> frames) =>
         SDL_QueueAudio(_device, in MemoryMarshal.GetReference(frames), (uint)(frames.Length * sizeof(float)));
@@ -158,6 +165,9 @@ internal sealed class SdlAudioOutput : AudioOutput
 
     [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_GetCurrentAudioDriver")]
     private static extern nint SDL_GetCurrentAudioDriver();
+
+    [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_SetThreadPriority")]
+    private static extern int SDL_SetThreadPriority(int priority);
 
     [DllImport(SdlPlatform.LibraryName, EntryPoint = "SDL_GetError")]
     private static extern nint SDL_GetError();

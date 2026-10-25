@@ -36,7 +36,7 @@ internal sealed class CapsuleGame : Game
     private readonly Func<DeviceSnapshot, FrameRenderer, DeviceSnapshot>? _interceptOverlay;
     private readonly Action<FrameRenderer>? _updateOverlay;
     private readonly Action<FrameRenderer>? _drawOverlay;
-    private readonly Action<AudioPlayer>? _followOverlayHold;
+    private readonly Action<SoundDevice>? _attachOverlaySound;
     private readonly Func<bool>? _overlayHeld;
     private readonly IDisposable? _overlayHost;
 
@@ -90,18 +90,22 @@ internal sealed class CapsuleGame : Game
             _updateOverlay = renderer => overlay.Update(renderer);
             _drawOverlay = overlay.Draw;
             _overlayHeld = () => overlay.IsOpen || overlay.IsHidden;
-            // The subscription is built here so the audio player's suspension is reachable only
-            // through this block, and a shipping publish trims it with the overlay.
-            _followOverlayHold = audio => overlay.HoldChanged = held =>
+            // Built here so the sound device is reachable from the overlay only through this block, and
+            // a shipping publish trims it with the overlay.
+            _attachOverlaySound = device =>
             {
-                if (held)
+                overlay.Scene.Pane.Sound = device;
+                overlay.HoldChanged = held =>
                 {
-                    audio.Suspend();
-                }
-                else
-                {
-                    audio.Resume();
-                }
+                    if (held)
+                    {
+                        device.Player.Suspend();
+                    }
+                    else
+                    {
+                        device.Player.Resume();
+                    }
+                };
             };
         }
 
@@ -159,10 +163,11 @@ internal sealed class CapsuleGame : Game
         scenes.PrepareInitialAssets();
         CollectAtBoundary();
 
-        if (_audio is { } audio)
+        if (_device is { } sound)
         {
-            // The overlay's hold is a standstill, and the ear should hear it as one.
-            _followOverlayHold?.Invoke(audio);
+            // The overlay's hold is a standstill, and the ear should hear it as one. Its frame pane
+            // counts the mix's gaps.
+            _attachOverlaySound?.Invoke(sound);
         }
 
         scenes.FollowSteps(_scheduler, _audio);

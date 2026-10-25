@@ -43,7 +43,7 @@ tenth of the view's visible span.
 | Restart | `R` | Restarts the scene. |
 | Load Scene | `L` | Loads a registered scene. The row shows only when scenes are registered. |
 | Game Camera | `C` | Returns the view to the game's camera. |
-| Frame Pane | `P` | Shows or hides the frame rate, frame times, steps per second, GC counts and heap. |
+| Frame Pane | `P` | Shows or hides the frame rate, frame times, steps per second, GC counts and heap. With sound, it also counts `underruns`, when the mix fell behind the device, and `starved` blocks, when a streamed voice's decoding fell behind. |
 | Hide | `H` | Withdraws the menu and keeps the run held. |
 | Help | `F1` | Lists each control no row shows by its main keys. |
 | Exit | `E` | Ends the run. |

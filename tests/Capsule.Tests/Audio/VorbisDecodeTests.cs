@@ -1,12 +1,14 @@
 using Capsule.Audio;
+using Capsule.Persistence;
+using Capsule.Runtime;
 using Capsule.Runtime.Audio;
 using Capsule.Runtime.Audio.Vorbis;
 
 namespace Capsule.Tests.Audio;
 
 // The vendored decoder (Capsule.Runtime.Audio.Vorbis) decodes identically to the NVorbis 0.10.4
-// package, which Capsule.Tests references for this comparison. One canonical contract, two cases: a plain loop and a loop
-// region, both driven far enough to exercise a real voice's wrap and re-read paths.
+// package, which Capsule.Tests references for this comparison. A plain loop and a loop region are driven
+// far enough to exercise a real voice's wrap and re-read paths, and a short clip is decoded whole.
 public sealed class VorbisDecodeTests
 {
     private const string FixturePath = "Audio/Fixtures/loop.ogg";
@@ -43,6 +45,24 @@ public sealed class VorbisDecodeTests
         float[] reference = ReadReference(start, end, frames);
 
         AssertSamplesMatch(vendored, reference);
+    }
+
+    // A short clip held resident is the reference decode at 16 bits. Decoding stops at the end of the
+    // file or one frame past the build's measure, whichever comes first.
+    [Theory]
+    [InlineData(FrameCount, FrameCount)]
+    [InlineData(SampleRate, SampleRate + 1)]
+    public void AResidentClip_HoldsTheReferenceDecodeAt16BitsUpToItsMeasure(int measuredFrames, int heldFrames)
+    {
+        PcmAudio resident = AudioFiles.ReadResident(new FixturePlatform(), new AudioClip("loop", ".ogg", measuredFrames / (double)SampleRate));
+        float[] reference = ReadReference(start: 0, end: FrameCount, frames: heldFrames);
+
+        Assert.Equal(heldFrames, resident.Frames);
+        Assert.Equal(SampleRate, resident.SampleRate);
+        for (int i = 0; i < reference.Length; i++)
+        {
+            Assert.Equal(reference[i], resident.Pcm16![i] * PcmAudio.Pcm16Scale, 1f / 32768f);
+        }
     }
 
     private static void AssertSamplesMatch(float[] vendored, float[] reference)
@@ -133,5 +153,12 @@ public sealed class VorbisDecodeTests
         }
 
         return output;
+    }
+
+    private sealed class FixturePlatform : HostPlatform
+    {
+        protected internal override Stream OpenContent(string relativePath) => File.OpenRead(Path.Combine(AppContext.BaseDirectory, FixturePath));
+
+        protected internal override ISaveStorage OpenSaveStorage(string localFolderName) => throw new NotSupportedException();
     }
 }

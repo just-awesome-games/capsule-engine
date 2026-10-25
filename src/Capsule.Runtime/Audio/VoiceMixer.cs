@@ -41,7 +41,7 @@ internal sealed class VoiceMixer
     private float[][] _buses = [];
 
     // Blocks in which a playing stream found its ring empty before its end.
-    private long _underruns;
+    private long _starved;
 
     internal VoiceMixer(AudioRing<MixCommand> commands, AudioRing<VoiceEnded> ended)
     {
@@ -57,7 +57,7 @@ internal sealed class VoiceMixer
         _spareCount = _spare.Length;
     }
 
-    internal long Underruns => Volatile.Read(ref _underruns);
+    internal long Starved => Volatile.Read(ref _starved);
 
     // Fills output with the next frames of the mix, interleaved stereo. Each block of up to
     // BlockFrames first applies every command the game thread has sent.
@@ -125,7 +125,7 @@ internal sealed class VoiceMixer
         bool ended = voice.Render((uint)bus < (uint)buses.Length ? buses[bus].AsSpan(0, frames * Channels) : master, frames);
         if (voice.Starved)
         {
-            Volatile.Write(ref _underruns, _underruns + 1);
+            Volatile.Write(ref _starved, _starved + 1);
         }
 
         return ended;

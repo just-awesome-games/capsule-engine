@@ -3,9 +3,9 @@ using System.Buffers.Binary;
 namespace Capsule.Runtime.Audio;
 
 // One resident clip's samples, decoded whole when its scene loads it and read in place by every voice
-// that plays it. Interleaved, at the clip's own rate and channel count. 8- and 16-bit sources are held
-// as 16-bit integers, half the memory of floats, and 24- and 32-bit integer and float sources as
-// floats. A 16-bit sample s reads as s / 32768.
+// that plays it. Interleaved, at the clip's own rate and channel count. 8- and 16-bit sources and short
+// Ogg Vorbis clips are held as 16-bit integers, half the memory of floats, and 24- and 32-bit integer
+// and float sources as floats. A 16-bit sample s reads as s / 32768.
 //
 // A scene releasing the clip frees nothing here. A voice still playing it holds its own reference, and
 // the collector frees the samples once no voice and no scene holds them.

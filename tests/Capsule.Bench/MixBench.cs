@@ -74,7 +74,7 @@ internal static class MixBench
 
         double[] blockMs = new double[MeasuredBlocks];
         int gen0 = GC.CollectionCount(0);
-        long underruns = mixer.Underruns;
+        long starved = mixer.Starved;
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < MeasuredBlocks; i++)
         {
@@ -82,9 +82,9 @@ internal static class MixBench
         }
 
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
-        if (mixer.Underruns != underruns)
+        if (mixer.Starved != starved)
         {
-            Console.WriteLine($"bench: {Name} starved its stream in {mixer.Underruns - underruns} blocks");
+            Console.WriteLine($"bench: {Name} starved its stream in {mixer.Starved - starved} blocks");
         }
 
         Percentiles timing = Percentiles.Of(blockMs);

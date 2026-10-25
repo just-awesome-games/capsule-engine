@@ -40,6 +40,18 @@ public abstract class AudioOutput : IDisposable
     /// <param name="frames">Whole frames of <see cref="Channels"/> samples each.</param>
     protected internal abstract void Submit(ReadOnlySpan<float> frames);
 
+    /// <summary>
+    /// Raises the calling thread's scheduling priority above the system's ordinary work. Does nothing by
+    /// default.
+    /// </summary>
+    /// <remarks>
+    /// Called once on each host mix thread as it starts, before its first <see cref="Submit"/>. A
+    /// platform that cannot raise it leaves it as it was. Must not throw.
+    /// </remarks>
+    protected internal virtual void RaiseMixThreadPriority()
+    {
+    }
+
     /// <inheritdoc/>
     public abstract void Dispose();
 }

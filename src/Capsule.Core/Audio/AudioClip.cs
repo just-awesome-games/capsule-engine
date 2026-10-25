@@ -16,8 +16,9 @@ namespace Capsule.Audio;
 /// <param name="Name">The source's path under <c>Assets/</c>.</param>
 /// <param name="Extension">
 /// The source's extension, leading dot included, either <c>.wav</c> or <c>.ogg</c>. The host decodes a
-/// <c>.wav</c> clip whole when it loads and holds it resident for every scene that uses it, and decodes a
-/// <c>.ogg</c> clip on its background worker as it plays.
+/// <c>.wav</c> clip, or a <c>.ogg</c> clip of 3 seconds or less, whole when it loads and holds it
+/// resident for every scene that uses it. It decodes a longer <c>.ogg</c> clip on its background worker
+/// as it plays.
 /// </param>
 /// <param name="DurationSeconds">
 /// Seconds the clip runs at unit pitch, measured at build time. Playback state is derived from it and
@@ -38,6 +39,10 @@ public readonly record struct AudioClip(
     // The extension a .wav source of integer samples ships under.
     internal const string Flac = ".flac";
 
+    // The longest .ogg held resident. A one-shot effect is shorter and would pay a decoder's setup on
+    // every play. Music and ambience run longer and play rarely.
+    internal const double ResidentVorbisSeconds = 3.0;
+
     private const string Wave = ".wav";
 
     // Whether the source is a float WAV, the one form that ships as authored though it is a .wav.
@@ -53,9 +58,10 @@ public readonly record struct AudioClip(
     public AudioClip(string name, string extension, double durationSeconds, AudioLoopRegion loopRegion, bool floatSamples)
         : this(name, extension, durationSeconds, loopRegion) => FloatSamples = floatSamples;
 
-    // Whether the host decodes the clip as it plays instead of holding it for the scene. The
-    // extension decides: .wav is resident, .ogg streams.
-    internal bool IsStreamed => string.Equals(Extension, ".ogg", StringComparison.OrdinalIgnoreCase);
+    internal bool IsVorbis => string.Equals(Extension, ".ogg", StringComparison.OrdinalIgnoreCase);
+
+    // Whether the host decodes the clip as it plays instead of holding it for the scene.
+    internal bool IsStreamed => IsVorbis && DurationSeconds > ResidentVorbisSeconds;
 
     // The extension of the file the build shipped for the source, below assets/ at Name.
     internal string ShippedExtension => Shipped(Extension, FloatSamples);
