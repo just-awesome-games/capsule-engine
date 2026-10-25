@@ -13,14 +13,14 @@ The bench runs with `TieredCompilation=false`. Its absolute numbers differ from 
 dotnet run -c Release --project tests/Capsule.Bench -- suite --label <text> [--lane simulation|rendering|paced] [--uncapped]
 ```
 
-`--lane` runs one lane, and the record's `lane` names it (`all` without the option). The windowed lane paces to vertical sync unless `--uncapped` is given, and then `intervalMs` is the host's true frame cost. The suite refuses `--uncapped` with a headless lane. Each workload runs in a child process on the engine's own command line, and `-- --scene Crowd1k [--uncapped]` runs one by hand. A record goes to `results/<UTC timestamp>.json` and is committed. Frame CSVs and the `Still` capture go under `artifacts/bench/` and are not.
+`--lane` runs one lane, and the record's `lane` names it (`all` without the option). The windowed lane paces to vertical sync unless `--uncapped` is given, and then `intervalMs` is the host's true frame cost. The suite refuses `--uncapped` with a headless lane. Each workload runs in a child process on the engine's own command line, and `-- --scene Crowd1k [--uncapped]` runs one by hand. A record goes to `results/<UTC timestamp>.json` and is committed. Frame CSVs go under `artifacts/bench/` as `<row>.csv` and are not. The captures of `Still`'s rows go there as `<row>-<label>.png` and are not either, except a capture a later change is measured against, which is kept under `results/captures/<label>/`.
 
 ## Reading a record
 
 A record is a header (`timestamp`, `label`, `lane`, `uncapped`, `commit`, `configuration`, `os`, `cpu`, `gpu`, `engineVersion`) and one row per workload. A row has `name`, `mode`, `surface`, `gen0Collections` over the measured window, and its lane's columns. The other lanes' columns are null.
 
 - Headless: `steps`, `stepMs` {median, p95} for the fixed step alone, `viewMs` {median, p95} for building the frame after it, and `stepBytes` and `viewBytes`, the exact bytes the measured steps and builds allocated on their thread. A row that allocates by design says so in its workload's summary. Every other row reads 0.
-- Windowed: `frames`, `drawMs` {median, p95, max} for `FrameRenderer.Draw` alone, `updateMs` {median, p95, max} for the frame's input, steps and host upkeep, `viewMs` {median, p95} for the frame's build over the frames that ran a step, `frameBytes`, the bytes the frame thread allocated over the measured frames, and `intervalMs` {median, p95, max} from frame start to frame start. `captureSha256` appears on `Still` rows and changes only when the renderer's output did.
+- Windowed: `frames`, `drawMs` {median, p95, max} for `FrameRenderer.Draw` alone, `updateMs` {median, p95, max} for the frame's input, steps and host upkeep, `viewMs` {median, p95} for the frame's build over the frames that ran a step, `frameBytes`, the bytes the frame thread allocated over the measured frames, and `intervalMs` {median, p95, max} from frame start to frame start. `captureSha256` appears on the rows of `Still` (`Still`, `StillLit`, `StillShaded` and `StillHd`) and changes only when the renderer's output did.
 - Paced: `frames`, `steps` for the fixed steps those frames ran, one a frame while the workload keeps pace, `updateMs` {median, p95, max}, `viewMs` {median, p95} for the frame's build over the frames that ran a step, `frameBytes`, and `intervalMs` {median, p95, max} from frame start to frame start.
 - Mixer: `steps` for the blocks mixed, `stepMs` {median, p95} for one block, and `stepBytes`, the bytes the measured blocks allocated.
 
@@ -32,6 +32,7 @@ Changing a workload's definition resets its history. Compare by label and commit
 - Headless rows before `perf-lazy-view` carry no `viewMs`, and their `stepMs` includes the frame build.
 - Records before `shove-mask` carry no paced rows.
 - Records before `rung26-mixer` carry no `Mix64` row.
+- Records before `h0-gl` carry no `StillShaded` or `StillHd` row.
 - Windowed and paced rows before `frame-columns` carry no `updateMs` or `frameBytes`. Their windowed rows carry no `viewMs`, and a paced row's `viewMs` covers every frame.
 
 To add a workload, add a scene class with a `[Workload]` attribute under `Capsule.Bench.Logic/Scenes/`, composed from `Entities/`, `Components/`, `Cameras/` and `UI/` as a game would be. A level an editor would export is a `*.scene.json` under `Assets/Scenes/`, as `Stage` claims `stage.scene.json`. Commit a large generated grid as data, one row per line. Frame a workload with `ParkedCamera` unless camera travel is the point, and keep anything captured static.

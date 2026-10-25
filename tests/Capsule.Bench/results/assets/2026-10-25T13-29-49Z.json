@@ -1,0 +1,75 @@
+{
+  "timestamp": "2026-10-25T13:29:49Z",
+  "label": "h0-gl",
+  "commit": "5693264",
+  "configuration": "Release",
+  "os": "Microsoft Windows 10.0.26200",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+  "gpu": "AMD Radeon RX 9070 XT",
+  "engineVersion": "0.0.0+56932648d54d6498d105f722d99780b42bcbe51c",
+  "corpusVersion": 3,
+  "corpusFiles": 11351,
+  "corpusBytes": 1287499764,
+  "cases": [
+    {
+      "case": "cold",
+      "wallMs": 7153,
+      "toolMs": 4344,
+      "runs": 1
+    },
+    {
+      "case": "no-change",
+      "wallMs": 2041,
+      "toolMs": 469,
+      "runs": 3
+    },
+    {
+      "case": "texture-edit",
+      "wallMs": 2017,
+      "toolMs": 468,
+      "runs": 3
+    },
+    {
+      "case": "atlas-member-edit",
+      "wallMs": 2802,
+      "toolMs": 1217,
+      "runs": 3
+    },
+    {
+      "case": "r8-edit",
+      "wallMs": 2039,
+      "toolMs": 487,
+      "runs": 3
+    },
+    {
+      "case": "scene-edit",
+      "wallMs": 2041,
+      "toolMs": 500,
+      "runs": 3
+    },
+    {
+      "case": "import-edit",
+      "wallMs": 2038,
+      "toolMs": 482,
+      "runs": 3
+    },
+    {
+      "case": "tileset-edit",
+      "wallMs": 2259,
+      "toolMs": 703,
+      "runs": 3
+    },
+    {
+      "case": "shader-edit",
+      "wallMs": 2068,
+      "toolMs": 541,
+      "runs": 3
+    },
+    {
+      "case": "touch-only",
+      "wallMs": 2018,
+      "toolMs": 459,
+      "runs": 3
+    }
+  ]
+}

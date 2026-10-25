@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using Capsule.Bench.Logic;
 using Capsule.Bench.Logic.Drivers;
+using Capsule.Bench.Logic.Scenes;
 
 namespace Capsule.Bench;
 
@@ -181,7 +182,7 @@ internal static class Suite
     private static WorkloadRecord? Windowed(string executable, string workload, WorkloadAttribute lane, string label, bool uncapped)
     {
         string csv = Path.Combine(ArtifactsDirectory, workload + ".csv");
-        bool captured = workload is "Still" or "StillLit";
+        bool captured = workload is nameof(Still) or Still.Lit or Still.Shaded or Still.Hd;
 
         List<string> arguments = ["--frames", csv, SecondsPerFramedWorkload.ToString(CultureInfo.InvariantCulture)];
         if (captured)
@@ -202,7 +203,7 @@ internal static class Suite
         string? sha256 = null;
         if (captured)
         {
-            string kept = Path.Combine(ArtifactsDirectory, $"still-{label}.png");
+            string kept = Path.Combine(ArtifactsDirectory, $"{workload}-{label}.png");
             File.Move(StillCapture.Path, kept, overwrite: true);
             using FileStream stream = File.OpenRead(kept);
             sha256 = Convert.ToHexStringLower(SHA256.HashData(stream));
