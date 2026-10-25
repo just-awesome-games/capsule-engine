@@ -1,4 +1,5 @@
 using Capsule.Audio;
+using Capsule.Runtime.Audio;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
@@ -8,28 +9,6 @@ namespace Capsule.Tests.Audio;
 
 public sealed class AudioResidencyTests
 {
-    // The retirement that pooling reports is what the residency count is kept on. A sound whose
-    // voice has been played, ended and played again is still held by exactly one live voice.
-    [Fact]
-    public void ASoundWhosePooledVoiceIsPlayedAgainIsStillRetainedByIt()
-    {
-        using Fixture fixture = new();
-        fixture.Preload(Step);
-
-        fixture.Apply(Command(AudioCommandKind.Play, Slot(0, 1), Step));
-        fixture.Apply(Command(AudioCommandKind.Stop, Slot(0, 1)));
-        fixture.Apply(Command(AudioCommandKind.Play, Slot(0, 2), Step));
-
-        FakeSound sound = Assert.Single(fixture.Backend.Loaded);
-        fixture.Preload();
-
-        Assert.False(sound.Disposed);
-
-        fixture.Apply(Command(AudioCommandKind.Stop, Slot(0, 2)));
-
-        Assert.True(sound.Disposed);
-    }
-
     [Fact]
     public void AStreamedClipIsNeverResident()
     {
@@ -38,82 +17,27 @@ public sealed class AudioResidencyTests
         fixture.Preload(Music);
         fixture.Apply(Command(AudioCommandKind.Play, Slot(0, 1), Music));
 
-        Assert.Empty(fixture.Backend.Loaded);
-        Assert.Equal(Music, Assert.Single(fixture.Backend.Voices).Clip);
+        Assert.Empty(fixture.Loaded);
+        Assert.Equal([Music], fixture.Opened);
+        MixCommand play = Assert.Single(fixture.Posted);
+        Assert.NotNull(play.Stream);
+        Assert.Null(play.Samples);
     }
 
-    // The device queues a resident clip whole and can only repeat all of it. A loop that must
-    // repeat a region streams the same resident sound's samples instead. It is still one load for
-    // the scene, and the voice still counts against that sound's residency.
+    // A voice holds the samples it plays, and a scene's release only drops the store's hold. A play
+    // that outlives the scene keeps its samples, and the clip's next play loads it again.
     [Fact]
-    public void ALoopOfAClipCarryingARegion_StreamsTheResidentSoundsSamples()
-    {
-        using Fixture fixture = new();
-        fixture.Preload(Theme);
-
-        fixture.Apply(Command(AudioCommandKind.Play, Slot(0, 1), Theme, loop: true));
-
-        FakeSound sound = Assert.Single(fixture.Backend.Loaded);
-        FakeVoice voice = Assert.Single(fixture.Backend.Voices);
-        Assert.True(voice.Streamed);
-        Assert.Equal(0, voice.Plays);
-
-        fixture.Preload();
-
-        Assert.False(sound.Disposed);
-
-        fixture.Apply(Command(AudioCommandKind.Stop, Slot(0, 1)));
-
-        Assert.True(sound.Disposed);
-    }
-
-    // The region is the loop's alone: a one-shot of the same clip is queued whole, as every resident
-    // sound is.
-    [Fact]
-    public void AOneShotOfAClipCarryingARegion_IsPlayedByTheDeviceAsAnyOtherResidentSoundIs()
-    {
-        using Fixture fixture = new();
-
-        fixture.Apply(Command(AudioCommandKind.Play, Slot(0, 1), Theme));
-
-        FakeVoice voice = Assert.Single(fixture.Backend.Voices);
-        Assert.False(voice.Streamed);
-        Assert.Equal(1, voice.Plays);
-    }
-
-    // A resident clip's queued voice starts at the front of its buffer and nowhere else. A resident clip
-    // asked for a start offset takes the streaming path the region loop takes, from the same
-    // resident sound. It is still one load and the voice still counts against its residency.
-    [Fact]
-    public void AResidentClipPlayedFromAnOffset_StreamsTheResidentSoundsSamples()
+    public void AClipItsSceneReleased_IsLoadedAgainOnItsNextPlay()
     {
         using Fixture fixture = new();
         fixture.Preload(Step);
-
-        fixture.Apply(Command(AudioCommandKind.Play, Slot(0, 1), Step, startSeconds: 0.25));
-
-        FakeSound sound = Assert.Single(fixture.Backend.Loaded);
-        FakeVoice voice = Assert.Single(fixture.Backend.Voices);
-        Assert.True(voice.Streamed);
-        Assert.Equal(0.25, voice.StartSeconds);
+        fixture.Apply(Command(AudioCommandKind.Play, Slot(0, 1), Step));
 
         fixture.Preload();
-        Assert.False(sound.Disposed);
+        fixture.Apply(Command(AudioCommandKind.Play, Slot(1, 1), Step));
 
-        fixture.Apply(Command(AudioCommandKind.Stop, Slot(0, 1)));
-        Assert.True(sound.Disposed);
-    }
-
-    [Fact]
-    public void ASoundNoVoiceIsPlayingLeavesWithItsScene()
-    {
-        using Fixture fixture = new();
-        fixture.Preload(Step);
-
-        FakeSound sound = Assert.Single(fixture.Backend.Loaded);
-        fixture.Preload();
-
-        Assert.True(sound.Disposed);
+        Assert.Equal([Step, Step], fixture.Loaded);
+        Assert.NotSame(fixture.Posted[0].Samples, fixture.Posted[1].Samples);
     }
 
     // The initial scene starts before the device is open. What its start raised stands on the
@@ -131,9 +55,10 @@ public sealed class AudioResidencyTests
         fixture.Preload(Step);
         fixture.Player.Apply(host.Run.Audio.Commands);
 
-        FakeVoice sounding = Assert.Single(fixture.Backend.Voices);
-        Assert.Equal(Step, sounding.Clip);
+        MixCommand sounding = Assert.Single(fixture.Posted);
+        Assert.Equal(MixCommandKind.Play, sounding.Kind);
         Assert.True(sounding.Loop);
+        Assert.Equal([Step], fixture.Loaded);
 
         // Nothing carries it past here, which is what makes the boot delivery the only chance at it.
         host.Step(SceneFixtures.Step(0));

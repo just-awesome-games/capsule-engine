@@ -197,9 +197,9 @@ Games ship under NativeAOT. No project file sets `PublishAot`. Pass it with a ru
 dotnet publish src/MyGame.Shell --configuration Release --runtime win-x64 --self-contained true -p:PublishAot=true
 ```
 
-The publish directory carries the host's native libraries beside the executable: on Windows, `SDL2.dll` for
-the window and input, `openal.dll` for sound. Without the sound library or an output device the run plays
-silently and logs that once.
+The publish directory carries the host's native library beside the executable: on Windows, `SDL2.dll` for
+the window, input and sound output. The host mixes sound itself and plays the mix on the system's default
+output. Without an output device the run plays silently and logs that once.
 
 A publish replaces its directory's `assets/` whole. The folder never carries an asset the current build does
 not ship, whatever an earlier publish left there.
@@ -208,9 +208,7 @@ On Windows the native link needs the MSVC Build Tools with the C++ workload, and
 also needs `C:\Program Files (x86)\Microsoft Visual Studio\Installer` on `PATH`.
 
 A shell's publish carries a `licenses/` folder: Capsule's license, its third-party notices for what Capsule carries and a
-game redistributes, OpenAL Soft's corresponding source in `licenses/openal-soft-source/`, which its license, the LGPL
-version 2, asks to travel with `openal.dll`, and, when the runtime ships with the game, the .NET runtime's license and
-notices.
+game redistributes, and, when the runtime ships with the game, the .NET runtime's license and notices.
 
 A publish holds no `.pdb`, and a NativeAOT executable names its `.pdb` by file name alone, with no build-machine path. A NativeAOT publish defaults `StackTraceSupport` to `false` and
 `UseSystemResourceKeys` to `true`, which a project can set back. Its symbols go to

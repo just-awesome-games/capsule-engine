@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
-using System.Text.Json;
 using System.Xml.Linq;
 using Capsule.Scenes;
 using Capsule.Tests.Build;
@@ -15,21 +14,17 @@ public sealed class PackageTests
 
     // The pure modules ship inside the package, and CapsuleReturnPureModules in its project hands them
     // to a referencing project. A module listed as a dependency would name a package that does not exist.
-    // A shell's publish copies Capsule's license, its notices and OpenAL Soft's corresponding source out
-    // of the package. The source is the release the runtime's resolved MonoGame.Library.OpenAL builds.
-    // An OpenAL update without its source fails here.
+    // A shell's publish copies Capsule's license and its notices out of the package.
     [Fact]
     public void JagCapsule_DependsOnlyOnTheShaderTools_ShipsEveryModuleInLib_AndWhatAPublishCopiesIntoLicenses()
     {
         using ZipArchive package = Pack("Capsule", "JAG.Capsule");
-        string openAl = string.Join('.', ResolvedVersion("Capsule.Runtime.Desktop", "MonoGame.Library.OpenAL").Split('.')[..3]);
 
         Assert.Equal(["MonoGame.Tool.Dxc", "MonoGame.Tool.Spirvcross"], Dependencies(package, "JAG.Capsule").Keys.Order(StringComparer.Ordinal));
         Assert.Equal(["Capsule.Core.dll", "Capsule.Physics.dll", "Capsule.Scenes.dll", "Capsule.dll"], Libraries(package));
         Assert.DoesNotContain(package.Entries, static entry => entry.Name.StartsWith("Capsule.Build.", StringComparison.Ordinal));
         Assert.NotNull(package.GetEntry("LICENSE"));
         Assert.NotNull(package.GetEntry("THIRD-PARTY-NOTICES.md"));
-        Assert.NotNull(package.GetEntry($"buildTransitive/sources/openal-soft/openal-soft-{openAl}.tar.gz"));
     }
 
     // Build-time code only: the machinery every project runs stays in JAG.Capsule, which this package
@@ -53,17 +48,6 @@ public sealed class PackageTests
             .Where(static element => element.Name.LocalName == "dependency")
             .DistinctBy(static element => (string)element.Attribute("id")!)
             .ToDictionary(static element => (string)element.Attribute("id")!, static element => (string)element.Attribute("version")!);
-
-    // The version a project's lock file resolves for a package, direct or transitive.
-    private static string ResolvedVersion(string project, string id)
-    {
-        using JsonDocument lockFile = JsonDocument.Parse(File.ReadAllText(
-            Path.Combine(ToolWorkspace.Metadata("CapsuleCheckout"), "src", project, "packages.lock.json")));
-
-        return lockFile.RootElement.GetProperty("dependencies").EnumerateObject()
-            .Select(framework => framework.Value.TryGetProperty(id, out JsonElement entry) ? entry.GetProperty("resolved").GetString() : null)
-            .First(static version => version is not null)!;
-    }
 
     private static string Version(ZipArchive package, string id) =>
         Nuspec(package, id).Descendants().Single(static element => element.Name.LocalName == "version").Value;

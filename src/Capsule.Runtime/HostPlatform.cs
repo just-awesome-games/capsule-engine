@@ -104,15 +104,14 @@ public abstract class HostPlatform
         return (primary.Width, primary.Height, 1f);
     }
 
-    /// <summary>
-    /// Attaches to the output the sound device opened, for a platform that follows the system's
-    /// default output as it moves. Called once on the game thread after the device opens.
-    /// </summary>
-    /// <remarks>A null result leaves sound on the output the run opened.</remarks>
-    /// <param name="defaultChanged">
-    /// Call when the default output changes. Safe from any thread, and only notes the change.
-    /// </param>
-    protected internal virtual AudioOutput? WatchDefaultAudioOutput(Action defaultChanged) => null;
+    /// <summary>Opens the output the host's mix plays on, or returns null for a run with no sound.</summary>
+    /// <remarks>
+    /// Called on the game thread as the window's content loads, and again on an interval while the
+    /// output last returned is not <see cref="AudioOutput.Connected"/>. A platform that cannot open its
+    /// output logs why and returns null, and the run plays silently. The output follows the system's
+    /// default device itself.
+    /// </remarks>
+    protected internal virtual AudioOutput? OpenAudioOutput() => null;
 
     /// <summary>
     /// The player's preferred languages as BCP 47 tags, most preferred first. Empty by default.

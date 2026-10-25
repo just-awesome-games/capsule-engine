@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Capsule.Audio;
 
 /// <summary>
@@ -24,10 +26,24 @@ public readonly record struct AudioPlayback(AudioClip Clip)
     /// hard right. Centred by default.
     /// </summary>
     /// <remarks>
-    /// A mono clip pans across the field, and a stereo one rotates within it where the device
-    /// supports that.
+    /// A mono clip pans across the field at equal power. A stereo clip keeps its near side whole and
+    /// fades its far side, which is silent at a hard pan. A positional voice ignores this and pans
+    /// from its <see cref="Position"/>.
     /// </remarks>
     public float Pan { get; init; }
+
+    /// <summary>
+    /// How far from the listener this voice is heard. Not positional by default, which plays it at
+    /// its own gain and <see cref="Pan"/> wherever it is.
+    /// </summary>
+    public AudioRange Range { get; init; }
+
+    /// <summary>The fixed world point this voice sounds from while <see cref="Range"/> is positional. The origin by default.</summary>
+    /// <remarks>
+    /// Pan follows the point's horizontal offset from the listener in view widths: a point at the
+    /// view's edge pans halfway, and one a full view width off centre pans hard.
+    /// </remarks>
+    public Vector2 Position { get; init; }
 
     /// <summary>
     /// Clip time the voice begins at, in seconds from the clip's start, and 0 by default. Any other

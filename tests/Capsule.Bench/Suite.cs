@@ -9,8 +9,8 @@ namespace Capsule.Bench;
 
 // `suite [--label <text>] [--lane simulation|rendering|paced] [--uncapped]`: every workload in
 // Workloads.All, or those of one lane, each in a child process of this same binary on the engine's own
-// command line, once in each lane its [Workload] attributes name, then one record under results/
-// beside this source.
+// command line, once in each lane its [Workload] attributes name, then the sound mix in this process
+// with the headless lane, then one record under results/ beside this source.
 internal static class Suite
 {
     private const string ArtifactsDirectory = "artifacts/bench";
@@ -110,6 +110,15 @@ internal static class Suite
 
             workloads.Add(workload);
             Console.WriteLine(Summary(workload));
+        }
+
+        // The mix is timed in this process. It needs no window and runs with the headless lane.
+        if (only is null or WorkloadKind.Simulation)
+        {
+            Console.WriteLine($"bench: {MixBench.Name} (mixer)");
+            WorkloadRecord mix = MixBench.Run();
+            workloads.Add(mix);
+            Console.WriteLine(Summary(mix));
         }
 
         SuiteRecord record = new(
@@ -344,6 +353,7 @@ internal static class Suite
     private static string Summary(WorkloadRecord workload) => workload switch
     {
         { Mode: "windowed", DrawMs: { } draw, UpdateMs: { } update, IntervalMs: { } interval } => string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} frames={workload.Frames} drawMs median={draw.Median:F3} p95={draw.P95:F3} max={draw.Max:F3} updateMs p95={update.P95:F3} viewMs p95={workload.ViewMs?.P95:F3} intervalMs max={interval.Max:F3} frameBytes={workload.FrameBytes} gen0={workload.Gen0Collections}"),
+        { Mode: "mixer", StepMs: { } block } => string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} blocks={workload.Steps} blockMs median={block.Median:F3} p95={block.P95:F3} bytes={workload.StepBytes} gen0={workload.Gen0Collections}"),
         { Mode: "paced", UpdateMs: { } update, IntervalMs: { } interval } => string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} paced frames={workload.Frames} steps={workload.Steps} intervalMs median={interval.Median:F3} p95={interval.P95:F3} max={interval.Max:F3} updateMs max={update.Max:F3} frameBytes={workload.FrameBytes} gen0={workload.Gen0Collections}"),
         _ => string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} steps={workload.Steps} stepMs median={workload.StepMs!.Median:F3} p95={workload.StepMs.P95:F3} viewMs median={workload.ViewMs!.Median:F3} p95={workload.ViewMs.P95:F3} stepBytes={workload.StepBytes} viewBytes={workload.ViewBytes} gen0={workload.Gen0Collections}"),
     };

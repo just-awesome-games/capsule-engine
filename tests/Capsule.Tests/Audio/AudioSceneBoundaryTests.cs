@@ -3,6 +3,7 @@ using Capsule.Audio;
 using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Runtime;
+using Capsule.Runtime.Audio;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using static Capsule.Tests.Audio.AudioPlaybackFixtures;
@@ -35,11 +36,10 @@ public sealed class AudioSceneBoundaryTests : IDisposable
 
         Assert.True(scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, host));
 
-        FakeSound shot = Assert.Single(fixture.Backend.Loaded);
-        FakeVoice voice = Assert.Single(fixture.Backend.Voices);
-        Assert.Equal(Shot, voice.Clip);
-        Assert.Equal(1, voice.Plays);
-        Assert.False(shot.Disposed);
+        Assert.Equal([Shot], fixture.Loaded);
+        MixCommand play = Assert.Single(fixture.Posted);
+        Assert.Equal(MixCommandKind.Play, play.Kind);
+        Assert.NotNull(play.Samples);
         Assert.Empty(_log.Entries);
     }
 
@@ -58,20 +58,11 @@ public sealed class AudioSceneBoundaryTests : IDisposable
         Assert.False(scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, host));
 
         Assert.IsType<Incoming>(host.Scene);
-        Assert.Equal([Shot, Chime], fixture.Backend.Loaded.Select(static sound => sound.Clip));
-        Assert.Equal([Shot, Chime], fixture.Backend.Voices.Select(static voice => voice.Clip));
-        FakeVoice shot = fixture.Backend.Voices[0];
-        Assert.Equal(1, shot.Plays);
-        Assert.Equal(0.5f, shot.Gain);
-        Assert.Equal(1, fixture.Backend.Voices[1].Plays);
+        Assert.Equal([Shot, Chime], fixture.Loaded);
+        Assert.Equal(
+            [(MixCommandKind.Play, 0, 1f), (MixCommandKind.SetGain, 0, 0.5f), (MixCommandKind.Play, 1, 1f)],
+            fixture.Posted.Select(static command => (command.Kind, command.Slot, command.Gain)));
         Assert.Empty(_log.Entries);
-
-        // The incoming scene never held the outgoing scene's clip. Its last voice ending frees it.
-        shot.Finished = true;
-        fixture.Player.Update();
-
-        Assert.True(fixture.Backend.Loaded[0].Disposed);
-        Assert.False(fixture.Backend.Loaded[1].Disposed);
     }
 
     // The order LoadContent wires a run with a device in.

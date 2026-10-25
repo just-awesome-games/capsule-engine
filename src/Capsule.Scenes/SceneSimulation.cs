@@ -58,6 +58,9 @@ public sealed class SceneSimulation : ISimulation, IDisposable
 
         // The run boots here, whichever host built it. A scene's start hook already sees a booted run.
         Run.Input.Started = true;
+
+        // A transition builds a new simulation as well. The last scene's camera is not this one's.
+        Run.Audio.ForgetListener();
         try
         {
             scene.Start(entryPayload);
@@ -190,6 +193,11 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         // The scene's late step runs before EndStep clears the deferral flag. Its changes then queue too.
         Scene.RunLateStep(in context);
         Scene.EndStep();
+
+        // Heard once entities have moved, the camera has settled and late joiners have started. A
+        // positional voice is then heard from this step's camera.
+        Rect view = Scene.Camera.VisibleRegion;
+        Run.Audio.Settle(view.Center, view.Size.X);
 
         EmitDebugDraws();
     }

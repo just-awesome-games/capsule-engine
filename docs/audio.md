@@ -5,14 +5,16 @@ give a settings screen volume sliders. Each type's XML docs hold its rules.
 
 Capsule mixes clips on buses and computes every voice's state from the clip's measured duration, in fixed
 steps. Which sound answers which event, and where the music handle lives, are the game's. Volumes are
-linear amplitude in [0, 1]. A voice has no position, and an `AudioSource` plays at its own `Pan` wherever
-its entity stands. Speakers and headphones receive the same stereo mix, with no headphone processing.
+linear amplitude in [0, 1]. A voice given an `AudioRange` is heard from a point in the world, and any
+other voice plays at its own `Pan`. Speakers and headphones receive the same stereo mix, with no
+headphone processing.
 
 | Need | Piece |
 | --- | --- |
 | A sound file | An `AudioClip` member of `CapsuleAssets` ([`assets.md`](assets.md#audio)) |
 | A group of voices mixed and paused together | `AudioBus`, under `AudioBus.Master` |
 | A sound that belongs to an entity | `AudioSource` |
+| A sound heard louder the nearer it is | `AudioRange`, on an `AudioSource` or an `AudioPlayback` |
 | Music, and any sound that outlives a scene | `Run.Audio`, the run's `AudioMixer` |
 | A level or a voice that changes over time | `FadeVolume`, `CrossFade`, and `Stop` with seconds |
 
@@ -56,6 +58,37 @@ if (context.Input.WasPressed(GameInput.Interact))
 }
 ```
 
+## A sound in the world
+
+A voice with a `Range` is heard from a point. An `AudioSource` follows its entity every step:
+
+```csharp
+Add(new AudioSource(CapsuleAssets.Audio.HumSound)
+{
+    Bus = AudioBuses.Sfx,
+    Loop = true,
+    AutoPlay = true,
+    Range = new AudioRange(200f) { Falloff = Ease.InQuad },
+});
+```
+
+A voice played through `Run.Audio` stays at the `Position` it was given:
+
+```csharp
+Run.Audio.Play(new AudioPlayback(CapsuleAssets.Audio.ChimeSound)
+{
+    Bus = AudioBuses.Sfx,
+    Position = Position,
+    Range = new AudioRange(240f),
+});
+```
+
+The listener is the centre of the scene camera's `VisibleRegion`, and a voice falls silent at the range's
+`MaxDistance` while keeping its time. A positional voice ignores its own `Pan` and pans by its horizontal
+offset from the listener, halfway at the view's edge and hard at a full view width. A sound at the view's
+edge is already half a view width from the listener. A `MaxDistance` a little past that distance fades a
+sound out as it leaves the screen, and voices whose ranges overlap off screen add up.
+
 ## Music
 
 A voice started through `Run.Audio` survives a scene transition. The game keeps its handle on the object
@@ -90,4 +123,4 @@ A fade raises no completion callback. A game that changes scene once the music h
 A short sound effect is a `.wav`. It ships as lossless FLAC ([`assets.md`](assets.md#audio)), is decoded
 when it loads, and is held resident for every scene that uses it. Music and long ambience are `.ogg`,
 decoded on a background worker as they play. A looping voice whose clip carries a loop region
-streams in either format and repeats the region gaplessly.
+repeats the region gaplessly in either format.

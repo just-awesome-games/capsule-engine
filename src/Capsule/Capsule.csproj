@@ -34,10 +34,8 @@
   <ItemGroup>
     <!-- The asset config files' JSON Schemas, for a consumer to read offline beside the API reference. -->
     <None Include="../../schemas/*.schema.json" Pack="true" PackagePath="schemas/" Visible="false" />
-    <!-- Beside buildTransitive/, and OpenAL Soft's source inside it, where the publish hooks copy them
-         into a game's licenses/ folder. -->
+    <!-- Beside buildTransitive/, where the publish hooks copy them into a game's licenses/ folder. -->
     <None Include="../../LICENSE;../../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" Visible="false" />
-    <None Include="../../build/sources/openal-soft/*" Pack="true" PackagePath="buildTransitive/sources/openal-soft/" Visible="false" />
     <!-- Everything directly under build/ is what a consumer imports, and build/engine/ is not. The
          files keep their layout. $(MSBuildThisFileDirectory) finds the same neighbours from a
          package or an engine clone. The entry files take the package's name, for NuGet to import

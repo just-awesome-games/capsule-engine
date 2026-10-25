@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Animation;
 using Capsule.Assets;
 using Capsule.Diagnostics;
@@ -10,10 +11,6 @@ namespace Capsule.Audio;
 /// The entity can then stop, pause and re-level it. The clip is declared as a preload, and the
 /// voice stops when the entity leaves the scene. A transition therefore silences what a scene's
 /// entities were playing, while anything started through <see cref="Run.Audio"/> keeps playing.
-/// <para>
-/// Capsule mixes no position into gain. This component is a handle on a voice, not a point in
-/// space.
-/// </para>
 /// </remarks>
 /// <param name="clip">The clip <see cref="Play()"/> starts.</param>
 /// <example>
@@ -25,7 +22,7 @@ namespace Capsule.Audio;
 /// _creak.Play();
 /// </code>
 /// </example>
-public sealed class AudioSource(AudioClip clip) : Component
+public sealed class AudioSource(AudioClip clip) : Component, IAudioAnchor
 {
     // The mixer the live voice belongs to. Kept so the voice is stopped by the mixer that started it,
     // even after the entity has left the scene it reached that mixer through.
@@ -35,6 +32,7 @@ public sealed class AudioSource(AudioClip clip) : Component
     private float _volume = 1f;
     private float _pitch = 1f;
     private float _pan;
+    private AudioRange _range;
 
     // Whether OnStart has run. A later join is a pooled or moved entity's, which AutoPlay replays on.
     private bool _started;
@@ -98,8 +96,9 @@ public sealed class AudioSource(AudioClip clip) : Component
     /// </summary>
     /// <remarks>
     /// It applies to the live voice immediately and to every voice played afterwards. A mono clip
-    /// pans across the whole field, and a stereo clip is rotated within it where the device
-    /// supports that.
+    /// pans across the field at equal power. A stereo clip keeps its near side whole and fades its far
+    /// side, which is silent at a hard pan. While <see cref="Range"/> is positional the voice ignores this and pans from its entity's
+    /// position.
     /// </remarks>
     public float Pan
     {
@@ -108,6 +107,22 @@ public sealed class AudioSource(AudioClip clip) : Component
         {
             _pan = Guard.InRange(value, -1f, 1f, nameof(value));
             _playing?.SetPan(_voice, value);
+        }
+    }
+
+    /// <summary>
+    /// How far from the listener this source's voices are heard, following the entity's
+    /// <see cref="Entity.WorldPosition"/>. Not positional by default, which plays them at
+    /// <see cref="Volume"/> and <see cref="Pan"/> wherever the entity stands.
+    /// </summary>
+    /// <remarks>It applies to the live voice immediately and to every voice played afterwards.</remarks>
+    public AudioRange Range
+    {
+        get => _range;
+        set
+        {
+            _range = value;
+            _playing?.SetRange(_voice, value);
         }
     }
 
@@ -187,17 +202,22 @@ public sealed class AudioSource(AudioClip clip) : Component
             Volume = _volume,
             Pitch = _pitch,
             Pan = _pan,
+            Range = _range,
+            Position = Entity!.WorldPosition,
             StartSeconds = startSeconds,
             Loop = Loop,
-        });
+        }, this);
     }
 
     /// <summary>
-    /// Plays <paramref name="clip"/> as a separate one-shot on this source's bus and at its
-    /// <see cref="Pan"/>, multiplying <see cref="Volume"/> and <see cref="Pitch"/> by the given
-    /// scales. This source's own <see cref="Volume"/>, <see cref="Pitch"/> and voice are unchanged.
+    /// Plays <paramref name="clip"/> as a separate one-shot on this source's bus, at its
+    /// <see cref="Pan"/> and <see cref="Range"/>, multiplying <see cref="Volume"/> and <see cref="Pitch"/>
+    /// by the given scales. This source's own <see cref="Volume"/>, <see cref="Pitch"/> and voice are unchanged.
     /// </summary>
-    /// <remarks>The source does not track the new voice, and the caller holds it.</remarks>
+    /// <remarks>
+    /// The source does not track the new voice, and the caller holds it. A positional one-shot
+    /// stays at the point the entity stood at when it played.
+    /// </remarks>
     /// <param name="clip">The clip to play once.</param>
     /// <param name="volumeScale">A factor on <see cref="Volume"/> for this play, itself in [0, 1].</param>
     /// <param name="pitchScale">A factor on <see cref="Pitch"/> for this play, positive and finite.</param>
@@ -214,6 +234,8 @@ public sealed class AudioSource(AudioClip clip) : Component
             Volume = _volume * volumeScale,
             Pitch = _pitch * pitchScale,
             Pan = _pan,
+            Range = _range,
+            Position = Entity!.WorldPosition,
         });
     }
 
@@ -244,6 +266,10 @@ public sealed class AudioSource(AudioClip clip) : Component
     public void Resume() => _playing?.Resume(_voice);
 
     internal override bool Steps => false;
+
+    // The mixer's settle reads this for a positional voice. The voice stops when the entity leaves the
+    // scene, and a detached source is never read.
+    Vector2 IAudioAnchor.Position => Entity?.WorldPosition ?? new Vector2(float.NaN);
 
     /// <inheritdoc/>
     protected internal override void CollectAssets(AssetCollection assets)

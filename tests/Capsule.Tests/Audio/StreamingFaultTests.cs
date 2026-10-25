@@ -6,7 +6,7 @@ using Capsule.Runtime.Audio;
 namespace Capsule.Tests.Audio;
 
 // A log sink is written on the simulation thread only. A fault on the streaming worker is
-// recorded there and logged by the game thread's next call into the streamer or the voice.
+// recorded there and logged by the game thread's next call into the streamer or the stream.
 [Collection(LogSinkCollection.Name)]
 public sealed class StreamingFaultTests : IDisposable
 {
@@ -21,19 +21,19 @@ public sealed class StreamingFaultTests : IDisposable
     public void Dispose() => Log.UseSink(null);
 
     [Fact]
-    public void AVoiceThatFaultsOnTheWorker_IsLoggedOnTheGameThread()
+    public void AStreamThatFaultsOnTheWorker_IsLoggedOnTheGameThread()
     {
-        using AudioStreamer streamer = new((rate, channels) => new FakeQueue());
+        using AudioStreamer streamer = new();
         AudioClip clip = new("hum", ".ogg", 1.0, default);
 
         // The first read is the game thread's, inside Start. The worker's next read throws.
-        StreamedVoice voice = streamer.Play(new FailingSource(readsBeforeFault: 1), clip, 1f, 1f, 0f, loop: true);
+        AudioStream stream = streamer.Play(new FailingSource(readsBeforeFault: 1), clip, loop: true);
 
-        Assert.True(SpinWait.SpinUntil(() => voice.Finished, Patience), "the voice did not fault in time");
+        Assert.True(SpinWait.SpinUntil(() => stream.Ended, Patience), "the stream did not fault in time");
         Assert.Empty(_sink.Lines);
 
-        voice.Update();
-        voice.Update();
+        streamer.Update();
+        streamer.Update();
 
         (int thread, string message) = Assert.Single(_sink.Lines);
         Assert.Equal(Environment.CurrentManagedThreadId, thread);
@@ -43,11 +43,11 @@ public sealed class StreamingFaultTests : IDisposable
     [Fact]
     public void AStoppedWorker_IsLoggedOnTheGameThread()
     {
-        using AudioStreamer streamer = new((rate, channels) => new FakeQueue());
+        using AudioStreamer streamer = new();
         AudioClip clip = new("hum", ".ogg", 1.0, default);
 
         // Closing the source happens outside Fill's containment, which stops the worker.
-        streamer.Play(new FailingSource(readsBeforeFault: int.MaxValue, failOnDispose: true), clip, 1f, 1f, 0f, loop: true).Dispose();
+        streamer.Play(new FailingSource(readsBeforeFault: int.MaxValue, failOnDispose: true), clip, loop: true).Retire();
 
         Assert.True(
             SpinWait.SpinUntil(
@@ -65,25 +65,25 @@ public sealed class StreamingFaultTests : IDisposable
         Assert.Contains("streaming worker stopped", message, StringComparison.Ordinal);
     }
 
-    // The worker's decode fails after the voice was stopped. The pooled voice's next play hears it.
+    // The worker's decode fails after the stream was retired. The pooled stream's next play hears it.
     [Fact]
-    public void AFaultWhileAVoiceRetires_IsLoggedOnTheGameThreadWhenTheVoicePlaysAgain()
+    public void AFaultWhileAStreamRetires_IsLoggedOnTheGameThreadWhenItPlaysAgain()
     {
-        using AudioStreamer streamer = new((rate, channels) => new FakeQueue());
+        using AudioStreamer streamer = new();
         AudioClip clip = Retire(streamer);
 
-        streamer.Play(new FailingSource(readsBeforeFault: int.MaxValue), clip, 1f, 1f, 0f, loop: true).Dispose();
+        streamer.Play(new FailingSource(readsBeforeFault: int.MaxValue), clip, loop: true).Retire();
 
         (int thread, string message) = Assert.Single(_sink.Lines);
         Assert.Equal(Environment.CurrentManagedThreadId, thread);
         Assert.Contains("'hum'", message, StringComparison.Ordinal);
     }
 
-    // The same fault on a voice that never plays again is heard when the streamer is torn down.
+    // The same fault on a stream that never plays again is heard when the streamer is torn down.
     [Fact]
-    public void AFaultWhileAVoiceRetires_IsLoggedOnTheGameThreadAtTeardown()
+    public void AFaultWhileAStreamRetires_IsLoggedOnTheGameThreadAtTeardown()
     {
-        AudioStreamer streamer = new((rate, channels) => new FakeQueue());
+        AudioStreamer streamer = new();
         _ = Retire(streamer);
 
         streamer.Dispose();
@@ -93,18 +93,18 @@ public sealed class StreamingFaultTests : IDisposable
         Assert.Contains("'hum'", message, StringComparison.Ordinal);
     }
 
-    // Plays a clip whose worker read fails only once the voice is stopped, and waits for the voice to pool.
+    // Plays a clip whose worker read fails only once the stream is retired, and waits for it to pool.
     private AudioClip Retire(AudioStreamer streamer)
     {
         AudioClip clip = new("hum", ".ogg", 1.0, default);
         HeldFaultSource source = new();
 
-        StreamedVoice voice = streamer.Play(source, clip, 1f, 1f, 0f, loop: true);
+        AudioStream stream = streamer.Play(source, clip, loop: true);
         Assert.True(source.Reading.Wait(Patience), "the worker did not read in time");
-        voice.Dispose();
+        stream.Retire();
         source.Release.Set();
 
-        Assert.True(SpinWait.SpinUntil(() => streamer.Pooled == 1, Patience), "the voice did not retire in time");
+        Assert.True(SpinWait.SpinUntil(() => streamer.Pooled == 1, Patience), "the stream did not retire in time");
         Assert.Empty(_sink.Lines);
 
         return clip;

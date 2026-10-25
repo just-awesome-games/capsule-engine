@@ -1,157 +1,163 @@
-using Capsule.Audio;
 using Capsule.Diagnostics;
-using Capsule.Runtime.Audio.Vorbis;
-using Microsoft.Xna.Framework.Audio;
 
 namespace Capsule.Runtime.Audio;
 
-// The backend's sound device: clips decoded whole, clips decoded as they play, the worker that reads
-// the latter ahead, and the watch that keeps the output on the system's default device.
-internal sealed class SoundDevice : IAudioBackend
+// A run's sound: the output the platform opened, the mixer and the thread that pushes it into the
+// output, the worker that decodes streamed clips ahead, the resident clips and the game thread's
+// voice table.
+//
+// An output that loses its device is closed and the platform's default opened again, on the game
+// thread where the platform first opened it. A new mix thread runs the same mixer, and every voice
+// plays on from where it was. Until an output opens, the mix runs into silence and keeps time.
+//
+// A mix thread that faults leaves the run silent for good. The game plays on, and nothing it asks for
+// is posted to the mix again.
+internal sealed class SoundDevice : IDisposable
 {
-    private readonly AudioStreamer _streamer = new((rate, channels) => new DynamicPcmQueue(rate, channels));
+    // How often the output is asked whether it still reaches a device, and a lost one reopened.
+    internal const double WatchSeconds = 0.5;
+
     private readonly HostPlatform _platform;
+    private readonly AudioStreamer _streamer = new();
+    private readonly VoiceMixer _mixer;
+    private AudioOutput _output;
+    private MixThread _mix;
 
-    // Both null when the platform offers no way to follow the default output, which leaves sound
-    // on the device the run opened.
-    private AudioOutput? _output;
-    private OutputFollower? _follower;
+    // A fault taken from a mix thread the watch stopped, held for Update to log.
+    private string? _fault;
+    private bool _faulted;
+    private double _sinceWatch;
 
-    // Whether the last reopen failed, which warns once over a streak of retries instead of every
-    // frame.
-    private bool _reopenFailed;
+    // Whether this streak of failed reopens has been warned of.
+    private bool _reopenWarned;
 
-    private SoundDevice(HostPlatform platform) => _platform = platform;
+    internal SoundStore Sounds { get; }
 
-    // Opens the device, or logs why and returns null. The game still runs, silently, on a machine with
-    // no sound card, no output device or no audio runtime.
+    internal AudioPlayer Player { get; }
+
+    private SoundDevice(HostPlatform platform, AudioOutput output)
+    {
+        _platform = platform;
+        _output = output;
+
+        AudioRing<MixCommand> commands = new(AudioPlayer.CommandCapacity);
+        AudioRing<VoiceEnded> ended = new(AudioPlayer.EndedCapacity);
+        Sounds = new SoundStore(clip => AudioFiles.ReadResident(platform, clip), clip => AudioFiles.OpenStream(platform, clip));
+        Player = new AudioPlayer(Sounds, _streamer, commands, ended);
+        _mixer = new VoiceMixer(commands, ended);
+        _mix = new MixThread(_mixer, output);
+    }
+
+    // Opens the platform's output, or returns null for a silent run. A platform that could not open
+    // its output has logged why. The game still runs, silently.
     internal static SoundDevice? TryOpen(HostPlatform platform)
     {
-        try
+        if (platform.OpenAudioOutput() is not { } output)
         {
-            SoundEffect.Initialize();
-        }
-        catch (NoAudioHardwareException failure)
-        {
-            return Silent(failure);
-        }
-        catch (DllNotFoundException failure)
-        {
-            return Silent(failure);
+            Log.Debug("audio: the platform opened no output and the run is silent");
+
+            return null;
         }
 
-        SoundDevice device = new(platform);
-        device.FollowDefaultOutput();
-
-        return device;
+        return new SoundDevice(platform, output);
     }
 
-    // Once a frame, on the game thread. Logs a streaming worker fault, and moves the output to the
-    // system's default device when the default has changed or the device has been pulled.
+    // Once a frame, on the game thread, with the wall seconds since the last. Reopens a lost output,
+    // logs a fault on the mix thread or the decode worker, and retires what the mix thread reports
+    // ended. A faulted mix silences the player once every ended voice it reported is retired.
     internal void Update(double elapsedSeconds)
     {
+        if (!_faulted)
+        {
+            Watch(elapsedSeconds);
+        }
+
+        string? fault = _fault ?? _mix.TakeFault();
+        _fault = null;
+
         _streamer.Update();
-        _follower?.Update(elapsedSeconds);
-    }
+        Player.Update();
 
-    // The shipped FLAC is decoded here, off the game thread. A clip with a loop region is also decoded
-    // to its samples here. Its first looping play then reads no file and decodes nothing on the game
-    // thread.
-    public ResidentFile Read(in AudioClip clip)
-    {
-        byte[] wave = AudioFiles.ReadWave(_platform, clip);
-        PcmAudio? samples = clip.LoopRegion.HasRegion ? PcmAudio.FromWav(wave, clip.Name) : null;
-
-        return new ResidentFile(new MemoryStream(wave, writable: false), samples);
-    }
-
-    public IResidentSound Load(in AudioClip clip, ResidentFile file)
-    {
-        using (file.Bytes)
+        if (fault is not null)
         {
-            file.Bytes.Position = 0;
-
-            return new ResidentSoundEffect(SoundEffect.FromStream(file.Bytes), clip, file.Samples, _streamer, _platform);
+            Log.Warning(fault);
+            _faulted = true;
+            Player.Silence();
         }
     }
 
-    public IAudioVoice Stream(in AudioClip clip, float gain, float pitch, float pan, bool loop, double startSeconds)
-    {
-        Stream file = AudioFiles.Open(_platform, clip);
-        if (!file.CanSeek)
-        {
-            file.Dispose();
-            throw new InvalidOperationException(
-                $"The platform module opened audio clip '{clip.Name}' as a stream that cannot seek. Return a seekable stream from its HostPlatform.OpenContent.");
-        }
-
-        VorbisReader reader = new(file);
-
-        // The device takes mono and stereo. Anything wider would need downmixing.
-        if (reader.Channels is not (1 or 2))
-        {
-            int channels = reader.Channels;
-            reader.Dispose();
-
-            throw new NotSupportedException(
-                $"Audio clip '{clip.Name}' is {channels}-channel. Capsule streams mono and stereo Ogg Vorbis.");
-        }
-
-        return _streamer.Play(new VorbisPcmSource(reader), clip, gain, pitch, pan, loop, startSeconds);
-    }
-
-    // The watch goes first. No announcement lands while the voices it would move are torn down.
+    // The mix thread stops before the output closes under it, and the streams it read close last.
     public void Dispose()
     {
-        _output?.Dispose();
-        _output = null;
-        _follower = null;
+        _mix.Dispose();
+        _output.Dispose();
+        Sounds.Dispose();
         _streamer.Dispose();
     }
 
-    private static SoundDevice? Silent(Exception failure)
+    private void Watch(double elapsedSeconds)
     {
-        Log.Warning($"audio device unavailable and the game runs silent. {failure.Message}");
+        _sinceWatch += elapsedSeconds;
+        if (_sinceWatch < WatchSeconds)
+        {
+            return;
+        }
 
-        return null;
+        _sinceWatch = 0.0;
+        if (_output is SilentOutput)
+        {
+            if (Reopen() is { } reopened)
+            {
+                CloseOutput();
+                MixInto(reopened);
+            }
+        }
+        else if (!_output.Connected)
+        {
+            // The lost device closes before the platform opens the default again.
+            CloseOutput();
+            MixInto(Reopen() ?? new SilentOutput());
+        }
     }
 
-    private void FollowDefaultOutput()
+    // Joins the mix thread and closes the output it played into.
+    private void CloseOutput()
     {
-        OutputFollower follower = new(Reopen, () => _output is { Connected: true });
-        _output = _platform.WatchDefaultAudioOutput(follower.DefaultChanged);
+        _mix.Dispose();
+        _output.Dispose();
+    }
 
-        if (_output is null)
+    // Starts a new mix thread over the same mixer into next, every voice where it was. A thread that
+    // stopped on a fault is not replaced, and Update logs the fault and silences the run.
+    private void MixInto(AudioOutput next)
+    {
+        _output = next;
+        if (_mix.TakeFault() is { } fault)
         {
-            Log.Debug("audio output cannot follow the default device, because the platform offers no watch over it");
+            _fault = fault;
 
             return;
         }
 
-        _follower = follower;
+        _mix = new MixThread(_mixer, next);
     }
 
-    private bool Reopen()
+    private AudioOutput? Reopen()
     {
-        if (_output is not { } output)
+        if (_platform.OpenAudioOutput() is { } output)
         {
-            return true;
+            Log.Info("audio output reopened, and every voice plays on");
+            _reopenWarned = false;
+
+            return output;
         }
 
-        if (output.TryReopen(out string? reason))
+        if (!_reopenWarned)
         {
-            Log.Info($"audio output moved to '{output.Name}'");
-            _reopenFailed = false;
-
-            return true;
+            Log.Warning("audio output lost and none could be reopened. The game runs silent and keeps retrying");
+            _reopenWarned = true;
         }
 
-        if (!_reopenFailed)
-        {
-            Log.Warning($"audio output could not move to the default device ({reason}), retrying");
-            _reopenFailed = true;
-        }
-
-        return false;
+        return null;
     }
 }

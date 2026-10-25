@@ -2,25 +2,46 @@ using System.Buffers.Binary;
 
 namespace Capsule.Runtime.Audio;
 
-// One clip's samples decoded whole and shared by every voice that streams them, and what a resident
-// clip loops a region from. Interleaved and normalised to [-1, 1], the shape the device buffer is
-// encoded from. The widths a WAV may carry are converted once here instead of per read.
+// One resident clip's samples, decoded whole when its scene loads it and read in place by every voice
+// that plays it. Interleaved, at the clip's own rate and channel count. 8- and 16-bit sources are held
+// as 16-bit integers, half the memory of floats, and 24- and 32-bit integer and float sources as
+// floats. A 16-bit sample s reads as s / 32768.
+//
+// A scene releasing the clip frees nothing here. A voice still playing it holds its own reference, and
+// the collector frees the samples once no voice and no scene holds them.
 //
 // The build's probe reads the same container to measure the clip, but it is a build-time tool the
 // runtime does not reference. This reads what playback needs.
-internal sealed class PcmAudio(float[] samples, int channels, int sampleRate)
+internal sealed class PcmAudio : IDisposable
 {
+    // The scale from a 16-bit sample to [-1, 1). A power of two, which keeps the conversion exact.
+    internal const float Pcm16Scale = 1f / 32768f;
+
     private const int Extensible = 0xFFFE;
 
-    // No samples. A cursor holds this once the clip it read has been let go of.
-    internal static PcmAudio None { get; } = new([], 1, 1);
+    // Exactly one of Pcm16 and Float holds the samples.
+    internal short[]? Pcm16 { get; }
 
-    internal int Channels => channels;
+    internal float[]? Float { get; }
 
-    internal int SampleRate => sampleRate;
+    internal int Channels { get; }
 
-    // Interleaved and normalised. A cursor reads them in place and never copies.
-    internal ReadOnlySpan<float> Samples => samples;
+    internal int SampleRate { get; }
+
+    internal long Frames { get; }
+
+    internal PcmAudio(short[] samples, int channels, int sampleRate)
+        : this(channels, sampleRate, samples.Length) => Pcm16 = samples;
+
+    internal PcmAudio(float[] samples, int channels, int sampleRate)
+        : this(channels, sampleRate, samples.Length) => Float = samples;
+
+    private PcmAudio(int channels, int sampleRate, int samples)
+    {
+        Channels = channels;
+        SampleRate = sampleRate;
+        Frames = samples / channels;
+    }
 
     // Decodes a WAVE file already in memory, which leaves the bytes with the caller. A clip's WAVE is
     // usually 16-bit PCM. 8-bit unsigned, 24- and 32-bit PCM and 32-bit IEEE float are the other
@@ -75,10 +96,10 @@ internal sealed class PcmAudio(float[] samples, int channels, int sampleRate)
                 $"Audio clip '{clipName}' is {channels}-channel. Capsule plays mono and stereo.");
         }
 
-        return new PcmAudio(Decode(data, tag, bits, clipName), channels, rate);
+        return Decode(data, tag, bits, channels, rate, clipName);
     }
 
-    private static float[] Decode(ReadOnlySpan<byte> data, int tag, int bits, string clipName)
+    private static PcmAudio Decode(ReadOnlySpan<byte> data, int tag, int bits, int channels, int rate, string clipName)
     {
         int width = bits / 8;
         bool admitted = tag == 3 ? bits == 32 : tag == 1 && bits is (8 or 16 or 24 or 32);
@@ -88,23 +109,41 @@ internal sealed class PcmAudio(float[] samples, int channels, int sampleRate)
                 $"Audio clip '{clipName}' is WAVE format {tag} at {bits} bits. Capsule plays 8-, 16-, 24- and 32-bit PCM and 32-bit float. Re-encode it as 16-bit PCM.");
         }
 
-        float[] samples = new float[data.Length / width];
+        int count = data.Length / width;
+        count -= count % channels;
 
+        if (tag == 1 && bits <= 16)
+        {
+            short[] pcm = new short[count];
+            for (int i = 0; i < pcm.Length; i++)
+            {
+                pcm[i] = bits == 8
+                    ? (short)((data[i] - 128) << 8)
+                    : BinaryPrimitives.ReadInt16LittleEndian(data[(i * 2)..]);
+            }
+
+            return new PcmAudio(pcm, channels, rate);
+        }
+
+        float[] samples = new float[count];
         for (int i = 0; i < samples.Length; i++)
         {
             ReadOnlySpan<byte> sample = data.Slice(i * width, width);
 
             samples[i] = (tag, bits) switch
             {
-                (1, 8) => (sample[0] - 128) / 128f,
-                (1, 16) => BinaryPrimitives.ReadInt16LittleEndian(sample) / 32768f,
-                (1, 24) => ((sample[0] | (sample[1] << 8) | ((sbyte)sample[2] << 16)) / 8388608f),
+                (1, 24) => (sample[0] | (sample[1] << 8) | ((sbyte)sample[2] << 16)) / 8388608f,
                 (1, 32) => BinaryPrimitives.ReadInt32LittleEndian(sample) / 2147483648f,
                 _ => BinaryPrimitives.ReadSingleLittleEndian(sample),
             };
         }
 
-        return samples;
+        return new PcmAudio(samples, channels, rate);
+    }
+
+    // Nothing is freed. A scene's release only drops the store's reference.
+    public void Dispose()
+    {
     }
 
     private static bool Is(ReadOnlySpan<byte> bytes, string ascii)

@@ -13,8 +13,8 @@ clock or platform. The runtime hosts them and draws, plays and samples on their 
 | `Capsule.Core` | Fixed step, input, rendering, audio mixing, persistence, asset and diagnostic contracts. | nothing |
 | `Capsule.Physics` | Shapes, broadphase, queries, sweeps and kinematic movement. No dynamics, no solver. | Core |
 | `Capsule.Scenes` | Scenes, entities, components, cameras, audio sources, scene documents and their headless simulation. | Core, Physics |
-| `Capsule.Runtime` | The platform-neutral host: window, device, clock, input sampling, rendering, sound playback, scene hosting, and the `HostPlatform` contract. | the pure modules |
-| `Capsule.Runtime.Desktop` | The desktop platform module: content beside the executable, the per-user local folder, window raising and focus, the default audio output. | Runtime |
+| `Capsule.Runtime` | The platform-neutral host: window, device, clock, input sampling, rendering, the sound mix, scene hosting, and the `HostPlatform` contract. | the pure modules |
+| `Capsule.Runtime.Desktop` | The desktop platform module: content beside the executable, the per-user local folder, window raising and focus, the audio output the mix plays on. | Runtime |
 | `Capsule.Generators` | Source generation from the game's C#: the entity, scene and input-driver registries and `CapsuleBoot`. Compile-time enforcement of the game-logic boundary. | unconstrained |
 | `Capsule.Build` | The asset build a game's build project runs through `CapsuleBuild`: importers, keys, validation, compilation, atlas packing, `CapsuleAssets` and the derivation cache. | unconstrained |
 | `Capsule` | No code. The pack root of `JAG.Capsule`, whose project references admit what the package holds. | the pure modules |
@@ -69,9 +69,9 @@ extents, a simulation produces the same state transitions and render intents.
 - A step runs in this order: the mixer and the rumble open the step, the scene steps, each entity steps
   and then its components, contacts settle, every entity's late step runs in the same order, the scene's late step runs
   and the camera settles the visible region the frame will use, deferred structural changes are applied and
-  newly attached objects started, the visible-screen notifiers settle once against that region, and the
-  frame is rewritten. An entity held by a pause or a freeze is skipped by every pass but the drain and
-  the frame.
+  newly attached objects started, the visible-screen notifiers settle once against that region, the mixer
+  hears every positional voice from that region's centre, and the frame is rewritten. An entity held by a
+  pause or a freeze is skipped by every pass but the drain and the frame.
 - Entities update in tree order: each root in insertion order, then its subtree depth-first with children in
   parenting order. Rendering is ordered by `ZIndex` summed up the ancestry, stable over the same order.
   Collision queries and contact delivery order as their public methods document.
@@ -115,8 +115,8 @@ object a game attaches at run start (`Run.Attach`) and reads anywhere as `Run.St
 A host family is one shell. The desktop shell publishes Windows, Linux and macOS from one project by runtime
 identifier, and a console is another family with a shell of its own. A platform module is one subclass of
 `HostPlatform`, handed to `CapsuleBoot.Configure` beside the game's name. It tells the host where shipped
-content is read from, where saves and the crash log land, how the window is raised, focused and redrawn, how
-sound follows the default output, and which languages the player prefers.
+content is read from, where saves and the crash log land, how the window is raised, focused and redrawn, where
+the host's finished sound mix is played, and which languages the player prefers.
 
 `Capsule.Runtime` holds no implicit location and no native binding.
 

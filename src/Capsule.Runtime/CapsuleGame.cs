@@ -46,8 +46,8 @@ internal sealed class CapsuleGame : Game
     private FrameRenderer _renderer = null!;
     private CursorApplier _cursor = null!;
 
-    // All null when the sound device would not open, which makes every command and preload a no-op
-    // instead of failing the run. The store disposes the device.
+    // All null when the platform opened no audio output, which makes every command and preload a
+    // no-op instead of failing the run. The device owns the store and the player.
     private SoundDevice? _device;
     private SoundStore? _sounds;
     private AudioPlayer? _audio;
@@ -148,8 +148,8 @@ internal sealed class CapsuleGame : Game
         if (SoundDevice.TryOpen(_builder.Platform) is { } device)
         {
             _device = device;
-            _sounds = new SoundStore(device);
-            _audio = new AudioPlayer(_sounds);
+            _sounds = device.Sounds;
+            _audio = device.Player;
         }
 
         SceneHost scenes = _scenes;
@@ -244,8 +244,8 @@ internal sealed class CapsuleGame : Game
         _textures.Pump();
         _sounds?.Pump();
 
-        // Every frame, including one that drained no step. The device follows the system's default
-        // output, and a streamed voice hands it the next buffers.
+        // Every frame, including one that drained no step. The voices the mix thread has ended are
+        // retired, a fault on the mix or decode threads is logged, and a lost output is reopened.
         _device?.Update(elapsedSeconds);
 
         // Every frame, after the steps: the level is the run's settled output, and the live window
@@ -276,8 +276,6 @@ internal sealed class CapsuleGame : Game
 
         // A drawn frame ends a timed diagnostics run in Draw. A minimized one never reaches it.
         exiting |= _minimized && _diagnostics is { Expired: true };
-
-        _audio?.Update();
 
         if (exiting)
         {
@@ -355,9 +353,8 @@ internal sealed class CapsuleGame : Game
             _scheduler.StepCompleted = null;
             _scenes.BoundaryReached = null;
 
-            // Voices before the sounds they play and the device that opened them.
-            _audio?.Dispose();
-            _sounds?.Dispose();
+            // The mix thread stops before the output, the clips and the decoders it reads go.
+            _device?.Dispose();
 
             _renderer?.Dispose();
             _effects?.Dispose();

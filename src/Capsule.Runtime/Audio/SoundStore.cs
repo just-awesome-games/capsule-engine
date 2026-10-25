@@ -5,20 +5,22 @@ using Capsule.Runtime.Assets;
 
 namespace Capsule.Runtime.Audio;
 
-// The sounds owned by the current scene, preloaded where declared and otherwise loaded on first play.
-// Streamed clips are not resident. They are opened per voice and closed when the voice ends.
+// The resident clips owned by the current scene, preloaded where declared and otherwise loaded on
+// first play, and the opening of a streamed clip's file per play. Streamed clips are never resident.
 //
-// A voice outlives the scene that started it, because the mixer is the run's and not the scene's.
-// A resident sound the outgoing scene drops is held until its last live voice ends.
+// A voice outlives the scene that started it, because the mixer is the run's and not the scene's. It
+// holds its own reference to the samples it plays. A scene releasing a clip only drops the store's.
 internal sealed class SoundStore : IDisposable
 {
-    private readonly IAudioBackend _backend;
-    private readonly SceneAssetStore<AudioClip, RetainedSound> _resident;
+    private readonly Func<AudioClip, IPcmSource> _open;
+    private readonly SceneAssetStore<AudioClip, PcmAudio> _resident;
 
-    internal SoundStore(IAudioBackend backend)
+    // read decodes a resident clip whole on the thread pool, and open opens a streamed clip on the game
+    // thread. Each throws for a missing or malformed file, which is a build fault and not a device one.
+    internal SoundStore(Func<AudioClip, PcmAudio> read, Func<AudioClip, IPcmSource> open)
     {
-        _backend = backend;
-        _resident = new(clip => new PendingClip(backend, clip, backend.Read(clip)), long.MaxValue);
+        _open = open;
+        _resident = new(clip => new PendingClip(read(clip)), long.MaxValue);
     }
 
     // Missing preloads are decoded before the prior scene's sounds are released. Streamed clips are
@@ -29,31 +31,24 @@ internal sealed class SoundStore : IDisposable
 
     internal void Pump() => _resident.Pump();
 
-    // Loads on first use when the scene did not preload the clip. A resident clip streams its own
-    // samples instead of being queued whole when it must repeat a loop region or begin mid-clip,
-    // because the device repeats all of what it was queued and only from the front.
-    internal IAudioVoice Play(in AudioClip clip, float gain, float pitch, float pan, bool loop, double startSeconds) =>
-        clip.IsStreamed
-            ? _backend.Stream(clip, gain, pitch, pan, loop, startSeconds)
-            : Get(clip).Play(
-                gain,
-                pitch,
-                pan,
-                loop,
-                startSeconds,
-                startSeconds > 0.0 || (loop && clip.LoopRegion.HasRegion));
-
-    public void Dispose()
+    // A resident clip's samples, loaded on first use when the scene did not preload the clip.
+    internal PcmAudio Get(in AudioClip clip)
     {
-        try
+        if (_resident.TryGet(clip, out PcmAudio? samples))
         {
-            _resident.Dispose();
+            return samples;
         }
-        finally
-        {
-            _backend.Dispose();
-        }
+
+        samples = _resident.Load(clip);
+        Log.Info($"'{clip.Name}' loaded on first play. Declare it to preload it");
+
+        return samples;
     }
+
+    // A streamed clip's decoder, opened for one play.
+    internal IPcmSource Open(in AudioClip clip) => _open(clip);
+
+    public void Dispose() => _resident.Dispose();
 
     private static List<AudioClip> ResidentOf(AssetCollection preloads)
     {
@@ -69,80 +64,14 @@ internal sealed class SoundStore : IDisposable
         return resident;
     }
 
-    private RetainedSound Get(in AudioClip clip)
-    {
-        if (_resident.TryGet(clip, out RetainedSound sound))
-        {
-            return sound;
-        }
-
-        sound = _resident.Load(clip);
-        Log.Info($"'{clip.Name}' loaded on first play. Declare it to preload it");
-
-        return sound;
-    }
-
-    private sealed class PendingClip(IAudioBackend backend, AudioClip clip, ResidentFile file) : IPendingAsset<RetainedSound>
+    private sealed class PendingClip(PcmAudio samples) : IPendingAsset<PcmAudio>
     {
         public bool Advance(ref long budget) => true;
 
-        public RetainedSound Finish() => new(backend.Load(clip, file));
+        public PcmAudio Finish() => samples;
 
-        public void Discard() => file.Bytes.Dispose();
-    }
-
-    // One resident sound plus the count of live voices playing it. The scene's release and the last
-    // voice's end race in either order, and whichever is last frees the sound.
-    private sealed class RetainedSound : IDisposable
-    {
-        private readonly IResidentSound _sound;
-
-        // One delegate shared by every voice this sound plays, which keeps a play allocation-free.
-        private readonly Action _ended;
-
-        private int _voices;
-        private bool _released;
-
-        internal RetainedSound(IResidentSound sound)
+        public void Discard()
         {
-            _sound = sound;
-            _ended = Ended;
-        }
-
-        internal IAudioVoice Play(float gain, float pitch, float pan, bool loop, double startSeconds, bool stream)
-        {
-            IAudioVoice voice = stream
-                ? _sound.Stream(gain, pitch, pan, loop, startSeconds, _ended)
-                : _sound.Play(gain, pitch, pan, loop, _ended);
-            _voices++;
-
-            return voice;
-        }
-
-        // Called when the scene that owned this sound no longer wants it.
-        public void Dispose()
-        {
-            if (_released)
-            {
-                return;
-            }
-
-            _released = true;
-            Free();
-        }
-
-        private void Ended()
-        {
-            _voices--;
-            Free();
-        }
-
-        private void Free()
-        {
-            if (_released && _voices == 0)
-            {
-                _sound.Dispose();
-            }
         }
     }
 }

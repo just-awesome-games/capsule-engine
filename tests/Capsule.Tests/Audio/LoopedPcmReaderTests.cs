@@ -1,6 +1,7 @@
 using Capsule.Audio;
 using Capsule.Runtime.Audio;
 using Capsule.Tests.Documents;
+using static Capsule.Tests.Audio.AudioPlaybackFixtures;
 
 namespace Capsule.Tests.Audio;
 
@@ -99,7 +100,7 @@ public sealed class LoopedPcmReaderTests
     [Fact]
     public void AStereoRegion_WrapsOnWholeFrames()
     {
-        PcmAudio stereo = new([0f, 10f, 1f, 11f, 2f, 12f, 3f, 13f], 2, Rate);
+        SampleSource stereo = new([0f, 10f, 1f, 11f, 2f, 12f, 3f, 13f], 2, Rate);
         LoopedPcmReader reader = Reader(stereo, Region(1, 3), loop: true);
         float[] expected = [0, 10, 1, 11, 2, 12, 1, 11, 2, 12];
 
@@ -113,19 +114,18 @@ public sealed class LoopedPcmReaderTests
     [InlineData(3, 32, false)]
     [InlineData(1, 16, true)]
     [InlineData(3, 32, true)]
-    public void TheWavReader_NormalisesEveryWidthItAdmits(int tag, int bits, bool extensible)
+    public void TheWavReader_NormalisesEveryWidthItAdmits_HoldingEightAndSixteenBitsAsSixteen(int tag, int bits, bool extensible)
     {
         using SceneDocumentFixtures.Workspace workspace = new();
         File.WriteAllBytes("clip.wav", Wav(tag, bits, extensible: extensible));
 
         PcmAudio samples = PcmAudio.FromWav(File.ReadAllBytes("clip.wav"), "clip");
-        float[] read = new float[3];
         float[] expected = [0f, 0.5f, -0.5f];
 
         Assert.Equal(1, samples.Channels);
         Assert.Equal(Rate, samples.SampleRate);
-        Assert.Equal(3, new MemoryPcmSource(samples).Read(read));
-        Assert.Equal(expected, read);
+        Assert.Equal(tag == 1 && bits <= 16, samples.Pcm16 is not null);
+        Assert.Equal(expected, samples.Pcm16 is { } pcm ? pcm.Select(static sample => sample * PcmAudio.Pcm16Scale) : samples.Float!);
     }
 
     // A format the reader does not decode, plain or extensible, is refused and never misread as float.
@@ -147,16 +147,16 @@ public sealed class LoopedPcmReaderTests
 
     private static AudioLoopRegion Region(int start, int end) => new(start / (double)Rate, end / (double)Rate);
 
-    private static LoopedPcmReader Reader(PcmAudio samples, in AudioLoopRegion region, bool loop, long startFrame = 0)
+    private static LoopedPcmReader Reader(SampleSource samples, in AudioLoopRegion region, bool loop, long startFrame = 0)
     {
         LoopedPcmReader reader = new();
-        reader.Arm(new MemoryPcmSource(samples), region, loop, startFrame);
+        reader.Arm(samples, region, loop, startFrame);
 
         return reader;
     }
 
     // Every sample is its own frame index.
-    private static PcmAudio Frames(int count, int rate = Rate)
+    private static SampleSource Frames(int count, int rate = Rate)
     {
         float[] samples = new float[count];
         for (int i = 0; i < count; i++)
@@ -164,7 +164,7 @@ public sealed class LoopedPcmReaderTests
             samples[i] = i;
         }
 
-        return new PcmAudio(samples, 1, rate);
+        return new SampleSource(samples, 1, rate);
     }
 
     private static float[] Read(LoopedPcmReader reader, int samples, int buffer)

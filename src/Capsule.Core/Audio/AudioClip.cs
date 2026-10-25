@@ -17,10 +17,7 @@ namespace Capsule.Audio;
 /// <param name="Extension">
 /// The source's extension, leading dot included, either <c>.wav</c> or <c>.ogg</c>. The host decodes a
 /// <c>.wav</c> clip whole when it loads and holds it resident for every scene that uses it, and decodes a
-/// <c>.ogg</c> clip on its background worker as it plays. A looping voice whose clip carries a
-/// <see cref="LoopRegion"/> streams that way whatever its format. A <c>.wav</c> clip with a loop region
-/// is also decoded to the samples the region repeats when it loads, and its first looping play reads no
-/// file. A region-less <c>.wav</c> played from an offset decodes those samples on that first play.
+/// <c>.ogg</c> clip on its background worker as it plays.
 /// </param>
 /// <param name="DurationSeconds">
 /// Seconds the clip runs at unit pitch, measured at build time. Playback state is derived from it and

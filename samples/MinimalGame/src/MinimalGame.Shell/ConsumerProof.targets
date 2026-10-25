@@ -59,4 +59,18 @@
     </ItemGroup>
   </Target>
 
+  <!-- The host mixes its own sound and plays it through SDL. A publish carrying MonoGame's sound
+       library, or the source its license asked to travel with it, has lost the engine's exclusion. -->
+  <Target Name="CapsuleRejectUnusedSoundLibrary" AfterTargets="Publish">
+    <PropertyGroup>
+      <_CapsuleProofPublishDirectory>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(PublishDir)'))</_CapsuleProofPublishDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CapsuleUnusedSoundLibrary Include="$(_CapsuleProofPublishDirectory)**/*openal*" />
+      <_CapsuleUnusedSoundLibrary Include="$(_CapsuleProofPublishDirectory)licenses/openal-soft-source/**" />
+    </ItemGroup>
+    <Error Condition="'@(_CapsuleUnusedSoundLibrary)' != ''"
+           Text="The publish carries an OpenAL file Capsule never loads: @(_CapsuleUnusedSoundLibrary->'%(RecursiveDir)%(Filename)%(Extension)', ', ')." />
+  </Target>
+
 </Project>

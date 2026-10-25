@@ -57,6 +57,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Capsule.Tests" />
     <InternalsVisibleTo Include="Capsule.AotSmoke" />
+    <InternalsVisibleTo Include="Capsule.Bench" />
   </ItemGroup>
 
   <ItemGroup>

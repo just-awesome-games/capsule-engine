@@ -12,8 +12,8 @@ public sealed class VorbisAllocationTests
     // The fixture's length in frames, which the reader does not expose.
     private const int FrameCount = 176_400;
 
-    // A streamed voice's own scratch: 0.25 s at the fixture's rate and channel count, the size
-    // StreamedVoice reads into on its worker.
+    // A scratch of 0.25 s at the fixture's rate and channel count. A streamed voice's decode worker
+    // reads up to its ring's third of a second in one pass.
     private const double BufferSeconds = 0.25;
 
     // At least twelve seconds measured, past three full loop wraps.

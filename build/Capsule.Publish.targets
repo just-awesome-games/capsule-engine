@@ -61,18 +61,27 @@
     </ItemGroup>
   </Target>
 
+  <!-- The host mixes its own sound and plays it through SDL. MonoGame's sound library reaches a shell
+       through the backend's package graph and is never loaded, and neither its build output nor its
+       publish carries it. -->
+  <Target Name="CapsuleDropUnusedSoundLibrary"
+          Condition="'$(CapsuleGameShell)' == 'true'"
+          AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)" Condition="'%(NativeCopyLocalItems.NuGetPackageId)' == 'MonoGame.Library.OpenAL'" />
+      <RuntimeTargetsCopyLocalItems Remove="@(RuntimeTargetsCopyLocalItems)" Condition="'%(RuntimeTargetsCopyLocalItems.NuGetPackageId)' == 'MonoGame.Library.OpenAL'" />
+    </ItemGroup>
+  </Target>
+
   <!-- The licenses a player's copy carries: Capsule's own, the notices of what Capsule carries and
-       redistributes, OpenAL Soft's corresponding source, which its LGPL asks to travel with openal.dll, and,
-       when the runtime ships with the game, the .NET runtime's from its runtime pack. Capsule's files sit
-       beside the imported hooks' parent in source and package modes. -->
+       redistributes, and, when the runtime ships with the game, the .NET runtime's from its runtime
+       pack. Capsule's files sit beside the imported hooks' parent in source and package modes. -->
   <Target Name="CapsulePublishLicenses"
           Condition="'$(CapsuleGameShell)' == 'true'"
           AfterTargets="ComputeResolvedFilesToPublishList">
     <ItemGroup>
       <_CapsuleLicense Include="$(MSBuildThisFileDirectory)../LICENSE" RelativePath="licenses/LICENSE-Capsule.txt" />
       <_CapsuleLicense Include="$(MSBuildThisFileDirectory)../THIRD-PARTY-NOTICES.md" RelativePath="licenses/THIRD-PARTY-NOTICES-Capsule.md" />
-      <_CapsuleOpenAlSource Include="$(MSBuildThisFileDirectory)sources/openal-soft/*.tar.gz" />
-      <_CapsuleLicense Include="@(_CapsuleOpenAlSource)" RelativePath="licenses/openal-soft-source/%(Filename)%(Extension)" />
       <_CapsuleRuntimePack Include="@(ResolvedRuntimePack)"
                            Condition="'%(FrameworkName)' == 'Microsoft.NETCore.App' and ('$(SelfContained)' == 'true' or '$(PublishAot)' == 'true')" />
       <_CapsuleLicense Include="@(_CapsuleRuntimePack->'%(PackageDirectory)/LICENSE.TXT')" RelativePath="licenses/LICENSE-dotnet.txt" />

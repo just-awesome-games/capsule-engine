@@ -58,7 +58,7 @@ public sealed class VorbisDecodeTests
         }
     }
 
-    // The vendored path a StreamedVoice actually takes: LoopedPcmReader over VorbisPcmSource, 0.25 s
+    // The vendored path a stream's worker takes: LoopedPcmReader over VorbisPcmSource, here in 0.25 s
     // buffers.
     private static float[] ReadVendored(AudioLoopRegion region, long frames)
     {

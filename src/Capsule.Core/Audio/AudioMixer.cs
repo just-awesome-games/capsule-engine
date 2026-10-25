@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Runtime.InteropServices;
 using Capsule.Animation;
 
@@ -46,6 +47,14 @@ public sealed class AudioMixer
 
     // Whether the last step's input read unfocused.
     private bool _unfocused;
+
+    // The last listener a settle was handed a view for, and that view's width. Without one, before a
+    // scene's first settle or after a non-finite view, a positional voice is silent and centred.
+    private Vector2 _listener;
+
+    private float _viewWidth;
+
+    private bool _hasListener;
 
     // An idle mixer: master at volume 1, no other bus registered, nothing playing.
     internal AudioMixer()
@@ -205,11 +214,16 @@ public sealed class AudioMixer
     /// </para>
     /// </remarks>
     /// <returns>The voice started, or <see cref="Voice.None"/> when every voice is a live loop.</returns>
-    public Voice Play(in AudioPlayback playback)
+    public Voice Play(in AudioPlayback playback) => Play(in playback, null);
+
+    // Starts a voice that follows anchor while its range is positional. The settle reads the anchor each
+    // step, and Free drops it.
+    internal Voice Play(in AudioPlayback playback, IAudioAnchor? anchor)
     {
         Guard.InUnit(playback.Volume, nameof(playback));
         Guard.Positive(playback.Pitch, nameof(playback));
         Guard.InRange(playback.Pan, -1f, 1f, nameof(playback));
+        Guard.Finite(playback.Position, nameof(playback));
         RequireStart(playback.StartSeconds, playback.Clip.DurationSeconds, nameof(playback));
         RequireRegion(playback.Clip, nameof(playback));
 
@@ -228,6 +242,10 @@ public sealed class AudioMixer
         slot.Volume = playback.Volume;
         slot.Pitch = playback.Pitch;
         slot.Pan = playback.Pan;
+        slot.Range = playback.Range;
+        slot.Position = playback.Position;
+        slot.Anchor = anchor;
+        Spatialize(ref slot);
         slot.StartSeconds = start;
         slot.Loop = playback.Loop;
         slot.Live = true;
@@ -424,7 +442,65 @@ public sealed class AudioMixer
 
         ref Slot slot = ref _slots[index];
         slot.Pan = pan;
-        Raise(AudioCommandKind.SetPan, index, in slot, 0f, 0f);
+
+        if (!IsPositional(in slot))
+        {
+            Raise(AudioCommandKind.SetPan, index, in slot, 0f, 0f);
+        }
+    }
+
+    // Gives this voice a new range, taking effect against the last settled listener. A voice leaving
+    // its range returns to its own gain and pan.
+    internal void SetRange(Voice voice, AudioRange range)
+    {
+        if (!TryResolve(voice, out int index))
+        {
+            return;
+        }
+
+        ref Slot slot = ref _slots[index];
+        float attenuation = slot.Attenuation;
+        float pan = PanOf(in slot);
+        slot.Range = range;
+        RaiseSpatial(ref slot, index, attenuation, pan);
+    }
+
+    // Drops the listener before a scene starts. A positional voice the scene plays before its first
+    // settle starts silent, and the settle brings it in.
+    internal void ForgetListener() => _hasListener = false;
+
+    // Hears every positional voice from listener after the step's movement and camera have settled.
+    // An anchored voice takes its anchor's position first. A view of no width, the camera's before
+    // anything has been settled, keeps the last listener. A listener or width that is not finite
+    // silences every positional voice. Raises a gain or pan only where one changed.
+    internal void Settle(Vector2 listener, float viewWidth)
+    {
+        if (!float.IsFinite(listener.X) || !float.IsFinite(listener.Y) || !float.IsFinite(viewWidth))
+        {
+            _hasListener = false;
+        }
+        else if (viewWidth > 0f)
+        {
+            _listener = listener;
+            _viewWidth = viewWidth;
+            _hasListener = true;
+        }
+
+        Span<Slot> slots = _slots;
+        for (int i = 0; i < slots.Length; i++)
+        {
+            if (ReclaimIfExpired(ref slots[i]) || !IsPositional(in slots[i]))
+            {
+                continue;
+            }
+
+            if (slots[i].Anchor is { } anchor)
+            {
+                slots[i].Position = anchor.Position;
+            }
+
+            RaiseSpatial(ref slots[i], i, slots[i].Attenuation, PanOf(in slots[i]));
+        }
     }
 
     /// <summary>
@@ -762,7 +838,7 @@ public sealed class AudioMixer
             play ? BusOf(slot.Bus) : default,
             gain,
             pitch,
-            play || kind == AudioCommandKind.SetPan ? slot.Pan : 0f,
+            play || kind == AudioCommandKind.SetPan ? PanOf(in slot) : 0f,
             play && slot.Loop,
             play ? slot.StartSeconds : 0.0));
     }
@@ -829,6 +905,7 @@ public sealed class AudioMixer
     {
         slot.Live = false;
         slot.Clip = default;
+        slot.Anchor = null;
         slot.Ramp.Active = false;
         slot.FadeStops = false;
         slot.Generation = slot.Generation >= MaxGeneration ? 1 : slot.Generation + 1;
@@ -853,7 +930,67 @@ public sealed class AudioMixer
         slot.SelfPaused || _buses[0].Paused || (slot.Bus != 0 && _buses[slot.Bus].Paused);
 
     private float Gain(in Slot slot) =>
-        (_unfocused ? _unfocusedVolume : 1f) * _buses[0].Volume * (slot.Bus == 0 ? 1f : _buses[slot.Bus].Volume) * slot.Volume;
+        (_unfocused ? _unfocusedVolume : 1f) * _buses[0].Volume * (slot.Bus == 0 ? 1f : _buses[slot.Bus].Volume) * slot.Volume * slot.Attenuation;
+
+    private static bool IsPositional(in Slot slot) => slot.Range.MaxDistance > 0f;
+
+    private static float PanOf(in Slot slot) => IsPositional(in slot) ? slot.SpatialPan : slot.Pan;
+
+    // Recomputes the voice's distance gain and pan, and raises each that differs from the attenuation
+    // and effective pan the host last heard.
+    // Spatializes the voice again and raises the gain or pan that differs from what the host was last
+    // told, which the caller read before anything changed.
+    private void RaiseSpatial(ref Slot slot, int index, float toldAttenuation, float toldPan)
+    {
+        Spatialize(ref slot);
+
+        if (slot.Attenuation != toldAttenuation)
+        {
+            Raise(AudioCommandKind.SetGain, index, in slot, Gain(in slot), 0f);
+        }
+
+        if (PanOf(in slot) != toldPan)
+        {
+            Raise(AudioCommandKind.SetPan, index, in slot, 0f, 0f);
+        }
+    }
+
+    // Sets the voice's distance gain and pan from its position and the last listener. A non-positional
+    // voice keeps full gain. No listener, or a position that is not finite, reads as out of range, which
+    // keeps NaN out of every command.
+    private void Spatialize(ref Slot slot)
+    {
+        slot.Attenuation = 1f;
+        slot.SpatialPan = 0f;
+
+        if (!IsPositional(in slot))
+        {
+            return;
+        }
+
+        if (!_hasListener)
+        {
+            slot.Attenuation = 0f;
+
+            return;
+        }
+
+        float dx = slot.Position.X - _listener.X;
+        float dy = slot.Position.Y - _listener.Y;
+        float distance = MathF.Sqrt((dx * dx) + (dy * dy));
+        float maxDistance = slot.Range.MaxDistance;
+
+        // False for NaN, and for an infinite distance or one past the range.
+        if (!(distance < maxDistance))
+        {
+            slot.Attenuation = 0f;
+
+            return;
+        }
+
+        slot.Attenuation = Math.Clamp(1f - Easing.Apply(slot.Range.Falloff, distance / maxDistance), 0f, 1f);
+        slot.SpatialPan = Math.Clamp(dx / _viewWidth, -1f, 1f);
+    }
 
     // Raises the gain of every live voice on the bus at this index, or of every live voice for master.
     private void RaiseGains(int bus)
@@ -973,7 +1110,20 @@ public sealed class AudioMixer
 
         internal float Pitch;
 
+        // The voice's own pan, which a positional voice ignores for SpatialPan.
         internal float Pan;
+
+        internal AudioRange Range;
+
+        // Where a positional voice sounds from, refreshed from Anchor at each settle when it has one.
+        internal Vector2 Position;
+
+        internal IAudioAnchor? Anchor;
+
+        // The distance gain and pan the last spatialize settled. 1 and 0 for a voice that is not positional.
+        internal float Attenuation;
+
+        internal float SpatialPan;
 
         // Clip time the voice was played from.
         internal double StartSeconds;

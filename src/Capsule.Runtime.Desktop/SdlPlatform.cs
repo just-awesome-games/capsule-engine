@@ -9,7 +9,8 @@ namespace Capsule.Runtime.Desktop;
 // already ships beside the executable.
 internal static class SdlPlatform
 {
-    private const string LibraryName = "SDL2";
+    // Every SDL binding in this assembly names this library, which the resolver below loads.
+    internal const string LibraryName = "SDL2";
 
     private const uint MinimizedFlag = 0x00000040;
     private const uint InputFocusFlag = 0x00000200;
@@ -25,6 +26,12 @@ internal static class SdlPlatform
     static SdlPlatform() => NativeLibrary.SetDllImportResolver(typeof(SdlPlatform).Assembly, Resolve);
 
     private delegate int SdlEventFilter(nint userData, nint sdlEvent);
+
+    // Registers the resolver for the whole assembly, which a binding outside this class needs before
+    // its first call. The resolver is set once per assembly, by this class's static constructor.
+    internal static void UseResolver()
+    {
+    }
 
     // Brings the window to the front and asks for keyboard focus. Windows may refuse it.
     internal static void RaiseWindow(nint window) => SDL_RaiseWindow(window);

@@ -8,6 +8,9 @@ namespace Capsule.Tests.Audio;
 
 internal static class AudioPlaybackFixtures
 {
+    // The rate every resident clip the fixture loads is decoded at.
+    internal const int ResidentRate = 8000;
+
     internal static readonly AudioClip Step = new("step", ".wav", 0.5);
 
     internal static readonly AudioClip Music = new("music", ".ogg", 90.0);
@@ -24,7 +27,44 @@ internal static class AudioPlaybackFixtures
         float pitch = 1f,
         float pan = 0f,
         bool loop = false,
-        double startSeconds = 0.0) => new(kind, voice, clip, AudioBus.Master, gain, pitch, pan, loop, startSeconds);
+        double startSeconds = 0.0,
+        AudioBus bus = default) => new(kind, voice, clip, bus, gain, pitch, pan, loop, startSeconds);
+
+    // A mixer and the two rings it talks through, with nothing on the other end. A test posts what the
+    // game thread would and reads what the mixer reports.
+    internal static (VoiceMixer Mixer, AudioRing<MixCommand> Commands, AudioRing<VoiceEnded> Ended) Mixer()
+    {
+        AudioRing<MixCommand> commands = new(AudioPlayer.CommandCapacity);
+        AudioRing<VoiceEnded> ended = new(AudioPlayer.EndedCapacity);
+
+        return (new VoiceMixer(commands, ended), commands, ended);
+    }
+
+    // A resident play of samples on slot 0 at generation 1, looping over the whole clip unless a region
+    // is named.
+    internal static MixCommand Play(PcmAudio samples, float pitch = 1f, bool loop = false, long loopStart = 0, long loopEnd = -1, long startFrame = 0, int bus = 0, int slot = 0, float gain = 1f) =>
+        new(MixCommandKind.Play, slot, 1, gain, pitch)
+        {
+            Samples = samples,
+            Loop = loop,
+            LoopStart = loopStart,
+            LoopEnd = loopEnd < 0 ? samples.Frames : loopEnd,
+            StartFrame = startFrame,
+            Bus = bus,
+        };
+
+    // Interleaved 16-bit samples no two neighbours of which repeat, from seed.
+    internal static short[] Noise(int samples, int seed)
+    {
+        Random random = new(seed);
+        short[] noise = new short[samples];
+        for (int i = 0; i < noise.Length; i++)
+        {
+            noise[i] = (short)random.Next(short.MinValue, short.MaxValue);
+        }
+
+        return noise;
+    }
 
     internal sealed class StartupScene : Scene
     {
@@ -38,9 +78,22 @@ internal static class AudioPlaybackFixtures
 
     internal sealed class Speaker() : Entity(Vector2.Zero);
 
+    // The game thread's side with no mixer behind it. What the player posts is read off its ring, and
+    // a test reports a voice ended as the mix thread would.
     internal sealed class Fixture : IDisposable
     {
-        internal FakeBackend Backend { get; } = new();
+        private readonly List<MixCommand> _posted = [];
+
+        // The resident clips decoded and the streamed clips opened, in order.
+        internal List<AudioClip> Loaded { get; } = [];
+
+        internal List<AudioClip> Opened { get; } = [];
+
+        internal AudioStreamer Streamer { get; } = new();
+
+        internal AudioRing<MixCommand> Commands { get; } = new(AudioPlayer.CommandCapacity);
+
+        internal AudioRing<VoiceEnded> Ended { get; } = new(AudioPlayer.EndedCapacity);
 
         internal SoundStore Store { get; }
 
@@ -48,8 +101,22 @@ internal static class AudioPlaybackFixtures
 
         internal Fixture()
         {
-            Store = new SoundStore(Backend);
-            Player = new AudioPlayer(Store);
+            Store = new SoundStore(Read, Open);
+            Player = new AudioPlayer(Store, Streamer, Commands, Ended);
+        }
+
+        // Every command the player has posted so far, in order.
+        internal List<MixCommand> Posted
+        {
+            get
+            {
+                while (Commands.TryRead(out MixCommand command))
+                {
+                    _posted.Add(command);
+                }
+
+                return _posted;
+            }
         }
 
         internal void Preload(params AudioClip[] clips)
@@ -65,155 +132,59 @@ internal static class AudioPlaybackFixtures
 
         internal void Apply(params AudioCommand[] commands) => Player.Apply(commands);
 
+        // Reports the voice ended as the mix thread does, and lets the player retire it.
+        internal void End(in MixCommand play)
+        {
+            Assert.True(Ended.TryWrite(new VoiceEnded(play.Slot, play.Generation, play.Stream)));
+            Player.Update();
+        }
+
         public void Dispose()
         {
-            Player.Dispose();
             Store.Dispose();
-        }
-    }
-
-    internal sealed class FakeBackend : IAudioBackend
-    {
-        internal List<FakeSound> Loaded { get; } = [];
-
-        internal List<FakeVoice> Voices { get; } = [];
-
-        public ResidentFile Read(in AudioClip clip) => new(new MemoryStream(), null);
-
-        public IResidentSound Load(in AudioClip clip, ResidentFile file)
-        {
-            FakeSound sound = new(this, clip);
-            Loaded.Add(sound);
-
-            return sound;
+            Streamer.Dispose();
         }
 
-        public IAudioVoice Stream(in AudioClip clip, float gain, float pitch, float pan, bool loop, double startSeconds) =>
-            Started(new FakeVoice(clip, gain, pitch, loop) { Pan = pan, StartSeconds = startSeconds });
-
-        public void Dispose()
+        // A second of silence at ResidentRate, mono. Called on the thread pool for a preload.
+        private PcmAudio Read(AudioClip clip)
         {
-        }
-
-        internal FakeVoice Started(FakeVoice voice)
-        {
-            Voices.Add(voice);
-
-            return voice;
-        }
-    }
-
-    // Pools its voice as the device backend does. What the store counts is exercised against the
-    // one object a repeated play reuses rather than a fresh one per play.
-    internal sealed class FakeSound(FakeBackend backend, AudioClip clip) : IResidentSound
-    {
-        private readonly Stack<FakeVoice> _idle = new();
-
-        internal AudioClip Clip => clip;
-
-        internal bool Disposed { get; private set; }
-
-        public IAudioVoice Play(float gain, float pitch, float pan, bool loop, Action ended)
-        {
-            FakeVoice voice = _idle.Count > 0 ? _idle.Pop() : backend.Started(new FakeVoice(clip));
-            voice.Start(gain, pitch, pan, loop, ended, _idle);
-
-            return voice;
-        }
-
-        // Never pooled: streaming this sound's samples is a voice of its own.
-        public IAudioVoice Stream(float gain, float pitch, float pan, bool loop, double startSeconds, Action ended)
-        {
-            FakeVoice voice = backend.Started(
-                new FakeVoice(clip, gain, pitch, loop) { Pan = pan, StartSeconds = startSeconds, Streamed = true });
-            voice.Ends(ended);
-
-            return voice;
-        }
-
-        public void Dispose() => Disposed = true;
-    }
-
-    internal sealed class FakeVoice(AudioClip clip, float gain = 1f, float pitch = 1f, bool loop = false) : IAudioVoice
-    {
-        // Set for a resident voice, which is pooled and told to report its retirement. A streamed
-        // one is neither.
-        private Action? _ended;
-        private Stack<FakeVoice>? _pool;
-
-        internal AudioClip Clip => clip;
-
-        // Whether this voice streams the sound's samples rather than letting the device queue it whole.
-        internal bool Streamed { get; init; }
-
-        internal double StartSeconds { get; init; }
-
-        internal bool Loop { get; private set; } = loop;
-
-        internal float Gain { get; private set; } = gain;
-
-        internal float Pitch { get; private set; } = pitch;
-
-        internal float Pan { get; set; }
-
-        internal bool Paused { get; private set; }
-
-        internal int Resumes { get; private set; }
-
-        // How many times the pool has handed this voice out. It is 0 for a streamed one, which is not pooled.
-        internal int Plays { get; private set; }
-
-        internal bool Disposed { get; private set; }
-
-        public bool Finished { get; set; }
-
-        public void SetGain(float value) => Gain = value;
-
-        public void SetPitch(float value) => Pitch = value;
-
-        public void SetPan(float value) => Pan = value;
-
-        public void Pause() => Paused = true;
-
-        public void Resume()
-        {
-            Paused = false;
-            Resumes++;
-        }
-
-        public void Update()
-        {
-        }
-
-        public void Dispose()
-        {
-            if (Disposed)
+            lock (Loaded)
             {
-                return;
+                Loaded.Add(clip);
             }
 
-            Disposed = true;
-
-            Action? ended = _ended;
-            _ended = null;
-            _pool?.Push(this);
-            ended?.Invoke();
+            return new PcmAudio(new short[(int)(clip.DurationSeconds * ResidentRate)], 1, ResidentRate);
         }
 
-        internal void Ends(Action ended) => _ended = ended;
-
-        internal void Start(float gain, float pitch, float pan, bool loop, Action ended, Stack<FakeVoice> pool)
+        private SampleSource Open(AudioClip clip)
         {
-            Gain = gain;
-            Pitch = pitch;
-            Pan = pan;
-            Loop = loop;
-            Paused = false;
-            Finished = false;
-            Disposed = false;
-            Plays++;
-            _ended = ended;
-            _pool = pool;
+            Opened.Add(clip);
+
+            return new SampleSource(new float[ResidentRate], 1, ResidentRate);
         }
+    }
+
+    // A decoder over samples already in memory, interleaved at channels, for the streamed path with no
+    // file. It can be read again after a seek, which lets one source serve every replay.
+    internal sealed class SampleSource(float[] samples, int channels, int sampleRate) : IPcmSource
+    {
+        private int _offset;
+
+        public int Channels => channels;
+
+        public int SampleRate => sampleRate;
+
+        public void SeekTo(long frame) => _offset = (int)Math.Clamp(frame * channels, 0, samples.Length);
+
+        public int Read(Span<float> target)
+        {
+            int read = Math.Min(target.Length, samples.Length - _offset);
+            samples.AsSpan(_offset, read).CopyTo(target);
+            _offset += read;
+
+            return read;
+        }
+
+        public void Dispose() => _offset = 0;
     }
 }
