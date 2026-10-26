@@ -1,6 +1,4 @@
 using Capsule.Diagnostics;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace Capsule.Runtime.Rendering;
 
@@ -13,24 +11,14 @@ internal static class FrameCapture
     // precedes it, and a capture never touches a file it did not create.
     internal const string TemporarySuffix = ".tmp";
 
-    // Whether this frame drew. A back buffer with no area, as a minimised window has, presents nothing
-    // and leaves no frame to save, including behind a render target, which is drawn but not presented.
-    internal static bool CanCapture(GraphicsDevice device) =>
-        device.PresentationParameters.BackBufferWidth > 0 && device.PresentationParameters.BackBufferHeight > 0;
-
-    // Saves the surface the world was drawn on as a PNG at path, creating the directory it names and
-    // overwriting the file. Called on a frame CanCapture admits, after Draw and before the present,
-    // while that surface still holds the frame. The surface is target where a render resolution is
-    // configured, whose extent is independent of the window, and the back buffer where there is none.
-    internal static void Save(GraphicsDevice device, RenderTarget2D? target, string path)
+    // Writes the PNG encode returns to path, creating the directory it names and overwriting the file.
+    internal static void Save(Func<byte[]> encode, string path)
     {
         byte[] png;
 
         try
         {
-            using MemoryStream encoded = new();
-            EncodeSurface(device, target, encoded);
-            png = encoded.ToArray();
+            png = encode();
         }
         catch (Exception error)
         {
@@ -92,25 +80,5 @@ internal static class FrameCapture
         {
             Log.Warning($"Removing the failed frame capture at '{temporary}' failed: {error.Message}");
         }
-    }
-
-    private static void EncodeSurface(GraphicsDevice device, RenderTarget2D? target, Stream destination)
-    {
-        if (target is not null)
-        {
-            target.SaveAsPng(destination, target.Width, target.Height);
-            return;
-        }
-
-        PresentationParameters backBuffer = device.PresentationParameters;
-        int width = backBuffer.BackBufferWidth;
-        int height = backBuffer.BackBufferHeight;
-
-        Color[] pixels = new Color[width * height];
-        device.GetBackBufferData(pixels);
-
-        using Texture2D surface = new(device, width, height);
-        surface.SetData(pixels);
-        surface.SaveAsPng(destination, width, height);
     }
 }

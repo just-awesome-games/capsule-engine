@@ -7,7 +7,7 @@ namespace Capsule.Rendering;
 /// <remarks>
 /// Neighbouring renderers draw in one batch when they hold the same instance and the same texture.
 /// Share one material across the renderers that look alike. A parameter never set reads zero,
-/// whatever the shader source initializes it to. A texture set here is bound whole and must not be
+/// whatever the shader source initializes it to, and a texture never set samples transparent black. A texture set here is bound whole and must not be
 /// packed into an atlas. <c>Set</c> throws when the shader declares no parameter of that name, or
 /// declares it as another kind, and the message lists what it declares. It also throws for a
 /// parameter the shader declares in its <c>SceneGlobals</c> block, which the scene sets for every

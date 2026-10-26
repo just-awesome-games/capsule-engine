@@ -1,33 +1,32 @@
+using System.Numerics;
 using Capsule.Rendering;
-using Microsoft.Xna.Framework.Graphics;
-using Vector2 = System.Numerics.Vector2;
+using Capsule.Runtime.Gpu;
 
 namespace Capsule.Runtime.Rendering;
 
 internal sealed partial class FrameRenderer
 {
-    // Draws a host-owned frame over the game frame already submitted to the back buffer. Its world
-    // list comes first, placed where the last game frame's world landed so it annotates that frame's
+    // Draws a host-owned frame over the game frame Draw recorded, in the same command buffer, with an
+    // upload of its own. Its world list comes first, placed where the last game frame's world landed so it annotates that frame's
     // sprites, then its screen layer at an integer scale of the back buffer. The host's own camera is
     // not used here, and the world list is culled against nothing and drawn at the settled step.
     internal void DrawOverlay(FrameView view, int scale)
     {
-        PresentationParameters backBuffer = _device.PresentationParameters;
-        int width = backBuffer.BackBufferWidth;
-        int height = backBuffer.BackBufferHeight;
-        if (width <= 0 || height <= 0)
+        (int width, int height) = BackBufferSize;
+        if (_commands is not { } commands || width <= 0 || height <= 0)
         {
             return;
         }
+
+        _sprites.Reset(1f);
+        _sprites.BeginPass(null, null);
 
         if (_world is { } world && (!view.Sprites.IsEmpty || !view.Lines.IsEmpty))
         {
             DrawOverlayWorld(view, in world, width, height);
         }
 
-        // A view with an empty screen layer draws nothing here and leaves the viewport on the world's
-        // region. Otherwise DrawScreen widens it to the full back buffer. The overlay draws with
-        // Capsule's own shader whatever its view carries.
+        // The overlay draws with Capsule's own shader whatever its view carries.
         DrawScreen(
             view,
             alpha: 1f,
@@ -39,6 +38,11 @@ internal sealed partial class FrameRenderer
             clips: default,
             clipLevels: default,
             surfaceFactor: 1);
+
+        GpuCopyPass copy = commands.BeginCopyPass();
+        _sprites.Upload(copy);
+        copy.End();
+        _sprites.Execute(commands);
     }
 
     // The world's region of the back buffer is the fit inside the surface carried through the
@@ -58,10 +62,11 @@ internal sealed partial class FrameRenderer
             return;
         }
 
-        _device.Viewport = new Viewport(left, top, right - left, bottom - top);
+        _sprites.SetViewport(left, top, right - left, bottom - top);
 
         float pixelsPerUnit = world.PixelsPerUnit;
-        _batcher.Begin(WorldToSurface(world.TopLeft, pixelsPerUnit), SamplerState.PointClamp);
+        _sprites.SetTransform(WorldToSurface(world.TopLeft, pixelsPerUnit));
+        _sprites.SetSampling(TextureSampling.Point);
 
         Pass pass = new()
         {
@@ -75,6 +80,5 @@ internal sealed partial class FrameRenderer
         };
 
         DrawIntents(view.Sprites, view.Lines, default, default, default, default, default, ref pass);
-        _batcher.End();
     }
 }

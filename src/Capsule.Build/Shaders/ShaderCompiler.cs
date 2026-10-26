@@ -36,12 +36,15 @@ internal static partial class ShaderCompiler
     // the next. The material's uniform buffer is binding 0 and the scene globals' binding 1.
     private const int FragmentResources = 2;
     private const int FragmentUniforms = 3;
+    private const int VertexResources = 0;
     private const int VertexUniforms = 1;
 
     // The block DXC gathers a source's loose parameters into, as SPIR-V names its variable.
     private const string LooseParameters = "$Globals";
 
     private const string VertexUniformBlock = "CapsuleVertexUniforms";
+
+    private const string VertexSprites = "CapsuleSprites";
 
     // The entry point SPIRV-Cross gives the HLSL it writes.
     private const string HlslEntryPoint = "main";
@@ -122,9 +125,14 @@ internal static partial class ShaderCompiler
         try
         {
             Write(basePath + ".bound.fx", $"#line 1 \"{ShaderTemplate.VertexFile}\"\n{ShaderTemplate.VertexStage}");
-            ShaderContainer layout = new(string.Empty, ShaderStage.Vertex, ShaderTemplate.VertexEntryPoint, 0, 0, 0, UniformBuffers: 1, [], []);
+            ShaderContainer layout = new(string.Empty, ShaderStage.Vertex, ShaderTemplate.VertexEntryPoint, 0, 0, StorageBuffers: 1, UniformBuffers: 1, [], []);
             List<ShaderContainer> shaders = [];
-            return CompileBound(tools, basePath, layout, new Dictionary<string, (int, int)> { [VertexUniformBlock] = (VertexUniforms, 0) }, shaders, diagnostics, out string? failure)
+            Dictionary<string, (int, int)> places = new()
+            {
+                [VertexSprites] = (VertexResources, 0),
+                [VertexUniformBlock] = (VertexUniforms, 0),
+            };
+            return CompileBound(tools, basePath, layout, places, shaders, diagnostics, out string? failure)
                 ? new ShaderCompilation([.. shaders], [], diagnostics, null)
                 : Failed(failure, diagnostics);
         }

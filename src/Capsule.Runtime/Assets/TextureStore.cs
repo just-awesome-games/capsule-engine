@@ -1,18 +1,38 @@
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
+using Capsule.Runtime.Gpu;
 using Capsule.Runtime.Rendering;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace Capsule.Runtime.Assets;
 
 // A resolved handle: the texture to sample and where the handle's texel (0, 0) is on it. Offsets are
 // zero for a texture served from its own file, and the page's offset for one the build packed.
-internal readonly record struct TextureSlice(Texture2D Texture, int OffsetX, int OffsetY);
+internal readonly record struct TextureSlice(SampledTexture Texture, int OffsetX, int OffsetY);
+
+// A texture on the device and the sampler its own sampling asks for, or null to sample as the draw
+// does.
+internal sealed class SampledTexture(GpuTexture texture, GpuSampler? sampler = null) : IDisposable
+{
+    internal GpuTexture Texture { get; } = texture;
+
+    internal GpuSampler? Sampler { get; } = sampler;
+
+    internal bool Disposed { get; private set; }
+
+    internal static GpuTextureFormat FormatOf(in DecodedTexture decoded) =>
+        decoded.BytesPerTexel == 1 ? GpuTextureFormat.R8Unorm : GpuTextureFormat.R8G8B8A8Unorm;
+
+    public void Dispose()
+    {
+        Texture.Dispose();
+        Disposed = true;
+    }
+}
 
 // The textures owned by the current scene, preloaded where declared and otherwise loaded on first
-// draw. Residency is per file. A packed handle's file is its page, which loads once for any member and
+// draw. Every upload lands in a frame's copy pass: a texture created outside one keeps its texels until
+// the next. Residency is per file. A packed handle's file is its page, which loads once for any member and
 // stays while any member of the incoming scene wants it.
 internal sealed class TextureStore : IDisposable
 {
@@ -22,25 +42,33 @@ internal sealed class TextureStore : IDisposable
 
     private static readonly AssetFiles Files = new("Texture", "handle");
 
-    private readonly SceneAssetStore<TextureHandle, Texture2D> _textures;
+    private readonly SceneAssetStore<TextureHandle, SampledTexture> _textures;
     private readonly TextureMap _map;
     private readonly HostPlatform _platform;
+    private readonly GpuDevice _device;
+    private readonly TexelPool _pool = new();
 
-    internal TextureStore(GraphicsDevice device, HostPlatform platform)
+    // The textures created outside a copy pass, uploaded in the next frame's.
+    private readonly List<(TextureUpload Upload, SampledTexture Texture)> _deferred = [];
+
+    // The frame's copy pass while a pump runs in it.
+    private GpuCopyPass? _copy;
+
+    internal TextureStore(GpuDevice device, TextureSamplers samplers, HostPlatform platform)
     {
+        _device = device;
         _platform = platform;
         _map = TextureMap.Load(platform);
-        TexelPool pool = new();
         _textures = new(Decode, UploadBytesPerFrame);
 
-        // The batch blends premultiplied, and a straight-alpha texture would fringe dark along
+        // Sprites blend premultiplied, and a straight-alpha texture would fringe dark along
         // every soft edge. A packed page ships straight like any other file. An r8 file's value is
         // coverage, which the sprite shader premultiplies itself.
         TextureUpload Decode(TextureHandle handle)
         {
             TextureFacts facts = _map.Facts(handle);
             using Stream file = Open(platform, handle);
-            return new TextureUpload(device, pool, TextureDecoder.Decode(file, pool, handle.Name, facts.SingleChannel), facts.Sampling is { } sampling ? FrameRenderer.Sampler(sampling) : null);
+            return new TextureUpload(this, TextureDecoder.Decode(file, _pool, handle.Name, facts.SingleChannel), facts.Sampling is { } sampling ? samplers.Get(sampling) : null);
         }
     }
 
@@ -50,7 +78,29 @@ internal sealed class TextureStore : IDisposable
 
     internal void Prefetch(AssetCollection preloads) => _textures.Prefetch(_map.Residency(preloads.Textures));
 
-    internal void Pump() => _textures.Pump();
+    // A texture of decoded's texels, sampled as the draw does, uploaded in the next frame's copy pass.
+    internal SampledTexture Create(in DecodedTexture decoded) => new TextureUpload(this, decoded).Finish();
+
+    // Uploads every texture created since the last frame, then spends the frame's upload budget on
+    // prefetched pages, in the frame's copy pass.
+    internal void Pump(GpuCopyPass copy)
+    {
+        _copy = copy;
+        try
+        {
+            foreach ((TextureUpload upload, SampledTexture texture) in _deferred)
+            {
+                upload.Complete(texture.Disposed);
+            }
+
+            _deferred.Clear();
+            _textures.Pump();
+        }
+        finally
+        {
+            _copy = null;
+        }
+    }
 
     // Loads on first use when the scene did not preload the handle.
     internal TextureSlice Get(in TextureHandle handle) =>
@@ -60,7 +110,7 @@ internal sealed class TextureStore : IDisposable
 
     // The handle's own file, for a material that binds it whole. A packed handle has no file of its
     // own, and its page would bind every other member with it.
-    internal Texture2D GetWhole(in TextureHandle handle)
+    internal SampledTexture GetWhole(in TextureHandle handle)
     {
         if (_map.TryGet(handle, out _))
         {
@@ -141,9 +191,9 @@ internal sealed class TextureStore : IDisposable
 
     public void Dispose() => _textures.Dispose();
 
-    private Texture2D Get(in TextureHandle file, in TextureHandle drawn)
+    private SampledTexture Get(in TextureHandle file, in TextureHandle drawn)
     {
-        if (_textures.TryGet(file, out Texture2D texture))
+        if (_textures.TryGet(file, out SampledTexture? texture))
         {
             return texture;
         }
@@ -154,11 +204,11 @@ internal sealed class TextureStore : IDisposable
         return texture;
     }
 
-    // One decoded page on its way to the device, top rows first. Its Tag carries the sampler its
-    // sampling asks for, which the batcher reads once per run.
-    internal sealed class TextureUpload(GraphicsDevice device, TexelPool pool, DecodedTexture decoded, SamplerState? sampler = null) : IPendingAsset<Texture2D>
+    // One decoded page on its way to the device, top rows first. Its texels go back to the pool once
+    // every row is uploaded, or once the texture is discarded.
+    internal sealed class TextureUpload(TextureStore store, DecodedTexture decoded, GpuSampler? sampler = null) : IPendingAsset<SampledTexture>
     {
-        private Texture2D? _texture;
+        private GpuTexture? _texture;
         private int _rows;
 
         public bool Advance(ref long budget)
@@ -176,24 +226,18 @@ internal sealed class TextureStore : IDisposable
             return _rows == decoded.Height;
         }
 
-        public Texture2D Finish()
+        // Inside a pump the remaining rows upload now. Outside one they wait for the next.
+        public SampledTexture Finish()
         {
-            try
+            SampledTexture texture = new(_texture ??= Create(), sampler);
+            if (store._copy is null)
             {
-                if (_rows < decoded.Height)
-                {
-                    Upload(decoded.Height - _rows);
-                }
+                store._deferred.Add((this, texture));
             }
-            catch
+            else
             {
-                Discard();
-                throw;
+                Complete(discarded: false);
             }
-
-            Texture2D texture = _texture!;
-            _texture = null;
-            pool.Return(decoded.Texels);
 
             return texture;
         }
@@ -202,18 +246,29 @@ internal sealed class TextureStore : IDisposable
         {
             _texture?.Dispose();
             _texture = null;
-            pool.Return(decoded.Texels);
+            store._pool.Return(decoded.Texels);
         }
 
-        // Row slices, which cost less than one whole-texture SetData of the page.
+        // Uploads the rows not yet on the device, unless the texture went first, and returns the texels.
+        internal void Complete(bool discarded)
+        {
+            if (!discarded && _rows < decoded.Height)
+            {
+                Upload(decoded.Height - _rows);
+            }
+
+            store._pool.Return(decoded.Texels);
+        }
+
+        private GpuTexture Create() =>
+            store._device.CreateTexture(new GpuTextureInfo(SampledTexture.FormatOf(decoded), GpuTextureUsage.Sampler, decoded.Width, decoded.Height));
+
+        // Row slices, which cost less than one whole-texture upload of the page.
         private void Upload(int rows)
         {
-            _texture ??= new Texture2D(device, decoded.Width, decoded.Height, false, decoded.BytesPerTexel == 1 ? SurfaceFormat.Alpha8 : SurfaceFormat.Color)
-            {
-                Tag = sampler,
-            };
+            _texture ??= Create();
             int rowBytes = decoded.Width * decoded.BytesPerTexel;
-            _texture.SetData(0, new Rectangle(0, _rows, decoded.Width, rows), decoded.Texels, _rows * rowBytes, rows * rowBytes);
+            store._copy!.Value.UploadToTexture(_texture, 0, _rows, decoded.Width, rows, decoded.Texels.AsSpan(_rows * rowBytes, rows * rowBytes));
             _rows += rows;
         }
     }

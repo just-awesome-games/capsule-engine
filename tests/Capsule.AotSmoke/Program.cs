@@ -30,7 +30,7 @@ internal static class Program
 
     private const string DevelopmentTexturePath = "assets/textures/development/scratch.png";
 
-    // SHA-256 of the menu font page's premultiplied texels, as Texture2D.FromStream uploads them.
+    // SHA-256 of the menu font page's premultiplied texels, as the texture store uploads them.
     private const string FontPageTexelsSha256 = "4F13FA9BDBEB25D496632C2E31133CF54C61C2593323F881F6B114384BAF7D4E";
 
     private const string SavesFlag = "--saves";

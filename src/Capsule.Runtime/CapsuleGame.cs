@@ -7,6 +7,7 @@ using Capsule.Rendering;
 using Capsule.Runtime.Assets;
 using Capsule.Runtime.Audio;
 using Capsule.Runtime.DevTools;
+using Capsule.Runtime.Gpu;
 using Capsule.Runtime.Input;
 using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
@@ -51,8 +52,9 @@ internal sealed class CapsuleGame : Game
     private readonly IDisposable? _latency;
 
     // Null until LoadContent. Dispose can run without it after a failed construction.
+    private GpuDevice _gpu = null!;
     private TextureStore _textures = null!;
-    private EffectStore _effects = null!;
+    private ShaderStore _shaders = null!;
     private FrameRenderer _renderer = null!;
     private CursorApplier _cursor = null!;
     private InputFeed _input = null!;
@@ -167,8 +169,10 @@ internal sealed class CapsuleGame : Game
 
     protected override void LoadContent()
     {
-        _textures = new TextureStore(GraphicsDevice, _builder.Platform);
-        _effects = new EffectStore(GraphicsDevice, _builder.Platform);
+        _gpu = new GpuDevice(GraphicsDevice);
+        TextureSamplers samplers = new(_gpu);
+        _textures = new TextureStore(_gpu, samplers, _builder.Platform);
+        _shaders = new ShaderStore(_gpu, _builder.Platform, FrameRenderer.SurfaceFormat, _gpu.SwapchainTextureFormat);
 
         if (SoundDevice.TryOpen(_builder.Platform) is { } device)
         {
@@ -194,7 +198,7 @@ internal sealed class CapsuleGame : Game
         scenes.FollowSteps(_scheduler, _audio);
 
         _diagnostics?.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
-        _renderer = new FrameRenderer(GraphicsDevice, _builder.RenderResolution, _textures, _effects);
+        _renderer = new FrameRenderer(_gpu, samplers, _builder.RenderResolution, _textures, _shaders);
         _cursor = new CursorApplier(
             _textures,
             confined => _builder.Platform.ConfineCursor(new WindowHandle(Window.Handle), confined));
@@ -290,8 +294,8 @@ internal sealed class CapsuleGame : Game
 
         _updateOverlay?.Invoke(_renderer);
 
-        // After the steps that may have asked for a prefetch.
-        _textures.Pump();
+        // After the steps that may have asked for a prefetch. Texture pages upload in the frame's own
+        // copy pass.
         _sounds?.Pump();
 
         // Every frame, including one that drained no step. The voices the mix thread has ended are
@@ -394,6 +398,7 @@ internal sealed class CapsuleGame : Game
         }
 
         _drawOverlay?.Invoke(_renderer);
+        _renderer.Submit();
 
         base.Draw(gameTime);
 
@@ -432,8 +437,9 @@ internal sealed class CapsuleGame : Game
             _device?.Dispose();
 
             _renderer?.Dispose();
-            _effects?.Dispose();
+            _shaders?.Dispose();
             _textures?.Dispose();
+            _gpu?.Dispose();
         }
 
         base.Dispose(disposing);
@@ -444,7 +450,7 @@ internal sealed class CapsuleGame : Game
     private void PrepareAssets(AssetCollection preloads)
     {
         _textures.ChangeScene(preloads, () => _sounds?.ChangeScene(preloads));
-        _effects.Load(preloads.Shaders);
+        _shaders.Load(preloads.Shaders);
     }
 
     // Gameplay starts on an empty young generation whatever the machine's GC budget is.
@@ -458,7 +464,7 @@ internal sealed class CapsuleGame : Game
     {
         _textures.Prefetch(preloads);
         _sounds?.Prefetch(preloads);
-        _effects.Load(preloads.Shaders);
+        _shaders.Load(preloads.Shaders);
     }
 
     // Draws the settled frame again at the window's current extent, from inside SDL's own event
@@ -495,6 +501,7 @@ internal sealed class CapsuleGame : Game
             _renderer.Draw(_scenes.View, _scheduler.InterpolationAlpha);
 
             _drawOverlay?.Invoke(_renderer);
+            _renderer.Submit();
 
             GraphicsDevice.Present();
         }

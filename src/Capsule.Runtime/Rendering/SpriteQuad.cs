@@ -1,9 +1,10 @@
 using System.Numerics;
+using Capsule.Rendering;
 
 namespace Capsule.Runtime.Rendering;
 
 // The four corners of one drawn sprite and the texture coordinates at its top-left and bottom-right, in
-// the space the batch's transform maps to the surface. The float expressions, their order and the sines
+// the space the draw's transform maps to the surface. The float expressions, their order and the sines
 // and cosines from MathF are fixed. Rearranging an expression here, including the double division
 // shape, moves the last bit of a vertex and with it the pixels the renderer's tests pin.
 internal readonly struct SpriteQuad
@@ -34,6 +35,45 @@ internal readonly struct SpriteQuad
         BottomRight = bottomRight;
         TexTopLeft = texTopLeft;
         TexBottomRight = texBottomRight;
+    }
+
+    // Where the sprite vertex stage puts sprite under uniforms, the CPU's copy of its arithmetic: the
+    // sprite interpolated by the frame's fraction, moved from its layer's corner onto the frame's, snapped
+    // to whole pixels where the grid is set, and placed. A quad snapped at a whole number of quarter
+    // turns has every edge on the grid. A whole texture stands where it is.
+    internal static SpriteQuad Expand(in SpriteInstance sprite, in SpriteUniforms uniforms)
+    {
+        int regionX = (int)(sprite.Region & 0xFFFF);
+        int regionY = (int)(sprite.Region >> 16);
+        int width = (int)(sprite.Extent & 0xFFFF);
+        int height = (int)(sprite.Extent >> 16);
+        bool flipX = (sprite.Flags & SpriteFlags.FlipX) != 0;
+        bool flipY = (sprite.Flags & SpriteFlags.FlipY) != 0;
+        float texelWidth = uniforms.TexelSize.X;
+        float texelHeight = uniforms.TexelSize.Y;
+
+        if ((sprite.Flags & SpriteFlags.Whole) != 0)
+        {
+            return PlaceWhole(sprite.Position, sprite.Origin, sprite.Size, width, height, sprite.Rotation);
+        }
+
+        Vector2 position = StepInterpolation.Interpolate(sprite.PreviousPosition, sprite.Position, uniforms.Alpha);
+        float rotation = StepInterpolation.Interpolate(sprite.PreviousRotation, sprite.Rotation, uniforms.Alpha);
+        Vector2 texels = new(width, height);
+
+        if (uniforms.Grid > 0f
+            && ScrollLayout.TryPlaceSnapped(position, sprite.Origin * (sprite.Size / texels), sprite.Size, rotation, uniforms.LayerCorner, uniforms.FrameCorner, uniforms.Grid, out Vector2 corner, out Vector2 pixels, out int turns))
+        {
+            Vector2 scale = pixels / (texels * uniforms.Grid);
+
+            return turns == 0
+                ? Place(corner, Vector2.Zero, scale, regionX, regionY, width, height, texelWidth, texelHeight, 0f, flipX, flipY)
+                : PlaceQuarterTurned(corner, scale, regionX, regionY, width, height, texelWidth, texelHeight, turns, flipX, flipY);
+        }
+
+        position = ScrollLayout.Place(position, uniforms.LayerCorner, uniforms.FrameCorner, uniforms.Grid > 0f, uniforms.Grid);
+
+        return Place(position, sprite.Origin, sprite.Size / texels, regionX, regionY, width, height, texelWidth, texelHeight, rotation, flipX, flipY);
     }
 
     // A region of a texture: position is where origin lands, origin is in region texels, scale is drawn

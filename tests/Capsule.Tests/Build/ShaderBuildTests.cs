@@ -1,10 +1,12 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using Capsule.Build.Shaders;
 using Capsule.Rendering;
+using Capsule.Runtime.Rendering;
 using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
@@ -131,6 +133,25 @@ public sealed class ShaderBuildTests
         {
             Assert.Contains(binding, msl, StringComparison.Ordinal);
         }
+    }
+
+    // The vertex stage reads the runtime's sprite and uniforms where the runtime writes them, and
+    // nothing else ties the two layouts.
+    [Fact]
+    public void TheVertexStage_ReadsTheRuntimesSpriteLayout()
+    {
+        using SceneDocumentFixtures.Workspace workspace = new();
+        ShaderCompilation vertex = ShaderCompiler.CompileVertex(ToolWorkspace.ShaderTools, "vertex/capsule-vertex");
+        ShaderContainer spirv = Assert.Single(Assert.IsType<ShaderContainer[]>(vertex.Shaders), static shader => shader.Format == ShaderCompiler.Spirv);
+        using JsonDocument reflection = JsonDocument.Parse(Tool("spirv-cross", Write("vertex.spv", spirv.Code), "--reflect"));
+        JsonElement[] types = [.. reflection.RootElement.GetProperty("types").EnumerateObject().Select(static type => type.Value)];
+        JsonElement Type(string name) => types.Single(type => type.GetProperty("name").GetString() == name);
+        static int[] Offsets(JsonElement type) => [.. type.GetProperty("members").EnumerateArray().Select(static member => member.GetProperty("offset").GetInt32())];
+        static int[] Declared<T>(int count) => [.. typeof(T).GetFields(BindingFlags.Instance | BindingFlags.Public).Take(count).Select(static field => (int)Marshal.OffsetOf<T>(field.Name))];
+
+        Assert.Equal(Unsafe.SizeOf<SpriteInstance>(), Type("type.StructuredBuffer.CapsuleSprite").GetProperty("members")[0].GetProperty("array_stride").GetInt32());
+        Assert.Equal(Declared<SpriteInstance>(11), Offsets(Type("CapsuleSprite"))[..11]);
+        Assert.Equal(Declared<SpriteUniforms>(8), Offsets(Type("type.CapsuleVertexUniforms")));
     }
 
     // A DXIL container's hash follows its four-byte magic. All zero means no validator signed it.

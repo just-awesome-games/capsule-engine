@@ -14,24 +14,20 @@ public sealed class BlendModeTests
         Assert.Equal(104, Unsafe.SizeOf<SpriteIntent>());
     }
 
-    // Additive premultiplies by alpha. A glow fades as its alpha falls. Opaque adds the colour exactly.
+    // Additive premultiplies by alpha and packs alpha zero. A glow fades as its alpha falls. Opaque adds
+    // the colour exactly.
     [Fact]
     public void Additive_PacksTheColourScaledByItsAlphaWithZeroAlpha()
     {
-        (byte r, byte g, byte b, byte a) = SpriteBatcher.PackInput(new ColorRgba(200, 120, 40, 180), BlendMode.Additive);
-
-        Assert.Equal(((byte)141, (byte)85, (byte)28, (byte)0), (r, g, b, a));
-        Assert.Equal(((byte)200, (byte)120, (byte)40, (byte)0), SpriteBatcher.PackInput(new ColorRgba(200, 120, 40), BlendMode.Additive));
+        Assert.Equal((141, 85, 28, 0), Bytes(SpriteDrawList.Tint(new ColorRgba(200, 120, 40, 180), BlendMode.Additive)));
+        Assert.Equal((200, 120, 40, 0), Bytes(SpriteDrawList.Tint(new ColorRgba(200, 120, 40), BlendMode.Additive)));
     }
 
+    // Alpha premultiplies the colour and keeps the alpha, truncating each channel.
     [Fact]
-    public void Alpha_PacksTheIntentsColourAndAlphaUnchanged()
+    public void Alpha_PacksTheColourPremultipliedByItsAlpha()
     {
-        ColorRgba color = new(200, 120, 40, 180);
-
-        (byte r, byte g, byte b, byte a) = SpriteBatcher.PackInput(color, BlendMode.Alpha);
-
-        Assert.Equal((color.R, color.G, color.B, color.A), (r, g, b, a));
+        Assert.Equal((141, 84, 28, 180), Bytes(SpriteDrawList.Tint(new ColorRgba(200, 120, 40, 180), BlendMode.Alpha)));
     }
 
     // The flash colour fades with the sprite's tint alpha and the amount passes through. A fading
@@ -40,7 +36,10 @@ public sealed class BlendModeTests
     [Fact]
     public void Flash_PacksItsColourScaledByTheTintAlpha_AndItsAmountUnchanged()
     {
-        Assert.Equal(((byte)128, (byte)64, (byte)0, (byte)200), SpriteBatcher.PackFlashInput(new ColorRgba(255, 128, 0, 200), 128));
-        Assert.Equal(((byte)0, (byte)0, (byte)0, (byte)0), SpriteBatcher.PackFlashInput(default, 255));
+        Assert.Equal((128, 64, 0, 200), Bytes(SpriteDrawList.Flash(new ColorRgba(255, 128, 0, 200), 128)));
+        Assert.Equal(0u, SpriteDrawList.Flash(new ColorRgba(255, 128, 0, 0), 255));
     }
+
+    private static (int R, int G, int B, int A) Bytes(uint packed) =>
+        ((byte)packed, (byte)(packed >> 8), (byte)(packed >> 16), (byte)(packed >> 24));
 }
