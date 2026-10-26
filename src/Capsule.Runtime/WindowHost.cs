@@ -14,9 +14,9 @@ using Capsule.Runtime.Audio;
 using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Gpu;
 using Capsule.Runtime.Input;
+using Capsule.Runtime.Platform;
 using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
-using Capsule.Runtime.Sdl;
 
 namespace Capsule.Runtime;
 

@@ -13,8 +13,7 @@ clock or platform. The runtime hosts them and draws, plays and samples on their 
 | `Capsule.Core` | Fixed step, input, rendering, audio mixing, persistence, asset and diagnostic contracts. | nothing |
 | `Capsule.Physics` | Shapes, broadphase, queries, sweeps and kinematic movement. No dynamics, no solver. | Core |
 | `Capsule.Scenes` | Scenes, entities, components, cameras, audio sources, scene documents and their headless simulation. | Core, Physics |
-| `Capsule.Runtime` | The platform-neutral host on SDL3: window, GPU device, clock, input sampling, rendering, the sound mix, scene hosting, and the `HostPlatform` contract. | the pure modules |
-| `Capsule.Runtime.Desktop` | The desktop platform module: content beside the executable, the per-user local folder, the window's raise, the audio output the mix plays on. | Runtime |
+| `Capsule.Runtime` | The host on SDL3: window, GPU device, clock, input sampling, rendering, the sound mix, scene hosting, and the `HostPlatform` a port overrides. | the pure modules |
 | `Capsule.Generators` | Source generation from the game's C#: the entity, scene and input-driver registries and `CapsuleBoot`. Compile-time enforcement of the game-logic boundary. | unconstrained |
 | `Capsule.Build` | The asset build a game's build project runs through `CapsuleBuild`: importers, keys, validation, compilation, atlas packing, `CapsuleAssets` and the derivation cache. | unconstrained |
 | `Capsule` | No code. The pack root of `JAG.Capsule`, whose project references admit what the package holds. | the pure modules |
@@ -25,8 +24,8 @@ read shipped documents for tests. `build/engine/Capsule.Architecture.targets` en
 ## Placement
 
 Assemblies follow layers. A type's assembly is decided by what it depends on. A type that knows an
-operating system's locations or links a native library belongs in a platform module. A new assembly waits
-until the compiler must enforce a reference direction.
+operating system's locations or links a native library belongs in `Capsule.Runtime`'s `Platform/` folder.
+A new assembly waits until the compiler must enforce a reference direction.
 
 A game-facing namespace is a feature, whichever assembly holds it. `Capsule` is the cross-cutting core of
 the step, the run, transforms, randomness and deterministic math. The features are `Capsule.Scenes`,
@@ -36,7 +35,7 @@ the step, the run, transforms, randomness and deterministic math. The features a
 feature, `Capsule` and `System.Numerics`, and drops one with `<Using Remove="..." />`. In `Capsule.Core`,
 `Capsule.Physics` and `Capsule.Scenes` a folder named for a feature carries that namespace, and a folder
 that only groups files inside a feature carries its parent's. `Physics/Internal` keeps its own internal
-namespace. A folder in `Capsule.Runtime`, a platform module or `Capsule.Build` carries
+namespace. A folder in `Capsule.Runtime` or `Capsule.Build` carries
 `<Assembly>.<Folder>`. `Capsule.Generators` is one namespace, and the code it emits is
 `Capsule.Generated`. A partial class file carries its class's namespace wherever it sits. A test file
 carries `Capsule.Tests.<top folder>` in folders that mirror the source's. A subject's fixtures stay in its
@@ -111,16 +110,16 @@ object a game attaches at run start (`Run.Attach`) and reads anywhere as `Run.St
 
 ## Platforms
 
-A host family is one shell. The desktop shell publishes Windows, Linux and macOS from one project by runtime
-identifier, and a console is another family with a shell of its own. A platform module is one subclass of
-`HostPlatform`, handed to `CapsuleBoot.Configure` beside the game's name. It tells the host where shipped
-content is read from, where saves and the crash log land, how the window is raised, where the host's finished
-sound mix is played, and which languages the player prefers.
+One shell publishes Windows, Linux and macOS by runtime identifier. `HostPlatform` tells the host where
+shipped content is read from, where saves and the crash log land, how the window is raised, where the
+finished sound mix plays, and which languages the player prefers. Its defaults are SDL3's, and a desktop
+shell names no platform.
 
-`Capsule.Runtime` holds no implicit location. Its one native binding is SDL3, in its `Sdl/` folder.
+A console is a port: a private repository whose shell passes its own `HostPlatform` subclass to
+`EngineBuilder.WithPlatform` ([`packages.md`](packages.md#porting-to-another-platform)).
 
-`Capsule.Runtime.Desktop` is the platform module the engine ships. It uses only the neutral host's public
-surface. Writing another is [`packages.md`](packages.md#a-private-platform-module).
+SDL3 is the runtime's one native dependency. Its binding, and what the operating system tells the
+defaults that SDL3 does not, live in the `Platform/` folder alone.
 
 ## NativeAOT floor
 

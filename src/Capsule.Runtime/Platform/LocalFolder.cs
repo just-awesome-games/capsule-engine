@@ -1,7 +1,8 @@
-namespace Capsule.Runtime.Desktop.Persistence;
+namespace Capsule.Runtime.Platform;
 
 // The per-user local folder a game's crash log and saves share. LocalApplicationData on its own maps
-// macOS away from its convention.
+// macOS away from its convention. SDL's preference path roams on Windows, and every save written here
+// would be orphaned by it.
 internal static class LocalFolder
 {
     internal const string SavesSubfolder = "saves";

@@ -43,9 +43,8 @@ internal static class BootRenderer
 
                     /// <summary>Begins the engine's configuration with every registry this game generates.</summary>
                     /// <param name="gameName">The game's display name. It titles the window, and its slug names the local folder that holds the saves and the crash log.</param>
-                    /// <param name="platform">The platform module for the host family this shell targets.</param>
-                    public static global::Capsule.Runtime.EngineBuilder Configure(string gameName, global::Capsule.Runtime.HostPlatform platform) =>
-                        global::Capsule.Runtime.CapsuleEngine.Configure(gameName, platform, Scenes, Drivers, Payloads{{strings}});
+                    public static global::Capsule.Runtime.EngineBuilder Configure(string gameName) =>
+                        global::Capsule.Runtime.CapsuleEngine.Configure(gameName, Scenes, Drivers, Payloads{{strings}});
 
                     private static global::Capsule.Scenes.SceneRegistry CreateScenes()
                     {

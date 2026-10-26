@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Capsule.Runtime.Sdl;
+namespace Capsule.Runtime.Platform;
 
 // The GPU device the renderer draws through, and the surface and stream a frame capture encodes its PNG
 // with. Every struct here is SDL 3.4's, field for field, its bool fields as bytes.

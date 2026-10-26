@@ -1,5 +1,5 @@
 using System.Numerics;
-using Capsule.Runtime.Sdl;
+using Capsule.Runtime.Platform;
 
 namespace Capsule.Runtime.Gpu;
 

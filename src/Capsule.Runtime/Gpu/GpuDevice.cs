@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using Capsule.Rendering;
-using Capsule.Runtime.Sdl;
+using Capsule.Runtime.Platform;
 
 namespace Capsule.Runtime.Gpu;
 

@@ -3,7 +3,7 @@ using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime.Assets;
-using Capsule.Runtime.Sdl;
+using Capsule.Runtime.Platform;
 
 namespace Capsule.Runtime.Input;
 

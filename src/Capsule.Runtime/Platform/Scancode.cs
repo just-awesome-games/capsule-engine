@@ -1,4 +1,4 @@
-namespace Capsule.Runtime.Sdl;
+namespace Capsule.Runtime.Platform;
 
 // The SDL_Scancode values a Key binds, from SDL_scancode.h. A scancode names a key's position on a
 // US layout, whatever character the active layout prints on it.

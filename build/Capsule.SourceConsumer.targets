@@ -30,11 +30,9 @@
                       Condition="'@(PackageReference->WithMetadataValue('Identity', 'JAG.Capsule'))' != ''" />
     <ProjectReference Include="$(CapsuleSourceModulesDirectory)Capsule.Runtime/Capsule.Runtime.csproj"
                       Condition="'@(PackageReference->WithMetadataValue('Identity', 'JAG.Capsule.Runtime'))' != ''" />
-    <ProjectReference Include="$(CapsuleSourceModulesDirectory)Capsule.Runtime.Desktop/Capsule.Runtime.Desktop.csproj"
-                      Condition="'@(PackageReference->WithMetadataValue('Identity', 'JAG.Capsule.Runtime.Desktop'))' != ''" />
     <ProjectReference Include="$(CapsuleSourceModulesDirectory)Capsule.Build/Capsule.Build.csproj"
                       Condition="'@(PackageReference->WithMetadataValue('Identity', 'JAG.Capsule.Build'))' != ''" />
-    <PackageReference Remove="JAG.Capsule;JAG.Capsule.Runtime;JAG.Capsule.Runtime.Desktop;JAG.Capsule.Build" />
+    <PackageReference Remove="JAG.Capsule;JAG.Capsule.Runtime;JAG.Capsule.Build" />
   </ItemGroup>
 
   <!-- A package an override replaces is not restored. Capsule.Build.props named it and imported its

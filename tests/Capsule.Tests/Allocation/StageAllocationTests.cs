@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO.Compression;
 using System.Numerics;
+using Capsule.Runtime;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Tests.Runtime;
@@ -119,7 +120,7 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
         {
             ShippedSceneDocument.Write(StageWorkload.Build(), path, CompressionLevel.Fastest);
 
-            SceneComposer composer = new(StageWorkload.Scenes(), new ContentPlatform());
+            SceneComposer composer = new(StageWorkload.Scenes(), new HostPlatform());
             using SceneHost host = new(
                 SceneTransition.ToName(StageWorkload.DocumentName, null),
                 composer.Resolve,

@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Runtime</RootNamespace>
     <PackageId>JAG.Capsule.Runtime</PackageId>
-    <Description>The platform-neutral Capsule host on SDL3: window, GPU device, clock, keyboard and gamepad sampling, the interpolating renderer, sound playback, scene hosting and the HostPlatform contract a platform module fills in.</Description>
+    <Description>The Capsule host a game's shell references, on SDL3 for Windows, Linux and macOS: window, GPU device, clock, input sampling, the renderer, sound playback, scene hosting, content and saves, and the HostPlatform a port overrides.</Description>
     <!-- The texture decoder's entry point and the SDL3 bindings take and return pointers. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
@@ -31,14 +31,18 @@
       <PrivateAssets>compile</PrivateAssets>
     </PackageReference>
 
-    <!-- A site that seems to need a banned symbol belongs in a platform module, never under a
-         suppression. Sdl/ alone holds a native binding, the SDL3 every platform shares, which its
-         own .editorconfig admits. -->
+    <!-- A site that seems to need a banned symbol belongs in Platform/, whose .editorconfig admits
+         it, never under a suppression. -->
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <AdditionalFiles Include="BannedSymbols.txt" />
+  </ItemGroup>
+
+  <!-- SDL3 for each desktop runtime identifier, which natives/ builds. A port supplies its own. -->
+  <ItemGroup>
+    <PackageReference Include="JAG.Capsule.Native.SDL3" Version="3.4.18.2" />
   </ItemGroup>
 
   <!-- The pure modules arrive through their pack root, not one by one: referencing them directly

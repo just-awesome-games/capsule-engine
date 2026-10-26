@@ -13,7 +13,6 @@ public static class CapsuleEngine
     /// harness calls it directly with the generated registries.
     /// </remarks>
     /// <param name="gameName">The game's display name. It titles the window, and slugs to the local folder name.</param>
-    /// <param name="platform">Where content, saves and the crash log are, and the window policy.</param>
     /// <param name="scenes">Every scene the game declares. The host resolves a class or document name through it without reflection.</param>
     /// <param name="drivers">Every input driver the game declares. <c>--driver</c> resolves a name through it. Null registers none.</param>
     /// <param name="payloads">Every scene payload the game declares. <c>--payload</c> resolves a name through it. Null registers none.</param>
@@ -21,10 +20,9 @@ public static class CapsuleEngine
     /// <exception cref="ArgumentException">The name slugs to no safe directory name.</exception>
     public static EngineBuilder Configure(
         string gameName,
-        HostPlatform platform,
         SceneRegistry scenes,
         InputDriverRegistry? drivers = null,
         ScenePayloadRegistry? payloads = null,
         StringTable? strings = null) =>
-        new(gameName, platform, scenes, drivers ?? InputDriverRegistry.Empty, payloads ?? ScenePayloadRegistry.Empty, strings);
+        new(gameName, scenes, drivers ?? InputDriverRegistry.Empty, payloads ?? ScenePayloadRegistry.Empty, strings);
 }

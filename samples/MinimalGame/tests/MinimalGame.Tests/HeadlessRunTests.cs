@@ -3,7 +3,6 @@ using Capsule.Audio;
 using Capsule.Generated;
 using Capsule.Input;
 using Capsule.Runtime;
-using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
 using MinimalGame.Game;
 using MinimalGame.Game.Drivers;
@@ -98,7 +97,7 @@ public sealed class HeadlessRunTests
     }
 
     private static EngineBuilder Boot() =>
-        CapsuleBoot.Configure("Minimal Game", new DesktopPlatform())
+        CapsuleBoot.Configure("Minimal Game")
             .WithRunStart(GameBoot.Start)
             .WithoutLogging();
 

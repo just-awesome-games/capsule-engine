@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Capsule.Runtime.Sdl;
+namespace Capsule.Runtime.Platform;
 
 // The window, its display, the main callbacks and the frame's sleep.
 internal static unsafe partial class Sdl3

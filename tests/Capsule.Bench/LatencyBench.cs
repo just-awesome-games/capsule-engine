@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using Capsule.Bench.Logic.Scenes;
-using Capsule.Runtime.Sdl;
+using Capsule.Runtime.Platform;
 
 namespace Capsule.Bench;
 

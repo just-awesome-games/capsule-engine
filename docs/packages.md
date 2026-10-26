@@ -1,7 +1,7 @@
 # Writing a Capsule package
 
 After this page you can publish a package that Capsule games reference, name it so it never collides with
-Capsule's own packages, extend a game's build with an importer, and host Capsule on another platform. Each
+Capsule's own packages, extend a game's build with an importer, and port Capsule to another platform. Each
 type's XML docs hold its rules.
 
 A Capsule package is an ordinary NuGet package. It references `JAG.Capsule` for the API and ships the C#
@@ -13,7 +13,7 @@ registry of packages and asks for no manifest.
 | C# a game calls | A library referencing `JAG.Capsule` |
 | Turn an editor's files into assets | An `IAssetImporter` in a library referencing `JAG.Capsule.Build` |
 | Configure a game's whole asset build | `CapsuleBuild` in the game's build project |
-| Host Capsule on another platform | A `HostPlatform` subclass in a private platform module |
+| Port Capsule to another platform | A `HostPlatform` subclass in a private port |
 
 ## What a package receives
 
@@ -76,17 +76,17 @@ A game builds against a package's clone through `CapsuleSourceOverrides`
 An importer runs inside the game's build process and must compile against the game's engine. A package
 clone that builds against an engine clone names that same engine clone.
 
-## A private platform module
+## Porting to another platform
 
-A console runtime is a private repository, one per platform:
+A console port is a private repository, one per platform:
 
-1. Subclass `HostPlatform` there.
-2. Put the game's shell for that host family in the same repository, referencing the module and passing it
-   to `CapsuleBoot.Configure`. The logic project is untouched.
+1. Subclass `HostPlatform` there, overriding what the platform's SDL3 lacks or its certification demands.
+2. Put the game's shell for that platform in the same repository, passing the subclass to
+   `EngineBuilder.WithPlatform`. The logic project is untouched.
 3. Consume Capsule in source mode at a pinned tag (`CapsuleSourcePath`). An unmodified checkout builds.
 
-`Capsule.Runtime` runs on SDL3: the window, the loop, input, the cursor and the GPU. The module supplies
-its platform's SDL3, linked statically under the library name `SDL3` or shipped beside the game.
+The port supplies its platform's licensed SDL3, linked statically under the library name `SDL3` or shipped
+beside the game.
 
 When the target's GPU reads a shader format of its own, the shell names the format and its compiler's absolute
 path, and its publish carries that format alone:
@@ -104,5 +104,3 @@ The build runs the tool once per stage of every shader, and of the engine's own 
 `--stage <vertex|fragment> --entry main --hlsl <file> --spirv <file> --out <file>`. The HLSL and the SPIR-V
 are the stage in SDL's binding layout. The tool writes the format's code to the output file and exits 0, and
 the build ships it as `<key>.<format>.shader`.
-
-A shell references one platform module.

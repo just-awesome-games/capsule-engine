@@ -1,0 +1,8 @@
+# The runtime's native boundary lives in this folder and nowhere else in the assembly: the SDL3 binding,
+# and the operating-system facts SDL3 does not give the default platform. The banned-API list keeps
+# native bindings, implicit locations and platform branches out of every other folder, and this
+# severity admits them here alone. The imports are declared by hand: LibraryImport's generated stubs
+# compile outside this folder, where no folder-scoped severity reaches them.
+[*.cs]
+dotnet_diagnostic.RS0030.severity = none
+dotnet_diagnostic.SYSLIB1054.severity = none

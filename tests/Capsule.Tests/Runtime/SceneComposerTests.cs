@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Numerics;
+using Capsule.Runtime;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
@@ -22,7 +23,7 @@ public sealed class SceneComposerTests : IDisposable
     public void ADocumentBackedClass_BootedByItsClass_IsComposedFromTheDocumentItClaims()
     {
         Write(SceneFixtures.Room(new SceneDocumentEntry("chest", new EntitySpawn(new Vector2(48f, 16f)))));
-        SceneComposer composer = new(Registry(), new ContentPlatform());
+        SceneComposer composer = new(Registry(), new HostPlatform());
 
         Scene composed = composer.Resolve(SceneTransition.ToScene(typeof(Hall), null));
 
@@ -36,7 +37,7 @@ public sealed class SceneComposerTests : IDisposable
     public void APlacementNoEntityClaims_NamesTheDocumentFileThatHoldsIt()
     {
         Write(SceneFixtures.Room(new SceneDocumentEntry("wyvern")));
-        SceneComposer composer = new(Registry(), new ContentPlatform());
+        SceneComposer composer = new(Registry(), new HostPlatform());
 
         SpawnException failure = Assert.Throws<SpawnException>(
             () => composer.Resolve(SceneTransition.ToName(DocumentName, null)));
@@ -51,7 +52,7 @@ public sealed class SceneComposerTests : IDisposable
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DocumentPath)!);
         File.WriteAllText(DocumentPath, SceneFixtures.Room().ToJson());
-        SceneComposer composer = new(Registry(), new ContentPlatform());
+        SceneComposer composer = new(Registry(), new HostPlatform());
 
         SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(
             () => composer.Resolve(SceneTransition.ToName(DocumentName, null)));

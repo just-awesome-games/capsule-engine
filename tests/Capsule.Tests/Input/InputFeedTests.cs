@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime.Input;
-using Capsule.Runtime.Sdl;
+using Capsule.Runtime.Platform;
 
 namespace Capsule.Tests.Input;
 

@@ -120,7 +120,6 @@ public sealed class InputDriverPlaybackTests
     private static EngineBuilder Builder() =>
         CapsuleEngine.Configure(
                 "Driven Game",
-                new ContentPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [

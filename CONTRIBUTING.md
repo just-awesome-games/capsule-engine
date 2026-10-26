@@ -20,7 +20,7 @@ A NativeAOT publish on Windows needs the native toolchain [`docs/build-and-publi
 
 The runtime embeds its sprite shader precompiled in every GPU format, as the files under `src/Capsule.Runtime/Rendering/Shaders/`. A test fails when the shader template, compiler or tools change them. Running the tests with `CAPSULE_UPDATE_ENGINE_SHADER=1` regenerates the files. Review them and commit them.
 
-`Capsule.Runtime` refuses an implicit location or a native binding at compile time through its banned-API list, [`src/Capsule.Runtime/BannedSymbols.txt`](src/Capsule.Runtime/BannedSymbols.txt). Its `Sdl/` folder alone is exempt, and holds the SDL3 calls the host makes for input and the cursor.
+`Capsule.Runtime` refuses an implicit location or a native binding at compile time through its banned-API list, [`src/Capsule.Runtime/BannedSymbols.txt`](src/Capsule.Runtime/BannedSymbols.txt). Its `Platform/` folder alone is exempt, and holds the SDL3 binding and the operating-system calls the default platform makes.
 
 Wall-clock performance is measured by hand with [`tests/Capsule.Bench`](tests/Capsule.Bench/README.md), whose records are committed.
 

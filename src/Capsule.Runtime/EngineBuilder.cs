@@ -56,7 +56,7 @@ public sealed class EngineBuilder
     private bool _headless;
 
     // The settled configuration the host reads. Each value is validated by the WithX that wrote it.
-    internal HostPlatform Platform { get; }
+    internal HostPlatform Platform { get; private set; } = new();
 
     internal SceneRegistry Scenes { get; }
 
@@ -93,19 +93,16 @@ public sealed class EngineBuilder
 
     internal EngineBuilder(
         string gameName,
-        HostPlatform platform,
         SceneRegistry scenes,
         InputDriverRegistry drivers,
         ScenePayloadRegistry payloads,
         StringTable? strings = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
-        ArgumentNullException.ThrowIfNull(platform);
         ArgumentNullException.ThrowIfNull(scenes);
         ArgumentNullException.ThrowIfNull(drivers);
         ArgumentNullException.ThrowIfNull(payloads);
 
-        Platform = platform;
         Scenes = scenes;
         _drivers = drivers;
         _payloads = payloads;
@@ -247,6 +244,14 @@ public sealed class EngineBuilder
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(steps);
         MaxStepsPerFrame = steps;
+        return this;
+    }
+
+    /// <summary>Runs on a port's <see cref="HostPlatform"/> subclass in place of the SDL3 defaults.</summary>
+    public EngineBuilder WithPlatform(HostPlatform platform)
+    {
+        ArgumentNullException.ThrowIfNull(platform);
+        Platform = platform;
         return this;
     }
 

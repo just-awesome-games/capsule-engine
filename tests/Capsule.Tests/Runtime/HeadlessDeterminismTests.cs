@@ -28,7 +28,6 @@ public sealed class HeadlessDeterminismTests
 
         HeadlessRunResult result = CapsuleEngine.Configure(
                 "Deterministic Game",
-                new ContentPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(Wandering), _ => scene)]))

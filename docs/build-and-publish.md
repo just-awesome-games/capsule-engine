@@ -55,7 +55,7 @@ one package named for its role:
 | Project | References |
 | --- | --- |
 | Logic | `JAG.Capsule`, the API the game is written against and the build targets that run its asset build. |
-| Shell | `JAG.Capsule.Runtime.Desktop`, which brings the neutral host and SDL3. |
+| Shell | `JAG.Capsule.Runtime`, the host, which brings SDL3. |
 | Build | `JAG.Capsule.Build`, the build it runs, and any importer package, such as `JAG.Capsule.Tiled`. |
 
 Build-time code reaches only the build project, and none of it ships with the game. The logic and shell
@@ -85,7 +85,7 @@ projects also state their role, which the build and the generators read:
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="JAG.Capsule.Runtime.Desktop" Version="[{YOUR_PINNED_VERSION}]" />
+    <PackageReference Include="JAG.Capsule.Runtime" Version="[{YOUR_PINNED_VERSION}]" />
     <ProjectReference Include="../MyGame.Game/MyGame.Game.csproj" />
   </ItemGroup>
 </Project>
@@ -111,7 +111,7 @@ return Capsule.Build.CapsuleBuild.Configure(args).Run();
 
 Build-wide settings and importers are [`packages.md`](packages.md#the-build-project). A shell is
 a console app, and a Windows-subsystem app in Release, where a double-click opens no console. A test
-driving `EngineBuilder.RunHeadless` also references `JAG.Capsule.Runtime.Desktop`.
+driving `EngineBuilder.RunHeadless` also references `JAG.Capsule.Runtime`.
 
 To build against clones instead, one git-ignored `Directory.Build.local.props` names them and imports the
 engine clone's `build/Capsule.Build.props`:

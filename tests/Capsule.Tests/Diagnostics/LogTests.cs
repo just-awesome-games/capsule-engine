@@ -118,7 +118,6 @@ public sealed class LogTests : IDisposable
         {
             CapsuleEngine.Configure(
                     "Logging Game",
-                    new ContentPlatform(),
                     new SceneRegistry(
                         new EntityRegistry([]),
                         [SceneRegistration.Plain(typeof(Announcing), static _ => new Announcing())]))

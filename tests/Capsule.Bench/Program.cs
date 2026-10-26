@@ -4,7 +4,6 @@ using Capsule.Bench.Logic;
 using Capsule.Bench.Logic.Scenes;
 using Capsule.Rendering;
 using Capsule.Runtime;
-using Capsule.Runtime.Desktop;
 
 namespace Capsule.Bench;
 
@@ -70,7 +69,7 @@ internal static class Program
         EngineBuilder engine;
         try
         {
-            engine = CapsuleBoot.Configure("Capsule Bench", new DesktopPlatform())
+            engine = CapsuleBoot.Configure("Capsule Bench")
                 .WithCommandLine(args)
                 .WithoutCrashLog()
                 // A measured window paces the same whether or not it holds focus.

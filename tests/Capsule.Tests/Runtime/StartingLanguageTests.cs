@@ -82,9 +82,9 @@ public sealed class StartingLanguageTests
     private EngineBuilder Builder(HostPlatform platform, StringTable? strings) =>
         CapsuleEngine.Configure(
                 "Language Game",
-                platform,
                 new SceneRegistry(new EntityRegistry([]), [SceneRegistration.Plain(typeof(Recording), _ => new Recording(language => _seen = language))]),
                 strings: strings)
+            .WithPlatform(platform)
             .WithFixedStep(10)
             .WithoutCrashLog()
             .WithoutLogging();

@@ -1,10 +1,11 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace Capsule.Runtime.Sdl;
+namespace Capsule.Runtime.Platform;
 
-// The SDL3 calls the host makes: input and the cursor here, the window and the loop in Sdl3.Video, the
-// GPU in Sdl3.Gpu. Every signature, enum value and struct layout is SDL 3.4's.
+// The SDL3 calls the runtime makes: input and the cursor here, the window and the loop in Sdl3.Video,
+// the GPU in Sdl3.Gpu, the default platform's in Sdl3.System and Sdl3.Audio. Every signature, enum
+// value and struct layout is SDL 3.4's.
 internal static unsafe partial class Sdl3
 {
     // The one name every binding here imports, which a console shell links statically through

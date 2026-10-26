@@ -2,7 +2,7 @@ using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text;
 using Capsule.Runtime.Input;
-using Capsule.Runtime.Sdl;
+using Capsule.Runtime.Platform;
 
 namespace Capsule.Tests.Input;
 

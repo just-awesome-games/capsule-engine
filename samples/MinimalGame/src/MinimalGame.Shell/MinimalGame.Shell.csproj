@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="JAG.Capsule.Runtime.Desktop" Version="[$(CapsuleVersion)]" />
+    <PackageReference Include="JAG.Capsule.Runtime" Version="[$(CapsuleVersion)]" />
     <ProjectReference Include="../MinimalGame.Game/MinimalGame.Game.csproj" />
   </ItemGroup>
 

@@ -135,7 +135,7 @@ public sealed class RegistryClaimTests
 
     private static ImmutableArray<Diagnostic> Shells(string first, string second) =>
         GeneratorHarness.CompileShellWithLogicAssemblies(
-            "namespace Shell; public static class Program { public static void Boot() => CapsuleBoot.Configure(\"Spec Game\", null!); }",
+            "namespace Shell; public static class Program { public static void Boot() => CapsuleBoot.Configure(\"Spec Game\"); }",
             ("Game.First", first),
             ("Game.Second", second)).Diagnostics;
 

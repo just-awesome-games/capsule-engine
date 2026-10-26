@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Capsule.Diagnostics;
 using Capsule.Input;
-using Capsule.Runtime.Sdl;
+using Capsule.Runtime.Platform;
 
 namespace Capsule.Runtime.Input;
 

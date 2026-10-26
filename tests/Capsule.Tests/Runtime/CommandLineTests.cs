@@ -2,7 +2,6 @@ using System.IO.Compression;
 using Capsule.Input;
 using Capsule.Persistence;
 using Capsule.Runtime;
-using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
 using Capsule.Tests.Persistence;
 using Capsule.Tests.Scenes;
@@ -112,7 +111,8 @@ public sealed class CommandLineTests : IDisposable
             CompressionLevel.Fastest);
 
         List<object> opened = [];
-        EngineBuilder builder = Builder(new ContentPlatform(_workspace.Root), opened: opened)
+        EngineBuilder builder = Builder(opened: opened)
+            .WithPlatform(new ContentPlatform(_workspace.Root))
             .WithCommandLine(["--headless", "--driver", "Idler", "--scene", HallKey]);
 
         Assert.Equal(HallKey, builder.SceneOverride);
@@ -262,10 +262,9 @@ public sealed class CommandLineTests : IDisposable
 
     // Every registry holds the class-free document HallKey. A documentKey adds a second one. The
     // recording scenes add what they opened with to opened.
-    private static EngineBuilder Builder(HostPlatform? platform = null, string? documentKey = null, List<object>? opened = null) =>
+    private static EngineBuilder Builder(string? documentKey = null, List<object>? opened = null) =>
         CapsuleEngine.Configure(
                 "Command Line Game",
-                platform ?? new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [

@@ -33,7 +33,7 @@ A pixel-art game declares one render surface and point sampling, and lets the ca
 The interface is then drawn in the same pixels as the world:
 
 ```csharp
-return CapsuleBoot.Configure("My Game", new DesktopPlatform())
+return CapsuleBoot.Configure("My Game")
     .WithCommandLine(args)
     .WithRenderResolution(320, 180)
     .WithSampling(TextureSampling.Point)

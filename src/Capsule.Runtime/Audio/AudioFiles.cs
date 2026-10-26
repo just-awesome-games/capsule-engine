@@ -77,7 +77,7 @@ internal static class AudioFiles
         {
             file.Dispose();
             throw new InvalidOperationException(
-                $"The platform module opened audio clip '{clip.Name}' as a stream that cannot seek. Return a seekable stream from its HostPlatform.OpenContent.");
+                $"The platform opened audio clip '{clip.Name}' as a stream that cannot seek. Return a seekable stream from its HostPlatform.OpenContent.");
         }
 
         VorbisReader reader = new(file);

@@ -73,7 +73,7 @@ NuGet.org indexes a pushed package minutes after the workflow reports success. C
 package is downloadable before pointing a consumer at it (HTTP 200, where a 404 means it is still indexing):
 
 ```bash
-for p in jag.capsule jag.capsule.build jag.capsule.runtime jag.capsule.runtime.desktop; do
+for p in jag.capsule jag.capsule.build jag.capsule.runtime; do
   curl -s -o /dev/null -w "$p %{http_code}\n" "https://api.nuget.org/v3-flatcontainer/$p/$VERSION/$p.$VERSION.nupkg"
 done
 ```
@@ -110,7 +110,7 @@ bump lands in two changes:
 
    The tag's run pushes both packages, and NuGet.org skips the one whose version it already holds.
 2. Once the packages index, move the engine to them: `JAG.Capsule.Native.SDL3` in
-   `src/Capsule.Runtime.Desktop/Capsule.Runtime.Desktop.csproj`, or `CapsuleShaderToolsVersion` in
+   `src/Capsule.Runtime/Capsule.Runtime.csproj`, or `CapsuleShaderToolsVersion` in
    `build/Capsule.ShaderTools.targets`. Regenerate the lock files with
    `dotnet restore --force-evaluate`.
 

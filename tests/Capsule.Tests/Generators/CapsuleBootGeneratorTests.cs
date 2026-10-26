@@ -21,7 +21,7 @@ public sealed class CapsuleBootGeneratorTests
 
         public static class Program
         {
-            public static void Boot() => CapsuleBoot.Configure("Spec Game", new SpecPlatform()).WithWindow(320, 180);
+            public static void Boot() => CapsuleBoot.Configure("Spec Game").WithPlatform(new SpecPlatform()).WithWindow(320, 180);
         }
 
         public sealed class SpecPlatform : Capsule.Runtime.HostPlatform
@@ -38,14 +38,11 @@ public sealed class CapsuleBootGeneratorTests
         (ImmutableArray<Diagnostic> diagnostics, Compilation updated) = GeneratorHarness.CompileShell(ShellSource, LogicSource);
 
         // The shell's own source calls CapsuleBoot.Configure. A clean compilation is the entry
-        // point standing up over the referenced assembly's registry.
+        // point standing up over the referenced assembly's registry, and a port's platform written
+        // against the public surface alone, without the runtime's internals.
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
         Assert.Empty(GeneratorHarness.Errors(updated.GetDiagnostics()));
         Assert.NotNull(updated.GetTypeByMetadataName("Capsule.Generated.CapsuleBoot"));
-
-        // The platform is a required argument of the entry point, never a lever the shell may omit.
-        string generated = GeneratorHarness.Emitted(updated, GeneratorHarness.CapsuleBootFile);
-        Assert.Contains("Configure(string gameName, global::Capsule.Runtime.HostPlatform platform)", generated, StringComparison.Ordinal);
     }
 
     // The build writes CapsuleStrings into a logic assembly with string tables, and the stand-in here
@@ -231,7 +228,7 @@ public sealed class CapsuleBootGeneratorTests
 
             public static class Program
             {
-                public static void Boot() => CapsuleBoot.Configure("Spec Game", null!).WithWindow(320, 180);
+                public static void Boot() => CapsuleBoot.Configure("Spec Game").WithWindow(320, 180);
             }
             """;
 

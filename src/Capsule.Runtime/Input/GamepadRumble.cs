@@ -1,5 +1,5 @@
 using Capsule.Input;
-using Capsule.Runtime.Sdl;
+using Capsule.Runtime.Platform;
 
 namespace Capsule.Runtime.Input;
 

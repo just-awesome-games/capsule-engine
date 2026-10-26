@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Capsule.Rendering;
-using Capsule.Runtime.Sdl;
+using Capsule.Runtime.Platform;
 
 namespace Capsule.Runtime;
 

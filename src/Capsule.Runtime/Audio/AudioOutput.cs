@@ -1,7 +1,7 @@
 namespace Capsule.Runtime.Audio;
 
 /// <summary>
-/// The device the host's finished mix plays on, as a platform module opens it through
+/// The device the host's finished mix plays on, as a platform opens it through
 /// <see cref="HostPlatform.OpenAudioOutput"/>.
 /// </summary>
 /// <remarks>

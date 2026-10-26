@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Globalization;
 using Capsule.Input;
 using Capsule.Runtime;
-using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 
@@ -23,7 +22,6 @@ public sealed class HeadlessFramesTests
 
         EngineBuilder builder = CapsuleEngine.Configure(
                 "Paced Game",
-                new DesktopPlatform(),
                 new SceneRegistry(new EntityRegistry([]), [SceneRegistration.Plain(typeof(SceneFixtures.Idle), _ => new SceneFixtures.Idle())]))
             .WithFixedStep(100)
             .WithMaxStepsPerFrame(3)

@@ -4,7 +4,6 @@ using Capsule.Input;
 using Capsule.Persistence;
 using Capsule.Rendering;
 using Capsule.Runtime;
-using Capsule.Runtime.Desktop;
 using Capsule.Runtime.Persistence;
 using Capsule.Scenes;
 
@@ -76,7 +75,6 @@ public sealed class EngineBuilderTests
         Vector2 seen = Vector2.Zero;
         EngineBuilder builder = CapsuleEngine.Configure(
                 GameName,
-                new DesktopPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(Reader), _ => new Reader(canvas => seen = canvas))]))
@@ -137,10 +135,10 @@ public sealed class EngineBuilderTests
         CrashRecordingPlatform platform = new(saves.Root);
         EngineBuilder builder = CapsuleEngine.Configure(
                 GameName,
-                platform,
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [SceneRegistration.DocumentOnly("rooms/room-01", static content => new Room01(content!.Value))]))
+            .WithPlatform(platform)
             .WithoutLogging();
 
         FileNotFoundException failure = Assert.Throws<FileNotFoundException>(() => builder.RunScene(new SceneKey("rooms/room-01")));
@@ -149,7 +147,7 @@ public sealed class EngineBuilderTests
     }
 
     private static EngineBuilder SceneBuilder(string gameName = GameName) =>
-        CapsuleEngine.Configure(gameName, new DesktopPlatform(), new SceneRegistry(new EntityRegistry([]), [MenuRegistration]));
+        CapsuleEngine.Configure(gameName, new SceneRegistry(new EntityRegistry([]), [MenuRegistration]));
 
     // Every setter a game reaches for. A rejection above is the run's and not a half-built
     // builder's. Silent logging is where a headless run starts.

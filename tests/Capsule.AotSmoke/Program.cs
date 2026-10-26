@@ -9,7 +9,6 @@ using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Runtime.Assets;
-using Capsule.Runtime.Desktop;
 using Capsule.Scenes;
 
 namespace Capsule.AotSmoke;
@@ -190,7 +189,7 @@ internal static class Program
     private static bool Registers(string driverName) => Array.IndexOf(SmokeDrivers.Names, driverName) >= 0;
 
     private static HeadlessRunResult Play(string[] args) =>
-        CapsuleBoot.Configure("Capsule AOT Smoke", new DesktopPlatform())
+        CapsuleBoot.Configure("Capsule AOT Smoke")
             .WithCommandLine(args)
             .WithRunStart(FixtureInput.Configure)
             .WithSampling(TextureSampling.Point)

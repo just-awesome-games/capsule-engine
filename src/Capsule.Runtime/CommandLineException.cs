@@ -9,7 +9,7 @@ namespace Capsule.Runtime;
 /// <code>
 /// try
 /// {
-///     return CapsuleBoot.Configure("My Game", new DesktopPlatform())
+///     return CapsuleBoot.Configure("My Game")
 ///         .WithCommandLine(args)
 ///         .RunScene&lt;TitleScene&gt;();
 /// }

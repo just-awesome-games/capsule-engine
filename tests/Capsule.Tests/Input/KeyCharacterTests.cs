@@ -1,8 +1,8 @@
 using Capsule.Input;
 using Capsule.Runtime;
 using Capsule.Runtime.Input;
+using Capsule.Runtime.Platform;
 using Capsule.Runtime.Scenes;
-using Capsule.Runtime.Sdl;
 using Capsule.Scenes;
 
 namespace Capsule.Tests.Input;

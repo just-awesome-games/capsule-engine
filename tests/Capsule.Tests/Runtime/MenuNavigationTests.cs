@@ -39,7 +39,6 @@ public sealed class MenuNavigationTests
 
         HeadlessRunResult result = CapsuleEngine.Configure(
                 "Menu Game",
-                new ContentPlatform(),
                 new SceneRegistry(
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(Menu), _ => played = new Menu())]))

@@ -85,5 +85,5 @@ In reach order, each lever overriding the one above it:
 3. `EngineBuilder.WithSaveDirectory(path)`, or `--saves <dir>`, moves the saves directory itself: a
    portable build, a fresh-install playtest.
 4. `EngineBuilder.WithSaveStorage(ISaveStorage)` replaces the medium for one shell. The default medium
-   is the platform module's `OpenSaveStorage`, and a platform that mounts a container answers with its
+   is the platform's `OpenSaveStorage`, and a port that mounts a container answers with its
    own ([`architecture.md`](architecture.md#platforms)).

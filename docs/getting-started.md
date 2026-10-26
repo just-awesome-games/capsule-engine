@@ -30,13 +30,12 @@ The shell's only hand-written code is its entry point, against the generated `Ca
 
 ```csharp
 using Capsule.Runtime;
-using Capsule.Runtime.Desktop;
 using MyGame;
 using MyGame.Scenes;
 
 try
 {
-    return CapsuleBoot.Configure("My Game", new DesktopPlatform())
+    return CapsuleBoot.Configure("My Game")
         .WithCommandLine(args)
         .WithRunStart(run => GameInput.Configure(run.Input))
         .RunScene<PlayField>();

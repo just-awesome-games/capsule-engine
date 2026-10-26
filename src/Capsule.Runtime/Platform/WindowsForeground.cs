@@ -1,20 +1,28 @@
 using System.Runtime.InteropServices;
 
-namespace Capsule.Runtime.Desktop;
+namespace Capsule.Runtime.Platform;
 
-// Takes the Windows foreground for a window the OS will not hand it to. Windows grants activation
-// only to the process that received the last input event, among others. A synthetic zero-motion mouse
-// move makes this process that one, and SetForegroundWindow then activates normally. Attaching to the
-// foreground thread's input queue is avoided. A window activated that way is never deactivated by a
-// click elsewhere. A no-op off Windows.
+// Takes the Windows foreground for a window the OS will not hand it to, as after a launch through the
+// dotnet muxer. Windows grants activation only to the process that received the last input event,
+// among others. A synthetic zero-motion mouse move makes this process that one, and
+// SetForegroundWindow then activates normally. Attaching to the foreground thread's input queue, as
+// SDL's forced raise does, is avoided. A window activated that way is never deactivated by a click
+// elsewhere. A no-op off Windows.
 internal static class WindowsForeground
 {
     private const uint InputMouse = 0;
     private const uint MouseEventMove = 0x0001;
 
+    // Takes SDL's window, not its HWND.
     internal static void Claim(nint window)
     {
-        if (!OperatingSystem.IsWindows() || window == nint.Zero || GetForegroundWindow() == window)
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        nint handle = Sdl3.Win32Window(window);
+        if (handle == nint.Zero || GetForegroundWindow() == handle)
         {
             return;
         }
@@ -23,21 +31,18 @@ internal static class WindowsForeground
         input.Type = InputMouse;
         input.Mouse.Flags = MouseEventMove;
         SendInput(1, ref input, Marshal.SizeOf<Input>());
-        SetForegroundWindow(window);
+        SetForegroundWindow(handle);
     }
 
-    // DllImport for the reason SdlPlatform gives.
-#pragma warning disable SYSLIB1054
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", ExactSpelling = true)]
     private static extern nint GetForegroundWindow();
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetForegroundWindow(nint window);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", ExactSpelling = true)]
     private static extern uint SendInput(uint count, ref Input input, int size);
-#pragma warning restore SYSLIB1054
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MouseInput

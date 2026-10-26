@@ -82,7 +82,7 @@ internal static class Diagnostics
     internal static readonly DiagnosticDescriptor ShellRoleMissingRuntime = Rule(
         "CAP013", ScenesCategory, ScenesPage,
         "A game-shell project must reference Capsule.Runtime",
-        "This project's file declares <CapsuleGameShell> but Capsule.Runtime.CapsuleEngine is unavailable. Reference a platform module such as Capsule.Runtime.Desktop or drop the property");
+        "This project's file declares <CapsuleGameShell> but Capsule.Runtime.CapsuleEngine is unavailable. Reference Capsule.Runtime or drop the property");
 
     internal static readonly DiagnosticDescriptor InvalidRegistryProvider = Rule(
         "CAP014", ScenesCategory, ScenesPage,

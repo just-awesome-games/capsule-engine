@@ -2,6 +2,12 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "JAG.Capsule.Native.SDL3": {
+        "type": "Direct",
+        "requested": "[3.4.18.2, )",
+        "resolved": "3.4.18.2",
+        "contentHash": "vXE70tFrQq4GrBZSZ/jfZt3brMQUIrY95vs+nIxfbP9C/yKsbiiI2BtPbX3lROZcaZcZNrm83NMgYHIgyuMF4w=="
+      },
       "Microsoft.CodeAnalysis.BannedApiAnalyzers": {
         "type": "Direct",
         "requested": "[5.6.0, )",
