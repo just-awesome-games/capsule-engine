@@ -10,8 +10,9 @@ namespace Capsule.Runtime.Gpu;
 // use them, with one frame in flight. A copy pass stages every upload in one transfer buffer the device
 // keeps, appended from the start of each frame, and records the uploads when the pass ends, after the
 // buffer is unmapped. The first staging of a frame cycles the buffer, which never waits on a frame
-// still in flight. A burst of uploads grows the buffer, and StagingSettle returns it to its steady
-// size once frames are quiet again. A frame at steady state allocates nothing.
+// still in flight. A burst of uploads overflows the buffer into further copies, a buffer upload
+// larger than it grows it, and StagingSettle returns it to its steady size once frames are quiet
+// again. A frame at steady state allocates nothing.
 internal sealed unsafe class GpuDevice : IDisposable
 {
     // Every staged upload starts on this boundary, a multiple of any texel's size.
@@ -316,10 +317,23 @@ internal sealed unsafe class GpuDevice : IDisposable
         EndFrame();
     }
 
+    // Stages the texels in bands of rows that fit the steady staging size. Only a single row larger
+    // than that grows the buffer, and a band overflowing it continues in a fresh copy of it.
     internal void UploadToTexture(nint copyPass, GpuTexture texture, int x, int y, int width, int height, ReadOnlySpan<byte> texels)
     {
-        int offset = Stage(copyPass, texels);
-        Record(new Transfer(TransferKind.Texture, texture.Handle, offset, x, y, width, height, Cycle: false));
+        if (height == 0)
+        {
+            return;
+        }
+
+        int rowBytes = texels.Length / height;
+        int bandRows = StagingSettle.BandRows(rowBytes);
+        for (int row = 0; row < height; row += bandRows)
+        {
+            int rows = Math.Min(bandRows, height - row);
+            int offset = Stage(copyPass, texels.Slice(row * rowBytes, rows * rowBytes));
+            Record(new Transfer(TransferKind.Texture, texture.Handle, offset, x, y + row, width, rows, Cycle: false));
+        }
     }
 
     internal void UploadToBuffer(nint copyPass, GpuBuffer buffer, int offset, ReadOnlySpan<byte> data, bool cycle)

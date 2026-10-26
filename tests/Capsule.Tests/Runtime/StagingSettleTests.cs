@@ -43,6 +43,20 @@ public sealed class StagingSettleTests
         Assert.True(settle.EndFrame(0, overflowed: false, now: Quiet * 6));
     }
 
+    // A texture's band never outgrows the steady size unless one row does. Streaming a large page then
+    // never grows the buffer past the size SDL's Vulkan driver gives a 64 MB block of its own.
+    [Theory]
+    [InlineData(4096 * 4, 64)]
+    [InlineData(300 * 4, 873)]
+    [InlineData(StagingSettle.SteadyBytes * 2, 1)]
+    public void BandRows_FitTheSteadySize_OrHoldOneRow(int rowBytes, int expected)
+    {
+        int rows = StagingSettle.BandRows(rowBytes);
+
+        Assert.Equal(expected, rows);
+        Assert.True(rows == 1 || rows * rowBytes <= StagingSettle.SteadyBytes);
+    }
+
     // A buffer that never grew or overflowed is never recreated, however long it stays quiet.
     [Fact]
     public void EndFrame_WithoutABurst_NeverRecreates()

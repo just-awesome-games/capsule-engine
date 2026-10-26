@@ -13,6 +13,10 @@ internal struct StagingSettle(long quietTicks)
     private long _quietSince;
     private bool _burst;
 
+    // The rows of rowBytes each that one staged band of a texture holds: as many as fit SteadyBytes,
+    // and one when a single row does not fit.
+    internal static int BandRows(int rowBytes) => Math.Max(1, SteadyBytes / rowBytes);
+
     // Records one submitted frame: the bytes it staged, whether it grew or overflowed the buffer, and
     // the timestamp it ended at. True when the buffer is to be recreated at SteadyBytes now. A frame
     // that overflowed is part of the burst, however few bytes alignment let it stage.
