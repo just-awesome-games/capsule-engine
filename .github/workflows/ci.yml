@@ -129,8 +129,8 @@ jobs:
 
       # The sample again with development flags kept, whose command line takes the driver that plays it.
       # The runners have no GPU. Linux draws through Mesa's software Vulkan driver, lavapipe, on a
-      # virtual display. Direct3D 12 has no software adapter and the macOS runners expose no Metal
-      # device, so only the Linux leg plays.
+      # virtual X11 display and a headless Wayland compositor. Direct3D 12 has no software adapter and
+      # the macOS runners expose no Metal device, so only the Linux leg plays.
       - name: Publish the sample to play
         if: runner.os == 'Linux'
         run: >
@@ -144,9 +144,9 @@ jobs:
           -p:CapsuleShipping=false
           --output artifacts/sample-play
 
-      - name: Install a virtual display and software Vulkan
+      - name: Install virtual displays and software Vulkan
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y xvfb mesa-vulkan-drivers
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y xvfb weston mesa-vulkan-drivers
 
       # SDL3 loads from beside the executable and opens the window and the GPU device, and the
       # Walkthrough driver plays the room, then the hall, which draws with a game shader, each to the
@@ -161,6 +161,20 @@ jobs:
           }
           play --scene scenes/room --driver Walkthrough
           play --scene scenes/halls/hall --payload WestArrival --driver Walkthrough
+
+      # The same walk on Wayland, through a headless compositor whose one output has a scale of 2, so
+      # the window's drawable is twice its extent in window coordinates.
+      - name: Play the sample on Wayland at a scale of 2
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        working-directory: artifacts/sample-play
+        run: |
+          export XDG_RUNTIME_DIR="$(mktemp -d)"
+          weston --backend=headless --renderer=pixman --width=1280 --height=720 --scale=2 --socket=capsule &
+          for _ in $(seq 50); do test -S "$XDG_RUNTIME_DIR/capsule" && break; sleep 0.2; done
+          export WAYLAND_DISPLAY=capsule SDL_VIDEO_DRIVER=wayland
+          ./MinimalGame --scene scenes/room --driver Walkthrough
+          ./MinimalGame --scene scenes/halls/hall --payload WestArrival --driver Walkthrough
 
       # The shipping axis is decided before native code generation and is the same on every
       # operating system. One leg holds it.

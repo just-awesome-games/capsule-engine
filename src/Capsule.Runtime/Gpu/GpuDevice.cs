@@ -55,7 +55,7 @@ internal sealed unsafe class GpuDevice : IDisposable
 
         if (!Sdl3.SDL_ClaimWindowForGPUDevice(_device, window))
         {
-            InvalidOperationException refused = Unavailable("could not present to the window");
+            InvalidOperationException refused = new(ClaimRefused(Utf8(Sdl3.SDL_GetGPUDeviceDriver(_device)) ?? "unnamed", Sdl3.Error()));
             Sdl3.SDL_DestroyGPUDevice(_device);
             throw refused;
         }
@@ -444,6 +444,11 @@ internal sealed unsafe class GpuDevice : IDisposable
             ? buffer
             : throw new InvalidOperationException($"A transfer buffer of {size} bytes could not be created: {Sdl3.Error()}");
     }
+
+    // A device that opened and then could not present to the window is no GPU shortfall. Its message
+    // sends the reader to the display and the driver choice, not to a driver update.
+    internal static string ClaimRefused(string driver, string error) =>
+        $"Capsule's {driver} GPU could not present to the window: {error}. A driver can refuse while every display is off: turn a display on, or set the SDL_GPU_DRIVER environment variable to another driver (direct3d12, vulkan or metal), or clear it to let SDL choose.";
 
     private static InvalidOperationException Unavailable(string failure) => new(
         $"Capsule {failure}: {Sdl3.Error()}. It draws through Direct3D 12 at feature level 11_0, Vulkan 1.0, or Metal on a GPU of family Mac2. Update the graphics driver, or run on a machine whose GPU has one of them.");

@@ -64,7 +64,7 @@ internal static class GamepadMappings
     // Returns how many were added, and how many were left to SDL because it maps their GUID already.
     private static unsafe (int Added, int Known) FillGaps()
     {
-        string platform = Marshal.PtrToStringUTF8((nint)Sdl3.SDL_GetPlatform()) ?? string.Empty;
+        string platform = Sdl3.Platform();
         int added = 0;
         int known = 0;
 
@@ -111,7 +111,7 @@ internal static class GamepadMappings
 
     // A line names its platform, as SDL reads it, or applies to every platform when it names none. SDL
     // takes the older "Mac OS X" for macOS.
-    private static bool ForPlatform(string line, string platform)
+    internal static bool ForPlatform(string line, string platform)
     {
         int field = line.IndexOf(PlatformField, StringComparison.Ordinal);
         if (field < 0)

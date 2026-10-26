@@ -64,6 +64,9 @@ internal static unsafe partial class Sdl3
     // SDL's last error message on this thread.
     internal static string Error() => Marshal.PtrToStringUTF8((nint)SDL_GetError()) ?? string.Empty;
 
+    // The operating system's name as SDL gives it, such as "Windows", "Linux" or "macOS".
+    internal static string Platform() => Marshal.PtrToStringUTF8((nint)SDL_GetPlatform()) ?? string.Empty;
+
     // SDL_GamepadButton.
     internal enum GamepadButton
     {

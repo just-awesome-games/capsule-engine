@@ -9,8 +9,9 @@ namespace Capsule.Tests.Input;
 [Collection(SdlEventsCollection.Name)]
 public sealed class GamepadMappingsTests
 {
-    // Raphnet's SNES adapters are in the community database and not in SDL's own. A GUID SDL already
-    // maps keeps SDL's mapping. A line the player's file gives a GUID replaces whatever came before.
+    // The community database maps devices for this platform that SDL's own tables lack. A GUID SDL
+    // already maps keeps SDL's mapping. A line the player's file gives a GUID replaces whatever came
+    // before.
     [Fact]
     public void TheEmbeddedDatabase_FillsOnlySdlsGaps_AndThePlayersFileOverridesIt()
     {
@@ -18,7 +19,7 @@ public sealed class GamepadMappingsTests
         try
         {
             string[] lines = [.. EmbeddedLines().Where(static line => line.Length > 32 && line[0] != '#')];
-            string[] unknown = [.. lines.Where(static line => line.Contains(",Raphnet SNES Adapter,", StringComparison.Ordinal) && Mapping(Guid(line)) is null)];
+            string[] unknown = [.. lines.Where(static line => line[32] == ',' && GamepadMappings.ForPlatform(line, Sdl3.Platform()) && Mapping(Guid(line)) is null)];
             Dictionary<string, string> known = lines.Select(static line => Guid(line)).Distinct().Select(static guid => (guid, mapping: Mapping(guid))).Where(static entry => entry.mapping is not null).ToDictionary(static entry => entry.guid, static entry => entry.mapping!);
             Assert.NotEmpty(unknown);
             Assert.NotEmpty(known);
