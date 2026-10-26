@@ -5,11 +5,13 @@
        part answers to the shell role, and a role-free project publishes as the SDK does. -->
 
   <!-- Defaults a project can override, for a native publish only. Its crash log's addresses decode
-       against the native symbols, and a managed publish keeps its method names. CapsuleShipping is
-       set in Capsule.Build.targets, ahead of this file. -->
+       against the native symbols, and a managed publish keeps its method names. Code compiled for
+       size runs the engine's frames and steps no measurably slower. CapsuleShipping is set in
+       Capsule.Build.targets, ahead of this file. -->
   <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true' and '$(CapsuleShipping)' == 'true' and '$(PublishAot)' == 'true'">
     <StackTraceSupport Condition="'$(StackTraceSupport)' == ''">false</StackTraceSupport>
     <UseSystemResourceKeys Condition="'$(UseSystemResourceKeys)' == ''">true</UseSystemResourceKeys>
+    <OptimizationPreference Condition="'$(OptimizationPreference)' == ''">Size</OptimizationPreference>
   </PropertyGroup>
 
   <!-- The executable names its pdb by file name alone, never the build machine's path. The pdb's
@@ -49,23 +51,36 @@
     </ItemGroup>
   </Target>
 
-  <!-- The engine embeds its own sprite shader in every format. A native publish removes the formats it
-       does not carry. The compiler ignores a resource the assembly does not hold. -->
-  <Target Name="CapsuleRemoveUnreadEngineShaders"
-          Condition="'$(CapsuleGameShell)' == 'true' and '$(PublishAot)' == 'true' and '$(CapsuleShaderFormats)' != ''"
+  <!-- The engine embeds its own sprite shader in every format and the controller database once per
+       desktop platform. A native publish removes the formats it does not carry and every platform's
+       database but its runtime identifier's. The compiler ignores a resource the assembly does not
+       hold. -->
+  <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
+    <_CapsuleGamepadMappingsPlatforms>windows;linux;macos</_CapsuleGamepadMappingsPlatforms>
+    <_CapsuleGamepadMappingsPlatform Condition="$(RuntimeIdentifier.StartsWith('win-'))">windows</_CapsuleGamepadMappingsPlatform>
+    <_CapsuleGamepadMappingsPlatform Condition="$(RuntimeIdentifier.StartsWith('linux-'))">linux</_CapsuleGamepadMappingsPlatform>
+    <_CapsuleGamepadMappingsPlatform Condition="$(RuntimeIdentifier.StartsWith('osx-'))">macos</_CapsuleGamepadMappingsPlatform>
+  </PropertyGroup>
+
+  <Target Name="CapsuleRemoveUnreadEngineResources"
+          Condition="'$(CapsuleGameShell)' == 'true' and '$(PublishAot)' == 'true'"
           BeforeTargets="WriteIlcRspFileForCompilation">
     <ItemGroup>
-      <_CapsuleUnreadEngineShader Include="$(_CapsuleEngineShaderFormats)" Exclude="$(CapsuleShaderFormats)" />
-      <_CapsuleEngineShaderResource Include="@(_CapsuleUnreadEngineShader->'    &lt;resource name=&quot;Capsule.Runtime.Rendering.Shaders.sprite.%(Identity).shader&quot; action=&quot;remove&quot; /&gt;')" />
-      <_CapsuleEngineShaderResource Include="@(_CapsuleUnreadEngineShader->'    &lt;resource name=&quot;Capsule.Runtime.Rendering.Shaders.vertex.%(Identity).shader&quot; action=&quot;remove&quot; /&gt;')" />
+      <_CapsuleUnreadEngineShader Include="$(_CapsuleEngineShaderFormats)" Exclude="$(CapsuleShaderFormats)" Condition="'$(CapsuleShaderFormats)' != ''" />
+      <_CapsuleUnreadEngineResource Include="@(_CapsuleUnreadEngineShader->'Capsule.Runtime.Rendering.Shaders.sprite.%(Identity).shader')" />
+      <_CapsuleUnreadEngineResource Include="@(_CapsuleUnreadEngineShader->'Capsule.Runtime.Rendering.Shaders.vertex.%(Identity).shader')" />
+      <_CapsuleUnreadGamepadMappings Include="$(_CapsuleGamepadMappingsPlatforms)" Exclude="$(_CapsuleGamepadMappingsPlatform)" Condition="'$(_CapsuleGamepadMappingsPlatform)' != ''" />
+      <_CapsuleUnreadEngineResource Include="@(_CapsuleUnreadGamepadMappings->'Capsule.Runtime.Input.gamecontrollerdb.%(Identity).txt.gz')" />
+      <_CapsuleUnreadEngineResourceLine Include="@(_CapsuleUnreadEngineResource->'    &lt;resource name=&quot;%(Identity)&quot; action=&quot;remove&quot; /&gt;')" />
     </ItemGroup>
-    <WriteLinesToFile File="$(IntermediateOutputPath)capsule-engine-shaders.xml"
-                      Lines="&lt;linker&gt;;  &lt;assembly fullname=&quot;Capsule.Runtime&quot;&gt;;@(_CapsuleEngineShaderResource);  &lt;/assembly&gt;;&lt;/linker&gt;"
+    <WriteLinesToFile Condition="'@(_CapsuleUnreadEngineResource)' != ''"
+                      File="$(IntermediateOutputPath)capsule-engine-resources.xml"
+                      Lines="&lt;linker&gt;;  &lt;assembly fullname=&quot;Capsule.Runtime&quot;&gt;;@(_CapsuleUnreadEngineResourceLine);  &lt;/assembly&gt;;&lt;/linker&gt;"
                       Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
-    <ItemGroup>
-      <IlcArg Include="--substitution:$(IntermediateOutputPath)capsule-engine-shaders.xml" />
-      <FileWrites Include="$(IntermediateOutputPath)capsule-engine-shaders.xml" />
+    <ItemGroup Condition="'@(_CapsuleUnreadEngineResource)' != ''">
+      <IlcArg Include="--substitution:$(IntermediateOutputPath)capsule-engine-resources.xml" />
+      <FileWrites Include="$(IntermediateOutputPath)capsule-engine-resources.xml" />
     </ItemGroup>
   </Target>
 

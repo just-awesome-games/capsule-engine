@@ -22,12 +22,16 @@ internal sealed class GamepadSampler : IDisposable
     private readonly HashSet<uint> _unmapped = [];
     private readonly bool _open;
 
+    // Whether the embedded controller database has been read, which happens once, for the first
+    // connected joystick SDL cannot map.
+    private bool _databaseRead;
+
     // The family of the pad last active, kept when it disconnects so a prompt does not flicker.
     private PadFamily _family;
 
     // Pads plugged in before the watch existed raised their added events unheard. They are read from
-    // SDL's list here, after the mappings that make some joysticks gamepads, and every later change
-    // from the feed. openContent reads a player's gamecontrollerdb.txt, and null reads none.
+    // SDL's list here, after the player's mappings, and every later change from the feed. openContent
+    // reads a player's gamecontrollerdb.txt, and null reads none.
     internal GamepadSampler(Func<string, Stream>? openContent)
     {
         _openPad = Open;
@@ -39,7 +43,7 @@ internal sealed class GamepadSampler : IDisposable
             return;
         }
 
-        GamepadMappings.Load(openContent);
+        GamepadMappings.LoadPlayerFile(openContent);
         Reconcile();
     }
 
@@ -190,12 +194,19 @@ internal sealed class GamepadSampler : IDisposable
         Sdl3.SDL_QuitSubSystem(Sdl3.InitGamepad);
     }
 
-    // Brings the open pads in line with SDL's list. A failed read of the list changes nothing.
+    // Brings the open pads in line with SDL's list. A failed read of the list changes nothing. A
+    // joystick the embedded database maps is a gamepad in the list by the time it is read.
     private unsafe void Reconcile()
     {
         if (!_open)
         {
             return;
+        }
+
+        if (!_databaseRead && AnyJoystickUnmapped())
+        {
+            _databaseRead = true;
+            GamepadMappings.FillGaps();
         }
 
         int count;
@@ -215,6 +226,33 @@ internal sealed class GamepadSampler : IDisposable
         }
 
         ReportUnmapped();
+    }
+
+    private static unsafe bool AnyJoystickUnmapped()
+    {
+        int count;
+        uint* ids = Sdl3.SDL_GetJoysticks(&count);
+        if (ids == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            foreach (uint id in new ReadOnlySpan<uint>(ids, count))
+            {
+                if (!Sdl3.SDL_IsGamepad(id))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        finally
+        {
+            Sdl3.SDL_free((nint)ids);
+        }
     }
 
     // Names, once each, every connected joystick SDL has no gamepad mapping for. A player reading the

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using Capsule.Rendering;
@@ -9,12 +10,10 @@ namespace Capsule.Runtime.Gpu;
 // use them, with one frame in flight. A copy pass stages every upload in one transfer buffer the device
 // keeps, appended from the start of each frame, and records the uploads when the pass ends, after the
 // buffer is unmapped. The first staging of a frame cycles the buffer, which never waits on a frame
-// still in flight. A frame at steady state allocates nothing.
+// still in flight. A burst of uploads grows the buffer, and StagingSettle returns it to its steady
+// size once frames are quiet again. A frame at steady state allocates nothing.
 internal sealed unsafe class GpuDevice : IDisposable
 {
-    // Room for a frame's prefetch budget and its sprites. A frame that stages more grows it.
-    private const int InitialStagingBytes = 8 << 20;
-
     // Every staged upload starts on this boundary, a multiple of any texel's size.
     private const int StagingAlignment = 16;
 
@@ -25,8 +24,17 @@ internal sealed unsafe class GpuDevice : IDisposable
     // Every sampler this device created, released with it. A run creates a few and keeps them.
     private readonly List<GpuSampler> _samplers = [];
 
+    // How long frames stay within the steady size before a grown or overflowed buffer is recreated.
+    private static readonly long QuietTicks = 2 * Stopwatch.Frequency;
+
+    private StagingSettle _settle = new(QuietTicks);
+
     private nint _staging;
     private int _stagingSize;
+
+    // Bytes the frame has staged across every buffer it filled, and whether it grew or overflowed one.
+    private int _frameStaged;
+    private bool _overflowed;
 
     // Bytes of the staging buffer this frame has used, and its mapping while a copy pass writes to it.
     private int _stagingUsed;
@@ -67,7 +75,7 @@ internal sealed unsafe class GpuDevice : IDisposable
             : (formats & Sdl3.GpuShaderFormatMsl) != 0 ? (Sdl3.GpuShaderFormatMsl, "msl")
             : (Sdl3.GpuShaderFormatSpirv, "spirv");
         Description = Describe(_device);
-        _stagingSize = InitialStagingBytes;
+        _stagingSize = StagingSettle.SteadyBytes;
         _staging = CreateTransferBuffer(Sdl3.GpuTransferUpload, _stagingSize);
     }
 
@@ -286,17 +294,17 @@ internal sealed unsafe class GpuDevice : IDisposable
 
     internal void Submit(nint commands)
     {
-        _stagingUsed = 0;
         if (!Sdl3.SDL_SubmitGPUCommandBuffer(commands))
         {
             throw new InvalidOperationException($"The GPU refused the frame: {Sdl3.Error()}");
         }
+
+        EndFrame();
     }
 
     // Submits and blocks until the GPU has run the command buffer.
     internal void SubmitAndWait(nint commands)
     {
-        _stagingUsed = 0;
         nint fence = Sdl3.SDL_SubmitGPUCommandBufferAndAcquireFence(commands);
         if (fence == 0)
         {
@@ -305,6 +313,7 @@ internal sealed unsafe class GpuDevice : IDisposable
 
         Sdl3.SDL_WaitForGPUFences(_device, waitAll: true, &fence, 1);
         Sdl3.SDL_ReleaseGPUFence(_device, fence);
+        EndFrame();
     }
 
     internal void UploadToTexture(nint copyPass, GpuTexture texture, int x, int y, int width, int height, ReadOnlySpan<byte> texels)
@@ -343,9 +352,11 @@ internal sealed unsafe class GpuDevice : IDisposable
     // what is staged so far and continues in a fresh store, grown when data alone outgrows it.
     private int Stage(nint copyPass, ReadOnlySpan<byte> data)
     {
+        _frameStaged += data.Length;
         int offset = (_stagingUsed + StagingAlignment - 1) & ~(StagingAlignment - 1);
         if (offset + data.Length > _stagingSize)
         {
+            _overflowed = true;
             Flush(copyPass);
             offset = 0;
             if (data.Length > _stagingSize)
@@ -371,6 +382,22 @@ internal sealed unsafe class GpuDevice : IDisposable
         _stagingUsed = offset + data.Length;
 
         return offset;
+    }
+
+    // Starts the next frame's staging from the buffer's start. A submitted frame keeps its copy of the
+    // buffer until the GPU has run it. Recreating the buffer here never waits.
+    private void EndFrame()
+    {
+        bool settle = _settle.EndFrame(_frameStaged, _overflowed, Stopwatch.GetTimestamp());
+        _stagingUsed = 0;
+        _frameStaged = 0;
+        _overflowed = false;
+        if (settle)
+        {
+            Sdl3.SDL_ReleaseGPUTransferBuffer(_device, _staging);
+            _stagingSize = StagingSettle.SteadyBytes;
+            _staging = CreateTransferBuffer(Sdl3.GpuTransferUpload, _stagingSize);
+        }
     }
 
     private void Record(in Transfer transfer)

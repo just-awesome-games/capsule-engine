@@ -203,7 +203,7 @@ Without an output device the run plays silently and logs that once.
 
 A publish carries the GPU formats its runtime identifier's drivers read: DXIL and SPIR-V for `win-`, SPIR-V
 for `linux-` and MSL for `osx-`. A NativeAOT publish drops the engine's own sprite shader in the other formats
-too. `CapsuleShaderFormats` names another set.
+too, and the controller database of the other desktop platforms. `CapsuleShaderFormats` names another set.
 
 A publish replaces its directory's `assets/` whole. The folder never carries an asset the current build does
 not ship, whatever an earlier publish left there.
@@ -214,8 +214,8 @@ also needs `C:\Program Files (x86)\Microsoft Visual Studio\Installer` on `PATH`.
 A shell's publish carries a `licenses/` folder: Capsule's license, its third-party notices for what Capsule carries and a
 game redistributes, and, when the runtime ships with the game, the .NET runtime's license and notices.
 
-A publish holds no `.pdb`, and a NativeAOT executable names its `.pdb` by file name alone, with no build-machine path. A NativeAOT publish defaults `StackTraceSupport` to `false` and
-`UseSystemResourceKeys` to `true`, which a project can set back. Its symbols go to
+A publish holds no `.pdb`, and a NativeAOT executable names its `.pdb` by file name alone, with no build-machine path. A NativeAOT publish defaults `StackTraceSupport` to `false`,
+`UseSystemResourceKeys` to `true` and `OptimizationPreference` to `Size`, which a project can set back. Its symbols go to
 `CapsuleSymbolsDirectory`. A crash log's frames then read `MyGame!<BaseAddress>+0x296cd`. To decode one,
 copy the shipped executable into the symbols directory and run
 `llvm-symbolizer --relative-address --obj=<symbols>/MyGame.exe 0x296cd`. The MSVC Build Tools ship

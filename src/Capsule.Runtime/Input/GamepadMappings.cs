@@ -7,19 +7,15 @@ using Capsule.Runtime.Platform;
 
 namespace Capsule.Runtime.Input;
 
-// Teaches SDL the controllers it cannot map, before any pad is opened. The community database ships
-// embedded, gzipped at build time from gamecontrollerdb.txt beside this file, and only fills gaps. A
-// mapping added at run time outranks SDL's own, and a pad that works on SDL alone keeps the mapping SDL
-// gave it. A gamecontrollerdb.txt the player puts beside the game is read whole after it and
-// overrides both. SDL's own environment hints hold a higher priority than either and keep working.
+// Teaches SDL the controllers it cannot map. A gamecontrollerdb.txt the player puts beside the game is
+// read whole at boot. The community database ships embedded, one gzipped file per desktop platform
+// split at build time from gamecontrollerdb.txt beside this file, and is read only when a connected
+// joystick has no mapping. It only fills gaps: a GUID SDL or the player's file already maps keeps that
+// mapping. SDL's own environment hints hold a higher priority than either and keep working.
 internal static class GamepadMappings
 {
     // The file name a player's mappings ship under, at the content root.
     internal const string PlayerFile = "gamecontrollerdb.txt";
-
-    internal const string ResourceName = "Capsule.Runtime.Input.gamecontrollerdb.txt.gz";
-
-    private const string PlatformField = "platform:";
 
     // The driver signatures whose devices SDL maps itself: HIDAPI, XInput, RawInput, Windows.Gaming.Input,
     // GameInput, MFi and virtual. Byte 14 of an SDL GUID is the signature SDL_IsJoystickHIDAPI and its
@@ -28,13 +24,18 @@ internal static class GamepadMappings
 
     private static readonly SearchValues<char> HexDigits = SearchValues.Create("0123456789abcdefABCDEF");
 
-    // openContent reads the player's file, and null reads none. Called once, at boot, which allocates
-    // the decompressed database once.
-    internal static void Load(Func<string, Stream>? openContent)
+    // The embedded database's resource for SDL's platform name, or null on a platform it has none for.
+    internal static string? ResourceFor(string platform) => platform switch
     {
-        (int added, int known) = FillGaps();
-        Log.Info($"controller database: {added} mappings added, {known} left to SDL's own");
+        "Windows" => "Capsule.Runtime.Input.gamecontrollerdb.windows.txt.gz",
+        "Linux" => "Capsule.Runtime.Input.gamecontrollerdb.linux.txt.gz",
+        "macOS" => "Capsule.Runtime.Input.gamecontrollerdb.macos.txt.gz",
+        _ => null,
+    };
 
+    // Reads the player's file through openContent, and nothing when it is null or the file is missing.
+    internal static void LoadPlayerFile(Func<string, Stream>? openContent)
+    {
         if (openContent is null)
         {
             return;
@@ -60,15 +61,20 @@ internal static class GamepadMappings
         }
     }
 
-    // Each embedded line for this platform whose GUID no driver of SDL's maps and SDL's tables lack.
-    // Returns how many were added, and how many were left to SDL because it maps their GUID already.
-    private static unsafe (int Added, int Known) FillGaps()
+    // Adds each embedded line whose GUID no driver of SDL's maps and no mapping covers yet. Called once,
+    // which allocates the decompressed database once.
+    internal static void FillGaps()
     {
-        string platform = Sdl3.Platform();
+        string? resource = ResourceFor(Sdl3.Platform());
+        using Stream? compressed = resource is null ? null : typeof(GamepadMappings).Assembly.GetManifestResourceStream(resource);
+        if (compressed is null)
+        {
+            Log.Info("controller database: none embedded for this platform");
+            return;
+        }
+
         int added = 0;
         int known = 0;
-
-        using Stream compressed = typeof(GamepadMappings).Assembly.GetManifestResourceStream(ResourceName)!;
         using StreamReader lines = new(new GZipStream(compressed, CompressionMode.Decompress));
         while (lines.ReadLine() is { } line)
         {
@@ -86,11 +92,6 @@ internal static class GamepadMappings
             }
 
             string guid = line[..32];
-            if (!ForPlatform(line, platform))
-            {
-                continue;
-            }
-
             if (DrivenBySdl(guid) || Mapped(guid))
             {
                 known++;
@@ -106,25 +107,7 @@ internal static class GamepadMappings
             added++;
         }
 
-        return (added, known);
-    }
-
-    // A line names its platform, as SDL reads it, or applies to every platform when it names none. SDL
-    // takes the older "Mac OS X" for macOS.
-    internal static bool ForPlatform(string line, string platform)
-    {
-        int field = line.IndexOf(PlatformField, StringComparison.Ordinal);
-        if (field < 0)
-        {
-            return true;
-        }
-
-        ReadOnlySpan<char> named = line.AsSpan(field + PlatformField.Length);
-        int end = named.IndexOf(',');
-        named = end < 0 ? named : named[..end];
-
-        return named.Equals(platform, StringComparison.OrdinalIgnoreCase)
-            || (platform == "macOS" && named.Equals("Mac OS X", StringComparison.OrdinalIgnoreCase));
+        Log.Info($"controller database: {added} mappings added, {known} left to SDL's own");
     }
 
     private static bool DrivenBySdl(string guid) =>

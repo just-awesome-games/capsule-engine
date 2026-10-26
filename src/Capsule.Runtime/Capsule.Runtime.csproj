@@ -51,27 +51,74 @@
     <ProjectReference Include="../Capsule/Capsule.csproj" />
   </ItemGroup>
 
-  <!-- The community controller database, committed as plain text so an update is a reviewable diff
-       and embedded gzipped. The shipping runtime already links gzip for scene documents. -->
-  <UsingTask TaskName="CapsuleGzipFile"
+  <!-- The community controller database, committed as plain text so an update is a reviewable diff,
+       and embedded gzipped once per desktop platform so the runtime reads only its own lines and a
+       native publish drops the others. A line naming no platform goes into every one. The shipping
+       runtime already links gzip for scene documents. -->
+  <UsingTask TaskName="CapsuleSplitGamepadMappings"
              TaskFactory="RoslynCodeTaskFactory"
              AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
       <Source ParameterType="System.String" Required="true" />
-      <Destination ParameterType="System.String" Required="true" />
+      <OutputDirectory ParameterType="System.String" Required="true" />
     </ParameterGroup>
     <Task>
+      <Using Namespace="System.Collections.Generic" />
       <Using Namespace="System.IO" />
       <Using Namespace="System.IO.Compression" />
+      <Using Namespace="System.Text" />
       <Code Type="Fragment" Language="cs"><![CDATA[
+        // SDL's platform names, keyed to the file each platform's lines go in.
+        Dictionary<string, string> files = new Dictionary<string, string>
+        {
+            { "Windows", "windows" },
+            { "Linux", "linux" },
+            { "Mac OS X", "macos" },
+        };
+        Dictionary<string, StringBuilder> lines = new Dictionary<string, StringBuilder>();
+        foreach (string file in files.Values)
+        {
+            lines[file] = new StringBuilder();
+        }
+
+        foreach (string line in File.ReadAllLines(Source))
+        {
+            if (line.Length == 0 || line[0] == '#')
+            {
+                continue;
+            }
+
+            int field = line.IndexOf("platform:", StringComparison.Ordinal);
+            if (field < 0)
+            {
+                foreach (StringBuilder text in lines.Values)
+                {
+                    text.Append(line).Append('\n');
+                }
+
+                continue;
+            }
+
+            int start = field + "platform:".Length;
+            int end = line.IndexOf(',', start);
+            string file;
+            if (files.TryGetValue(end < 0 ? line.Substring(start) : line.Substring(start, end - start), out file))
+            {
+                lines[file].Append(line).Append('\n');
+            }
+        }
+
         // SmallestSize is 3, which an MSBuild on .NET Framework lacks.
         CompressionLevel level = Enum.IsDefined(typeof(CompressionLevel), 3) ? (CompressionLevel)3 : CompressionLevel.Optimal;
-        Directory.CreateDirectory(Path.GetDirectoryName(Destination));
-        using (FileStream input = File.OpenRead(Source))
-        using (FileStream output = File.Create(Destination))
-        using (GZipStream gzip = new GZipStream(output, level))
+        Directory.CreateDirectory(OutputDirectory);
+        foreach (KeyValuePair<string, StringBuilder> entry in lines)
         {
-            input.CopyTo(gzip);
+            using (FileStream output = File.Create(Path.Combine(OutputDirectory, "gamecontrollerdb." + entry.Key + ".txt.gz")))
+            using (GZipStream gzip = new GZipStream(output, level))
+            {
+                byte[] text = new UTF8Encoding(false).GetBytes(entry.Value.ToString());
+                gzip.Write(text, 0, text.Length);
+            }
         }
       ]]></Code>
     </Task>
@@ -81,20 +128,24 @@
     <_CapsuleGamepadMappings>$(MSBuildThisFileDirectory)Input/gamecontrollerdb.txt</_CapsuleGamepadMappings>
   </PropertyGroup>
 
-  <Target Name="CapsuleCompressGamepadMappings"
+  <ItemGroup>
+    <_CapsuleGamepadMappingsFile Include="windows;linux;macos" Path="$(IntermediateOutputPath)gamecontrollerdb.%(Identity).txt.gz" />
+  </ItemGroup>
+
+  <Target Name="CapsuleSplitGamepadMappings"
           Inputs="$(_CapsuleGamepadMappings)"
-          Outputs="$(IntermediateOutputPath)gamecontrollerdb.txt.gz">
-    <CapsuleGzipFile Source="$(_CapsuleGamepadMappings)" Destination="$(IntermediateOutputPath)gamecontrollerdb.txt.gz" />
+          Outputs="@(_CapsuleGamepadMappingsFile->'%(Path)')">
+    <CapsuleSplitGamepadMappings Source="$(_CapsuleGamepadMappings)" OutputDirectory="$(IntermediateOutputPath)" />
   </Target>
 
-  <!-- Apart from the compression so the resource is declared even when that target is up to date. -->
+  <!-- Apart from the split so the resources are declared even when that target is up to date. -->
   <Target Name="CapsuleEmbedGamepadMappings"
           BeforeTargets="AssignTargetPaths"
-          DependsOnTargets="CapsuleCompressGamepadMappings">
+          DependsOnTargets="CapsuleSplitGamepadMappings">
     <ItemGroup>
-      <EmbeddedResource Include="$(IntermediateOutputPath)gamecontrollerdb.txt.gz"
-                        LogicalName="Capsule.Runtime.Input.gamecontrollerdb.txt.gz" />
-      <FileWrites Include="$(IntermediateOutputPath)gamecontrollerdb.txt.gz" />
+      <EmbeddedResource Include="@(_CapsuleGamepadMappingsFile->'%(Path)')"
+                        LogicalName="Capsule.Runtime.Input.gamecontrollerdb.%(_CapsuleGamepadMappingsFile.Identity).txt.gz" />
+      <FileWrites Include="@(_CapsuleGamepadMappingsFile->'%(Path)')" />
     </ItemGroup>
   </Target>
 
