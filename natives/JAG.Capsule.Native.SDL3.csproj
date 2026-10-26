@@ -1,11 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- SDL3 for each runtime identifier a desktop shell publishes, which JAG.Capsule.Runtime.Desktop
-       depends on. Version is SDL3's, and a fourth part counts repacks of the same SDL3. -->
+       depends on, with the fixes natives/patches carries. Version is SDL3's, and a fourth part counts
+       repacks of the same SDL3. -->
   <PropertyGroup>
     <PackageId>JAG.Capsule.Native.SDL3</PackageId>
-    <Version>3.4.18.1</Version>
-    <Description>SDL3 for Windows, Linux and macOS, built by Capsule for its desktop host. A game never references it: JAG.Capsule.Runtime.Desktop does.</Description>
+    <Version>3.4.18.2</Version>
+    <Description>SDL3 for Windows, Linux and macOS, built by Capsule for its desktop host with the fixes Capsule carries until SDL releases them. A game never references it: JAG.Capsule.Runtime.Desktop does.</Description>
     <PackageLicenseExpression>Zlib</PackageLicenseExpression>
   </PropertyGroup>
 

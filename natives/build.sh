@@ -60,6 +60,12 @@ sign() {
 sdl3() {
     fetch SDL "$SDL3_REF" https://github.com/libsdl-org/SDL.git
 
+    # Capsule's fixes SDL has not released. A checkout a previous run patched is left as it is.
+    local patch
+    for patch in "$root"/natives/patches/SDL3-*.patch; do
+        git -C "$work/src/SDL" apply --reverse --check "$patch" 2>/dev/null || git -C "$work/src/SDL" apply "$patch"
+    done
+
     # The host's macOS floor.
     local stage=$work/stage deployment=()
     if [ "$rid" = osx ]; then
