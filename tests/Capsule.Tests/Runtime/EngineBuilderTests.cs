@@ -158,7 +158,7 @@ public sealed class EngineBuilderTests
             .WithWindowTitle("Spec")
             .WithWindow(1280, 720, resizable: false)
             .WithFullscreen()
-            .WithoutVSync()
+            .WithVSync(VSyncMode.Off)
             .WithMaxFrameRate(144)
             .WithUnfocusedMaxFrameRate(0)
             .WithRenderResolution(320, 180)

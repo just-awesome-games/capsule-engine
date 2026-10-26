@@ -9,10 +9,9 @@ namespace Capsule.Tests.Generators;
 internal static class GameBoundaryFixtures
 {
     // The boundary rules are about what a game-logic project references. A case declares its
-    // own: nothing Capsule and nothing MonoGame is in scope until a test puts it there.
+    // own: nothing Capsule is in scope until a test puts it there.
     internal static readonly ImmutableArray<MetadataReference> References = GeneratorHarness.Referenced(
-        static name => name.StartsWith("Capsule.", StringComparison.Ordinal)
-            || name.StartsWith("MonoGame.Framework", StringComparison.Ordinal));
+        static name => name.StartsWith("Capsule.", StringComparison.Ordinal));
 
     internal static async Task<ImmutableArray<Diagnostic>> Analyze(
         string source,

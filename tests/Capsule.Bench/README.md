@@ -52,7 +52,7 @@ dotnet-trace report artifacts/bench/traces/Crowd1k.nettrace topN -n 30 [--inclus
 
 ## Allocation in a NativeAOT build
 
-The bench, the allocation tests and `dotnet run` all run JIT-compiled code, and a shipped game runs NativeAOT code. A call that allocates nothing under the JIT can allocate after NativeAOT compilation, and nothing on the JIT side reports it. `Marshal.SizeOf<T>()` allocates 32 bytes a call under NativeAOT and none under the JIT, for any `T`. Measure a published build before a release and after any upgrade of .NET or the host substrate. Publish the game with the development flags kept, then drive it windowed and headless:
+The bench, the allocation tests and `dotnet run` all run JIT-compiled code, and a shipped game runs NativeAOT code. A call that allocates nothing under the JIT can allocate after NativeAOT compilation, and nothing on the JIT side reports it. `Marshal.SizeOf<T>()` allocates 32 bytes a call under NativeAOT and none under the JIT, for any `T`. Measure a published build before a release and after any upgrade of .NET or SDL. Publish the game with the development flags kept, then drive it windowed and headless:
 
 ```text
 dotnet publish src/MyGame.Shell -c Release -r win-x64 --self-contained true -p:PublishAot=true -p:CapsuleShipping=false -o artifacts/bench/aot
@@ -60,7 +60,7 @@ artifacts/bench/aot/MyGame.exe --driver <Name> --frames artifacts/bench/aot-wind
 artifacts/bench/aot/MyGame.exe --driver <Name> --headless --frames artifacts/bench/aot-headless.csv 30
 ```
 
-The frame CSV's `bytes` column is what the frame thread allocated since the previous frame. A steady allocation in the windowed run that the headless run lacks comes from presentation or media: the renderer, the window or the audio device. One in both can come from the steps, the frame build, the driver or the host's upkeep, and needs those split apart. MonoGame 3.8.5.1, the current substrate, accounts for one known allocation, accepted until it is replaced. `VertexBuffer.SetData` calls `Marshal.SizeOf<T>()` on every sprite upload, 32 bytes a batch flush, and a game drawn through a canvas flushes about four times a frame.
+The frame CSV's `bytes` column is what the frame thread allocated since the previous frame. A steady allocation in the windowed run that the headless run lacks comes from presentation or media: the renderer, the window or the audio device. One in both can come from the steps, the frame build, the driver or the host's upkeep, and needs those split apart.
 
 ## Input latency
 

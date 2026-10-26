@@ -1,584 +1,485 @@
-using System.Buffers;
-using System.Numerics;
 using System.Runtime.InteropServices;
-using Microsoft.Xna.Framework.Graphics;
-using Rectangle = Microsoft.Xna.Framework.Rectangle;
-using XnaVector2 = Microsoft.Xna.Framework.Vector2;
-using XnaVector3 = Microsoft.Xna.Framework.Vector3;
-using XnaVector4 = Microsoft.Xna.Framework.Vector4;
+using System.Text;
+using Capsule.Rendering;
+using Capsule.Runtime.Sdl;
 
 namespace Capsule.Runtime.Gpu;
 
-// SDL_GPUDevice: creates the GPU resources and the command buffers that use them. Its bodies drive
-// MonoGame's OpenGL device until the host draws through SDL's GPU API. A command takes effect when it
-// is recorded. OpenGL reads no storage buffer, and a draw runs the vertex stage on the CPU through
-// CpuVertexStage into staged vertices, with a copy of the effect state it draws under. The staged
-// draws reach the device as one upload to a ring of vertices when the target, viewport or scissor
-// changes or the stage fills, then a draw each, applying the effect where its state differs from the
-// draw before. A frame at steady state allocates nothing.
-internal sealed class GpuDevice : IDisposable
+// SDL_GPUDevice and the window it presents to: creates the GPU resources and the command buffers that
+// use them, with one frame in flight. A copy pass stages every upload in one transfer buffer the device
+// keeps, appended from the start of each frame, and records the uploads when the pass ends, after the
+// buffer is unmapped. The first staging of a frame cycles the buffer, which never waits on a frame
+// still in flight. A frame at steady state allocates nothing.
+internal sealed unsafe class GpuDevice : IDisposable
 {
-    // One upload's worth of vertices, a whole number of triangles.
-    private const int ChunkVertices = 8192 * 6;
+    // Room for a frame's prefetch budget and its sprites. A frame that stages more grows it.
+    private const int InitialStagingBytes = 8 << 20;
 
-    // The vertex buffer is a ring of chunks appended with NoOverwrite, and an upload never writes over
-    // vertices an unfinished draw may still be reading. At the end of the ring the cursor wraps and
-    // the write is Discard, which orphans the store instead of stalling behind those draws.
-    private const int RingChunks = 4;
+    // Every staged upload starts on this boundary, a multiple of any texel's size.
+    private const int StagingAlignment = 16;
 
-    private const int UniformBytes = 256;
+    private readonly nint _window;
+    private readonly nint _device;
+    private readonly uint _shaderFormat;
 
-    private static readonly RasterizerState Unscissored = RasterizerState.CullCounterClockwise;
+    // Every sampler this device created, released with it. A run creates a few and keeps them.
+    private readonly List<GpuSampler> _samplers = [];
 
-    private static readonly RasterizerState Scissored = new()
+    private nint _staging;
+    private int _stagingSize;
+
+    // Bytes of the staging buffer this frame has used, and its mapping while a copy pass writes to it.
+    private int _stagingUsed;
+    private byte* _mapped;
+
+    // The copy pass's uploads and downloads in the order recorded, encoded when it ends.
+    private Transfer[] _transfers = new Transfer[64];
+    private int _transferCount;
+
+    // The shader format whose files this device creates shaders from: spirv, dxil or msl.
+    internal string ShaderFormat { get; }
+
+    // One line for the development log: the driver, the device and its driver version.
+    internal string Description { get; }
+
+    // Creates SDL's GPU device for the window and claims the window for it, in SDR composition under
+    // VSYNC with one frame in flight.
+    internal GpuDevice(nint window)
     {
-        CullMode = CullMode.CullCounterClockwiseFace,
-        ScissorTestEnable = true,
-    };
+        _window = window;
+        _device = Sdl3.SDL_CreateGPUDevice(Sdl3.GpuShaderFormatSpirv | Sdl3.GpuShaderFormatDxil | Sdl3.GpuShaderFormatMsl, debugMode: false, name: null);
+        if (_device == 0)
+        {
+            throw Unavailable("could not open a GPU");
+        }
 
-    private readonly GraphicsDevice _graphics;
-    private readonly GpuTexture _backBuffer;
+        if (!Sdl3.SDL_ClaimWindowForGPUDevice(_device, window))
+        {
+            InvalidOperationException refused = Unavailable("could not present to the window");
+            Sdl3.SDL_DestroyGPUDevice(_device);
+            throw refused;
+        }
 
-    private readonly byte[] _vertexUniforms = new byte[UniformBytes];
-    private readonly byte[][] _fragmentUniforms = [new byte[UniformBytes], new byte[UniformBytes]];
-    private readonly int[] _fragmentLengths = new int[2];
-    private readonly GpuTextureSamplerBinding[] _samplers = new GpuTextureSamplerBinding[16];
+        Sdl3.SDL_SetGPUAllowedFramesInFlight(_device, 1);
 
-    private readonly Run[] _runs = new Run[ChunkVertices / 3];
-    private int _runCount;
-
-    // The effect states the staged runs draw under, and the bytes and bindings they copied, each grown to
-    // the largest upload and kept.
-    private State[] _states = new State[64];
-    private int _stateCount;
-    private byte[] _stateBytes = new byte[64 * UniformBytes];
-    private int _stateBytesUsed;
-    private GpuTextureSamplerBinding[] _stateSamplers = new GpuTextureSamplerBinding[64];
-    private int _stateSamplersUsed;
-
-    // Whether the next staged run copies the effect state afresh, which every change to it calls for.
-    private bool _stateChanged = true;
-
-    // The render target OpenGL has bound, null for the back buffer.
-    private RenderTarget2D? _bound;
-
-    private GpuTexture? _target;
-    private Rectangle _viewport;
-    private Rectangle? _scissor;
-    private GpuPipeline? _pipeline;
-    private GpuBuffer? _storage;
-
-    private DynamicVertexBuffer? _vertices;
-
-    // Three coincident vertices, which link an effect's program at pipeline creation.
-    private VertexBuffer? _degenerate;
-    private byte[] _staging = [];
-    private int _stride;
-
-    // Vertices staged and not yet uploaded, and vertices of the ring already handed to draws since the
-    // last wrap.
-    private int _staged;
-    private int _cursor;
-
-    // The shader format whose files this device creates shaders from.
-    internal string ShaderFormat => "glsl";
-
-    internal GpuTextureFormat SwapchainTextureFormat => GpuTextureFormat.R8G8B8A8Unorm;
-
-    // The window's drawable extent in pixels.
-    internal (int Width, int Height) SwapchainSize =>
-        (_graphics.PresentationParameters.BackBufferWidth, _graphics.PresentationParameters.BackBufferHeight);
-
-    // Runs the vertex stage for the OpenGL effects. The renderer that owns the vertex stage sets it.
-    internal ICpuVertexStage? CpuVertexStage { get; set; }
-
-    internal GpuDevice(GraphicsDevice graphics)
-    {
-        _graphics = graphics;
-        _backBuffer = new GpuTexture(null, GpuTextureFormat.R8G8B8A8Unorm, 0, 0);
+        uint formats = Sdl3.SDL_GetGPUShaderFormats(_device);
+        (_shaderFormat, ShaderFormat) = (formats & Sdl3.GpuShaderFormatDxil) != 0 ? (Sdl3.GpuShaderFormatDxil, "dxil")
+            : (formats & Sdl3.GpuShaderFormatMsl) != 0 ? (Sdl3.GpuShaderFormatMsl, "msl")
+            : (Sdl3.GpuShaderFormatSpirv, "spirv");
+        Description = Describe(_device);
+        _stagingSize = InitialStagingBytes;
+        _staging = CreateTransferBuffer(Sdl3.GpuTransferUpload, _stagingSize);
     }
 
-    internal GpuCommandBuffer AcquireCommandBuffer() => new(this);
+    // The window's drawable extent in pixels, zero while it has none.
+    internal (int Width, int Height) WindowSize
+    {
+        get
+        {
+            int width;
+            int height;
+
+            return Sdl3.SDL_GetWindowSizeInPixels(_window, &width, &height) ? (width, height) : (0, 0);
+        }
+    }
+
+    // Presents in the nearest mode the GPU has to requested and returns it. Off falls back to Mailbox,
+    // and Mailbox to On, which every GPU has.
+    internal VSyncMode ApplyVSync(VSyncMode requested)
+    {
+        if (requested == VSyncMode.Off && TryPresentMode(Sdl3.GpuPresentImmediate))
+        {
+            return VSyncMode.Off;
+        }
+
+        if (requested != VSyncMode.On && TryPresentMode(Sdl3.GpuPresentMailbox))
+        {
+            return VSyncMode.Mailbox;
+        }
+
+        if (!Sdl3.SDL_SetGPUSwapchainParameters(_device, _window, Sdl3.GpuCompositionSdr, Sdl3.GpuPresentVsync))
+        {
+            throw new InvalidOperationException($"The window's swapchain refused VSYNC, which every GPU presents with: {Sdl3.Error()}");
+        }
+
+        return VSyncMode.On;
+    }
+
+    // Returns once the next swapchain texture can be acquired. A failed wait leaves the next acquire to
+    // find no texture and present nothing.
+    internal void WaitForSwapchain() => Sdl3.SDL_WaitForGPUSwapchain(_device, _window);
+
+    internal GpuCommandBuffer AcquireCommandBuffer()
+    {
+        nint commands = Sdl3.SDL_AcquireGPUCommandBuffer(_device);
+
+        return commands != 0
+            ? new GpuCommandBuffer(this, commands)
+            : throw new InvalidOperationException($"The GPU gave no command buffer: {Sdl3.Error()}");
+    }
 
     internal GpuTexture CreateTexture(in GpuTextureInfo info)
     {
-        Texture2D body = (info.Usage & GpuTextureUsage.ColorTarget) != 0
-            ? new RenderTarget2D(_graphics, info.Width, info.Height)
-            : new Texture2D(_graphics, info.Width, info.Height, false, info.Format == GpuTextureFormat.R8Unorm ? SurfaceFormat.Alpha8 : SurfaceFormat.Color);
+        Sdl3.GpuTextureCreateInfo create = new()
+        {
+            Type = Sdl3.GpuTextureType2D,
+            Format = (int)info.Format,
+            Usage = (uint)info.Usage,
+            Width = (uint)info.Width,
+            Height = (uint)info.Height,
+            LayerCountOrDepth = 1,
+            NumLevels = 1,
+            SampleCount = Sdl3.GpuSampleCount1,
+        };
+        nint texture = Sdl3.SDL_CreateGPUTexture(_device, &create);
 
-        return new GpuTexture(body, info.Format, info.Width, info.Height);
+        return texture != 0
+            ? new GpuTexture(_device, texture, info.Format, info.Width, info.Height)
+            : throw new InvalidOperationException($"A {info.Width} by {info.Height} texture could not be created: {Sdl3.Error()}");
     }
 
     internal GpuSampler CreateSampler(in GpuSamplerInfo info)
     {
-        TextureAddressMode address = info.AddressMode switch
+        Sdl3.GpuSamplerCreateInfo create = new()
         {
-            GpuSamplerAddressMode.Repeat => TextureAddressMode.Wrap,
-            GpuSamplerAddressMode.MirroredRepeat => TextureAddressMode.Mirror,
-            _ => TextureAddressMode.Clamp,
+            MinFilter = (int)info.Filter,
+            MagFilter = (int)info.Filter,
+            MipmapMode = Sdl3.GpuMipmapModeNearest,
+            AddressModeU = (int)info.AddressMode,
+            AddressModeV = (int)info.AddressMode,
+            AddressModeW = (int)info.AddressMode,
         };
-
-        return new GpuSampler(new SamplerState
+        nint sampler = Sdl3.SDL_CreateGPUSampler(_device, &create);
+        if (sampler == 0)
         {
-            Filter = info.Filter == GpuFilter.Nearest ? TextureFilter.Point : TextureFilter.Linear,
-            AddressU = address,
-            AddressV = address,
-            AddressW = address,
-        });
+            throw new InvalidOperationException($"A sampler could not be created: {Sdl3.Error()}");
+        }
+
+        GpuSampler created = new(sampler);
+        _samplers.Add(created);
+
+        return created;
     }
 
-    internal GpuBuffer CreateBuffer(GpuBufferUsage usage, int size) => new(usage, size);
+    internal GpuBuffer CreateBuffer(GpuBufferUsage usage, int size)
+    {
+        Sdl3.GpuBufferCreateInfo create = new() { Usage = (uint)usage, Size = (uint)size };
+        nint buffer = Sdl3.SDL_CreateGPUBuffer(_device, &create);
 
-    internal GpuReadback CreateReadback(int size) => new(size);
+        return buffer != 0
+            ? new GpuBuffer(_device, buffer, usage, size)
+            : throw new InvalidOperationException($"A buffer of {size} bytes could not be created: {Sdl3.Error()}");
+    }
+
+    // A download of a width by height RGBA texture.
+    internal GpuReadback CreateReadback(int width, int height) =>
+        new(_device, CreateTransferBuffer(Sdl3.GpuTransferDownload, width * height * 4), width, height);
 
     internal GpuShader CreateShader(GpuShaderInfo info)
     {
-        if (info.Effect is not { } bindings)
+        byte[] entryPoint = Encoding.UTF8.GetBytes(info.EntryPoint + "\0");
+        nint shader;
+        fixed (byte* code = info.Code.Span)
+        fixed (byte* entry = entryPoint)
         {
-            return new GpuShader(info);
+            Sdl3.GpuShaderCreateInfo create = new()
+            {
+                CodeSize = (nuint)info.Code.Length,
+                Code = code,
+                EntryPoint = entry,
+                Format = _shaderFormat,
+                Stage = (int)info.Stage,
+                NumSamplers = (uint)info.Samplers,
+                NumStorageTextures = (uint)info.StorageTextures,
+                NumStorageBuffers = (uint)info.StorageBuffers,
+                NumUniformBuffers = (uint)info.UniformBuffers,
+            };
+            shader = Sdl3.SDL_CreateGPUShader(_device, &create);
         }
 
-        Effect effect = new(_graphics, info.Code.ToArray());
-        try
-        {
-            return new GpuShader(info)
-            {
-                Effect = effect,
-                Uniforms = [.. bindings.Uniforms.Select(uniform => Required(effect, info.Name, uniform.Name))],
-                Textures = [.. bindings.Textures.Select(name => name is null ? null : Required(effect, info.Name, name))],
-                Sizes = [.. bindings.Sizes.Select(name => name is null ? null : effect.Parameters[name])],
-            };
-        }
-        catch
-        {
-            effect.Dispose();
-            throw;
-        }
+        return shader != 0
+            ? new GpuShader(_device, shader, info)
+            : throw new InvalidOperationException($"Shader '{info.Name}' could not be created from its {ShaderFormat} code: {Sdl3.Error()}. Rebuild the game so the shipped shader and the engine agree.");
     }
 
-    // OpenGL compiles and links an effect's program on its first draw, and a pipeline draws one
-    // degenerate triangle through it here, which covers no pixel.
+    // The driver compiles the pipeline's program here, never on its first draw.
     internal GpuPipeline CreatePipeline(in GpuPipelineInfo info)
     {
         GpuBlendState blend = info.Blend;
-        GpuPipeline pipeline = new(info, new BlendState
+        Sdl3.GpuColorTargetDescription target = new()
         {
-            ColorSourceBlend = Factor(blend.SourceColor),
-            ColorDestinationBlend = Factor(blend.DestinationColor),
-            ColorBlendFunction = Op(blend.ColorOp),
-            AlphaSourceBlend = Factor(blend.SourceAlpha),
-            AlphaDestinationBlend = Factor(blend.DestinationAlpha),
-            AlphaBlendFunction = Op(blend.AlphaOp),
-        });
-
-        ICpuVertexStage stage = CpuVertexStage!;
-        if (_degenerate is null)
+            Format = (int)info.Target,
+            BlendState = new Sdl3.GpuColorTargetBlendState
+            {
+                SourceColorBlendFactor = (int)blend.SourceColor,
+                DestinationColorBlendFactor = (int)blend.DestinationColor,
+                ColorBlendOp = (int)blend.ColorOp,
+                SourceAlphaBlendFactor = (int)blend.SourceAlpha,
+                DestinationAlphaBlendFactor = (int)blend.DestinationAlpha,
+                AlphaBlendOp = (int)blend.AlphaOp,
+                EnableBlend = 1,
+            },
+        };
+        Sdl3.GpuGraphicsPipelineCreateInfo create = new()
         {
-            _degenerate = new VertexBuffer(_graphics, stage.Declaration, 3, BufferUsage.WriteOnly);
-            _degenerate.SetData(new byte[3 * stage.Declaration.VertexStride]);
-        }
+            VertexShader = info.VertexShader.Handle,
+            FragmentShader = info.FragmentShader.Handle,
+            PrimitiveType = Sdl3.GpuPrimitiveTriangleList,
+            RasterizerState = new Sdl3.GpuRasterizerState
+            {
+                FillMode = Sdl3.GpuFillModeFill,
+                CullMode = Sdl3.GpuCullModeNone,
+                FrontFace = Sdl3.GpuFrontFaceCounterClockwise,
+            },
+            MultisampleState = new Sdl3.GpuMultisampleState { SampleCount = Sdl3.GpuSampleCount1 },
+            TargetInfo = new Sdl3.GpuGraphicsPipelineTargetInfo { ColorTargetDescriptions = &target, NumColorTargets = 1 },
+        };
+        nint pipeline = Sdl3.SDL_CreateGPUGraphicsPipeline(_device, &create);
 
-        _graphics.BlendState = pipeline.Blend;
-        info.FragmentShader.Effect!.CurrentTechnique.Passes[0].Apply();
-        _graphics.SetVertexBuffer(_degenerate);
-        _graphics.DrawPrimitives(PrimitiveType.TriangleList, 0, 1);
-
-        return pipeline;
+        return pipeline != 0
+            ? new GpuPipeline(_device, pipeline, info)
+            : throw new InvalidOperationException($"Shader '{info.FragmentShader.Info.Name}' could not be linked into a pipeline: {Sdl3.Error()}");
     }
 
-    // Encodes a completed readback as a PNG with the backend's own encoder, which the committed capture
-    // hashes were recorded with.
-    internal byte[] EncodePng(GpuReadback readback)
-    {
-        using Texture2D surface = new(_graphics, readback.Width, readback.Height);
-        surface.SetData(readback.Body, 0, readback.Width * readback.Height * 4);
-        using MemoryStream encoded = new();
-        surface.SaveAsPng(encoded, readback.Width, readback.Height);
-
-        return encoded.ToArray();
-    }
-
+    // Waits for the GPU to go idle, releases what the device created, releases the window and destroys
+    // the device. The window outlives it.
     public void Dispose()
     {
-        _vertices?.Dispose();
-        _degenerate?.Dispose();
-    }
-
-    internal GpuTexture? AcquireSwapchainTexture()
-    {
-        (int width, int height) = SwapchainSize;
-        if (width <= 0 || height <= 0)
+        Sdl3.SDL_WaitForGPUIdle(_device);
+        Sdl3.SDL_ReleaseGPUTransferBuffer(_device, _staging);
+        foreach (GpuSampler sampler in _samplers)
         {
-            return null;
+            Sdl3.SDL_ReleaseGPUSampler(_device, sampler.Handle);
         }
 
-        _backBuffer.Width = width;
-        _backBuffer.Height = height;
-
-        return _backBuffer;
+        Sdl3.SDL_ReleaseWindowFromGPUDevice(_device, _window);
+        Sdl3.SDL_DestroyGPUDevice(_device);
     }
 
-    internal void Submit()
+    // Blits surface over the window's swapchain texture, unless the window shows none this frame.
+    // Neither waits.
+    internal void Present(nint commands, GpuTexture? surface)
     {
-    }
-
-    internal void UploadToTexture(GpuTexture texture, int x, int y, int width, int height, ReadOnlySpan<byte> texels)
-    {
-        byte[] scratch = ArrayPool<byte>.Shared.Rent(texels.Length);
-        texels.CopyTo(scratch);
-        texture.Body!.SetData(0, new Rectangle(x, y, width, height), scratch, 0, texels.Length);
-        ArrayPool<byte>.Shared.Return(scratch);
-    }
-
-    // The CPU reads the bytes as they are, and a cycle has nothing to spare.
-    internal void UploadToBuffer(GpuBuffer buffer, int offset, ReadOnlySpan<byte> data, bool cycle) =>
-        data.CopyTo(buffer.Body.AsSpan(offset));
-
-    internal void DownloadFromTexture(GpuTexture texture, GpuReadback readback)
-    {
-        readback.Width = texture.Width;
-        readback.Height = texture.Height;
-        if (texture.Body is { } body)
+        nint swapchain;
+        uint width;
+        uint height;
+        if (!Sdl3.SDL_AcquireGPUSwapchainTexture(commands, _window, &swapchain, &width, &height))
         {
-            body.GetData(readback.Body, 0, texture.Width * texture.Height * 4);
-        }
-        else
-        {
-            _graphics.GetBackBufferData(readback.Body);
-        }
-    }
-
-    internal void BeginRenderPass(in GpuColorTarget target)
-    {
-        // Binding a target can discard what the back buffer holds, and the back buffer is bound only
-        // when a pass leaves another target.
-        RenderTarget2D? body = target.Texture.Body as RenderTarget2D;
-        if (!ReferenceEquals(body, _bound))
-        {
-            _graphics.SetRenderTarget(body);
-            _bound = body;
+            throw new InvalidOperationException($"The window's swapchain texture could not be acquired: {Sdl3.Error()}");
         }
 
-        _target = target.Texture;
-        _viewport = new Rectangle(0, 0, target.Texture.Width, target.Texture.Height);
-        _graphics.Viewport = new Viewport(_viewport);
-        _scissor = null;
-        _graphics.RasterizerState = Unscissored;
-        _graphics.DepthStencilState = DepthStencilState.None;
-        _stateChanged = true;
-        if (target.Load == GpuLoadOp.Clear)
-        {
-            _graphics.Clear(ClearOptions.Target | ClearOptions.DepthBuffer | ClearOptions.Stencil, new XnaVector4(target.ClearColor.X, target.ClearColor.Y, target.ClearColor.Z, target.ClearColor.W), 1f, 0);
-        }
-    }
-
-    internal void EndRenderPass()
-    {
-        Flush();
-        if (_bound is not null)
-        {
-            _graphics.SetRenderTarget(null);
-            _bound = null;
-        }
-
-        _target = null;
-    }
-
-    internal void SetViewport(int x, int y, int width, int height)
-    {
-        Rectangle viewport = new(x, y, width, height);
-        if (viewport != _viewport)
-        {
-            Flush();
-            _viewport = viewport;
-            _graphics.Viewport = new Viewport(viewport);
-        }
-    }
-
-    // A scissor covering the whole target is none.
-    internal void SetScissor(int x, int y, int width, int height)
-    {
-        Rectangle? scissor = x <= 0 && y <= 0 && x + width >= _target!.Width && y + height >= _target.Height
-            ? null
-            : new Rectangle(x, y, width, height);
-        if (scissor == _scissor)
+        if (swapchain == 0 || surface is null)
         {
             return;
         }
 
-        Flush();
-        _scissor = scissor;
-        _graphics.RasterizerState = scissor is null ? Unscissored : Scissored;
-        if (scissor is { } rect)
+        Sdl3.GpuBlitInfo blit = new()
         {
-            _graphics.ScissorRectangle = rect;
+            Source = new Sdl3.GpuBlitRegion { Texture = surface.Handle, W = (uint)surface.Width, H = (uint)surface.Height },
+            Destination = new Sdl3.GpuBlitRegion { Texture = swapchain, W = width, H = height },
+            LoadOp = Sdl3.GpuLoadOpDontCare,
+            FlipMode = Sdl3.FlipNone,
+            Filter = (int)GpuFilter.Nearest,
+        };
+        Sdl3.SDL_BlitGPUTexture(commands, &blit);
+    }
+
+    internal void Submit(nint commands)
+    {
+        _stagingUsed = 0;
+        if (!Sdl3.SDL_SubmitGPUCommandBuffer(commands))
+        {
+            throw new InvalidOperationException($"The GPU refused the frame: {Sdl3.Error()}");
         }
     }
 
-    internal void BindGraphicsPipeline(GpuPipeline pipeline)
+    // Submits and blocks until the GPU has run the command buffer.
+    internal void SubmitAndWait(nint commands)
     {
-        _stateChanged |= !ReferenceEquals(pipeline, _pipeline);
-        _pipeline = pipeline;
+        _stagingUsed = 0;
+        nint fence = Sdl3.SDL_SubmitGPUCommandBufferAndAcquireFence(commands);
+        if (fence == 0)
+        {
+            throw new InvalidOperationException($"The GPU refused the frame: {Sdl3.Error()}");
+        }
+
+        Sdl3.SDL_WaitForGPUFences(_device, waitAll: true, &fence, 1);
+        Sdl3.SDL_ReleaseGPUFence(_device, fence);
     }
 
-    internal void BindVertexStorageBuffer(int slot, GpuBuffer buffer) => _storage = buffer;
-
-    // Slot 0 holds each draw's own texture. Every other slot is effect state.
-    internal void BindFragmentSamplers(int firstSlot, ReadOnlySpan<GpuTextureSamplerBinding> bindings)
+    internal void UploadToTexture(nint copyPass, GpuTexture texture, int x, int y, int width, int height, ReadOnlySpan<byte> texels)
     {
-        for (int i = 0; i < bindings.Length; i++)
-        {
-            int slot = firstSlot + i;
-            _stateChanged |= slot > 0 && bindings[i] != _samplers[slot];
-            _samplers[slot] = bindings[i];
-        }
+        int offset = Stage(copyPass, texels);
+        Record(new Transfer(TransferKind.Texture, texture.Handle, offset, x, y, width, height, Cycle: false));
     }
 
-    internal void PushUniformData(GpuShaderStage stage, int slot, ReadOnlySpan<byte> data)
+    internal void UploadToBuffer(nint copyPass, GpuBuffer buffer, int offset, ReadOnlySpan<byte> data, bool cycle)
     {
-        if (stage == GpuShaderStage.Vertex)
-        {
-            _stateChanged |= !CpuVertexStage!.SameParameters(_vertexUniforms, data);
-            data.CopyTo(_vertexUniforms);
-            return;
-        }
-
-        if (data.Length != _fragmentLengths[slot] || !data.SequenceEqual(_fragmentUniforms[slot].AsSpan(0, data.Length)))
-        {
-            if (data.Length > _fragmentUniforms[slot].Length)
-            {
-                _fragmentUniforms[slot] = new byte[data.Length];
-            }
-
-            data.CopyTo(_fragmentUniforms[slot]);
-            _fragmentLengths[slot] = data.Length;
-            _stateChanged = true;
-        }
-    }
-
-    internal void DrawPrimitives(int vertexCount, int instanceCount, int firstVertex, int firstInstance)
-    {
-        if (instanceCount != 1 || firstInstance != 0)
-        {
-            throw new NotSupportedException("The OpenGL device draws one instance.");
-        }
-
-        ICpuVertexStage stage = CpuVertexStage!;
-        if (_vertices is null)
-        {
-            _stride = stage.Declaration.VertexStride;
-            _vertices = new DynamicVertexBuffer(_graphics, stage.Declaration, ChunkVertices * RingChunks, BufferUsage.WriteOnly);
-            _staging = new byte[ChunkVertices * _stride];
-        }
-
-        // An effect that reads the sprite texture's size draws a texture of another size under a state
-        // of its own.
-        GpuTextureSamplerBinding sprite = _samplers[0];
-        if (_pipeline!.Info.FragmentShader.Sizes is [{ }, ..] && _stateCount > 0 && !_stateChanged
-            && _states[_stateCount - 1].SpriteSize != (sprite.Texture.Width, sprite.Texture.Height))
-        {
-            _stateChanged = true;
-        }
-
-        while (vertexCount > 0)
-        {
-            if (_staged == ChunkVertices)
-            {
-                Flush();
-            }
-
-            if (_stateChanged || _stateCount == 0)
-            {
-                CopyState(sprite.Texture);
-            }
-
-            int count = Math.Min(vertexCount, ChunkVertices - _staged);
-            stage.Run(_storage!.Body, _vertexUniforms, firstVertex, _staging.AsSpan(_staged * _stride, count * _stride));
-
-            int state = _stateCount - 1;
-            if (_runCount > 0 && _runs[_runCount - 1] is { } last && last.Binding == sprite && last.State == state && last.First + last.Count == _staged)
-            {
-                _runs[_runCount - 1] = last with { Count = last.Count + count };
-            }
-            else
-            {
-                _runs[_runCount++] = new Run(sprite, state, _staged, count);
-            }
-
-            _staged += count;
-            firstVertex += count;
-            vertexCount -= count;
-        }
-    }
-
-    // Copies the effect state the next runs draw under.
-    private void CopyState(GpuTexture sprite)
-    {
-        GpuShader shader = _pipeline!.Info.FragmentShader;
-        int samplers = Math.Max(shader.Textures.Length - 1, 0);
-        int bytes = UniformBytes + _fragmentLengths[0] + _fragmentLengths[1];
-        if (_stateCount == _states.Length)
-        {
-            Array.Resize(ref _states, _states.Length * 2);
-        }
-
-        if (_stateBytesUsed + bytes > _stateBytes.Length)
-        {
-            Array.Resize(ref _stateBytes, Math.Max(_stateBytes.Length * 2, _stateBytesUsed + bytes));
-        }
-
-        if (_stateSamplersUsed + samplers > _stateSamplers.Length)
-        {
-            Array.Resize(ref _stateSamplers, Math.Max(_stateSamplers.Length * 2, _stateSamplersUsed + samplers));
-        }
-
-        State state = new(_pipeline, _stateBytesUsed, _fragmentLengths[0], _fragmentLengths[1], _stateSamplersUsed, (sprite.Width, sprite.Height));
-        Span<byte> into = _stateBytes.AsSpan(_stateBytesUsed, bytes);
-        _vertexUniforms.CopyTo(into);
-        _fragmentUniforms[0].AsSpan(0, state.Fragment0).CopyTo(into[UniformBytes..]);
-        _fragmentUniforms[1].AsSpan(0, state.Fragment1).CopyTo(into[(UniformBytes + state.Fragment0)..]);
-        _samplers.AsSpan(1, samplers).CopyTo(_stateSamplers.AsSpan(_stateSamplersUsed));
-        _stateBytesUsed += bytes;
-        _stateSamplersUsed += samplers;
-        _states[_stateCount++] = state;
-        _stateChanged = false;
-    }
-
-    // Uploads the staged vertices, then draws each run, applying its effect state where it differs
-    // from the run before.
-    private void Flush()
-    {
-        if (_runCount == 0)
+        if (data.IsEmpty)
         {
             return;
         }
 
-        SetDataOptions options = SetDataOptions.NoOverwrite;
-        if (_cursor + _staged > ChunkVertices * RingChunks)
-        {
-            _cursor = 0;
-            options = SetDataOptions.Discard;
-        }
-
-        _vertices!.SetData(_cursor * _stride, _staging, 0, _staged * _stride, 1, options);
-        _graphics.SetVertexBuffer(_vertices);
-
-        int applied = -1;
-        SamplerState? sampler = null;
-        for (int i = 0; i < _runCount; i++)
-        {
-            Run run = _runs[i];
-            if (run.State != applied)
-            {
-                Apply(in _states[run.State]);
-                applied = run.State;
-                sampler = null;
-            }
-
-            if (!ReferenceEquals(run.Binding.Sampler.Body, sampler))
-            {
-                sampler = run.Binding.Sampler.Body;
-                _graphics.SamplerStates[0] = sampler;
-            }
-
-            _graphics.Textures[0] = run.Binding.Texture.Body;
-            _graphics.DrawPrimitives(PrimitiveType.TriangleList, _cursor + run.First, run.Count / 3);
-        }
-
-        _cursor += _staged;
-        _staged = 0;
-        _runCount = 0;
-        _stateCount = 0;
-        _stateBytesUsed = 0;
-        _stateSamplersUsed = 0;
-        _stateChanged = true;
+        int staged = Stage(copyPass, data);
+        Record(new Transfer(TransferKind.Buffer, buffer.Handle, staged, offset, 0, data.Length, 0, cycle));
     }
 
-    private void Apply(in State state)
+    internal void DownloadFromTexture(GpuTexture texture, GpuReadback readback) =>
+        Record(new Transfer(TransferKind.Download, texture.Handle, 0, 0, 0, texture.Width, texture.Height, false, readback.Handle));
+
+    // Unmaps the staging buffer, records the pass's transfers in order, and ends it.
+    internal void EndCopyPass(nint copyPass)
     {
-        GpuShader shader = state.Pipeline.Info.FragmentShader;
-        Effect effect = shader.Effect!;
-        _graphics.BlendState = state.Pipeline.Blend;
+        Flush(copyPass);
+        Sdl3.SDL_EndGPUCopyPass(copyPass);
+    }
 
-        ReadOnlySpan<byte> bytes = _stateBytes.AsSpan(state.Bytes);
-        CpuVertexStage!.SetParameters(effect, bytes[..UniformBytes]);
+    // The present mode, applied where the window supports it.
+    private bool TryPresentMode(int mode) =>
+        Sdl3.SDL_WindowSupportsGPUPresentMode(_device, _window, mode)
+        && Sdl3.SDL_SetGPUSwapchainParameters(_device, _window, Sdl3.GpuCompositionSdr, mode);
 
-        GpuEffectUniform[] uniforms = shader.Info.Effect!.Uniforms;
-        for (int i = 0; i < uniforms.Length; i++)
+    // Copies data into the staging buffer and returns its offset there. Data that does not fit records
+    // what is staged so far and continues in a fresh store, grown when data alone outgrows it.
+    private int Stage(nint copyPass, ReadOnlySpan<byte> data)
+    {
+        int offset = (_stagingUsed + StagingAlignment - 1) & ~(StagingAlignment - 1);
+        if (offset + data.Length > _stagingSize)
         {
-            int buffer = UniformBytes + (uniforms[i].Buffer == 0 ? 0 : state.Fragment0);
-            ReadOnlySpan<float> value = MemoryMarshal.Cast<byte, float>(bytes.Slice(buffer + uniforms[i].Offset, uniforms[i].Floats * sizeof(float)));
-            EffectParameter parameter = shader.Uniforms[i];
-            switch (value.Length)
+            Flush(copyPass);
+            offset = 0;
+            if (data.Length > _stagingSize)
             {
-                case 1:
-                    parameter.SetValue(value[0]);
-                    break;
-                case 2:
-                    parameter.SetValue(new XnaVector2(value[0], value[1]));
-                    break;
-                case 3:
-                    parameter.SetValue(new XnaVector3(value[0], value[1], value[2]));
-                    break;
+                Sdl3.SDL_ReleaseGPUTransferBuffer(_device, _staging);
+                _stagingSize = Math.Max(_stagingSize * 2, (data.Length + StagingAlignment - 1) & ~(StagingAlignment - 1));
+                _staging = CreateTransferBuffer(Sdl3.GpuTransferUpload, _stagingSize);
+            }
+        }
+
+        if (_mapped is null)
+        {
+            // Cycled at a frame's first staging and after an overflow. Later stagings of a frame append to
+            // what its earlier copy passes recorded.
+            _mapped = Sdl3.SDL_MapGPUTransferBuffer(_device, _staging, cycle: offset == 0);
+            if (_mapped is null)
+            {
+                throw new InvalidOperationException($"The staging buffer could not be mapped: {Sdl3.Error()}");
+            }
+        }
+
+        data.CopyTo(new Span<byte>(_mapped + offset, data.Length));
+        _stagingUsed = offset + data.Length;
+
+        return offset;
+    }
+
+    private void Record(in Transfer transfer)
+    {
+        if (_transferCount == _transfers.Length)
+        {
+            Array.Resize(ref _transfers, _transfers.Length * 2);
+        }
+
+        _transfers[_transferCount++] = transfer;
+    }
+
+    private void Flush(nint copyPass)
+    {
+        if (_mapped is not null)
+        {
+            Sdl3.SDL_UnmapGPUTransferBuffer(_device, _staging);
+            _mapped = null;
+        }
+
+        for (int i = 0; i < _transferCount; i++)
+        {
+            ref readonly Transfer transfer = ref _transfers[i];
+            switch (transfer.Kind)
+            {
+                case TransferKind.Texture:
+                    {
+                        Sdl3.GpuTextureTransferInfo source = new() { TransferBuffer = _staging, Offset = (uint)transfer.Offset, PixelsPerRow = (uint)transfer.Width };
+                        Sdl3.GpuTextureRegion destination = Region(transfer);
+                        Sdl3.SDL_UploadToGPUTexture(copyPass, &source, &destination, transfer.Cycle);
+                        break;
+                    }
+
+                case TransferKind.Buffer:
+                    {
+                        Sdl3.GpuTransferBufferLocation source = new() { TransferBuffer = _staging, Offset = (uint)transfer.Offset };
+                        Sdl3.GpuBufferRegion destination = new() { Buffer = transfer.Target, Offset = (uint)transfer.X, Size = (uint)transfer.Width };
+                        Sdl3.SDL_UploadToGPUBuffer(copyPass, &source, &destination, transfer.Cycle);
+                        break;
+                    }
+
                 default:
-                    parameter.SetValue(new XnaVector4(value[0], value[1], value[2], value[3]));
-                    break;
+                    {
+                        Sdl3.GpuTextureRegion source = Region(transfer);
+                        Sdl3.GpuTextureTransferInfo destination = new() { TransferBuffer = transfer.Readback };
+                        Sdl3.SDL_DownloadFromGPUTexture(copyPass, &source, &destination);
+                        break;
+                    }
             }
         }
 
-        for (int slot = 1; slot < shader.Textures.Length; slot++)
-        {
-            GpuTextureSamplerBinding binding = _stateSamplers[state.Samplers + slot - 1];
-            shader.Textures[slot]!.SetValue(binding.Texture.Body);
-            shader.Sizes[slot]?.SetValue(new XnaVector2(binding.Texture.Width, binding.Texture.Height));
-            _graphics.SamplerStates[slot] = binding.Sampler.Body;
-        }
-
-        if (shader.Sizes is [{ } spriteSize, ..])
-        {
-            spriteSize.SetValue(new XnaVector2(state.SpriteSize.Width, state.SpriteSize.Height));
-        }
-
-        effect.CurrentTechnique.Passes[0].Apply();
+        _transferCount = 0;
     }
 
-    private static EffectParameter Required(Effect effect, string shader, string name) =>
-        effect.Parameters[name]
-        ?? throw new InvalidOperationException(
-            $"Shader '{shader}' shipped without parameter '{name}', which the engine binds. Rebuild the game so the shipped shader and the engine agree.");
-
-    private static Blend Factor(GpuBlendFactor factor) => factor switch
+    private static Sdl3.GpuTextureRegion Region(in Transfer transfer) => new()
     {
-        GpuBlendFactor.Zero => Blend.Zero,
-        GpuBlendFactor.One => Blend.One,
-        GpuBlendFactor.SourceColor => Blend.SourceColor,
-        GpuBlendFactor.OneMinusSourceColor => Blend.InverseSourceColor,
-        GpuBlendFactor.DestinationColor => Blend.DestinationColor,
-        GpuBlendFactor.OneMinusDestinationColor => Blend.InverseDestinationColor,
-        GpuBlendFactor.SourceAlpha => Blend.SourceAlpha,
-        GpuBlendFactor.OneMinusSourceAlpha => Blend.InverseSourceAlpha,
-        GpuBlendFactor.DestinationAlpha => Blend.DestinationAlpha,
-        GpuBlendFactor.OneMinusDestinationAlpha => Blend.InverseDestinationAlpha,
-        GpuBlendFactor.ConstantColor => Blend.BlendFactor,
-        GpuBlendFactor.OneMinusConstantColor => Blend.InverseBlendFactor,
-        _ => Blend.SourceAlphaSaturation,
+        Texture = transfer.Target,
+        X = (uint)transfer.X,
+        Y = (uint)transfer.Y,
+        W = (uint)transfer.Width,
+        H = (uint)transfer.Height,
+        D = 1,
     };
 
-    private static BlendFunction Op(GpuBlendOp op) => op switch
+    private nint CreateTransferBuffer(int usage, int size)
     {
-        GpuBlendOp.Subtract => BlendFunction.Subtract,
-        GpuBlendOp.ReverseSubtract => BlendFunction.ReverseSubtract,
-        GpuBlendOp.Min => BlendFunction.Min,
-        GpuBlendOp.Max => BlendFunction.Max,
-        _ => BlendFunction.Add,
-    };
+        Sdl3.GpuTransferBufferCreateInfo create = new() { Usage = usage, Size = (uint)size };
+        nint buffer = Sdl3.SDL_CreateGPUTransferBuffer(_device, &create);
 
-    // Vertices First to First + Count of the staged chunk, drawn with Binding at slot 0 under the effect
-    // state at index State.
-    private readonly record struct Run(GpuTextureSamplerBinding Binding, int State, int First, int Count);
+        return buffer != 0
+            ? buffer
+            : throw new InvalidOperationException($"A transfer buffer of {size} bytes could not be created: {Sdl3.Error()}");
+    }
 
-    // A copied effect state: the pipeline, the vertex uniforms at Bytes followed by the two fragment
-    // uniform buffers' Fragment0 and Fragment1 bytes, the bindings of sampler slots 1 onwards from
-    // Samplers, and the sprite texture's size.
-    private readonly record struct State(GpuPipeline Pipeline, int Bytes, int Fragment0, int Fragment1, int Samplers, (int Width, int Height) SpriteSize);
+    private static InvalidOperationException Unavailable(string failure) => new(
+        $"Capsule {failure}: {Sdl3.Error()}. It draws through Direct3D 12 at feature level 11_0, Vulkan 1.0, or Metal on a GPU of family Mac2. Update the graphics driver, or run on a machine whose GPU has one of them.");
+
+    private static string Describe(nint device)
+    {
+        uint properties = Sdl3.SDL_GetGPUDeviceProperties(device);
+        string driver = Utf8(Sdl3.SDL_GetGPUDeviceDriver(device)) ?? "an unnamed driver";
+        string? name = Property(properties, Sdl3.GpuDeviceName);
+        string? vendor = Property(properties, Sdl3.GpuDeviceDriverName);
+        string? version = Property(properties, Sdl3.GpuDeviceDriverVersion);
+        string described = name is null ? driver : $"{driver} on {name}";
+        string driverInfo = string.Join(' ', ((string?[])[vendor, version]).OfType<string>());
+
+        return driverInfo.Length == 0 ? described : $"{described}, driver {driverInfo}";
+    }
+
+    private static string? Property(uint properties, ReadOnlySpan<byte> name)
+    {
+        fixed (byte* key = name)
+        {
+            return properties == 0 ? null : Utf8(Sdl3.SDL_GetStringProperty(properties, key, null));
+        }
+    }
+
+    private static string? Utf8(byte* text) => text is null ? null : Marshal.PtrToStringUTF8((nint)text) is { Length: > 0 } value ? value : null;
+
+    private enum TransferKind
+    {
+        Texture,
+        Buffer,
+        Download,
+    }
+
+    // One recorded transfer. A texture's region is X, Y, Width by Height, an upload's bytes start at
+    // Offset in the staging buffer, a buffer upload writes Width bytes at X, and a download lands in
+    // Readback.
+    private readonly record struct Transfer(TransferKind Kind, nint Target, int Offset, int X, int Y, int Width, int Height, bool Cycle, nint Readback = 0);
 }

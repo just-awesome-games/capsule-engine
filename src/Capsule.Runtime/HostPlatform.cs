@@ -1,12 +1,12 @@
 using Capsule.Persistence;
 using Capsule.Runtime.Audio;
-using Microsoft.Xna.Framework.Graphics;
+using Capsule.Runtime.Sdl;
 
 namespace Capsule.Runtime;
 
 /// <summary>
-/// Where a run reads its shipped content, keeps its saves and its crash log, how the shipped backend
-/// treats its window and its audio output, and which languages the player prefers.
+/// Where a run reads its shipped content, keeps its saves and its crash log, how its window is raised,
+/// where its sound plays, and which languages the player prefers.
 /// </summary>
 /// <remarks>
 /// A shell hands one to <c>CapsuleBoot.Configure</c> beside the game's name.
@@ -45,64 +45,12 @@ public abstract class HostPlatform
     {
     }
 
-    /// <summary>Brings the window to the front once, on the first frame drawn after the backend shows it.</summary>
-    protected internal virtual void RaiseWindow(WindowHandle window)
-    {
-    }
-
     /// <summary>
-    /// Whether the window holds keyboard focus, sampled every frame. True by default.
+    /// Brings the window to the front once, on the first frame drawn after it is shown. Raises it
+    /// through SDL by default.
     /// </summary>
-    /// <remarks>
-    /// An inactive window claims no pointer input and ducks to the run's unfocused volume.
-    /// </remarks>
-    protected internal virtual bool HasInputFocus(WindowHandle window) => true;
-
-    /// <summary>Whether the window is minimized, sampled every frame. False by default.</summary>
-    /// <remarks>A minimized window draws nothing and wakes at most once a step.</remarks>
-    protected internal virtual bool IsMinimized(WindowHandle window) => false;
-
-    /// <summary>Holds the pointer inside the window, or releases it. Does nothing by default.</summary>
-    /// <remarks>
-    /// Called on the game thread when the run's cursor changes. The platform releases the hold while
-    /// the window is unfocused and restores it when focus returns.
-    /// </remarks>
-    /// <param name="window">The window to hold the pointer in.</param>
-    /// <param name="confined">Whether to hold the pointer or release it.</param>
-    protected internal virtual void ConfineCursor(WindowHandle window, bool confined)
-    {
-    }
-
-    /// <summary>
-    /// Calls <paramref name="redraw"/> whenever the window is resized or exposed inside the
-    /// platform's own event handling, for a host whose modal resize blocks the game loop.
-    /// </summary>
-    /// <remarks>
-    /// Calls arrive on the thread that installed the watch, and the host guards against re-entry. A
-    /// null result leaves the window's contents standing during a resize. Disposing the result stops
-    /// the calls. The host disposes it before the renderer.
-    /// </remarks>
-    /// <param name="window">The window to watch.</param>
-    /// <param name="redraw">
-    /// Draws the settled frame. Receives the window's client width and height in pixels, read at
-    /// the call.
-    /// </param>
-    protected internal virtual IDisposable? WatchWindowRedraw(WindowHandle window, Action<int, int> redraw) => null;
-
-    /// <summary>
-    /// The display the window is on: its extent in pixels and its scale factor, 1 at 100%. The
-    /// primary display at a scale of 1 by default.
-    /// </summary>
-    /// <remarks>
-    /// Asked when the window opens and when the run asks for another window size. The host fits
-    /// <see cref="Capsule.Rendering.Display.WindowSize"/>, multiplied by the scale, inside the extent.
-    /// </remarks>
-    protected internal virtual (int Width, int Height, float Scale) WindowDisplay(WindowHandle window)
-    {
-        DisplayMode primary = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
-
-        return (primary.Width, primary.Height, 1f);
-    }
+    /// <param name="window">SDL's window, an <c>SDL_Window*</c>.</param>
+    protected internal virtual void RaiseWindow(nint window) => Sdl3.SDL_RaiseWindow(window);
 
     /// <summary>Opens the output the host's mix plays on, or returns null for a run with no sound.</summary>
     /// <remarks>

@@ -26,7 +26,7 @@ installer. What is in scope is what it does touch:
 - **The published `JAG.Capsule.*` packages themselves.** A package whose contents do not match
   this repository at the tagged commit is a vulnerability.
 
-Out of scope: MonoGame, the .NET runtime, and anything else upstream. Report those to their own
+Out of scope: SDL, the .NET runtime, and anything else upstream. Report those to their own
 maintainers. A game's own code and content are the game's responsibility. Capsule treats a game's
 scenes and assets as trusted input authored by the game's developers, not as attacker-controlled
 data.

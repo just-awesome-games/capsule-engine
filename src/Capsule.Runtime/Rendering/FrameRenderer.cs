@@ -11,10 +11,11 @@ namespace Capsule.Runtime.Rendering;
 // Draws a FrameView. Holds no scene state of its own, since what a sprite interpolates from travels
 // in the sprite. A frame is recorded whole, then uploaded in one copy pass ahead of its render passes,
 // into a command buffer that Submit hands to the device once the capture and the overlay have joined
-// it.
+// it. Every pass draws offscreen. What the window shows is drawn into the window surface, which Submit
+// copies to the swapchain, and a capture reads a surface, never the swapchain.
 internal sealed partial class FrameRenderer : IDisposable
 {
-    // The format of every surface the renderer draws into before the window.
+    // The format of every surface the renderer draws into. Each blends in gamma space.
     internal const GpuTextureFormat SurfaceFormat = GpuTextureFormat.R8G8B8A8Unorm;
 
     private const string DefaultFontPageResource = "Capsule.Runtime.Assets.default-font.png";
@@ -36,7 +37,7 @@ internal sealed partial class FrameRenderer : IDisposable
     // Every engine-owned texture. The draw path resolves a handle through a single table.
     private readonly Dictionary<TextureHandle, SampledTexture> _engineTextures;
 
-    // The declared canvas, or null when the world rasterises straight into the back buffer at
+    // The declared canvas, or null when the world rasterises straight into the window surface at
     // whatever size the window is.
     private readonly (int Width, int Height)? _canvas;
 
@@ -52,11 +53,18 @@ internal sealed partial class FrameRenderer : IDisposable
     // first such present and reallocated when its size changes. Null until then.
     private SampledTexture? _prescaled;
 
+    // The window surface: what the window shows, at the window's extent in pixels. Allocated on the first
+    // frame and reallocated when the window's extent changes.
+    private SampledTexture? _windowSurface;
+
+    // The window surface Draw drew this frame, or null when the window has no area.
+    private GpuTexture? _drawnSurface;
+
     // Where the screen layer landed on the last frame drawn. It turns a sampled mouse position back
     // into a canvas position, and ResolveScreenLayer seeds it before the first frame.
     private ScreenPlacement _placement = ScreenPlacement.Identity;
 
-    // Where the last frame's world landed in the back buffer, which places a host-owned
+    // Where the last frame's world landed in the window, which places a host-owned
     // world-anchored draw over that frame. Null until a frame has drawn a world.
     private WorldPlacement? _world;
 
@@ -66,16 +74,19 @@ internal sealed partial class FrameRenderer : IDisposable
     // A capture of Draw's frame, written once its command buffer completes.
     private (GpuReadback Readback, string Path)? _capture;
 
+    // Whether the frame's submission waits for the GPU, which a capture's readback needs.
+    private bool _waitForFrame;
+
     // Wall-clock milliseconds the last game frame's recording and submission took, excluding the
     // present and its vsync wait. Zero before the first.
     internal double LastFrameMs { get; private set; }
 
     // How many times wider than the game's view the host's view of the world spans, defaulting to 1.
     // Past 1, a render surface is drawn larger by a whole factor that keeps its present whole. The world
-    // and the screen layer land on the same back-buffer pixels at any factor.
+    // and the screen layer land on the same window pixels at any factor.
     internal float WorldZoomOut { get; set; } = 1f;
 
-    // renderResolution: A fixed render surface, or null to draw into the back buffer.
+    // renderResolution: A fixed render surface, or null to draw into the window surface.
     //
     // textures: The scene texture cache, loading on first use. The caller owns it.
     //
@@ -104,23 +115,23 @@ internal sealed partial class FrameRenderer : IDisposable
         }
     }
 
-    internal (int Width, int Height) BackBufferSize => _device.SwapchainSize;
+    internal (int Width, int Height) WindowSize => _device.WindowSize;
 
     // Where the screen layer lands in the window, from the last frame drawn or from
     // ResolveScreenLayer before the first one.
     internal ScreenPlacement ScreenLayer => _placement;
 
-    // Back-buffer pixels per world unit on the last frame drawn, or zero before one has drawn a
+    // Window pixels per world unit on the last frame drawn, or zero before one has drawn a
     // world. It sizes a screen-sized glyph placed at a world point.
     internal float WorldPixelsPerUnit => _world is { } world ? world.PixelsPerUnit : 0f;
 
-    // Where the last frame's world landed in the back buffer, or null before one has drawn a world.
+    // Where the last frame's world landed in the window, or null before one has drawn a world.
     internal WorldPlacement? WorldPlacement => _world;
 
     // Whether this frame drew. A window with no area, as a minimised one has, presents nothing and
     // leaves no frame to save, including behind a render target, which is drawn but not presented. A
     // capture request stands until one does.
-    internal bool CanCaptureFrame => BackBufferSize is ( > 0, > 0);
+    internal bool CanCaptureFrame => WindowSize is ( > 0, > 0);
 
     // Draws one frame into a new command buffer, which Submit submits. Allocation-free at steady state.
     //
@@ -135,7 +146,8 @@ internal sealed partial class FrameRenderer : IDisposable
         alpha = Math.Clamp(alpha, 0f, 1f);
         _sprites.Reset(alpha);
 
-        (int outputWidth, int outputHeight) = BackBufferSize;
+        (int outputWidth, int outputHeight) = WindowSize;
+        _drawnSurface = outputWidth > 0 && outputHeight > 0 ? Sized(ref _windowSurface, outputWidth, outputHeight).Texture : null;
 
         CameraView camera = view.Camera.At(alpha);
         ScreenLayout layout = FrameLayout.Layout(_canvas, camera, view.Canvas, outputWidth, outputHeight);
@@ -148,7 +160,7 @@ internal sealed partial class FrameRenderer : IDisposable
                 DrawLightMap(view, alpha, world, layout.Span, layout.World, outputWidth, outputHeight);
             }
 
-            DrawWorld(view, alpha, null, world, layout.Span, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity, layout.OnSurface, surfaceFactor: 1);
+            DrawWorld(view, alpha, _drawnSurface, world, layout.Span, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity, layout.OnSurface, surfaceFactor: 1);
             DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, surfaceFactor: 1);
         }
         else
@@ -198,8 +210,9 @@ internal sealed partial class FrameRenderer : IDisposable
         LastFrameMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
     }
 
-    // Submits the frame Draw recorded, with the capture and the overlay that joined it, then writes the
-    // capture once the frame completes.
+    // Copies the window surface to the window and submits the frame Draw recorded, with the capture and
+    // the overlay that joined it. Never waits for the display. A frame with a capture waits for the GPU,
+    // then writes the capture.
     internal void Submit()
     {
         if (_commands is not { } commands)
@@ -207,9 +220,16 @@ internal sealed partial class FrameRenderer : IDisposable
             return;
         }
 
-        commands.Submit();
         _commands = null;
+        commands.Present(_drawnSurface);
+        if (!_waitForFrame)
+        {
+            commands.Submit();
+            return;
+        }
 
+        _waitForFrame = false;
+        commands.SubmitAndWait();
         if (_capture is { } capture)
         {
             _capture = null;
@@ -218,14 +238,20 @@ internal sealed partial class FrameRenderer : IDisposable
     }
 
     // Apart from Submit, whose every call would otherwise allocate the lambda's closure.
-    private void WriteCapture(GpuReadback readback, string path) => FrameCapture.Save(() => _device.EncodePng(readback), path);
+    private static void WriteCapture(GpuReadback readback, string path)
+    {
+        using (readback)
+        {
+            FrameCapture.Save(readback.EncodePng, path);
+        }
+    }
 
-    // Settles ScreenLayer for view at the back buffer's current extent, drawing nothing. The host
+    // Settles ScreenLayer for view at the window's current extent, drawing nothing. The host
     // samples the mouse before the first frame, and an unplaced layer would hand the simulation
     // window pixels as canvas pixels for that frame.
     internal void ResolveScreenLayer(FrameView view)
     {
-        (int width, int height) = BackBufferSize;
+        (int width, int height) = WindowSize;
         ScreenLayout layout = FrameLayout.Layout(_canvas, view.Camera, view.Canvas, width, height);
 
         if (layout.Layer.Scale > 0f)
@@ -361,21 +387,22 @@ internal sealed partial class FrameRenderer : IDisposable
 
     // Saves the surface the world was drawn on as a PNG at path, once Submit has run the frame. Called
     // after Draw, ahead of the overlay. The surface is the canvas where a render resolution is
-    // configured, whose extent is independent of the window, and the back buffer where there is none.
+    // configured, whose extent is independent of the window, and the window surface where there is none.
     internal void SaveSurface(string path)
     {
-        if (_commands is not { } commands || (_target?.Texture ?? commands.AcquireSwapchainTexture()) is not { } surface)
+        if (_commands is not { } commands || (_target?.Texture ?? _drawnSurface) is not { } surface)
         {
             return;
         }
 
         try
         {
-            GpuReadback readback = _device.CreateReadback(surface.Width * surface.Height * 4);
+            GpuReadback readback = _device.CreateReadback(surface.Width, surface.Height);
             GpuCopyPass copy = commands.BeginCopyPass();
             copy.DownloadFromTexture(surface, readback);
             copy.End();
             _capture = (readback, path);
+            _waitForFrame = true;
         }
         catch (Exception error)
         {
@@ -384,8 +411,8 @@ internal sealed partial class FrameRenderer : IDisposable
     }
 
     // surfaceWidth and surfaceHeight are the bound surface's extent, which the viewport no longer
-    // reports once narrowed to the letterbox. present is where that surface lands in the back buffer,
-    // identity when the surface is the back buffer.
+    // reports once narrowed to the letterbox. present is where that surface lands in the window,
+    // identity when the surface is the window surface. target is null only while the window has no area.
     private void DrawWorld(
         FrameView view,
         float alpha,
@@ -401,8 +428,8 @@ internal sealed partial class FrameRenderer : IDisposable
     {
         _world = null;
 
-        // A minimised window can present a back buffer with no area.
-        if (surfaceWidth <= 0 || surfaceHeight <= 0)
+        // A minimised window has no area.
+        if (target is null || surfaceWidth <= 0 || surfaceHeight <= 0)
         {
             return;
         }
@@ -656,7 +683,7 @@ internal sealed partial class FrameRenderer : IDisposable
         internal float Scale;
 
         // The same two for a line. On the overlay pass a line quantises on the game surface's grid,
-        // not the back buffer's. It lands on the sprite it outlines.
+        // not the window's. It lands on the sprite it outlines.
         internal bool SnapLines;
         internal float LineScale;
 
@@ -724,13 +751,12 @@ internal sealed partial class FrameRenderer : IDisposable
             ? texture
             : throw new ArgumentException($"Unknown engine-owned texture handle '{handle.Name}'.", nameof(handle));
 
-    // Letterboxed a second time, into the back buffer, at the surface's present placement. See
+    // Letterboxed a second time, into the window surface, at the surface's present placement. See
     // FrameLayout.PresentPass for how a point-sampled surface reaches a fractional scale. placement is
     // the layout's own, and factor how many times larger than it the surface was drawn.
     private void Present(SampledTexture target, TextureSampling sampling, in ScreenPlacement placement, int factor)
     {
-        (int width, int height) = BackBufferSize;
-        if (width <= 0 || height <= 0)
+        if (_drawnSurface is not { } window)
         {
             return;
         }
@@ -747,7 +773,7 @@ internal sealed partial class FrameRenderer : IDisposable
             source = prescaled;
         }
 
-        _sprites.BeginPass(null, ColorRgba.Black);
+        _sprites.BeginPass(window, ColorRgba.Black);
 
         if (!(scale > 0f))
         {
@@ -811,5 +837,7 @@ internal sealed partial class FrameRenderer : IDisposable
         _target?.Dispose();
         _lightMap?.Dispose();
         _prescaled?.Dispose();
+        _windowSurface?.Dispose();
+        _sprites.Dispose();
     }
 }

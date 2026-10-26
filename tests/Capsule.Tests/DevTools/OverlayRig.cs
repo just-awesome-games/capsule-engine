@@ -11,7 +11,7 @@ using Capsule.Scenes;
 namespace Capsule.Tests.DevTools;
 
 // The overlay specs' host: one frame is intercept, advance the game, update the overlay, the order
-// CapsuleGame runs them in, and a press is the key's frame followed by its release. The instance owns
+// WindowHost runs them in, and a press is the key's frame followed by its release. The instance owns
 // the clock. A frame pane spec can say how long each frame took.
 internal sealed class OverlayRig : IDisposable
 {

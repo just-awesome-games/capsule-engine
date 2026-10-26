@@ -23,18 +23,6 @@ internal static class PixelGrid
         SnapOffset(origin.X, value.X, scale),
         SnapOffset(origin.Y, value.Y, scale));
 
-    // Snaps both ends of the span from low to high as SnapOffset snaps a point. Returns low's offset,
-    // and pixels is the whole number of surface pixels between the two snapped ends.
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static Vector2 SnapSpan(Vector2 origin, Vector2 low, Vector2 high, float scale, out Vector2 pixels)
-    {
-        double left = Pixel(origin.X, low.X, scale);
-        double top = Pixel(origin.Y, low.Y, scale);
-        pixels = new Vector2((float)(Pixel(origin.X, high.X, scale) - left), (float)(Pixel(origin.Y, high.Y, scale) - top));
-
-        return new Vector2((float)(left / scale), (float)(top / scale));
-    }
-
     private static float SnapOffset(float origin, float value, float scale) =>
         (float)(Pixel(origin, value, scale) / scale);
 

@@ -15,7 +15,7 @@ public sealed class FramePacerTests
     public void Wait_HoldsTheCapsRateThoughEveryWakeRunsLate()
     {
         long now = 0;
-        FramePacer pacer = new(() => now, sleep => now += (sleep * Millisecond) + (Millisecond * 7 / 10));
+        FramePacer pacer = new(() => now, sleep => now += sleep + (Millisecond * 7 / 10));
 
         long first = pacer.Wait(FiftyAFrame);
         for (int frame = 1; frame <= 100; frame++)
@@ -33,7 +33,7 @@ public sealed class FramePacerTests
     public void Wait_StartsANewScheduleAfterAStallInsteadOfBursting()
     {
         long now = 0;
-        FramePacer pacer = new(() => now, sleep => now += sleep * Millisecond);
+        FramePacer pacer = new(() => now, sleep => now += sleep);
 
         pacer.Wait(FiftyAFrame);
         now += 100 * Millisecond;

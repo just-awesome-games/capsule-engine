@@ -6,7 +6,7 @@
 
 <p align="center">A deterministic, code-first 2D game engine for C#.</p>
 
-Capsule owns the game loop, fixed-step clock, input, rendering, scenes, entities, saves, and build pipeline. Games are authored in C# and in plain scene documents. There is no editor, no project wizard and no serialized scene graph. MonoGame is an internal host dependency and is unavailable to game logic.
+Capsule owns the game loop, fixed-step clock, input, rendering, scenes, entities, saves, and build pipeline. Games are authored in C# and in plain scene documents. There is no editor, no project wizard and no serialized scene graph. The host runs on SDL3, and game logic never touches it.
 
 Capsule is a good fit for a 2D game that values headless-testable gameplay, explicit code, deterministic stepping, and a small engine surface. It is not a fit for teams that need an integrated editor, 3D, a large plugin ecosystem, or a stable 1.0 API.
 

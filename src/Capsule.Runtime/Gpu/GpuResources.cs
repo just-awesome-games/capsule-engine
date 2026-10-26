@@ -1,12 +1,12 @@
-using Microsoft.Xna.Framework.Graphics;
+using Capsule.Runtime.Sdl;
 
 namespace Capsule.Runtime.Gpu;
 
-// SDL_GPUTextureFormat, as far as the host creates textures.
+// SDL_GPUTextureFormat, as far as the host creates textures. Each value is SDL's.
 internal enum GpuTextureFormat
 {
-    R8G8B8A8Unorm,
-    R8Unorm,
+    R8Unorm = 2,
+    R8G8B8A8Unorm = 4,
 }
 
 // SDL_GPUTextureUsageFlags.
@@ -91,8 +91,7 @@ internal readonly record struct GpuTextureInfo(GpuTextureFormat Format, GpuTextu
 // SDL_GPUSamplerCreateInfo with no mipmaps, anisotropy or comparison.
 internal readonly record struct GpuSamplerInfo(GpuFilter Filter, GpuSamplerAddressMode AddressMode);
 
-// SDL_GPUShaderCreateInfo, with the name SDL takes as a property. Effect is what the OpenGL backend
-// sets the effect's parameters by, and null for a vertex shader.
+// SDL_GPUShaderCreateInfo. Name is what a failure to create it reports.
 internal sealed record GpuShaderInfo(
     string Name,
     ReadOnlyMemory<byte> Code,
@@ -101,83 +100,155 @@ internal sealed record GpuShaderInfo(
     int Samplers,
     int StorageTextures,
     int StorageBuffers,
-    int UniformBuffers,
-    GpuEffectBindings? Effect = null);
+    int UniformBuffers);
 
-// How the OpenGL effect of a fragment shader is reached from SDL's binding layout. Each uniform names
-// the effect parameter written from Floats floats at Offset bytes into uniform buffer Buffer. Textures
-// names the parameter at each sampler slot, null for slot 0, whose texture the device binds itself.
-// Sizes names the parameter that slot's texture size is written to, null where the effect reads none.
-internal sealed record GpuEffectBindings(GpuEffectUniform[] Uniforms, string?[] Textures, string?[] Sizes);
-
-internal readonly record struct GpuEffectUniform(string Name, int Buffer, int Offset, int Floats);
-
-// SDL_GPUGraphicsPipelineCreateInfo for a triangle list drawn into one color target.
+// SDL_GPUGraphicsPipelineCreateInfo for a triangle list drawn into one color target, culling nothing.
 internal readonly record struct GpuPipelineInfo(GpuShader VertexShader, GpuShader FragmentShader, GpuTextureFormat Target, GpuBlendState Blend);
 
-// SDL_GPUTexture. The back buffer's texture is the device's, and is never disposed by its user.
-internal sealed class GpuTexture(Texture2D? body, GpuTextureFormat format, int width, int height) : IDisposable
+// SDL_GPUTexture. Released once no submitted command buffer still uses it.
+internal sealed class GpuTexture(nint device, nint handle, GpuTextureFormat format, int width, int height) : IDisposable
 {
+    internal nint Handle { get; private set; } = handle;
+
     internal GpuTextureFormat Format { get; } = format;
 
-    internal int Width { get; set; } = width;
+    internal int Width { get; } = width;
 
-    internal int Height { get; set; } = height;
+    internal int Height { get; } = height;
 
-    // Null for the back buffer.
-    internal Texture2D? Body { get; } = body;
-
-    public void Dispose() => Body?.Dispose();
+    public void Dispose()
+    {
+        if (Handle != 0)
+        {
+            Sdl3.SDL_ReleaseGPUTexture(device, Handle);
+            Handle = 0;
+        }
+    }
 }
 
-// SDL_GPUSampler.
-internal sealed class GpuSampler(SamplerState body)
+// SDL_GPUSampler. The device that created it releases it.
+internal sealed class GpuSampler(nint handle)
 {
-    internal SamplerState Body { get; } = body;
+    internal nint Handle { get; } = handle;
 }
 
-// SDL_GPUBuffer. The OpenGL backend reads it on the CPU, and its body is the bytes last uploaded.
-internal sealed class GpuBuffer(GpuBufferUsage usage, int size)
+// SDL_GPUBuffer. Released once no submitted command buffer still uses it.
+internal sealed class GpuBuffer(nint device, nint handle, GpuBufferUsage usage, int size) : IDisposable
 {
+    internal nint Handle { get; private set; } = handle;
+
     internal GpuBufferUsage Usage { get; } = usage;
 
     internal int Size { get; } = size;
 
-    internal byte[] Body { get; } = new byte[size];
+    public void Dispose()
+    {
+        if (Handle != 0)
+        {
+            Sdl3.SDL_ReleaseGPUBuffer(device, Handle);
+            Handle = 0;
+        }
+    }
 }
 
-// SDL_GPUShader. A vertex shader has no OpenGL body: each fragment shader's effect carries its own
-// vertex stage. The parameters are the effect's, resolved once in the order Info.Effect names them.
-internal sealed class GpuShader(GpuShaderInfo info) : IDisposable
+// SDL_GPUShader. A pipeline created from it keeps working once it is released.
+internal sealed class GpuShader(nint device, nint handle, GpuShaderInfo info) : IDisposable
 {
+    internal nint Handle { get; private set; } = handle;
+
     internal GpuShaderInfo Info { get; } = info;
 
-    internal Effect? Effect { get; init; }
-
-    internal EffectParameter[] Uniforms { get; init; } = [];
-
-    internal EffectParameter?[] Textures { get; init; } = [];
-
-    internal EffectParameter?[] Sizes { get; init; } = [];
-
-    public void Dispose() => Effect?.Dispose();
+    public void Dispose()
+    {
+        if (Handle != 0)
+        {
+            Sdl3.SDL_ReleaseGPUShader(device, Handle);
+            Handle = 0;
+        }
+    }
 }
 
 // SDL_GPUGraphicsPipeline.
-internal sealed class GpuPipeline(GpuPipelineInfo info, BlendState blend)
+internal sealed class GpuPipeline(nint device, nint handle, GpuPipelineInfo info) : IDisposable
 {
+    internal nint Handle { get; private set; } = handle;
+
     internal GpuPipelineInfo Info { get; } = info;
 
-    internal BlendState Blend { get; } = blend;
+    public void Dispose()
+    {
+        if (Handle != 0)
+        {
+            Sdl3.SDL_ReleaseGPUGraphicsPipeline(device, Handle);
+            Handle = 0;
+        }
+    }
 }
 
-// SDL_GPUTransferBuffer for downloads: RGBA texels a copy pass reads back, readable once the command
-// buffer that recorded the download completes.
-internal sealed class GpuReadback(int size)
+// SDL_GPUTransferBuffer for one download: the RGBA texels of a Width by Height texture, rows tightly
+// packed, readable once the command buffer that recorded the download completes.
+internal sealed class GpuReadback(nint device, nint handle, int width, int height) : IDisposable
 {
-    internal byte[] Body { get; } = new byte[size];
+    internal nint Handle { get; private set; } = handle;
 
-    internal int Width { get; set; }
+    internal int Width { get; } = width;
 
-    internal int Height { get; set; }
+    internal int Height { get; } = height;
+
+    // The texels as a PNG, through SDL's encoder.
+    internal unsafe byte[] EncodePng()
+    {
+        byte* texels = Sdl3.SDL_MapGPUTransferBuffer(device, Handle, cycle: false);
+        if (texels is null)
+        {
+            throw new InvalidOperationException($"The captured frame could not be read back: {Sdl3.Error()}");
+        }
+
+        nint surface = 0;
+        nint stream = 0;
+        try
+        {
+            surface = Sdl3.SDL_CreateSurfaceFrom(Width, Height, Sdl3.PixelFormatRgba32, texels, Width * 4);
+            stream = Sdl3.SDL_IOFromDynamicMem();
+            if (surface == 0 || stream == 0 || !Sdl3.SDL_SavePNG_IO(surface, stream, closeStream: false))
+            {
+                throw new InvalidOperationException($"The captured frame could not be encoded as a PNG: {Sdl3.Error()}");
+            }
+
+            byte[] png = new byte[checked((int)Sdl3.SDL_GetIOSize(stream))];
+            Sdl3.SDL_SeekIO(stream, 0, Sdl3.IoSeekSet);
+            fixed (byte* into = png)
+            {
+                if (Sdl3.SDL_ReadIO(stream, into, (nuint)png.Length) != (nuint)png.Length)
+                {
+                    throw new InvalidOperationException($"The captured frame's PNG could not be read back: {Sdl3.Error()}");
+                }
+            }
+
+            return png;
+        }
+        finally
+        {
+            if (stream != 0)
+            {
+                Sdl3.SDL_CloseIO(stream);
+            }
+
+            if (surface != 0)
+            {
+                Sdl3.SDL_DestroySurface(surface);
+            }
+
+            Sdl3.SDL_UnmapGPUTransferBuffer(device, Handle);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (Handle != 0)
+        {
+            Sdl3.SDL_ReleaseGPUTransferBuffer(device, Handle);
+            Handle = 0;
+        }
+    }
 }

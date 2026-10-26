@@ -64,7 +64,7 @@ internal sealed class FreeCamera
     internal float ZoomOut => _detached ? _view.Size.X / _detachSize.X : 1f;
 
     // Reads the frame's gestures while the overlay holds the run, and attaches once it does not. input is
-    // the overlay's, advanced to this frame. window is the pointer in back-buffer pixels. overWorld says it
+    // the overlay's, advanced to this frame. window is the pointer in window pixels. overWorld says it
     // stands on the drawn world clear of the menu, and world is where the last frame's world landed.
     internal void Read(InputState input, Vector2 window, bool overWorld, WorldPlacement? world, bool held)
     {

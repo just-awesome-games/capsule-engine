@@ -4,7 +4,9 @@ After this page you can write a fragment shader, draw a renderer or a tile map w
 across every material of a shader. Each type's XML docs hold its rules.
 
 A shader is a fragment function the build wraps in the engine's sprite shader. The engine keeps the
-vertex stage, the batching, the tint and the flash. What a pixel becomes is the game's.
+vertex stage ([`vertex.hlsl`](../src/Capsule.Runtime/Rendering/Shaders/vertex.hlsl)), the pixel stage around
+the fragment ([`pixel.hlsl`](../src/Capsule.Runtime/Rendering/Shaders/pixel.hlsl)), the batching, the tint
+and the flash. What a pixel becomes is the game's.
 
 | Need | Piece |
 | --- | --- |
@@ -41,8 +43,7 @@ float4 Fragment(SpritePixel pixel)
 | `TextureSize(texture)` | A texture parameter's size in texels. |
 
 A parameter is a `float`, `float2`, `float3`, `float4` or `Texture2D` declared at file scope. Names
-starting with `Capsule` are the engine's. A construct OpenGL 2.1 lacks, such as `Load` or
-`GetDimensions`, fails the build naming the fix.
+starting with `Capsule` are the engine's.
 
 ## Drawing with it
 

@@ -4,12 +4,11 @@ namespace Capsule.Tests.Input;
 
 public sealed class GamepadSamplerTests
 {
-    // A stick and a trigger read exactly as they did when the graphics substrate read the pad, for
-    // every raw reading SDL can report. The reference is GamePad.PlatformGetState in MonoGame
-    // DesktopGL 3.8.5.1, transcribed: GetFromSdlAxis scales, the thumbsticks negate Y and clamp to
-    // [-1, 1], and the triggers clamp to [0, 1] through MathHelper.Clamp.
+    // Each half of SDL's axis range scales over its own length, and either full deflection reads
+    // exactly 1. A stick's Y is negated so up is positive, and a trigger clamps to [0, 1]. Every raw
+    // reading converts bit for bit as it always has, which keeps recorded runs reproducing.
     [Fact]
-    public void EveryRawReading_ConvertsBitForBitAsTheSubstrateDid()
+    public void EveryRawReading_ConvertsBitForBit()
     {
         for (int raw = short.MinValue; raw <= short.MaxValue; raw++)
         {

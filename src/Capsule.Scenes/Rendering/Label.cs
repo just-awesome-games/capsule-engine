@@ -483,7 +483,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
 
             Sprite sprite = new(pages[glyph.Page], glyph.Region);
             Vector2 at = origin + (new Vector2(glyph.X, glyph.Y) * scale);
-            // A negative scale axis folds into the flip, and the backend draws the magnitude of the extent.
+            // A negative scale axis folds into the flip, and the renderer draws the magnitude of the extent.
             Vector2 extent = new Vector2(sprite.Region.Width, sprite.Region.Height) * scale;
 
             view.Add(

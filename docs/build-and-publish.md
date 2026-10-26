@@ -55,7 +55,7 @@ one package named for its role:
 | Project | References |
 | --- | --- |
 | Logic | `JAG.Capsule`, the API the game is written against and the build targets that run its asset build. |
-| Shell | `JAG.Capsule.Runtime.Desktop`, which brings the neutral host and the graphics substrate. |
+| Shell | `JAG.Capsule.Runtime.Desktop`, which brings the neutral host and SDL3. |
 | Build | `JAG.Capsule.Build`, the build it runs, and any importer package, such as `JAG.Capsule.Tiled`. |
 
 Build-time code reaches only the build project, and none of it ships with the game. The logic and shell
@@ -197,14 +197,13 @@ Games ship under NativeAOT. No project file sets `PublishAot`. Pass it with a ru
 dotnet publish src/MyGame.Shell --configuration Release --runtime win-x64 --self-contained true -p:PublishAot=true
 ```
 
-The publish directory carries the host's native libraries beside the executable: SDL3 for the window, input
-and sound output, and sdl2-compat, through which the graphics substrate reaches SDL3 (`SDL3.dll` and
-`SDL2.dll` on Windows). The host mixes sound itself and plays the mix on the system's default
-output. Without an output device the run plays silently and logs that once.
+The publish directory carries SDL3 beside the executable (`SDL3.dll` on Windows), for the window, input,
+the GPU and sound output. The host mixes sound itself and plays the mix on the system's default output.
+Without an output device the run plays silently and logs that once.
 
 A publish carries the GPU formats its runtime identifier's drivers read: DXIL and SPIR-V for `win-`, SPIR-V
-for `linux-`, MSL for `osx-`, and everywhere the OpenGL effect the host draws with today. A NativeAOT publish
-drops the engine's own sprite shader in the other formats too. `CapsuleShaderFormats` names another set.
+for `linux-` and MSL for `osx-`. A NativeAOT publish drops the engine's own sprite shader in the other formats
+too. `CapsuleShaderFormats` names another set.
 
 A publish replaces its directory's `assets/` whole. The folder never carries an asset the current build does
 not ship, whatever an earlier publish left there.
@@ -231,7 +230,7 @@ to the importing project unless a row says otherwise.
 
 | Property | Value | Effect |
 | --- | --- | --- |
-| `CapsuleGameLogic` | `true` | Enables game-boundary analysis, generates the scene, entity and asset registries, and turns `CapsuleBuildAssets` on. Set it on the substrate-free logic library. |
+| `CapsuleGameLogic` | `true` | Enables game-boundary analysis, generates the scene, entity and asset registries, and turns `CapsuleBuildAssets` on. Set it on the host-free logic library. |
 | `CapsuleGameShell` | `true` | Generates `CapsuleBoot`, takes the application icons its logic library derives, else Capsule's defaults, and supplies the default application manifest. Reads no authoring sources. Set it on the executable shell. |
 
 ### Authoring sources and output
@@ -242,7 +241,7 @@ to the importing project unless a row says otherwise.
 | `CapsuleBuildAssets` | `true` for the logic library, else `false` | Reads the authoring tree and ships the result under `assets/`. A role-free test or tool can opt in, and receives no `CapsuleAssets`. |
 | `CapsuleBuildProject` | unset | The game's build project, which a project building assets must name. |
 | `CapsuleShipping` | `true` for the duration of a publish | Switches the build to shipping shape. See [Development builds](#development-builds). |
-| `CapsuleShaderFormats` | the runtime identifier's, as [Publishing](#publishing) names them | The GPU formats a shell's publish carries, separated by `;`: `spirv`, `dxil`, `msl`, `glsl` or a platform module's own. Unset for an unknown runtime identifier, which carries every format. |
+| `CapsuleShaderFormats` | the runtime identifier's, as [Publishing](#publishing) names them | The GPU formats a shell's publish carries, separated by `;`: `spirv`, `dxil`, `msl` or a platform module's own. Unset for an unknown runtime identifier, which carries every format. |
 | `CapsuleSymbolsDirectory` | the publish directory's path with `-symbols` appended | Receives a publish's symbols: the native pdb under NativeAOT, the managed pdbs otherwise. |
 
 ### Package and source properties
@@ -252,7 +251,6 @@ to the importing project unless a row says otherwise.
 | `CapsuleSourcePath` | unset | Points at an engine clone, relative to `Directory.Build.local.props`. |
 | `CapsuleSourceOverrides` | unset | Replaces Capsule-family packages with clones, as `<PackageId>=<path>` separated by `;`, each path relative to the repository root. |
 | `CapsuleApiReferenceDirectory` | `artifacts/capsule-api` | Where the build stages Capsule's XML documentation and schemas. A relative path resolves against the repository root, the directory holding `Directory.Build.targets`, else `Directory.Build.props`, else the project's own directory. |
-| `CapsuleSubstratePackage` | `MonoGame.Framework.DesktopGL` | The substrate package `Capsule.Runtime` compiles against, with `CapsuleSubstrateVersion` (default `3.8.5.1`). Source mode only, for a private platform module retargeting the host. |
 | `CapsuleSourceConfiguration` | `Release` | The configuration an engine clone's own projects build in, whatever the game builds. Set `Debug` to step into engine source. |
 
 ### Application icons and manifest

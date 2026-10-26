@@ -4,12 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Runtime</RootNamespace>
     <PackageId>JAG.Capsule.Runtime</PackageId>
-    <Description>The platform-neutral Capsule host: window, graphics device, clock, keyboard and gamepad sampling, the interpolating renderer, sound playback, scene hosting and the HostPlatform contract a platform module fills in. The only module that links the graphics backend.</Description>
-    <!-- The substrate is one property pair. A private platform module retargets an unmodified
-         source checkout without editing it. -->
-    <CapsuleSubstratePackage Condition="'$(CapsuleSubstratePackage)' == ''">MonoGame.Framework.DesktopGL</CapsuleSubstratePackage>
-    <CapsuleSubstrateVersion Condition="'$(CapsuleSubstrateVersion)' == ''">3.8.5.1</CapsuleSubstrateVersion>
-    <!-- The texture decoder's entry point takes and returns pointers. -->
+    <Description>The platform-neutral Capsule host on SDL3: window, GPU device, clock, keyboard and gamepad sampling, the interpolating renderer, sound playback, scene hosting and the HostPlatform contract a platform module fills in.</Description>
+    <!-- The texture decoder's entry point and the SDL3 bindings take and return pointers. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
@@ -29,14 +25,8 @@
           PackagePath="/"
           Visible="false" />
 
-    <!-- "compile" in PrivateAssets is load-bearing: without it MonoGame's reference assemblies
-         flow to consumers and a game can write a Microsoft.Xna.Framework using. -->
-    <PackageReference Include="$(CapsuleSubstratePackage)" Version="$(CapsuleSubstrateVersion)">
-      <PrivateAssets>compile;contentfiles;analyzers;build</PrivateAssets>
-    </PackageReference>
-
-    <!-- The decoder MonoGame bundles internally, referenced so a texture decodes off the game
-         thread into memory the runtime owns. Hidden from games like the substrate. -->
+    <!-- The texture decoder, referenced so a texture decodes off the game thread into memory the
+         runtime owns. Hidden from games. -->
     <PackageReference Include="StbImageSharp" Version="2.30.16">
       <PrivateAssets>compile</PrivateAssets>
     </PackageReference>

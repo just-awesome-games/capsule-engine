@@ -8,18 +8,19 @@ internal sealed partial class FrameRenderer
 {
     // Draws a host-owned frame over the game frame Draw recorded, in the same command buffer, with an
     // upload of its own. Its world list comes first, placed where the last game frame's world landed so it annotates that frame's
-    // sprites, then its screen layer at an integer scale of the back buffer. The host's own camera is
+    // sprites, then its screen layer at an integer scale of the window surface. The host's own camera is
     // not used here, and the world list is culled against nothing and drawn at the settled step.
     internal void DrawOverlay(FrameView view, int scale)
     {
-        (int width, int height) = BackBufferSize;
-        if (_commands is not { } commands || width <= 0 || height <= 0)
+        if (_commands is not { } commands || _drawnSurface is not { } window)
         {
             return;
         }
 
+        int width = window.Width;
+        int height = window.Height;
         _sprites.Reset(1f);
-        _sprites.BeginPass(null, null);
+        _sprites.BeginPass(window, null);
 
         if (_world is { } world && (!view.Sprites.IsEmpty || !view.Lines.IsEmpty))
         {
@@ -45,10 +46,10 @@ internal sealed partial class FrameRenderer
         _sprites.Execute(commands);
     }
 
-    // The world's region of the back buffer is the fit inside the surface carried through the
+    // The world's region of the window is the fit inside the surface carried through the
     // surface's placement, and the viewport is narrowed to that region so nothing lands on the bars.
     // With the viewport's origin at the region's corner, the transform maps the world's top-left to
-    // the origin and units to back-buffer pixels.
+    // the origin and units to window pixels.
     private void DrawOverlayWorld(FrameView view, in WorldPlacement world, int width, int height)
     {
         Letterbox fit = world.Fit;

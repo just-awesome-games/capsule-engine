@@ -46,12 +46,13 @@ public sealed class Display
         }
     } = new(1280f, 720f);
 
-    /// <summary>Whether each frame waits for the display's refresh before it shows, true by default.</summary>
+    /// <summary>How each frame waits for the display, <see cref="VSyncMode.On"/> by default.</summary>
     /// <remarks>
-    /// Off, the window presents as often as <see cref="MaxFrameRate"/> allows, and with no cap as often
-    /// as the machine can draw. A settings screen that offers this switch offers the cap beside it.
+    /// Under <see cref="VSyncMode.Mailbox"/> or <see cref="VSyncMode.Off"/> the window draws as often as
+    /// <see cref="MaxFrameRate"/> allows, and with no cap as often as the machine can. A settings screen
+    /// that offers them offers the cap beside them.
     /// </remarks>
-    public bool VSync { get; set; } = true;
+    public VSyncMode VSync { get; set; }
 
     /// <summary>The most frames the window presents a second, or 0 for no cap beyond <see cref="VSync"/>.</summary>
     /// <remarks>

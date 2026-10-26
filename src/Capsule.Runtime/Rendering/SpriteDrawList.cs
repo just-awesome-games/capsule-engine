@@ -12,7 +12,7 @@ namespace Capsule.Runtime.Rendering;
 // reaches the device as one upload and then its passes, each draw binding only the state that changed.
 // The sprite vertex stage interpolates, snaps and places each instance. Every array grows to the
 // largest frame and is kept, and a frame at steady state allocates nothing.
-internal sealed class SpriteDrawList
+internal sealed class SpriteDrawList : IDisposable
 {
     private readonly GpuDevice _device;
     private readonly ShaderStore _shaders;
@@ -48,17 +48,16 @@ internal sealed class SpriteDrawList
         _open = false;
     }
 
-    // Draws what follows into target, null for the window's swapchain texture, after clearing it to
-    // clear, a straight-alpha colour, unless that is null. The pass starts over the whole target with no
-    // transform, point sampling, premultiplied blending, Capsule's own shader, and no clip or placement.
-    internal void BeginPass(GpuTexture? target, ColorRgba? clear)
+    // Draws what follows into target after clearing it to clear, a straight-alpha colour, unless that is
+    // null. The pass starts over the whole target with no transform, point sampling, premultiplied
+    // blending, Capsule's own shader, and no clip or placement.
+    internal void BeginPass(GpuTexture target, ColorRgba? clear)
     {
         Grow(ref _passes, _passCount);
         _passes[_passCount++] = new Pass(target, clear, _drawCount);
-        (int width, int height) = target is null ? _device.SwapchainSize : (target.Width, target.Height);
         _state = new State
         {
-            Viewport = new Area(0, 0, width, height),
+            Viewport = new Area(0, 0, target.Width, target.Height),
             Transform = Matrix4x4.Identity,
             Sampler = _samplers.Get(TextureSampling.Point),
             Blend = ShaderStore.Premultiplied,
@@ -167,43 +166,27 @@ internal sealed class SpriteDrawList
         instance.Flags = SpriteFlags.Whole;
     }
 
-    // Uploads every recorded instance in the frame's copy pass.
+    // Uploads every recorded instance in the frame's copy pass. The upload cycles the buffer, and draws
+    // recorded before it keep reading the instances they were recorded with.
     internal void Upload(GpuCopyPass copy)
     {
         int bytes = _count * Unsafe.SizeOf<SpriteInstance>();
         if (_buffer is null || _buffer.Size < bytes)
         {
+            _buffer?.Dispose();
             _buffer = _device.CreateBuffer(GpuBufferUsage.GraphicsStorageRead, _instances.Length * Unsafe.SizeOf<SpriteInstance>());
         }
 
         copy.UploadToBuffer(_buffer, 0, MemoryMarshal.AsBytes(_instances.AsSpan(0, _count)), cycle: true);
     }
 
-    // Records each pass into commands. A pass into the swapchain is skipped while the window has no
-    // area.
+    // Records each pass into commands.
     internal void Execute(GpuCommandBuffer commands)
     {
-        GpuTexture? swapchain = null;
-        bool acquired = false;
         for (int p = 0; p < _passCount; p++)
         {
             Pass recorded = _passes[p];
-            GpuTexture? target = recorded.Target;
-            if (target is null)
-            {
-                if (!acquired)
-                {
-                    swapchain = commands.AcquireSwapchainTexture();
-                    acquired = true;
-                }
-
-                target = swapchain;
-                if (target is null)
-                {
-                    continue;
-                }
-            }
-
+            GpuTexture target = recorded.Target;
             GpuRenderPass pass = commands.BeginRenderPass(recorded.Clear is { } clear
                 ? new GpuColorTarget(target, GpuLoadOp.Clear, Premultiplied(clear))
                 : new GpuColorTarget(target, GpuLoadOp.Load));
@@ -227,6 +210,8 @@ internal sealed class SpriteDrawList
     internal static uint Flash(ColorRgba flash, byte tintAlpha) => flash.A == 0
         ? 0u
         : Bytes(ColorRgba.Multiply(flash.R, tintAlpha), ColorRgba.Multiply(flash.G, tintAlpha), ColorRgba.Multiply(flash.B, tintAlpha), flash.A);
+
+    public void Dispose() => _buffer?.Dispose();
 
     // The product a then b, summed in a fixed order, which keeps a transform the same to the bit
     // wherever it is computed.
@@ -259,6 +244,7 @@ internal sealed class SpriteDrawList
         Matrix4x4 projected = default;
         GpuPipeline? pipeline = null;
         Material? material = null;
+        GpuSampler? materialSampler = null;
         GpuTextureSamplerBinding sprite = default;
         foreach (ref readonly Draw draw in draws)
         {
@@ -276,13 +262,21 @@ internal sealed class SpriteDrawList
                 pass.SetScissor(clip.X, clip.Y, clip.Width, clip.Height);
             }
 
-            GpuPipeline next = _shaders.Pipeline(state.Material, state.Blend, target.Format);
-            if (!ReferenceEquals(next, pipeline) || !ReferenceEquals(state.Material, material))
+            // Each binds only when it changes. A material's samplers and uniforms outlive a pipeline bind, and
+            // a pipeline bind makes the GPU rebind every table, which a material change alone does not.
+            GpuPipeline next = _shaders.Pipeline(state.Material, state.Blend);
+            if (!ReferenceEquals(next, pipeline))
             {
                 pass.BindGraphicsPipeline(next);
-                _shaders.BindMaterial(commands, pass, state.Material, state.Sampler);
                 pipeline = next;
+            }
+
+            // A material texture with no sampling of its own reads through the draw's sampler.
+            if (!ReferenceEquals(state.Material, material) || !ReferenceEquals(state.Sampler, materialSampler))
+            {
+                _shaders.BindMaterial(commands, pass, state.Material, state.Sampler);
                 material = state.Material;
+                materialSampler = state.Sampler;
             }
 
             GpuTexture texture = draw.Texture.Texture;
@@ -380,6 +374,6 @@ internal sealed class SpriteDrawList
         internal int Count;
     }
 
-    // Target null is the swapchain's texture. The pass runs from FirstDraw to the next pass's.
-    private readonly record struct Pass(GpuTexture? Target, ColorRgba? Clear, int FirstDraw);
+    // The pass runs from FirstDraw to the next pass's.
+    private readonly record struct Pass(GpuTexture Target, ColorRgba? Clear, int FirstDraw);
 }

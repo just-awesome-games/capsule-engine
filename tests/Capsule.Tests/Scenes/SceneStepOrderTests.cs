@@ -85,7 +85,7 @@ public sealed class SceneStepOrderTests
         const BindingFlags Hook = BindingFlags.Instance | BindingFlags.NonPublic;
         Type[] stepless =
         [
-            .. new[] { typeof(Component).Assembly, typeof(CapsuleGame).Assembly }
+            .. new[] { typeof(Component).Assembly, typeof(WindowHost).Assembly }
                 .SelectMany(assembly => assembly.GetTypes())
                 .Where(type => type.IsSubclassOf(typeof(Component)) && !type.IsAbstract && !type.ContainsGenericParameters)
                 .Where(type => !((Component)RuntimeHelpers.GetUninitializedObject(type)).Steps),

@@ -79,9 +79,8 @@ not ship. A page is an ordinary texture that no atlas packs. Drawing text is [`r
 
 A shader is an `.fx`, a fragment function the build wraps in the engine's sprite shader and compiles
 ([`shaders.md`](shaders.md)). It ships compiled once per GPU format, as `.spirv.shader`,
-`.dxil.shader`, `.msl.shader` and `.glsl.shader`, and its member carries the parameters the build read
-from it. Shaders compile on any desktop operating system with nothing to
-install.
+`.dxil.shader` and `.msl.shader`, and its member carries the parameters the build read from it. Shaders
+compile on any desktop operating system with nothing to install.
 
 ## Loading and residency
 

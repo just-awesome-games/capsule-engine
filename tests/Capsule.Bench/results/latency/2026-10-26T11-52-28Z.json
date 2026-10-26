@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-10-26T11:52:28Z",
+  "label": "h6-cap144",
+  "commit": "1d5c5ed",
+  "configuration": "Release",
+  "os": "Microsoft Windows 10.0.26200",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+  "gpu": "AMD Radeon RX 9070 XT",
+  "engineVersion": "0.0.0+1d5c5ed4737569b101b97dad5d513b61f72fc6a7",
+  "workload": "Still",
+  "vSync": false,
+  "cap": 144,
+  "injection": "SendInput",
+  "injected": 202,
+  "presses": 202,
+  "latencyMs": {
+    "median": 15.438,
+    "p95": 26.701,
+    "max": 32.71
+  },
+  "injectedLatencyMs": {
+    "median": 9.573,
+    "p95": 19.155,
+    "max": 21.289
+  }
+}

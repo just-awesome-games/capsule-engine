@@ -11,8 +11,8 @@ namespace Capsule.Rendering;
 // surface gets bars around it instead of showing world the camera never considered.
 internal static class FrameLayout
 {
-    // The geometry for a camera and canvas on a back buffer of this extent. Two paths: the canvas
-    // letterboxed straight into the back buffer, and the render surface presented into it where a
+    // The geometry for a camera and canvas on a window of this extent. Two paths: the canvas
+    // letterboxed straight into the window, and the render surface presented into it where a
     // resolution is declared.
     internal static ScreenLayout Layout(
         (int Width, int Height)? renderResolution,
@@ -192,7 +192,7 @@ internal static class FrameLayout
         MathF.Max(MathF.Floor((surfaceWidth - canvas.X) / 2f), 0f),
         MathF.Max(MathF.Floor((surfaceHeight - canvas.Y) / 2f), 0f));
 
-    // Where the canvas lands straight in the back buffer, with no render surface between them. Its
+    // Where the canvas lands straight in the window, with no render surface between them. Its
     // own centred fit keeps the layer's aspect and place whatever the camera's fit did with the world
     // behind it. A scale of 0 means a canvas or a window with no area.
     internal static ScreenPlacement WindowPlacement(Vector2 canvas, int outputWidth, int outputHeight)
@@ -202,9 +202,9 @@ internal static class FrameLayout
         return fit.IsEmpty ? default : new ScreenPlacement(new Vector2(fit.X, fit.Y), fit.Scale);
     }
 
-    // Where the render surface's own top-left corner lands in the back buffer. The surface fills the
-    // back buffer on its binding axis at the fractional scale that keeps its aspect, with bars on the
-    // other axis. A scale of 0 is a surface or a back buffer with no area.
+    // Where the render surface's own top-left corner lands in the window. The surface fills the
+    // window on its binding axis at the fractional scale that keeps its aspect, with bars on the
+    // other axis. A scale of 0 is a surface or a window with no area.
     internal static ScreenPlacement TargetPlacement(int targetWidth, int targetHeight, int containerWidth, int containerHeight)
     {
         Letterbox fit = Letterbox.Fit(targetWidth, targetHeight, containerWidth, containerHeight);
@@ -226,7 +226,7 @@ internal static class FrameLayout
     // from the canvas over the camera's declared span on the fit's binding axis. The fit changes how
     // much world is on the surface and not how large a world unit is. Under Letterbox the resolved
     // rect is that declared span, and the surface matches the canvas. The surface never
-    // shrinks below the canvas and never exceeds the back buffer on an axis, since the present would
+    // shrinks below the canvas and never exceeds the window on an axis, since the present would
     // only scale the extra pixels back down after paying to draw them.
     internal static (int Width, int Height) SurfaceSize(
         (int Width, int Height) canvas,
@@ -265,9 +265,9 @@ internal static class FrameLayout
             : MathF.Min(canvas.Width / size.X, canvas.Height / size.Y);
     }
 
-    // How a surface reaches the back buffer at a present scale. Prescale is the whole factor the
+    // How a surface reaches the window at a present scale. Prescale is the whole factor the
     // surface is first blown up by with point sampling, 1 for none, and Final the sampling of the blit
-    // into the back buffer. A point-sampled surface at a fractional scale of 1 or more is prescaled to
+    // into the window. A point-sampled surface at a fractional scale of 1 or more is prescaled to
     // the next whole scale and filtered down from there. Every texel then keeps an even, crisp block,
     // where a direct point blit would give texels of uneven width and a direct linear blit would blur.
     // Below a scale of 1 there is no block to keep, and the surface is filtered straight down.
@@ -290,7 +290,7 @@ internal static class FrameLayout
 
     // The present pass for a surface drawn factor times larger than a layout at scale declares. The
     // prescale shrinks by the factor and Scale is the final blit's. The blit's source extent and scale
-    // are the factor of 1's. The world lands on the same back-buffer pixels.
+    // are the factor of 1's. The world lands on the same window pixels.
     internal static (int Prescale, TextureSampling Final, float Scale) PresentPass(TextureSampling sampling, float scale, int factor)
     {
         (int prescale, TextureSampling final) = PresentPass(sampling, scale);

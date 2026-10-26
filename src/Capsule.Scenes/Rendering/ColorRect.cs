@@ -64,7 +64,7 @@ public sealed class ColorRect(Vector2 size) : Renderer
     }
 
     // The white texel anchors at its corner, and a flip swings the rect across that corner. A negative world
-    // scale axis folds into the flip flags, and the backend draws the magnitude of the extent.
+    // scale axis folds into the flip flags, and the renderer draws the magnitude of the extent.
     private SpriteIntent Intent(in Transform2D previous, in Transform2D current)
     {
         Vector2 size = ScreenEntity.Fill(Entity, Size) * current.Scale;

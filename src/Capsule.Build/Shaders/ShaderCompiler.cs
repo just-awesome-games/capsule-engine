@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using Capsule.Rendering;
 
@@ -26,11 +25,8 @@ internal static partial class ShaderCompiler
     /// <summary>MSL 2.1 source, which SDL's GPU API reads on Metal.</summary>
     internal const string Msl = "msl";
 
-    /// <summary>The effect the desktop host draws with until it leaves MonoGame, its code an OpenGL 2.1 effect.</summary>
-    internal const string Glsl = "glsl";
-
-    /// <summary>Every format the engine compiles a fragment to.</summary>
-    internal static readonly string[] Formats = [Spirv, Dxil, Msl, Glsl];
+    /// <summary>Every format the engine compiles a stage to.</summary>
+    internal static readonly string[] Formats = [Spirv, Dxil, Msl];
 
     // SDL's descriptor sets: a stage's textures, samplers and storage in one, its uniform buffers in
     // the next. The material's uniform buffer is binding 0 and the scene globals' binding 1.
@@ -60,13 +56,13 @@ internal static partial class ShaderCompiler
         List<ShaderDiagnostic> diagnostics = [];
         try
         {
-            // The OpenGL 2.1 compile reports the game's errors and reads the parameter table the bound
+            // The reflected compile reports the game's errors and reads the parameter table the bound
             // compile pairs samplers from.
             Write(basePath + ".fx", ShaderTemplate.Compose(fragment, fragmentPath));
-            Gl21Stage gl21 = CompileGl21(tools, basePath, diagnostics);
-            if (gl21.Effect is not { } effect)
+            FragmentReflection reflected = ReflectFragment(tools, basePath, diagnostics);
+            if (!reflected.Compiled)
             {
-                return Failed(gl21.Failure, diagnostics);
+                return Failed(reflected.Failure, diagnostics);
             }
 
             Dictionary<string, (int, int)> places = new()
@@ -75,10 +71,10 @@ internal static partial class ShaderCompiler
                 [ShaderTemplate.SceneGlobalsBlock] = (FragmentUniforms, 1),
             };
 
-            List<ShaderBinding> table = [.. gl21.Constants];
-            for (int slot = 0; slot <= gl21.Textures.Count; slot++)
+            List<ShaderBinding> table = [.. reflected.Constants];
+            for (int slot = 0; slot <= reflected.Textures.Count; slot++)
             {
-                string texture = slot == 0 ? ShaderTemplate.SpriteTexture : gl21.Textures[slot - 1];
+                string texture = slot == 0 ? ShaderTemplate.SpriteTexture : reflected.Textures[slot - 1];
                 places[texture] = (FragmentResources, slot);
                 places[ShaderTemplate.PairedSampler + texture] = (FragmentResources, slot);
                 if (slot > 0)
@@ -91,15 +87,15 @@ internal static partial class ShaderCompiler
                 string.Empty,
                 ShaderStage.Fragment,
                 ShaderTemplate.EntryPoint,
-                Samplers: gl21.Textures.Count + 1,
+                Samplers: reflected.Textures.Count + 1,
                 StorageTextures: 0,
                 StorageBuffers: 0,
-                UniformBuffers: gl21.HasGlobalsBuffer ? 2 : gl21.HasMaterialBuffer ? 1 : 0,
+                UniformBuffers: reflected.HasGlobalsBuffer ? 2 : reflected.HasMaterialBuffer ? 1 : 0,
                 [.. table],
                 []);
 
-            Write(basePath + ".bound.fx", ShaderTemplate.ComposeBound(fragment, fragmentPath, gl21.Textures));
-            List<ShaderContainer> shaders = [layout with { Format = Glsl, Code = effect }];
+            Write(basePath + ".bound.fx", ShaderTemplate.ComposeBound(fragment, fragmentPath, reflected.Textures));
+            List<ShaderContainer> shaders = [];
             if (!CompileBound(tools, basePath, layout, places, shaders, diagnostics, out string? failure))
             {
                 return Failed(failure, diagnostics);
@@ -115,7 +111,7 @@ internal static partial class ShaderCompiler
         }
     }
 
-    /// <summary>Compiles the engine's vertex stage to every format but <see cref="Glsl"/>, whose effect carries its own.</summary>
+    /// <summary>Compiles the engine's vertex stage to every format.</summary>
     /// <param name="tools">The downloaded tools, and the further formats.</param>
     /// <param name="basePath">Where the intermediate files are written and deleted, as a path without extension in a directory of its own.</param>
     internal static ShaderCompilation CompileVertex(ShaderTools tools, string basePath)
@@ -242,119 +238,6 @@ internal static partial class ShaderCompiler
         diagnostic.Message.Contains($"'{ShaderTemplate.PairedSampler}", StringComparison.Ordinal)
             ? diagnostic with { Message = "samples a texture that is not a texture parameter. Call Sample(texture, uv) with the parameter itself, not a function argument holding it." }
             : diagnostic;
-
-    // The parameter table from SPIRV-Cross's reflection: the members of the global block and of the
-    // scene globals block with their offsets in their own block, and every texture beyond the
-    // sprite's. Returns why a parameter cannot be set, or null.
-    private static string? Reflect(string json, out List<ShaderBinding> constants, out int bufferSize, out int globalsSize, out List<string> textures)
-    {
-        constants = [];
-        textures = [];
-        bufferSize = 0;
-        globalsSize = 0;
-
-        using JsonDocument document = JsonDocument.Parse(json);
-        JsonElement root = document.RootElement;
-
-        if (root.TryGetProperty("ubos", out JsonElement blocks))
-        {
-            foreach (JsonElement block in blocks.EnumerateArray())
-            {
-                string blockName = block.GetProperty("name").GetString()!;
-                bool scene = blockName == "type." + ShaderTemplate.SceneGlobalsBlock;
-                if (!scene && blockName != "type.$Globals")
-                {
-                    return $"declares the constant buffer '{blockName}'. Declare a shader parameter outside any buffer, or in a cbuffer named {ShaderTemplate.SceneGlobalsBlock} for one set on the scene.";
-                }
-
-                if (scene && globalsSize > 0)
-                {
-                    return $"declares the cbuffer {ShaderTemplate.SceneGlobalsBlock} twice. Declare it once, holding every scene global.";
-                }
-
-                int size = (block.GetProperty("block_size").GetInt32() + 15) / 16 * 16;
-                if (scene)
-                {
-                    globalsSize = size;
-                }
-                else
-                {
-                    bufferSize = size;
-                }
-
-                JsonElement type = root.GetProperty("types").GetProperty(block.GetProperty("type").GetString()!);
-
-                foreach (JsonElement member in type.GetProperty("members").EnumerateArray())
-                {
-                    string name = member.GetProperty("name").GetString()!;
-                    if (Reserved(name))
-                    {
-                        return $"declares parameter '{name}', a name the engine reserves. Rename it without the {ShaderTemplate.ReservedPrefix} prefix.";
-                    }
-
-                    ShaderParameterKind? kind = member.TryGetProperty("array", out _)
-                        ? null
-                        : member.GetProperty("type").GetString() switch
-                        {
-                            "float" => ShaderParameterKind.Float,
-                            "vec2" => ShaderParameterKind.Vector2,
-                            "vec3" => ShaderParameterKind.Vector3,
-                            "vec4" => ShaderParameterKind.Vector4,
-                            _ => null,
-                        };
-
-                    if (kind is not { } settable)
-                    {
-                        return scene
-                            ? $"declares scene global '{name}', which a scene cannot set. A scene global is a float, float2, float3 or float4, and no array."
-                            : $"declares parameter '{name}', which a Material cannot set. A shader parameter is a float, float2, float3, float4 or Texture2D, and no array.";
-                    }
-
-                    constants.Add(new ShaderBinding(name, settable, scene, member.GetProperty("offset").GetInt32()));
-                }
-            }
-        }
-
-        if (root.TryGetProperty("separate_images", out JsonElement images))
-        {
-            foreach (JsonElement image in images.EnumerateArray())
-            {
-                string name = image.GetProperty("name").GetString()!;
-                if (Reserved(name))
-                {
-                    return $"declares texture '{name}', a name the engine reserves. Rename it without the {ShaderTemplate.ReservedPrefix} prefix.";
-                }
-
-                if (image.GetProperty("type").GetString() != "texture2D")
-                {
-                    return $"declares texture '{name}' of a kind a Material cannot set. A texture parameter is a Texture2D.";
-                }
-
-                if (name != ShaderTemplate.SpriteTexture)
-                {
-                    textures.Add(name);
-                }
-            }
-        }
-
-        if (root.TryGetProperty("separate_samplers", out JsonElement samplers))
-        {
-            foreach (JsonElement sampler in samplers.EnumerateArray())
-            {
-                if (sampler.GetProperty("name").GetString() is not (ShaderTemplate.Sampler or ShaderTemplate.SizeProbe))
-                {
-                    return "declares a sampler of its own. Read a texture with Sample(texture, uv), which samples as the sprite does.";
-                }
-            }
-        }
-
-        return null;
-    }
-
-    // Whether a game parameter's name is the engine's: the vertex stage's transform, or any name the
-    // template or the host binds, all of which carry the reserved prefix.
-    private static bool Reserved(string name) =>
-        name == ShaderTemplate.MatrixTransform || name.StartsWith(ShaderTemplate.ReservedPrefix, StringComparison.Ordinal);
 
     // DXC's 'file:line:column: error: message', one per diagnostic. The source excerpt and caret
     // lines that follow each one match nothing.

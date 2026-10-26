@@ -40,7 +40,7 @@ public readonly record struct SpriteIntent(
     // in RGB and the amount in alpha. Set by the frame at store and by nothing a game writes.
     internal ColorRgba Flash { get; init; }
 
-    // The anchor a backend draws from, in region texels. It mirrors on a flipped axis. The pivot texel
+    // The anchor the renderer draws from, in region texels. It mirrors on a flipped axis. The pivot texel
     // stays on the position whichever way the frame faces.
     internal Vector2 DrawOrigin => new(
         FlipX ? Sprite.Region.Width - Sprite.Pivot.X : Sprite.Pivot.X,

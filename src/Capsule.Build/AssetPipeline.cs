@@ -118,7 +118,7 @@ internal static class AssetPipeline
                 AudioStep.Run(pass);            // .ogg and .wav sources -> .flac encodings or copies, sound members
                 SheetStep.Run(pass);            // .sheet.json sources, the textures -> sheet members
                 ClipStep.Run(pass);             // .clip.json sources -> clip members
-                ShaderStep.Run(pass);           // .fx sources -> .mgfx effects, shader members
+                ShaderStep.Run(pass);           // .fx sources -> compiled shader stages, shader members
                 SceneStep.Run(pass);            // .scene.json sources -> gzipped documents, scene members
                 IconStep.Run(pass);             // Icon.png at the asset root -> icon/Icon.ico, icon/Icon.bmp
                 string? strings = StringsStep.Run(pass); // .strings.json sources -> CapsuleStrings

@@ -53,8 +53,8 @@
       },
       "JAG.Capsule.Native.SDL3": {
         "type": "Transitive",
-        "resolved": "3.4.18",
-        "contentHash": "5dCZJSW2FQUx8V5gV/DWcgOuC9XDvOrOr+vP6s0gbaH52q0PfGdwn0ZcfrECZzj9zHcxFy34o3hcEWSs+nY4Gg=="
+        "resolved": "3.4.18.2",
+        "contentHash": "vXE70tFrQq4GrBZSZ/jfZt3brMQUIrY95vs+nIxfbP9C/yKsbiiI2BtPbX3lROZcaZcZNrm83NMgYHIgyuMF4w=="
       },
       "JAG.Capsule.ShaderTools": {
         "type": "Transitive",
@@ -91,26 +91,6 @@
         "dependencies": {
           "Microsoft.TestPlatform.ObjectModel": "18.10.1"
         }
-      },
-      "MonoGame.Framework.DesktopGL": {
-        "type": "Transitive",
-        "resolved": "3.8.5.1",
-        "contentHash": "za6tOSYT2xpks932wU/WcpPu2xkUyKwn251gkRuiJ/3XPZBdwds7RPXRhtcrZGnZ2jtjtwh4upRLd+EGrrWtFw==",
-        "dependencies": {
-          "MonoGame.Library.OpenAL": "1.24.3.4",
-          "MonoGame.Library.SDL": "2.32.10.2",
-          "NVorbis": "0.10.4"
-        }
-      },
-      "MonoGame.Library.OpenAL": {
-        "type": "Transitive",
-        "resolved": "1.24.3.4",
-        "contentHash": "/FhE0hblY9owGPvIHnMbH+6kXtjfl+/t3Cm776RQiZnGyxGy2Qd9pTAzclLuMO8pvtjiGLYkkRwjRciUA4XFyQ=="
-      },
-      "MonoGame.Library.SDL": {
-        "type": "Transitive",
-        "resolved": "2.32.10.2",
-        "contentHash": "mtnmWr50KgH2Ui9fPscHPMI3sXgb5NBRnPS7igi4ViJ23ROdP+MLi/j9CmLWX47KuXvI3Bp5BElCDVwRUlswgg=="
       },
       "xunit.abstractions": {
         "type": "Transitive",
@@ -188,14 +168,13 @@
         "type": "Project",
         "dependencies": {
           "JAG.Capsule": "[0.0.0, )",
-          "MonoGame.Framework.DesktopGL": "[3.8.5.1, )",
           "StbImageSharp": "[2.30.16, )"
         }
       },
       "JAG.Capsule.Runtime.Desktop": {
         "type": "Project",
         "dependencies": {
-          "JAG.Capsule.Native.SDL3": "[3.4.18, )",
+          "JAG.Capsule.Native.SDL3": "[3.4.18.2, )",
           "JAG.Capsule.Runtime": "[0.0.0, )"
         }
       }

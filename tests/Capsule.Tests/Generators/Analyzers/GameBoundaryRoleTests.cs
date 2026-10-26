@@ -21,26 +21,24 @@ public sealed class GameBoundaryRoleTests
     }
 
     [Fact]
-    public async Task Logic_RejectsRuntimeAndPlatformReferences()
+    public async Task Logic_RejectsARuntimeReference()
     {
         ImmutableArray<Diagnostic> diagnostics = await Analyze(
             "public static class Logic { }",
             logic: true,
-            extraReferences: [EmptyAssembly("Capsule.Runtime"), EmptyAssembly("MonoGame.Framework")]);
+            extraReferences: [EmptyAssembly("Capsule.Runtime")]);
 
         Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "CAP100");
-        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "CAP101");
     }
 
     [Fact]
-    public async Task Shell_AcceptsRuntimeButRejectsAPlatformReference()
+    public async Task Shell_AcceptsARuntimeReference()
     {
         ImmutableArray<Diagnostic> diagnostics = await Analyze(
             "public static class Program { }",
             shell: true,
-            extraReferences: [EmptyAssembly("Capsule.Runtime"), EmptyAssembly("MonoGame.Framework.DesktopGL")]);
+            extraReferences: [EmptyAssembly("Capsule.Runtime")]);
 
         Assert.DoesNotContain(diagnostics, diagnostic => diagnostic.Id == "CAP100");
-        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "CAP101");
     }
 }

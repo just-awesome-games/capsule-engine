@@ -17,7 +17,6 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [
             Diagnostics.RuntimeBoundary,
-            Diagnostics.PlatformBoundary,
             Diagnostics.ExternalIo,
             Diagnostics.Concurrency,
             Diagnostics.AmbientTime,
@@ -35,20 +34,12 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
 
     private static void Start(CompilationStartAnalysisContext context)
     {
-        GeneratorRole role = GeneratorRoles.Read(context.Options.AnalyzerConfigOptionsProvider.GlobalOptions);
-        if (role == GeneratorRole.None)
+        if (!GeneratorRoles.Read(context.Options.AnalyzerConfigOptionsProvider.GlobalOptions).DeclaresLogic())
         {
             return;
         }
 
-        bool logic = role.DeclaresLogic();
-
-        context.RegisterCompilationEndAction(compilation => AnalyzeReferences(compilation, logic));
-        if (!logic)
-        {
-            return;
-        }
-
+        context.RegisterCompilationEndAction(AnalyzeReferences);
         context.RegisterOperationAction(AnalyzeInvocation, OperationKind.Invocation);
         context.RegisterOperationAction(AnalyzeObjectCreation, OperationKind.ObjectCreation);
         context.RegisterOperationAction(AnalyzeProperty, OperationKind.PropertyReference);
@@ -60,19 +51,11 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         context.RegisterSymbolAction(AnalyzeNativeImport, SymbolKind.Method);
     }
 
-    private static void AnalyzeReferences(CompilationAnalysisContext context, bool logic)
+    private static void AnalyzeReferences(CompilationAnalysisContext context)
     {
         foreach (AssemblyIdentity reference in context.Compilation.ReferencedAssemblyNames)
         {
-            if (IsMonoGame(reference.Name))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    Diagnostics.PlatformBoundary,
-                    Location.None,
-                    context.Compilation.AssemblyName,
-                    reference.Name));
-            }
-            else if (logic && string.Equals(reference.Name, "Capsule.Runtime", StringComparison.Ordinal))
+            if (string.Equals(reference.Name, "Capsule.Runtime", StringComparison.Ordinal))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     Diagnostics.RuntimeBoundary,
@@ -183,10 +166,6 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         : IsConcurrency(subject) ? Diagnostics.Concurrency
         : IsPlatformMath(subject) ? Diagnostics.PlatformMath
         : null;
-
-    private static bool IsMonoGame(string assemblyName) =>
-        assemblyName.StartsWith("MonoGame.Framework", StringComparison.Ordinal)
-        || string.Equals(assemblyName, "Microsoft.Xna.Framework", StringComparison.Ordinal);
 
     // The namespace tree is banned wholesale, keeping an unanticipated sub-namespace closed. Only
     // members proven to have no external effect are carved back out.

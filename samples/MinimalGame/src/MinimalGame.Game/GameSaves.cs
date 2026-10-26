@@ -23,8 +23,10 @@ public sealed record GameSettings
     /// <summary>The window's size as a whole multiple of the view, 4 by default.</summary>
     public int WindowScale { get; set; } = 4;
 
-    /// <summary>Whether each frame waits for the display's refresh, true by default.</summary>
-    public bool VSync { get; set; } = true;
+    /// <summary>How each frame waits for the display.</summary>
+    /// <remarks>Stored under a new name. A document from when this was a switch reads as the default.</remarks>
+    [JsonPropertyName("VSyncMode")]
+    public VSyncMode VSync { get; set; }
 
     /// <summary>The most frames a second, 0 for no cap.</summary>
     public int MaxFrameRate { get; set; }

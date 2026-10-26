@@ -76,13 +76,10 @@ jobs:
         include:
           - os: ubuntu-latest
             runtime: linux-x64
-            game-binary: ./MinimalGame
           - os: windows-latest
             runtime: win-x64
-            game-binary: ./MinimalGame.exe
           - os: macos-latest
             runtime: osx-arm64
-            game-binary: ./MinimalGame
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -131,7 +128,11 @@ jobs:
           done
 
       # The sample again with development flags kept, whose command line takes the driver that plays it.
+      # The runners have no GPU. Linux draws through Mesa's software Vulkan driver, lavapipe, on a
+      # virtual display. Direct3D 12 has no software adapter and the macOS runners expose no Metal
+      # device, so only the Linux leg plays.
       - name: Publish the sample to play
+        if: runner.os == 'Linux'
         run: >
           dotnet publish samples/MinimalGame/src/MinimalGame.Shell/MinimalGame.Shell.csproj
           --configuration Release
@@ -143,42 +144,20 @@ jobs:
           -p:CapsuleShipping=false
           --output artifacts/sample-play
 
-      # The runners have no GPU. Linux draws through Mesa's software OpenGL on a virtual display, and
-      # macOS through its own software renderer. Windows ships OpenGL 1.1 alone, and Mesa's OpenGL,
-      # placed beside the executable, takes its place for this run on its llvmpipe software driver.
-      # Mesa's default Windows driver fails the context the substrate asks for.
-      - name: Install a virtual display and software OpenGL
+      - name: Install a virtual display and software Vulkan
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y xvfb libgl1-mesa-dri
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y xvfb mesa-vulkan-drivers
 
-      - name: Place software OpenGL beside the sample
-        if: runner.os == 'Windows'
-        shell: bash
-        env:
-          MESA: 26.2.4
-          MESA_SHA256: 351fc8c8b695878ffb3eaa044b3ead08672a48b1a045e3c3e3975811df0f6695
-        run: |
-          curl -sSfL -o "$RUNNER_TEMP/mesa.7z" "https://github.com/pal1000/mesa-dist-win/releases/download/$MESA/mesa3d-$MESA-release-msvc.7z"
-          echo "$MESA_SHA256  $RUNNER_TEMP/mesa.7z" | sha256sum --check
-          7z x "$RUNNER_TEMP/mesa.7z" -o"$RUNNER_TEMP/mesa" x64/opengl32.dll x64/libgallium_wgl.dll
-          cp "$RUNNER_TEMP/mesa/x64/opengl32.dll" "$RUNNER_TEMP/mesa/x64/libgallium_wgl.dll" artifacts/sample-play/
-
-      # SDL3 and the bridge load from beside the executable and open the window and the GL context, and
-      # the Walkthrough driver plays the room, then the hall, which draws with a game shader, each to
-      # the game's own exit.
+      # SDL3 loads from beside the executable and opens the window and the GPU device, and the
+      # Walkthrough driver plays the room, then the hall, which draws with a game shader, each to the
+      # game's own exit.
       - name: Play the sample
-        shell: bash
+        if: runner.os == 'Linux'
         timeout-minutes: 5
         working-directory: artifacts/sample-play
-        env:
-          GALLIUM_DRIVER: llvmpipe
         run: |
           play() {
-            if [ "$RUNNER_OS" = Linux ]; then
-              xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" ${{ matrix.game-binary }} "$@"
-            else
-              ${{ matrix.game-binary }} "$@"
-            fi
+            xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" ./MinimalGame "$@"
           }
           play --scene scenes/room --driver Walkthrough
           play --scene scenes/halls/hall --payload WestArrival --driver Walkthrough

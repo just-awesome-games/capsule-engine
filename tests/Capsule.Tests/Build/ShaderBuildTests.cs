@@ -12,8 +12,8 @@ using Capsule.Tests.Documents;
 namespace Capsule.Tests.Build;
 
 /// <summary>
-/// A game's fragment reaches the game as a compiled effect and a generated key, through the native
-/// shader tools every desktop host restores.
+/// A game's fragment reaches the game as a compiled shader per GPU format and a generated key, through
+/// the native shader tools every desktop host restores.
 /// </summary>
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class ShaderBuildTests
@@ -51,7 +51,7 @@ public sealed class ShaderBuildTests
             workspace.Generated,
             StringComparison.Ordinal);
         Assert.Equal(
-            ["shaders/effects/stone.dxil.shader", "shaders/effects/stone.glsl.shader", "shaders/effects/stone.msl.shader", "shaders/effects/stone.spirv.shader"],
+            ["shaders/effects/stone.dxil.shader", "shaders/effects/stone.msl.shader", "shaders/effects/stone.spirv.shader"],
             workspace.Shipped);
     }
 
@@ -209,68 +209,25 @@ public sealed class ShaderBuildTests
         return name;
     }
 
-    // The container is read back by MonoGame's own effect reader, run without a device, and every
-    // parameter lands where the pixel stage's constant buffer and samplers expect it. Each texture size
-    // the fragment reads is a parameter the host sets, and the stage names no sampler it never binds.
-    [Fact]
-    public void TheEffectContainer_ReadsBackThroughTheSubstratesReader()
+    // Every format the engine compiles reads a texel by index, asks a texture its size and rounds, and a
+    // fragment doing so builds.
+    [Theory]
+    [InlineData("Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Grain.Load(int3(2, 3, 0)) * pixel.Texel; }")]
+    [InlineData("Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { uint w, h; Grain.GetDimensions(w, h); return Sample(Grain, pixel.UV) * w; }")]
+    [InlineData("float4 Fragment(SpritePixel pixel) { return pixel.Texel * round(pixel.UV.x * 4.0); }")]
+    public void AReadEveryFormatHas_Builds(string source)
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-
-        ShaderCompilation compiled = ShaderCompiler.CompileFragment(ToolWorkspace.ShaderTools, "stone/stone", Stone, "stone.fx");
-        byte[] effect = Assert.Single(Assert.IsType<ShaderContainer[]>(compiled.Shaders), static shader => shader.Format == ShaderCompiler.Glsl).Code;
-
-        Type type = Type.GetType("Microsoft.Xna.Framework.Graphics.Effect, MonoGame.Framework", throwOnError: true)!;
-        object reading = RuntimeHelpers.GetUninitializedObject(type);
-        object header = Activator.CreateInstance(type.GetNestedType("MGFXHeader", BindingFlags.NonPublic)!)!;
-        header.GetType().GetField("Version")!.SetValue(header, (int)MgfxWriter.Version);
-
-        using BinaryReader reader = new(new MemoryStream(effect, 10, effect.Length - 10));
-        type.GetMethod("ReadEffect", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(reading, [header, reader]);
-
-        Assert.Equal("MGFX"u8.ToArray(), reader.ReadBytes(4));
-        Assert.Equal(reader.BaseStream.Length, reader.BaseStream.Position);
-
-        IEnumerable<object> parameters = (IEnumerable<object>)type.GetProperty("Parameters")!.GetValue(reading)!;
-        Assert.Equal(
-            ["MatrixTransform", "SpriteTexture", "CapsuleCoverage", "Amount", "Scroll", "Stain", "Glow", "CapsuleTextureSize0", "CapsuleTextureSize1", "Grain"],
-            parameters.Select(static parameter => (string)parameter.GetType().GetProperty("Name")!.GetValue(parameter)!));
-        Assert.DoesNotContain("SPIRV_Cross", Encoding.ASCII.GetString(effect), StringComparison.Ordinal);
-    }
-
-    // A game name that only contains a GLSL built-in's name is the game's own. This table, written
-    // and indexed as the fragment runs, reaches the GLSL under its own name.
-    [Fact]
-    public void AGameNameContainingABuiltInsName_Builds()
-    {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        ShaderCompilation compiled = ShaderCompiler.CompileFragment(
-            ToolWorkspace.ShaderTools,
-            "table/table",
-            """
-            static float textureSizeWeights[4] = { 0.25, 0.5, 0.75, 1.0 };
-
-            float4 Fragment(SpritePixel pixel)
-            {
-                textureSizeWeights[3] = pixel.Tint.a;
-                return pixel.Texel * textureSizeWeights[(int)(pixel.UV.x * 3.0)];
-            }
-            """,
-            "table.fx");
+        ShaderCompilation compiled = ShaderCompiler.CompileFragment(ToolWorkspace.ShaderTools, "read/read", source, "read.fx");
 
         Assert.Null(compiled.Failure);
-        Assert.NotNull(compiled.Shaders);
+        Assert.Equal(ShaderCompiler.Formats.Length, Assert.IsType<ShaderContainer[]>(compiled.Shaders).Length);
     }
 
-    // A fragment that does not compile fails at the game's file and line. A read OpenGL 2.1 lacks fails
-    // naming what to write instead, rather than failing or reading a wrong value when the game draws.
-    // The host binds the engine's parameters by name, and a game parameter carrying its prefix fails
-    // rather than being bound as one.
+    // A fragment that does not compile fails at the game's file and line. The host binds the engine's
+    // names, and a game parameter carrying their prefix fails rather than being bound as one.
     [Theory]
     [InlineData("float4 Fragment(SpritePixel pixel)\n{\n    return pixel.Texel * Glow;\n}\n", "(3,26): error : use of undeclared identifier 'Glow'")]
-    [InlineData("Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Grain.Load(int3(2, 3, 0)); }", ": reads a texel with Load or an index, which OpenGL 2.1 lacks. Read it with Sample(texture, (texel + 0.5) / TextureSize(texture)).")]
-    [InlineData("Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { uint w, h; Grain.GetDimensions(w, h); return Sample(Grain, pixel.UV) * w; }", ": reads a texture's size with GetDimensions, which OpenGL 2.1 lacks. Read it with TextureSize(texture).")]
-    [InlineData("float4 Fragment(SpritePixel pixel) { return pixel.Texel * round(pixel.UV.x * 4.0); }", ": needs the GLSL extension GL_EXT_gpu_shader4, which OpenGL 2.1 lacks.")]
     [InlineData("float2 CapsuleTextureSize1;\nTexture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Sample(Grain, pixel.UV / CapsuleTextureSize1) * pixel.Texel; }", ": declares parameter 'CapsuleTextureSize1', a name the engine reserves. Rename it without the Capsule prefix.")]
     [InlineData("Texture2D CapsuleGrain;\nTexture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Sample(Grain, pixel.UV + Sample(CapsuleGrain, pixel.UV).rg) * pixel.Texel; }", ": declares texture 'CapsuleGrain', a name the engine reserves. Rename it without the Capsule prefix.")]
     [InlineData("Texture2D Grain;\nfloat4 Through(Texture2D source, float2 uv) { return Sample(source, uv); }\nfloat4 Fragment(SpritePixel pixel) { return Through(Grain, pixel.UV) * pixel.Texel; }", "(2,54): error : samples a texture that is not a texture parameter. Call Sample(texture, uv) with the parameter itself, not a function argument holding it.")]

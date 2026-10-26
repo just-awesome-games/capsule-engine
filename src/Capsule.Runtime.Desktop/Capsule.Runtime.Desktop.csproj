@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.Runtime.Desktop</RootNamespace>
     <PackageId>JAG.Capsule.Runtime.Desktop</PackageId>
-    <Description>The desktop platform module a game's shell hands the Capsule host: content beside the executable, saves and the crash log in the per-user local folder, window raising and focus, and sound that follows the default output. Publishes Windows, Linux and macOS from one shell.</Description>
+    <Description>The desktop platform module a game's shell hands the Capsule host: content beside the executable, saves and the crash log in the per-user local folder, the window's raise, and sound that follows the default output. Publishes Windows, Linux and macOS from one shell.</Description>
   </PropertyGroup>
 
   <!-- The neutral host's public surface is the whole of what this sees. It is granted no
@@ -13,10 +13,9 @@
     <ProjectReference Include="../Capsule.Runtime/Capsule.Runtime.csproj" />
   </ItemGroup>
 
-  <!-- SDL3 for each runtime identifier a shell publishes, which natives/ builds, and the sdl2-compat
-       bridge that takes the graphics substrate's SDL2 calls to it. -->
+  <!-- SDL3 for each runtime identifier a shell publishes, which natives/ builds. -->
   <ItemGroup>
-    <PackageReference Include="JAG.Capsule.Native.SDL3" Version="3.4.18" />
+    <PackageReference Include="JAG.Capsule.Native.SDL3" Version="3.4.18.2" />
   </ItemGroup>
 
   <!-- Test access; see AGENTS.md section Public surface. -->

@@ -132,7 +132,7 @@ public sealed class ScreenPlacementTests
     }
 
     // The host samples the mouse before the first frame draws. The placement is settled from the
-    // frame view and the back buffer up front: window pixels are never handed over as canvas pixels.
+    // frame view and the window up front: window pixels are never handed over as canvas pixels.
     [Fact]
     public void BeforeAFrameHasDrawn_AWindowPixelAlreadyReadsThroughTheLayersPlacement()
     {
@@ -211,7 +211,7 @@ public sealed class ScreenPlacementTests
     }
 
     // A surface drawn a whole factor larger puts the world and the screen layer on the same
-    // back-buffer pixels at every factor its limit allows, whether the present is whole (4 on 1024 by
+    // window pixels at every factor its limit allows, whether the present is whole (4 on 1024 by
     // 896) or fractional (1080 / 224, prescaled to 5). The factor chosen for a zoom-out is the smallest
     // allowed that reaches it, and the limit past it.
     [Theory]
@@ -236,7 +236,7 @@ public sealed class ScreenPlacementTests
         }
     }
 
-    // Where the world's corners and the screen layer's corner land in the back buffer, as the present
+    // Where the world's corners and the screen layer's corner land in the window, as the present
     // blits them.
     private static (float Left, float Top, float Right, float Bottom, Vector2 Screen) Presented(in ScreenLayout layout, int factor)
     {

@@ -83,11 +83,10 @@ A console runtime is a private repository, one per platform:
 1. Subclass `HostPlatform` there.
 2. Put the game's shell for that host family in the same repository, referencing the module and passing it
    to `CapsuleBoot.Configure`. The logic project is untouched.
-3. Consume Capsule in source mode at a pinned tag (`CapsuleSourcePath`) and swap the substrate with
-   `CapsuleSubstratePackage` and `CapsuleSubstrateVersion`. An unmodified checkout retargets.
+3. Consume Capsule in source mode at a pinned tag (`CapsuleSourcePath`). An unmodified checkout builds.
 
-`Capsule.Runtime` calls SDL3 itself for input and the cursor. The module supplies SDL3 for its target,
-linked statically under the library name `SDL3` or shipped beside the game.
+`Capsule.Runtime` runs on SDL3: the window, the loop, input, the cursor and the GPU. The module supplies
+its platform's SDL3, linked statically under the library name `SDL3` or shipped beside the game.
 
 When the target's GPU reads a shader format of its own, the shell names the format and its compiler's absolute
 path, and its publish carries that format alone:

@@ -3,11 +3,9 @@ using System.Runtime.InteropServices;
 
 namespace Capsule.Runtime.Sdl;
 
-// The SDL3 calls the host makes for input and the cursor. The graphics backend keeps its own SDL2
-// binding, which sdl2-compat forwards to this same SDL3, and pumps the events. These calls read
-// device state, watch events and drive the cursor, and never pump. Every signature, enum value and
-// struct layout here is SDL 3.4's.
-internal static unsafe class Sdl3
+// The SDL3 calls the host makes: input and the cursor here, the window and the loop in Sdl3.Video, the
+// GPU in Sdl3.Gpu. Every signature, enum value and struct layout is SDL 3.4's.
+internal static unsafe partial class Sdl3
 {
     // The one name every binding here imports, which a console shell links statically through
     // DirectPInvoke.
@@ -151,14 +149,7 @@ internal static unsafe class Sdl3
     [DllImport(LibraryName, ExactSpelling = true)]
     internal static extern void SDL_free(nint memory);
 
-    [DllImport(LibraryName, ExactSpelling = true)]
-    [return: MarshalAs(UnmanagedType.U1)]
-    internal static extern bool SDL_AddEventWatch(delegate* unmanaged<nint, nint, byte> filter, nint userData);
-
-    [DllImport(LibraryName, ExactSpelling = true)]
-    internal static extern void SDL_RemoveEventWatch(delegate* unmanaged<nint, nint, byte> filter, nint userData);
-
-    // Runs the watches on the calling thread and queues the event. Pointed at EventSize bytes.
+    // Queues the event, from any thread. Pointed at EventSize bytes.
     [DllImport(LibraryName, ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.U1)]
     internal static extern bool SDL_PushEvent(nint sdlEvent);

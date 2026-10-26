@@ -41,8 +41,8 @@ internal static class Machine
     internal static string Cpu() =>
         RegistryString(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0", "ProcessorNameString")?.Trim() ?? "unknown";
 
-    // MonoGame's adapter is out of every consumer's reach, this shell included. The first
-    // display-class device stands in for it.
+    // The device the run draws on is chosen in the child process. The first display-class device
+    // stands in for it.
     internal static string Gpu() =>
         RegistryString(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000", "DriverDesc") ?? "unknown";
 

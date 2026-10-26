@@ -25,24 +25,14 @@
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
 
-  <!-- Only when MonoGame is compiled in. The compiler fails a substitution naming an assembly it was
-       not given, and ignores a resource the assembly does not hold. -->
-  <Target Name="CapsuleRemoveSubstrateResources"
-          Condition="'$(CapsuleGameShell)' == 'true' and '$(PublishAot)' == 'true'"
-          BeforeTargets="WriteIlcRspFileForCompilation">
-    <ItemGroup Condition="'@(IlcReference->WithMetadataValue('Filename', 'MonoGame.Framework'))' != ''">
-      <IlcArg Include="--substitution:$(MSBuildThisFileDirectory)Capsule.SubstrateResources.xml" />
-    </ItemGroup>
-  </Target>
-
-  <!-- The GPU formats a publish carries, by runtime identifier: those SDL's GPU drivers read there, and
-       the OpenGL effect the host draws with until it leaves MonoGame. A publish for no known runtime
-       identifier carries every format, and a private platform module names its own. -->
+  <!-- The GPU formats a publish carries, by runtime identifier: those SDL's GPU drivers read there. A
+       publish for no known runtime identifier carries every format, and a private platform module names
+       its own. -->
   <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
-    <_CapsuleEngineShaderFormats>spirv;dxil;msl;glsl</_CapsuleEngineShaderFormats>
-    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and $(RuntimeIdentifier.StartsWith('win-'))">dxil;spirv;glsl</CapsuleShaderFormats>
-    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and $(RuntimeIdentifier.StartsWith('linux-'))">spirv;glsl</CapsuleShaderFormats>
-    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and $(RuntimeIdentifier.StartsWith('osx-'))">msl;glsl</CapsuleShaderFormats>
+    <_CapsuleEngineShaderFormats>spirv;dxil;msl</_CapsuleEngineShaderFormats>
+    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and $(RuntimeIdentifier.StartsWith('win-'))">dxil;spirv</CapsuleShaderFormats>
+    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and $(RuntimeIdentifier.StartsWith('linux-'))">spirv</CapsuleShaderFormats>
+    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and $(RuntimeIdentifier.StartsWith('osx-'))">msl</CapsuleShaderFormats>
   </PropertyGroup>
 
   <!-- A shader ships as <key>.<format>.shader. One in a format the publish does not carry leaves it. -->
@@ -102,28 +92,6 @@
       <_CapsulePublishSymbol Include="@(_DebugSymbolsIntermediatePath)" Condition="'$(_DebugSymbolsProduced)' == 'true'">
         <RelativePath>%(Filename)%(Extension)</RelativePath>
       </_CapsulePublishSymbol>
-    </ItemGroup>
-  </Target>
-
-  <!-- The host mixes its own sound and plays it through SDL. MonoGame's sound library reaches a shell
-       through the backend's package graph and is never loaded, and neither its build output nor its
-       publish carries it. -->
-  <Target Name="CapsuleDropUnusedSoundLibrary"
-          Condition="'$(CapsuleGameShell)' == 'true'"
-          AfterTargets="ResolvePackageAssets">
-    <ItemGroup>
-      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)" Condition="'%(NativeCopyLocalItems.NuGetPackageId)' == 'MonoGame.Library.OpenAL'" />
-      <RuntimeTargetsCopyLocalItems Remove="@(RuntimeTargetsCopyLocalItems)" Condition="'%(RuntimeTargetsCopyLocalItems.NuGetPackageId)' == 'MonoGame.Library.OpenAL'" />
-    </ItemGroup>
-  </Target>
-
-  <!-- MonoGame's SDL2 reaches every project referencing the host through the backend's package graph,
-       under the file names of the sdl2-compat bridge JAG.Capsule.Native.SDL3 carries. Its copy would
-       land on the bridge's path. No project's build output or publish takes it. -->
-  <Target Name="CapsuleDropSubstrateSdl" AfterTargets="ResolvePackageAssets">
-    <ItemGroup>
-      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)" Condition="'%(NativeCopyLocalItems.NuGetPackageId)' == 'MonoGame.Library.SDL'" />
-      <RuntimeTargetsCopyLocalItems Remove="@(RuntimeTargetsCopyLocalItems)" Condition="'%(RuntimeTargetsCopyLocalItems.NuGetPackageId)' == 'MonoGame.Library.SDL'" />
     </ItemGroup>
   </Target>
 

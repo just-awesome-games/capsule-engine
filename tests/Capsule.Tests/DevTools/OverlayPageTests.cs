@@ -253,7 +253,7 @@ public sealed class OverlayPageTests
     [InlineData(1080, 2)]
     [InlineData(2159, 2)]
     [InlineData(2160, 3)]
-    public void TheOverlaysScale_StepsWithTheBackBuffersHeight(int height, int scale) =>
+    public void TheOverlaysScale_StepsWithTheWindowsHeight(int height, int scale) =>
         Assert.Equal(scale, DebugOverlay.ScaleFor(height));
 
     private static SceneRegistration Unclaimed() =>

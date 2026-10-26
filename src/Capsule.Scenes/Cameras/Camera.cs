@@ -435,7 +435,7 @@ public partial class Camera
         internal static CanvasMap Identity => new(Vector2.Zero, 1f, Vector2.Zero);
 
         // Canvas to surface: a screen layer drawn on the surface lands at OnSurface. Otherwise it lands
-        // in the back buffer at Layer, and the surface's present is undone from there. Surface to world:
+        // in the window at Layer, and the surface's present is undone from there. Surface to world:
         // the world's fit on the surface, from the region's corner.
         internal static CanvasMap? Resolve(in ScreenLayout layout, in Rect region, Vector2 scrollCenter)
         {

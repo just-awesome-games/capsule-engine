@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Pure engine contracts. No package references at all. No backend type can reach game
+  <!-- Pure engine contracts. No package references at all. No host type can reach game
        logic, and the absence is the enforcement. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>

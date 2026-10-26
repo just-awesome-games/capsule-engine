@@ -1,4 +1,3 @@
-using System.Text;
 using Capsule.Build.Shaders;
 using Capsule.Rendering;
 using Capsule.Tests.Documents;
@@ -7,7 +6,7 @@ namespace Capsule.Tests.Build;
 
 /// <summary>
 /// A fragment declares the parameters a scene sets in its <c>SceneGlobals</c> block. They reach the
-/// game's key marked global and the effect as a buffer of their own beside the material's.
+/// game's key marked global and each format as a buffer of their own beside the material's.
 /// </summary>
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class ShaderGlobalsBuildTests
@@ -41,19 +40,6 @@ public sealed class ShaderGlobalsBuildTests
             workspace.Generated,
             StringComparison.Ordinal);
         Assert.Contains("setting <c>Glow</c> and reading the scene globals <c>WorldAdd</c>, <c>Fade</c>.", workspace.Generated, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TheEffect_ReadsTheGlobalsFromTheirOwnUniformArray()
-    {
-        using SceneDocumentFixtures.Workspace workspace = new();
-        ShaderCompilation compiled = ShaderCompiler.CompileFragment(ToolWorkspace.ShaderTools, "graded/graded", Graded, "graded.fx");
-        byte[] effect = Assert.Single(Assert.IsType<ShaderContainer[]>(compiled.Shaders), static shader => shader.Format == ShaderCompiler.Glsl).Code;
-        string text = Encoding.ASCII.GetString(effect);
-
-        Assert.Contains(MgfxWriter.GlobalsBuffer, text, StringComparison.Ordinal);
-        Assert.DoesNotContain("type_SceneGlobals", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("type_Globals", text, StringComparison.Ordinal);
     }
 
     [Theory]

@@ -11,7 +11,7 @@ internal static class OverlayFixtures
 {
     internal const string NamedDocument = "levels/named";
 
-    // A held run's back buffer, wider than the 16:9 viewport so a fit other than Letterbox grows it.
+    // A held run's window, wider than the 16:9 viewport so a fit other than Letterbox grows it.
     internal static readonly Vector2 Output = new(1000f, 500f);
 
     // A run of one scene whose frame the scheduler places on Output.

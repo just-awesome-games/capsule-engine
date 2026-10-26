@@ -42,6 +42,14 @@
           Visible="false" />
   </ItemGroup>
 
+  <!-- The sprite shader's stages and the engine's own fragment, which live beside the compiled forms the
+       runtime embeds. -->
+  <ItemGroup>
+    <EmbeddedResource Include="../Capsule.Runtime/Rendering/Shaders/*.hlsl;../Capsule.Runtime/Rendering/Shaders/sprite.fx"
+                      LogicalName="Capsule.Build.Shaders.%(Filename)%(Extension)"
+                      Visible="false" />
+  </ItemGroup>
+
   <!-- Atlas packing decodes and encodes PNGs here and nowhere else. Both are pure managed. The
        build stays a plain framework-dependent process on every build host. -->
   <ItemGroup>

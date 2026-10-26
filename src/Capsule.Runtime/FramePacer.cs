@@ -1,20 +1,21 @@
 using System.Diagnostics;
 using Capsule.Rendering;
+using Capsule.Runtime.Sdl;
 
 namespace Capsule.Runtime;
 
 // Holds the window's frames to the run's frame cap by sleeping until each is due. Due times fall one
 // period apart. A late wake shortens the next wait, and the rate holds. A frame more than a period
-// late starts the schedule again from itself instead of bursting to catch up. It sleeps in whole
-// milliseconds and never spins: a frame starts within about a millisecond of its time, and the
-// processor idles between frames.
-internal sealed class FramePacer(Func<long> timestamp, Action<int> sleepMilliseconds)
+// late starts the schedule again from itself instead of bursting to catch up. It sleeps on the
+// operating system's high-resolution timer and never spins, and the processor idles between frames.
+// Times are Stopwatch ticks.
+internal sealed class FramePacer(Func<long> timestamp, Action<long> sleep)
 {
     private long _period;
     private long _due;
 
     internal FramePacer()
-        : this(Stopwatch.GetTimestamp, Thread.Sleep)
+        : this(Stopwatch.GetTimestamp, static ticks => Sdl3.SDL_DelayNS((ulong)(ticks * 1_000_000_000 / Stopwatch.Frequency)))
     {
     }
 
@@ -58,9 +59,9 @@ internal sealed class FramePacer(Func<long> timestamp, Action<int> sleepMillisec
         }
 
         long remaining = _due - now;
-        if (remaining * 1000 >= Stopwatch.Frequency)
+        if (remaining > 0)
         {
-            sleepMilliseconds((int)(remaining * 1000 / Stopwatch.Frequency));
+            sleep(remaining);
             now = timestamp();
         }
 

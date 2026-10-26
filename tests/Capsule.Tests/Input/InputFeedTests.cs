@@ -7,8 +7,8 @@ using Capsule.Runtime.Sdl;
 
 namespace Capsule.Tests.Input;
 
-// The feed's record of SDL3's events, pushed through SDL's own queue with the watch installed. Only
-// the events subsystem runs. The keyboard and the mouse SDL reads hold nothing down.
+// The feed's record of SDL3's events, handed to it as the host's event callback does. Only the events
+// subsystem runs. The keyboard and the mouse SDL reads hold nothing down.
 [Collection(SdlEventsCollection.Name)]
 public sealed class InputFeedTests : IDisposable
 {
@@ -22,7 +22,6 @@ public sealed class InputFeedTests : IDisposable
 
     public void Dispose()
     {
-        _feed.Dispose();
         Sdl3.SDL_QuitSubSystem(Sdl3.InitEvents);
     }
 
@@ -65,7 +64,7 @@ public sealed class InputFeedTests : IDisposable
     {
         MouseSampler sampler = new();
         ScreenPlacement placement = new(Vector2.Zero, 1f);
-        sampler.SampleOnto(DeviceSnapshot.Empty, placement, windowActive: true, _feed.Take());
+        sampler.SampleOnto(DeviceSnapshot.Empty, placement, 1f, windowActive: true, _feed.Take());
 
         Push(new Sdl3.MouseButtonEvent { Type = Sdl3.EventMouseButtonDown, Button = 3, Down = 1, Clicks = 1 });
         Push(new Sdl3.MouseWheelEvent { Type = Sdl3.EventMouseWheel, X = 0.5f, Y = 2.4f, IntegerX = 0, IntegerY = 2 });
@@ -74,7 +73,7 @@ public sealed class InputFeedTests : IDisposable
         // Natural scrolling reports both values reversed and says so. Read back, it turns as the others do.
         Push(new Sdl3.MouseWheelEvent { Type = Sdl3.EventMouseWheel, Direction = Sdl3.MouseWheelFlipped, X = -2f, Y = -3f, IntegerX = -2, IntegerY = -3 });
 
-        DeviceSnapshot sampled = sampler.SampleOnto(DeviceSnapshot.Empty, placement, windowActive: true, _feed.Take());
+        DeviceSnapshot sampled = sampler.SampleOnto(DeviceSnapshot.Empty, placement, 1f, windowActive: true, _feed.Take());
 
         Assert.True(sampled.IsDown(MouseButton.Right));
         Assert.False(sampled.IsDown(MouseButton.Middle));
@@ -119,7 +118,7 @@ public sealed class InputFeedTests : IDisposable
     };
 
     // SDL copies a whole SDL_Event from the pointer, whatever the type's own size.
-    private static void Push<T>(T sdlEvent)
+    private void Push<T>(T sdlEvent)
         where T : struct
     {
         nint buffer = Marshal.AllocHGlobal(Sdl3.EventSize);
@@ -127,7 +126,7 @@ public sealed class InputFeedTests : IDisposable
         {
             Marshal.Copy(new byte[Sdl3.EventSize], 0, buffer, Sdl3.EventSize);
             Marshal.StructureToPtr(sdlEvent, buffer, fDeleteOld: false);
-            Assert.True(Sdl3.SDL_PushEvent(buffer), Sdl3.Error());
+            _feed.Record(buffer);
         }
         finally
         {

@@ -31,7 +31,8 @@ internal sealed class MouseSampler
         _ => 0,
     };
 
-    internal unsafe DeviceSnapshot SampleOnto(DeviceSnapshot snapshot, in ScreenPlacement placement, bool windowActive, InputEvents events)
+    // pixelDensity: Window pixels per window coordinate, which SDL reports the pointer in.
+    internal unsafe DeviceSnapshot SampleOnto(DeviceSnapshot snapshot, in ScreenPlacement placement, float pixelDensity, bool windowActive, InputEvents events)
     {
         if (!windowActive)
         {
@@ -54,7 +55,7 @@ internal sealed class MouseSampler
 
         return Fold(
             snapshot,
-            placement.ToCanvas(new Vector2(x, y)),
+            placement.ToCanvas(new Vector2(x, y) * pixelDensity),
             new Vector2(events.WheelX, events.WheelY),
             held,
             events.MouseButtonsPressed);

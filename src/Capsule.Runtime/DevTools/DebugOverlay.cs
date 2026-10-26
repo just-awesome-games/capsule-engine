@@ -23,7 +23,7 @@ internal sealed class DebugOverlay : IDisposable
     // The share of the selection's bounds that Frame leaves clear on each side.
     internal const float FrameMargin = 0.1f;
 
-    // A click this close to the last pick's, in back-buffer pixels, is on the same spot.
+    // A click this close to the last pick's, in window pixels, is on the same spot.
     internal const float SameSpotPixels = 3f;
 
     // Slowest first. 4x is the top because the default frame budget is eight steps.
@@ -104,7 +104,7 @@ internal sealed class DebugOverlay : IDisposable
     // The parallax of the frame the pointer was read over, which a pick moves the point into each layer by.
     private Vector2 _pointerParallax;
 
-    // Where this frame's click on the world asks for a pick, and where the last pick was, in back-buffer pixels.
+    // Where this frame's click on the world asks for a pick, and where the last pick was, in window pixels.
     private Vector2? _click;
     private Vector2? _lastPick;
 
@@ -323,7 +323,7 @@ internal sealed class DebugOverlay : IDisposable
         _lastFrameMs = lastFrameMs;
         if (renderer is not null)
         {
-            (int width, int height) = renderer.BackBufferSize;
+            (int width, int height) = renderer.WindowSize;
             int scale = ScaleFor(height);
             if (width > 0 && height > 0)
             {
@@ -422,7 +422,7 @@ internal sealed class DebugOverlay : IDisposable
             return;
         }
 
-        renderer.DrawOverlay(_sceneSimulation.View, ScaleFor(renderer.BackBufferSize.Height));
+        renderer.DrawOverlay(_sceneSimulation.View, ScaleFor(renderer.WindowSize.Height));
     }
 
     internal void ToggleFramePane()

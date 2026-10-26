@@ -22,9 +22,9 @@ internal sealed class CursorApplier(TextureStore textures, Action<bool> confine)
     // build is kept as zero and shows the system arrow without retrying.
     private readonly Dictionary<CursorKey, nint> _built = [];
 
-    // The window is created with the pointer hidden and ungrabbed. The impossible factor makes
-    // the first frame set the cursor.
-    private CursorLook _applied = new(Shown: false, Image: null, Confined: false, Factor: -1);
+    // SDL opens the window with the pointer shown and ungrabbed. The impossible factor makes the first
+    // frame set the cursor.
+    private CursorLook _applied = new(Shown: true, Image: null, Confined: false, Factor: -1);
 
     // The cursor the window shows on this frame. The held overlay points with the system arrow, and the
     // pad hides the pointer whatever the game asked for.

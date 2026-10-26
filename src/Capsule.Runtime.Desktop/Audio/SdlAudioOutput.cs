@@ -4,8 +4,8 @@ using Capsule.Runtime.Audio;
 
 namespace Capsule.Runtime.Desktop.Audio;
 
-// The host's mix played through an SDL3 audio stream on the system's default output. The backend
-// initialises SDL's video and input subsystems and never audio, which this owns.
+// The host's mix played through an SDL3 audio stream on the system's default output. The host
+// initialises SDL's video and gamepad subsystems and never audio, which this owns.
 //
 // The stream is bound to SDL's default playback device, which SDL moves to the new default when it
 // changes or the old one is pulled. Pulled with no other device to move to, the stream plays into

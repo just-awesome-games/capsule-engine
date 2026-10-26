@@ -6,7 +6,7 @@ using Capsule.Scenes;
 namespace Capsule.Tests.Scenes;
 
 // The camera converts between canvas pixels and the world through the host's own frame layout. A
-// canvas point is followed down the route a sampled pointer takes in reverse: into the back buffer at
+// canvas point is followed down the route a sampled pointer takes in reverse: into the window at
 // the screen layer's placement, back through the presented surface, then off the world's fit.
 public sealed class CameraCanvasTests
 {
@@ -46,8 +46,8 @@ public sealed class CameraCanvasTests
 
         foreach (Vector2 point in new[] { Vector2.Zero, canvas / 2f, canvas, new Vector2(canvas.X * 0.25f, canvas.Y * 0.8f) })
         {
-            Vector2 backBuffer = layout.Layer.Origin + (point * layout.Layer.Scale);
-            Vector2 surface = resolution is null ? backBuffer : (backBuffer - layout.Present.Origin) / layout.Present.Scale;
+            Vector2 windowSurface = layout.Layer.Origin + (point * layout.Layer.Scale);
+            Vector2 surface = resolution is null ? windowSurface : (windowSurface - layout.Present.Origin) / layout.Present.Scale;
             Vector2 world = new Vector2(drawn.Left, drawn.Top) + ((surface - new Vector2(layout.World.X, layout.World.Y)) / layout.World.Scale);
 
             AssertNear(world, camera.CanvasToWorld(point));

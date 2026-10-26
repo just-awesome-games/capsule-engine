@@ -17,7 +17,7 @@ public sealed class MouseSamplerTests
         DeviceSnapshot keyboard = DeviceSnapshot.Of(Key.Space);
 
         sampler.Resume(keyboard, new Vector2(20f, 30f), Vector2.Zero, [MouseButton.Left], []);
-        DeviceSnapshot sampled = sampler.SampleOnto(keyboard, placement, windowActive: false, new InputEvents(new TriggerEdges()));
+        DeviceSnapshot sampled = sampler.SampleOnto(keyboard, placement, 1f, windowActive: false, new InputEvents(new TriggerEdges()));
 
         Assert.Equal(new Vector2(20f, 30f), sampled.Pointer);
         Assert.True(sampled.IsDown(Key.Space));

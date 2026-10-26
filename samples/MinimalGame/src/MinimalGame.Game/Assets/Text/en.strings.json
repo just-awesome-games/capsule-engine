@@ -20,6 +20,7 @@
     "windowed": "Display: Window",
     "windowScale": "Window: {scale}x",
     "vsyncOn": "VSync: On",
+    "vsyncMailbox": "VSync: Mailbox",
     "vsyncOff": "VSync: Off",
     "frameCap": "Frame cap: {fps}",
     "frameCapOff": "Frame cap: Off"

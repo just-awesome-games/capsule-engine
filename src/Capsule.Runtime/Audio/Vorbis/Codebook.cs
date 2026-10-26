@@ -9,7 +9,7 @@ namespace Capsule.Runtime.Audio.Vorbis
 {
     sealed class Codebook
     {
-        // FastRange is "borrowed" from GitHub: TechnologicalPizza/MonoGame.Capsule.Runtime.Audio.Vorbis
+        // FastRange comes from TechnologicalPizza's fork of NVorbis, as NVorbis 0.10.4 credits it.
         sealed class FastRange : IReadOnlyList<int>
         {
             [ThreadStatic]

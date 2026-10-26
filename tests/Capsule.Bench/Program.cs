@@ -87,7 +87,7 @@ internal static class Program
 
         if (cap > 0)
         {
-            engine = engine.WithoutVSync().WithMaxFrameRate(cap);
+            engine = engine.WithVSync(VSyncMode.Off).WithMaxFrameRate(cap);
         }
 
         if (latency is not null)

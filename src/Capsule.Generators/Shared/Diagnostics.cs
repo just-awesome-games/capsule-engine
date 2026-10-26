@@ -72,7 +72,7 @@ internal static class Diagnostics
     internal static readonly DiagnosticDescriptor ConflictingProjectRoles = Rule(
         "CAP011", ScenesCategory, ScenesPage,
         "A project cannot be both game logic and shell",
-        "This project's file declares both <CapsuleGameLogic> and <CapsuleGameShell>. Keep substrate-free game logic and the runtime shell in separate projects, each declaring one of the two");
+        "This project's file declares both <CapsuleGameLogic> and <CapsuleGameShell>. Keep host-free game logic and the runtime shell in separate projects, each declaring one of the two");
 
     internal static readonly DiagnosticDescriptor LogicRoleMissingScenes = Rule(
         "CAP012", ScenesCategory, ScenesPage,
@@ -148,11 +148,6 @@ internal static class Diagnostics
         "CAP100", ArchitectureCategory, LogicBoundaryPage,
         "Game logic cannot reference the runtime",
         "Game-logic assembly '{0}' references '{1}'. Runtime access belongs in the shell");
-
-    internal static readonly DiagnosticDescriptor PlatformBoundary = Rule(
-        "CAP101", ArchitectureCategory, LogicBoundaryPage,
-        "Game projects cannot reference MonoGame directly",
-        "Capsule project '{0}' references '{1}' directly. Platform APIs belong behind Capsule.Runtime");
 
     internal static readonly DiagnosticDescriptor ExternalIo = Rule(
         "CAP102", ArchitectureCategory, LogicBoundaryPage,

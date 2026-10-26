@@ -1,6 +1,6 @@
 namespace Capsule.Runtime.Input;
 
-// Capsule's own deadzone filtering, applied to raw backend axis readings. One instance carries the
+// Capsule's own deadzone filtering, applied to raw SDL axis readings. One instance carries the
 // radii a host was configured with.
 internal readonly struct PadFilter(float stickDeadzone, float triggerDeadzone)
 {

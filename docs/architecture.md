@@ -13,15 +13,14 @@ clock or platform. The runtime hosts them and draws, plays and samples on their 
 | `Capsule.Core` | Fixed step, input, rendering, audio mixing, persistence, asset and diagnostic contracts. | nothing |
 | `Capsule.Physics` | Shapes, broadphase, queries, sweeps and kinematic movement. No dynamics, no solver. | Core |
 | `Capsule.Scenes` | Scenes, entities, components, cameras, audio sources, scene documents and their headless simulation. | Core, Physics |
-| `Capsule.Runtime` | The platform-neutral host: window, device, clock, input sampling, rendering, the sound mix, scene hosting, and the `HostPlatform` contract. | the pure modules |
-| `Capsule.Runtime.Desktop` | The desktop platform module: content beside the executable, the per-user local folder, window raising and focus, the audio output the mix plays on. | Runtime |
+| `Capsule.Runtime` | The platform-neutral host on SDL3: window, GPU device, clock, input sampling, rendering, the sound mix, scene hosting, and the `HostPlatform` contract. | the pure modules |
+| `Capsule.Runtime.Desktop` | The desktop platform module: content beside the executable, the per-user local folder, the window's raise, the audio output the mix plays on. | Runtime |
 | `Capsule.Generators` | Source generation from the game's C#: the entity, scene and input-driver registries and `CapsuleBoot`. Compile-time enforcement of the game-logic boundary. | unconstrained |
 | `Capsule.Build` | The asset build a game's build project runs through `CapsuleBuild`: importers, keys, validation, compilation, atlas packing, `CapsuleAssets` and the derivation cache. | unconstrained |
 | `Capsule` | No code. The pack root of `JAG.Capsule`, whose project references admit what the package holds. | the pure modules |
 
 The pure modules perform no external I/O, except `SceneRegistry.Create(SceneKey)` and `ComposeAll`, which
 read shipped documents for tests. `build/engine/Capsule.Architecture.targets` enforces the reference direction, and that the pure modules take no package dependency.
-MonoGame belongs to `Capsule.Runtime` alone.
 
 ## Placement
 
@@ -46,13 +45,12 @@ lives in `tests/Capsule.Tests/Support/` under `Capsule.Tests`.
 
 ## Logic boundary
 
-The compiler refuses, in a logic assembly: a reference to `Capsule.Runtime` (`CAP100`), a direct MonoGame
-reference in any Capsule project (`CAP101`), external I/O (`CAP102`), ambient concurrency or asynchronous
-execution (`CAP103`), process or wall-clock time (`CAP104`), randomness outside the seeded
-`RandomSource`, `System.Random` included (`CAP105`), a save document property declared `init` instead
-of `set` (`CAP106`), a platform transcendental that `DeterministicMath` replaces (`CAP107`),
-reflection (`CAP109`), and a dead method on an entity, component or scene named like a lifecycle hook
-Capsule never calls, such as `Update` (`CAP110`).
+The compiler refuses, in a logic assembly: a reference to `Capsule.Runtime` (`CAP100`), external I/O
+(`CAP102`), ambient concurrency or asynchronous execution (`CAP103`), process or wall-clock time
+(`CAP104`), randomness outside the seeded `RandomSource`, `System.Random` included (`CAP105`), a save
+document property declared `init` instead of `set` (`CAP106`), a platform transcendental that
+`DeterministicMath` replaces (`CAP107`), reflection (`CAP109`), and a dead method on an entity, component
+or scene named like a lifecycle hook Capsule never calls, such as `Update` (`CAP110`).
 
 ## Argument validation
 
@@ -62,7 +60,8 @@ A null, non-finite or out-of-range argument throws from the `ArgumentException` 
 ## Determinism contract
 
 Given the same initial state, fixed-step duration and sequence of `DeviceSnapshot` values and output
-extents, a simulation produces the same state transitions and render intents.
+extents, the window's drawable size in pixels, a simulation produces the same state transitions and render
+intents.
 
 - Simulation is single-threaded. Work too large for one step is sliced across steps by its owner. Input
   edges are differences between snapshots, and the host preserves edges sampled between fixed steps.
@@ -94,7 +93,7 @@ extents, a simulation produces the same state transitions and render intents.
 
 ## Simulation and host
 
-Simulation emits backend-free `FrameView` state and rewrites a step's audio commands the same way. The
+Simulation emits host-free `FrameView` state and rewrites a step's audio commands the same way. The
 host draws at display rate, interpolating entities and the camera with one shared fraction, and applies
 audio commands after every step. Neither rendering nor audio feeds state back into simulation.
 
@@ -115,10 +114,10 @@ object a game attaches at run start (`Run.Attach`) and reads anywhere as `Run.St
 A host family is one shell. The desktop shell publishes Windows, Linux and macOS from one project by runtime
 identifier, and a console is another family with a shell of its own. A platform module is one subclass of
 `HostPlatform`, handed to `CapsuleBoot.Configure` beside the game's name. It tells the host where shipped
-content is read from, where saves and the crash log land, how the window is raised, focused and redrawn, where
-the host's finished sound mix is played, and which languages the player prefers.
+content is read from, where saves and the crash log land, how the window is raised, where the host's finished
+sound mix is played, and which languages the player prefers.
 
-`Capsule.Runtime` holds no implicit location and no native binding.
+`Capsule.Runtime` holds no implicit location. Its one native binding is SDL3, in its `Sdl/` folder.
 
 `Capsule.Runtime.Desktop` is the platform module the engine ships. It uses only the neutral host's public
 surface. Writing another is [`packages.md`](packages.md#a-private-platform-module).

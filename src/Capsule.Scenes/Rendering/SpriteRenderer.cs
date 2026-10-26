@@ -343,7 +343,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     }
 
     // A negative world scale axis mirrors the frame about the pivot as a flip does. It folds into the flip
-    // flags, and the backend draws the magnitude of the extent.
+    // flags, and the renderer draws the magnitude of the extent.
     private SpriteIntent Intent(in Transform2D previous, in Transform2D current)
     {
         Sprite frame = _extras?.Look is { } look ? look.Drawn.GetValueOrDefault() : _sprite;

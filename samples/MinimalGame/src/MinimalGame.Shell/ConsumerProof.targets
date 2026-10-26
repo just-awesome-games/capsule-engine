@@ -3,17 +3,8 @@
   <!-- CI's proofs over the shipped package, run here because this is the one consumer CI builds in
        package mode. A copy of this sample drops the import. -->
 
-  <Target Name="CapsuleRejectBackendCompileAsset" AfterTargets="ResolveReferences">
-    <ItemGroup>
-      <_CapsuleBackendCompileReference Include="@(ReferencePath)"
-                                       Condition="'%(Filename)' == 'MonoGame.Framework'" />
-    </ItemGroup>
-    <Error Condition="'@(_CapsuleBackendCompileReference)' != ''"
-           Text="Capsule package leaked MonoGame as a compile reference." />
-  </Target>
-
-  <!-- The backend looks the window icon up by its exact manifest resource name. A name derived from
-       the root namespace would silently fall back to the backend's icon. A shell built without
+  <!-- The host looks the window icon up by its exact manifest resource name. A name derived from
+       the root namespace would silently leave the window the system's icon. A shell built without
        Capsule's application manifest silently takes the compiler's, which leaves Windows stretching
        the window. The built assembly is checked, in every consumption mode. -->
   <UsingTask TaskName="CapsuleAssertExecutableResources"
@@ -57,20 +48,6 @@
     <ItemGroup>
       <FileWrites Include="$(IntermediateOutputPath)executable-resources.stamp" />
     </ItemGroup>
-  </Target>
-
-  <!-- The host mixes its own sound and plays it through SDL. A publish carrying MonoGame's sound
-       library, or the source its license asked to travel with it, has lost the engine's exclusion. -->
-  <Target Name="CapsuleRejectUnusedSoundLibrary" AfterTargets="Publish">
-    <PropertyGroup>
-      <_CapsuleProofPublishDirectory>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(PublishDir)'))</_CapsuleProofPublishDirectory>
-    </PropertyGroup>
-    <ItemGroup>
-      <_CapsuleUnusedSoundLibrary Include="$(_CapsuleProofPublishDirectory)**/*openal*" />
-      <_CapsuleUnusedSoundLibrary Include="$(_CapsuleProofPublishDirectory)licenses/openal-soft-source/**" />
-    </ItemGroup>
-    <Error Condition="'@(_CapsuleUnusedSoundLibrary)' != ''"
-           Text="The publish carries an OpenAL file Capsule never loads: @(_CapsuleUnusedSoundLibrary->'%(RecursiveDir)%(Filename)%(Extension)', ', ')." />
   </Target>
 
 </Project>

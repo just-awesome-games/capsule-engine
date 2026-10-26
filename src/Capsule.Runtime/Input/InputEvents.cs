@@ -3,9 +3,9 @@ using Capsule.Runtime.Sdl;
 
 namespace Capsule.Runtime.Input;
 
-// What the devices did between two samples, recorded from SDL's events as they are pushed: every key,
-// mouse button and pad button that went down, however briefly, and the wheel's turns. A sample reads
-// held state, which misses a press released before it, and adds these.
+// What the devices did between two samples, recorded from SDL's events: every key, mouse button and
+// pad button that went down, however briefly, and the wheel's turns. A sample reads held state, which
+// misses a press released before it, and adds these.
 internal sealed class InputEvents(TriggerEdges triggers)
 {
     // Pads pressing in one frame past this many lose those presses. Their held buttons still read.

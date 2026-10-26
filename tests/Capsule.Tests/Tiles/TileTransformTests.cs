@@ -1,7 +1,6 @@
 using System.Numerics;
 using Capsule.Physics;
 using Capsule.Rendering;
-using Capsule.Runtime.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Physics;
 using Capsule.Tests.Scenes;
@@ -50,8 +49,8 @@ public sealed class TileTransformTests
     }
 
     // Where the renderer puts each texel of a drawn tile is where the transform puts that point. The
-    // corners are taken through the renderer's own vertex placement. A mirror composed on the
-    // wrong side of the quarter turn fails here.
+    // corners are placed as the sprite vertex stage places an unsnapped sprite. A mirror composed on
+    // the wrong side of the quarter turn fails here.
     [Theory]
     [InlineData(TileTransform.None)]
     [InlineData(TileTransform.FlipX)]
@@ -80,29 +79,9 @@ public sealed class TileTransformTests
 
         SpriteIntent intent = Assert.Single(simulation.View.Sprites.ToArray());
         TextureRegion region = intent.Sprite.Region;
-        SpriteQuad quad = SpriteQuad.Place(
-            intent.Position,
-            intent.DrawOrigin,
-            Vector2.One,
-            region.X,
-            region.Y,
-            region.Width,
-            region.Height,
-            texel,
-            texel,
-            intent.Rotation,
-            intent.FlipX,
-            intent.FlipY);
-
         Vector2 cell = new(Size, 0f);
         Vector2 regionCorner = new(region.X, region.Y);
-        (Vector2 Drawn, Vector2 Texture)[] corners =
-        [
-            (quad.TopLeft, quad.TexTopLeft),
-            (quad.TopRight, new Vector2(quad.TexBottomRight.X, quad.TexTopLeft.Y)),
-            (quad.BottomLeft, new Vector2(quad.TexTopLeft.X, quad.TexBottomRight.Y)),
-            (quad.BottomRight, quad.TexBottomRight),
-        ];
+        (Vector2 Drawn, Vector2 Texture)[] corners = [.. ((Vector2[])[Vector2.Zero, Vector2.UnitX, Vector2.UnitY, Vector2.One]).Select(axes => Corner(intent, axes, texel))];
         foreach ((Vector2 drawn, Vector2 texture) in corners)
         {
             Vector2 source = (texture / texel) - regionCorner;
@@ -111,6 +90,21 @@ public sealed class TileTransformTests
             Assert.Equal(expected.X, drawn.X - cell.X, 0.001f);
             Assert.Equal(expected.Y, drawn.Y - cell.Y, 0.001f);
         }
+    }
+
+    // The corner of intent's quad at axes, (0, 0) its top left and (1, 1) its bottom right, drawn at one
+    // unit per texel: turned clockwise about the origin, with a flip swapping the texture coordinates on
+    // its axis.
+    private static (Vector2 Drawn, Vector2 Texture) Corner(in SpriteIntent intent, Vector2 axes, float texel)
+    {
+        TextureRegion region = intent.Sprite.Region;
+        Vector2 extent = new(region.Width, region.Height);
+        Vector2 d = (axes * extent) - intent.DrawOrigin;
+        (float sin, float cos) = MathF.SinCos(intent.Rotation);
+        Vector2 drawn = intent.Position + new Vector2((d.X * cos) - (d.Y * sin), (d.X * sin) + (d.Y * cos));
+        Vector2 mirrored = new(intent.FlipX ? 1f - axes.X : axes.X, intent.FlipY ? 1f - axes.Y : axes.Y);
+
+        return (drawn, (new Vector2(region.X, region.Y) + (mirrored * extent)) * texel);
     }
 
     private static CellEdge2D[] Sorted(ReadOnlySpan<CellEdge2D> edges) =>

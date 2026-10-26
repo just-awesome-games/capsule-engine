@@ -80,7 +80,12 @@ public sealed class OptionsMenu : ScreenEntity
         _effects.Changed += _ => SetVolume(AudioBuses.Sfx, _effects);
         _fullscreen.Pressed += () => ChangeDisplay(static settings => settings.Fullscreen = !settings.Fullscreen);
         _windowSize.Pressed += () => ChangeDisplay(static settings => settings.WindowScale = settings.WindowScale >= LargestWindowScale ? SmallestWindowScale : settings.WindowScale + 1);
-        _vsync.Pressed += () => ChangeDisplay(static settings => settings.VSync = !settings.VSync);
+        _vsync.Pressed += () => ChangeDisplay(static settings => settings.VSync = settings.VSync switch
+        {
+            VSyncMode.On => VSyncMode.Mailbox,
+            VSyncMode.Mailbox => VSyncMode.Off,
+            _ => VSyncMode.On,
+        });
         _frameCap.Pressed += () => ChangeDisplay(static settings => settings.MaxFrameRate = FrameCaps[(Array.IndexOf(FrameCaps, settings.MaxFrameRate) + 1) % FrameCaps.Length]);
         _back.Pressed += Leave;
         _navigator.Canceled += Leave;
@@ -190,7 +195,12 @@ public sealed class OptionsMenu : ScreenEntity
     {
         _fullscreen.SetCaption(_settings.Fullscreen ? CapsuleStrings.Options.Fullscreen : CapsuleStrings.Options.Windowed);
         _windowSize.SetCaption(CapsuleStrings.Options.WindowScale, _settings.WindowScale);
-        _vsync.SetCaption(_settings.VSync ? CapsuleStrings.Options.VsyncOn : CapsuleStrings.Options.VsyncOff);
+        _vsync.SetCaption(_settings.VSync switch
+        {
+            VSyncMode.On => CapsuleStrings.Options.VsyncOn,
+            VSyncMode.Mailbox => CapsuleStrings.Options.VsyncMailbox,
+            _ => CapsuleStrings.Options.VsyncOff,
+        });
         if (_settings.MaxFrameRate == 0)
         {
             _frameCap.SetCaption(CapsuleStrings.Options.FrameCapOff);

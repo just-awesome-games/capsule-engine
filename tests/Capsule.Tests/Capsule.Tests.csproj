@@ -21,17 +21,13 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <!-- The reference decoder VorbisDecodeTests checks the vendored one against. MonoGame carries
-         NVorbis as a runtime dependency only, and it does not flow as a compile reference here. -->
+    <!-- The reference decoder VorbisDecodeTests checks the vendored one against. -->
     <PackageReference Include="NVorbis" Version="0.10.4" />
     <!-- The reference decoder SingleChannelPngTests checks the build's PNG reads against. The build
          tool and the runtime both keep it private, and it does not flow as a compile reference. -->
     <PackageReference Include="StbImageSharp" Version="2.30.16" />
   </ItemGroup>
 
-  <!-- Referencing the runtime through its desktop module also makes this project a live probe
-       of the MonoGame-hiding contract: these specs compile without any Microsoft.Xna reference
-       being available. -->
   <ItemGroup>
     <ProjectReference Include="../../src/Capsule.Build/Capsule.Build.csproj" />
     <ProjectReference Include="../../src/Capsule.Physics/Capsule.Physics.csproj" />

@@ -171,10 +171,10 @@ public sealed class EngineBuilder
         return this;
     }
 
-    /// <summary>Starts <see cref="Display.VSync"/> off.</summary>
-    public EngineBuilder WithoutVSync()
+    /// <summary>The mode <see cref="Display.VSync"/> starts in.</summary>
+    public EngineBuilder WithVSync(VSyncMode mode)
     {
-        Display.VSync = false;
+        Display.VSync = mode;
         return this;
     }
 
@@ -627,10 +627,10 @@ public sealed class EngineBuilder
         // Declared first so the host is disposed before it, with its last frame already written.
         using FrameDiagnostics? diagnostics = OpenFrameDiagnostics();
 
-        using CapsuleGame game = new(this, scenes, diagnostics);
-        using TickStamp stamp = StampTicks(() => game.SimulationTick);
+        WindowHost window = new(this, scenes, diagnostics);
+        using TickStamp stamp = StampTicks(() => window.SimulationTick);
 
-        game.Run();
+        window.Run();
     }
 
     // No window, device or media loading. The scene host is the same a windowed run drives.
