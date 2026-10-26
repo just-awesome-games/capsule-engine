@@ -105,14 +105,14 @@ jobs:
             unzip -Z1 "$1" | grep -qxF "$2" || { echo "$(basename "$1") lacks $2"; missing=1; }
           }
           for rid in win-x64 win-arm64; do
-            for file in SDL3.dll SDL2.dll; do check "$sdl" "runtimes/$rid/native/$file"; done
+            check "$sdl" "runtimes/$rid/native/SDL3.dll"
             for file in dxc.exe dxcompiler.dll spirv-cross.exe; do check "$tools" "tools/$rid/bin/$file"; done
           done
           for rid in linux-x64 linux-arm64; do
-            for file in libSDL3.so.0 libSDL2-2.0.so.0; do check "$sdl" "runtimes/$rid/native/$file"; done
+            check "$sdl" "runtimes/$rid/native/libSDL3.so.0"
             for file in bin/dxc bin/spirv-cross lib/libdxcompiler.so; do check "$tools" "tools/$rid/$file"; done
           done
-          for file in libSDL3.dylib libSDL2-2.0.0.dylib; do check "$sdl" "runtimes/osx/native/$file"; done
+          check "$sdl" "runtimes/osx/native/libSDL3.dylib"
           for file in bin/dxc bin/spirv-cross lib/libdxcompiler.dylib; do check "$tools" "tools/osx/$file"; done
           exit $missing
 

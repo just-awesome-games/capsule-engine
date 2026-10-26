@@ -11,7 +11,6 @@ set -eo pipefail
 
 # The upstream releases the packages carry. A bump edits the ref here and the package's Version.
 SDL3_REF=release-3.4.18
-SDL2_COMPAT_REF=release-2.32.74
 DXC_REF=v1.9.2607
 SPIRV_CROSS_REF=vulkan-sdk-1.4.350.0
 
@@ -60,7 +59,6 @@ sign() {
 
 sdl3() {
     fetch SDL "$SDL3_REF" https://github.com/libsdl-org/SDL.git
-    fetch sdl2-compat "$SDL2_COMPAT_REF" https://github.com/libsdl-org/sdl2-compat.git
 
     # The host's macOS floor.
     local stage=$work/stage deployment=()
@@ -73,33 +71,25 @@ sdl3() {
     build SDL
     cmake --install "$work/build/SDL" --config Release --prefix "$stage"
 
-    cmake -S "$work/src/sdl2-compat" -B "$work/build/sdl2-compat" "${configure[@]}" "${deployment[@]}" \
-        -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_PREFIX_PATH="$stage" -DSDL2COMPAT_TESTS=OFF -DSDL2COMPAT_INSTALL_CPACK=OFF
-    build sdl2-compat
-    cmake --install "$work/build/sdl2-compat" --config Release --prefix "$stage"
-
-    # The file names the substrate and the bridge load by: SDL2's, and the one sdl2-compat asks for.
+    # The file names the host loads by.
     local native=$out/runtimes/$rid/native
     rm -rf "$native"
     mkdir -p "$native" "$out/licenses"
     case $rid in
         win-*)
-            cp "$stage/bin/SDL3.dll" "$stage/bin/SDL2.dll" "$native/"
+            cp "$stage/bin/SDL3.dll" "$native/"
             ;;
         linux-*)
             cp -L "$stage/lib/libSDL3.so.0" "$native/libSDL3.so.0"
-            cp -L "$stage/lib/libSDL2-2.0.so.0" "$native/libSDL2-2.0.so.0"
             strip --strip-unneeded "$native"/*
             ;;
         osx)
             cp -L "$stage/lib/libSDL3.dylib" "$native/libSDL3.dylib"
-            cp -L "$stage/lib/libSDL2-2.0.0.dylib" "$native/libSDL2-2.0.0.dylib"
             install_name_tool -id @rpath/libSDL3.dylib "$native/libSDL3.dylib"
             sign "$native"/*
             ;;
     esac
     cp "$work/src/SDL/LICENSE.txt" "$out/licenses/SDL3.txt"
-    cp "$work/src/sdl2-compat/LICENSE.txt" "$out/licenses/sdl2-compat.txt"
 }
 
 shadertools() {

@@ -92,7 +92,7 @@ releases first, then the module, then the games:
 
 ## Native packages
 
-`JAG.Capsule.Native.SDL3` carries SDL3 and the sdl2-compat bridge, at SDL3's version.
+`JAG.Capsule.Native.SDL3` carries SDL3, at SDL3's version.
 `JAG.Capsule.ShaderTools` carries DXC and SPIRV-Cross, at a version of its own. `natives/build.sh`
 pins the upstream release each one builds from, and `.github/workflows/natives.yml` builds every
 runtime identifier on its own operating system. A natives release moves no engine version, and a
