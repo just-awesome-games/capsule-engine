@@ -1,190 +1,244 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Capsule.Rendering;
 
 namespace Capsule.Build.Shaders;
 
-/// <summary>The one seam a pixel-stage source becomes a compiled effect through.</summary>
+/// <summary>The one seam a shader stage's source becomes a container per GPU format through.</summary>
 /// <remarks>
-/// DXC compiles the HLSL to SPIR-V, SPIRV-Cross reflects its parameters and writes it as GLSL, and
-/// <see cref="MgfxWriter"/> packs it with the engine's vertex stage. Both tools are native binaries for
-/// the host's operating system and architecture. A workstation installs nothing.
+/// DXC compiles the HLSL to SPIR-V in SDL's binding layout. SPIRV-Cross writes that SPIR-V as MSL, and
+/// as HLSL that DXC compiles to signed DXIL, each with the bindings the SPIR-V decorates, as SDL's own
+/// shader tool does. A further format's tool compiles that HLSL. Both tools are native binaries for the
+/// host's operating system and architecture, and a workstation installs nothing.
 /// </remarks>
 internal static partial class ShaderCompiler
 {
-    // The GLSL the desktop host's OpenGL 2.1 context accepts.
-    private const string GlslVersion = "120";
+    /// <summary>SPIR-V, which SDL's GPU API reads on Vulkan.</summary>
+    internal const string Spirv = "spirv";
 
-    private const string CombinedPrefix = "SPIRV_Cross_Combined";
+    /// <summary>DXIL, which SDL's GPU API reads on Direct3D 12.</summary>
+    internal const string Dxil = "dxil";
 
-    // The parameter block SPIRV-Cross flattens the global constants into.
-    private const string GlobalBlock = "type_Globals";
+    /// <summary>MSL 2.1 source, which SDL's GPU API reads on Metal.</summary>
+    internal const string Msl = "msl";
 
-    // The block a fragment declares its scene globals in, as SPIRV-Cross flattens it.
-    private const string SceneGlobalsBlock = "type_" + ShaderTemplate.SceneGlobalsBlock;
+    /// <summary>The effect the desktop host draws with until it leaves MonoGame, its code an OpenGL 2.1 effect.</summary>
+    internal const string Glsl = "glsl";
 
-    /// <summary>Compiles the composed source at <paramref name="sourcePath"/>.</summary>
-    /// <param name="tools">The downloaded tools.</param>
-    /// <param name="sourcePath">The composed pixel-stage source. Intermediate files are written beside it.</param>
-    internal static ShaderCompilation Compile(ShaderTools tools, string sourcePath)
+    /// <summary>Every format the engine compiles a fragment to.</summary>
+    internal static readonly string[] Formats = [Spirv, Dxil, Msl, Glsl];
+
+    // SDL's descriptor sets: a stage's textures, samplers and storage in one, its uniform buffers in
+    // the next. The material's uniform buffer is binding 0 and the scene globals' binding 1.
+    private const int FragmentResources = 2;
+    private const int FragmentUniforms = 3;
+    private const int VertexUniforms = 1;
+
+    // The block DXC gathers a source's loose parameters into, as SPIR-V names its variable.
+    private const string LooseParameters = "$Globals";
+
+    private const string VertexUniformBlock = "CapsuleVertexUniforms";
+
+    // The entry point SPIRV-Cross gives the HLSL it writes.
+    private const string HlslEntryPoint = "main";
+
+    /// <summary>Compiles a game's fragment, wrapped in the engine's template, to every format.</summary>
+    /// <param name="tools">The downloaded tools, and the further formats.</param>
+    /// <param name="basePath">Where the intermediate files are written and deleted, as a path without extension in a directory of its own.</param>
+    /// <param name="fragment">The game's fragment.</param>
+    /// <param name="fragmentPath">What an error inside the fragment is reported against.</param>
+    internal static ShaderCompilation CompileFragment(ShaderTools tools, string basePath, string fragment, string fragmentPath)
     {
-        string source = Path.GetFullPath(sourcePath);
-        string spirv = Path.ChangeExtension(source, ".spv");
-        string directory = Path.GetDirectoryName(source)!;
-
-        // Run beside the source and handed its bare name. No machine path reaches a diagnostic's
-        // anchor or a shipped file.
-        (int exit, string output, string errors) = Run(
-            Binary(tools, "dxc"),
-            directory,
-            "-spirv",
-            "-T",
-            "ps_6_0",
-            "-E",
-            ShaderTemplate.EntryPoint,
-            "-Fo",
-            Path.GetFileName(spirv),
-            Path.GetFileName(source));
-
-        List<ShaderDiagnostic> diagnostics = Diagnostics(output + '\n' + errors);
-        if (exit != 0 || !File.Exists(spirv))
-        {
-            return new ShaderCompilation(
-                null,
-                [],
-                diagnostics,
-                diagnostics.Any(static diagnostic => !diagnostic.Warning) ? null : "the shader compiler failed: " + Flatten(output + errors));
-        }
-
+        basePath = Path.GetFullPath(basePath);
+        List<ShaderDiagnostic> diagnostics = [];
         try
         {
-            string crossCompiler = Binary(tools, "spirv-cross");
-            (exit, output, errors) = Run(crossCompiler, directory, spirv, "--reflect");
-            if (exit != 0)
+            // The OpenGL 2.1 compile reports the game's errors and reads the parameter table the bound
+            // compile pairs samplers from.
+            Write(basePath + ".fx", ShaderTemplate.Compose(fragment, fragmentPath));
+            Gl21Stage gl21 = CompileGl21(tools, basePath, diagnostics);
+            if (gl21.Effect is not { } effect)
             {
-                return Failed("the shader cross-compiler could not reflect it: " + Flatten(output + errors), diagnostics);
+                return Failed(gl21.Failure, diagnostics);
             }
 
-            if (Reflect(output, out List<PixelConstant> constants, out int bufferSize, out int globalsSize, out List<string> textures) is { } refused)
+            Dictionary<string, (int, int)> places = new()
             {
-                return Failed(refused, diagnostics);
+                [LooseParameters] = (FragmentUniforms, 0),
+                [ShaderTemplate.SceneGlobalsBlock] = (FragmentUniforms, 1),
+            };
+
+            List<ShaderBinding> table = [.. gl21.Constants];
+            for (int slot = 0; slot <= gl21.Textures.Count; slot++)
+            {
+                string texture = slot == 0 ? ShaderTemplate.SpriteTexture : gl21.Textures[slot - 1];
+                places[texture] = (FragmentResources, slot);
+                places[ShaderTemplate.PairedSampler + texture] = (FragmentResources, slot);
+                if (slot > 0)
+                {
+                    table.Add(new ShaderBinding(texture, ShaderParameterKind.Texture, false, slot));
+                }
             }
 
-            List<string> arguments =
-            [
-                spirv, "--version", GlslVersion, "--no-es", "--no-420pack-extension", "--flatten-ubo",
-            ];
-            for (int location = 0; location < MgfxWriter.Varyings.Length; location++)
+            ShaderContainer layout = new(
+                string.Empty,
+                ShaderStage.Fragment,
+                ShaderTemplate.EntryPoint,
+                Samplers: gl21.Textures.Count + 1,
+                StorageTextures: 0,
+                StorageBuffers: 0,
+                UniformBuffers: gl21.HasGlobalsBuffer ? 2 : gl21.HasMaterialBuffer ? 1 : 0,
+                [.. table],
+                []);
+
+            Write(basePath + ".bound.fx", ShaderTemplate.ComposeBound(fragment, fragmentPath, gl21.Textures));
+            List<ShaderContainer> shaders = [layout with { Format = Glsl, Code = effect }];
+            if (!CompileBound(tools, basePath, layout, places, shaders, diagnostics, out string? failure))
             {
-                arguments.AddRange(["--rename-interface-variable", "in", location.ToString(CultureInfo.InvariantCulture), MgfxWriter.Varyings[location]]);
+                return Failed(failure, diagnostics);
             }
 
-            (exit, output, errors) = Run(crossCompiler, directory, [.. arguments]);
-            if (exit != 0)
-            {
-                return Failed("the shader cross-compiler could not write it as GLSL: " + Flatten(output + errors), diagnostics);
-            }
+            ShaderParameter[] parameters = [.. table.Select(static parameter => new ShaderParameter(parameter.Name, parameter.Kind, parameter.Global))];
 
-            string glsl = output.ReplaceLineEndings("\n");
-            if (AdaptForGl21(ref glsl, textures, ref bufferSize, out List<PixelConstant> sizes) is { } unsupported)
-            {
-                return Failed(unsupported, diagnostics);
-            }
-
-            byte[] effect = MgfxWriter.Write(Path.GetFileName(source), glsl, [.. constants, .. sizes], bufferSize, globalsSize, textures);
-
-            List<ShaderParameter> parameters = [.. constants.Select(static constant => new ShaderParameter(constant.Name, constant.Kind, constant.Global))];
-            parameters.AddRange(textures.Select(static texture => new ShaderParameter(texture, ShaderParameterKind.Texture)));
-
-            return new ShaderCompilation(effect, parameters, diagnostics, null);
+            return new ShaderCompilation([.. shaders], parameters, diagnostics, null);
         }
         finally
         {
-            File.Delete(spirv);
+            DeleteIntermediates(basePath);
         }
     }
 
-    // Rewrites the stage for the effect container and returns why OpenGL 2.1 would not compile it, or
-    // null. The combined sampler SPIRV-Cross names after a texture and the engine's sampler takes the
-    // slot's name. A read through the size probe becomes a size parameter appended to the pixel buffer.
-    // The flattened parameter block takes the pixel buffer's name, and the scene globals block the
-    // globals buffer's.
-    private static string? AdaptForGl21(ref string glsl, List<string> textures, ref int bufferSize, out List<PixelConstant> sizes)
+    /// <summary>Compiles the engine's vertex stage to every format but <see cref="Glsl"/>, whose effect carries its own.</summary>
+    /// <param name="tools">The downloaded tools, and the further formats.</param>
+    /// <param name="basePath">Where the intermediate files are written and deleted, as a path without extension in a directory of its own.</param>
+    internal static ShaderCompilation CompileVertex(ShaderTools tools, string basePath)
     {
-        sizes = [];
-        for (int slot = 0; slot <= textures.Count; slot++)
+        basePath = Path.GetFullPath(basePath);
+        List<ShaderDiagnostic> diagnostics = [];
+        try
         {
-            string texture = slot == 0 ? ShaderTemplate.SpriteTexture : textures[slot - 1];
-            glsl = Replace(glsl, CombinedPrefix + texture + ShaderTemplate.Sampler, MgfxWriter.SamplerName(slot));
+            Write(basePath + ".bound.fx", $"#line 1 \"{ShaderTemplate.VertexFile}\"\n{ShaderTemplate.VertexStage}");
+            ShaderContainer layout = new(string.Empty, ShaderStage.Vertex, ShaderTemplate.VertexEntryPoint, 0, 0, 0, UniformBuffers: 1, [], []);
+            List<ShaderContainer> shaders = [];
+            return CompileBound(tools, basePath, layout, new Dictionary<string, (int, int)> { [VertexUniformBlock] = (VertexUniforms, 0) }, shaders, diagnostics, out string? failure)
+                ? new ShaderCompilation([.. shaders], [], diagnostics, null)
+                : Failed(failure, diagnostics);
+        }
+        finally
+        {
+            DeleteIntermediates(basePath);
+        }
+    }
 
-            string probe = Regex.Escape(CombinedPrefix + texture + ShaderTemplate.SizeProbe);
-            if (!Regex.IsMatch(glsl, $@"\b{probe}\b"))
+    /// <summary>Whether DXIL carries the validator's hash, without which Direct3D 12 refuses it.</summary>
+    internal static bool Signed(ReadOnlySpan<byte> dxil) => dxil.Length >= 20 && dxil[4..20].ContainsAnyExcept((byte)0);
+
+    // Compiles basePath + ".bound.fx" to SPIR-V, places its resources, derives every other format from
+    // it, and adds a container per format to shaders, each a copy of layout. Returns whether it
+    // compiled, and else why it failed where no diagnostic anchors it.
+    private static bool CompileBound(ShaderTools tools, string basePath, ShaderContainer layout, IReadOnlyDictionary<string, (int, int)> places, List<ShaderContainer> shaders, List<ShaderDiagnostic> diagnostics, out string? failure)
+    {
+        string directory = Path.GetDirectoryName(basePath)!;
+        string name = Path.GetFileName(basePath);
+        string stage = layout.Stage == ShaderStage.Vertex ? "vertex" : "fragment";
+        string profile = layout.Stage == ShaderStage.Vertex ? "vs_6_0" : "ps_6_0";
+        string spirv = name + ".bound.spv";
+
+        (int exit, string output, string errors) = Run(Binary(tools, "dxc"), directory, "-spirv", "-T", profile, "-E", layout.EntryPoint, "-Fo", spirv, name + ".bound.fx");
+        if (exit != 0)
+        {
+            List<ShaderDiagnostic> errorsOnly = [.. Diagnostics(output + '\n' + errors).Where(static diagnostic => !diagnostic.Warning).Select(Paired)];
+            diagnostics.AddRange(errorsOnly);
+            failure = errorsOnly.Count > 0 ? null : "the shader compiler failed: " + Flatten(output + errors);
+            return false;
+        }
+
+        byte[] module = File.ReadAllBytes(Path.Combine(directory, spirv));
+        if (SpirvBindings.Place(module, places) is { } unplaced)
+        {
+            failure = $"binds '{unplaced}', a resource the engine does not place. Declare parameters and textures at file scope, and scene globals in the {ShaderTemplate.SceneGlobalsBlock} block.";
+            return false;
+        }
+
+        File.WriteAllBytes(Path.Combine(directory, spirv), module);
+        shaders.Add(layout with { Format = Spirv, Code = module });
+
+        string crossCompiler = Binary(tools, "spirv-cross");
+        Task<(int, string, string)> msl = Task.Run(() => Run(crossCompiler, directory, spirv, "--msl", "--msl-version", "20100", "--msl-decoration-binding"));
+        string? dxilFailure = CompileDxil(tools, directory, name, profile, crossCompiler, layout, shaders);
+        (exit, output, errors) = msl.GetAwaiter().GetResult();
+        failure = dxilFailure;
+        if (failure is not null)
+        {
+            return false;
+        }
+
+        if (exit != 0)
+        {
+            failure = "the shader cross-compiler could not write it as MSL: " + Flatten(output + errors);
+            return false;
+        }
+
+        shaders.Add(layout with { Format = Msl, Code = Encoding.UTF8.GetBytes(output.ReplaceLineEndings("\n")) });
+
+        foreach (ShaderFormatTool further in tools.Further)
+        {
+            string compiled = name + "." + further.Format;
+            (exit, output, errors) = Run(further.Tool, directory, "--stage", stage, "--entry", HlslEntryPoint, "--hlsl", name + ".bound.hlsl", "--spirv", spirv, "--out", compiled);
+            if (exit != 0 || !File.Exists(Path.Combine(directory, compiled)))
             {
-                continue;
+                failure = $"the {further.Format} shader tool failed: " + Flatten(output + errors);
+                return false;
             }
 
-            glsl = Regex.Replace(glsl, $@"uniform sampler2D {probe};\n", string.Empty);
-            glsl = Regex.Replace(glsl, $@"texture2D\({probe}, vec2\(0\.0\)\)", $"{GlobalBlock}[{bufferSize / 16}]");
-
-            // A read the pattern missed would name a sampler no longer declared.
-            if (Regex.IsMatch(glsl, $@"\b{probe}\b"))
-            {
-                return $"reads the size of texture '{texture}' in a form the compiler cannot bind. Read it with TextureSize({texture}).";
-            }
-
-            sizes.Add(new PixelConstant(ShaderTemplate.TextureSize + slot.ToString(CultureInfo.InvariantCulture), ShaderParameterKind.Vector2, bufferSize));
-            bufferSize += 16;
+            shaders.Add(layout with { Format = further.Format, EntryPoint = HlslEntryPoint, Code = File.ReadAllBytes(Path.Combine(directory, compiled)) });
         }
 
-        if (sizes.Count > 0)
+        return true;
+    }
+
+    // Writes the placed SPIR-V as HLSL and compiles that to DXIL, adding its container to shaders.
+    // Returns why it failed, or null.
+    private static string? CompileDxil(ShaderTools tools, string directory, string name, string profile, string crossCompiler, ShaderContainer layout, List<ShaderContainer> shaders)
+    {
+        (int exit, string output, string errors) = Run(crossCompiler, directory, name + ".bound.spv", "--hlsl", "--shader-model", "60", "--output", name + ".bound.hlsl");
+        if (exit != 0)
         {
-            string declaration = $"uniform vec4 {GlobalBlock}[{bufferSize / 16}];";
-            glsl = Regex.IsMatch(glsl, $@"uniform vec4 {GlobalBlock}\[\d+\];")
-                ? Regex.Replace(glsl, $@"uniform vec4 {GlobalBlock}\[\d+\];", declaration)
-                : glsl.Replace($"#version {GlslVersion}\n", $"#version {GlslVersion}\n{declaration}\n", StringComparison.Ordinal);
+            return "the shader cross-compiler could not write it as HLSL: " + Flatten(output + errors);
         }
 
-        glsl = Replace(glsl, GlobalBlock, MgfxWriter.PixelBuffer);
-        glsl = Replace(glsl, SceneGlobalsBlock, MgfxWriter.GlobalsBuffer);
-
-        if (BuiltInCall(glsl, "texelFetch"))
+        string dxil = name + "." + Dxil;
+        (exit, output, errors) = Run(Binary(tools, "dxc"), directory, "-T", profile, "-E", HlslEntryPoint, "-Fo", dxil, name + ".bound.hlsl");
+        if (exit != 0)
         {
-            return "reads a texel with Load or an index, which OpenGL 2.1 lacks. Read it with Sample(texture, (texel + 0.5) / TextureSize(texture)).";
+            return "the shader compiler could not compile it to DXIL: " + Flatten(output + errors);
         }
 
-        if (BuiltInCall(glsl, "textureSize"))
+        byte[] signed = File.ReadAllBytes(Path.Combine(directory, dxil));
+        if (!Signed(signed))
         {
-            return "reads a texture's size with GetDimensions, which OpenGL 2.1 lacks. Read it with TextureSize(texture).";
+            return "the shader compiler wrote DXIL without the validator's signature, which Direct3D 12 refuses. Restore the shader tools, whose DXC validates and signs on every host.";
         }
 
-        if (Regex.IsMatch(glsl, $@"\b{CombinedPrefix}"))
-        {
-            return "reads a texture other than through Sample or TextureSize, which OpenGL 2.1 lacks. Read it with Sample(texture, uv).";
-        }
-
-        if (ExtensionLine().Match(glsl) is { Success: true } extension)
-        {
-            return $"needs the GLSL extension {extension.Groups["name"].Value}, which OpenGL 2.1 lacks. An unsigned integer or a rounding function is the usual cause. Compute in float, as floor(x + 0.5) for round(x).";
-        }
+        shaders.Add(layout with { Format = Dxil, EntryPoint = HlslEntryPoint, Code = signed });
 
         return null;
     }
 
-    // Whether the stage calls the GLSL built-in, as a whole identifier and not part of a game's name.
-    // GLSL 1.20 spells it with a 2D suffix, from the GL_EXT_gpu_shader4 extension.
-    private static bool BuiltInCall(string glsl, string function) =>
-        Regex.IsMatch(glsl, $@"\b{function}(?:2D)?\s*\(");
-
-    private static string Replace(string glsl, string name, string replacement) =>
-        Regex.Replace(glsl, $@"\b{Regex.Escape(name)}\b", replacement);
+    // An undeclared paired sampler means Sample was handed something other than a texture parameter.
+    private static ShaderDiagnostic Paired(ShaderDiagnostic diagnostic) =>
+        diagnostic.Message.Contains($"'{ShaderTemplate.PairedSampler}", StringComparison.Ordinal)
+            ? diagnostic with { Message = "samples a texture that is not a texture parameter. Call Sample(texture, uv) with the parameter itself, not a function argument holding it." }
+            : diagnostic;
 
     // The parameter table from SPIRV-Cross's reflection: the members of the global block and of the
     // scene globals block with their offsets in their own block, and every texture beyond the
     // sprite's. Returns why a parameter cannot be set, or null.
-    private static string? Reflect(string json, out List<PixelConstant> constants, out int bufferSize, out int globalsSize, out List<string> textures)
+    private static string? Reflect(string json, out List<ShaderBinding> constants, out int bufferSize, out int globalsSize, out List<string> textures)
     {
         constants = [];
         textures = [];
@@ -248,7 +302,7 @@ internal static partial class ShaderCompiler
                             : $"declares parameter '{name}', which a Material cannot set. A shader parameter is a float, float2, float3, float4 or Texture2D, and no array.";
                     }
 
-                    constants.Add(new PixelConstant(name, settable, member.GetProperty("offset").GetInt32(), scene));
+                    constants.Add(new ShaderBinding(name, settable, scene, member.GetProperty("offset").GetInt32()));
                 }
             }
         }
@@ -319,7 +373,7 @@ internal static partial class ShaderCompiler
     // The tool's binary for this host. The package lays a folder out per runtime identifier, macOS as
     // one universal binary. NuGet extracts without the executable bit. It is restored before the
     // first run.
-    private static string Binary(ShaderTools tools, string name)
+    internal static string Binary(ShaderTools tools, string name)
     {
         string architecture = RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64";
         string host = OperatingSystem.IsWindows() ? "win-" + architecture
@@ -345,6 +399,8 @@ internal static partial class ShaderCompiler
         return path;
     }
 
+    // Run beside the sources and handed their bare names. No machine path reaches a diagnostic's
+    // anchor or a shipped file.
     private static (int ExitCode, string Output, string Errors) Run(string executable, string workingDirectory, params string[] arguments)
     {
         ProcessStartInfo start = new(executable)
@@ -372,13 +428,29 @@ internal static partial class ShaderCompiler
         return (process.ExitCode, output, error);
     }
 
-    private static ShaderCompilation Failed(string failure, IReadOnlyList<ShaderDiagnostic> diagnostics) =>
+    private static void Write(string path, string source)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, source);
+    }
+
+    // Every file a compile wrote. Its directory is its own, and holds no other shader's files.
+    private static void DeleteIntermediates(string basePath)
+    {
+        string directory = Path.GetDirectoryName(basePath)!;
+        if (Directory.Exists(directory))
+        {
+            foreach (string file in Directory.EnumerateFiles(directory))
+            {
+                File.Delete(file);
+            }
+        }
+    }
+
+    private static ShaderCompilation Failed(string? failure, IReadOnlyList<ShaderDiagnostic> diagnostics) =>
         new(null, [], diagnostics, failure);
 
     private static string Flatten(string output) => output.Trim().ReplaceLineEndings(" ");
-
-    [GeneratedRegex(@"^#extension (?<name>\S+)", RegexOptions.Multiline)]
-    private static partial Regex ExtensionLine();
 
     [GeneratedRegex(@"^(?<file>.+?):(?<line>\d+):(?<column>\d+):\s*(?<severity>error|warning):\s*(?<message>.*)$")]
     private static partial Regex DiagnosticLine();

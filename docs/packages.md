@@ -89,4 +89,21 @@ A console runtime is a private repository, one per platform:
 `Capsule.Runtime` calls SDL3 itself for input and the cursor. The module supplies SDL3 for its target,
 linked statically under the library name `SDL3` or shipped beside the game.
 
+When the target's GPU reads a shader format of its own, the shell names the format and its compiler's absolute
+path, and its publish carries that format alone:
+
+```xml
+<ItemGroup>
+  <CapsuleShaderFormat Include="console" Tool="$(ConsoleSdk)/compile-shader" />
+</ItemGroup>
+<PropertyGroup>
+  <CapsuleShaderFormats>console</CapsuleShaderFormats>
+</PropertyGroup>
+```
+
+The build runs the tool once per stage of every shader, and of the engine's own sprite shader, as
+`--stage <vertex|fragment> --entry main --hlsl <file> --spirv <file> --out <file>`. The HLSL and the SPIR-V
+are the stage in SDL's binding layout. The tool writes the format's code to the output file and exits 0, and
+the build ships it as `<key>.<format>.shader`.
+
 A shell references one platform module.

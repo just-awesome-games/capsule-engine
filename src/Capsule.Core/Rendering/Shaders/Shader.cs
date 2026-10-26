@@ -18,7 +18,7 @@ public sealed class Shader
     // The key the shader ships under, and what the debug overlay shows for it.
     internal string Name { get; }
 
-    /// <summary>A shader shipped at <c>assets/{name}.mgfx</c>. Called by generated code.</summary>
+    /// <summary>A shader shipped at <c>assets/{name}.{format}.shader</c>, one per GPU format. Called by generated code.</summary>
     /// <param name="name">The source's path under <c>Assets/</c>, forward slashes and no extension.</param>
     /// <param name="parameters">Every parameter the game's source declares, each name once.</param>
     [EditorBrowsable(EditorBrowsableState.Never)]

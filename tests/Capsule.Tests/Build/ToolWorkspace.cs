@@ -99,13 +99,13 @@ internal sealed class ToolWorkspace : IDisposable
         return Write(name, png.ToArray());
     }
 
-    /// <summary>Runs the build over <c>Assets/</c>, with <paramref name="options"/> between the paths and the shader tools the targets always pass.</summary>
+    /// <summary>Runs the build over <c>Assets/</c>, with <paramref name="options"/> between the paths and the shader tools and formats the targets always pass.</summary>
     /// <returns>The run's exit code.</returns>
     internal int Run(params string[] options)
     {
         StringWriter output = new WatchedWriter(Watch);
         StringWriter error = new();
-        int exitCode = Configure(CapsuleBuild.Configure(["--assets", Path.GetFullPath(Assets), "--out", Out, .. options, "--shader-tools", Tools.Package])).Run(output, error);
+        int exitCode = Configure(CapsuleBuild.Configure(["--assets", Path.GetFullPath(Assets), "--out", Out, .. options, "--shader-tools", Tools.Package, .. Tools.Further.SelectMany(static further => (string[])["--shader-format", $"{further.Format}={further.Tool}"])])).Run(output, error);
         Output = output.ToString();
         Errors = error.ToString();
 

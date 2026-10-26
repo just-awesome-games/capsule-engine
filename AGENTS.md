@@ -37,7 +37,7 @@ the prose marks a scan can find and packaging, and none of them is repeated here
 - An example in XML or on a page uses neutral names such as `Avatar` or `north`, never a genre's nouns such as enemies or coins. A page carries no genre recipe.
 - A behaviour change rewrites every page, XML line and comment that states the old behaviour, in the same change.
 - A comment states an invariant or a why. Delete one that restates the line below it or addresses a reviewer.
-- Docs, XML and comments name no other engine. Capsule is described on its own terms. A precedent and the complaint it answers live only in the design ledger. A dependency or an interchange format is named as what it is.
+- Docs, XML and comments name no other engine. Capsule is described on its own terms. A precedent and the complaint it answers stay out of this repo. A dependency or an interchange format is named as what it is.
 - Plain sentences, subject then verb, with no inversion ("Idempotent, because...").
 
 ## Tests

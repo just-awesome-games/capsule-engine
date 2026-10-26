@@ -73,14 +73,35 @@
       <_CapsuleOutArgument>$([System.IO.Path]::TrimEndingDirectorySeparator('$(CapsuleObjDir)'))</_CapsuleOutArgument>
       <_CapsuleShippingArgument Condition="'$(CapsuleShipping)' == 'true'"> --shipping</_CapsuleShippingArgument>
       <_CapsuleShaderTools>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'jag.capsule.shadertools', '$(CapsuleShaderToolsVersion)'))</_CapsuleShaderTools>
+      <!-- A platform module's further GPU formats, each a CapsuleShaderFormat item named for the format
+           whose Tool metadata is the absolute path of the compiler every stage goes through, declared
+           here or forwarded by the shell. docs/packages.md names the options the tool takes. -->
+      <_CapsuleShaderFormatArguments>@(CapsuleShaderFormat->' --shader-format &quot;%(Identity)=%(Tool)&quot;', '')</_CapsuleShaderFormatArguments>
+      <_CapsuleShaderFormatArguments Condition="'$(CapsuleShaderFormatTools)' != ''">$(_CapsuleShaderFormatArguments) --shader-format &quot;$(CapsuleShaderFormatTools.Replace('|', '&quot; --shader-format &quot;'))&quot;</_CapsuleShaderFormatArguments>
     </PropertyGroup>
 
     <MakeDir Directories="$(CapsuleObjDir)" />
-    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --assets &quot;$(_CapsuleAssetsArgument)&quot; --out &quot;$(_CapsuleOutArgument)&quot;$(_CapsuleShippingArgument) --shader-tools &quot;$(_CapsuleShaderTools)&quot;"
+    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --assets &quot;$(_CapsuleAssetsArgument)&quot; --out &quot;$(_CapsuleOutArgument)&quot;$(_CapsuleShippingArgument) --shader-tools &quot;$(_CapsuleShaderTools)&quot;$(_CapsuleShaderFormatArguments)"
           WorkingDirectory="$(_CapsuleProjectDirectory)"
           EnvironmentVariables="DOTNET_TieredPGO=0"
           LogStandardErrorAsError="true"
           StandardOutputImportance="normal" />
+  </Target>
+
+  <!-- A platform module declares its formats on the shell, and the logic library it references builds
+       the assets. The shell hands every reference the formats as CapsuleShaderFormatTools, name=tool
+       pairs separated by |. -->
+  <Target Name="CapsuleForwardShaderFormats"
+          Condition="'$(CapsuleGameShell)' == 'true' and '@(CapsuleShaderFormat)' != ''"
+          BeforeTargets="AssignProjectConfiguration">
+    <PropertyGroup>
+      <_CapsuleForwardedShaderFormats>@(CapsuleShaderFormat->'%(Identity)=%(Tool)', '|')</_CapsuleForwardedShaderFormats>
+    </PropertyGroup>
+    <ItemGroup>
+      <ProjectReference>
+        <AdditionalProperties>%(ProjectReference.AdditionalProperties);CapsuleShaderFormatTools=$(_CapsuleForwardedShaderFormats)</AdditionalProperties>
+      </ProjectReference>
+    </ItemGroup>
   </Target>
 
   <!-- Runs on up-to-date builds too, from what the last run left on disk. It also runs before BeforeCompile,

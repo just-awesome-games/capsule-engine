@@ -1,5 +1,6 @@
 using System.Text;
 using Capsule.Build.Shaders;
+using Capsule.Rendering;
 using Capsule.Tests.Documents;
 
 namespace Capsule.Tests.Build;
@@ -46,10 +47,8 @@ public sealed class ShaderGlobalsBuildTests
     public void TheEffect_ReadsTheGlobalsFromTheirOwnUniformArray()
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        workspace.Write("graded.fx", ShaderTemplate.Compose(Graded, "graded.fx"));
-
-        ShaderCompilation compiled = ShaderCompiler.Compile(ToolWorkspace.ShaderTools, "graded.fx");
-        byte[] effect = Assert.IsType<byte[]>(compiled.Effect);
+        ShaderCompilation compiled = ShaderCompiler.CompileFragment(ToolWorkspace.ShaderTools, "graded/graded", Graded, "graded.fx");
+        byte[] effect = Assert.Single(Assert.IsType<ShaderContainer[]>(compiled.Shaders), static shader => shader.Format == ShaderCompiler.Glsl).Code;
         string text = Encoding.ASCII.GetString(effect);
 
         Assert.Contains(MgfxWriter.GlobalsBuffer, text, StringComparison.Ordinal);

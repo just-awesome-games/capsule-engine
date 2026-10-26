@@ -202,6 +202,10 @@ and sound output, and sdl2-compat, through which the graphics substrate reaches 
 `SDL2.dll` on Windows). The host mixes sound itself and plays the mix on the system's default
 output. Without an output device the run plays silently and logs that once.
 
+A publish carries the GPU formats its runtime identifier's drivers read: DXIL and SPIR-V for `win-`, SPIR-V
+for `linux-`, MSL for `osx-`, and everywhere the OpenGL effect the host draws with today. A NativeAOT publish
+drops the engine's own sprite shader in the other formats too. `CapsuleShaderFormats` names another set.
+
 A publish replaces its directory's `assets/` whole. The folder never carries an asset the current build does
 not ship, whatever an earlier publish left there.
 
@@ -238,6 +242,7 @@ to the importing project unless a row says otherwise.
 | `CapsuleBuildAssets` | `true` for the logic library, else `false` | Reads the authoring tree and ships the result under `assets/`. A role-free test or tool can opt in, and receives no `CapsuleAssets`. |
 | `CapsuleBuildProject` | unset | The game's build project, which a project building assets must name. |
 | `CapsuleShipping` | `true` for the duration of a publish | Switches the build to shipping shape. See [Development builds](#development-builds). |
+| `CapsuleShaderFormats` | the runtime identifier's, as [Publishing](#publishing) names them | The GPU formats a shell's publish carries, separated by `;`: `spirv`, `dxil`, `msl`, `glsl` or a platform module's own. Unset for an unknown runtime identifier, which carries every format. |
 | `CapsuleSymbolsDirectory` | the publish directory's path with `-symbols` appended | Receives a publish's symbols: the native pdb under NativeAOT, the managed pdbs otherwise. |
 
 ### Package and source properties

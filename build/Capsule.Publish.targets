@@ -35,6 +35,50 @@
     </ItemGroup>
   </Target>
 
+  <!-- The GPU formats a publish carries, by runtime identifier: those SDL's GPU drivers read there, and
+       the OpenGL effect the host draws with until it leaves MonoGame. A publish for no known runtime
+       identifier carries every format, and a private platform module names its own. -->
+  <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
+    <_CapsuleEngineShaderFormats>spirv;dxil;msl;glsl</_CapsuleEngineShaderFormats>
+    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and $(RuntimeIdentifier.StartsWith('win-'))">dxil;spirv;glsl</CapsuleShaderFormats>
+    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and $(RuntimeIdentifier.StartsWith('linux-'))">spirv;glsl</CapsuleShaderFormats>
+    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and $(RuntimeIdentifier.StartsWith('osx-'))">msl;glsl</CapsuleShaderFormats>
+  </PropertyGroup>
+
+  <!-- A shader ships as <key>.<format>.shader. One in a format the publish does not carry leaves it. -->
+  <Target Name="CapsuleDropUnreadShaderFormats"
+          Condition="'$(CapsuleGameShell)' == 'true' and '$(CapsuleShaderFormats)' != ''"
+          AfterTargets="ComputeResolvedFilesToPublishList">
+    <PropertyGroup>
+      <_CapsuleShaderExtensions>;.$(CapsuleShaderFormats.Replace(';', ';.'));</_CapsuleShaderExtensions>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CapsuleUnreadShader Include="@(ResolvedFileToPublish)"
+                            Condition="'%(Extension)' == '.shader' and !$(_CapsuleShaderExtensions.Contains(';$([System.IO.Path]::GetExtension(%(Filename)));'))" />
+      <ResolvedFileToPublish Remove="@(_CapsuleUnreadShader)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- The engine embeds its own sprite shader in every format. A native publish removes the formats it
+       does not carry. The compiler ignores a resource the assembly does not hold. -->
+  <Target Name="CapsuleRemoveUnreadEngineShaders"
+          Condition="'$(CapsuleGameShell)' == 'true' and '$(PublishAot)' == 'true' and '$(CapsuleShaderFormats)' != ''"
+          BeforeTargets="WriteIlcRspFileForCompilation">
+    <ItemGroup>
+      <_CapsuleUnreadEngineShader Include="$(_CapsuleEngineShaderFormats)" Exclude="$(CapsuleShaderFormats)" />
+      <_CapsuleEngineShaderResource Include="@(_CapsuleUnreadEngineShader->'    &lt;resource name=&quot;Capsule.Runtime.Rendering.Shaders.sprite.%(Identity).shader&quot; action=&quot;remove&quot; /&gt;')" />
+      <_CapsuleEngineShaderResource Include="@(_CapsuleUnreadEngineShader->'    &lt;resource name=&quot;Capsule.Runtime.Rendering.Shaders.vertex.%(Identity).shader&quot; action=&quot;remove&quot; /&gt;')" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)capsule-engine-shaders.xml"
+                      Lines="&lt;linker&gt;;  &lt;assembly fullname=&quot;Capsule.Runtime&quot;&gt;;@(_CapsuleEngineShaderResource);  &lt;/assembly&gt;;&lt;/linker&gt;"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <IlcArg Include="--substitution:$(IntermediateOutputPath)capsule-engine-shaders.xml" />
+      <FileWrites Include="$(IntermediateOutputPath)capsule-engine-shaders.xml" />
+    </ItemGroup>
+  </Target>
+
   <!-- The publish directory's assets/ is the asset build's alone and is replaced whole. The SDK deletes
        only what its record of the last publish names, and that record lives in obj/. A record lost
        with obj/ leaves an earlier publish's assets for an installer to ship. -->

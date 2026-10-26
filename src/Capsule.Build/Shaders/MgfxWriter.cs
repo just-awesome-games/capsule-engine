@@ -95,7 +95,7 @@ internal static class MgfxWriter
     internal static byte[] Write(
         string source,
         string pixelGlsl,
-        IReadOnlyList<PixelConstant> constants,
+        IReadOnlyList<ShaderBinding> constants,
         int pixelBufferSize,
         int globalsBufferSize,
         IReadOnlyList<string> textures)
@@ -164,7 +164,7 @@ internal static class MgfxWriter
             WriteParameter(writer, ShaderTemplate.MatrixTransform, MatrixClass, SingleType, 4, 4);
             WriteParameter(writer, ShaderTemplate.SpriteTexture, ObjectClass, Texture2DType, 0, 0);
             WriteParameter(writer, ShaderTemplate.Coverage, ScalarClass, SingleType, 1, 1);
-            foreach (PixelConstant constant in constants)
+            foreach (ShaderBinding constant in constants)
             {
                 byte columns = constant.Kind switch
                 {
@@ -218,14 +218,14 @@ internal static class MgfxWriter
 
     // One constant buffer: its name, size and the parameters packed into it, each at its offset in the
     // buffer. A parameter's index is its place in the full table.
-    private static void WriteBuffer(BinaryWriter writer, string name, int size, IReadOnlyList<PixelConstant> constants, int firstConstant, bool global)
+    private static void WriteBuffer(BinaryWriter writer, string name, int size, IReadOnlyList<ShaderBinding> constants, int firstConstant, bool global)
     {
         List<(int Index, int Offset)> members = [];
         for (int i = 0; i < constants.Count; i++)
         {
             if (constants[i].Global == global)
             {
-                members.Add((firstConstant + i, constants[i].Offset));
+                members.Add((firstConstant + i, constants[i].Location));
             }
         }
 

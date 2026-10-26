@@ -13,7 +13,10 @@ namespace Capsule.Runtime.Rendering;
 // looks nothing up by name and allocates nothing.
 internal sealed class EffectStore : IDisposable
 {
-    private const string SpriteShaderResource = "Capsule.Runtime.Rendering.Shaders.sprite.mgfx";
+    // The format MonoGame's OpenGL backend reads, until the host draws through SDL's GPU API.
+    private const string Format = "glsl";
+
+    private const string SpriteShaderResource = "Capsule.Runtime.Rendering.Shaders.sprite.glsl.shader";
 
     // The template's coverage switch, which every shader the build composes carries.
     private const string CoverageParameter = "CapsuleCoverage";
@@ -44,7 +47,7 @@ internal sealed class EffectStore : IDisposable
 
         using Stream resource = typeof(EffectStore).Assembly.GetManifestResourceStream(SpriteShaderResource)
             ?? throw new InvalidOperationException($"The embedded sprite shader '{SpriteShaderResource}' is missing.");
-        _sprite = new Binding(new Effect(device, ReadAll(resource)), null);
+        _sprite = new Binding(new Effect(device, ReadEffect(resource, "sprite")), null);
     }
 
     // Loads the shaders a scene boundary collected that no earlier scene loaded.
@@ -141,19 +144,26 @@ internal sealed class EffectStore : IDisposable
         return binding;
     }
 
+    // The shipped container MonoGame reads, as a content path. The format joins the name, since an
+    // asset's extension is one segment.
+    internal static string RelativePathOf(Shader shader) => Files.RelativePathOf(ContainerName(shader), ShaderContainer.Extension);
+
+    private static string ContainerName(Shader shader) => shader.Name + "." + Format;
+
     private Binding Load(Shader shader)
     {
-        using Stream file = Files.Open(_platform, shader.Name, ".mgfx");
+        using Stream file = Files.Open(_platform, ContainerName(shader), ShaderContainer.Extension);
 
-        return new Binding(new Effect(_device, ReadAll(file)), shader);
+        return new Binding(new Effect(_device, ReadEffect(file, shader.Name)), shader);
     }
 
-    private static byte[] ReadAll(Stream stream)
+    // The effect a shipped container carries.
+    private static byte[] ReadEffect(Stream stream, string name)
     {
         using MemoryStream bytes = new();
         stream.CopyTo(bytes);
 
-        return bytes.ToArray();
+        return ShaderContainer.Read(bytes.GetBuffer().AsSpan(0, (int)bytes.Length), name).Code;
     }
 
     public void Dispose()

@@ -21,7 +21,7 @@ namespace Capsule.Build;
 public sealed class CapsuleBuild
 {
     private const string Usage =
-        "usage: <build project> --assets <dir> --out <dir> [--shipping] --shader-tools <dir>. Capsule's build targets run the build project with these.";
+        "usage: <build project> --assets <dir> --out <dir> [--shipping] --shader-tools <dir> [--shader-format <name>=<tool>]... Capsule's build targets run the build project with these.";
 
     private readonly string[] _args;
 
@@ -125,14 +125,38 @@ public sealed class CapsuleBuild
     internal int Run(TextWriter output, TextWriter error)
     {
         // The options come in the order Usage names them.
-        if (_args is not ["--assets", string assets, "--out", string outputDirectory, .. ([] or ["--shipping"]) and var flags, "--shader-tools", string shaderTools])
+        bool shipping = _args is [_, _, _, _, "--shipping", ..];
+        if (_args is not ["--assets", string assets, "--out", string outputDirectory, .. var rest]
+            || rest[(shipping ? 1 : 0)..] is not ["--shader-tools", string shaderTools, .. var formats]
+            || ShaderFormats(formats) is not { } further)
         {
             error.WriteLine(Usage);
 
             return 2;
         }
 
-        return AssetPipeline.Run(assets, new ShaderTools(shaderTools), shipping: flags is ["--shipping"], outputDirectory, this, output, error);
+        return AssetPipeline.Run(assets, new ShaderTools(shaderTools, further), shipping, outputDirectory, this, output, error);
+    }
+
+    // The further formats a platform module names, each as a --shader-format name=tool pair, or null
+    // for anything else. A name is lowercase letters and digits, and none of the engine's own.
+    private static List<ShaderFormatTool>? ShaderFormats(ReadOnlySpan<string> options)
+    {
+        List<ShaderFormatTool> formats = [];
+        for (; options is ["--shader-format", string pair, ..]; options = options[2..])
+        {
+            int split = pair.IndexOf('=', StringComparison.Ordinal);
+            string format = split > 0 ? pair[..split] : string.Empty;
+            if (split <= 0 || split == pair.Length - 1 || !format.All(static c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c))
+                || ShaderCompiler.Formats.Contains(format) || formats.Exists(known => known.Format == format))
+            {
+                return null;
+            }
+
+            formats.Add(new ShaderFormatTool(format, Path.GetFullPath(pair[(split + 1)..])));
+        }
+
+        return options.IsEmpty ? formats : null;
     }
 
     // The importer claiming the path by its extension, or null when none does.

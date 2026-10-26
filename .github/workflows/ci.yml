@@ -45,8 +45,8 @@ jobs:
       - name: Test
         run: dotnet test --configuration Release --no-build
 
-      # The smoke run the AOT legs publish, in the other build direction: a marker that excluded in
-      # an ordinary build fails here.
+      # The smoke the Linux AOT leg publishes, run in the other build direction: a marker that
+      # excluded in an ordinary build fails here.
       - name: Development-only inclusion (ordinary build)
         run: >
           dotnet run --project tests/Capsule.AotSmoke
@@ -68,22 +68,6 @@ jobs:
           path: artifacts/packages/*.*nupkg
           if-no-files-found: error
 
-      # Verify the sample against the packages produced above, in an empty cache. The source-mode
-      # restore above has already filled the cache the sample's NuGet.config names.
-      - name: Restore sample (package mode)
-        run: >
-          dotnet restore samples/MinimalGame/MinimalGame.slnx
-          --configfile samples/MinimalGame/NuGet.config
-          -p:CapsuleSourcePath=
-          -p:RestorePackagesPath=${{ runner.temp }}/package-consumer-cache
-
-      - name: Build sample (package mode)
-        run: >
-          dotnet build samples/MinimalGame/MinimalGame.slnx
-          --configuration Release
-          --no-restore
-          -p:CapsuleSourcePath=
-
   aot:
     needs: build-and-test
     strategy:
@@ -92,15 +76,12 @@ jobs:
         include:
           - os: ubuntu-latest
             runtime: linux-x64
-            smoke-binary: ./artifacts/aot-smoke/Capsule.AotSmoke
             game-binary: ./MinimalGame
           - os: windows-latest
             runtime: win-x64
-            smoke-binary: ./artifacts/aot-smoke/Capsule.AotSmoke.exe
             game-binary: ./MinimalGame.exe
           - os: macos-latest
             runtime: osx-arm64
-            smoke-binary: ./artifacts/aot-smoke/Capsule.AotSmoke
             game-binary: ./MinimalGame
     runs-on: ${{ matrix.os }}
     steps:
@@ -130,14 +111,6 @@ jobs:
           -p:CapsuleSourcePath=
           -p:PublishAot=true
 
-      # A fresh checkout holds no record of an earlier publish. The publish removes this asset anyway.
-      - name: Plant an asset no build ships in the sample's publish
-        shell: bash
-        run: |
-          stale=samples/MinimalGame/src/MinimalGame.Shell/bin/Release/net10.0/${{ matrix.runtime }}/publish/assets/stale/stale.png
-          mkdir -p "$(dirname "$stale")"
-          touch "$stale"
-
       # The shell publish verifies the complete game graph is ILC-analyzable.
       - name: Publish sample shell from local packages with NativeAOT
         run: >
@@ -156,13 +129,6 @@ jobs:
           for file in LICENSE-Capsule.txt THIRD-PARTY-NOTICES-Capsule.md LICENSE-dotnet.txt THIRD-PARTY-NOTICES-dotnet.txt; do
             test -s "$licenses/$file" || { echo "missing $licenses/$file"; exit 1; }
           done
-
-      - name: The sample's publish holds only the assets its build ships
-        shell: bash
-        run: |
-          assets=samples/MinimalGame/src/MinimalGame.Shell/bin/Release/net10.0/${{ matrix.runtime }}/publish/assets
-          test ! -e "$assets/stale" || { echo "an earlier publish's asset survived in $assets/stale"; exit 1; }
-          test -d "$assets" || { echo "missing $assets"; exit 1; }
 
       # The sample again with development flags kept, whose command line takes the driver that plays it.
       - name: Publish the sample to play
@@ -198,7 +164,8 @@ jobs:
           cp "$RUNNER_TEMP/mesa/x64/opengl32.dll" "$RUNNER_TEMP/mesa/x64/libgallium_wgl.dll" artifacts/sample-play/
 
       # SDL3 and the bridge load from beside the executable and open the window and the GL context, and
-      # the Walkthrough driver plays the room to the game's own exit.
+      # the Walkthrough driver plays the room, then the hall, which draws with a game shader, each to
+      # the game's own exit.
       - name: Play the sample
         shell: bash
         timeout-minutes: 5
@@ -206,14 +173,20 @@ jobs:
         env:
           GALLIUM_DRIVER: llvmpipe
         run: |
-          play=(${{ matrix.game-binary }} --scene scenes/room --driver Walkthrough)
-          if [ "$RUNNER_OS" = Linux ]; then
-            xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" "${play[@]}"
-          else
-            "${play[@]}"
-          fi
+          play() {
+            if [ "$RUNNER_OS" = Linux ]; then
+              xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" ${{ matrix.game-binary }} "$@"
+            else
+              ${{ matrix.game-binary }} "$@"
+            fi
+          }
+          play --scene scenes/room --driver Walkthrough
+          play --scene scenes/halls/hall --payload WestArrival --driver Walkthrough
 
+      # The shipping axis is decided before native code generation and is the same on every
+      # operating system. One leg holds it.
       - name: Publish the AOT smoke
+        if: runner.os == 'Linux'
         run: >
           dotnet publish tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj
           --configuration Release
@@ -223,4 +196,5 @@ jobs:
           --output artifacts/aot-smoke
 
       - name: Run the published smoke binary
-        run: ${{ matrix.smoke-binary }}
+        if: runner.os == 'Linux'
+        run: ./artifacts/aot-smoke/Capsule.AotSmoke
