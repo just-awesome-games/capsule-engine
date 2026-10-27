@@ -9,8 +9,9 @@ namespace Capsule.Runtime.Audio;
 /// <see cref="SampleRate"/>. Only the host's mix thread reads <see cref="QueuedFrames"/> and calls
 /// <see cref="Submit"/>. A platform whose device pulls frames through a callback keeps its own queue
 /// behind <see cref="Submit"/>. Following the system's default device as it changes is the output's own
-/// job, and an output left with no device to follow reports it through <see cref="Connected"/>. The host
-/// disposes the output on the game thread once its mix thread has stopped.
+/// job. An output left with no device consumes submitted frames at <see cref="SampleRate"/> on the
+/// clock, as a device would play them. The host keeps one output for the whole run and disposes it on
+/// the game thread once its mix thread has stopped.
 /// </remarks>
 public abstract class AudioOutput : IDisposable
 {
@@ -29,15 +30,6 @@ public abstract class AudioOutput : IDisposable
     /// half of it queued, whatever lead the game asked for.
     /// </remarks>
     protected internal virtual int DeviceFrames => 0;
-
-    /// <summary>Whether the output still reaches a device.</summary>
-    /// <remarks>
-    /// Read on the mix thread and the game thread. While it reads false the host mixes into nothing on
-    /// the clock and stops reading <see cref="QueuedFrames"/>, and it reopens the output through
-    /// <see cref="HostPlatform.OpenAudioOutput"/> on an interval. A platform whose device cannot be lost
-    /// keeps the default of true.
-    /// </remarks>
-    protected internal virtual bool Connected => true;
 
     /// <summary>Queues interleaved frames to play after everything already queued.</summary>
     /// <remarks>

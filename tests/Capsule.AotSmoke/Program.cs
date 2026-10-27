@@ -225,7 +225,9 @@ internal static class Program
     {
         using Stream file = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "assets", "fonts", "menu.png"));
 
-        return Convert.ToHexString(SHA256.HashData(TextureDecoder.Decode(file, new TexelPool(), "menu").Texels));
+        using DecodedTexture decoded = TextureDecoder.Decode(file, "menu");
+
+        return Convert.ToHexString(SHA256.HashData(decoded.Texels));
     }
 
     private static (long Bytes, int Shoves) Shove()

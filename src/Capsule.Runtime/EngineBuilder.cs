@@ -683,8 +683,7 @@ public sealed class EngineBuilder
         window.Run();
     }
 
-    // No window, device or media loading. The scene host is the same a windowed run drives.
-    // Transitions, the seed and the run settings behave identically.
+    // Builds the headless host and plays the driver until it finishes or the game requests exit.
     private HeadlessRunResult RunHeadless(in SceneTransition initialTarget, IInputDriver driver)
     {
         ArgumentNullException.ThrowIfNull(driver);
@@ -695,69 +694,12 @@ public sealed class EngineBuilder
         using FrameDiagnostics? diagnostics = OpenFrameDiagnostics();
 
         // No medium unless one was named, which keeps a developer's local folder out of the run.
-        using SceneHost host = CreateHost(initialTarget, NamedSaveStorage(), RunSeed(played: false), played: false);
+        using SceneHost scenes = CreateHost(initialTarget, NamedSaveStorage(), RunSeed(played: false), played: false);
         diagnostics?.Mark(FrameDiagnostics.Stage.HostConstructed);
-        FixedStepScheduler scheduler = new(StepSeconds, MaxStepsPerFrame, Input.Bindings, driver, host, Timestamp);
-        using TickStamp stamp = StampTicks(() => scheduler.Tick);
+        HeadlessHost host = new(this, scenes, driver, diagnostics);
+        using TickStamp stamp = StampTicks(() => host.SimulationTick);
 
-        if (diagnostics is null)
-        {
-            // One step's worth of time per call. The accumulator drains a single step and
-            // neither the step bound nor the step budget can bind.
-            while (!scheduler.Advance(StepSeconds, DeviceSnapshot.Empty, host))
-            {
-                // Nothing is drawn here. A capture request is taken and dropped instead of waiting
-                // for a frame that never comes.
-                host.TryTakeFrameCapture(out _);
-                host.FlushSaves();
-            }
-        }
-        else
-        {
-            PaceFrames(scheduler, host, diagnostics);
-        }
-
-        // The advance that ends the run may have run a step whose request and writes the loop
-        // body never sees.
-        host.TryTakeFrameCapture(out _);
-        host.FlushSaves();
-
-        return new HeadlessRunResult(scheduler.Tick, host.ExitRequested, host.View.Metrics);
-    }
-
-    // Frames as a window presenting once per fixed step runs them. Each frame advances by the wall
-    // time since the last one began, and the scheduler decides how much of it to catch up. The view
-    // column times the frame's build. Nothing is submitted, and the draw section is empty.
-    private void PaceFrames(FixedStepScheduler scheduler, SceneHost host, FrameDiagnostics diagnostics)
-    {
-        long period = (long)(StepSeconds * Stopwatch.Frequency);
-        long previous = Timestamp();
-        while (true)
-        {
-            long start = Timestamp();
-            diagnostics.BeginUpdate();
-            scheduler.TimeScale = host.Run.TimeScale;
-            bool exiting = scheduler.Advance((start - previous) / (double)Stopwatch.Frequency, DeviceSnapshot.Empty, host);
-            previous = start;
-            diagnostics.EndUpdate(scheduler.StepsThisFrame);
-
-            diagnostics.BeginView();
-            _ = host.View;
-            diagnostics.BeginDraw();
-            if (diagnostics.EndDraw() || exiting)
-            {
-                return;
-            }
-
-            host.TryTakeFrameCapture(out _);
-            host.FlushSaves();
-
-            // The present's wait for the next refresh. A frame that overran it starts at once.
-            while (Timestamp() - start < period)
-            {
-                Thread.Yield();
-            }
-        }
+        return host.Run();
     }
 
     // The configured seed, else a fresh one for a run a person plays. A headless or driven run is a

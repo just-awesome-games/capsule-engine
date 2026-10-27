@@ -168,8 +168,7 @@
         "type": "Project",
         "dependencies": {
           "JAG.Capsule": "[0.0.0, )",
-          "JAG.Capsule.Native.SDL3": "[3.4.18.4, )",
-          "StbImageSharp": "[2.30.16, )"
+          "JAG.Capsule.Native.SDL3": "[3.4.18.4, )"
         }
       }
     }

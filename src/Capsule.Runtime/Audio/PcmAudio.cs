@@ -9,9 +9,6 @@ namespace Capsule.Runtime.Audio;
 //
 // A scene releasing the clip frees nothing here. A voice still playing it holds its own reference, and
 // the collector frees the samples once no voice and no scene holds them.
-//
-// The build's probe reads the same container to measure the clip, but it is a build-time tool the
-// runtime does not reference. This reads what playback needs.
 internal sealed class PcmAudio : IDisposable
 {
     // The scale from a 16-bit sample to [-1, 1). A power of two, which keeps the conversion exact.
@@ -43,9 +40,9 @@ internal sealed class PcmAudio : IDisposable
         Frames = samples / channels;
     }
 
-    // Decodes a WAVE file already in memory, which leaves the bytes with the caller. A clip's WAVE is
-    // usually 16-bit PCM. 8-bit unsigned, 24- and 32-bit PCM and 32-bit IEEE float are the other
-    // shapes the build's probe admits.
+    // Decodes a WAVE file already in memory, which leaves the bytes with the caller. A shipped WAVE is
+    // 32-bit IEEE float, because the build ships integer samples as FLAC. It also reads 8-bit unsigned
+    // and 16-, 24- and 32-bit PCM, and FlacDecoder holds the same samples for the same integers.
     internal static PcmAudio FromWav(ReadOnlySpan<byte> bytes, string clipName)
     {
         if (bytes.Length < 12 || !Is(bytes[..4], "RIFF") || !Is(bytes[8..12], "WAVE"))

@@ -16,17 +16,6 @@ internal sealed class FrameDiagnostics : IDisposable
     // the buffer being filled and the buffer being written.
     private const int FlushEvery = 300;
 
-    // Index order is the order boot passes through them, and the order they are written.
-    private static readonly string[] StageNames =
-    [
-        "builderEntered",
-        "hostConstructed",
-        "deviceReady",
-        "sceneAssetsLoaded",
-        "firstUpdate",
-        "firstDraw",
-    ];
-
     private readonly StreamWriter _writer;
 
     // One row's text, reused so writing a frame's row allocates nothing.
@@ -52,12 +41,7 @@ internal sealed class FrameDiagnostics : IDisposable
     private long _bytes;
     private int _steps;
 
-    // builderEntered is the GetTimestamp taken when the builder was created, the trace's first stage.
-    internal FrameDiagnostics(string path, long builderEntered, double? exitAfterSeconds)
-        : this(path, builderEntered, exitAfterSeconds, Stopwatch.GetTimestamp)
-    {
-    }
-
+    // builderEntered is the timestamp taken when the builder was created, the trace's first stage.
     internal FrameDiagnostics(string path, long builderEntered, double? exitAfterSeconds, Func<long> timestamp)
     {
         _stages = [builderEntered, -1, -1, -1, -1, -1];
@@ -79,14 +63,17 @@ internal sealed class FrameDiagnostics : IDisposable
         _writerThread.Start();
     }
 
-    // A boot stage, indexing StageNames. The first is the builder's entry, passed in, and the last is
-    // the first submitted frame, taken here. BeginUpdate takes FirstUpdate.
+    // A boot stage, in the order boot passes through them and the trace writes them. The first is the
+    // builder's entry, passed in, and the last is the first submitted frame, taken here. BeginUpdate
+    // takes FirstUpdate.
     internal enum Stage
     {
-        HostConstructed = 1,
-        DeviceReady = 2,
-        SceneAssetsLoaded = 3,
-        FirstUpdate = 4,
+        BuilderEntered,
+        HostConstructed,
+        DeviceReady,
+        SceneAssetsLoaded,
+        FirstUpdate,
+        FirstDraw,
     }
 
     // Timestamps stage, keeping the first crossing of it.
@@ -214,7 +201,7 @@ internal sealed class FrameDiagnostics : IDisposable
         long processStart = ProcessStartTimestamp();
 
         _writer.WriteLine("# capsule boot trace: milliseconds since process start");
-        for (int i = 0; i < StageNames.Length; i++)
+        for (int i = 0; i < _stages.Length; i++)
         {
             // A headless run has no device and loads no media, and never crosses those stages.
             if (_stages[i] < 0)
@@ -222,9 +209,12 @@ internal sealed class FrameDiagnostics : IDisposable
                 continue;
             }
 
+            // The stage's name in camel case, such as builderEntered.
+            string name = ((Stage)i).ToString();
             NumberText stage = new(_row);
             stage.Add("# ");
-            stage.Add(StageNames[i]);
+            stage.Add([char.ToLowerInvariant(name[0])]);
+            stage.Add(name.AsSpan(1));
             stage.Add(",");
             stage.Add(Milliseconds(_stages[i] - processStart), "F3");
             _writer.WriteLine(stage.Written);

@@ -6,7 +6,7 @@ namespace Capsule.Build.Icons;
 
 /// <summary>
 /// Derives the application icon pair from <see cref="FileName"/> at the asset root, under <c>icon/</c>:
-/// the executable's <c>Icon.ico</c> and the window's <c>Icon.bmp</c>.
+/// the executable's <c>Icon.ico</c> and the window's <c>Icon.png</c>.
 /// </summary>
 /// <remarks>
 /// The source is no asset. It is never keyed, declared or shipped. A run with no source leaves
@@ -75,10 +75,11 @@ internal static class IconStep
             using FileStream file = File.Create(temporary);
             IcoWriter.Write(entries, file);
         });
-        files.Write("Icon.bmp", temporary =>
+        files.Write("Icon.png", temporary =>
         {
+            Texels window = entries[Array.IndexOf(Sides, WindowSide)];
             using FileStream file = File.Create(temporary);
-            BmpWriter.Write(entries[Array.IndexOf(Sides, WindowSide)], file);
+            PngWriter.Write(window.Data, window.Width, window.Height, 4, file);
         });
     }
 }

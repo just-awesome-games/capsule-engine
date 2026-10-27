@@ -4,9 +4,6 @@ namespace Capsule.Runtime.Audio;
 
 // An Ogg Vorbis file decoded as it plays. The reader belongs to the streaming worker for the voice's
 // whole life. Nothing here locks and nothing else touches it.
-//
-// The decoder is Capsule's fork of NVorbis 0.10.4 under Audio/Vorbis/, changed to decode a
-// packet without allocating.
 internal sealed class VorbisPcmSource(VorbisReader reader) : IPcmSource
 {
     public int Channels => reader.Channels;

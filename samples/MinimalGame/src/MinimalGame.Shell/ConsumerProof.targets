@@ -20,10 +20,10 @@
         // From bytes. The build never holds the shell open. Manifest names load no reference.
         byte[] assembly = File.ReadAllBytes(AssemblyPath);
         string[] names = Assembly.Load(assembly).GetManifestResourceNames();
-        if (Array.IndexOf(names, "Icon.bmp") < 0)
+        if (Array.IndexOf(names, "Icon.png") < 0)
         {
             Log.LogError(
-                "'" + AssemblyPath + "' embeds no manifest resource named exactly 'Icon.bmp'; it has: "
+                "'" + AssemblyPath + "' embeds no manifest resource named exactly 'Icon.png'; it has: "
                 + string.Join(", ", names) + ".");
             return false;
         }

@@ -21,8 +21,8 @@ internal sealed class LoopedPcmReader
     private long _start;
     private long _end;
 
-    // Frames read since the last rewind. A region the source yields nothing from would otherwise
-    // wrap forever inside one fill.
+    // Whether any frame has been read since the last rewind. A region the source yields nothing from
+    // would otherwise wrap forever inside one fill.
     private bool _read = true;
 
     private long _frame;

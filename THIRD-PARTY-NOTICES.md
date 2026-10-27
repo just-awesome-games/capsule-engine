@@ -57,7 +57,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## StbImageSharp
 
-StbImageSharp version 2.30.16, a C# port of `stb_image.h`, is used by `JAG.Capsule.Build` to decode textures for atlas packing and by `JAG.Capsule.Runtime` to decode textures at run time. It is distributed by its authors under "Unlicense OR MIT" and is used here under the MIT License.
+StbImageSharp version 2.30.16, a C# port of `stb_image.h`, is used by `JAG.Capsule.Build` to decode textures for atlas packing. It is distributed by its authors under "Unlicense OR MIT" and is used here under the MIT License.
 
 Copyright (c) StbImageSharpTeam
 
@@ -149,7 +149,7 @@ freely, subject to the following restrictions:
 
 ## SDL3
 
-A game's publish carries SDL3 version 3.4.18 as its window, input, GPU and sound output library (`SDL3.dll` on Windows), from Capsule's `JAG.Capsule.Native.SDL3` package. Capsule builds it with the fixes in `natives/patches/` applied, which makes it an altered version of SDL3. It is distributed under the zlib License.
+A game's publish carries SDL3 version 3.4.18 as its window, input, GPU, sound output and PNG decoding library (`SDL3.dll` on Windows), from Capsule's `JAG.Capsule.Native.SDL3` package. Capsule builds it with the fixes in `natives/patches/` applied, which makes it an altered version of SDL3. It is distributed under the zlib License.
 
 Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 

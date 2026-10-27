@@ -25,6 +25,9 @@ internal sealed unsafe class GpuDevice : IDisposable
     // Every sampler this device created, released with it. A run creates a few and keeps them.
     private readonly List<GpuSampler> _samplers = [];
 
+    // The swapchain texture, re-pointed at the one each frame acquires.
+    private readonly GpuTexture _swapchain;
+
     // How long frames stay within the steady size before a grown or overflowed buffer is recreated.
     private static readonly long QuietTicks = 2 * Stopwatch.Frequency;
 
@@ -51,6 +54,11 @@ internal sealed unsafe class GpuDevice : IDisposable
     // One line for the development log: the driver, the device and its driver version.
     internal string Description { get; }
 
+    // The swapchain's format, B8G8R8A8 or R8G8B8A8 unorm under SDR composition, which no present mode
+    // changes. Every surface the renderer draws into takes it, and every pipeline targets it. Each
+    // blends in gamma space.
+    internal GpuTextureFormat SwapchainFormat { get; }
+
     // Creates SDL's GPU device through the named driver, or the one SDL chooses when driver is null, and
     // claims the window for it in SDR composition under VSYNC.
     internal GpuDevice(nint window, string? driver, int framesInFlight)
@@ -74,6 +82,16 @@ internal sealed unsafe class GpuDevice : IDisposable
         }
 
         Sdl3.SDL_SetGPUAllowedFramesInFlight(_device, (uint)framesInFlight);
+        SwapchainFormat = Sdl3.SDL_GetGPUSwapchainTextureFormat(_device, window);
+        if (SwapchainFormat == GpuTextureFormat.Invalid)
+        {
+            InvalidOperationException refused = new($"The window's swapchain reported no texture format: {Sdl3.Error()}");
+            Sdl3.SDL_ReleaseWindowFromGPUDevice(_device, window);
+            Sdl3.SDL_DestroyGPUDevice(_device);
+            throw refused;
+        }
+
+        _swapchain = new GpuTexture(0, 0, SwapchainFormat, 0, 0);
 
         uint formats = Sdl3.SDL_GetGPUShaderFormats(_device);
         (_shaderFormat, ShaderFormat) = (formats & Sdl3.GpuShaderFormatDxil) != 0 ? (Sdl3.GpuShaderFormatDxil, "dxil")
@@ -136,8 +154,8 @@ internal sealed unsafe class GpuDevice : IDisposable
         Sdl3.GpuTextureCreateInfo create = new()
         {
             Type = Sdl3.GpuTextureType2D,
-            Format = (int)info.Format,
-            Usage = (uint)info.Usage,
+            Format = info.Format,
+            Usage = info.Usage,
             Width = (uint)info.Width,
             Height = (uint)info.Height,
             LayerCountOrDepth = 1,
@@ -155,12 +173,12 @@ internal sealed unsafe class GpuDevice : IDisposable
     {
         Sdl3.GpuSamplerCreateInfo create = new()
         {
-            MinFilter = (int)info.Filter,
-            MagFilter = (int)info.Filter,
+            MinFilter = info.Filter,
+            MagFilter = info.Filter,
             MipmapMode = Sdl3.GpuMipmapModeNearest,
-            AddressModeU = (int)info.AddressMode,
-            AddressModeV = (int)info.AddressMode,
-            AddressModeW = (int)info.AddressMode,
+            AddressModeU = info.AddressMode,
+            AddressModeV = info.AddressMode,
+            AddressModeW = info.AddressMode,
         };
         nint sampler = Sdl3.SDL_CreateGPUSampler(_device, &create);
         if (sampler == 0)
@@ -176,7 +194,7 @@ internal sealed unsafe class GpuDevice : IDisposable
 
     internal GpuBuffer CreateBuffer(GpuBufferUsage usage, int size)
     {
-        Sdl3.GpuBufferCreateInfo create = new() { Usage = (uint)usage, Size = (uint)size };
+        Sdl3.GpuBufferCreateInfo create = new() { Usage = usage, Size = (uint)size };
         nint buffer = Sdl3.SDL_CreateGPUBuffer(_device, &create);
 
         return buffer != 0
@@ -184,9 +202,9 @@ internal sealed unsafe class GpuDevice : IDisposable
             : throw new InvalidOperationException($"A buffer of {size} bytes could not be created: {Sdl3.Error()}");
     }
 
-    // A download of a width by height RGBA texture.
-    internal GpuReadback CreateReadback(int width, int height) =>
-        new(_device, CreateTransferBuffer(Sdl3.GpuTransferDownload, width * height * 4), width, height);
+    // A download of every texel of texture, whose format holds four bytes a texel.
+    internal GpuReadback CreateReadback(GpuTexture texture) =>
+        new(_device, CreateTransferBuffer(Sdl3.GpuTransferDownload, texture.Width * texture.Height * 4), texture.Width, texture.Height, texture.Format);
 
     internal GpuShader CreateShader(GpuShaderInfo info)
     {
@@ -201,7 +219,7 @@ internal sealed unsafe class GpuDevice : IDisposable
                 Code = code,
                 EntryPoint = entry,
                 Format = _shaderFormat,
-                Stage = (int)info.Stage,
+                Stage = info.Stage,
                 NumSamplers = (uint)info.Samplers,
                 NumStorageTextures = (uint)info.StorageTextures,
                 NumStorageBuffers = (uint)info.StorageBuffers,
@@ -221,15 +239,15 @@ internal sealed unsafe class GpuDevice : IDisposable
         GpuBlendState blend = info.Blend;
         Sdl3.GpuColorTargetDescription target = new()
         {
-            Format = (int)info.Target,
+            Format = info.Target,
             BlendState = new Sdl3.GpuColorTargetBlendState
             {
-                SourceColorBlendFactor = (int)blend.SourceColor,
-                DestinationColorBlendFactor = (int)blend.DestinationColor,
-                ColorBlendOp = (int)blend.ColorOp,
-                SourceAlphaBlendFactor = (int)blend.SourceAlpha,
-                DestinationAlphaBlendFactor = (int)blend.DestinationAlpha,
-                AlphaBlendOp = (int)blend.AlphaOp,
+                SourceColorBlendFactor = blend.SourceColor,
+                DestinationColorBlendFactor = blend.DestinationColor,
+                ColorBlendOp = blend.ColorOp,
+                SourceAlphaBlendFactor = blend.SourceAlpha,
+                DestinationAlphaBlendFactor = blend.DestinationAlpha,
+                AlphaBlendOp = blend.AlphaOp,
                 EnableBlend = 1,
             },
         };
@@ -269,9 +287,9 @@ internal sealed unsafe class GpuDevice : IDisposable
         Sdl3.SDL_DestroyGPUDevice(_device);
     }
 
-    // Blits surface over the window's swapchain texture, unless the window shows none this frame.
-    // Neither waits.
-    internal void Present(nint commands, GpuTexture? surface)
+    // The window's swapchain texture for commands, or null when the window shows none this frame. The
+    // wait at the end of the previous frame leaves one free, and the acquire never waits.
+    internal GpuTexture? AcquireSwapchainTexture(nint commands)
     {
         nint swapchain;
         uint width;
@@ -281,20 +299,14 @@ internal sealed unsafe class GpuDevice : IDisposable
             throw new InvalidOperationException($"The window's swapchain texture could not be acquired: {Sdl3.Error()}");
         }
 
-        if (swapchain == 0 || surface is null)
+        if (swapchain == 0 || width == 0 || height == 0)
         {
-            return;
+            return null;
         }
 
-        Sdl3.GpuBlitInfo blit = new()
-        {
-            Source = new Sdl3.GpuBlitRegion { Texture = surface.Handle, W = (uint)surface.Width, H = (uint)surface.Height },
-            Destination = new Sdl3.GpuBlitRegion { Texture = swapchain, W = width, H = height },
-            LoadOp = Sdl3.GpuLoadOpDontCare,
-            FlipMode = Sdl3.FlipNone,
-            Filter = (int)GpuFilter.Nearest,
-        };
-        Sdl3.SDL_BlitGPUTexture(commands, &blit);
+        _swapchain.Borrow(swapchain, (int)width, (int)height);
+
+        return _swapchain;
     }
 
     internal void Submit(nint commands)

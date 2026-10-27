@@ -10,14 +10,12 @@ namespace Capsule.Runtime.Rendering;
 
 // Draws a FrameView. Holds no scene state of its own, since what a sprite interpolates from travels
 // in the sprite. A frame is recorded whole, then uploaded in one copy pass ahead of its render passes,
-// into a command buffer that Submit hands to the device once the capture and the overlay have joined
-// it. Every pass draws offscreen. What the window shows is drawn into the window surface, which Submit
-// copies to the swapchain, and a capture reads a surface, never the swapchain.
+// into a command buffer that Submit hands to the device once the overlay has joined it. The frame's
+// last pass, the window pass, draws straight into the swapchain texture, laid out at that texture's
+// extent. A capture reads a surface, never the swapchain: the canvas, or with no canvas a window pass
+// drawn offscreen on the capturing frame alone and then shown, ahead of the overlay.
 internal sealed partial class FrameRenderer : IDisposable
 {
-    // The format of every surface the renderer draws into. Each blends in gamma space.
-    internal const GpuTextureFormat SurfaceFormat = GpuTextureFormat.R8G8B8A8Unorm;
-
     private const string DefaultFontPageResource = "Capsule.Runtime.Assets.default-font.png";
 
     // The light map's scale: a light of one is stored as half of full. The map holds zero to two.
@@ -37,7 +35,7 @@ internal sealed partial class FrameRenderer : IDisposable
     // Every engine-owned texture. The draw path resolves a handle through a single table.
     private readonly Dictionary<TextureHandle, SampledTexture> _engineTextures;
 
-    // The declared canvas, or null when the world rasterises straight into the window surface at
+    // The declared canvas, or null when the world rasterises straight into the window pass at
     // whatever size the window is.
     private readonly (int Width, int Height)? _canvas;
 
@@ -53,12 +51,12 @@ internal sealed partial class FrameRenderer : IDisposable
     // first such present and reallocated when its size changes. Null until then.
     private SampledTexture? _prescaled;
 
-    // The window surface: what the window shows, at the window's extent in pixels. Allocated on the first
-    // frame and reallocated when the window's extent changes.
-    private SampledTexture? _windowSurface;
+    // The swapchain texture Draw acquired, which the window pass and the overlay draw into, or null when
+    // the window shows nothing new this frame.
+    private GpuTexture? _window;
 
-    // The window surface Draw drew this frame, or null when the window has no area.
-    private GpuTexture? _drawnSurface;
+    // The offscreen window pass of a capturing frame with no canvas, released once the frame is submitted.
+    private SampledTexture? _captured;
 
     // Where the screen layer landed on the last frame drawn. It turns a sampled mouse position back
     // into a canvas position, and ResolveScreenLayer seeds it before the first frame.
@@ -86,7 +84,7 @@ internal sealed partial class FrameRenderer : IDisposable
     // and the screen layer land on the same window pixels at any factor.
     internal float WorldZoomOut { get; set; } = 1f;
 
-    // renderResolution: A fixed render surface, or null to draw into the window surface.
+    // renderResolution: A fixed render surface, or null to draw the world in the window pass.
     //
     // textures: The scene texture cache, loading on first use. The caller owns it.
     //
@@ -137,7 +135,11 @@ internal sealed partial class FrameRenderer : IDisposable
     //
     // alpha: Fraction of a fixed step not yet simulated, clamped to [0, 1]. Each sprite, and the
     // camera looking at it, is drawn that far from its previous position towards its current one.
-    internal void Draw(FrameView view, float alpha)
+    //
+    // capturePath: Where the frame is saved as a PNG once Submit has run it, or null for none. The
+    // image is the canvas where a render resolution is configured, whose extent is independent of the
+    // window, and the window pass where there is none. The overlay draws after it and never shows.
+    internal void Draw(FrameView view, float alpha, string? capturePath = null)
     {
         long started = Stopwatch.GetTimestamp();
         _shaders.Globals = view.ShaderGlobals;
@@ -146,8 +148,20 @@ internal sealed partial class FrameRenderer : IDisposable
         alpha = Math.Clamp(alpha, 0f, 1f);
         _sprites.Reset(alpha);
 
-        (int outputWidth, int outputHeight) = WindowSize;
-        _drawnSurface = outputWidth > 0 && outputHeight > 0 ? Sized(ref _windowSurface, outputWidth, outputHeight).Texture : null;
+        GpuCommandBuffer commands = _device.AcquireCommandBuffer();
+        _commands = commands;
+        _window = commands.AcquireSwapchainTexture();
+
+        // The window pass is laid out at the swapchain texture's extent, which can trail the window's
+        // through a resize. A frame the swapchain shows nothing of still draws the canvas and a
+        // capture, at the window's extent.
+        (int outputWidth, int outputHeight) = _window is { } shown ? (shown.Width, shown.Height) : WindowSize;
+        GpuTexture? windowPass = _window;
+        if (capturePath is not null && _canvas is null && outputWidth > 0 && outputHeight > 0)
+        {
+            _captured = Surface(outputWidth, outputHeight);
+            windowPass = _captured.Texture;
+        }
 
         CameraView camera = view.Camera.At(alpha);
         ScreenLayout layout = FrameLayout.Layout(_canvas, camera, view.Canvas, outputWidth, outputHeight);
@@ -155,13 +169,23 @@ internal sealed partial class FrameRenderer : IDisposable
 
         if (_canvas is null)
         {
-            if (view.LitWorld)
+            if (view.LitWorld && windowPass is not null)
             {
                 DrawLightMap(view, alpha, world, layout.Span, layout.World, outputWidth, outputHeight);
             }
 
-            DrawWorld(view, alpha, _drawnSurface, world, layout.Span, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity, layout.OnSurface, surfaceFactor: 1);
-            DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, surfaceFactor: 1);
+            DrawWorld(view, alpha, windowPass, world, layout.Span, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity, layout.OnSurface, surfaceFactor: 1);
+            if (windowPass is not null)
+            {
+                DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, surfaceFactor: 1);
+            }
+
+            // The captured window pass is shown as drawn, texel for texel.
+            if (_captured is { } captured && _window is { } window)
+            {
+                _sprites.BeginPass(window, ColorRgba.Black);
+                _sprites.AddWhole(captured, Vector2.Zero, Vector2.Zero, Vector2.One, rotation: 0f, ColorRgba.White);
+            }
         }
         else
         {
@@ -183,14 +207,14 @@ internal sealed partial class FrameRenderer : IDisposable
             // centred in it on whole pixels. Nothing lands on a grid the world did not use.
             if (layout.ScreenOnSurface)
             {
-                DrawScreen(view, alpha, drawn.OnSurface, width, height, view.Sampling, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, factor);
+                DrawScreen(view, alpha, drawn.OnSurface, width, height, factor);
             }
 
             Present(target, view.Sampling, layout.Present, factor);
 
-            if (!layout.ScreenOnSurface)
+            if (!layout.ScreenOnSurface && _window is not null)
             {
-                DrawScreen(view, alpha, layout.Layer, outputWidth, outputHeight, view.Sampling, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, surfaceFactor: 1);
+                DrawScreen(view, alpha, layout.Layer, outputWidth, outputHeight, surfaceFactor: 1);
             }
         }
 
@@ -199,19 +223,22 @@ internal sealed partial class FrameRenderer : IDisposable
             _placement = layout.Layer;
         }
 
-        GpuCommandBuffer commands = _device.AcquireCommandBuffer();
-        _commands = commands;
         GpuCopyPass copy = commands.BeginCopyPass();
         _textures.Pump(copy);
         _sprites.Upload(copy);
         copy.End();
         _sprites.Execute(commands);
 
+        if (capturePath is not null)
+        {
+            Capture(commands, capturePath);
+        }
+
         LastFrameMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
     }
 
-    // Copies the window surface to the window and submits the frame Draw recorded, with the capture and
-    // the overlay that joined it. Never waits for the display. A frame with a capture waits for the GPU,
+    // Submits the frame Draw recorded, with the overlay that joined it, which presents the swapchain
+    // texture they drew into. Never waits for the display. A frame with a capture waits for the GPU,
     // then writes the capture.
     internal void Submit()
     {
@@ -221,16 +248,22 @@ internal sealed partial class FrameRenderer : IDisposable
         }
 
         _commands = null;
-        commands.Present(_drawnSurface);
-        if (!_waitForFrame)
+        _window = null;
+        bool wait = _waitForFrame;
+        _waitForFrame = false;
+        if (wait)
+        {
+            commands.SubmitAndWait();
+        }
+        else
         {
             commands.Submit();
-            return;
         }
 
-        _waitForFrame = false;
-        commands.SubmitAndWait();
-        if (_capture is { } capture)
+        // Released only once submitted, which keeps it alive until the GPU has run the frame.
+        _captured?.Dispose();
+        _captured = null;
+        if (wait && _capture is { } capture)
         {
             _capture = null;
             WriteCapture(capture.Readback, capture.Path);
@@ -383,21 +416,20 @@ internal sealed partial class FrameRenderer : IDisposable
     }
 
     private SampledTexture Surface(int width, int height) =>
-        new(_device.CreateTexture(new GpuTextureInfo(SurfaceFormat, GpuTextureUsage.Sampler | GpuTextureUsage.ColorTarget, width, height)));
+        new(_device.CreateTexture(new GpuTextureInfo(_device.SwapchainFormat, GpuTextureUsage.Sampler | GpuTextureUsage.ColorTarget, width, height)));
 
-    // Saves the surface the world was drawn on as a PNG at path, once Submit has run the frame. Called
-    // after Draw, ahead of the overlay. The surface is the canvas where a render resolution is
-    // configured, whose extent is independent of the window, and the window surface where there is none.
-    internal void SaveSurface(string path)
+    // Downloads the surface Draw's capture reads once its render passes are recorded, ahead of the
+    // overlay's, for Submit to write to path.
+    private void Capture(GpuCommandBuffer commands, string path)
     {
-        if (_commands is not { } commands || (_target?.Texture ?? _drawnSurface) is not { } surface)
+        if ((_target ?? _captured)?.Texture is not { } surface)
         {
             return;
         }
 
         try
         {
-            GpuReadback readback = _device.CreateReadback(surface.Width, surface.Height);
+            GpuReadback readback = _device.CreateReadback(surface);
             GpuCopyPass copy = commands.BeginCopyPass();
             copy.DownloadFromTexture(surface, readback);
             copy.End();
@@ -412,7 +444,8 @@ internal sealed partial class FrameRenderer : IDisposable
 
     // surfaceWidth and surfaceHeight are the bound surface's extent, which the viewport no longer
     // reports once narrowed to the letterbox. present is where that surface lands in the window,
-    // identity when the surface is the window surface. target is null only while the window has no area.
+    // identity when the surface is the window pass's. target is null when the window has no area or the
+    // swapchain shows nothing this frame, and the world's placement still settles then.
     private void DrawWorld(
         FrameView view,
         float alpha,
@@ -429,21 +462,22 @@ internal sealed partial class FrameRenderer : IDisposable
         _world = null;
 
         // A minimised window has no area.
-        if (target is null || surfaceWidth <= 0 || surfaceHeight <= 0)
+        if (surfaceWidth <= 0 || surfaceHeight <= 0)
         {
             return;
         }
 
         // Cleared at full extent before the viewport narrows. Bars are presentation, not world intent,
         // and stay black.
-        _sprites.BeginPass(target, ColorRgba.Black);
+        if (target is not null)
+        {
+            _sprites.BeginPass(target, ColorRgba.Black);
+        }
 
         if (world.IsEmpty || fit.IsEmpty)
         {
             return;
         }
-
-        _sprites.SetViewport(fit.X, fit.Y, fit.Width, fit.Height);
 
         // The camera interpolates on the same clock as what it looks at. Snapping it to the step's
         // end would slide the world back once per step. The corner itself is not snapped, because
@@ -459,6 +493,12 @@ internal sealed partial class FrameRenderer : IDisposable
             _world = new WorldPlacement(topLeft, fit, present, snap, parallax);
         }
 
+        if (target is null)
+        {
+            return;
+        }
+
+        _sprites.SetViewport(fit.X, fit.Y, fit.Width, fit.Height);
         Pass pass = WorldPass(alpha, snap, fit.Scale, topLeft);
 
         // A canvas run lands where the screen layer would on this surface, through the narrowed viewport
@@ -495,18 +535,9 @@ internal sealed partial class FrameRenderer : IDisposable
     // The screen layer, in canvas pixels placed by placement. Drawn after the world and across the
     // full surface. It covers the bars the world's fit left. On a surface drawn surfaceFactor times
     // larger it snaps to the grid it had at a factor of 1, and its pixels are those pixels enlarged.
-    private void DrawScreen(
-        FrameView view,
-        float alpha,
-        in ScreenPlacement placement,
-        int surfaceWidth,
-        int surfaceHeight,
-        TextureSampling sampling,
-        ReadOnlySpan<MaterialRun> materials,
-        ReadOnlySpan<ClipRun> clips,
-        ReadOnlySpan<ClipRegion> clipLevels,
-        int surfaceFactor)
+    private void DrawScreen(FrameView view, float alpha, in ScreenPlacement placement, int surfaceWidth, int surfaceHeight, int surfaceFactor)
     {
+        TextureSampling sampling = view.Sampling;
         ReadOnlySpan<SpriteIntent> sprites = view.ScreenSprites;
         ReadOnlySpan<LineIntent> lines = view.ScreenLines;
         if ((sprites.IsEmpty && lines.IsEmpty) || surfaceWidth <= 0 || surfaceHeight <= 0 || !(placement.Scale > 0f))
@@ -532,7 +563,7 @@ internal sealed partial class FrameRenderer : IDisposable
             SurfaceHeight = surfaceHeight,
         };
 
-        DrawIntents(sprites, lines, default, default, materials, clips, clipLevels, ref pass);
+        DrawIntents(sprites, lines, default, default, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, ref pass);
     }
 
     // Draws the sprites, then the lines, each placement run as it opens, each material run with its
@@ -751,12 +782,12 @@ internal sealed partial class FrameRenderer : IDisposable
             ? texture
             : throw new ArgumentException($"Unknown engine-owned texture handle '{handle.Name}'.", nameof(handle));
 
-    // Letterboxed a second time, into the window surface, at the surface's present placement. See
+    // Letterboxed a second time, into the swapchain texture, at the surface's present placement. See
     // FrameLayout.PresentPass for how a point-sampled surface reaches a fractional scale. placement is
     // the layout's own, and factor how many times larger than it the surface was drawn.
     private void Present(SampledTexture target, TextureSampling sampling, in ScreenPlacement placement, int factor)
     {
-        if (_drawnSurface is not { } window)
+        if (_window is not { } window)
         {
             return;
         }
@@ -815,7 +846,7 @@ internal sealed partial class FrameRenderer : IDisposable
         using Stream resource = typeof(FrameRenderer).Assembly.GetManifestResourceStream(DefaultFontPageResource)
             ?? throw new InvalidOperationException($"The embedded default font page '{DefaultFontPageResource}' is missing.");
 
-        return TextureDecoder.Decode(resource, new TexelPool(), "default-font");
+        return TextureDecoder.Decode(resource, "default-font");
     }
 
     // Maps canvas pixels to surface pixels at placement.
@@ -837,7 +868,7 @@ internal sealed partial class FrameRenderer : IDisposable
         _target?.Dispose();
         _lightMap?.Dispose();
         _prescaled?.Dispose();
-        _windowSurface?.Dispose();
+        _captured?.Dispose();
         _sprites.Dispose();
     }
 }

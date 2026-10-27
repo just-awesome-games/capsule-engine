@@ -198,8 +198,10 @@ dotnet publish src/MyGame.Shell --configuration Release --runtime win-x64 --self
 ```
 
 The publish directory carries SDL3 beside the executable (`SDL3.dll` on Windows), for the window, input,
-the GPU and sound output. The host mixes sound itself and plays the mix on the system's default output.
-Without an output device the run plays silently and logs that once.
+the GPU and sound output. The host mixes sound itself and plays the mix on the system's default output,
+which follows the default as the player changes it. A device pulled with none to replace it leaves the mix
+running on the clock, and sound returns when a device does. A run that finds no output device at launch
+plays silently and logs that once.
 
 A publish carries the GPU formats its runtime identifier's drivers read: DXIL and SPIR-V for `win-`, SPIR-V
 for `linux-` and MSL for `osx-`. A NativeAOT publish drops the engine's own sprite shader in the other formats

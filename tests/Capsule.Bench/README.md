@@ -27,18 +27,12 @@ A record is a header (`timestamp`, `label`, `lane`, `uncapped`, `commit`, `confi
 - Paced: `frames`, `steps` for the fixed steps those frames ran, one a frame while the workload keeps pace, `updateMs` {median, p95, max}, `viewMs` {median, p95} for the frame's build over the frames that ran a step, `frameBytes`, and `intervalMs` {median, p95, max} from frame start to frame start.
 - Mixer: `steps` for the blocks mixed, `stepMs` {median, p95} for one block, and `stepBytes`, the bytes the measured blocks allocated.
 
-Changing a workload's definition resets its history. Compare by label and commit. Compare an uncapped record only with another uncapped record. A light workload's uncapped interval moves with the machine's state between sessions, and a change is measured against a build of the committed tree run back to back with it. Older records differ:
+Changing a workload's definition resets its history. Compare by label and commit. Compare an uncapped record only with another uncapped record. A light workload's uncapped interval moves with the machine's state between sessions, and a change is measured against a build of the committed tree run back to back with it. An older record lacks the columns added after it, and these measured differently:
 
-- Before 2026-09-18 they carry other columns.
-- Before 2026-09-30 they carry no `lane` and cover both lanes.
-- Headless rows before `alloc-check` carry no `stepBytes` or `viewBytes`.
-- Headless rows before `perf-lazy-view` carry no `viewMs`, and their `stepMs` includes the frame build.
-- Records before `shove-mask` carry no paced rows.
-- Records before `rung26-mixer` carry no `Mix64` row.
-- Records before `h0-gl` carry no `StillShaded` or `StillHd` row.
-- Records before `h11` carry no `nativeAot` and ran JIT-compiled.
+- Headless rows before `perf-lazy-view`: `stepMs` includes the frame build.
+- Paced rows before `frame-columns`: `viewMs` covers every frame.
+- Records before `h11` ran JIT-compiled.
 - Windowed rows before `h13` drop only their first 120 frames, which an uncapped run passes within its first 40 ms.
-- Windowed and paced rows before `frame-columns` carry no `updateMs` or `frameBytes`. Their windowed rows carry no `viewMs`, and a paced row's `viewMs` covers every frame.
 
 To add a workload, add a scene class with a `[Workload]` attribute under `Capsule.Bench.Logic/Scenes/`, composed from `Entities/`, `Components/`, `Cameras/` and `UI/` as a game would be. A level an editor would export is a `*.scene.json` under `Assets/Scenes/`, as `Stage` claims `stage.scene.json`. Commit a large generated grid as data, one row per line. Frame a workload with `ParkedCamera` unless camera travel is the point, and keep anything captured static.
 

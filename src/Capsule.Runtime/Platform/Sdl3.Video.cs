@@ -71,10 +71,6 @@ internal static unsafe partial class Sdl3
     [return: MarshalAs(UnmanagedType.U1)]
     internal static extern bool SDL_SetWindowIcon(nint window, nint surface);
 
-    // A surface the caller destroys, or zero naming the failure in SDL's error.
-    [DllImport(LibraryName, ExactSpelling = true)]
-    internal static extern nint SDL_LoadBMP_IO(nint source, [MarshalAs(UnmanagedType.U1)] bool closeSource);
-
     // Borderless at the display's desktop mode, since the window has no exclusive mode set.
     [DllImport(LibraryName, ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.U1)]

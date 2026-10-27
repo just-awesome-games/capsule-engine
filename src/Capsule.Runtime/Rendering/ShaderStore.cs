@@ -9,7 +9,8 @@ namespace Capsule.Runtime.Rendering;
 
 // The shaders sprites draw with, and a pipeline for each blend they draw with into the renderer's
 // surfaces: Capsule's own sprite shader, and every game shader, loaded with its pipelines at the scene
-// boundary that first holds it. No draw waits on the driver's compile. Each is kept for the run.
+// boundary that first holds it. A draw waits on no driver's compile, except that a shader no boundary
+// collected loads on its first draw and logs it. Each is kept for the run.
 // Binding a material pushes its values and the scene's globals through offsets resolved at load. A
 // frame at steady state looks nothing up by name and allocates nothing.
 internal sealed class ShaderStore : IDisposable
@@ -61,11 +62,10 @@ internal sealed class ShaderStore : IDisposable
         _device = device;
         _platform = platform;
         _target = target;
-        ShaderContainer vertex = ReadEngine("vertex", device.ShaderFormat);
-        _vertex = device.CreateShader(new GpuShaderInfo("vertex", vertex.Code, vertex.EntryPoint, GpuShaderStage.Vertex, vertex.Samplers, vertex.StorageTextures, vertex.StorageBuffers, vertex.UniformBuffers));
+        _vertex = CreateShader(ReadEngine("vertex", device.ShaderFormat), "vertex", GpuShaderStage.Vertex);
 
         ShaderContainer sprite = ReadEngine("sprite", device.ShaderFormat);
-        _sprite = new Binding(CreateShader(sprite, "sprite"), null, sprite);
+        _sprite = new Binding(CreateShader(sprite, "sprite", GpuShaderStage.Fragment), null, sprite);
         CreatePipeline(_sprite, Premultiplied);
         CreatePipeline(_sprite, Modulate2x);
     }
@@ -240,18 +240,18 @@ internal sealed class ShaderStore : IDisposable
             container = Read(file, shader.Name);
         }
 
-        Binding binding = new(CreateShader(container, shader.Name), shader, container);
+        Binding binding = new(CreateShader(container, shader.Name, GpuShaderStage.Fragment), shader, container);
         CreatePipeline(binding, Premultiplied);
 
         return binding;
     }
 
-    private GpuShader CreateShader(ShaderContainer container, string name) =>
+    private GpuShader CreateShader(ShaderContainer container, string name, GpuShaderStage stage) =>
         _device.CreateShader(new GpuShaderInfo(
             name,
             container.Code,
             container.EntryPoint,
-            GpuShaderStage.Fragment,
+            stage,
             container.Samplers,
             container.StorageTextures,
             container.StorageBuffers,

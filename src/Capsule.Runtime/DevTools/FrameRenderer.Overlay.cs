@@ -8,11 +8,12 @@ internal sealed partial class FrameRenderer
 {
     // Draws a host-owned frame over the game frame Draw recorded, in the same command buffer, with an
     // upload of its own. Its world list comes first, placed where the last game frame's world landed so it annotates that frame's
-    // sprites, then its screen layer at an integer scale of the window surface. The host's own camera is
-    // not used here, and the world list is culled against nothing and drawn at the settled step.
+    // sprites, then its screen layer at an integer scale of the window's pixels, into the swapchain texture
+    // after any capture's download. The host's own camera is not used here, and the world list is culled
+    // against nothing and drawn at the settled step.
     internal void DrawOverlay(FrameView view, int scale)
     {
-        if (_commands is not { } commands || _drawnSurface is not { } window)
+        if (_commands is not { } commands || _window is not { } window)
         {
             return;
         }
@@ -27,18 +28,7 @@ internal sealed partial class FrameRenderer
             DrawOverlayWorld(view, in world, width, height);
         }
 
-        // The overlay draws with Capsule's own shader whatever its view carries.
-        DrawScreen(
-            view,
-            alpha: 1f,
-            new ScreenPlacement(Vector2.Zero, scale),
-            width,
-            height,
-            TextureSampling.Point,
-            materials: default,
-            clips: default,
-            clipLevels: default,
-            surfaceFactor: 1);
+        DrawScreen(view, alpha: 1f, new ScreenPlacement(Vector2.Zero, scale), width, height, surfaceFactor: 1);
 
         GpuCopyPass copy = commands.BeginCopyPass();
         _sprites.Upload(copy);

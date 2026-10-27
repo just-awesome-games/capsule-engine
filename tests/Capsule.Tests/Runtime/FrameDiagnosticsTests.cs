@@ -41,7 +41,7 @@ public sealed class FrameDiagnosticsTests
         using TempWorkspace workspace = new("capsule-diagnostics-");
         string path = Path.Combine(workspace.Root, "nested", "deeper", "frames.csv");
 
-        using (FrameDiagnostics diagnostics = new(path, Stopwatch.GetTimestamp(), exitAfterSeconds: null))
+        using (FrameDiagnostics diagnostics = new(path, Stopwatch.GetTimestamp(), exitAfterSeconds: null, Stopwatch.GetTimestamp))
         {
             diagnostics.BeginUpdate();
             diagnostics.EndUpdate(steps: 1);
@@ -155,7 +155,7 @@ public sealed class FrameDiagnosticsTests
             _path = _workspace.PathTo("frames.csv");
             _clock = clock;
             _diagnostics = clock is null
-                ? new FrameDiagnostics(_path, Stopwatch.GetTimestamp(), exitAfterSeconds)
+                ? new FrameDiagnostics(_path, Stopwatch.GetTimestamp(), exitAfterSeconds, Stopwatch.GetTimestamp)
                 : new FrameDiagnostics(_path, clock.Timestamp, exitAfterSeconds, clock.GetTimestamp);
 
             // The host marks each of these before it submits a frame. The rest are taken here.

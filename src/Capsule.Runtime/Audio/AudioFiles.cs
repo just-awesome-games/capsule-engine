@@ -13,32 +13,18 @@ internal static class AudioFiles
     internal static Stream Open(HostPlatform platform, in AudioClip clip) =>
         Files.Open(platform, clip.Name, clip.ShippedExtension);
 
-    // A resident clip's samples as a WAVE file in memory: the shipped .wav read whole, or the shipped
-    // FLAC decoded into a WAVE file of the same samples. Throws when the file is missing or malformed.
-    internal static byte[] ReadWave(HostPlatform platform, in AudioClip clip)
+    // A resident clip's samples, decoded whole. Throws when the file is missing or malformed.
+    internal static PcmAudio ReadResident(HostPlatform platform, in AudioClip clip)
     {
-        byte[] file;
-        using (Stream stream = Open(platform, clip))
+        if (clip.IsVorbis)
         {
-            if (stream.CanSeek)
-            {
-                file = new byte[stream.Length];
-                stream.ReadExactly(file);
-            }
-            else
-            {
-                using MemoryStream copy = new();
-                stream.CopyTo(copy);
-                file = copy.ToArray();
-            }
+            return DecodeVorbis(platform, clip);
         }
 
-        return clip.ShippedExtension == AudioClip.Flac ? FlacDecoder.ToWave(file, clip.Name) : file;
-    }
+        byte[] file = ReadAll(platform, clip);
 
-    // A resident clip's samples, decoded whole. Throws when the file is missing or malformed.
-    internal static PcmAudio ReadResident(HostPlatform platform, in AudioClip clip) =>
-        clip.IsVorbis ? DecodeVorbis(platform, clip) : PcmAudio.FromWav(ReadWave(platform, clip), clip.Name);
+        return clip.ShippedExtension == AudioClip.Flac ? FlacDecoder.Decode(file, clip.Name) : PcmAudio.FromWav(file, clip.Name);
+    }
 
     // A streamed clip's decoder, for one play. Throws when the file is missing, malformed or wider
     // than stereo.
@@ -68,6 +54,23 @@ internal static class AudioFiles
         Array.Resize(ref samples, count);
 
         return new PcmAudio(samples, reader.Channels, reader.SampleRate);
+    }
+
+    private static byte[] ReadAll(HostPlatform platform, in AudioClip clip)
+    {
+        using Stream stream = Open(platform, clip);
+        if (stream.CanSeek)
+        {
+            byte[] file = new byte[stream.Length];
+            stream.ReadExactly(file);
+
+            return file;
+        }
+
+        using MemoryStream copy = new();
+        stream.CopyTo(copy);
+
+        return copy.ToArray();
     }
 
     private static VorbisReader OpenVorbis(HostPlatform platform, in AudioClip clip)

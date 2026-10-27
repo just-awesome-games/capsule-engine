@@ -5,7 +5,7 @@ namespace Capsule.Tests.Build;
 
 /// <summary>
 /// The asset root's <c>Icon.png</c> becomes the shell's icon pair, an all-PNG <c>.ico</c> and a 128x128
-/// window bitmap, and is never an asset.
+/// window PNG, and is never an asset.
 /// </summary>
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class IconBuildTests
@@ -65,7 +65,7 @@ public sealed class IconBuildTests
 
         // At 16, the stripe is half of the one texel it lies in.
         Assert.Equal([255, 0, 0, 128], Texel(entries[0], 8, 0));
-        ImageResult window = ImageResult.FromMemory(File.ReadAllBytes(IconDirectory + "Icon.bmp"), ColorComponents.RedGreenBlueAlpha);
+        ImageResult window = ImageResult.FromMemory(File.ReadAllBytes(IconDirectory + "Icon.png"), ColorComponents.RedGreenBlueAlpha);
         Assert.Equal((128, 128), (window.Width, window.Height));
         Assert.Equal(entries[5].Data, window.Data);
         Assert.Equal(

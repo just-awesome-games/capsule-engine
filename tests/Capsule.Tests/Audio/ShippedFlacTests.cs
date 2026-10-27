@@ -9,8 +9,8 @@ using Capsule.Tests.Runtime;
 namespace Capsule.Tests.Audio;
 
 /// <summary>
-/// A WAVE of integer samples ships as FLAC, and the host decodes the shipped file to the samples the
-/// source holds, bit for bit. A malformed shipped file is refused naming its defect.
+/// A WAVE of integer samples ships as FLAC, and the host decodes the shipped file to the samples it
+/// holds for the source WAVE, bit for bit. A malformed shipped file is refused naming its defect.
 /// </summary>
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class ShippedFlacTests
@@ -39,13 +39,14 @@ public sealed class ShippedFlacTests
         // [0, int.MinValue, 0, 1] predicts a residual of int.MinValue at fixed order 0, which the
         // format forbids. The encoder codes it some other way.
         byte[] samples = residualAtInt32Minimum ? [0, 0, 0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0, 1, 0, 0, 0] : Samples(bits, channels);
-        workspace.Write("Assets/Audio/clip.wav", WavFixtures.Wav(Rate, bits, channels, samples));
+        byte[] source = WavFixtures.Wav(Rate, bits, channels, samples);
+        workspace.Write("Assets/Audio/clip.wav", source);
 
         workspace.Succeed();
-        byte[] decoded = AudioFiles.ReadWave(new ContentPlatform(Path.GetFullPath(ToolWorkspace.Out)), new AudioClip("audio/clip", ".wav", 0));
+        PcmAudio decoded = AudioFiles.ReadResident(new ContentPlatform(Path.GetFullPath(ToolWorkspace.Out)), new AudioClip("audio/clip", ".wav", 0));
 
         Assert.Equal(["audio/clip.flac"], workspace.Shipped);
-        Assert.Equal(samples, decoded[44..]);
+        AssertSameSamples(PcmAudio.FromWav(source, "audio/clip"), decoded);
     }
 
     // A float WAVE ships as authored, since FLAC carries no float samples, and its member says so.
@@ -62,7 +63,7 @@ public sealed class ShippedFlacTests
         Assert.Equal(["audio/hum.wav"], workspace.Shipped);
         Assert.Contains("AudioClip HumSound => new global::Capsule.Audio.AudioClip(\"audio/hum\", \".wav\", ", workspace.Generated, StringComparison.Ordinal);
         Assert.Contains("D, default, floatSamples: true);", workspace.Generated, StringComparison.Ordinal);
-        Assert.Equal(source, AudioFiles.ReadWave(new ContentPlatform(Path.GetFullPath(ToolWorkspace.Out)), clip));
+        AssertSameSamples(PcmAudio.FromWav(source, "audio/hum"), AudioFiles.ReadResident(new ContentPlatform(Path.GetFullPath(ToolWorkspace.Out)), clip));
     }
 
     // Every refusal names the clip, the defect and the fix, and none reads past the file.
@@ -102,11 +103,19 @@ public sealed class ShippedFlacTests
                 break;
         }
 
-        InvalidDataException refused = Assert.Throws<InvalidDataException>(() => FlacDecoder.ToWave(file, "audio/broken"));
+        InvalidDataException refused = Assert.Throws<InvalidDataException>(() => FlacDecoder.Decode(file, "audio/broken"));
 
         Assert.Contains("'audio/broken'", refused.Message, StringComparison.Ordinal);
         Assert.Contains(expected, refused.Message, StringComparison.Ordinal);
         Assert.EndsWith("Rebuild the game to ship it again.", refused.Message, StringComparison.Ordinal);
+    }
+
+    private static void AssertSameSamples(PcmAudio expected, PcmAudio actual)
+    {
+        Assert.Equal(expected.Channels, actual.Channels);
+        Assert.Equal(expected.SampleRate, actual.SampleRate);
+        Assert.Equal(expected.Pcm16, actual.Pcm16);
+        Assert.Equal(expected.Float, actual.Float);
     }
 
     // Interleaved samples at the given width as a WAVE 'data' chunk holds them, 8-bit ones unsigned.

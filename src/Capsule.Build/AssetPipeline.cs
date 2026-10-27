@@ -120,7 +120,7 @@ internal static class AssetPipeline
                 ClipStep.Run(pass);             // .clip.json sources -> clip members
                 ShaderStep.Run(pass);           // .fx sources -> compiled shader stages, shader members
                 SceneStep.Run(pass);            // .scene.json sources -> gzipped documents, scene members
-                IconStep.Run(pass);             // Icon.png at the asset root -> icon/Icon.ico, icon/Icon.bmp
+                IconStep.Run(pass);             // Icon.png at the asset root -> icon/Icon.ico, icon/Icon.png
                 string? strings = StringsStep.Run(pass); // .strings.json sources -> CapsuleStrings
 
                 // Shipped whatever failed, as every file the steps shipped already is.

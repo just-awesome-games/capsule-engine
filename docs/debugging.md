@@ -64,7 +64,7 @@ Selecting an entity outlines its renderers and draws every debug draw it and wha
 whatever the Debug Draw page has switched on. `F` flies the view to it.
 
 Nothing reads back from the overlay. No code can learn what it shows or has switched on. A command, a
-toggle, Step, Move, Restart, Load Scene, Remove or Exit is a host act that changes the run as input would. A run
+toggle, Step, Move, Restart, Load Scene or Exit is a host act that changes the run as input would. A run
 that took one is not reproducible from its driver alone. A time-scale change leaves a run reproducible.
 
 A headless run has no overlay. A windowed run driven by an input driver opens one as any other run does,

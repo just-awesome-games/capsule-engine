@@ -82,29 +82,6 @@ public sealed class ScenePrefetchTests
         Assert.All(created.Values, static assets => Assert.Single(assets));
     }
 
-    // The texture store releases its decode buffers at the first pump that finds the store settled.
-    [Fact]
-    public void AStore_SettlesOnceItsPrefetchIsWarmAndAtEveryBoundary()
-    {
-        int created = 0;
-        using var store = SyncStore.Over<TextureHandle, DisposalProbe>(_ =>
-        {
-            created++;
-            return new DisposalProbe();
-        });
-
-        Assert.True(store.Settled);
-
-        store.Prefetch([First, Shared]);
-        Assert.False(store.Settled);
-        PumpUntil(store, () => created == 2);
-        Assert.True(store.Settled);
-
-        store.Prefetch([Nested]);
-        store.ChangeScene([First]);
-        Assert.True(store.Settled);
-    }
-
     private static SceneResolver Resolver(List<string> log) => (in SceneTransition target) =>
     {
         log.Add("resolve " + target.SceneType!.Name);

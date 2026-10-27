@@ -345,8 +345,9 @@ public sealed class Run
     /// Where to write the PNG. A relative path resolves against the process working directory.
     /// </param>
     /// <remarks>
-    /// The image is the surface the world was drawn on: the declared render resolution, or the back
-    /// buffer when the run declares none. A capture is not tied to the step that requested it. The host
+    /// The image is the surface the world was drawn on: the declared render resolution, or the window's
+    /// frame at its extent in pixels when the run declares none. It never shows the debug overlay. A
+    /// capture is not tied to the step that requested it. The host
     /// may run more steps before it next draws, and the frame shows the last of them interpolated from
     /// the one before. An event that lasts one step can be missing from the image. Requesting again
     /// before the host takes the request replaces the path, and the request survives a scene transition.

@@ -40,7 +40,6 @@ internal sealed class AudioStreamer : IDisposable
         _worker.Start();
     }
 
-    // Streams waiting in the pool to be played again.
     internal int Pooled
     {
         get

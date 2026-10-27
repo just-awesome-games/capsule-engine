@@ -80,10 +80,11 @@ public class HostPlatform
 
     /// <summary>Opens the output the host's mix plays on, or returns null for a run with no sound.</summary>
     /// <remarks>
-    /// Called on the game thread as the window's content loads, and again on an interval while the
-    /// output last returned is not <see cref="AudioOutput.Connected"/>. A platform that cannot open its
-    /// output logs why and returns null, and the run plays silently. The default plays through an SDL3
-    /// stream on the system's default output and follows that output as it moves.
+    /// Called once, on the game thread as the window's content loads. The output follows the system's
+    /// default device for the rest of the run, and consumes frames on the clock while there is none. A
+    /// platform that cannot open its output logs why and returns null, and the run plays silently. The
+    /// default plays through an SDL3 stream on the system's default output and follows that output as it
+    /// moves.
     /// </remarks>
     /// <param name="leadFrames">
     /// The frames the host means to keep queued ahead of the device. An output that sizes its device's

@@ -1,9 +1,11 @@
 using System.Runtime.InteropServices;
+using Capsule.Runtime.Gpu;
 
 namespace Capsule.Runtime.Platform;
 
 // The GPU device the renderer draws through, and the surface and stream a frame capture encodes its PNG
-// with. Every struct here is SDL 3.4's, field for field, its bool fields as bytes.
+// with. Every struct here is SDL 3.4's, field for field, its bool fields as bytes. An SDL enum the host
+// names is its Capsule.Runtime.Gpu enum, which holds SDL's values.
 internal static unsafe partial class Sdl3
 {
     // SDL_GPUShaderFormat.
@@ -18,9 +20,6 @@ internal static unsafe partial class Sdl3
 
     // SDL_GPUStoreOp.
     internal const int GpuStoreOpStore = 0;
-
-    // SDL_GPULoadOp.
-    internal const int GpuLoadOpDontCare = 2;
 
     // SDL_GPUFillMode, SDL_GPUCullMode and SDL_GPUFrontFace.
     internal const int GpuFillModeFill = 0;
@@ -41,9 +40,6 @@ internal static unsafe partial class Sdl3
 
     // SDL_GPUSwapchainComposition.
     internal const int GpuCompositionSdr = 0;
-
-    // SDL_FlipMode.
-    internal const int FlipNone = 0;
 
     // SDL_IOWhence.
     internal const int IoSeekSet = 0;
@@ -110,6 +106,14 @@ internal static unsafe partial class Sdl3
     [return: MarshalAs(UnmanagedType.U1)]
     internal static extern bool SDL_WaitForGPUSwapchain(nint device, nint window);
 
+    // Invalid when the window is not claimed.
+    [DllImport(LibraryName, ExactSpelling = true)]
+    internal static extern GpuTextureFormat SDL_GetGPUSwapchainTextureFormat(nint device, nint window);
+
+    // The SDL_PixelFormat whose bytes the texture format's texels are, or SDL_PIXELFORMAT_UNKNOWN (0).
+    [DllImport(LibraryName, ExactSpelling = true)]
+    internal static extern uint SDL_GetPixelFormatFromGPUTextureFormat(GpuTextureFormat format);
+
     [DllImport(LibraryName, ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.U1)]
     internal static extern bool SDL_WaitForGPUIdle(nint device);
@@ -169,13 +173,10 @@ internal static unsafe partial class Sdl3
     internal static extern void SDL_PushGPUFragmentUniformData(nint commandBuffer, uint slot, void* data, uint length);
 
     // Never waits. The texture is null while the window is minimized or the swapchain has none free.
+    // Submitting the command buffer presents it, and only that command buffer may draw into it.
     [DllImport(LibraryName, ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.U1)]
     internal static extern bool SDL_AcquireGPUSwapchainTexture(nint commandBuffer, nint window, nint* texture, uint* width, uint* height);
-
-    // Outside every pass.
-    [DllImport(LibraryName, ExactSpelling = true)]
-    internal static extern void SDL_BlitGPUTexture(nint commandBuffer, GpuBlitInfo* info);
 
     [DllImport(LibraryName, ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.U1)]
@@ -256,8 +257,8 @@ internal static unsafe partial class Sdl3
     internal struct GpuTextureCreateInfo
     {
         public int Type;
-        public int Format;
-        public uint Usage;
+        public GpuTextureFormat Format;
+        public GpuTextureUsage Usage;
         public uint Width;
         public uint Height;
         public uint LayerCountOrDepth;
@@ -269,12 +270,12 @@ internal static unsafe partial class Sdl3
     [StructLayout(LayoutKind.Sequential)]
     internal struct GpuSamplerCreateInfo
     {
-        public int MinFilter;
-        public int MagFilter;
+        public GpuFilter MinFilter;
+        public GpuFilter MagFilter;
         public int MipmapMode;
-        public int AddressModeU;
-        public int AddressModeV;
-        public int AddressModeW;
+        public GpuSamplerAddressMode AddressModeU;
+        public GpuSamplerAddressMode AddressModeV;
+        public GpuSamplerAddressMode AddressModeW;
         public float MipLodBias;
         public float MaxAnisotropy;
         public int CompareOp;
@@ -290,7 +291,7 @@ internal static unsafe partial class Sdl3
     [StructLayout(LayoutKind.Sequential)]
     internal struct GpuBufferCreateInfo
     {
-        public uint Usage;
+        public GpuBufferUsage Usage;
         public uint Size;
         public uint Props;
     }
@@ -310,7 +311,7 @@ internal static unsafe partial class Sdl3
         public byte* Code;
         public byte* EntryPoint;
         public uint Format;
-        public int Stage;
+        public GpuShaderStage Stage;
         public uint NumSamplers;
         public uint NumStorageTextures;
         public uint NumStorageBuffers;
@@ -381,12 +382,12 @@ internal static unsafe partial class Sdl3
     [StructLayout(LayoutKind.Sequential)]
     internal struct GpuColorTargetBlendState
     {
-        public int SourceColorBlendFactor;
-        public int DestinationColorBlendFactor;
-        public int ColorBlendOp;
-        public int SourceAlphaBlendFactor;
-        public int DestinationAlphaBlendFactor;
-        public int AlphaBlendOp;
+        public GpuBlendFactor SourceColorBlendFactor;
+        public GpuBlendFactor DestinationColorBlendFactor;
+        public GpuBlendOp ColorBlendOp;
+        public GpuBlendFactor SourceAlphaBlendFactor;
+        public GpuBlendFactor DestinationAlphaBlendFactor;
+        public GpuBlendOp AlphaBlendOp;
         public byte ColorWriteMask;
         public byte EnableBlend;
         public byte EnableColorWriteMask;
@@ -397,7 +398,7 @@ internal static unsafe partial class Sdl3
     [StructLayout(LayoutKind.Sequential)]
     internal struct GpuColorTargetDescription
     {
-        public int Format;
+        public GpuTextureFormat Format;
         public GpuColorTargetBlendState BlendState;
     }
 
@@ -443,7 +444,7 @@ internal static unsafe partial class Sdl3
         public uint MipLevel;
         public uint LayerOrDepthPlane;
         public FColor ClearColor;
-        public int LoadOp;
+        public GpuLoadOp LoadOp;
         public int StoreOp;
         public nint ResolveTexture;
         public uint ResolveMipLevel;
@@ -472,13 +473,6 @@ internal static unsafe partial class Sdl3
         public int Y;
         public int W;
         public int H;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    internal struct GpuTextureSamplerBinding
-    {
-        public nint Texture;
-        public nint Sampler;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -517,32 +511,5 @@ internal static unsafe partial class Sdl3
         public nint Buffer;
         public uint Offset;
         public uint Size;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    internal struct GpuBlitRegion
-    {
-        public nint Texture;
-        public uint MipLevel;
-        public uint LayerOrDepthPlane;
-        public uint X;
-        public uint Y;
-        public uint W;
-        public uint H;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    internal struct GpuBlitInfo
-    {
-        public GpuBlitRegion Source;
-        public GpuBlitRegion Destination;
-        public int LoadOp;
-        public FColor ClearColor;
-        public int FlipMode;
-        public int Filter;
-        public byte Cycle;
-        public byte Padding1;
-        public byte Padding2;
-        public byte Padding3;
     }
 }

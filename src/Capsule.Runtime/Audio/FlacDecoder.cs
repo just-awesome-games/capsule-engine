@@ -5,22 +5,21 @@ using Capsule.Audio;
 
 namespace Capsule.Runtime.Audio;
 
-// Decodes a shipped FLAC file (RFC 9639) whole into a WAVE file of the same samples, which the device
-// and PcmAudio then read as they read a shipped WAVE. It decodes every subframe type, Rice partitioning
-// and stereo decorrelation the format defines, at 8, 16, 24 and 32 bits per sample.
+// Decodes a shipped FLAC file (RFC 9639) whole into the samples PcmAudio.FromWav holds for a WAVE of
+// the same integers: 8- and 16-bit samples as 16-bit integers, 24- and 32-bit ones as floats. It
+// decodes every subframe type, Rice partitioning and stereo decorrelation the format defines, at 8,
+// 16, 24 and 32 bits per sample.
 //
-// A load-time cost. It allocates the WAVE file its STREAMINFO sizes and nothing per frame, and rents
-// one block of scratch per channel for the length of the decode.
+// A load-time cost. It allocates the samples its STREAMINFO sizes and nothing per frame, and rents one
+// block of scratch per channel for the length of the decode.
 internal static class FlacDecoder
 {
-    private const int WaveHeaderBytes = 44;
-
     // Channel assignments 8 to 10 code a stereo pair as left and side, side and right, or mid and side.
     private const int LeftSide = 8;
     private const int SideRight = 9;
     private const int MidSide = 10;
 
-    internal static byte[] ToWave(ReadOnlySpan<byte> file, string clipName)
+    internal static PcmAudio Decode(ReadOnlySpan<byte> file, string clipName)
     {
         if (file.Length < 4 || !file[..4].SequenceEqual(FlacFormat.Marker))
         {
@@ -28,16 +27,15 @@ internal static class FlacDecoder
         }
 
         Declared info = ReadStreamInfo(file, clipName, out int offset);
-        int width = info.Bits / 8;
 
-        long imageBytes = WaveHeaderBytes + (info.Total * info.Channels * width);
-        if (imageBytes > Array.MaxLength)
+        long count = info.Total * info.Channels;
+        if (count > Array.MaxLength)
         {
             throw Malformed(clipName, $"declares {info.Total} samples, more than a clip can hold");
         }
 
-        byte[] wave = new byte[imageBytes];
-        WriteWaveHeader(wave, info);
+        short[]? pcm16 = info.Bits <= 16 ? new short[count] : null;
+        float[]? wide = pcm16 is null ? new float[count] : null;
 
         long[] scratch = ArrayPool<long>.Shared.Rent(info.MaxBlock * info.Channels);
         try
@@ -45,9 +43,18 @@ internal static class FlacDecoder
             long decoded = 0;
             while (decoded < info.Total)
             {
-                int count = DecodeFrame(file, ref offset, info, scratch, decoded, clipName);
-                Interleave(scratch, info, count, wave.AsSpan(WaveHeaderBytes + (int)(decoded * info.Channels * width)));
-                decoded += count;
+                int frames = DecodeFrame(file, ref offset, info, scratch, decoded, clipName);
+                int at = (int)(decoded * info.Channels);
+                if (pcm16 is not null)
+                {
+                    Interleave(scratch, info, frames, pcm16.AsSpan(at));
+                }
+                else
+                {
+                    Interleave(scratch, info, frames, wide.AsSpan(at));
+                }
+
+                decoded += frames;
             }
         }
         finally
@@ -55,7 +62,7 @@ internal static class FlacDecoder
             ArrayPool<long>.Shared.Return(scratch);
         }
 
-        return wave;
+        return pcm16 is not null ? new PcmAudio(pcm16, info.Channels, info.Rate) : new PcmAudio(wide!, info.Channels, info.Rate);
     }
 
     private static Declared ReadStreamInfo(ReadOnlySpan<byte> file, string clipName, out int offset)
@@ -441,75 +448,34 @@ internal static class FlacDecoder
         }
     }
 
-    // Writes the frame's samples into the WAVE data at their width, channels interleaved. 8-bit WAVE
-    // samples are unsigned.
-    private static void Interleave(long[] scratch, in Declared info, int count, Span<byte> data)
+    // Writes the frame's 8- or 16-bit samples, channels interleaved. An 8-bit sample s is held as
+    // s << 8, as FromWav holds an unsigned 8-bit WAVE sample.
+    private static void Interleave(long[] scratch, in Declared info, int count, Span<short> samples)
     {
-        int width = info.Bits / 8;
+        int shift = 16 - info.Bits;
         for (int channel = 0; channel < info.Channels; channel++)
         {
-            ReadOnlySpan<long> samples = scratch.AsSpan(channel * info.MaxBlock, count);
-            int step = info.Channels * width;
-            int at = channel * width;
-
-            switch (width)
+            ReadOnlySpan<long> block = scratch.AsSpan(channel * info.MaxBlock, count);
+            for (int i = 0, at = channel; i < count; i++, at += info.Channels)
             {
-                case 1:
-                    for (int i = 0; i < count; i++, at += step)
-                    {
-                        data[at] = (byte)(samples[i] + 128);
-                    }
-
-                    break;
-
-                case 2:
-                    for (int i = 0; i < count; i++, at += step)
-                    {
-                        BinaryPrimitives.WriteInt16LittleEndian(data[at..], (short)samples[i]);
-                    }
-
-                    break;
-
-                case 3:
-                    for (int i = 0; i < count; i++, at += step)
-                    {
-                        long sample = samples[i];
-                        data[at] = (byte)sample;
-                        data[at + 1] = (byte)(sample >> 8);
-                        data[at + 2] = (byte)(sample >> 16);
-                    }
-
-                    break;
-
-                default:
-                    for (int i = 0; i < count; i++, at += step)
-                    {
-                        BinaryPrimitives.WriteInt32LittleEndian(data[at..], (int)samples[i]);
-                    }
-
-                    break;
+                samples[at] = (short)(block[i] << shift);
             }
         }
     }
 
-    // The canonical 44-byte header of integer PCM: 'RIFF', 'fmt ' with format 1, and 'data'.
-    private static void WriteWaveHeader(Span<byte> wave, in Declared info)
+    // Writes the frame's 24- or 32-bit samples as floats in [-1, 1), channels interleaved, at the
+    // scale FromWav reads a WAVE sample of the same width.
+    private static void Interleave(long[] scratch, in Declared info, int count, Span<float> samples)
     {
-        int width = info.Bits / 8;
-        int data = wave.Length - WaveHeaderBytes;
-
-        "RIFF"u8.CopyTo(wave);
-        BinaryPrimitives.WriteInt32LittleEndian(wave[4..], wave.Length - 8);
-        "WAVEfmt "u8.CopyTo(wave[8..]);
-        BinaryPrimitives.WriteInt32LittleEndian(wave[16..], 16);
-        BinaryPrimitives.WriteInt16LittleEndian(wave[20..], 1);
-        BinaryPrimitives.WriteInt16LittleEndian(wave[22..], (short)info.Channels);
-        BinaryPrimitives.WriteInt32LittleEndian(wave[24..], info.Rate);
-        BinaryPrimitives.WriteInt32LittleEndian(wave[28..], info.Rate * info.Channels * width);
-        BinaryPrimitives.WriteInt16LittleEndian(wave[32..], (short)(info.Channels * width));
-        BinaryPrimitives.WriteInt16LittleEndian(wave[34..], (short)info.Bits);
-        "data"u8.CopyTo(wave[36..]);
-        BinaryPrimitives.WriteInt32LittleEndian(wave[40..], data);
+        float scale = info.Bits == 24 ? 1f / 8388608f : 1f / 2147483648f;
+        for (int channel = 0; channel < info.Channels; channel++)
+        {
+            ReadOnlySpan<long> block = scratch.AsSpan(channel * info.MaxBlock, count);
+            for (int i = 0, at = channel; i < count; i++, at += info.Channels)
+            {
+                samples[at] = (int)block[i] * scale;
+            }
+        }
     }
 
     private static void Need(ReadOnlySpan<byte> file, int end, string clipName)

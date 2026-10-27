@@ -1,9 +1,10 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Capsule.Runtime.Platform;
 
 namespace Capsule.Runtime.Gpu;
 
-// SDL_GPULoadOp.
+// SDL_GPULoadOp, less the don't-care the host never uses.
 internal enum GpuLoadOp
 {
     Load,
@@ -13,8 +14,19 @@ internal enum GpuLoadOp
 // SDL_GPUColorTargetInfo for a target of one level and layer, stored at the pass's end.
 internal readonly record struct GpuColorTarget(GpuTexture Texture, GpuLoadOp Load, Vector4 ClearColor = default);
 
-// SDL_GPUTextureSamplerBinding.
-internal readonly record struct GpuTextureSamplerBinding(GpuTexture Texture, GpuSampler Sampler);
+// SDL_GPUTextureSamplerBinding, field for field: the handles a bind passes SDL, taken when it is made.
+[StructLayout(LayoutKind.Sequential)]
+internal readonly record struct GpuTextureSamplerBinding
+{
+    private readonly nint _texture;
+    private readonly nint _sampler;
+
+    internal GpuTextureSamplerBinding(GpuTexture texture, GpuSampler sampler)
+    {
+        _texture = texture.Handle;
+        _sampler = sampler.Handle;
+    }
+}
 
 // SDL_GPUCommandBuffer: one frame's work, executed in order once submitted.
 internal readonly unsafe struct GpuCommandBuffer(GpuDevice device, nint handle)
@@ -27,7 +39,7 @@ internal readonly unsafe struct GpuCommandBuffer(GpuDevice device, nint handle)
         {
             Texture = target.Texture.Handle,
             ClearColor = new Sdl3.FColor { R = target.ClearColor.X, G = target.ClearColor.Y, B = target.ClearColor.Z, A = target.ClearColor.W },
-            LoadOp = (int)target.Load,
+            LoadOp = target.Load,
             StoreOp = Sdl3.GpuStoreOpStore,
         };
 
@@ -53,10 +65,10 @@ internal readonly unsafe struct GpuCommandBuffer(GpuDevice device, nint handle)
         }
     }
 
-    // Copies surface, a texture the window's extent, into the window's swapchain texture, which shows it
-    // once submitted. Outside every pass, and the last command of a frame. The window shows nothing new
-    // while it has no area, and surface may be null then.
-    internal void Present(GpuTexture? surface) => device.Present(handle, surface);
+    // The texture the window shows once this command buffer is submitted, at the swapchain's own extent,
+    // or null when the window shows nothing new this frame. Outside every pass, and once a frame. Never
+    // waits.
+    internal GpuTexture? AcquireSwapchainTexture() => device.AcquireSwapchainTexture(handle);
 
     internal void Submit() => device.Submit(handle);
 
@@ -77,7 +89,7 @@ internal readonly struct GpuCopyPass(GpuDevice device, nint handle)
     internal void UploadToBuffer(GpuBuffer buffer, int offset, ReadOnlySpan<byte> data, bool cycle) =>
         device.UploadToBuffer(handle, buffer, offset, data, cycle);
 
-    // Reads every texel of texture, which is the readback's extent and RGBA.
+    // Reads every texel of texture, which is the readback's extent and format.
     internal void DownloadFromTexture(GpuTexture texture, GpuReadback readback) => device.DownloadFromTexture(texture, readback);
 
     internal void End() => device.EndCopyPass(handle);
@@ -108,13 +120,10 @@ internal readonly unsafe struct GpuRenderPass(nint handle)
 
     internal void BindFragmentSamplers(int firstSlot, ReadOnlySpan<GpuTextureSamplerBinding> bindings)
     {
-        Sdl3.GpuTextureSamplerBinding* bound = stackalloc Sdl3.GpuTextureSamplerBinding[bindings.Length];
-        for (int i = 0; i < bindings.Length; i++)
+        fixed (GpuTextureSamplerBinding* bound = bindings)
         {
-            bound[i] = new Sdl3.GpuTextureSamplerBinding { Texture = bindings[i].Texture.Handle, Sampler = bindings[i].Sampler.Handle };
+            Sdl3.SDL_BindGPUFragmentSamplers(handle, (uint)firstSlot, bound, (uint)bindings.Length);
         }
-
-        Sdl3.SDL_BindGPUFragmentSamplers(handle, (uint)firstSlot, bound, (uint)bindings.Length);
     }
 
     internal void DrawPrimitives(int vertexCount, int instanceCount, int firstVertex, int firstInstance) =>

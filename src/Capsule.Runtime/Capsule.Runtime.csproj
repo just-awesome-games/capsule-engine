@@ -25,12 +25,6 @@
           PackagePath="/"
           Visible="false" />
 
-    <!-- The texture decoder, referenced so a texture decodes off the game thread into memory the
-         runtime owns. Hidden from games. -->
-    <PackageReference Include="StbImageSharp" Version="2.30.16">
-      <PrivateAssets>compile</PrivateAssets>
-    </PackageReference>
-
     <!-- A site that seems to need a banned symbol belongs in Platform/, whose .editorconfig admits
          it, never under a suppression. -->
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0">

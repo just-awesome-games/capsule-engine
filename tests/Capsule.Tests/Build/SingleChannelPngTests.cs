@@ -101,20 +101,20 @@ public sealed class SingleChannelPngTests
         workspace.Succeed();
 
         using FileStream shipped = File.OpenRead(Path.Combine(ToolWorkspace.Out, "assets", "mask.png"));
-        DecodedTexture decoded = TextureDecoder.Decode(shipped, new TexelPool(), "mask", singleChannel: true);
+        using DecodedTexture decoded = TextureDecoder.Decode(shipped, "mask", singleChannel: true);
 
         Assert.Equal((Width, Height, 1), (decoded.Width, decoded.Height, decoded.BytesPerTexel));
-        Assert.Equal(values, decoded.Texels);
+        Assert.Equal(values, decoded.Texels.ToArray());
     }
 
     // Values that fill the depth's range and vary along and across rows. Every filter sees
     // non-zero left, up and corner neighbours.
-    private static byte[] Values(int depth) =>
+    internal static byte[] Values(int depth) =>
         [.. Enumerable.Range(0, Width * Height).Select(i => (byte)(((i * 7) + (i / Width * 3)) % (1 << depth)))];
 
-    // A PNG whose row y is written with filter y % 5. Values are one per texel, or channels per texel
-    // for a colour type with more than one.
-    private static byte[] Png(byte[] values, byte colour, byte depth, byte[]? palette, int channels = 1)
+    // A Width by Height PNG whose row y is written with filter y % 5. Values are one per texel, or
+    // channels per texel for a colour type with more than one. Transparency is a tRNS chunk's data.
+    internal static byte[] Png(byte[] values, byte colour, byte depth, byte[]? palette, int channels = 1, byte[]? transparency = null)
     {
         int stride = ((Width * depth * channels) + 7) / 8;
         using MemoryStream raw = new();
@@ -168,6 +168,11 @@ public sealed class SingleChannelPngTests
         if (palette is not null)
         {
             PngWriter.Chunk(png, "PLTE"u8, palette);
+        }
+
+        if (transparency is not null)
+        {
+            PngWriter.Chunk(png, "tRNS"u8, transparency);
         }
 
         PngWriter.Chunk(png, "IDAT"u8, compressed.ToArray());

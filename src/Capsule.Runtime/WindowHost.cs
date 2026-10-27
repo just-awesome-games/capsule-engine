@@ -61,7 +61,7 @@ internal sealed unsafe class WindowHost
     private readonly IDisposable? _latency;
 
     // The logical name a shell embeds its window icon under.
-    private const string WindowIconResource = "Icon.bmp";
+    private const string WindowIconResource = "Icon.png";
 
     // SDL's window, zero until Open creates it and after Close destroys it.
     private nint _window;
@@ -273,7 +273,7 @@ internal sealed unsafe class WindowHost
 
         TextureSamplers samplers = new(_gpu);
         _textures = new TextureStore(_gpu, samplers, _builder.Platform);
-        _shaders = new ShaderStore(_gpu, _builder.Platform, FrameRenderer.SurfaceFormat);
+        _shaders = new ShaderStore(_gpu, _builder.Platform, _gpu.SwapchainFormat);
 
         if (SoundDevice.TryOpen(_builder.Platform, _builder.AudioLeadFrames) is { } device)
         {
@@ -348,19 +348,19 @@ internal sealed unsafe class WindowHost
             return;
         }
 
-        byte[] bitmap = new byte[resource.Length];
-        resource.ReadExactly(bitmap);
-        fixed (byte* data = bitmap)
+        byte[] png = new byte[resource.Length];
+        resource.ReadExactly(png);
+        fixed (byte* data = png)
         {
-            nint icon = Sdl3.SDL_LoadBMP_IO(Sdl3.SDL_IOFromConstMem(data, (nuint)bitmap.Length), closeSource: true);
-            if (icon == nint.Zero)
+            Sdl3.Surface* icon = Sdl3.SDL_LoadPNG_IO(Sdl3.SDL_IOFromConstMem(data, (nuint)png.Length), closeSource: true);
+            if (icon == null)
             {
                 Log.Warning($"The window icon could not be read: {Sdl3.Error()}.");
                 return;
             }
 
-            Sdl3.SDL_SetWindowIcon(_window, icon);
-            Sdl3.SDL_DestroySurface(icon);
+            Sdl3.SDL_SetWindowIcon(_window, (nint)icon);
+            Sdl3.SDL_DestroySurface((nint)icon);
         }
     }
 
@@ -438,8 +438,8 @@ internal sealed unsafe class WindowHost
         _sounds?.Pump();
 
         // Every frame, including one that drained no step. The voices the mix thread has ended are
-        // retired, a fault on the mix or decode threads is logged, and a lost output is reopened.
-        _device?.Update(elapsedSeconds);
+        // retired, and a fault on the mix or decode threads is logged.
+        _device?.Update();
 
         // Every frame, after the steps: the level is the run's settled output, and the live window
         // focus, the hold and the active pad are the host's. The applier rests the motors while the
@@ -516,22 +516,21 @@ internal sealed unsafe class WindowHost
         _diagnostics?.BeginView();
         FrameView view = _scenes.View;
 
+        // Taken before the frame records, which draws a capture's window pass offscreen. A request
+        // raised while the window is minimised, or while a stand-in camera frames the view, stands
+        // until the game's own frame draws.
+        string? capturePath = _renderer.CanCaptureFrame && _scenes.ViewCamera is null && _scenes.TryTakeFrameCapture(out string requested)
+            ? requested
+            : null;
+
         _diagnostics?.BeginDraw();
 
         // alpha is in [0, 1) because the scheduler drains the accumulator below one step.
-        _renderer.Draw(view, _scheduler.InterpolationAlpha);
+        _renderer.Draw(view, _scheduler.InterpolationAlpha, capturePath);
 
-        // The diagnostics cover the game frame's recording. The capture, the overlay and the
-        // submission, which presents, are excluded.
+        // The diagnostics cover the game frame's recording, a capture's download included. The
+        // overlay and the submission, which presents and writes a capture, are excluded.
         bool budgetSpent = _diagnostics?.EndDraw() ?? false;
-
-        // Taken while the surface still holds the frame. A request raised while the window is
-        // minimised, or while a stand-in camera frames the view, stands until the game's own frame
-        // draws.
-        if (_renderer.CanCaptureFrame && _scenes.ViewCamera is null && _scenes.TryTakeFrameCapture(out string capturePath))
-        {
-            _renderer.SaveSurface(capturePath);
-        }
 
         _drawOverlay?.Invoke(_renderer);
         _renderer.Submit();

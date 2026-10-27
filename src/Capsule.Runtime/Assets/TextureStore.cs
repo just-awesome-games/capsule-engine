@@ -20,7 +20,7 @@ internal sealed class SampledTexture(GpuTexture texture, GpuSampler? sampler = n
 
     internal bool Disposed { get; private set; }
 
-    internal static GpuTextureFormat FormatOf(in DecodedTexture decoded) =>
+    internal static GpuTextureFormat FormatOf(DecodedTexture decoded) =>
         decoded.BytesPerTexel == 1 ? GpuTextureFormat.R8Unorm : GpuTextureFormat.R8G8B8A8Unorm;
 
     public void Dispose()
@@ -46,7 +46,6 @@ internal sealed class TextureStore : IDisposable
     private readonly TextureMap _map;
     private readonly HostPlatform _platform;
     private readonly GpuDevice _device;
-    private readonly TexelPool _pool = new();
 
     // The textures created outside a copy pass, uploaded in the next frame's.
     private readonly List<(TextureUpload Upload, SampledTexture Texture)> _deferred = [];
@@ -67,8 +66,9 @@ internal sealed class TextureStore : IDisposable
         TextureUpload Decode(TextureHandle handle)
         {
             TextureFacts facts = _map.Facts(handle);
+            GpuSampler? sampler = facts.Sampling is { } sampling ? samplers.Get(sampling) : null;
             using Stream file = Open(platform, handle);
-            return new TextureUpload(this, TextureDecoder.Decode(file, _pool, handle.Name, facts.SingleChannel), facts.Sampling is { } sampling ? samplers.Get(sampling) : null);
+            return new TextureUpload(this, TextureDecoder.Decode(file, handle.Name, facts.SingleChannel), sampler);
         }
     }
 
@@ -79,12 +79,11 @@ internal sealed class TextureStore : IDisposable
     internal void Prefetch(AssetCollection preloads) => _textures.Prefetch(_map.Residency(preloads.Textures));
 
     // A texture of decoded's texels, sampled as the draw does, uploaded in the next frame's copy pass.
-    internal SampledTexture Create(in DecodedTexture decoded) => new TextureUpload(this, decoded).Finish();
+    // The store disposes decoded once it is uploaded.
+    internal SampledTexture Create(DecodedTexture decoded) => new TextureUpload(this, decoded).Finish();
 
     // Uploads every texture created since the last frame, then spends the frame's upload budget on
-    // prefetched pages, in the frame's copy pass. Once the loads settle the decode buffers go, sized by
-    // the largest page and needed again only by the next boundary's loads. A discarded decode that
-    // returns its buffer late is dropped at the next settled pump.
+    // prefetched pages, in the frame's copy pass.
     internal void Pump(GpuCopyPass copy)
     {
         _copy = copy;
@@ -97,10 +96,6 @@ internal sealed class TextureStore : IDisposable
 
             _deferred.Clear();
             _textures.Pump();
-            if (_textures.Settled)
-            {
-                _pool.Clear();
-            }
         }
         finally
         {
@@ -138,12 +133,9 @@ internal sealed class TextureStore : IDisposable
         bool packed = map.TryGet(handle, out AtlasSlot slot);
         TextureHandle file = packed ? slot.Page : handle;
 
-        TexelPool pool = new();
-        DecodedTexture decoded;
-        using (Stream stream = Open(platform, file))
-        {
-            decoded = TextureDecoder.Decode(stream, pool, handle.Name, map.Facts(file).SingleChannel);
-        }
+        using Stream stream = Open(platform, file);
+        using DecodedTexture decoded = TextureDecoder.Decode(stream, handle.Name, map.Facts(file).SingleChannel);
+        ReadOnlySpan<byte> source = decoded.Texels;
 
         // A packed texture's own size bounds the region. Its page holds other textures' texels around it.
         (int width, int height) = packed ? (slot.Width, slot.Height) : (decoded.Width, decoded.Height);
@@ -168,11 +160,9 @@ internal sealed class TextureStore : IDisposable
                 {
                     int to = ((row * region.Width) + column) * 4;
                     texels[to] = texels[to + 1] = texels[to + 2] = 255;
-                    texels[to + 3] = decoded.Texels[((top + row) * decoded.Width) + left + column];
+                    texels[to + 3] = source[((top + row) * decoded.Width) + left + column];
                 }
             }
-
-            pool.Return(decoded.Texels);
 
             return texels;
         }
@@ -181,10 +171,9 @@ internal sealed class TextureStore : IDisposable
         for (int row = 0; row < region.Height; row++)
         {
             int from = (((top + row) * decoded.Width) + left) * 4;
-            decoded.Texels.AsSpan(from, rowBytes).CopyTo(texels.AsSpan(row * rowBytes, rowBytes));
+            source.Slice(from, rowBytes).CopyTo(texels.AsSpan(row * rowBytes, rowBytes));
         }
 
-        pool.Return(decoded.Texels);
         TextureDecoder.Unpremultiply(texels);
 
         return texels;
@@ -195,7 +184,17 @@ internal sealed class TextureStore : IDisposable
 
     internal static Stream Open(HostPlatform platform, in TextureHandle handle) => Files.Open(platform, handle.Name, handle.Extension);
 
-    public void Dispose() => _textures.Dispose();
+    // A deferred upload's texture belongs to its holder, and only its texels go here.
+    public void Dispose()
+    {
+        foreach ((TextureUpload upload, SampledTexture _) in _deferred)
+        {
+            upload.Complete(discarded: true);
+        }
+
+        _deferred.Clear();
+        _textures.Dispose();
+    }
 
     private SampledTexture Get(in TextureHandle file, in TextureHandle drawn)
     {
@@ -210,8 +209,8 @@ internal sealed class TextureStore : IDisposable
         return texture;
     }
 
-    // One decoded page on its way to the device, top rows first. Its texels go back to the pool once
-    // every row is uploaded, or once the texture is discarded.
+    // One decoded page on its way to the device, top rows first. It disposes its texels once every row
+    // is uploaded, once the texture is discarded, or once creating or uploading it fails.
     internal sealed class TextureUpload(TextureStore store, DecodedTexture decoded, GpuSampler? sampler = null) : IPendingAsset<SampledTexture>
     {
         private GpuTexture? _texture;
@@ -235,35 +234,48 @@ internal sealed class TextureStore : IDisposable
         // Inside a pump the remaining rows upload now. Outside one they wait for the next.
         public SampledTexture Finish()
         {
-            SampledTexture texture = new(_texture ??= Create(), sampler);
-            if (store._copy is null)
+            try
             {
-                store._deferred.Add((this, texture));
-            }
-            else
-            {
-                Complete(discarded: false);
-            }
+                SampledTexture texture = new(_texture ??= Create(), sampler);
+                if (store._copy is null)
+                {
+                    store._deferred.Add((this, texture));
+                }
+                else
+                {
+                    Complete(discarded: false);
+                }
 
-            return texture;
+                return texture;
+            }
+            catch
+            {
+                Discard();
+                throw;
+            }
         }
 
         public void Discard()
         {
             _texture?.Dispose();
             _texture = null;
-            store._pool.Return(decoded.Texels);
+            decoded.Dispose();
         }
 
-        // Uploads the rows not yet on the device, unless the texture went first, and returns the texels.
+        // Uploads the rows not yet on the device, unless the texture went first, and disposes the texels.
         internal void Complete(bool discarded)
         {
-            if (!discarded && _rows < decoded.Height)
+            try
             {
-                Upload(decoded.Height - _rows);
+                if (!discarded && _rows < decoded.Height)
+                {
+                    Upload(decoded.Height - _rows);
+                }
             }
-
-            store._pool.Return(decoded.Texels);
+            finally
+            {
+                decoded.Dispose();
+            }
         }
 
         private GpuTexture Create() =>
@@ -274,7 +286,7 @@ internal sealed class TextureStore : IDisposable
         {
             _texture ??= Create();
             int rowBytes = decoded.Width * decoded.BytesPerTexel;
-            store._copy!.Value.UploadToTexture(_texture, 0, _rows, decoded.Width, rows, decoded.Texels.AsSpan(_rows * rowBytes, rows * rowBytes));
+            store._copy!.Value.UploadToTexture(_texture, 0, _rows, decoded.Width, rows, decoded.Texels.Slice(_rows * rowBytes, rows * rowBytes));
             _rows += rows;
         }
     }

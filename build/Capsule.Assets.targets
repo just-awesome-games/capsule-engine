@@ -133,9 +133,9 @@
   <Target Name="CapsuleGetApplicationIcon"
           DependsOnTargets="CapsuleAssetSourcesInit"
           Returns="@(_CapsuleApplicationIcon)">
-    <ItemGroup Condition="'$(CapsuleBuildAssets)' == 'true' and Exists('$(CapsuleObjDir)/icon/Icon.ico') and Exists('$(CapsuleObjDir)/icon/Icon.bmp')">
+    <ItemGroup Condition="'$(CapsuleBuildAssets)' == 'true' and Exists('$(CapsuleObjDir)/icon/Icon.ico') and Exists('$(CapsuleObjDir)/icon/Icon.png')">
       <_CapsuleApplicationIcon Include="$(CapsuleObjDir)/icon/Icon.ico" CapsuleIcon="Executable" />
-      <_CapsuleApplicationIcon Include="$(CapsuleObjDir)/icon/Icon.bmp" CapsuleIcon="Window" />
+      <_CapsuleApplicationIcon Include="$(CapsuleObjDir)/icon/Icon.png" CapsuleIcon="Window" />
     </ItemGroup>
   </Target>
 

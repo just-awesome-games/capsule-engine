@@ -6,7 +6,7 @@
     <_CapsuleGameManifest>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', 'app.manifest'))</_CapsuleGameManifest>
     <!-- Defaults are beside the imported hooks in source and package modes. -->
     <_CapsuleDefaultIcon>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'Icon.ico'))</_CapsuleDefaultIcon>
-    <_CapsuleDefaultWindowIcon>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'Icon.bmp'))</_CapsuleDefaultWindowIcon>
+    <_CapsuleDefaultWindowIcon>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'Icon.png'))</_CapsuleDefaultWindowIcon>
     <_CapsuleDefaultManifest>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'app.manifest'))</_CapsuleDefaultManifest>
 
     <!-- CapsuleApplicationIcon replaces the default with the icon a reference derived. -->
@@ -49,9 +49,9 @@
     <ItemGroup>
       <_CapsuleWindowIcon Include="@(_CapsuleDerivedIcon->WithMetadataValue('CapsuleIcon', 'Window'))" />
       <_CapsuleWindowIcon Include="$(_CapsuleDefaultWindowIcon)" Condition="'@(_CapsuleWindowIcon)' == ''" />
-      <!-- The host reads the window icon by the literal logical name Icon.bmp. -->
+      <!-- The host reads the window icon by the literal logical name Icon.png. -->
       <EmbeddedResource Include="@(_CapsuleWindowIcon)"
-                        LogicalName="Icon.bmp"
+                        LogicalName="Icon.png"
                         Visible="false" />
     </ItemGroup>
   </Target>

@@ -42,10 +42,8 @@ internal sealed class AudioStream
 
     private string _clipName = "";
 
-    // Samples written, published by the worker.
     private long _written;
 
-    // Samples read, published by the mixer.
     private long _read;
 
     // Set once the source is spent or has faulted, after the last write.
@@ -79,7 +77,6 @@ internal sealed class AudioStream
     // On the mixer. Read after Ended, which makes a seen end cover every sample.
     internal long WrittenSamples => Volatile.Read(ref _written);
 
-    // On the mixer, after it has read the samples below position.
     internal void Consume(long position) => Volatile.Write(ref _read, position);
 
     // Arms this stream over source, fresh or played before, starting at startFrame. Called on the game

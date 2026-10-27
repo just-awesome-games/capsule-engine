@@ -22,10 +22,6 @@ internal sealed class MixThread : IDisposable
     private readonly int _leadFrames;
     private readonly int _chunkFrames;
 
-    // Mixed into while the output has lost its device, whose queue may never drain again. The voices
-    // keep time and the command ring keeps draining until the host reopens the output.
-    private readonly SilentOutput _silence = new();
-
     private readonly Thread _thread;
 
     // The warning for a mix that stopped, written by this thread and logged by the game thread,
@@ -56,7 +52,6 @@ internal sealed class MixThread : IDisposable
     // buffer runs dry at every pull, and half a buffer more rides out the mix's own wake.
     internal static int LeadFor(int leadFrames, int deviceFrames) => Math.Max(leadFrames, deviceFrames * 3 / 2);
 
-    // Times the mix fell behind its output, which then plays a gap.
     internal long Underruns => Volatile.Read(ref _underruns);
 
     // The fault that stopped the mix, once, or null.
@@ -72,7 +67,7 @@ internal sealed class MixThread : IDisposable
     private void Run()
     {
         float[] block = new float[_chunkFrames * VoiceMixer.Channels];
-        bool fedDevice = false;
+        bool fed = false;
 
         try
         {
@@ -80,21 +75,19 @@ internal sealed class MixThread : IDisposable
 
             while (!_stopping)
             {
-                AudioOutput output = _output.Connected ? _output : _silence;
-                int queued = output.QueuedFrames;
+                int queued = _output.QueuedFrames;
                 if (queued < _leadFrames)
                 {
                     // The device has played everything queued: this thread woke a whole lead late, and
-                    // a gap is at most one device buffer away. Silence has no device to leave a gap.
-                    bool device = output is not SilentOutput;
-                    if (device && fedDevice && queued == 0)
+                    // a gap is at most one device buffer away.
+                    if (fed && queued == 0)
                     {
                         Volatile.Write(ref _underruns, _underruns + 1);
                     }
 
                     _mixer.Mix(block);
-                    output.Submit(block);
-                    fedDevice |= device;
+                    _output.Submit(block);
+                    fed = true;
 
                     continue;
                 }

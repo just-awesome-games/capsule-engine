@@ -252,6 +252,14 @@ internal static unsafe partial class Sdl3
     [DllImport(LibraryName, ExactSpelling = true)]
     internal static extern void SDL_DestroySurface(nint surface);
 
+    // A surface the caller destroys, or null naming the failure in SDL's error. Safe on any thread.
+    [DllImport(LibraryName, ExactSpelling = true)]
+    internal static extern Surface* SDL_LoadPNG_IO(nint source, [MarshalAs(UnmanagedType.U1)] bool closeSource);
+
+    // A new surface in format the caller destroys, or null. The source is untouched.
+    [DllImport(LibraryName, ExactSpelling = true)]
+    internal static extern Surface* SDL_ConvertSurface(Surface* surface, uint format);
+
     [DllImport(LibraryName, ExactSpelling = true)]
     internal static extern nint SDL_IOFromConstMem(void* memory, nuint size);
 
@@ -291,6 +299,20 @@ internal static unsafe partial class Sdl3
     // Writes 32 hex digits and a terminator into a buffer of at least 33 bytes.
     [DllImport(LibraryName, ExactSpelling = true)]
     internal static extern void SDL_GUIDToString(JoystickGuid guid, byte* text, int capacity);
+
+    // SDL_Surface's public fields. Rows are Pitch bytes apart, top row first.
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct Surface
+    {
+        public uint Flags;
+        public uint Format;
+        public int Width;
+        public int Height;
+        public int Pitch;
+        public byte* Pixels;
+        public int RefCount;
+        public void* Reserved;
+    }
 
     // SDL_GUID, sixteen bytes passed by value.
     [StructLayout(LayoutKind.Sequential)]

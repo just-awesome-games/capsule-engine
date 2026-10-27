@@ -11,7 +11,9 @@ namespace Capsule.Runtime.Audio;
 // expired or stopped, and is dropped. The mixer raises no Stop for a one-shot that ran out, and the
 // mix thread's report retires it here instead.
 //
-// A warm play, stop or change allocates nothing. Meeting a bus for the first time allocates its buffer.
+// A warm play of a resident clip, a stop or a change allocates nothing. A streamed play opens the
+// clip's file and a decoder over it, because a file handle is per play. Meeting a bus for the first
+// time allocates its buffer.
 internal sealed class AudioPlayer
 {
     // Commands one step of 64 voices raises are a few hundred at most. The mix thread drains every

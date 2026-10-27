@@ -95,7 +95,6 @@ internal sealed class SdlAudioOutput : AudioOutput
     protected internal override void Submit(ReadOnlySpan<float> frames) =>
         Sdl3.SDL_PutAudioStreamData(_stream, in MemoryMarshal.GetReference(frames), frames.Length * sizeof(float));
 
-    // The default output's name in quotes.
     private static unsafe string DefaultName() =>
         Marshal.PtrToStringUTF8((nint)Sdl3.SDL_GetAudioDeviceName(Sdl3.DefaultPlayback)) is { Length: > 0 } name
             ? $"'{name}'"
