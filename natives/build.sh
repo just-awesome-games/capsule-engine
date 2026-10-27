@@ -11,8 +11,8 @@ set -eo pipefail
 
 # The upstream releases the packages carry. A bump edits the ref here and the package's Version.
 SDL3_REF=release-3.4.18
-DXC_REF=v1.9.2607
-SPIRV_CROSS_REF=vulkan-sdk-1.4.350.0
+DXC_REF=v1.9.2609
+SPIRV_CROSS_REF=vulkan-sdk-1.4.363.0
 
 package=$1
 rid=$2
