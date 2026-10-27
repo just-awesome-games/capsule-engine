@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Capsule.Bench;
 
@@ -27,7 +28,8 @@ internal static class Records
         string path = Path.Combine(SourceDirectory(), "results", subdirectory, started.ToString("yyyy-MM-dd'T'HH-mm-ss'Z'", CultureInfo.InvariantCulture) + ".json");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         using FileStream stream = File.Create(path);
-        JsonSerializer.Serialize(stream, record, Options);
+        // The contract is RecordJson's generated one, which a NativeAOT publish of the bench needs.
+        JsonSerializer.Serialize(stream, record, (JsonTypeInfo<T>)Options.GetTypeInfo(typeof(T)));
 
         return path;
     }

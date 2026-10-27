@@ -129,6 +129,7 @@ internal static class Suite
             uncapped,
             Machine.Commit(Records.SourceDirectory()),
             Machine.Configuration,
+            Machine.NativeAot,
             Machine.Os,
             Machine.Cpu(),
             Machine.Gpu(),

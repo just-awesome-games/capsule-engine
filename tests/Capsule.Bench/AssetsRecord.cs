@@ -7,6 +7,7 @@ internal sealed record AssetsRecord(
     string Label,
     string Commit,
     string Configuration,
+    bool NativeAot,
     string Os,
     string Cpu,
     string Gpu,

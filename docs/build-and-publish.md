@@ -214,8 +214,8 @@ also needs `C:\Program Files (x86)\Microsoft Visual Studio\Installer` on `PATH`.
 A shell's publish carries a `licenses/` folder: Capsule's license, its third-party notices for what Capsule carries and a
 game redistributes, and, when the runtime ships with the game, the .NET runtime's license and notices.
 
-A publish holds no `.pdb`, and a NativeAOT executable names its `.pdb` by file name alone, with no build-machine path. A NativeAOT publish defaults `StackTraceSupport` to `false`,
-`UseSystemResourceKeys` to `true` and `OptimizationPreference` to `Size`, which a project can set back. Its symbols go to
+A publish holds no `.pdb`, and a NativeAOT executable names its `.pdb` by file name alone, with no build-machine path. A NativeAOT publish defaults `OptimizationPreference` to `Size`. A
+shipping one also defaults `StackTraceSupport` to `false` and `UseSystemResourceKeys` to `true`. A project can set each back. Its symbols go to
 `CapsuleSymbolsDirectory`. A crash log's frames then read `MyGame!<BaseAddress>+0x296cd`. To decode one,
 copy the shipped executable into the symbols directory and run
 `llvm-symbolizer --relative-address --obj=<symbols>/MyGame.exe 0x296cd`. The MSVC Build Tools ship

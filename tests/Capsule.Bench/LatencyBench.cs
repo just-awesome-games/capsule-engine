@@ -105,6 +105,7 @@ internal static class LatencyBench
             label,
             Machine.Commit(Records.SourceDirectory()),
             Machine.Configuration,
+            Machine.NativeAot,
             Machine.Os,
             Machine.Cpu(),
             Machine.Gpu(),

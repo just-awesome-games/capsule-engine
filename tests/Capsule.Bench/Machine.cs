@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Capsule.Runtime;
 using Microsoft.Win32;
@@ -14,6 +15,9 @@ internal static class Machine
 #else
     internal const string Configuration = "Release";
 #endif
+
+    // Whether this process is a NativeAOT publish, as a shipped game is, rather than JIT-compiled.
+    internal static bool NativeAot => !RuntimeFeature.IsDynamicCodeSupported;
 
     internal static string Os => RuntimeInformation.OSDescription;
 

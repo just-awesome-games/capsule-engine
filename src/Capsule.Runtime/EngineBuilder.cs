@@ -421,7 +421,8 @@ public sealed class EngineBuilder
     }
 
     /// <summary>
-    /// Writes host timing to a CSV at <paramref name="path"/>. Off by default.
+    /// Writes host timing to a CSV at <paramref name="path"/>. Off by default, and a shipping build
+    /// ignores it.
     /// </summary>
     /// <remarks>
     /// The file holds a boot trace in milliseconds from process start, then one row per frame: the
@@ -839,8 +840,9 @@ public sealed class EngineBuilder
     private ISaveStorage? NamedSaveStorage() =>
         _saveStorage ?? (_saveDirectory is { } directory ? new DirectorySaveStorage(directory) : null);
 
+    // The switch's check lets a trimmed publish drop the capture and the process clock it reads.
     private FrameDiagnostics? OpenFrameDiagnostics() =>
-        _frameDiagnosticsPath is null
+        _frameDiagnosticsPath is null || !Development.IsSupported
             ? null
             : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds, Timestamp);
 

@@ -9,6 +9,7 @@ internal sealed record LatencyRecord(
     string Label,
     string Commit,
     string Configuration,
+    bool NativeAot,
     string Os,
     string Cpu,
     string Gpu,

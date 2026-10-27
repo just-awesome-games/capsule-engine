@@ -136,11 +136,22 @@ internal static class Program
         }
 
         // Twice in one process. Each run builds a fresh store, and the second read comes back from
-        // the file the first run wrote.
+        // the file the first run wrote. The second asks for frame diagnostics, which a shipping build
+        // ignores so that a trimmed publish drops them.
+        string frames = Path.Combine(Path.GetTempPath(), FormattableString.Invariant($"capsule-aot-smoke-frames-{Environment.ProcessId}.csv"));
         HeadlessRunResult result = Play(args);
         int? firstRead = FixtureScene.RunsRead;
-        HeadlessRunResult second = Play(args);
+        HeadlessRunResult second = Play(args, frames);
         int? secondRead = FixtureScene.RunsRead;
+        bool wroteFrames = File.Exists(frames);
+        File.Delete(frames);
+
+        if (wroteFrames == shipping)
+        {
+            Console.Error.WriteLine($"AOT smoke failed (9): a run asking for frame diagnostics wrote them: {wroteFrames}. A shipping build writes none and any other build writes them (shipping {shipping}).");
+
+            return 9;
+        }
 
         // The fixture's beacon constructor read a private field and a generic base's member, both set through
         // generated [UnsafeAccessor] setters, and a value read through its [JsonConverter], off its entry. Its
@@ -188,14 +199,22 @@ internal static class Program
 
     private static bool Registers(string driverName) => Array.IndexOf(SmokeDrivers.Names, driverName) >= 0;
 
-    private static HeadlessRunResult Play(string[] args) =>
-        CapsuleBoot.Configure("Capsule AOT Smoke")
+    private static HeadlessRunResult Play(string[] args, string? frames = null)
+    {
+        EngineBuilder engine = CapsuleBoot.Configure("Capsule AOT Smoke")
             .WithCommandLine(args)
             .WithRunStart(FixtureInput.Configure)
             .WithSampling(TextureSampling.Point)
             .WithoutCrashLog()
-            .WithoutLogging()
-            .RunHeadless<FixtureScene>(new InputScript().Wait(IdleSteps).Tap(Key.Escape).Build());
+            .WithoutLogging();
+
+        if (frames is not null)
+        {
+            engine = engine.WithFrameDiagnostics(frames);
+        }
+
+        return engine.RunHeadless<FixtureScene>(new InputScript().Wait(IdleSteps).Tap(Key.Escape).Build());
+    }
 
     // Assets/Textures/TileSets/Cave_Wall.png is spelled one way and keyed another. The document names it
     // under the authored spelling, and the run composing it resolves the key: the whole key path is proved here.

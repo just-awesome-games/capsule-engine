@@ -6,11 +6,14 @@
 
   <!-- Defaults a project can override, for a native publish only. Its crash log's addresses decode
        against the native symbols, and a managed publish keeps its method names. Code compiled for
-       size runs the engine's frames and steps no measurably slower. CapsuleShipping is set in
-       Capsule.Build.targets, ahead of this file. -->
+       size runs the engine's frames and steps no measurably slower. A development publish compiles
+       the same code a shipping one does, which it measures, and keeps its method names.
+       CapsuleShipping is set in Capsule.Build.targets, ahead of this file. -->
   <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true' and '$(CapsuleShipping)' == 'true' and '$(PublishAot)' == 'true'">
     <StackTraceSupport Condition="'$(StackTraceSupport)' == ''">false</StackTraceSupport>
     <UseSystemResourceKeys Condition="'$(UseSystemResourceKeys)' == ''">true</UseSystemResourceKeys>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true' and '$(PublishAot)' == 'true'">
     <OptimizationPreference Condition="'$(OptimizationPreference)' == ''">Size</OptimizationPreference>
   </PropertyGroup>
 
