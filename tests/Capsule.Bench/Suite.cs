@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using Capsule.Bench.Logic;
 using Capsule.Bench.Logic.Drivers;
 using Capsule.Bench.Logic.Scenes;
+using StbImageSharp;
 
 namespace Capsule.Bench;
 
@@ -207,8 +208,9 @@ internal static class Suite
         {
             string kept = Path.Combine(ArtifactsDirectory, $"{workload}-{label}.png");
             File.Move(StillCapture.Path, kept, overwrite: true);
-            using FileStream stream = File.OpenRead(kept);
-            sha256 = Convert.ToHexStringLower(SHA256.HashData(stream));
+            // The decoded texels, not the file, which a change of PNG encoder rewrites.
+            ImageResult capture = ImageResult.FromMemory(File.ReadAllBytes(kept), ColorComponents.RedGreenBlueAlpha);
+            sha256 = Convert.ToHexStringLower(SHA256.HashData(capture.Data));
         }
 
         return new WorkloadRecord(
