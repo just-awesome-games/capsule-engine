@@ -3,7 +3,7 @@
 The engine's performance harness, run by hand and never by CI or the commit hook. It is a Capsule game laid out as [`docs/build-and-publish.md`](../../docs/build-and-publish.md) describes, and each top-level scene is a workload. A scene declares its lane with `[Workload(...)]`, and the suite refuses one without it. A scene that declares several lanes is measured once in each. A lane's row is named for its class unless `Row` names a variant, which the class builds on its own document when `Workloads.Running` holds that name. `--scene` takes a row's name. A nested scene is part of the workload that declares it.
 
 - `WorkloadKind.Simulation` runs headless with no window, device or media. It times 600 fixed steps after 180 warm-up steps. Between steps the driver builds the frame a presenting host would and times it apart.
-- `WorkloadKind.Rendering` runs windowed for six real seconds on the attribute's surface: `Surface.Canvas360` (640x360 point-sampled, the default) or `Surface.Hd1080` (1920x1080 linear). It drops the first 120 frames and measures each frame's update, build and submission, its interval, and the bytes it allocates.
+- `WorkloadKind.Rendering` runs windowed for six real seconds on the attribute's surface: `Surface.Canvas360` (640x360 point-sampled, the default) or `Surface.Hd1080` (1920x1080 linear). It drops the first 120 frames or the first second, whichever is longer, and measures each frame's update, build and submission, its interval, and the bytes it allocates.
 - `WorkloadKind.Paced` runs headless through the host's frame loop for six real seconds, paced to the step rate as a window presenting once a step would be. Each frame runs the steps its wall time bought, within the step bound and the step budget. A step that overruns its length shows in the frame interval a player would see. It drops the first second and measures frame interval, steps run, each frame's update and build, and the bytes it allocates.
 - `Mix64` is not a scene. The suite runs it inside the suite's process, alongside the headless lane, and it times the host's sound mix one 512-frame block at a time with no device: 63 resident voices resampled at spread pitches and one stream.
 
@@ -37,6 +37,7 @@ Changing a workload's definition resets its history. Compare by label and commit
 - Records before `rung26-mixer` carry no `Mix64` row.
 - Records before `h0-gl` carry no `StillShaded` or `StillHd` row.
 - Records before `h11` carry no `nativeAot` and ran JIT-compiled.
+- Windowed rows before `h13` drop only their first 120 frames, which an uncapped run passes within its first 40 ms.
 - Windowed and paced rows before `frame-columns` carry no `updateMs` or `frameBytes`. Their windowed rows carry no `viewMs`, and a paced row's `viewMs` covers every frame.
 
 To add a workload, add a scene class with a `[Workload]` attribute under `Capsule.Bench.Logic/Scenes/`, composed from `Entities/`, `Components/`, `Cameras/` and `UI/` as a game would be. A level an editor would export is a `*.scene.json` under `Assets/Scenes/`, as `Stage` claims `stage.scene.json`. Commit a large generated grid as data, one row per line. Frame a workload with `ParkedCamera` unless camera travel is the point, and keep anything captured static.

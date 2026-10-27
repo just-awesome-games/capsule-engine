@@ -1,3 +1,4 @@
+using Capsule.Diagnostics;
 using Capsule.Persistence;
 using Capsule.Runtime.Audio;
 using Capsule.Runtime.Persistence;
@@ -53,10 +54,18 @@ public class HostPlatform
     /// </summary>
     /// <remarks>
     /// The default overwrites <c>crash.log</c> in the game's per-user local folder, beside its
-    /// <c>saves</c> subfolder. Must not throw.
+    /// <c>saves</c> subfolder, headed by the time, the game's and Capsule's versions, the system, and the
+    /// executable's SHA-256, which matches the log to the build's symbols. A shipping build then tells the player in a message box titled with the
+    /// game's name and naming the log, because its window closes with no console. Must not throw.
     /// </remarks>
-    protected internal virtual void ReportCrash(string localFolderName, Exception exception) =>
-        CrashLog.TryWrite(localFolderName, exception);
+    protected internal virtual void ReportCrash(string gameName, string localFolderName, Exception exception)
+    {
+        string? log = CrashLog.TryWrite(gameName, localFolderName, exception);
+        if (!Development.IsSupported)
+        {
+            CrashLog.TryShow(gameName, log);
+        }
+    }
 
     /// <summary>
     /// Brings the window to the front once, on the first frame drawn after it is shown. The default

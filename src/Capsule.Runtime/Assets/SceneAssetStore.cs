@@ -36,6 +36,9 @@ internal sealed class SceneAssetStore<THandle, TAsset> : IDisposable
         _uploadBudget = uploadBudget;
     }
 
+    // Whether no decode is in flight and no prefetched asset is uploading. A scene's loads have settled.
+    internal bool Settled => _decoding.Count == 0 && _uploading is null;
+
     // A hit performs no allocation or I/O.
     internal bool TryGet(in THandle handle, out TAsset asset) => _loaded.TryGetValue(handle, out asset!);
 

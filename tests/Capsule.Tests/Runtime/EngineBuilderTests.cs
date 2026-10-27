@@ -147,7 +147,7 @@ public sealed class EngineBuilderTests
 
         FileNotFoundException failure = Assert.Throws<FileNotFoundException>(() => builder.RunScene(new SceneKey("rooms/room-01")));
 
-        Assert.Same(failure, Assert.Single(platform.Reported));
+        Assert.Equal((GameName, failure), Assert.Single(platform.Reported));
     }
 
     private static EngineBuilder SceneBuilder(string gameName = GameName) =>
@@ -185,12 +185,12 @@ public sealed class EngineBuilderTests
     // Ships nothing, keeps saves under the given root and records what the run reports as a crash.
     private sealed class CrashRecordingPlatform(string saveRoot) : HostPlatform
     {
-        internal List<Exception> Reported { get; } = [];
+        internal List<(string GameName, Exception Exception)> Reported { get; } = [];
 
         protected internal override Stream OpenContent(string relativePath) => throw new FileNotFoundException(null, relativePath);
 
         protected internal override ISaveStorage OpenSaveStorage(string localFolderName) => new DirectorySaveStorage(saveRoot);
 
-        protected internal override void ReportCrash(string localFolderName, Exception exception) => Reported.Add(exception);
+        protected internal override void ReportCrash(string gameName, string localFolderName, Exception exception) => Reported.Add((gameName, exception));
     }
 }

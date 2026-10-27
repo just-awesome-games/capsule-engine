@@ -56,6 +56,8 @@ public sealed class EngineBuilder
     private IScenePayload? _commandLinePayload;
     private bool _headless;
 
+    internal string GameName => _gameName;
+
     // The settled configuration the host reads. Each value is validated by the WithX that wrote it.
     internal HostPlatform Platform { get; private set; } = new();
 
@@ -651,7 +653,7 @@ public sealed class EngineBuilder
         }
         catch (Exception exception) when (_writesCrashLog)
         {
-            Platform.ReportCrash(_localFolderName, exception);
+            Platform.ReportCrash(_gameName, _localFolderName, exception);
             throw;
         }
 

@@ -22,9 +22,10 @@ internal static class Suite
     // out of the measured window at 165 Hz and a fortiori at 60.
     private const int WarmUpFrames = 120;
 
-    // The paced lane drops its first second instead, which carries the run's first compilations. An
-    // overloaded workload runs a frame a second or slower, and a frame count would drop all of them.
-    private const double PacedWarmUpMs = 1000d;
+    // Both framed lanes drop the run's first second, which carries its first compilations and one-time
+    // growth. An overloaded workload runs a frame a second or slower, and a frame count would drop all
+    // of them. An uncapped window passes 120 frames within its first 40 ms.
+    private const double WarmUpMs = 1000d;
 
     private const string Usage = "usage: Capsule.Bench suite [--label <text>] [--lane simulation|rendering|paced] [--uncapped]";
 
@@ -177,8 +178,8 @@ internal static class Suite
         return new WorkloadRecord(workload, "headless", Program.Describe(lane.Surface), stepMs.Length, null, null, null, new StepTiming(step.Median, step.P95), new StepTiming(view.Median, view.P95), stepBytes, viewBytes, null, null, gen0, null);
     }
 
-    // `--scene X --frames <csv> 6`: the host writes a row per frame. The first WarmUpFrames are
-    // dropped, and gen-0 is counted from the last warm-up row so the first measured frame counts.
+    // `--scene X --frames <csv> 6`: the host writes a row per frame. The first WarmUpFrames or the first
+    // second, whichever is longer, are dropped, and gen-0 is counted from the last warm-up row so the first measured frame counts.
     // Uncapped, the host presents without vertical sync and the interval is the true frame cost.
     private static WorkloadRecord? Windowed(string executable, string workload, WorkloadAttribute lane, string label, bool uncapped)
     {
@@ -196,7 +197,7 @@ internal static class Suite
             arguments.Add("--uncapped");
         }
 
-        if (!RunChild(executable, workload, arguments, static _ => false) || MeasuredFrames(csv, workload, static _ => WarmUpFrames, out int gen0) is not { } frames)
+        if (!RunChild(executable, workload, arguments, static _ => false) || MeasuredFrames(csv, workload, static frames => Math.Max(WarmUpFrames, FirstSecond(frames)), out int gen0) is not { } frames)
         {
             return null;
         }
@@ -235,7 +236,7 @@ internal static class Suite
     {
         string csv = Path.Combine(ArtifactsDirectory, workload + ".paced.csv");
         List<string> arguments = ["--headless", "--driver", nameof(Idle), "--frames", csv, SecondsPerFramedWorkload.ToString(CultureInfo.InvariantCulture)];
-        if (!RunChild(executable, workload, arguments, static _ => false) || MeasuredFrames(csv, workload, PacedWarmUp, out int gen0) is not { } frames)
+        if (!RunChild(executable, workload, arguments, static _ => false) || MeasuredFrames(csv, workload, FirstSecond, out int gen0) is not { } frames)
         {
             return null;
         }
@@ -292,11 +293,11 @@ internal static class Suite
         return frames;
     }
 
-    // The frames that began within the run's first PacedWarmUpMs.
-    private static int PacedWarmUp(List<FrameRow> frames)
+    // The frames that began within the run's first WarmUpMs.
+    private static int FirstSecond(List<FrameRow> frames)
     {
         int count = 0;
-        for (double elapsed = 0d; count < frames.Count && elapsed < PacedWarmUpMs; count++)
+        for (double elapsed = 0d; count < frames.Count && elapsed < WarmUpMs; count++)
         {
             elapsed += frames[count].IntervalMs;
         }

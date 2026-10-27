@@ -10,6 +10,7 @@ using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Runtime.Assets;
+using Capsule.Runtime.Platform;
 using Capsule.Scenes;
 
 namespace Capsule.AotSmoke;
@@ -182,6 +183,16 @@ internal static class Program
                     $"AOT smoke failed (10): {ShoveSteps} steady steps of a platform shoving a body allocated {shoveBytes} bytes over {shoves} shoves. A steady step allocates nothing, and the steps must shove at least once."));
 
             return 10;
+        }
+
+        // A crash log names its build. Trimming must keep the version attributes it reads, and the
+        // executable it hashes is this one.
+        string build = BuildIdentity.Describe("Capsule AOT Smoke");
+        if (build.Contains("unknown", StringComparison.Ordinal))
+        {
+            Console.Error.WriteLine($"AOT smoke failed (11): a crash log's header could not read part of the build:{Environment.NewLine}{build}");
+
+            return 11;
         }
 
         bool contentShipped = ContentShipped();

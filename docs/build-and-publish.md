@@ -216,8 +216,12 @@ game redistributes, and, when the runtime ships with the game, the .NET runtime'
 
 A publish holds no `.pdb`, and a NativeAOT executable names its `.pdb` by file name alone, with no build-machine path. A NativeAOT publish defaults `OptimizationPreference` to `Speed`. A
 shipping one also defaults `StackTraceSupport` to `false` and `UseSystemResourceKeys` to `true`. A project can set each back. Its symbols go to
-`CapsuleSymbolsDirectory`. A crash log's frames then read `MyGame!<BaseAddress>+0x296cd`. To decode one,
-copy the shipped executable into the symbols directory and run
+`CapsuleSymbolsDirectory`. A crash log's frames then read `MyGame!<BaseAddress>+0x296cd`, and only that
+build's symbols decode them. Archive the executable and the symbols directory of every build you
+distribute, together. A crash log's header names its build: the game's and Capsule's versions, each
+suffixed with the commit it was built from, the system, and the executable's file name and SHA-256. Find the
+archived executable with that hash, or rebuild the same sources with the same SDK and native toolchain, which
+reproduces it on Windows. Copy it into its symbols directory and run
 `llvm-symbolizer --relative-address --obj=<symbols>/MyGame.exe 0x296cd`. The MSVC Build Tools ship
 `llvm-symbolizer` under `VC/Tools/MSVC/<version>/bin/Hostx64/x64`.
 

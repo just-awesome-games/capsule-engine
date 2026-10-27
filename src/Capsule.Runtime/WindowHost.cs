@@ -95,6 +95,10 @@ internal sealed unsafe class WindowHost
     // The run's display as the window last applied it.
     private WindowRequest _applied;
 
+    // The display scale per pixel density the window's size was last set for. Above 1 only where a
+    // window coordinate is a pixel, which a move between displays leaves unscaled.
+    private float _sizedScale = 1f;
+
     internal WindowHost(EngineBuilder builder, SceneHost scenes, FrameDiagnostics? diagnostics)
     {
         _builder = builder;
@@ -155,6 +159,7 @@ internal sealed unsafe class WindowHost
 
         try
         {
+            Sdl3.SDL_SetAppMetadata(_builder.GameName, null, null);
             Sdl3.SDL_EnterAppMainCallbacks(0, null, &OnInit, &OnIterate, &OnEvent, &OnQuit);
         }
         finally
@@ -455,8 +460,13 @@ internal sealed unsafe class WindowHost
             _overlayHeld?.Invoke() ?? false,
             _renderer.ScreenLayer.Scale);
 
-        // Every frame, after the steps. The window follows the settled display, and the next frame
-        // waits the period it asks for now.
+        // Every frame, after the steps. The window keeps its apparent size across displays, then follows
+        // the settled display, and the next frame waits the period it asks for now.
+        if (events.DisplayScaleMayHaveChanged)
+        {
+            KeepApparentSize(flags);
+        }
+
         ApplyDisplay(_scenes.Run.Display);
         _scheduler.FramePeriodSeconds = FramePacer.PeriodSeconds(_scenes.Run.Display, active, _minimized, _builder.StepSeconds, _builder.Uncapped);
 
@@ -648,16 +658,73 @@ internal sealed unsafe class WindowHost
     // window takes it on leaving fullscreen.
     private void ResizeWindow(Display display)
     {
-        Sdl3.DisplayMode* mode = Sdl3.SDL_GetDesktopDisplayMode(Sdl3.SDL_GetDisplayForWindow(_window));
+        (int displayWidth, int displayHeight) = DisplayPixels();
         float scale = Sdl3.SDL_GetWindowDisplayScale(_window);
-        (int width, int height) = display.WindowPixels(
-            mode == null ? int.MaxValue : (int)(mode->Width * mode->PixelDensity),
-            mode == null ? int.MaxValue : (int)(mode->Height * mode->PixelDensity),
-            scale > 0f ? scale : 1f);
+        (int width, int height) = display.WindowPixels(displayWidth, displayHeight, scale > 0f ? scale : 1f);
+        SetWindowPixels(width, height);
+    }
 
-        float density = Sdl3.SDL_GetWindowPixelDensity(_window);
-        density = density > 0f ? density : 1f;
+    // A windowed window moved to a display of another scale keeps the size it appears at, the player's
+    // own size included. Where a window coordinate is a pixel SDL keeps the pixels, which would show the
+    // window at a fraction or a multiple of its size. A fullscreen or maximized window takes the
+    // display's size and is rescaled once it is neither.
+    private void KeepApparentSize(ulong flags)
+    {
+        if ((flags & (Sdl3.WindowFullscreen | Sdl3.WindowMaximized | Sdl3.WindowMinimized)) != 0)
+        {
+            return;
+        }
+
+        float scale = ApparentScale();
+        if (scale == _sizedScale)
+        {
+            return;
+        }
+
+        int width;
+        int height;
+        if (!Sdl3.SDL_GetWindowSizeInPixels(_window, &width, &height))
+        {
+            return;
+        }
+
+        (int displayWidth, int displayHeight) = DisplayPixels();
+        (width, height) = Display.Rescaled(width, height, _sizedScale, scale, displayWidth, displayHeight);
+        SetWindowPixels(width, height);
+    }
+
+    // The desktop extent in pixels of the display the window is on, unbounded when SDL cannot say.
+    private (int Width, int Height) DisplayPixels()
+    {
+        Sdl3.DisplayMode* mode = Sdl3.SDL_GetDesktopDisplayMode(Sdl3.SDL_GetDisplayForWindow(_window));
+
+        return mode == null
+            ? (int.MaxValue, int.MaxValue)
+            : ((int)(mode->Width * mode->PixelDensity), (int)(mode->Height * mode->PixelDensity));
+    }
+
+    // The window's size in pixels, set in window coordinates, and the scale it was set for.
+    private void SetWindowPixels(int width, int height)
+    {
+        float density = PixelDensity();
         Sdl3.SDL_SetWindowSize(_window, (int)MathF.Round(width / density), (int)MathF.Round(height / density));
+        _sizedScale = ApparentScale();
+    }
+
+    // The display's scale that window coordinates do not already carry: 1 where SDL scales the window
+    // with its display, and the display scale where a window coordinate is a pixel.
+    private float ApparentScale()
+    {
+        float scale = Sdl3.SDL_GetWindowDisplayScale(_window);
+
+        return (scale > 0f ? scale : 1f) / PixelDensity();
+    }
+
+    private float PixelDensity()
+    {
+        float density = Sdl3.SDL_GetWindowPixelDensity(_window);
+
+        return density > 0f ? density : 1f;
     }
 
     // The development flag uncaps the window whatever the run asks for.

@@ -46,6 +46,10 @@ internal sealed class InputEvents(TriggerEdges triggers)
     // Whether the keyboard layout changed, which relabels the keys.
     internal bool KeymapChanged { get; private set; }
 
+    // Whether the window's display scale changed, or the window was restored or left fullscreen and
+    // may have missed a change while its size was the display's.
+    internal bool DisplayScaleMayHaveChanged { get; private set; }
+
     // The SDL_GetTicksNS time of every key, mouse button and pad button that went down, in event order.
     // Empty unless the development plane is on.
     internal ReadOnlySpan<ulong> PressTimes => _pressTimes.AsSpan(0, _pressTimeCount);
@@ -130,6 +134,12 @@ internal sealed class InputEvents(TriggerEdges triggers)
             case Sdl3.EventKeymapChanged:
                 KeymapChanged = true;
                 break;
+
+            case Sdl3.EventWindowDisplayScaleChanged:
+            case Sdl3.EventWindowRestored:
+            case Sdl3.EventWindowLeaveFullscreen:
+                DisplayScaleMayHaveChanged = true;
+                break;
         }
     }
 
@@ -142,6 +152,7 @@ internal sealed class InputEvents(TriggerEdges triggers)
         LastPadPressed = 0;
         PadsChanged = false;
         KeymapChanged = false;
+        DisplayScaleMayHaveChanged = false;
         _padCount = 0;
         _pressTimeCount = 0;
     }

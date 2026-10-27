@@ -86,9 +86,16 @@ public sealed class Display
 
     // The client size the host gives the window on a display of this extent and scale: the request
     // scaled, in whole pixels, shrunk to fit with its aspect kept.
-    internal (int Width, int Height) WindowPixels(int displayWidth, int displayHeight, float displayScale)
+    internal (int Width, int Height) WindowPixels(int displayWidth, int displayHeight, float displayScale) =>
+        Fit(WindowSize * displayScale, displayWidth, displayHeight);
+
+    // The client size that keeps a window of width by height pixels looking the same size after its
+    // display's scale moves from one value to another, shrunk to fit the new display with its aspect kept.
+    internal static (int Width, int Height) Rescaled(int width, int height, float fromScale, float toScale, int displayWidth, int displayHeight) =>
+        Fit(new Vector2(width, height) * (toScale / fromScale), displayWidth, displayHeight);
+
+    private static (int Width, int Height) Fit(Vector2 scaled, int displayWidth, int displayHeight)
     {
-        Vector2 scaled = WindowSize * displayScale;
         float fit = MathF.Min(1f, MathF.Min(displayWidth / scaled.X, displayHeight / scaled.Y));
 
         return (Math.Max(1, (int)MathF.Round(scaled.X * fit)), Math.Max(1, (int)MathF.Round(scaled.Y * fit)));

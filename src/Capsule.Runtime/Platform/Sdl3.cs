@@ -140,6 +140,15 @@ internal static unsafe partial class Sdl3
     [return: MarshalAs(UnmanagedType.U1)]
     internal static extern bool SDL_InitSubSystem(uint flags);
 
+    // The name the system shows for the process, such as in a sound mixer's list. Unset, SDL shows the
+    // executable's name. A null version or identifier leaves SDL's default.
+    [DllImport(LibraryName, ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    internal static extern bool SDL_SetAppMetadata(
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string name,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string? version,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string? identifier);
+
     [DllImport(LibraryName, ExactSpelling = true)]
     internal static extern void SDL_QuitSubSystem(uint flags);
 

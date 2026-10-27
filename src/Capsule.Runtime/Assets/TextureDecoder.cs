@@ -85,7 +85,8 @@ internal static class TextureDecoder
     }
 }
 
-// Keeps at most Concurrency buffers of at least 85 000 bytes, replacing the smallest when full.
+// Keeps at most Concurrency buffers of at least 85 000 bytes, replacing the smallest when full, until
+// its owner clears it.
 internal sealed class TexelPool
 {
     // Below this a buffer is not on the large object heap, and the GC reclaims it cheaply.
@@ -140,6 +141,15 @@ internal sealed class TexelPool
             {
                 _free[smallest] = buffer;
             }
+        }
+    }
+
+    // Drops every buffer, which the next collection reclaims.
+    internal void Clear()
+    {
+        lock (_lock)
+        {
+            _free.Clear();
         }
     }
 

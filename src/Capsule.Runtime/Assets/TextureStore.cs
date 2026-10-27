@@ -82,7 +82,9 @@ internal sealed class TextureStore : IDisposable
     internal SampledTexture Create(in DecodedTexture decoded) => new TextureUpload(this, decoded).Finish();
 
     // Uploads every texture created since the last frame, then spends the frame's upload budget on
-    // prefetched pages, in the frame's copy pass.
+    // prefetched pages, in the frame's copy pass. Once the loads settle the decode buffers go, sized by
+    // the largest page and needed again only by the next boundary's loads. A discarded decode that
+    // returns its buffer late is dropped at the next settled pump.
     internal void Pump(GpuCopyPass copy)
     {
         _copy = copy;
@@ -95,6 +97,10 @@ internal sealed class TextureStore : IDisposable
 
             _deferred.Clear();
             _textures.Pump();
+            if (_textures.Settled)
+            {
+                _pool.Clear();
+            }
         }
         finally
         {

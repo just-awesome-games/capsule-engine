@@ -8,14 +8,21 @@ internal static unsafe partial class Sdl3
     internal const uint InitVideo = 0x00000020;
 
     internal const uint EventQuit = 0x100;
+    internal const uint EventWindowRestored = 0x20B;
+    internal const uint EventWindowDisplayScaleChanged = 0x214;
+    internal const uint EventWindowLeaveFullscreen = 0x218;
 
     // SDL_WindowFlags.
     internal const ulong WindowFullscreen = 0x1;
     internal const ulong WindowHidden = 0x8;
     internal const ulong WindowResizable = 0x20;
     internal const ulong WindowMinimized = 0x40;
+    internal const ulong WindowMaximized = 0x80;
     internal const ulong WindowInputFocus = 0x200;
     internal const ulong WindowHighPixelDensity = 0x2000;
+
+    // SDL_MESSAGEBOX_ERROR.
+    internal const uint MessageBoxError = 0x10;
 
     // SDL_AppResult.
     internal enum AppResult
@@ -102,6 +109,15 @@ internal static unsafe partial class Sdl3
     [DllImport(LibraryName, ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.U1)]
     internal static extern bool SDL_SetWindowMouseGrab(nint window, [MarshalAs(UnmanagedType.U1)] bool grabbed);
+
+    // A modal box with one button, which SDL can show before it initializes and after it quits.
+    [DllImport(LibraryName, ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    internal static extern bool SDL_ShowSimpleMessageBox(
+        uint flags,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string title,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string message,
+        nint window);
 
     // The extent is in window coordinates, and PixelDensity converts it to pixels.
     [StructLayout(LayoutKind.Sequential)]

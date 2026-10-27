@@ -23,4 +23,17 @@ public sealed class TexelPoolTests
         Assert.Same(largest, pool.Rent(largest.Length));
         Assert.NotSame(pages[0], pool.Rent(pages[0].Length));
     }
+
+    [Fact]
+    public void Clear_DropsEveryBuffer()
+    {
+        TexelPool pool = new();
+        byte[] page = new byte[100_000];
+        pool.Return(page);
+
+        pool.Clear();
+
+        Assert.Equal(0, pool.Count);
+        Assert.NotSame(page, pool.Rent(page.Length));
+    }
 }

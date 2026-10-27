@@ -19,9 +19,11 @@
   </PropertyGroup>
 
   <!-- The executable names its pdb by file name alone, never the build machine's path. The pdb's
-       signature, which a crash decodes against, is unchanged. -->
+       signature, which a crash decodes against, is unchanged. A reproducible link stamps no time. The
+       same sources then rebuild to the executable a crash log's hash names. -->
   <ItemGroup Condition="'$(CapsuleGameShell)' == 'true' and '$(PublishAot)' == 'true' and '$(OS)' == 'Windows_NT'">
     <LinkerArg Include="/PDBALTPATH:%25_PDB%25" />
+    <LinkerArg Include="/Brepro" />
   </ItemGroup>
 
   <!-- Symbols are generated as usual and never copied into the publish directory, and neither is
