@@ -42,7 +42,7 @@
 
   <!-- SDL3 for each desktop runtime identifier, which natives/ builds. A port supplies its own. -->
   <ItemGroup>
-    <PackageReference Include="JAG.Capsule.Native.SDL3" Version="3.4.18.3" />
+    <PackageReference Include="JAG.Capsule.Native.SDL3" Version="3.4.18.4" />
   </ItemGroup>
 
   <!-- The pure modules arrive through their pack root, not one by one: referencing them directly
