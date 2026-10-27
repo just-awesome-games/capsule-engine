@@ -422,7 +422,7 @@ public sealed class EngineBuilder
 
     /// <summary>
     /// Writes host timing to a CSV at <paramref name="path"/>. Off by default, and a shipping build
-    /// ignores it.
+    /// ignores it and logs a warning.
     /// </summary>
     /// <remarks>
     /// The file holds a boot trace in milliseconds from process start, then one row per frame: the
@@ -840,11 +840,27 @@ public sealed class EngineBuilder
     private ISaveStorage? NamedSaveStorage() =>
         _saveStorage ?? (_saveDirectory is { } directory ? new DirectorySaveStorage(directory) : null);
 
-    // The switch's check lets a trimmed publish drop the capture and the process clock it reads.
-    private FrameDiagnostics? OpenFrameDiagnostics() =>
-        _frameDiagnosticsPath is null || !Development.IsSupported
-            ? null
-            : new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds, Timestamp);
+    // The switch's check lets a trimmed publish drop the capture and the process clock it reads. The
+    // warning names the exit too, since an unattended run counting on it would never end.
+    private FrameDiagnostics? OpenFrameDiagnostics()
+    {
+        if (_frameDiagnosticsPath is null)
+        {
+            return null;
+        }
+
+        if (!Development.IsSupported)
+        {
+            Log.Warning(
+                _frameDiagnosticsExitAfterSeconds is { } seconds
+                    ? FormattableString.Invariant($"frame diagnostics are off in a shipping build: nothing is written to {_frameDiagnosticsPath}, and the run does not exit after {seconds} s")
+                    : $"frame diagnostics are off in a shipping build: nothing is written to {_frameDiagnosticsPath}");
+
+            return null;
+        }
+
+        return new FrameDiagnostics(_frameDiagnosticsPath, _builderEntered, _frameDiagnosticsExitAfterSeconds, Timestamp);
+    }
 
     // Prefixes console lines with tick until the stamp is disposed. The host owns the clock only while
     // it runs. A line written after the run, or by the next run's scene construction, has no clock.

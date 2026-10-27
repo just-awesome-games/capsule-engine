@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using Capsule.AotSmoke.Logic;
@@ -33,6 +34,12 @@ internal static class Program
     private const string FontPageTexelsSha256 = "4F13FA9BDBEB25D496632C2E31133CF54C61C2593323F881F6B114384BAF7D4E";
 
     private const string SavesFlag = "--saves";
+
+    // The warm-up grows every buffer the shove path keeps. The lift's round trip is 64 steps, and the
+    // measured steps cover two.
+    private const int ShoveWarmupSteps = 120;
+
+    private const int ShoveSteps = 128;
 
     public static int Main(string[] args)
     {
@@ -137,18 +144,19 @@ internal static class Program
 
         // Twice in one process. Each run builds a fresh store, and the second read comes back from
         // the file the first run wrote. The second asks for frame diagnostics, which a shipping build
-        // ignores so that a trimmed publish drops them.
+        // ignores so that a trimmed publish drops them, and says so.
         string frames = Path.Combine(Path.GetTempPath(), FormattableString.Invariant($"capsule-aot-smoke-frames-{Environment.ProcessId}.csv"));
         HeadlessRunResult result = Play(args);
         int? firstRead = FixtureScene.RunsRead;
-        HeadlessRunResult second = Play(args, frames);
+        WarningSink warnings = new();
+        HeadlessRunResult second = Play(args, frames, warnings);
         int? secondRead = FixtureScene.RunsRead;
         bool wroteFrames = File.Exists(frames);
         File.Delete(frames);
 
-        if (wroteFrames == shipping)
+        if (wroteFrames == shipping || warnings.Count != (shipping ? 1 : 0))
         {
-            Console.Error.WriteLine($"AOT smoke failed (9): a run asking for frame diagnostics wrote them: {wroteFrames}. A shipping build writes none and any other build writes them (shipping {shipping}).");
+            Console.Error.WriteLine($"AOT smoke failed (9): a run asking for frame diagnostics wrote them: {wroteFrames}, and warned of it {warnings.Count} times. A shipping build writes none and warns once, and any other build writes them without a warning (shipping {shipping}).");
 
             return 9;
         }
@@ -162,6 +170,18 @@ internal static class Program
                 $"AOT smoke failed (7): the fixture's beacon read its route, generic-base band and private charge as '{Beacon.Read}', not '{Beacon.Expected}', and its anchor reference was set: {Beacon.Anchored}.");
 
             return 7;
+        }
+
+        // A steady step allocates nothing. A sort given no comparison allocates on every call in this
+        // build alone, and the shove path sorts on every move of a platform.
+        (long shoveBytes, int shoves) = Shove();
+        if (shoveBytes != 0 || shoves == 0)
+        {
+            Console.Error.WriteLine(
+                FormattableString.Invariant(
+                    $"AOT smoke failed (10): {ShoveSteps} steady steps of a platform shoving a body allocated {shoveBytes} bytes over {shoves} shoves. A steady step allocates nothing, and the steps must shove at least once."));
+
+            return 10;
         }
 
         bool contentShipped = ContentShipped();
@@ -197,9 +217,27 @@ internal static class Program
         return Convert.ToHexString(SHA256.HashData(TextureDecoder.Decode(file, new TexelPool(), "menu").Texels));
     }
 
+    private static (long Bytes, int Shoves) Shove()
+    {
+        // Two bodies meet the lift together, because a sort leaves a span of one alone.
+        Scene scene = new();
+        scene.Add(new ShoveLift(Vector2.Zero));
+        ShovedBody body = new(new Vector2(40f, 0f));
+        scene.Add(body);
+        scene.Add(new ShovedBody(new Vector2(40f, 2f)));
+
+        using SimulationHost host = new(scene);
+        host.Step(ShoveWarmupSteps);
+        int shovesBefore = body.Shoves;
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        host.Step(ShoveSteps);
+
+        return (GC.GetAllocatedBytesForCurrentThread() - before, body.Shoves - shovesBefore);
+    }
+
     private static bool Registers(string driverName) => Array.IndexOf(SmokeDrivers.Names, driverName) >= 0;
 
-    private static HeadlessRunResult Play(string[] args, string? frames = null)
+    private static HeadlessRunResult Play(string[] args, string? frames = null, ILogSink? warnings = null)
     {
         EngineBuilder engine = CapsuleBoot.Configure("Capsule AOT Smoke")
             .WithCommandLine(args)
@@ -211,6 +249,11 @@ internal static class Program
         if (frames is not null)
         {
             engine = engine.WithFrameDiagnostics(frames);
+        }
+
+        if (warnings is not null)
+        {
+            engine = engine.WithLogSink(warnings);
         }
 
         return engine.RunHeadless<FixtureScene>(new InputScript().Wait(IdleSteps).Tap(Key.Escape).Build());
@@ -238,4 +281,18 @@ internal static class Program
 
     private static bool Shipped(string path) =>
         File.Exists(Path.Combine(AppContext.BaseDirectory, "assets", path));
+
+    // Counts the warnings naming frame diagnostics. Another warning the run logs passes by.
+    private sealed class WarningSink : ILogSink
+    {
+        public int Count { get; private set; }
+
+        public void Write(LogLevel level, string message)
+        {
+            if (level == LogLevel.Warning && message.Contains("frame diagnostics", StringComparison.Ordinal))
+            {
+                Count++;
+            }
+        }
+    }
 }

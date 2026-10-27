@@ -58,7 +58,9 @@ internal sealed class PadRoster
         }
 
         found = found[..count];
-        found.Sort();
+
+        // A sort given no comparison allocates on every call in a NativeAOT build.
+        found.Sort(static (left, right) => left.CompareTo(right));
         foreach (uint id in found)
         {
             if (open(id) is { } pad)

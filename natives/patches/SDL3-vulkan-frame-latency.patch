@@ -1,0 +1,129 @@
+Capsule's fix for SDL 3.4.18's Vulkan frame latency under vsync. A frame began once the previous one's
+commands finished, and its GPU work then waited for an image the display still held, so its input
+reached the screen a refresh later than Direct3D 12's. The swapchain wait now acquires the next image
+and blocks until the display lets it go, and the frame uses that image. Drop it once SDL releases a fix.
+
+diff --git a/src/gpu/vulkan/SDL_gpu_vulkan.c b/src/gpu/vulkan/SDL_gpu_vulkan.c
+index 2782f41..080d22a 100644
+--- a/src/gpu/vulkan/SDL_gpu_vulkan.c
++++ b/src/gpu/vulkan/SDL_gpu_vulkan.c
+@@ -704,6 +704,12 @@ typedef struct WindowData
+     SDL_GPUFence *inFlightFences[MAX_FRAMES_IN_FLIGHT];
+ 
+     Uint32 frameCounter;
++
++    // The image a vsync frame's wait acquired before the frame began, and the fence the wait blocked on
++    // until the display let the image go. A frame holding no such image acquires it as before.
++    VkFence acquireFence;
++    Uint32 acquiredImageIndex;
++    bool imageAcquired;
+ } WindowData;
+ 
+ typedef struct SwapchainSupportDetails
+@@ -3347,6 +3353,15 @@ static void VULKAN_INTERNAL_DestroySwapchainImage(
+     SDL_free(windowData->renderFinishedSemaphore);
+     windowData->renderFinishedSemaphore = NULL;
+ 
++    if (windowData->acquireFence != VK_NULL_HANDLE) {
++        renderer->vkDestroyFence(
++            renderer->logicalDevice,
++            windowData->acquireFence,
++            NULL);
++        windowData->acquireFence = VK_NULL_HANDLE;
++    }
++    windowData->imageAcquired = false;
++
+     windowData->imageCount = 0;
+ }
+ 
+@@ -4643,6 +4658,7 @@ static Uint32 VULKAN_INTERNAL_CreateSwapchain(
+     Uint32 i;
+ 
+     windowData->frameCounter = 0;
++    windowData->imageAcquired = false;
+ 
+     if (!VULKAN_INTERNAL_QuerySwapchainSupport(
+             renderer,
+@@ -10110,6 +10126,56 @@ static Uint32 VULKAN_INTERNAL_RecreateSwapchain(
+     return VULKAN_INTERNAL_CreateSwapchain(renderer, windowData);
+ }
+ 
++// Acquires the next vsync image before the frame begins, and blocks until the display lets it go. A
++// frame that began first sampled its input a refresh before its GPU work could start, since the GPU
++// waited on that image. Acquiring later leaves the device to signal the image's semaphore as before.
++static void VULKAN_INTERNAL_AcquireAhead(
++    VulkanRenderer *renderer,
++    WindowData *windowData)
++{
++    if (windowData->imageAcquired ||
++        windowData->presentMode != SDL_GPU_PRESENTMODE_VSYNC ||
++        windowData->swapchain == VK_NULL_HANDLE ||
++        windowData->needsSwapchainRecreate ||
++        windowData->needsSurfaceRecreate ||
++        (windowData->window->flags & SDL_WINDOW_HIDDEN)) {
++        return;
++    }
++
++    if (windowData->acquireFence == VK_NULL_HANDLE) {
++        VkFenceCreateInfo fenceCreateInfo;
++        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
++        fenceCreateInfo.pNext = NULL;
++        fenceCreateInfo.flags = 0;
++        if (renderer->vkCreateFence(renderer->logicalDevice, &fenceCreateInfo, NULL, &windowData->acquireFence) != VK_SUCCESS) {
++            windowData->acquireFence = VK_NULL_HANDLE;
++            return;
++        }
++    } else {
++        renderer->vkResetFences(renderer->logicalDevice, 1, &windowData->acquireFence);
++    }
++
++    Uint32 imageIndex;
++    VkResult result = renderer->vkAcquireNextImageKHR(
++        renderer->logicalDevice,
++        windowData->swapchain,
++        SDL_MAX_UINT64,
++        windowData->imageAvailableSemaphore[windowData->frameCounter],
++        windowData->acquireFence,
++        &imageIndex);
++
++    if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
++        renderer->vkWaitForFences(renderer->logicalDevice, 1, &windowData->acquireFence, VK_TRUE, SDL_MAX_UINT64);
++        windowData->acquiredImageIndex = imageIndex;
++        windowData->imageAcquired = true;
++    } else if (result == VK_ERROR_SURFACE_LOST_KHR) {
++        windowData->needsSurfaceRecreate = true;
++        windowData->needsSwapchainRecreate = true;
++    } else if (result == VK_ERROR_OUT_OF_DATE_KHR) {
++        windowData->needsSwapchainRecreate = true;
++    }
++}
++
+ static bool VULKAN_WaitForSwapchain(
+     SDL_GPURenderer *driverData,
+     SDL_Window *window)
+@@ -10131,6 +10197,8 @@ static bool VULKAN_WaitForSwapchain(
+         }
+     }
+ 
++    VULKAN_INTERNAL_AcquireAhead(renderer, windowData);
++
+     return true;
+ }
+ 
+@@ -10237,8 +10305,14 @@ static bool VULKAN_INTERNAL_AcquireSwapchainTexture(
+         windowData->inFlightFences[windowData->frameCounter] = NULL;
+     }
+ 
+-    // Finally, try to acquire!
+-    while (true) {
++    // Finally, try to acquire, unless the frame's wait already did!
++    bool acquiredAhead = windowData->imageAcquired;
++    if (acquiredAhead) {
++        swapchainImageIndex = windowData->acquiredImageIndex;
++        windowData->imageAcquired = false;
++    }
++
++    while (!acquiredAhead) {
+         acquireResult = renderer->vkAcquireNextImageKHR(
+             renderer->logicalDevice,
+             windowData->swapchain,

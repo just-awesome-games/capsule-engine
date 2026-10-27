@@ -1103,9 +1103,9 @@ public sealed partial class CollisionWorld2D
         _tree.Query(box, layers, ref visitor);
 
         // One sort once the query ends. Placing each slot as the query meets it costs the square of
-        // a crowd.
+        // a crowd. A sort given no comparison allocates on every call in a NativeAOT build.
         Span<int> near = CollectionsMarshal.AsSpan(_near);
-        near.Sort();
+        near.Sort(static (left, right) => left.CompareTo(right));
         int written = Math.Min(near.Length, found.Length);
         for (int index = 0; index < written; index++)
         {

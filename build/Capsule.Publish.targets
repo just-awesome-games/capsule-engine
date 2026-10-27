@@ -6,7 +6,8 @@
 
   <!-- Defaults a project can override, for a native publish only. Its crash log's addresses decode
        against the native symbols, and a managed publish keeps its method names. Code compiled for
-       size runs the engine's frames and steps no measurably slower. A development publish compiles
+       speed runs the engine's steps and frame builds faster than code compiled for size or the SDK's
+       default, for about a megabyte. A development publish compiles
        the same code a shipping one does, which it measures, and keeps its method names.
        CapsuleShipping is set in Capsule.Build.targets, ahead of this file. -->
   <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true' and '$(CapsuleShipping)' == 'true' and '$(PublishAot)' == 'true'">
@@ -14,7 +15,7 @@
     <UseSystemResourceKeys Condition="'$(UseSystemResourceKeys)' == ''">true</UseSystemResourceKeys>
   </PropertyGroup>
   <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true' and '$(PublishAot)' == 'true'">
-    <OptimizationPreference Condition="'$(OptimizationPreference)' == ''">Size</OptimizationPreference>
+    <OptimizationPreference Condition="'$(OptimizationPreference)' == ''">Speed</OptimizationPreference>
   </PropertyGroup>
 
   <!-- The executable names its pdb by file name alone, never the build machine's path. The pdb's
