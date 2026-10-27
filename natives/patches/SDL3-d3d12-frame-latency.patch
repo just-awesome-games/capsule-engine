@@ -1,0 +1,159 @@
+Capsule's fix for SDL 3.4.18's Direct3D 12 frame latency. The window's fences cycled by the swapchain's
+texture count, never below two, and let a second frame into flight when the device allowed one. The
+swapchain had no frame latency waitable object, and DXGI queued up to three presents ahead of the
+display. The fences now cycle by the frames in flight, the swapchain holds at most that many presents,
+and each frame waits for room before it acquires its texture. Drop it once SDL releases a fix.
+
+diff --git a/src/gpu/d3d12/SDL_gpu_d3d12.c b/src/gpu/d3d12/SDL_gpu_d3d12.c
+--- a/src/gpu/d3d12/SDL_gpu_d3d12.c
++++ b/src/gpu/d3d12/SDL_gpu_d3d12.c
+@@ -844,6 +844,10 @@ typedef struct D3D12WindowData
+     D3D12XBOX_FRAME_PIPELINE_TOKEN frameToken;
+ #else
+     IDXGISwapChain3 *swapchain;
++    // Signalled while the present queue holds fewer frames than the device allows in flight. Waited on
++    // once a frame, before the frame acquires its swapchain texture.
++    HANDLE frameLatencyWaitable;
++    bool frameLatencyWaited;
+ #endif
+     SDL_GPUPresentMode present_mode;
+     SDL_GPUSwapchainComposition swapchainComposition;
+@@ -6983,7 +6987,7 @@ static bool D3D12_INTERNAL_ResizeSwapchain(
+         0, // use client window width
+         0, // use client window height
+         DXGI_FORMAT_UNKNOWN, // Keep the old format
+-        renderer->supportsTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0);
++        DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT | (renderer->supportsTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0));
+     CHECK_D3D12_ERROR_AND_RETURN("Could not resize swapchain buffers", false);
+ 
+     // Create texture object for the swapchain
+@@ -7025,6 +7029,8 @@ static void D3D12_INTERNAL_DestroySwapchain(
+         SDL_free(windowData->textureContainers[i].textures);
+     }
+ 
++    CloseHandle(windowData->frameLatencyWaitable);
++    windowData->frameLatencyWaitable = NULL;
+     IDXGISwapChain_Release(windowData->swapchain);
+     windowData->swapchain = NULL;
+ }
+@@ -7077,10 +7083,11 @@ static bool D3D12_INTERNAL_CreateSwapchain(
+     fullscreenDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+     fullscreenDesc.Windowed = true;
+ 
++    // Without a waitable object DXGI queues up to three presents, each a refresh of latency, whatever
++    // the device's frames in flight.
++    swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+     if (renderer->supportsTearing) {
+-        swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+-    } else {
+-        swapchainDesc.Flags = 0;
++        swapchainDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+     }
+ 
+     if (!IsWindow(dxgiHandle)) {
+@@ -7150,6 +7157,9 @@ static bool D3D12_INTERNAL_CreateSwapchain(
+ 
+     // Initialize the swapchain data
+     windowData->swapchain = swapchain3;
++    IDXGISwapChain3_SetMaximumFrameLatency(swapchain3, renderer->allowedFramesInFlight);
++    windowData->frameLatencyWaitable = IDXGISwapChain3_GetFrameLatencyWaitableObject(swapchain3);
++    windowData->frameLatencyWaited = false;
+     windowData->present_mode = presentMode;
+     windowData->swapchainComposition = swapchainComposition;
+     windowData->swapchainColorSpace = SwapchainCompositionToColorSpace[swapchainComposition];
+@@ -7184,6 +7194,8 @@ static bool D3D12_INTERNAL_CreateSwapchain(
+                 swapchainComposition,
+                 i,
+                 &windowData->textureContainers[i])) {
++            CloseHandle(windowData->frameLatencyWaitable);
++            windowData->frameLatencyWaitable = NULL;
+             IDXGISwapChain3_Release(swapchain3);
+             return false;
+         }
+@@ -7340,6 +7352,13 @@ static bool D3D12_SetAllowedFramesInFlight(
+     for (Uint32 i = 0; i < renderer->claimedWindowCount; i += 1) {
+         D3D12WindowData *windowData = renderer->claimedWindows[i];
+ 
++        for (Uint32 j = 0; j < MAX_FRAMES_IN_FLIGHT; j += 1) {
++            if (windowData->inFlightFences[j] != NULL) {
++                D3D12_ReleaseFence(driverData, windowData->inFlightFences[j]);
++                windowData->inFlightFences[j] = NULL;
++            }
++        }
++
+         D3D12_INTERNAL_DestroySwapchain(renderer, windowData);
+     }
+ 
+@@ -7612,6 +7631,29 @@ static SDL_GPUCommandBuffer *D3D12_AcquireCommandBuffer(
+     return (SDL_GPUCommandBuffer *)commandBuffer;
+ }
+ 
++// Waits once a frame for the present queue to have room, or only checks when block is false. Returns
++// whether the frame may go on. A wait that times out lets the frame go on rather than hang it.
++static bool D3D12_INTERNAL_WaitForFrameLatency(
++    D3D12WindowData *windowData,
++    bool block)
++{
++#if (defined(SDL_PLATFORM_XBOXONE) || defined(SDL_PLATFORM_XBOXSERIES))
++    return true;
++#else
++    if (windowData->frameLatencyWaited || windowData->frameLatencyWaitable == NULL) {
++        return true;
++    }
++
++    DWORD waited = WaitForSingleObjectEx(windowData->frameLatencyWaitable, block ? 1000 : 0, TRUE);
++    if (waited == WAIT_OBJECT_0 || block) {
++        windowData->frameLatencyWaited = true;
++        return true;
++    }
++
++    return false;
++#endif
++}
++
+ static bool D3D12_WaitForSwapchain(
+     SDL_GPURenderer *driverData,
+     SDL_Window *window)
+@@ -7633,6 +7675,8 @@ static bool D3D12_WaitForSwapchain(
+         }
+     }
+ 
++    D3D12_INTERNAL_WaitForFrameLatency(windowData, true);
++
+     return true;
+ }
+ 
+@@ -7676,6 +7720,10 @@ static bool D3D12_INTERNAL_AcquireSwapchainTexture(
+         *swapchainTextureHeight = windowData->height;
+     }
+ 
++    if (!D3D12_INTERNAL_WaitForFrameLatency(windowData, block)) {
++        return true;
++    }
++
+     if (windowData->inFlightFences[windowData->frameCounter] != NULL) {
+         if (block) {
+             // In VSYNC mode, block until the least recent presented frame is done
+@@ -8165,14 +8213,20 @@ static bool D3D12_INTERNAL_Submit(
+         }
+ 
+         ID3D12Resource_Release(windowData->textureContainers[presentData->swapchainImageIndex].activeTexture->resource);
++        windowData->frameLatencyWaited = false;
+ #endif
+ 
+         windowData->inFlightFences[windowData->frameCounter] = (SDL_GPUFence *)d3d12CommandBuffer->inFlightFence;
+         (void)SDL_AtomicIncRef(&d3d12CommandBuffer->inFlightFence->referenceCount);
+ 
+-        // Normally this is '% allowedFramesInFlight', but the value gets clamped
+-        // at swapchain creation time, so use swapchainTextureCount instead
++#if (defined(SDL_PLATFORM_XBOXONE) || defined(SDL_PLATFORM_XBOXSERIES))
++        // The counter indexes the swapchain textures here, whose count is clamped to at least two.
+         windowData->frameCounter = (windowData->frameCounter + 1) % windowData->swapchainTextureCount;
++#else
++        // The counter indexes the fences, one per frame in flight. Cycling by the texture count would
++        // let a second frame into flight when one is allowed.
++        windowData->frameCounter = (windowData->frameCounter + 1) % renderer->allowedFramesInFlight;
++#endif
+     }
+ 
+     // Check for cleanups

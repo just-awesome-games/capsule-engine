@@ -70,6 +70,15 @@ dotnet run -c Release --project tests/Capsule.Bench -- latency [--label <text>] 
 
 `latency` plays `Still` windowed for 25 seconds under vertical sync, or with no vertical sync at the frame cap `--cap` names. A thread in the run presses and releases F13 for 20 seconds, at random gaps of 30 to 110 ms and holds of 10 to 45 ms, after two seconds of warm-up. On Windows each press is a scancode `SendInput`, which reaches SDL through the OS queue as a player's does and is sent only while the window is in front. Leave it in front for the run. Elsewhere the press is an SDL event pushed straight into SDL's queue. The run measures each press from its event's SDL timestamp to the return of the present of the first frame whose steps consumed it. A record goes to `results/latency/<UTC timestamp>.json` with the suite's header less `lane` and `uncapped`, then `workload`, `vsync`, `cap`, `injection` (`SendInput` or `SDL_PushEvent`), `injected` and `presses` counts, `latencyMs` {median, p95, max}, and `injectedLatencyMs`, the same span from the injector's own clock, paired press for press and null when a press went unmeasured. Windows stamps an event with its message time, in whole ticks of a coarse clock, which puts `latencyMs` above `injectedLatencyMs`. Compare by label.
 
+A present's return is not the frame reaching the display, and `latency` cannot see the frames the swapchain queues after it. On Windows, Intel's PresentMon measures that span from outside the process, and needs no elevation for a run started after it. Start it in one terminal, then the run in another while it waits out its delay:
+
+```text
+presentmon --process_name Capsule.Bench.exe --output_file artifacts/bench/presentmon.csv --timed 20 --delay 3 --no_console_stats --v2_metrics --terminate_after_timed
+tests/Capsule.Bench/bin/Release/net10.0/Capsule.Bench.exe --scene Still --frames artifacts/bench/latency/frames.csv 25 --latency artifacts/bench/latency
+```
+
+`DisplayLatency` runs from the return of the previous present to the frame on screen, and a press is sampled about one host wait into it. Whether the desktop compositor takes the window varies between runs of one build and costs about a refresh. Compare runs with the same `PresentMode`, two of each side. `SDL_GPU_DRIVER` set to `direct3d12` or `vulkan` measures one driver.
+
 ## Asset build
 
 ```text
