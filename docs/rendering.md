@@ -17,6 +17,7 @@ lights. What a game's world looks like is the game's.
 | A layer that scrolls slower than the world | `Entity.ScrollFactor` |
 | Light in a dark scene | `Scene.Ambient` and `PointLight` |
 | A reaction to coming on screen | `VisibleOnScreenNotifier2D` |
+| The next frame built while the GPU draws the last | `EngineBuilder.WithFramesInFlight` |
 
 Animation is [`animation.md`](animation.md), your own shader is [`shaders.md`](shaders.md), and
 menus and panels are [`ui.md`](ui.md).

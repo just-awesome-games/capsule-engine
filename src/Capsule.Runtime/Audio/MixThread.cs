@@ -9,13 +9,18 @@ namespace Capsule.Runtime.Audio;
 // without threads could pump it from its frame loop instead.
 internal sealed class MixThread : IDisposable
 {
-    // About 30 ms queued ahead of the device. A command is still heard within a frame or two. The
-    // device takes about 10 ms from the queue at a time, and the 20 ms left ride out a collection or a
-    // sleep that wakes late on a coarse system timer.
-    internal const int LeadFrames = VoiceMixer.SampleRate * 3 / 100;
+    // About 30 ms queued ahead of the device unless the game sets its audio latency. A command is still
+    // heard within a frame or two. The device takes about 10 ms from the queue at a time, and the 20 ms
+    // left ride out a collection or a sleep that wakes late on a coarse system timer.
+    internal const int DefaultLeadFrames = VoiceMixer.SampleRate * 3 / 100;
 
     private readonly VoiceMixer _mixer;
     private readonly AudioOutput _output;
+
+    // The frames kept queued, and the frames mixed at a time. A chunk is a block, or half a lead shorter
+    // than two blocks, and a top-up never queues more than a chunk past the lead.
+    private readonly int _leadFrames;
+    private readonly int _chunkFrames;
 
     // Mixed into while the output has lost its device, whose queue may never drain again. The voices
     // keep time and the command ring keeps draining until the host reopens the output.
@@ -31,10 +36,12 @@ internal sealed class MixThread : IDisposable
     // Times the output was found to have played everything this thread queued.
     private long _underruns;
 
-    internal MixThread(VoiceMixer mixer, AudioOutput output)
+    internal MixThread(VoiceMixer mixer, AudioOutput output, int leadFrames)
     {
         _mixer = mixer;
         _output = output;
+        _leadFrames = leadFrames;
+        _chunkFrames = Math.Min(VoiceMixer.BlockFrames, leadFrames / 2);
         _thread = new Thread(Run)
         {
             IsBackground = true,
@@ -44,6 +51,10 @@ internal sealed class MixThread : IDisposable
 
         _thread.Start();
     }
+
+    // The lead a mix into a device taking deviceFrames at a time keeps. A queue shorter than the device's
+    // buffer runs dry at every pull, and half a buffer more rides out the mix's own wake.
+    internal static int LeadFor(int leadFrames, int deviceFrames) => Math.Max(leadFrames, deviceFrames * 3 / 2);
 
     // Times the mix fell behind its output, which then plays a gap.
     internal long Underruns => Volatile.Read(ref _underruns);
@@ -60,7 +71,7 @@ internal sealed class MixThread : IDisposable
 
     private void Run()
     {
-        float[] block = new float[VoiceMixer.BlockFrames * VoiceMixer.Channels];
+        float[] block = new float[_chunkFrames * VoiceMixer.Channels];
         bool fedDevice = false;
 
         try
@@ -71,7 +82,7 @@ internal sealed class MixThread : IDisposable
             {
                 AudioOutput output = _output.Connected ? _output : _silence;
                 int queued = output.QueuedFrames;
-                if (queued < LeadFrames)
+                if (queued < _leadFrames)
                 {
                     // The device has played everything queued: this thread woke a whole lead late, and
                     // a gap is at most one device buffer away. Silence has no device to leave a gap.
@@ -88,7 +99,7 @@ internal sealed class MixThread : IDisposable
                     continue;
                 }
 
-                Thread.Sleep(Math.Max(1, (queued - LeadFrames) * 1000 / VoiceMixer.SampleRate));
+                Thread.Sleep(Math.Max(1, (queued - _leadFrames) * 1000 / VoiceMixer.SampleRate));
             }
         }
         catch (Exception failure)

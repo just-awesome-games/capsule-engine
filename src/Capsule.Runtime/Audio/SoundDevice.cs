@@ -18,6 +18,9 @@ internal sealed class SoundDevice : IDisposable
     internal const double WatchSeconds = 0.5;
 
     private readonly HostPlatform _platform;
+
+    // The frames each mix thread keeps queued ahead of the device, which each output opens to fit.
+    private readonly int _leadFrames;
     private readonly AudioStreamer _streamer = new();
     private readonly VoiceMixer _mixer;
     private AudioOutput _output;
@@ -45,9 +48,10 @@ internal sealed class SoundDevice : IDisposable
     // Blocks in which a streamed voice's decoding fell behind, which played that voice silent.
     internal long Starved => _mixer.Starved;
 
-    private SoundDevice(HostPlatform platform, AudioOutput output)
+    private SoundDevice(HostPlatform platform, AudioOutput output, int leadFrames)
     {
         _platform = platform;
+        _leadFrames = leadFrames;
         _output = output;
 
         AudioRing<MixCommand> commands = new(AudioPlayer.CommandCapacity);
@@ -55,21 +59,21 @@ internal sealed class SoundDevice : IDisposable
         Sounds = new SoundStore(clip => AudioFiles.ReadResident(platform, clip), clip => AudioFiles.OpenStream(platform, clip));
         Player = new AudioPlayer(Sounds, _streamer, commands, ended);
         _mixer = new VoiceMixer(commands, ended);
-        _mix = new MixThread(_mixer, output);
+        _mix = StartMix(output);
     }
 
     // Opens the platform's output, or returns null for a silent run. A platform that could not open
     // its output has logged why. The game still runs, silently.
-    internal static SoundDevice? TryOpen(HostPlatform platform)
+    internal static SoundDevice? TryOpen(HostPlatform platform, int leadFrames)
     {
-        if (platform.OpenAudioOutput() is not { } output)
+        if (platform.OpenAudioOutput(leadFrames) is not { } output)
         {
             Log.Debug("audio: the platform opened no output and the run is silent");
 
             return null;
         }
 
-        return new SoundDevice(platform, output);
+        return new SoundDevice(platform, output, leadFrames);
     }
 
     // Once a frame, on the game thread, with the wall seconds since the last. Reopens a lost output,
@@ -156,12 +160,25 @@ internal sealed class SoundDevice : IDisposable
         }
 
         _joinedUnderruns += _mix.Underruns;
-        _mix = new MixThread(_mixer, next);
+        _mix = StartMix(next);
+    }
+
+    // A mix thread into output, keeping the game's lead or what the output's device needs, whichever is
+    // longer. A raised lead is logged.
+    private MixThread StartMix(AudioOutput output)
+    {
+        int lead = MixThread.LeadFor(_leadFrames, output.DeviceFrames);
+        if (lead > _leadFrames)
+        {
+            Log.Info($"audio: the device takes {output.DeviceFrames} frames at a time, and the mix keeps {lead * 1000 / VoiceMixer.SampleRate} ms queued in place of the {_leadFrames * 1000 / VoiceMixer.SampleRate} ms asked for");
+        }
+
+        return new MixThread(_mixer, output, lead);
     }
 
     private AudioOutput? Reopen()
     {
-        if (_platform.OpenAudioOutput() is { } output)
+        if (_platform.OpenAudioOutput(_leadFrames) is { } output)
         {
             Log.Info("audio output reopened, and every voice plays on");
             _reopenWarned = false;

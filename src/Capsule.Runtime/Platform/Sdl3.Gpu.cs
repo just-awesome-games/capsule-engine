@@ -71,6 +71,14 @@ internal static unsafe partial class Sdl3
     [DllImport(LibraryName, ExactSpelling = true)]
     internal static extern uint SDL_GetGPUShaderFormats(nint device);
 
+    // The drivers this build of SDL holds, whether or not this machine can draw through them.
+    [DllImport(LibraryName, ExactSpelling = true)]
+    internal static extern int SDL_GetNumGPUDrivers();
+
+    // A driver's short name by index, which SDL owns.
+    [DllImport(LibraryName, ExactSpelling = true)]
+    internal static extern byte* SDL_GetGPUDriver(int index);
+
     [DllImport(LibraryName, ExactSpelling = true)]
     internal static extern uint SDL_GetGPUDeviceProperties(nint device);
 

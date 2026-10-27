@@ -256,7 +256,7 @@ internal sealed unsafe class WindowHost
         // The run has started by now, and the window opens as its start left the display.
         Display display = _scenes.Run.Display;
         OpenWindow(display);
-        _gpu = new GpuDevice(_window);
+        _gpu = new GpuDevice(_window, _builder.GpuDriver, _builder.FramesInFlight);
         if (Development.IsSupported)
         {
             Log.Info($"GPU: {_gpu.Description}");
@@ -270,7 +270,7 @@ internal sealed unsafe class WindowHost
         _textures = new TextureStore(_gpu, samplers, _builder.Platform);
         _shaders = new ShaderStore(_gpu, _builder.Platform, FrameRenderer.SurfaceFormat);
 
-        if (SoundDevice.TryOpen(_builder.Platform) is { } device)
+        if (SoundDevice.TryOpen(_builder.Platform, _builder.AudioLeadFrames) is { } device)
         {
             _device = device;
             _sounds = device.Sounds;

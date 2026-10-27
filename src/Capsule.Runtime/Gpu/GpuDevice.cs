@@ -7,7 +7,7 @@ using Capsule.Runtime.Platform;
 namespace Capsule.Runtime.Gpu;
 
 // SDL_GPUDevice and the window it presents to: creates the GPU resources and the command buffers that
-// use them, with one frame in flight. A copy pass stages every upload in one transfer buffer the device
+// use them, with the frames in flight the game allows. A copy pass stages every upload in one transfer buffer the device
 // keeps, appended from the start of each frame, and records the uploads when the pass ends, after the
 // buffer is unmapped. The first staging of a frame cycles the buffer, which never waits on a frame
 // still in flight. A burst of uploads overflows the buffer into further copies, a buffer upload
@@ -51,15 +51,19 @@ internal sealed unsafe class GpuDevice : IDisposable
     // One line for the development log: the driver, the device and its driver version.
     internal string Description { get; }
 
-    // Creates SDL's GPU device for the window and claims the window for it, in SDR composition under
-    // VSYNC with one frame in flight.
-    internal GpuDevice(nint window)
+    // Creates SDL's GPU device through the named driver, or the one SDL chooses when driver is null, and
+    // claims the window for it in SDR composition under VSYNC.
+    internal GpuDevice(nint window, string? driver, int framesInFlight)
     {
         _window = window;
-        _device = Sdl3.SDL_CreateGPUDevice(Sdl3.GpuShaderFormatSpirv | Sdl3.GpuShaderFormatDxil | Sdl3.GpuShaderFormatMsl, debugMode: false, name: null);
+        fixed (byte* name = driver is null ? null : Encoding.UTF8.GetBytes(driver + '\0'))
+        {
+            _device = Sdl3.SDL_CreateGPUDevice(Sdl3.GpuShaderFormatSpirv | Sdl3.GpuShaderFormatDxil | Sdl3.GpuShaderFormatMsl, debugMode: false, name);
+        }
+
         if (_device == 0)
         {
-            throw Unavailable("could not open a GPU");
+            throw driver is null ? Unavailable("could not open a GPU") : new InvalidOperationException(DriverRefused(driver, Sdl3.Error(), OfferedDrivers()));
         }
 
         if (!Sdl3.SDL_ClaimWindowForGPUDevice(_device, window))
@@ -69,7 +73,7 @@ internal sealed unsafe class GpuDevice : IDisposable
             throw refused;
         }
 
-        Sdl3.SDL_SetGPUAllowedFramesInFlight(_device, 1);
+        Sdl3.SDL_SetGPUAllowedFramesInFlight(_device, (uint)framesInFlight);
 
         uint formats = Sdl3.SDL_GetGPUShaderFormats(_device);
         (_shaderFormat, ShaderFormat) = (formats & Sdl3.GpuShaderFormatDxil) != 0 ? (Sdl3.GpuShaderFormatDxil, "dxil")
@@ -489,7 +493,24 @@ internal sealed unsafe class GpuDevice : IDisposable
     // A device that opened and then could not present to the window is no GPU shortfall. Its message
     // sends the reader to the display and the driver choice, not to a driver update.
     internal static string ClaimRefused(string driver, string error) =>
-        $"Capsule's {driver} GPU could not present to the window: {error}. A driver can refuse while every display is off: turn a display on, or set the SDL_GPU_DRIVER environment variable to another driver (direct3d12, vulkan or metal), or clear it to let SDL choose.";
+        $"Capsule's {driver} GPU could not present to the window: {error}. A driver can refuse while every display is off: turn a display on, or run with --gpu-driver naming another driver (direct3d12, vulkan or metal).";
+
+    // A driver the player named that this machine or this build cannot draw through. Its message names
+    // the drivers the build holds, and sends the reader back to the platform's own choice.
+    internal static string DriverRefused(string driver, string error, string offered) =>
+        $"Capsule could not draw through the GPU driver '{driver}' that --gpu-driver named: {error}. This build holds {offered}. Name another, or leave the flag out to let Capsule choose.";
+
+    private static string OfferedDrivers()
+    {
+        int count = Sdl3.SDL_GetNumGPUDrivers();
+        string[] names = new string[Math.Max(count, 0)];
+        for (int index = 0; index < names.Length; index++)
+        {
+            names[index] = Utf8(Sdl3.SDL_GetGPUDriver(index)) ?? "an unnamed driver";
+        }
+
+        return names.Length == 0 ? "no GPU driver" : string.Join(", ", names);
+    }
 
     private static InvalidOperationException Unavailable(string failure) => new(
         $"Capsule {failure}: {Sdl3.Error()}. It draws through Direct3D 12 at feature level 11_0, Vulkan 1.0, or Metal on a GPU of family Mac2. Update the graphics driver, or run on a machine whose GPU has one of them.");

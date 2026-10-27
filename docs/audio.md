@@ -17,6 +17,7 @@ headphone processing.
 | A sound heard louder the nearer it is | `AudioRange`, on an `AudioSource` or an `AudioPlayback` |
 | Music, and any sound that outlives a scene | `Run.Audio`, the run's `AudioMixer` |
 | A level or a voice that changes over time | `FadeVolume`, `CrossFade`, and `Stop` with seconds |
+| Sound heard sooner after its step, or no gaps on a slow machine | `EngineBuilder.WithAudioLatency` |
 
 ## Buses
 

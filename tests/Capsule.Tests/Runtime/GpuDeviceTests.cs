@@ -15,7 +15,21 @@ public sealed class GpuDeviceTests
         Assert.Contains("vulkan GPU", message, StringComparison.Ordinal);
         Assert.Contains("Unhandled VkResult", message, StringComparison.Ordinal);
         Assert.Contains("display", message, StringComparison.Ordinal);
-        Assert.Contains("SDL_GPU_DRIVER", message, StringComparison.Ordinal);
+        Assert.Contains("--gpu-driver", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Update the graphics driver", message, StringComparison.Ordinal);
+    }
+
+    // A driver the player named and this machine cannot draw through is the player's choice to undo,
+    // not a GPU shortfall. The message names the driver, SDL's cause and the drivers the build holds.
+    [Fact]
+    public void DriverRefused_NamesTheDriverTheCauseAndTheDriversOnOffer()
+    {
+        string message = GpuDevice.DriverRefused("metal", "SDL_HINT_GPU_DRIVER metal unsupported!", "direct3d12, vulkan");
+
+        Assert.Contains("'metal'", message, StringComparison.Ordinal);
+        Assert.Contains("unsupported", message, StringComparison.Ordinal);
+        Assert.Contains("direct3d12, vulkan", message, StringComparison.Ordinal);
+        Assert.Contains("leave the flag out", message, StringComparison.Ordinal);
         Assert.DoesNotContain("Update the graphics driver", message, StringComparison.Ordinal);
     }
 }

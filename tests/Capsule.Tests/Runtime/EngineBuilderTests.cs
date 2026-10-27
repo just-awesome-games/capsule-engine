@@ -34,6 +34,10 @@ public sealed class EngineBuilderTests
         yield return [new Action<EngineBuilder>(b => b.WithSampling((TextureSampling)99))];
         yield return [new Action<EngineBuilder>(b => b.WithMaxFrameRate(-1))];
         yield return [new Action<EngineBuilder>(b => b.WithUnfocusedMaxFrameRate(-1))];
+        yield return [new Action<EngineBuilder>(b => b.WithFramesInFlight(0))];
+        yield return [new Action<EngineBuilder>(b => b.WithFramesInFlight(4))];
+        yield return [new Action<EngineBuilder>(b => b.WithAudioLatency(4))];
+        yield return [new Action<EngineBuilder>(b => b.WithAudioLatency(251))];
     }
 
     [Theory]

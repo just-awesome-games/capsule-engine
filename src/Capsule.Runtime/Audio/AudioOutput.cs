@@ -23,6 +23,13 @@ public abstract class AudioOutput : IDisposable
     /// <summary>The frames handed to <see cref="Submit"/> and not yet played.</summary>
     protected internal abstract int QueuedFrames { get; }
 
+    /// <summary>The frames the device takes from the queue at a time, or 0 when the platform cannot tell.</summary>
+    /// <remarks>
+    /// Read on the game thread as the host starts mixing into the output. The host keeps at least one and a
+    /// half of it queued, whatever lead the game asked for.
+    /// </remarks>
+    protected internal virtual int DeviceFrames => 0;
+
     /// <summary>Whether the output still reaches a device.</summary>
     /// <remarks>
     /// Read on the mix thread and the game thread. While it reads false the host mixes into nothing on

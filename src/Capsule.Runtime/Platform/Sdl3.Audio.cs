@@ -38,6 +38,15 @@ internal static unsafe partial class Sdl3
     [DllImport(LibraryName, ExactSpelling = true)]
     internal static extern int SDL_GetAudioStreamQueued(nint stream);
 
+    // The device a stream plays on, or 0 when it is bound to none.
+    [DllImport(LibraryName, ExactSpelling = true)]
+    internal static extern uint SDL_GetAudioStreamDevice(nint stream);
+
+    // The device's format and the frames it takes from its streams at a time.
+    [DllImport(LibraryName, ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    internal static extern bool SDL_GetAudioDeviceFormat(uint device, AudioSpec* spec, int* sampleFrames);
+
     // Also closes the device the stream opened.
     [DllImport(LibraryName, ExactSpelling = true)]
     internal static extern void SDL_DestroyAudioStream(nint stream);

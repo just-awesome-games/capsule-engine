@@ -76,7 +76,12 @@ public class HostPlatform
     /// output logs why and returns null, and the run plays silently. The default plays through an SDL3
     /// stream on the system's default output and follows that output as it moves.
     /// </remarks>
-    protected internal virtual AudioOutput? OpenAudioOutput() => SdlAudioOutput.TryOpen();
+    /// <param name="leadFrames">
+    /// The frames the host means to keep queued ahead of the device. An output that sizes its device's
+    /// buffer keeps it within half of this, and reports what it got through
+    /// <see cref="AudioOutput.DeviceFrames"/>.
+    /// </param>
+    protected internal virtual AudioOutput? OpenAudioOutput(int leadFrames) => SdlAudioOutput.TryOpen(leadFrames);
 
     /// <summary>
     /// The player's preferred languages as BCP 47 tags, most preferred first. The default is the

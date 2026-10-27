@@ -36,7 +36,7 @@ public sealed class SoundDeviceTests : IDisposable
     {
         PacedOutput faulty = new(fails: true);
         OutputPlatform platform = new(faulty);
-        using SoundDevice device = SoundDevice.TryOpen(platform)!;
+        using SoundDevice device = SoundDevice.TryOpen(platform, MixThread.DefaultLeadFrames)!;
         Assert.True(faulty.Failed.Wait(Patience), "the mix did not fault in time");
 
         device.Player.Apply([Command(AudioCommandKind.Play, Slot(0, 1), Hum, loop: true)]);
@@ -64,7 +64,7 @@ public sealed class SoundDeviceTests : IDisposable
     {
         PacedOutput lost = new();
         OutputPlatform platform = new(lost);
-        using SoundDevice device = SoundDevice.TryOpen(platform)!;
+        using SoundDevice device = SoundDevice.TryOpen(platform, MixThread.DefaultLeadFrames)!;
         device.Player.Apply([Command(AudioCommandKind.Play, Slot(0, 1), Ramp)]);
         Assert.True(SpinWait.SpinUntil(() => lost.Last > 0f, Patience), "the voice was not heard in time");
 
@@ -95,7 +95,7 @@ public sealed class SoundDeviceTests : IDisposable
     public void AnOutputTheMixLetRunDry_CountsEachGapOnceAndWarnsOfTheFirst()
     {
         DrainedOutput output = new();
-        using SoundDevice device = SoundDevice.TryOpen(new OutputPlatform(output))!;
+        using SoundDevice device = SoundDevice.TryOpen(new OutputPlatform(output), MixThread.DefaultLeadFrames)!;
         Assert.True(SpinWait.SpinUntil(() => output.Full, Patience), "the mix did not fill its lead in time");
 
         Assert.Equal(0, device.Underruns);
@@ -117,7 +117,7 @@ public sealed class SoundDeviceTests : IDisposable
     public void AFaultedMix_CountsItsGapsOnceWhenItsOutputIsLost()
     {
         DrainedOutput output = new();
-        using SoundDevice device = SoundDevice.TryOpen(new OutputPlatform(output))!;
+        using SoundDevice device = SoundDevice.TryOpen(new OutputPlatform(output), MixThread.DefaultLeadFrames)!;
         Assert.True(SpinWait.SpinUntil(() => output.Full, Patience), "the mix did not fill its lead in time");
 
         output.Drain(failing: true);
@@ -126,6 +126,50 @@ public sealed class SoundDeviceTests : IDisposable
         device.Update(SoundDevice.WatchSeconds);
 
         Assert.Equal(1, device.Underruns);
+    }
+
+    // A lead the game shortened is the queue the mix keeps, topped up a chunk within half the lead at a
+    // time, and the platform opens its output to fit it.
+    [Fact]
+    public void AShortLead_IsKeptQueuedWithinHalfALeadPastIt()
+    {
+        const int Lead = VoiceMixer.SampleRate / 200;
+        DrainedOutput output = new(Lead);
+        OutputPlatform platform = new(output);
+        using SoundDevice device = SoundDevice.TryOpen(platform, Lead)!;
+        Assert.True(SpinWait.SpinUntil(() => output.Full, Patience), "the mix did not fill its lead in time");
+        Thread.Sleep(20);
+
+        Assert.Equal(Lead, platform.LeadFrames);
+        Assert.InRange(output.Queued, Lead, Lead + (Lead / 2) - 1);
+    }
+
+    // A device that takes more at a time than the lead would pull the queue dry at every pull. The mix
+    // keeps one and a half of its buffer queued instead, and the log says so.
+    [Fact]
+    public void ALeadShorterThanTheDevicesBuffer_IsRaisedToOneAndAHalfBuffers()
+    {
+        const int Lead = VoiceMixer.SampleRate / 200;
+        const int Device = VoiceMixer.SampleRate / 100;
+        DrainedOutput output = new(Device * 3 / 2, Device);
+        using SoundDevice device = SoundDevice.TryOpen(new OutputPlatform(output), Lead)!;
+        Assert.True(SpinWait.SpinUntil(() => output.Full, Patience), "the mix did not fill its lead in time");
+        Thread.Sleep(20);
+
+        Assert.InRange(output.Queued, Device * 3 / 2, (Device * 9 / 4) - 1);
+        Assert.Contains(_log.Entries, static entry => entry.Message.Contains("in place of the 5 ms asked for", StringComparison.Ordinal));
+    }
+
+    // The buffer the default platform asks SDL for is the largest power of two within half the lead,
+    // and the default lead asks for 512 frames.
+    [Theory]
+    [InlineData(MixThread.DefaultLeadFrames, 512)]
+    [InlineData(48_000 / 1000 * 250, 512)]
+    [InlineData(48_000 / 1000 * 10, 128)]
+    [InlineData(48_000 / 1000 * 5, 64)]
+    public void TheBufferAskedFor_FitsWithinHalfTheLead(int leadFrames, int bufferFrames)
+    {
+        Assert.Equal(bufferFrames, SdlAudioOutput.BufferFramesFor(leadFrames));
     }
 
     // A platform that hands out the outputs a test queues and then none, and serves the ramp for a
@@ -142,14 +186,18 @@ public sealed class SoundDeviceTests : IDisposable
 
         internal int Opens { get; private set; }
 
+        // The lead the latest open was asked to fit.
+        internal int LeadFrames { get; private set; }
+
         internal OutputPlatform(AudioOutput first) => Outputs.Enqueue(first);
 
         // Whether a streamed play's file has closed, which happens on the decode worker.
         internal bool HumClosed => _humClosed;
 
-        protected internal override AudioOutput? OpenAudioOutput()
+        protected internal override AudioOutput? OpenAudioOutput(int leadFrames)
         {
             Opens++;
+            LeadFrames = leadFrames;
 
             return Outputs.TryDequeue(out AudioOutput? output) ? output : null;
         }
@@ -245,7 +293,7 @@ public sealed class SoundDeviceTests : IDisposable
 
     // An output that plays nothing until a test empties it at once, as a device does through a stall
     // longer than the mix's lead.
-    private sealed class DrainedOutput : AudioOutput
+    private sealed class DrainedOutput(int leadFrames = MixThread.DefaultLeadFrames, int deviceFrames = 0) : AudioOutput
     {
         private int _queued;
         private volatile bool _failing;
@@ -253,7 +301,11 @@ public sealed class SoundDeviceTests : IDisposable
 
         internal ManualResetEventSlim Failed { get; } = new();
 
-        internal bool Full => QueuedFrames >= MixThread.LeadFrames;
+        internal bool Full => QueuedFrames >= leadFrames;
+
+        internal int Queued => QueuedFrames;
+
+        protected internal override int DeviceFrames => deviceFrames;
 
         protected internal override int QueuedFrames => Volatile.Read(ref _queued);
 

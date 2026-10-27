@@ -23,6 +23,7 @@ internal sealed class CommandLine
 
     private const string ShippingFlags = """
           --saves <dir>              keep save documents under that directory
+          --gpu-driver <name>        draw through that GPU driver: direct3d12, vulkan or metal
           --help                     print this and exit
         """;
 
@@ -51,6 +52,9 @@ internal sealed class CommandLine
 
     // The saves directory, null unless --saves was given.
     internal string? SavesPath { get; private set; }
+
+    // The GPU driver's name, null unless --gpu-driver was given.
+    internal string? GpuDriver { get; private set; }
 
     private CommandLine()
     {
@@ -128,6 +132,10 @@ internal sealed class CommandLine
 
                 case "--saves":
                     parsed.SavesPath = Value(args, ref index, gameName, development, "--saves needs a directory.");
+                    break;
+
+                case "--gpu-driver":
+                    parsed.GpuDriver = Value(args, ref index, gameName, development, "--gpu-driver needs a driver name: direct3d12, vulkan or metal.");
                     break;
 
                 default:

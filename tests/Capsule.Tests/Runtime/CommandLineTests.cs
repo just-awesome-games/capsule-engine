@@ -205,6 +205,7 @@ public sealed class CommandLineTests : IDisposable
         ["--seed", "18446744073709551616"],
         ["--rewind", "Idler"],
         ["--headless", "--headless"],
+        ["--gpu-driver"],
     ];
 
     // A shipping build declares no development flag. A player cannot drive, probe, reroute, reseed or
@@ -229,15 +230,17 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
-    public void AShippingBuild_KeepsSavesAndHelp()
+    public void AShippingBuild_KeepsSavesGpuDriverAndHelp()
     {
-        CommandLine parsed = CommandLine.Parse(["--saves", "portable", "--help"], "Game", development: false);
+        CommandLine parsed = CommandLine.Parse(["--saves", "portable", "--gpu-driver", "vulkan", "--help"], "Game", development: false);
 
         Assert.Equal("portable", parsed.SavesPath);
+        Assert.Equal("vulkan", parsed.GpuDriver);
         Assert.True(parsed.HelpRequested);
 
         string usage = CommandLine.UsageFor("Game", development: false);
         Assert.Contains("--saves <dir>", usage, StringComparison.Ordinal);
+        Assert.Contains("--gpu-driver <name>", usage, StringComparison.Ordinal);
         Assert.Contains("--help", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--driver", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--headless", usage, StringComparison.Ordinal);

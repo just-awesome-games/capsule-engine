@@ -8,6 +8,7 @@ using Capsule.Input;
 using Capsule.Localization;
 using Capsule.Persistence;
 using Capsule.Rendering;
+using Capsule.Runtime.Audio;
 using Capsule.Runtime.Persistence;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
@@ -84,6 +85,13 @@ public sealed class EngineBuilder
     internal int MaxStepsPerFrame { get; private set; } = DefaultMaxStepsPerFrame;
 
     internal TextureSampling Sampling { get; private set; } = TextureSampling.Linear;
+
+    internal int FramesInFlight { get; private set; } = 1;
+
+    internal int AudioLeadFrames { get; private set; } = MixThread.DefaultLeadFrames;
+
+    // The GPU driver --gpu-driver named, or null to let SDL choose.
+    internal string? GpuDriver { get; private set; }
 
     // Null unless the run is driven in code instead of from the devices.
     internal IInputDriver? Driver { get; private set; }
@@ -186,6 +194,38 @@ public sealed class EngineBuilder
     public EngineBuilder WithUnfocusedMaxFrameRate(int framesPerSecond)
     {
         Display.UnfocusedMaxFrameRate = framesPerSecond;
+        return this;
+    }
+
+    /// <summary>How many frames the GPU may hold at once, from 1 to 3, and 1 unless set.</summary>
+    /// <remarks>
+    /// With more than one, the next frame is built while the GPU still draws the last, which raises the
+    /// frame rate when both are busy for most of a refresh. Under vertical sync each frame beyond the
+    /// first puts up to a refresh between a press and the screen.
+    /// </remarks>
+    public EngineBuilder WithFramesInFlight(int frames)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(frames, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(frames, 3);
+        FramesInFlight = frames;
+        return this;
+    }
+
+    /// <summary>
+    /// The sound the host keeps queued ahead of the output device, from 5 to 250 milliseconds, and 30
+    /// unless set.
+    /// </summary>
+    /// <remarks>
+    /// A sound reaches the speaker about this long after the step that plays it, plus the output device's
+    /// own buffer. A queue shorter than that buffer runs dry at every pull, and the host keeps at least one
+    /// and a half buffers queued, logging when it raises the lead. A lead shorter than the longest pause of
+    /// the mix thread, such as a garbage collection, plays a gap, and the log warns of the first.
+    /// </remarks>
+    public EngineBuilder WithAudioLatency(int milliseconds)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(milliseconds, 5);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(milliseconds, 250);
+        AudioLeadFrames = AudioOutput.SampleRate / 1000 * milliseconds;
         return this;
     }
 
@@ -430,8 +470,9 @@ public sealed class EngineBuilder
 
     /// <summary>Applies Capsule's standard command line, the flags <c>--help</c> prints.</summary>
     /// <remarks>
-    /// A shipping build (<see cref="Development.IsSupported"/> false) accepts only <c>--saves</c> and
-    /// <c>--help</c>. A later <see cref="WithInputDriver"/> or <see cref="WithRandomSeed"/> call
+    /// A shipping build (<see cref="Development.IsSupported"/> false) accepts only <c>--saves</c>,
+    /// <c>--gpu-driver</c> and <c>--help</c>. <c>--gpu-driver</c> replaces the driver the platform
+    /// would choose, and the window fails to open on a machine that cannot draw through it. A later <see cref="WithInputDriver"/> or <see cref="WithRandomSeed"/> call
     /// replaces what <c>--driver</c> or <c>--seed</c> set. Only <c>RunScene</c> applies <c>--scene</c>
     /// and <c>--payload</c>, and each replaces only its own half of that call's opening scene.
     /// <c>--language</c> sets <see cref="Run.Language"/> after <see cref="WithRunStart"/> hooks run, in
@@ -499,6 +540,7 @@ public sealed class EngineBuilder
         }
 
         Uncapped = parsed.Uncapped;
+        GpuDriver = parsed.GpuDriver;
 
         _headless = parsed.Headless;
 
