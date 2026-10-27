@@ -2,10 +2,17 @@ name: Native packages
 
 # Builds JAG.Capsule.Native.SDL3 and JAG.Capsule.ShaderTools from the upstream releases natives/build.sh
 # pins, each identifier on its own operating system and architecture. A dispatch builds and keeps the
-# packages as an artifact. A natives-v* tag on main also pushes them to NuGet.org. RELEASING.md says when.
+# packages as an artifact, and can build one package alone. A natives-v* tag on main builds both and also
+# pushes them to NuGet.org. RELEASING.md says when.
 
 on:
   workflow_dispatch:
+    inputs:
+      package:
+        description: The package to build. ShaderTools takes about half an hour.
+        type: choice
+        options: [both, sdl3, shadertools]
+        default: both
   push:
     tags: ["natives-v*"]
 
@@ -22,7 +29,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [sdl3, shadertools]
+        # A tag has no input and builds both.
+        package: ${{ fromJSON(inputs.package == 'sdl3' && '["sdl3"]' || inputs.package == 'shadertools' && '["shadertools"]' || '["sdl3", "shadertools"]') }}
         rid: [win-x64, win-arm64, linux-x64, linux-arm64, osx]
         include:
           - rid: win-x64
@@ -68,6 +76,9 @@ jobs:
   pack:
     needs: build
     runs-on: ubuntu-latest
+    env:
+      SDL3: ${{ inputs.package != 'shadertools' }}
+      SHADERTOOLS: ${{ inputs.package != 'sdl3' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -76,6 +87,7 @@ jobs:
           global-json-file: global.json
 
       - name: Download the built natives
+        if: env.SDL3 == 'true'
         uses: actions/download-artifact@v7
         with:
           pattern: natives-sdl3-*
@@ -83,6 +95,7 @@ jobs:
           merge-multiple: true
 
       - name: Download the built tools
+        if: env.SHADERTOOLS == 'true'
         uses: actions/download-artifact@v7
         with:
           pattern: natives-shadertools-*
@@ -91,29 +104,37 @@ jobs:
 
       - name: Pack
         run: |
-          dotnet pack natives/JAG.Capsule.Native.SDL3.csproj --configuration Release --output artifacts/natives/packages
-          dotnet pack natives/JAG.Capsule.ShaderTools.csproj --configuration Release --output artifacts/natives/packages
+          if [ "$SDL3" = true ]; then
+            dotnet pack natives/JAG.Capsule.Native.SDL3.csproj --configuration Release --output artifacts/natives/packages
+          fi
+          if [ "$SHADERTOOLS" = true ]; then
+            dotnet pack natives/JAG.Capsule.ShaderTools.csproj --configuration Release --output artifacts/natives/packages
+          fi
 
       # Each file a host loads or runs, at the exact path it is looked up by. NuGet reads a package
       # path with no extension as a folder, which an extensionless binary falls into.
       - name: Check the packages' layout
         run: |
-          sdl=$(ls artifacts/natives/packages/JAG.Capsule.Native.SDL3.*.nupkg)
-          tools=$(ls artifacts/natives/packages/JAG.Capsule.ShaderTools.*.nupkg)
           missing=0
           check() {
             unzip -Z1 "$1" | grep -qxF "$2" || { echo "$(basename "$1") lacks $2"; missing=1; }
           }
-          for rid in win-x64 win-arm64; do
-            check "$sdl" "runtimes/$rid/native/SDL3.dll"
-            for file in dxc.exe dxcompiler.dll spirv-cross.exe; do check "$tools" "tools/$rid/bin/$file"; done
-          done
-          for rid in linux-x64 linux-arm64; do
-            check "$sdl" "runtimes/$rid/native/libSDL3.so.0"
-            for file in bin/dxc bin/spirv-cross lib/libdxcompiler.so; do check "$tools" "tools/$rid/$file"; done
-          done
-          check "$sdl" "runtimes/osx/native/libSDL3.dylib"
-          for file in bin/dxc bin/spirv-cross lib/libdxcompiler.dylib; do check "$tools" "tools/osx/$file"; done
+          if [ "$SDL3" = true ]; then
+            sdl=$(ls artifacts/natives/packages/JAG.Capsule.Native.SDL3.*.nupkg)
+            for rid in win-x64 win-arm64; do check "$sdl" "runtimes/$rid/native/SDL3.dll"; done
+            for rid in linux-x64 linux-arm64; do check "$sdl" "runtimes/$rid/native/libSDL3.so.0"; done
+            check "$sdl" "runtimes/osx/native/libSDL3.dylib"
+          fi
+          if [ "$SHADERTOOLS" = true ]; then
+            tools=$(ls artifacts/natives/packages/JAG.Capsule.ShaderTools.*.nupkg)
+            for rid in win-x64 win-arm64; do
+              for file in dxc.exe dxcompiler.dll spirv-cross.exe; do check "$tools" "tools/$rid/bin/$file"; done
+            done
+            for rid in linux-x64 linux-arm64; do
+              for file in bin/dxc bin/spirv-cross lib/libdxcompiler.so; do check "$tools" "tools/$rid/$file"; done
+            done
+            for file in bin/dxc bin/spirv-cross lib/libdxcompiler.dylib; do check "$tools" "tools/osx/$file"; done
+          fi
           exit $missing
 
       - name: Report package storage

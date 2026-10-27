@@ -101,7 +101,9 @@ bump lands in two changes:
 
 1. Edit the ref in `natives/build.sh` and the `Version` in the package's project under `natives/`.
    Run the workflow on the branch (`gh workflow run natives.yml --ref <branch>`), and check the
-   `native-packages` artifact it keeps. Merge to `main`, then tag and push:
+   `native-packages` artifact it keeps. `-f package=sdl3` or `-f package=shadertools` builds one package
+   alone, which skips ShaderTools' half-hour build when only SDL3 changed. Merge to `main`, then tag and
+   push:
 
    ```bash
    git tag -a natives-v<n> -m "Capsule natives <n>"
