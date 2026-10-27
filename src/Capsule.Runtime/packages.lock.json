@@ -4,9 +4,9 @@
     "net10.0": {
       "JAG.Capsule.Native.SDL3": {
         "type": "Direct",
-        "requested": "[3.4.18.4, )",
-        "resolved": "3.4.18.4",
-        "contentHash": "92kfLRHhBAO7lfZYgw7wzNDkJ2VdlUGK9fvodrqPPQ9XEJzTkkWiE34xoU1Sda/W6x3YV87W+AcFz9H04HEpew=="
+        "requested": "[3.4.18.5, )",
+        "resolved": "3.4.18.5",
+        "contentHash": "SFz6fkzeZFk2cdbB5p8SkeVbH8NIZ7KyVjdUFTj13y/sm4P3B825OM4ahA5eu1+1Kflf1wC2jbZlDGPg6CtCAQ=="
       },
       "Microsoft.CodeAnalysis.BannedApiAnalyzers": {
         "type": "Direct",
@@ -16,13 +16,13 @@
       },
       "JAG.Capsule.ShaderTools": {
         "type": "Transitive",
-        "resolved": "1.0.0",
-        "contentHash": "Cpiw9J8BWVpwg0Aat/jGwfJjwZWWdGK1d6WMv72V4DLuJmsqA5YfppjjZlShOnLIuKRG2rGD5K8G8GPT7lOHnw=="
+        "resolved": "1.0.1",
+        "contentHash": "cA/fEseGWYfSKP3rJq5rBpYQeV61W25rp+cBIcNt9VPDLDy1QBDD2ji5iXCfwfceGCeWJbUGUQUrjTLlL8GeWg=="
       },
       "JAG.Capsule": {
         "type": "Project",
         "dependencies": {
-          "JAG.Capsule.ShaderTools": "[1.0.0, 1.0.0]"
+          "JAG.Capsule.ShaderTools": "[1.0.1, 1.0.1]"
         }
       }
     }

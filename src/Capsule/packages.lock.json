@@ -4,9 +4,9 @@
     "net10.0": {
       "JAG.Capsule.ShaderTools": {
         "type": "Direct",
-        "requested": "[1.0.0, 1.0.0]",
-        "resolved": "1.0.0",
-        "contentHash": "Cpiw9J8BWVpwg0Aat/jGwfJjwZWWdGK1d6WMv72V4DLuJmsqA5YfppjjZlShOnLIuKRG2rGD5K8G8GPT7lOHnw=="
+        "requested": "[1.0.1, 1.0.1]",
+        "resolved": "1.0.1",
+        "contentHash": "cA/fEseGWYfSKP3rJq5rBpYQeV61W25rp+cBIcNt9VPDLDy1QBDD2ji5iXCfwfceGCeWJbUGUQUrjTLlL8GeWg=="
       },
       "capsule.core": {
         "type": "Project"

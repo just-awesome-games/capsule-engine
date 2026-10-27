@@ -5,7 +5,7 @@
        every project that references it, from the package or from an engine clone. Capsule.Assets.targets
        names its package folder to the build tool, and the engine's tests read the same folder. -->
   <PropertyGroup>
-    <CapsuleShaderToolsVersion>1.0.0</CapsuleShaderToolsVersion>
+    <CapsuleShaderToolsVersion>1.0.1</CapsuleShaderToolsVersion>
   </PropertyGroup>
 
 </Project>
