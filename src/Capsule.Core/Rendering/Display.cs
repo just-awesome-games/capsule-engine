@@ -9,8 +9,9 @@ namespace Capsule.Rendering;
 /// <remarks>
 /// The shell's builder sets where each starts, and game code changes them from a settings screen. A
 /// run-start hook runs before the window opens, and the window opens in the settings a game restores
-/// there. The host applies a change after the frame's steps. Nothing about the display feeds back into
-/// the simulation, and a headless run ignores it.
+/// there. The host applies a change after the frame's steps. <see cref="RefreshRate"/> is the one value
+/// the host writes, before a frame's steps. A headless run ignores the settings and reads a refresh rate
+/// of 0.
 /// </remarks>
 /// <example>
 /// A game keeps its player's choices in a save document of its own and applies them at run start:
@@ -79,6 +80,14 @@ public sealed class Display
         get;
         set => field = NonNegativeRate(value);
     } = 30;
+
+    /// <summary>The refresh rate in hertz of the display the window is on, or 0 where the platform reports none.</summary>
+    /// <remarks>
+    /// It follows the window to another display and a change of the display's mode. Under
+    /// <see cref="VSyncMode.On"/> each frame already waits for a refresh. A settings screen offers it as a
+    /// <see cref="MaxFrameRate"/> beside <see cref="VSyncMode.Mailbox"/> or <see cref="VSyncMode.Off"/>.
+    /// </remarks>
+    public double RefreshRate { get; internal set; }
 
     internal Display()
     {

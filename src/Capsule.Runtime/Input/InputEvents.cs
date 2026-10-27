@@ -50,6 +50,10 @@ internal sealed class InputEvents(TriggerEdges triggers)
     // may have missed a change while its size was the display's.
     internal bool DisplayScaleMayHaveChanged { get; private set; }
 
+    // Whether the window moved to another display or a display's mode changed, which may change the
+    // refresh rate the window presents at.
+    internal bool RefreshRateMayHaveChanged { get; private set; }
+
     // The SDL_GetTicksNS time of every key, mouse button and pad button that went down, in event order.
     // Empty unless the development plane is on.
     internal ReadOnlySpan<ulong> PressTimes => _pressTimes.AsSpan(0, _pressTimeCount);
@@ -140,6 +144,11 @@ internal sealed class InputEvents(TriggerEdges triggers)
             case Sdl3.EventWindowLeaveFullscreen:
                 DisplayScaleMayHaveChanged = true;
                 break;
+
+            case Sdl3.EventWindowDisplayChanged:
+            case Sdl3.EventDisplayDesktopModeChanged:
+                RefreshRateMayHaveChanged = true;
+                break;
         }
     }
 
@@ -153,6 +162,7 @@ internal sealed class InputEvents(TriggerEdges triggers)
         PadsChanged = false;
         KeymapChanged = false;
         DisplayScaleMayHaveChanged = false;
+        RefreshRateMayHaveChanged = false;
         _padCount = 0;
         _pressTimeCount = 0;
     }

@@ -8,7 +8,9 @@ internal static unsafe partial class Sdl3
     internal const uint InitVideo = 0x00000020;
 
     internal const uint EventQuit = 0x100;
+    internal const uint EventDisplayDesktopModeChanged = 0x155;
     internal const uint EventWindowRestored = 0x20B;
+    internal const uint EventWindowDisplayChanged = 0x213;
     internal const uint EventWindowDisplayScaleChanged = 0x214;
     internal const uint EventWindowLeaveFullscreen = 0x218;
 

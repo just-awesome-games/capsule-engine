@@ -58,9 +58,9 @@ A null, non-finite or out-of-range argument throws from the `ArgumentException` 
 
 ## Determinism contract
 
-Given the same initial state, fixed-step duration and sequence of `DeviceSnapshot` values and output
-extents, the window's drawable size in pixels, a simulation produces the same state transitions and render
-intents.
+Given the same initial state, fixed-step duration, and sequences of `DeviceSnapshot` values, output
+extents (the window's drawable size in pixels) and `Display.RefreshRate` values, a simulation produces
+the same state transitions and render intents.
 
 - Simulation is single-threaded. Work too large for one step is sliced across steps by its owner. Input
   edges are differences between snapshots, and the host preserves edges sampled between fixed steps.
@@ -84,17 +84,24 @@ intents.
 - Simulation arithmetic is IEEE-exact. Transcendental functions differ between operating systems, and
   simulation code calls `DeterministicMath` in place of `MathF`.
 - A frame runs at most the configured number of fixed steps, and starts no further step once its steps
-  have taken one step length of real time. A frame cap widens both to the steps and time its period
-  covers, and a cap never slows the simulation. Reaching either limit drops the remaining accumulated
-  wall-clock time and alters no step that runs.
+  have taken one step length of real time. A frame cap, or vertical sync at the display's reported
+  refresh rate, widens both to the steps and time a frame's period covers, and neither slows the
+  simulation. Reaching either limit drops the remaining accumulated wall-clock time and alters no step
+  that runs.
 - `Run.TimeScale` is host pace. It sets how many simulation seconds a wall second is worth. It alters no
-  step that runs, and simulation code must not read it.
+  step that runs. Simulation code may set it and must not read it.
 
 ## Simulation and host
 
 Simulation emits host-free `FrameView` state and rewrites a step's audio commands the same way. The
 host draws at display rate, interpolating entities and the camera with one shared fraction, and applies
 audio commands after every step. Neither rendering nor audio feeds state back into simulation.
+
+A step and a frame are separate clocks. Steps run at the fixed rate and hold all game logic. A frame
+samples input, runs the steps its elapsed wall time owes, from none up to the bound, draws once and
+waits for the display and the frame cap. A frame runs no game code but the renderers' `Draw`. How often
+frames run never reaches the simulation, and a game plays the same at any frame rate. Motion is smooth
+at any rate through the host's interpolation.
 
 The frame is built on the first read of `SceneSimulation.View` after a step. A window builds at most one
 per presented frame, and a headless run that reads none builds none. Each build calls every visible

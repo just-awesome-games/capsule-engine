@@ -279,8 +279,8 @@ public sealed class EngineBuilder
     /// <remarks>
     /// A frame also stops catching up once its steps have taken one step length of real time. Steps
     /// that cost more than their length then run one a frame, and the game slows down at the frame rate
-    /// they allow. A bound of 1 slows down at any stall. A frame cap widens the bound and the time to
-    /// what its period covers.
+    /// they allow. A bound of 1 slows down at any stall. A frame cap, or vertical sync on a display that
+    /// reports its refresh rate, widens the bound and the time to what a frame's period covers.
     /// </remarks>
     public EngineBuilder WithMaxStepsPerFrame(int steps)
     {

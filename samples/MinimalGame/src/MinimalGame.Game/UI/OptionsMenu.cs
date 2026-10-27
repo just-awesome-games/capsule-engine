@@ -12,10 +12,11 @@ public sealed class OptionsMenu : ScreenEntity
     // Canvas pixels between the list and its scroll bar.
     private const float BarGap = 4f;
 
-    // What the Window and Frame cap rows step through. A press moves to the next and wraps.
+    // What the Window and Frame cap rows step through. A press moves to the next and wraps. The frame
+    // cap also stops at the display's own rate, and wraps to none.
     private const int SmallestWindowScale = 2;
     private const int LargestWindowScale = 6;
-    private static readonly int[] FrameCaps = [0, 30, 60, 120, 144, 240];
+    private static readonly int[] FrameCaps = [30, 60, 120, 144, 240];
 
     private readonly MenuItem _jump = new(CapsuleStrings.Options.Jump, GameInput.Jump);
     private readonly MenuItem _shoot = new(CapsuleStrings.Options.Shoot, GameInput.Shoot);
@@ -86,7 +87,7 @@ public sealed class OptionsMenu : ScreenEntity
             VSyncMode.Mailbox => VSyncMode.Off,
             _ => VSyncMode.On,
         });
-        _frameCap.Pressed += () => ChangeDisplay(static settings => settings.MaxFrameRate = FrameCaps[(Array.IndexOf(FrameCaps, settings.MaxFrameRate) + 1) % FrameCaps.Length]);
+        _frameCap.Pressed += () => ChangeDisplay(settings => settings.MaxFrameRate = NextFrameCap(settings.MaxFrameRate));
         _back.Pressed += Leave;
         _navigator.Canceled += Leave;
     }
@@ -189,6 +190,21 @@ public sealed class OptionsMenu : ScreenEntity
         _settings.ApplyDisplay(Run.Display);
         Run.Saves.Write(GameSaves.Settings, _settings);
         ShowDisplay();
+    }
+
+    // The lowest cap above the current one, the display's own rate among them, or none past the highest.
+    private int NextFrameCap(int current)
+    {
+        int next = (int)Math.Round(Run.Display.RefreshRate);
+        foreach (int cap in FrameCaps)
+        {
+            if (cap > current && (next <= current || cap < next))
+            {
+                next = cap;
+            }
+        }
+
+        return next > current ? next : 0;
     }
 
     private void ShowDisplay()

@@ -41,6 +41,11 @@ internal sealed class FramePacer(Func<long> timestamp, Action<long> sleep)
         return minimized ? Math.Max(period, stepSeconds) : period;
     }
 
+    // The shortest time between the window's frames: the cap's period, or one refresh while each frame
+    // waits for the display, whichever is longer. A refresh rate of 0 is unknown and adds nothing.
+    internal static double FrameSeconds(double periodSeconds, bool waitsForRefresh, double refreshRate) =>
+        waitsForRefresh && refreshRate > 0 ? Math.Max(periodSeconds, 1 / refreshRate) : periodSeconds;
+
     // Returns once this frame is due, with the timestamp it starts at. A changed period starts a new
     // schedule at once.
     internal long Wait(double periodSeconds)

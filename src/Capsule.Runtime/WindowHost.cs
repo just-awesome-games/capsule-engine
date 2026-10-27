@@ -95,6 +95,12 @@ internal sealed unsafe class WindowHost
     // The run's display as the window last applied it.
     private WindowRequest _applied;
 
+    // The mode the window presents in, which the GPU may have lowered from the one asked for.
+    private VSyncMode _presented;
+
+    // The seconds the frame cap holds this frame from the next, 0 for no wait.
+    private double _capPeriodSeconds;
+
     // The display scale per pixel density the window's size was last set for. Above 1 only where a
     // window coordinate is a pixel, which a move between displays leaves unscaled.
     private float _sizedScale = 1f;
@@ -269,6 +275,7 @@ internal sealed unsafe class WindowHost
 
         ApplyVSync(display.VSync);
         _applied = new WindowRequest(display.Fullscreen, display.WindowSize, display.VSync);
+        ReadRefreshRate();
         _diagnostics?.Mark(FrameDiagnostics.Stage.DeviceReady);
 
         TextureSamplers samplers = new(_gpu);
@@ -417,6 +424,12 @@ internal sealed unsafe class WindowHost
             sampled = intercept(sampled, _renderer);
         }
 
+        // Before the steps, which may read it.
+        if (events.RefreshRateMayHaveChanged)
+        {
+            ReadRefreshRate();
+        }
+
         // The run owns the pace and the scheduler holds what is applied. Copied after the overlay's
         // intercept, which may move it, and before the frame's elapsed time is spent. The output is
         // the window's extent in pixels.
@@ -468,7 +481,11 @@ internal sealed unsafe class WindowHost
         }
 
         ApplyDisplay(_scenes.Run.Display);
-        _scheduler.FramePeriodSeconds = FramePacer.PeriodSeconds(_scenes.Run.Display, active, _minimized, _builder.StepSeconds, _builder.Uncapped);
+        _capPeriodSeconds = FramePacer.PeriodSeconds(_scenes.Run.Display, active, _minimized, _builder.StepSeconds, _builder.Uncapped);
+        _scheduler.FramePeriodSeconds = FramePacer.FrameSeconds(
+            _capPeriodSeconds,
+            !_minimized && _presented == VSyncMode.On,
+            _scenes.Run.Display.RefreshRate);
 
         // A drawn frame ends a timed diagnostics run once it is submitted. A minimized one draws none.
         exiting |= _minimized && _diagnostics is { Expired: true };
@@ -497,7 +514,7 @@ internal sealed unsafe class WindowHost
             _gpu.WaitForSwapchain();
         }
 
-        _pacer.Wait(_scheduler.FramePeriodSeconds);
+        _pacer.Wait(_capPeriodSeconds);
         return true;
     }
 
@@ -730,11 +747,21 @@ internal sealed unsafe class WindowHost
     private void ApplyVSync(VSyncMode requested)
     {
         VSyncMode asked = _builder.Uncapped ? VSyncMode.Off : requested;
-        VSyncMode applied = _gpu.ApplyVSync(asked);
-        if (applied != asked)
+        _presented = _gpu.ApplyVSync(asked);
+        if (_presented != asked)
         {
-            Log.Info($"The GPU cannot present with VSync {asked}, and the window presents with {applied}.");
+            Log.Info($"The GPU cannot present with VSync {asked}, and the window presents with {_presented}.");
         }
+    }
+
+    // The desktop mode's, which a borderless fullscreen window keeps: the exact ratio where SDL has one,
+    // its rounded rate where it has not, and 0 where it cannot say.
+    private void ReadRefreshRate()
+    {
+        Sdl3.DisplayMode* mode = Sdl3.SDL_GetDesktopDisplayMode(Sdl3.SDL_GetDisplayForWindow(_window));
+        _scenes.Run.Display.RefreshRate = mode == null ? 0
+            : mode->RefreshRateDenominator > 0 ? (double)mode->RefreshRateNumerator / mode->RefreshRateDenominator
+            : mode->RefreshRate;
     }
 
     private readonly record struct WindowRequest(bool Fullscreen, Vector2 WindowSize, VSyncMode VSync);

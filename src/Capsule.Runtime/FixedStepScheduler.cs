@@ -37,9 +37,9 @@ internal sealed class FixedStepScheduler
     // driver scripts input, the host still owns the output.
     internal Vector2 Output { get; set; }
 
-    // The seconds the window's frame cap holds frames apart, 0 when uncapped. A capped frame covers
-    // its whole period. It may run every step the period buys at the run's pace and spend the period
-    // stepping, and a cap never slows the simulation.
+    // The shortest seconds between the window's frames, set by a frame cap or vertical sync, 0 when
+    // neither holds them. Such a frame covers its whole period. It may run every step the period buys
+    // at the run's pace and spend the period stepping, and neither slows the simulation.
     internal double FramePeriodSeconds { get; set; }
 
     // Raised after each step completes, before the next is scheduled. A step rewrites what the host
@@ -177,7 +177,7 @@ internal sealed class FixedStepScheduler
                Math.Abs(_accumulatorSeconds - _stepSeconds) <= stepEpsilon)
         {
             // A frame stops catching up at the step bound, or once its steps have taken a step length
-            // of real time, each widened to a capped frame's period. Steps that cost more than they
+            // of real time, each widened to the frame's period. Steps that cost more than they
             // cover only lengthen the next frame and grow its backlog. The first due step always
             // runs. An overloaded game slows down and keeps its frame rate.
             if (stepsRun == maxSteps || (stepsRun > 0 && _timestamp() - started >= budgetTicks))

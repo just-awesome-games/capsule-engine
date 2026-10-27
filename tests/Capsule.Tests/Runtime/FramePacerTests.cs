@@ -61,4 +61,21 @@ public sealed class FramePacerTests
 
         Assert.Equal(framesPerSecond == 0 ? 0 : 1.0 / framesPerSecond, period, 12);
     }
+
+    // A frame that waits for the display lasts at least one refresh, whatever its cap. An unknown
+    // refresh rate adds nothing.
+    [Theory]
+    [InlineData(0, true, 60, 60)]
+    [InlineData(240, true, 60, 60)]
+    [InlineData(30, true, 60, 30)]
+    [InlineData(0, false, 60, 0)]
+    [InlineData(144, false, 60, 144)]
+    [InlineData(0, true, 0, 0)]
+    public void FrameSeconds_IsTheLongerOfTheCapsPeriodAndARefreshTheFrameWaitsFor(
+        int capFramesPerSecond, bool waitsForRefresh, double refreshRate, int framesPerSecond)
+    {
+        double period = FramePacer.FrameSeconds(capFramesPerSecond == 0 ? 0 : 1.0 / capFramesPerSecond, waitsForRefresh, refreshRate);
+
+        Assert.Equal(framesPerSecond == 0 ? 0 : 1.0 / framesPerSecond, period, 12);
+    }
 }

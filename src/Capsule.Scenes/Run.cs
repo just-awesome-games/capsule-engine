@@ -197,10 +197,13 @@ public sealed class Run
     /// step's tick and each step's time stay identical at any pace. A run at 0.25 is the same run as at
     /// 1, played slower.
     /// <para>
-    /// Read it only from host-facing code. A simulation that branches on it stops being a function of
-    /// its snapshots, and a replay of it diverges. A headless run counts steps and ignores it. The
-    /// per-frame step bound does not change. A pace that needs more steps than one frame allows runs that
-    /// frame at its bound and drops the backlog.
+    /// It is the whole game's speed, such as an assist option that plays everything slower, menus and
+    /// interface included. A game may set it from a step and reads it only from host-facing code. A
+    /// simulation that branches on it stops being a function of its snapshots, and a replay of it
+    /// diverges. A pause is <c>Scene.Paused</c>, a hit-stop is <c>Scene.Freeze</c>, and slow motion
+    /// inside the game is its entities' own stepping, never a pace. A headless run counts steps and
+    /// ignores it. The per-frame step bound does not change. A pace that needs more steps than one frame
+    /// allows runs that frame at its bound and drops the backlog.
     /// </para>
     /// </remarks>
     public double TimeScale
