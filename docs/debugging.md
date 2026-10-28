@@ -83,14 +83,14 @@ keeps the newest 20. A recording's file is named for the scene the run was in wh
 key, and the local time. A crash's recording path is logged, and a crash while the first scene starts saves
 the boot state alone.
 
-`--replay <file>` replays a recording in the window. It fast-forwards silently, then holds at its last
-tick with the overlay open, and the status line says `Replay matched` or `Replay diverged by tick <n>`. A
-run that ended by exiting holds before its exiting step. Closing the overlay, or taking a step from the
+`--replay <file>` replays a recording in the window at the run's pace, with its sound, then holds at its
+last tick with the overlay open, and the status line says `Replay matched` or `Replay diverged by tick
+<n>`. `--fast-forward` plays it to that hold silently and undrawn instead, and drops the sounds it started.
+A run that ended by exiting holds before its exiting step. Closing the overlay, or taking a step from the
 hold, hands the run to the devices from that tick, and recording carries on with the replayed run in it.
-A replay never handed over saves nothing at exit. Under `--frames` the replay plays at the run's pace.
-A fast-forward mixes nothing, and the sounds it started wait unplayed at the hold. Measure a run's memory
-at the hold of a replay under `--frames`, where only the sounds playing at its last tick wait. With `--headless` it plays to its end and exits 0 when it matched and 1 when it diverged. In a test,
-`EngineBuilder.RunHeadless(Recording)` replays one and reports `DivergedAt`.
+A replay never handed over saves nothing at exit. With `--headless` it plays to its end as fast as it can
+and exits 0 when it matched and 1 when it diverged. In a test, `EngineBuilder.RunHeadless(Recording)`
+replays one and reports `DivergedAt`.
 
 A recording holds a checksum of the run's state once a simulated second. A replay diverges at the first
 checkpoint that disagrees, at a host act whose target is gone, or where its exit disagrees with the

@@ -55,7 +55,7 @@ internal static class LatencyBench
         Directory.CreateDirectory(directory);
 
         ProcessStartInfo start = new(Environment.ProcessPath!) { UseShellExecute = false };
-        foreach (string argument in (string[])["--scene", nameof(Still), "--frames", frames, RunSeconds.ToString(CultureInfo.InvariantCulture), DirectoryOption, directory])
+        foreach (string argument in (string[])["--scene", nameof(Still), "--frames", frames, "--exit-after", RunSeconds.ToString(CultureInfo.InvariantCulture), DirectoryOption, directory])
         {
             start.ArgumentList.Add(argument);
         }

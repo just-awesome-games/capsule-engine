@@ -80,6 +80,10 @@ public sealed partial class EngineBuilder
     // frame cap, whatever the run asks for, and a headless run's diagnostic frames run back to back.
     internal bool Uncapped { get; private set; }
 
+    // Set only by the development flag --fast-forward. A windowed replay then plays silently and undrawn
+    // to its hold instead of at the run's pace.
+    internal bool FastForward { get; private set; }
+
     // Where the development plane writes each press's input-to-present latency, or null for none.
     // Only the bench sets it.
     internal string? InputLatencyPath { get; private set; }
@@ -517,7 +521,7 @@ public sealed partial class EngineBuilder
 
         if (parsed.FramesPath is { } frames)
         {
-            WithFrameDiagnostics(frames, parsed.FramesSeconds);
+            WithFrameDiagnostics(frames, parsed.ExitAfterSeconds);
         }
 
         if (parsed.SavesPath is { } saves)
@@ -586,6 +590,7 @@ public sealed partial class EngineBuilder
 
         _recordingsDirectory = parsed.RecordingsPath ?? _recordingsDirectory;
         Uncapped = parsed.Uncapped;
+        FastForward = parsed.FastForward;
         GpuDriver = parsed.GpuDriver;
 
         _headless = parsed.Headless;

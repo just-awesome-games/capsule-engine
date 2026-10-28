@@ -11,24 +11,35 @@ internal sealed class CommandLine
     // The development flags exist only where the development plane is on. A shipping build refuses
     // them like any option it does not declare, and a player cannot drive or probe it.
     private const string DevelopmentFlags = """
-          --driver <Name>            drive the run from the input driver of that class name
-          --headless                 run with no window, which needs a driver
+        starting a run
           --scene <Name>             boot the scene of that class name, else of that document key
           --payload <Name>           boot the opening scene with a new payload of that class name
           --seed <number>            start the random source from that seed, which a windowed run logs
           --language <tag>           start in the shipped language closest to that BCP 47 tag
-          --frames <csv> [seconds]   write each frame's timing and memory, exiting after seconds when given
-          --uncapped                 present without vertical sync or a frame cap, or run timed headless frames back to back
-          --replay <file>            replay that recording, windowed unless --headless
-          --trace <csv> <ticks> <names>
-                                     write the named entities' panels at those ticks of a headless run
-          --capture <dir> <ticks>    write the frames at those ticks of a headless run as PNGs
-          --force                    let --trace or --capture write past its ceiling of ticks
+          --driver <Name>            drive the run from the input driver of that class name
+          --headless                 run with no window, playing a driver or a replay
+
+        replaying
+          --replay <file>            replay that recording, windowed at its pace unless --headless
+          --fast-forward             play a windowed replay silently to its last tick and hold there
           --recordings <dir>         keep the run's recordings under that directory
+
+        inspecting a headless run
+          --trace <csv> <ticks> <names>
+                                     write the named entities' panels at those ticks
+          --capture <dir> <ticks>    write the frames at those ticks as PNGs
+          --force                    let --trace or --capture write past its ceiling of ticks
+
+        measuring
+          --frames <csv>             write each frame's timing and memory
+          --exit-after <seconds>     end a --frames run that long after its first frame
+          --uncapped                 never wait for a frame: no vertical sync or frame cap, and a
+                                     --frames headless run's frames back to back
 
         """;
 
     private const string ShippingFlags = """
+        every build
           --saves <dir>              keep save documents under that directory
           --gpu-driver <name>        draw through that GPU driver: direct3d12, vulkan or metal
           --help                     print this and exit
@@ -48,12 +59,16 @@ internal sealed class CommandLine
 
     internal bool Headless { get; private set; }
 
-    // The frame-timing CSV and its optional capture duration, both null unless --frames was given.
+    // The frame-timing CSV, null unless --frames was given.
     internal string? FramesPath { get; private set; }
 
-    internal double? FramesSeconds { get; private set; }
+    // The real seconds a --frames run lasts, null unless --exit-after was given.
+    internal double? ExitAfterSeconds { get; private set; }
 
     internal bool Uncapped { get; private set; }
+
+    // Whether a windowed replay plays silently to its hold instead of at its pace.
+    internal bool FastForward { get; private set; }
 
     // The run's random seed, null unless --seed was given.
     internal ulong? Seed { get; private set; }
@@ -139,12 +154,13 @@ internal sealed class CommandLine
 
                 case "--frames" when development:
                     parsed.FramesPath = Value(args, ref index, gameName, development, "--frames needs a path.");
-                    if (!TrySeconds(args, ref index, out double? seconds))
-                    {
-                        throw Refuse(gameName, development, "--frames takes a finite duration in seconds above zero.");
-                    }
+                    break;
 
-                    parsed.FramesSeconds = seconds;
+                case "--exit-after" when development:
+                    string after = Value(args, ref index, gameName, development, "--exit-after needs a number of seconds.");
+                    parsed.ExitAfterSeconds = double.TryParse(after, NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) && double.IsFinite(seconds) && seconds > 0d
+                        ? seconds
+                        : throw Refuse(gameName, development, $"--exit-after takes a finite number of seconds above zero, not '{after}'.");
                     break;
 
                 case "--seed" when development:
@@ -160,6 +176,10 @@ internal sealed class CommandLine
 
                 case "--uncapped" when development:
                     parsed.Uncapped = true;
+                    break;
+
+                case "--fast-forward" when development:
+                    parsed.FastForward = true;
                     break;
 
                 case "--replay" when development:
@@ -217,6 +237,19 @@ internal sealed class CommandLine
             }
         }
 
+        // The run's timer is the frame diagnostics', which count from the first drawn frame.
+        if (parsed.ExitAfterSeconds is not null && parsed.FramesPath is null)
+        {
+            throw Refuse(gameName, development, "--exit-after ends a --frames run. Give --frames <csv> with it.");
+        }
+
+        // A fast-forward skips a windowed replay's frames. A headless replay has none to skip, and frame
+        // diagnostics would time none.
+        if (parsed.FastForward && (parsed.ReplayPath is null || parsed.Headless || parsed.FramesPath is not null))
+        {
+            throw Refuse(gameName, development, "--fast-forward plays a windowed replay to its last tick. Give it with --replay <file>, and without --headless or --frames.");
+        }
+
         // A trace is written by a run with no window, which a recording or a driver plays as fast as it can.
         if (parsed.TracePath is not null && !parsed.Headless)
         {
@@ -261,29 +294,5 @@ internal sealed class CommandLine
         }
 
         return args[++index];
-    }
-
-    // --frames takes an optional duration, and a following token belongs to it only when it parses as
-    // a number. A number the builder would reject is a malformed command line, caught here.
-    private static bool TrySeconds(string[] args, ref int index, out double? seconds)
-    {
-        seconds = null;
-
-        if (index + 1 >= args.Length
-            || !double.TryParse(args[index + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed))
-        {
-            return true;
-        }
-
-        index++;
-
-        if (!double.IsFinite(parsed) || parsed <= 0d)
-        {
-            return false;
-        }
-
-        seconds = parsed;
-
-        return true;
     }
 }

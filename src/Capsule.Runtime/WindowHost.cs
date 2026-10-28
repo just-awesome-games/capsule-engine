@@ -469,8 +469,9 @@ internal sealed unsafe class WindowHost
         (int outputWidth, int outputHeight) = _renderer.WindowSize;
         _scheduler.Output = new Vector2(outputWidth, outputHeight);
 
-        // A replay fast-forwards, silent and undrawn, unless frame diagnostics time it at the run's pace.
-        bool fastForward = _scheduler.Replay is { Finished: false } && _diagnostics is null;
+        // A replay plays at the run's pace, unless --fast-forward plays it silent and undrawn to its hold.
+        // Frame diagnostics always time it at the run's pace.
+        bool fastForward = _builder.FastForward && _scheduler.Replay is { Finished: false } && _diagnostics is null;
         if (fastForward)
         {
             _audio?.Suspend();
@@ -485,6 +486,14 @@ internal sealed unsafe class WindowHost
         if (_scheduler.Replay is { Finished: true } ended && !_replayAnnounced)
         {
             _replayAnnounced = true;
+
+            // The sounds a fast-forward started were never heard, and none of them sounds at the hold
+            // or after it.
+            if (fastForward)
+            {
+                _audio?.StopAll();
+            }
+
             Log.Info(ended.Outcome);
             _holdOverlay?.Invoke(ended.Outcome);
         }

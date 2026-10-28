@@ -179,7 +179,7 @@ internal static class Suite
         return new WorkloadRecord(workload, "headless", Program.Describe(lane.Surface), stepMs.Length, null, null, null, new StepTiming(step.Median, step.P95), new StepTiming(view.Median, view.P95), stepBytes, viewBytes, null, null, gen0, null);
     }
 
-    // `--scene X --frames <csv> 6`: the host writes a row per frame. The first WarmUpFrames or the first
+    // `--scene X --frames <csv> --exit-after 6`: the host writes a row per frame. The first WarmUpFrames or the first
     // second, whichever is longer, are dropped, and gen-0 is counted from the last warm-up row so the first measured frame counts.
     // Uncapped, the host presents without vertical sync and the interval is the true frame cost.
     private static WorkloadRecord? Windowed(string executable, string workload, WorkloadAttribute lane, string label, bool uncapped)
@@ -187,7 +187,7 @@ internal static class Suite
         string csv = Path.Combine(ArtifactsDirectory, workload + ".csv");
         bool captured = workload is nameof(Still) or Still.Lit or Still.Shaded or Still.Hd;
 
-        List<string> arguments = ["--frames", csv, SecondsPerFramedWorkload.ToString(CultureInfo.InvariantCulture)];
+        List<string> arguments = ["--frames", csv, "--exit-after", SecondsPerFramedWorkload.ToString(CultureInfo.InvariantCulture)];
         if (captured)
         {
             arguments.AddRange(["--driver", nameof(StillCapture)]);
@@ -231,13 +231,13 @@ internal static class Suite
             sha256);
     }
 
-    // `--scene X --headless --driver Idle --frames <csv> 6`: the host's frame loop with no window, paced to
+    // `--scene X --headless --driver Idle --frames <csv> --exit-after 6`: the host's frame loop with no window, paced to
     // the step rate. Each frame runs the steps its wall time bought, up to the step bound. A step that
     // overruns its length shows in the frames a player would see.
     private static WorkloadRecord? Paced(string executable, string workload, WorkloadAttribute lane)
     {
         string csv = Path.Combine(ArtifactsDirectory, workload + ".paced.csv");
-        List<string> arguments = ["--headless", "--driver", nameof(Idle), "--frames", csv, SecondsPerFramedWorkload.ToString(CultureInfo.InvariantCulture)];
+        List<string> arguments = ["--headless", "--driver", nameof(Idle), "--frames", csv, "--exit-after", SecondsPerFramedWorkload.ToString(CultureInfo.InvariantCulture)];
         if (!RunChild(executable, workload, arguments, static _ => false) || MeasuredFrames(csv, workload, FirstSecond, out int gen0) is not { } frames)
         {
             return null;

@@ -87,6 +87,29 @@ public sealed class AudioPlaybackCommandTests
             fixture.Posted.Select(static command => (command.Kind, command.Slot, command.Held)));
     }
 
+    // A fast-forward's end stops every voice the game has, paused or held, and a later release
+    // resumes none of them.
+    [Fact]
+    public void StopAllStopsEveryVoiceAndLeavesNothingToResume()
+    {
+        using Fixture fixture = new();
+
+        fixture.Apply(
+            Command(AudioCommandKind.Play, Slot(0, 1), Step),
+            Command(AudioCommandKind.Play, Slot(1, 1), Step),
+            Command(AudioCommandKind.Pause, Slot(1, 1)));
+        fixture.Player.Suspend();
+        fixture.Apply(Command(AudioCommandKind.Play, Slot(2, 1), Step));
+        fixture.Posted.Clear();
+
+        fixture.Player.StopAll();
+        fixture.Player.Resume();
+
+        Assert.Equal(
+            [(MixCommandKind.Stop, 0), (MixCommandKind.Stop, 1), (MixCommandKind.Stop, 2)],
+            fixture.Posted.Select(static command => (command.Kind, command.Slot)));
+    }
+
     // What the game asks during a hold is remembered, not heard: a resume lands on release, a
     // pause outlives it.
     [Fact]

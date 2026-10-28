@@ -78,6 +78,21 @@ internal sealed class AudioPlayer
         Hold(MixCommandKind.Resume);
     }
 
+    // Stops every voice the game has, paused or held, as a replay's fast-forward drops the sounds it
+    // started unheard. A held voice has faded to nothing and ends without a sound.
+    internal void StopAll()
+    {
+        for (int slot = 0; slot < _slots.Length; slot++)
+        {
+            ref Entry entry = ref _slots[slot];
+            if (entry.Live)
+            {
+                Post(new MixCommand(MixCommandKind.Stop, slot, entry.Generation));
+                entry = default;
+            }
+        }
+    }
+
     // Once the mix thread has faulted. The run plays on silently, and every stream goes back to its
     // worker's pool, because no mix reads one again.
     internal void Silence()

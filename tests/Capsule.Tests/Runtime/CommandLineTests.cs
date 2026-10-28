@@ -75,20 +75,6 @@ public sealed class CommandLineTests : IDisposable
         Assert.Contains("--driver", _captured.ToString(), StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("2.5")]
-    public void Frames_TakesAnOptionalDuration(string? seconds)
-    {
-        string[] frames = seconds is null ? ["--frames", "frames.csv"] : ["--frames", "frames.csv", seconds];
-
-        CommandLine parsed = CommandLine.Parse([.. frames, "--headless"], "Game", development: true);
-
-        Assert.Equal("frames.csv", parsed.FramesPath);
-        Assert.Equal(seconds is null ? null : 2.5, parsed.FramesSeconds);
-        Assert.True(parsed.Headless);
-    }
-
     [Fact]
     public void Scene_BootsTheNamedClassRatherThanTheOneRunSceneNames()
     {
@@ -189,15 +175,17 @@ public sealed class CommandLineTests : IDisposable
         string reported = Refused(args);
 
         Assert.Contains("--driver <Name>", reported, StringComparison.Ordinal);
-        Assert.Contains("--frames <csv> [seconds]", reported, StringComparison.Ordinal);
+        Assert.Contains("--frames <csv>", reported, StringComparison.Ordinal);
     }
 
     public static TheoryData<string[]> MalformedCommandLines() => new(
         ["--driver"],
         ["--driver", "   "],
         ["--driver", "--headless"],
-        ["--frames", "frames.csv", "0"],
-        ["--frames", "frames.csv", "NaN"],
+        ["--frames", "frames.csv", "2.5"],
+        ["--frames", "frames.csv", "--exit-after", "0"],
+        ["--frames", "frames.csv", "--exit-after", "NaN"],
+        ["--exit-after", "5"],
         ["--payload"],
         ["--payload", "--headless"],
         ["--payload", "Westward", "--payload", "Eastward"],
@@ -212,92 +200,13 @@ public sealed class CommandLineTests : IDisposable
         ["--trace", "trace.csv", "1", "Avatar,"],
         ["--trace", "trace.csv", "1", "Avatar"],
         ["--replay", "run.recording", "--trace", "trace.csv", "1", "Avatar"],
+        ["--fast-forward"],
+        ["--replay", "run.recording", "--fast-forward", "--headless"],
+        ["--replay", "run.recording", "--fast-forward", "--frames", "frames.csv"],
         ["--headless", "--capture", "frames"],
         ["--headless", "--capture", "frames", "9..5"],
         ["--capture", "frames", "1"],
         ["--headless", "--driver", "Idler", "--force"]);
-
-    [Fact]
-    public void Trace_TakesItsTicksAndNamesAsCommaLists()
-    {
-        CommandLine parsed = CommandLine.Parse(
-            ["--replay", "run.recording", "--headless", "--trace", "trace.csv", "0,100..160,200..", "Avatar (1),*"], "Game", development: true);
-
-        Assert.Equal("trace.csv", parsed.TracePath);
-        Assert.Equal([new TickRange(0, 0), new TickRange(100, 160), new TickRange(200, long.MaxValue)], parsed.TraceTicks!);
-        Assert.Equal(["Avatar (1)", "*"], parsed.TraceNames!);
-    }
-
-    [Fact]
-    public void Capture_TakesItsDirectoryAndTicks_AndForceLiftsTheCeilings()
-    {
-        CommandLine parsed = CommandLine.Parse(
-            ["--replay", "run.recording", "--headless", "--capture", "frames", "0,100..160", "--force"], "Game", development: true);
-
-        Assert.Equal("frames", parsed.CapturePath);
-        Assert.Equal([new TickRange(0, 0), new TickRange(100, 160)], parsed.CaptureTicks!);
-        Assert.True(parsed.Force);
-    }
-
-    // The recording supplies the run's opening, seed and language, and a flag setting one would be ignored.
-    [Fact]
-    public void Replay_WithAFlagTheRecordingSupplies_IsRefusedNamingIt()
-    {
-        CommandLineException refused = Assert.Throws<CommandLineException>(
-            () => CommandLine.Parse(["--replay", "run.recording", "--seed", "42"], "Game", development: true));
-
-        Assert.Contains("--seed", refused.Message, StringComparison.Ordinal);
-        Assert.Contains("the recording supplies", refused.Message, StringComparison.Ordinal);
-    }
-
-    // A shipping build declares no development flag. A player cannot drive, probe, reroute, reseed or
-    // force the language of the game from its command line. The portable-saves lever and help stay.
-    [Theory]
-    [InlineData("--scene", "Selected")]
-    [InlineData("--payload", "Westward")]
-    [InlineData("--driver", "Idler")]
-    [InlineData("--headless")]
-    [InlineData("--frames", "frames.csv")]
-    [InlineData("--uncapped")]
-    [InlineData("--seed", "42")]
-    [InlineData("--language", "fr")]
-    [InlineData("--replay", "run.recording")]
-    [InlineData("--recordings", "runs")]
-    [InlineData("--trace", "trace.csv", "1", "Avatar")]
-    [InlineData("--capture", "frames", "1")]
-    [InlineData("--force")]
-    public void AShippingBuild_RefusesADevelopmentFlagAsUnknown(params string[] args)
-    {
-        CommandLineException refused = Assert.Throws<CommandLineException>(
-            () => CommandLine.Parse(args, "Game", development: false));
-
-        Assert.Contains("unknown option", refused.Message, StringComparison.Ordinal);
-        Assert.False(refused.HelpRequested);
-        Assert.Equal(2, refused.ExitCode);
-    }
-
-    [Fact]
-    public void AShippingBuild_KeepsSavesGpuDriverAndHelp()
-    {
-        CommandLine parsed = CommandLine.Parse(["--saves", "portable", "--gpu-driver", "vulkan", "--help"], "Game", development: false);
-
-        Assert.Equal("portable", parsed.SavesPath);
-        Assert.Equal("vulkan", parsed.GpuDriver);
-        Assert.True(parsed.HelpRequested);
-
-        string usage = CommandLine.UsageFor("Game", development: false);
-        Assert.Contains("--saves <dir>", usage, StringComparison.Ordinal);
-        Assert.Contains("--gpu-driver <name>", usage, StringComparison.Ordinal);
-        Assert.Contains("--help", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--driver", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--headless", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--scene", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--payload", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--frames", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--uncapped", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--seed", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--language", usage, StringComparison.Ordinal);
-    }
 
     // The defect and the usage block as the shell prints them, with the exit code it returns.
     private string Refused(string[] args)

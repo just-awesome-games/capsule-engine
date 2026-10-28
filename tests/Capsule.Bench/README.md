@@ -56,8 +56,8 @@ The allocation tests and `dotnet run` run JIT-compiled code, and a shipped game 
 
 ```text
 dotnet publish src/MyGame.Shell -c Release -r win-x64 --self-contained true -p:PublishAot=true -p:CapsuleShipping=false -o artifacts/bench/aot
-artifacts/bench/aot/MyGame.exe --driver <Name> --frames artifacts/bench/aot-window.csv 60
-artifacts/bench/aot/MyGame.exe --driver <Name> --headless --frames artifacts/bench/aot-headless.csv 30
+artifacts/bench/aot/MyGame.exe --driver <Name> --frames artifacts/bench/aot-window.csv --exit-after 60
+artifacts/bench/aot/MyGame.exe --driver <Name> --headless --frames artifacts/bench/aot-headless.csv --exit-after 30
 ```
 
 The frame CSV's `bytes` column is what the frame thread allocated from that frame's start to the next one's, and `processBytes` what every thread did. A steady allocation in the windowed run that the headless run lacks comes from presentation or media: the renderer, the window or the audio device. One in both can come from the steps, the frame build, the driver or the host's upkeep, and needs those split apart.
@@ -74,7 +74,7 @@ A present's return is not the frame reaching the display, and `latency` cannot s
 
 ```text
 presentmon --process_name Capsule.Bench.exe --output_file artifacts/bench/presentmon.csv --timed 20 --delay 3 --no_console_stats --v2_metrics --terminate_after_timed
-tests/Capsule.Bench/bin/Release/net10.0/Capsule.Bench.exe --scene Still --frames artifacts/bench/latency/frames.csv 25 --latency artifacts/bench/latency
+tests/Capsule.Bench/bin/Release/net10.0/Capsule.Bench.exe --scene Still --frames artifacts/bench/latency/frames.csv --exit-after 25 --latency artifacts/bench/latency
 ```
 
 `DisplayLatency` runs from the return of the previous present to the frame on screen, and a press is sampled about one host wait into it. Whether the desktop compositor takes the window varies between runs of one build and costs about a refresh. Compare runs with the same `PresentMode`, two of each side. `SDL_GPU_DRIVER` set to `direct3d12` or `vulkan` measures one driver.
