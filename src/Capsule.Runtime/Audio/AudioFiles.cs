@@ -27,7 +27,9 @@ internal static class AudioFiles
     }
 
     // A streamed clip's decoder, for one play. Throws when the file is missing, malformed or wider
-    // than stereo.
+    // than stereo. Opening one builds the file's codebook tables, up to about a megabyte that dies young
+    // and a millisecond on the game thread. Keeping them per clip would hold that megabyte for every
+    // streamed clip a scene declares, which costs more than the garbage it saves.
     internal static IPcmSource OpenStream(HostPlatform platform, in AudioClip clip) =>
         new VorbisPcmSource(OpenVorbis(platform, clip));
 

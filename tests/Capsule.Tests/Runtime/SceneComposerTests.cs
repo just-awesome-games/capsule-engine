@@ -1,8 +1,10 @@
+using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Numerics;
 using Capsule.Runtime;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
+using Capsule.Tests.Allocation;
 using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Runtime;
@@ -59,6 +61,28 @@ public sealed class SceneComposerTests : IDisposable
 
         Assert.Contains(DocumentName + ShippedSceneDocument.Extension, failure.Message, StringComparison.Ordinal);
         Assert.Contains("not valid gzip", failure.Message, StringComparison.Ordinal);
+    }
+
+    // The reader sizes its buffer from the gzip trailer. A damaged trailer claiming far more than the file
+    // holds, though deflate could reach it, is refused as damage without allocating what it claims.
+    [Fact]
+    public void AShippedDocumentWhoseTrailerOverstatesItsLength_FailsAsAMalformedDocumentWithoutAllocatingTheClaim()
+    {
+        // A stage's document, large enough that the claim dwarfs what a failed read costs.
+        Write(StageWorkload.Build());
+        byte[] shipped = File.ReadAllBytes(DocumentPath);
+        uint claimed = (uint)shipped.Length * 1000;
+        BinaryPrimitives.WriteUInt32LittleEndian(shipped.AsSpan(shipped.Length - 4), claimed);
+        File.WriteAllBytes(DocumentPath, shipped);
+        SceneComposer composer = new(Registry(), new HostPlatform());
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(
+            () => composer.Resolve(SceneTransition.ToName(DocumentName, null)));
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Contains("not valid gzip", failure.Message, StringComparison.Ordinal);
+        Assert.InRange(allocated, 0, claimed / 4);
     }
 
     public void Dispose() => File.Delete(DocumentPath);

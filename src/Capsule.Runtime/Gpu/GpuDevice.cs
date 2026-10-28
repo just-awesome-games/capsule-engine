@@ -528,7 +528,7 @@ internal sealed unsafe class GpuDevice : IDisposable
     private static nint Create(string? driver)
     {
         nint device;
-        fixed (byte* name = driver is null ? null : Encoding.UTF8.GetBytes(driver + ' '))
+        fixed (byte* name = driver is null ? null : Encoding.UTF8.GetBytes(driver + '\0'))
         {
             device = Sdl3.SDL_CreateGPUDevice(Sdl3.GpuShaderFormatSpirv | Sdl3.GpuShaderFormatDxil | Sdl3.GpuShaderFormatMsl, debugMode: false, name);
         }

@@ -9,7 +9,8 @@ namespace Capsule.Runtime;
 
 // The host with no window or media, which plays a driver or a recording through the scenes a windowed
 // run would host. Transitions, the seed and the run settings behave as they do in a window. It steps as
-// fast as its input allows, or in real-time frames when frame diagnostics are on. It records nothing. It
+// fast as its input allows, or in real-time frames when frame diagnostics are on, unless uncapped. It
+// records nothing. It
 // takes exactly one of driver and replay, and watch runs after each step with the scene and the tick the
 // step ran at. A trace and a capture write the overlay's ticks, one past the step's, from tick 0, the
 // opening scene before its first step. An exiting step tears its scene down and leaves no tick to write.
@@ -98,20 +99,31 @@ internal sealed class HeadlessHost(
 
     // Frames as a window presenting once per fixed step runs them. Each frame advances by the wall
     // time since the last one began, and the scheduler decides how much of it to catch up. The view
-    // column times the frame's build. Nothing is submitted, and the draw section is empty.
+    // column times the frame's build. Nothing is submitted, and the draw section is empty. Uncapped, each
+    // frame runs one step back to back with the last, as a run without diagnostics does, and no frame
+    // waits for a period.
     private void PaceFrames(FrameDiagnostics diagnostics)
     {
         Func<long> timestamp = builder.Timestamp;
-        long period = (long)(builder.StepSeconds * Stopwatch.Frequency);
+        long period = builder.Uncapped ? 0 : (long)(builder.StepSeconds * Stopwatch.Frequency);
         long previous = timestamp();
         while (true)
         {
             long start = timestamp();
             diagnostics.BeginUpdate();
-            _scheduler.TimeScale = scenes.Run.TimeScale;
-            bool exiting = _scheduler.Advance((start - previous) / (double)Stopwatch.Frequency, DeviceSnapshot.Empty, scenes);
+            bool exiting;
+            if (builder.Uncapped)
+            {
+                exiting = _scheduler.Advance(builder.StepSeconds, DeviceSnapshot.Empty, scenes);
+            }
+            else
+            {
+                _scheduler.TimeScale = scenes.Run.TimeScale;
+                exiting = _scheduler.Advance((start - previous) / (double)Stopwatch.Frequency, DeviceSnapshot.Empty, scenes);
+            }
+
             previous = start;
-            diagnostics.EndUpdate(_scheduler.StepsThisFrame);
+            diagnostics.EndUpdate(_scheduler.StepsThisFrame, _scheduler.Tick);
 
             diagnostics.BeginView();
             _ = scenes.View;

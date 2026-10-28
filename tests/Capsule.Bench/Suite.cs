@@ -371,20 +371,22 @@ internal static class Suite
             List<FrameRow> rows = [];
             foreach (string line in File.ReadLines(path))
             {
-                if (line.Length == 0 || line[0] == '#' || line[0] == 'i')
+                // The boot trace's lines start with '#' and the header with a column's name.
+                if (line.Length == 0 || !char.IsAsciiDigit(line[0]))
                 {
                     continue;
                 }
 
+                // Past the leading tick, which no lane reads.
                 string[] fields = line.Split(',');
                 rows.Add(new FrameRow(
-                    double.Parse(fields[0], CultureInfo.InvariantCulture),
                     double.Parse(fields[1], CultureInfo.InvariantCulture),
                     double.Parse(fields[2], CultureInfo.InvariantCulture),
                     double.Parse(fields[3], CultureInfo.InvariantCulture),
-                    int.Parse(fields[4], CultureInfo.InvariantCulture),
+                    double.Parse(fields[4], CultureInfo.InvariantCulture),
                     int.Parse(fields[5], CultureInfo.InvariantCulture),
-                    long.Parse(fields[6], CultureInfo.InvariantCulture)));
+                    int.Parse(fields[6], CultureInfo.InvariantCulture),
+                    long.Parse(fields[7], CultureInfo.InvariantCulture)));
             }
 
             return rows;

@@ -17,8 +17,8 @@ internal sealed class CommandLine
           --payload <Name>           boot the opening scene with a new payload of that class name
           --seed <number>            start the random source from that seed, which a windowed run logs
           --language <tag>           start in the shipped language closest to that BCP 47 tag
-          --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
-          --uncapped                 present without vertical sync or a frame cap
+          --frames <csv> [seconds]   write each frame's timing and memory, exiting after seconds when given
+          --uncapped                 present without vertical sync or a frame cap, or run timed headless frames back to back
           --replay <file>            replay that recording, windowed unless --headless
           --trace <csv> <ticks> <names>
                                      write the named entities' panels at those ticks of a headless run

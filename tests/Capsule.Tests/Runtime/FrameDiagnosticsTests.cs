@@ -8,6 +8,8 @@ namespace Capsule.Tests.Runtime;
 // Nothing here needs a window or a device.
 public sealed class FrameDiagnosticsTests
 {
+    private const string Header = "tick,intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes,processBytes,heapBytes";
+
     private static readonly string[] BootStages =
         ["builderEntered", "hostConstructed", "deviceReady", "sceneAssetsLoaded", "firstUpdate", "firstDraw"];
 
@@ -20,7 +22,7 @@ public sealed class FrameDiagnosticsTests
         Assert.False(capture.Frame());
 
         string[] lines = capture.ReadLines();
-        int header = Array.IndexOf(lines, "intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes");
+        int header = Array.IndexOf(lines, Header);
 
         Assert.InRange(header, 1, lines.Length - 1);
         Assert.All(lines[..header], line => Assert.StartsWith("# ", line, StringComparison.Ordinal));
@@ -44,7 +46,7 @@ public sealed class FrameDiagnosticsTests
         using (FrameDiagnostics diagnostics = new(path, Stopwatch.GetTimestamp(), exitAfterSeconds: null, Stopwatch.GetTimestamp))
         {
             diagnostics.BeginUpdate();
-            diagnostics.EndUpdate(steps: 1);
+            diagnostics.EndUpdate(steps: 1, tick: 1);
             diagnostics.BeginView();
             diagnostics.BeginDraw();
             diagnostics.EndDraw();
@@ -54,8 +56,8 @@ public sealed class FrameDiagnosticsTests
     }
 
     // Full buffers are written by a thread the frame never waits on and the last, partial one at
-    // exit. Every frame must come out, in frame order, with the steps it ran and the collection
-    // count so far, which never goes down.
+    // exit. Every frame must come out, in frame order, with the steps it ran, the tick they reached
+    // and the collection count so far, which never goes down.
     [Fact]
     public void Dispose_WritesEveryFrameInOrder()
     {
@@ -70,18 +72,21 @@ public sealed class FrameDiagnosticsTests
         string[] rows = capture.ReadLines().Where(IsRow).ToArray();
 
         Assert.Equal(frames, rows.Length);
-        Assert.Equal(Enumerable.Range(0, frames).Select(i => i % 5), rows.Select(row => int.Parse(row.Split(',')[4], CultureInfo.InvariantCulture)));
-        Assert.All(rows, row => Assert.Equal(7, row.Split(',').Length));
+        int[] steps = [.. Enumerable.Range(0, frames).Select(i => i % 5)];
+        Assert.Equal(steps, rows.Select(row => int.Parse(row.Split(',')[5], CultureInfo.InvariantCulture)));
+        Assert.Equal(steps.Select((_, i) => (long)steps[..(i + 1)].Sum()), rows.Select(row => long.Parse(row.Split(',')[0], CultureInfo.InvariantCulture)));
+        Assert.All(rows, row => Assert.Equal(Header.Split(',').Length, row.Split(',').Length));
 
-        int[] gen0 = rows.Select(row => int.Parse(row.Split(',')[5], CultureInfo.InvariantCulture)).ToArray();
+        int[] gen0 = rows.Select(row => int.Parse(row.Split(',')[6], CultureInfo.InvariantCulture)).ToArray();
         Assert.Equal(gen0.Order(), gen0);
         Assert.InRange(gen0[0], 0, int.MaxValue);
     }
 
-    // A row times the update, the view's build and the submission apart. Its interval and its bytes
-    // both run from the previous frame's start, and the first frame has no predecessor for either.
+    // A row times the update, the view's build and the submission apart. Its interval and its
+    // allocations run from its frame's start to the next frame's. A frame's row holds what it allocated
+    // after its draw, and the last row closes when the capture does.
     [Fact]
-    public void ARow_TimesEachSectionApartAndCountsTheBytesAllocatedOverItsInterval()
+    public void ARow_TimesEachSectionApartAndCountsTheBytesAllocatedUntilTheNextFrame()
     {
         ManualClock clock = new();
         using Capture capture = new(clock: clock);
@@ -93,10 +98,34 @@ public sealed class FrameDiagnosticsTests
 
         string[][] rows = [.. capture.ReadLines().Where(IsRow).Select(static row => row.Split(','))];
 
-        Assert.Equal(["0.000", "1.000", "2.000", "4.000"], rows[0][..4]);
-        Assert.Equal("0", rows[0][6]);
-        Assert.Equal("7.000", rows[1][0]);
-        Assert.InRange(long.Parse(rows[1][6], CultureInfo.InvariantCulture), allocated.Length, long.MaxValue);
+        Assert.Equal(["7.000", "1.000", "2.000", "4.000"], rows[0][1..5]);
+        Assert.InRange(long.Parse(rows[0][7], CultureInfo.InvariantCulture), allocated.Length, long.MaxValue);
+        Assert.InRange(long.Parse(rows[0][8], CultureInfo.InvariantCulture), allocated.Length, long.MaxValue);
+        Assert.InRange(long.Parse(rows[0][9], CultureInfo.InvariantCulture), 1, long.MaxValue);
+        Assert.Equal("0.000", rows[1][1]);
+        Assert.InRange(long.Parse(rows[1][7], CultureInfo.InvariantCulture), 0, allocated.Length - 1);
+    }
+
+    // A minimized or exiting frame updates and draws nothing. Its row keeps the run's ticks and allocations
+    // whole with no view or submission, and the capture's close ends one as the next frame's start would.
+    // Rows start at the first drawn frame, which writes the boot trace and the header.
+    [Fact]
+    public void AFrameThatDrawsNothing_WritesARowWithNoViewOrSubmission()
+    {
+        ManualClock clock = new();
+        using Capture capture = new(clock: clock);
+
+        capture.Update(steps: 1);
+        capture.Frame(viewSeconds: 0.002, drawSeconds: 0.004);
+        capture.Update(steps: 2);
+        capture.Frame(viewSeconds: 0.002, drawSeconds: 0.004);
+        capture.Update(steps: 3);
+
+        string[][] rows = [.. capture.ReadLines().Where(IsRow).Select(static row => row.Split(','))];
+
+        Assert.Equal(["2", "4", "5", "8"], rows.Select(static row => row[0]));
+        Assert.Equal(["2.000", "0.000", "2.000", "0.000"], rows.Select(static row => row[3]));
+        Assert.Equal(["4.000", "0.000", "4.000", "0.000"], rows.Select(static row => row[4]));
     }
 
     [Fact]
@@ -149,6 +178,7 @@ public sealed class FrameDiagnosticsTests
         private readonly ManualClock? _clock;
 
         private FrameDiagnostics? _diagnostics;
+        private long _tick;
 
         internal Capture(double? exitAfterSeconds = null, ManualClock? clock = null)
         {
@@ -174,13 +204,24 @@ public sealed class FrameDiagnosticsTests
 
             diagnostics.BeginUpdate();
             _clock?.Advance(updateSeconds);
-            diagnostics.EndUpdate(steps);
+            _tick += steps;
+            diagnostics.EndUpdate(steps, _tick);
             diagnostics.BeginView();
             _clock?.Advance(viewSeconds);
             diagnostics.BeginDraw();
             _clock?.Advance(drawSeconds);
 
             return diagnostics.EndDraw();
+        }
+
+        /// <summary>Runs one frame that stepped <paramref name="steps"/> times and drew nothing, as a minimized window's does.</summary>
+        internal void Update(int steps)
+        {
+            FrameDiagnostics diagnostics = _diagnostics ?? throw new InvalidOperationException("The capture is closed.");
+
+            diagnostics.BeginUpdate();
+            _tick += steps;
+            diagnostics.EndUpdate(steps, _tick);
         }
 
         internal bool Expired => (_diagnostics ?? throw new InvalidOperationException("The capture is closed.")).Expired;

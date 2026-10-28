@@ -4,7 +4,8 @@ using System.Text.RegularExpressions;
 
 namespace Capsule.Tests.Packaging;
 
-// The prose rules in AGENTS.md that a string match can hold, across every file the repo authors.
+// The prose rules in AGENTS.md that a string match can hold, and the plain text search tools need, across
+// every file the repo authors.
 public sealed partial class ProseTests
 {
     // Spelled as escapes so this file passes its own scan.
@@ -43,6 +44,12 @@ public sealed partial class ProseTests
     public void NoSummary_RunsPastTwoSentences() =>
         Scan(["src", "samples", "tests"], [], (path, _) => LongSummaries(path), "These summaries run past two sentences, which AGENTS.md allows only for a unit, owner or lifetime fact. Keep one sentence and move the rest to remarks or returns");
 
+    // A tool that writes an escape's character instead of its spelling leaves a control character, which
+    // compiles and turns the file binary to search tools, which then skip it whole.
+    [Fact]
+    public void NoAuthoredLine_CarriesAControlCharacter() =>
+        Scan(Folders, Pages, (path, _) => ControlCharacters(path), "These lines carry a control character, which makes search tools skip the file. Spell the character as its escape");
+
     // Fails naming every line flagged across the folders' files and the root pages.
     private static void Scan(string[] folders, string[] pages, Func<string, string, IEnumerable<int>> flagged, string rule)
     {
@@ -75,6 +82,20 @@ public sealed partial class ProseTests
             }
 
             comma = line.TrimEnd().EndsWith(',');
+        }
+    }
+
+    // A tab is the one control character a line may hold. Reading by lines drops the line endings.
+    private static IEnumerable<int> ControlCharacters(string path)
+    {
+        int number = 0;
+        foreach (string line in File.ReadLines(path))
+        {
+            number++;
+            if (line.Any(static unit => char.IsControl(unit) && unit != '\t'))
+            {
+                yield return number;
+            }
         }
     }
 

@@ -88,7 +88,8 @@ tick with the overlay open, and the status line says `Replay matched` or `Replay
 run that ended by exiting holds before its exiting step. Closing the overlay, or taking a step from the
 hold, hands the run to the devices from that tick, and recording carries on with the replayed run in it.
 A replay never handed over saves nothing at exit. Under `--frames` the replay plays at the run's pace.
-With `--headless` it plays to its end and exits 0 when it matched and 1 when it diverged. In a test,
+A fast-forward mixes nothing, and the sounds it started wait unplayed at the hold. Measure a run's memory
+at the hold of a replay under `--frames`, where only the sounds playing at its last tick wait. With `--headless` it plays to its end and exits 0 when it matched and 1 when it diverged. In a test,
 `EngineBuilder.RunHeadless(Recording)` replays one and reports `DivergedAt`.
 
 A recording holds a checksum of the run's state once a simulated second. A replay diverges at the first

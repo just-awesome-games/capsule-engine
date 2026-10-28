@@ -24,7 +24,8 @@ public sealed partial class EngineBuilder
     /// headless run writes no crash log and lets an escaping exception reach the caller. It persists
     /// nothing unless <see cref="WithSaveDirectory"/> or <see cref="WithSaveStorage"/> named a medium.
     /// It steps as fast as the driver allows, or in real-time frames under
-    /// <see cref="WithFrameDiagnostics"/>.
+    /// <see cref="WithFrameDiagnostics"/>, which run back to back, one step each, when the command line
+    /// gave <c>--uncapped</c>.
     /// </remarks>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
     /// <param name="driver">The run's input, one snapshot per fixed step.</param>

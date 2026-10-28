@@ -6,8 +6,8 @@ namespace Capsule.Runtime;
 
 // Host timing capture written as the CSV EngineBuilder.WithFrameDiagnostics documents. The gen-0
 // count is cumulative, and a window of rows reads its own collections as a difference. A row's
-// interval and bytes cover the same span, from the previous frame's start to this one's, on the
-// thread that runs the frames.
+// interval and allocations cover the same span, from its frame's start to the next frame's, which
+// closes the row. The last row closes at disposal.
 internal sealed class FrameDiagnostics : IDisposable
 {
     // Rows fill one of two buffers. A full buffer is handed to the writer thread and the other takes
@@ -19,7 +19,7 @@ internal sealed class FrameDiagnostics : IDisposable
     private readonly StreamWriter _writer;
 
     // One row's text, reused so writing a frame's row allocates nothing.
-    private readonly char[] _row = new char[128];
+    private readonly char[] _row = new char[192];
     private readonly long[] _stages;
     private readonly long _exitAfterTicks;
     private readonly Func<long> _timestamp;
@@ -33,13 +33,24 @@ internal sealed class FrameDiagnostics : IDisposable
 
     private int _count;
     private long _sectionStart;
-    private long _previousUpdateStart = -1;
-    private long _previousAllocated;
-    private double _intervalMs;
+
+    // The drawn frame whose row waits for the next frame's start, and where its spans began.
+    private bool _open;
+    private long _frameStart;
+    private long _frameAllocated;
+    private long _frameProcessAllocated;
+    private Row _frame;
+
+    // The frame in progress, which becomes the open one once it draws, or at the next frame's start when it
+    // draws nothing.
+    private bool _updating;
+    private long _updateStart;
+    private long _updateAllocated;
+    private long _updateProcessAllocated;
     private double _updateMs;
     private double _viewMs;
-    private long _bytes;
     private int _steps;
+    private long _tick;
 
     // builderEntered is the timestamp taken when the builder was created, the trace's first stage.
     internal FrameDiagnostics(string path, long builderEntered, double? exitAfterSeconds, Func<long> timestamp)
@@ -86,36 +97,37 @@ internal sealed class FrameDiagnostics : IDisposable
         }
     }
 
+    // Closes the previous frame's row at this frame's start.
     internal void BeginUpdate()
     {
         long now = _timestamp();
         long allocated = GC.GetAllocatedBytesForCurrentThread();
+        long processAllocated = GC.GetTotalAllocatedBytes(precise: false);
 
-        if (_previousUpdateStart < 0)
+        // The first update is the trace's last stage before the draw it feeds.
+        if (_stages[(int)Stage.FirstUpdate] < 0)
         {
-            // The first frame has no predecessor to measure an interval against, and its update is the
-            // trace's last stage before the draw it feeds.
-            _intervalMs = 0;
-            _bytes = 0;
             _stages[(int)Stage.FirstUpdate] = now;
         }
-        else
-        {
-            _intervalMs = Milliseconds(now - _previousUpdateStart);
-            _bytes = allocated - _previousAllocated;
-        }
 
-        _previousUpdateStart = now;
-        _previousAllocated = allocated;
+        OpenUndrawn();
+        Close(now, allocated, processAllocated);
+
+        _updating = true;
+        _updateStart = now;
+        _updateAllocated = allocated;
+        _updateProcessAllocated = processAllocated;
         _sectionStart = now;
     }
 
-    // steps: The fixed steps the update ran, zero on a frame that had not accumulated one.
-    internal void EndUpdate(int steps)
+    // steps: The fixed steps the update ran, zero on a frame that had not accumulated one. tick: The
+    // run's tick once they ran, the state the frame shows.
+    internal void EndUpdate(int steps, long tick)
     {
         long now = _timestamp();
         _updateMs = Milliseconds(now - _sectionStart);
         _steps = steps;
+        _tick = tick;
         _sectionStart = now;
     }
 
@@ -129,11 +141,12 @@ internal sealed class FrameDiagnostics : IDisposable
         _sectionStart = now;
     }
 
-    // Closes the frame's row and returns whether the run's time budget is spent.
+    // Ends the frame's sections, leaving its row open for the next frame's start, and returns whether the
+    // run's time budget is spent.
     internal bool EndDraw()
     {
         long now = _timestamp();
-        _rows[_count++] = new Row(_intervalMs, _updateMs, _viewMs, Milliseconds(now - _sectionStart), _steps, GC.CollectionCount(0), _bytes);
+        Open(_viewMs, Milliseconds(now - _sectionStart));
 
         if (_stages[^1] < 0)
         {
@@ -142,13 +155,6 @@ internal sealed class FrameDiagnostics : IDisposable
             // Written after the frame's own timestamps are taken. Resolving the process start costs
             // milliseconds, which then land on the first interval and not on the trace.
             WriteBootTrace();
-        }
-
-        if (_count == FlushEvery)
-        {
-            _full.Add(_rows);
-            _rows = _free.Take();
-            _count = 0;
         }
 
         return Spent(now);
@@ -164,6 +170,8 @@ internal sealed class FrameDiagnostics : IDisposable
     // stay in frame order.
     public void Dispose()
     {
+        OpenUndrawn();
+        Close(_timestamp(), GC.GetAllocatedBytesForCurrentThread(), GC.GetTotalAllocatedBytes(precise: false));
         _full.CompleteAdding();
         _writerThread.Join();
 
@@ -220,8 +228,69 @@ internal sealed class FrameDiagnostics : IDisposable
             _writer.WriteLine(stage.Written);
         }
 
-        _writer.WriteLine("intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes");
+        _writer.WriteLine("tick,intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes,processBytes,heapBytes");
         _writer.Flush();
+    }
+
+    // Opens the row of the frame in progress, its sections timed.
+    private void Open(double viewMs, double drawMs)
+    {
+        _frame = new Row(
+            _tick,
+            0,
+            _updateMs,
+            viewMs,
+            drawMs,
+            _steps,
+            GC.CollectionCount(0),
+            0,
+            0,
+            GC.GetTotalMemory(forceFullCollection: false));
+        _frameStart = _updateStart;
+        _frameAllocated = _updateAllocated;
+        _frameProcessAllocated = _updateProcessAllocated;
+        _open = true;
+        _updating = false;
+    }
+
+    // Opens the row of an update that drew nothing, such as a minimized or exiting frame, with no view or
+    // draw. Rows start at the first drawn frame, whose boot trace and header precede them.
+    private void OpenUndrawn()
+    {
+        if (!_updating)
+        {
+            return;
+        }
+
+        _updating = false;
+        if (_stages[^1] >= 0)
+        {
+            Open(0, 0);
+        }
+    }
+
+    // Writes the open row, its spans ending at now, and hands a full buffer to the writer.
+    private void Close(long now, long allocated, long processAllocated)
+    {
+        if (!_open)
+        {
+            return;
+        }
+
+        _rows[_count++] = _frame with
+        {
+            IntervalMs = Milliseconds(now - _frameStart),
+            Bytes = allocated - _frameAllocated,
+            ProcessBytes = processAllocated - _frameProcessAllocated,
+        };
+        _open = false;
+
+        if (_count == FlushEvery)
+        {
+            _full.Add(_rows);
+            _rows = _free.Take();
+            _count = 0;
+        }
     }
 
     private void Write(Row[] rows, int count)
@@ -230,6 +299,8 @@ internal sealed class FrameDiagnostics : IDisposable
         {
             Row row = rows[i];
             NumberText line = new(_row);
+            line.Add(row.Tick);
+            line.Add(",");
             line.Add(row.IntervalMs, "F3");
             line.Add(",");
             line.Add(row.UpdateMs, "F3");
@@ -243,11 +314,25 @@ internal sealed class FrameDiagnostics : IDisposable
             line.Add(row.Gen0);
             line.Add(",");
             line.Add(row.Bytes);
+            line.Add(",");
+            line.Add(row.ProcessBytes);
+            line.Add(",");
+            line.Add(row.HeapBytes);
             _writer.WriteLine(line.Written);
         }
 
         _writer.Flush();
     }
 
-    private readonly record struct Row(double IntervalMs, double UpdateMs, double ViewMs, double DrawMs, int Steps, int Gen0, long Bytes);
+    private readonly record struct Row(
+        long Tick,
+        double IntervalMs,
+        double UpdateMs,
+        double ViewMs,
+        double DrawMs,
+        int Steps,
+        int Gen0,
+        long Bytes,
+        long ProcessBytes,
+        long HeapBytes);
 }

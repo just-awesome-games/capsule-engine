@@ -60,7 +60,7 @@ artifacts/bench/aot/MyGame.exe --driver <Name> --frames artifacts/bench/aot-wind
 artifacts/bench/aot/MyGame.exe --driver <Name> --headless --frames artifacts/bench/aot-headless.csv 30
 ```
 
-The frame CSV's `bytes` column is what the frame thread allocated since the previous frame. A steady allocation in the windowed run that the headless run lacks comes from presentation or media: the renderer, the window or the audio device. One in both can come from the steps, the frame build, the driver or the host's upkeep, and needs those split apart.
+The frame CSV's `bytes` column is what the frame thread allocated from that frame's start to the next one's, and `processBytes` what every thread did. A steady allocation in the windowed run that the headless run lacks comes from presentation or media: the renderer, the window or the audio device. One in both can come from the steps, the frame build, the driver or the host's upkeep, and needs those split apart.
 
 ## Input latency
 

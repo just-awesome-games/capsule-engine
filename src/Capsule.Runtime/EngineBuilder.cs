@@ -77,7 +77,7 @@ public sealed partial class EngineBuilder
     internal bool Resizable { get; private set; } = true;
 
     // Set only by the development flag --uncapped. The host then presents without vertical sync or a
-    // frame cap, whatever the run asks for.
+    // frame cap, whatever the run asks for, and a headless run's diagnostic frames run back to back.
     internal bool Uncapped { get; private set; }
 
     // Where the development plane writes each press's input-to-present latency, or null for none.
@@ -441,12 +441,16 @@ public sealed partial class EngineBuilder
     /// ignores it and logs a warning.
     /// </summary>
     /// <remarks>
-    /// The file holds a boot trace in milliseconds from process start, then one row per frame: the
-    /// interval since the previous frame began, the update, the view's build and the submission in
-    /// milliseconds, the fixed steps run, the gen-0 collections so far, and the bytes the frame's thread
-    /// allocated over the interval. Its directory is created and an existing file is overwritten. A
-    /// headless run paces its frames to the fixed step's rate and submits nothing, and its trace has no
-    /// device or media stages.
+    /// The file holds a boot trace in milliseconds from process start, then one row per frame from the
+    /// first drawn one: the tick its state shows, numbered as <c>--trace</c> numbers them, the interval
+    /// from its start to the next frame's, the update, the view's build and the submission in
+    /// milliseconds, the fixed steps run, the gen-0 collections so far, the bytes the frame's thread
+    /// allocated over the interval, the bytes every thread allocated over it to within each thread's
+    /// allocation quantum, and the managed heap's size once the frame's work is done. A frame that draws
+    /// nothing, minimized or exiting, times no view or submission. Its directory is created and an
+    /// existing file is overwritten. A headless run paces its frames to the fixed step's rate and submits
+    /// nothing, and its trace has no device or media stages. Under <c>--uncapped</c> its frames run back
+    /// to back, one step each, and the interval times the step and the view's build alone.
     /// </remarks>
     /// <param name="path">The CSV to write.</param>
     /// <param name="exitAfterSeconds">

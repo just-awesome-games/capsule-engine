@@ -541,7 +541,7 @@ internal sealed unsafe class WindowHost
         // A drawn frame ends a timed diagnostics run once it is submitted. A minimized one draws none.
         exiting |= _minimized && _diagnostics is { Expired: true };
 
-        _diagnostics?.EndUpdate(_scheduler.StepsThisFrame);
+        _diagnostics?.EndUpdate(_scheduler.StepsThisFrame, _scheduler.Tick);
 
         // A minimized window shows nothing. Its frames build and draw nothing. A run that is exiting
         // draws nothing either: its scenes have released what the frame would draw. Nor does a replay
