@@ -22,6 +22,8 @@ internal sealed class CommandLine
           --replay <file>            replay that recording, windowed unless --headless
           --trace <csv> <ticks> <names>
                                      write the named entities' panels at those ticks of a headless run
+          --capture <dir> <ticks>    write the frames at those ticks of a headless run as PNGs
+          --force                    let --trace or --capture write past its ceiling of ticks
           --recordings <dir>         keep the run's recordings under that directory
 
         """;
@@ -33,6 +35,8 @@ internal sealed class CommandLine
         """;
 
     private const string TraceUsage = "--trace needs a CSV path, ticks and entity names: --trace trace.csv 100..160 Avatar.";
+
+    private const string CaptureUsage = "--capture needs a directory and ticks: --capture frames 100..160.";
 
     internal bool HelpRequested { get; private set; }
 
@@ -75,6 +79,14 @@ internal sealed class CommandLine
     internal TickRange[]? TraceTicks { get; private set; }
 
     internal string[]? TraceNames { get; private set; }
+
+    // The capture's directory and ticks, both null unless --capture was given.
+    internal string? CapturePath { get; private set; }
+
+    internal TickRange[]? CaptureTicks { get; private set; }
+
+    // Whether --force lifts the trace's and the capture's ceilings.
+    internal bool Force { get; private set; }
 
     private CommandLine()
     {
@@ -161,8 +173,7 @@ internal sealed class CommandLine
                 case "--trace" when development:
                     parsed.TracePath = Value(args, ref index, gameName, development, TraceUsage);
                     string ticks = Value(args, ref index, gameName, development, TraceUsage);
-                    parsed.TraceTicks = TickRange.TryParseList(ticks)
-                        ?? throw Refuse(gameName, development, $"--trace takes its ticks as a tick, a range such as 100..160 or 100.., or a comma list of them, not '{ticks}'.");
+                    parsed.TraceTicks = Ticks("--trace", ticks, gameName, development);
                     string names = Value(args, ref index, gameName, development, TraceUsage);
                     parsed.TraceNames = names.Split(',');
                     if (Array.Exists(parsed.TraceNames, string.IsNullOrWhiteSpace))
@@ -170,6 +181,15 @@ internal sealed class CommandLine
                         throw Refuse(gameName, development, $"--trace takes a comma list of entity names, Scene, Camera or *, not '{names}'.");
                     }
 
+                    break;
+
+                case "--capture" when development:
+                    parsed.CapturePath = Value(args, ref index, gameName, development, CaptureUsage);
+                    parsed.CaptureTicks = Ticks("--capture", Value(args, ref index, gameName, development, CaptureUsage), gameName, development);
+                    break;
+
+                case "--force" when development:
+                    parsed.Force = true;
                     break;
 
                 case "--saves":
@@ -203,6 +223,16 @@ internal sealed class CommandLine
             throw Refuse(gameName, development, "--trace writes a headless run. Give --headless with it, and --replay <file> or --driver <Name>.");
         }
 
+        if (parsed.CapturePath is not null && !parsed.Headless)
+        {
+            throw Refuse(gameName, development, "--capture writes a headless run. Give --headless with it, and --replay <file> or --driver <Name>.");
+        }
+
+        if (parsed.Force && parsed.TracePath is null && parsed.CapturePath is null)
+        {
+            throw Refuse(gameName, development, "--force lifts the ceiling of --trace or --capture, and neither was given. Drop --force.");
+        }
+
         return parsed;
     }
 
@@ -214,6 +244,10 @@ internal sealed class CommandLine
 
     private static CommandLineException Refuse(string gameName, bool development, string message) =>
         new(message, UsageFor(gameName, development), helpRequested: false);
+
+    private static TickRange[] Ticks(string flag, string ticks, string gameName, bool development) =>
+        TickRange.TryParseList(ticks)
+            ?? throw Refuse(gameName, development, $"{flag} takes its ticks as a tick, a range such as 100..160 or 100.., or a comma list of them, not '{ticks}'.");
 
     // A value never starts with the flag prefix, and a missing value is caught here instead of
     // swallowing the flag that follows it. A blank token counts as missing.

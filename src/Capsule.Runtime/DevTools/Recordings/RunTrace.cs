@@ -14,6 +14,10 @@ namespace Capsule.Runtime.DevTools.Recordings;
 // outside the ticks costs a range check, and a traced tick allocates its rows, which no live run ever pays.
 internal sealed class RunTrace : IDisposable
 {
+    // The ticks a trace writes before the run halts, unless --force lifts it: a simulated minute at 60
+    // steps a second.
+    internal const int Ceiling = 3600;
+
     private const string Header = "tick,entity,section,field,value";
 
     // A selector matching every entity, the scene and its camera.
@@ -25,7 +29,7 @@ internal sealed class RunTrace : IDisposable
 
     private readonly string _path;
     private readonly StreamWriter _writer;
-    private readonly TickRange[] _ticks;
+    private readonly TickSelection _ticks;
     private readonly string[] _names;
     private readonly bool[] _matched;
     private readonly DebugPanel _panel = new();
@@ -49,7 +53,7 @@ internal sealed class RunTrace : IDisposable
     private long _rows;
 
     // Throws IOException or UnauthorizedAccessException when path cannot be written.
-    internal RunTrace(string path, TickRange[] ticks, string[] names)
+    internal RunTrace(string path, TickSelection ticks, string[] names)
     {
         if (Path.GetDirectoryName(Path.GetFullPath(path)) is { Length: > 0 } directory)
         {
@@ -64,10 +68,12 @@ internal sealed class RunTrace : IDisposable
         _matched = new bool[names.Length];
     }
 
+    internal TickSelection Ticks => _ticks;
+
     // Holds an act for the tick its result shows, when the trace names that tick.
     internal void Act(long tick, string subject, string act)
     {
-        if (Holds(tick))
+        if (_ticks.Holds(tick))
         {
             _acts.Add((tick, subject, act));
         }
@@ -76,8 +82,14 @@ internal sealed class RunTrace : IDisposable
     // Writes the rows of scenes' current scene when tick is one the trace names.
     internal void Write(SceneHost scenes, long tick)
     {
-        if (!Holds(tick))
+        if (!_ticks.Take(tick))
         {
+            // The run halts here, and the acts held for this tick are never written.
+            if (_ticks.HaltedAt == tick)
+            {
+                _acts.Clear();
+            }
+
             return;
         }
 
@@ -152,29 +164,12 @@ internal sealed class RunTrace : IDisposable
             }
         }
 
-        long last = _ticks.Max(static range => range.IsOpen ? range.First : range.Last);
-        if (last > finalTick)
-        {
-            Log.Warning(string.Create(CultureInfo.InvariantCulture, $"--trace names tick {last}, and the run ended at tick {finalTick}."));
-        }
+        _ticks.WarnPastEnd(finalTick);
 
         Log.Info(string.Create(CultureInfo.InvariantCulture, $"--trace wrote {_rows} rows to {_path}"));
     }
 
     public void Dispose() => _writer.Dispose();
-
-    private bool Holds(long tick)
-    {
-        foreach (TickRange range in _ticks)
-        {
-            if (range.Holds(tick))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     // Every name is tried, and each one that matches is marked.
     private bool Matches(Entity entity)
@@ -330,38 +325,4 @@ internal sealed class RunTrace : IDisposable
 
     // One row's place in a trace.
     private readonly record struct TraceKey(string Entity, string Section, string Field);
-}
-
-// The ticks from First to Last, both included. An open range runs to the run's end.
-internal readonly record struct TickRange(long First, long Last)
-{
-    internal bool IsOpen => Last == long.MaxValue;
-
-    internal bool Holds(long tick) => tick >= First && tick <= Last;
-
-    // A tick (120), a range (100..160), an open range (100..), or a comma list of them, in whole ticks with
-    // each range's first at or before its last. Null when text is none of those.
-    internal static TickRange[]? TryParseList(string text)
-    {
-        string[] parts = text.Split(',');
-        TickRange[] ranges = new TickRange[parts.Length];
-        for (int index = 0; index < parts.Length; index++)
-        {
-            string part = parts[index];
-            int dots = part.IndexOf("..", StringComparison.Ordinal);
-            string first = dots < 0 ? part : part[..dots];
-            string last = dots < 0 ? part : part[(dots + 2)..];
-            long to = long.MaxValue;
-            if (!long.TryParse(first, NumberStyles.None, CultureInfo.InvariantCulture, out long from)
-                || (last.Length > 0 && !long.TryParse(last, NumberStyles.None, CultureInfo.InvariantCulture, out to))
-                || from > to)
-            {
-                return null;
-            }
-
-            ranges[index] = new TickRange(from, to);
-        }
-
-        return ranges;
-    }
 }

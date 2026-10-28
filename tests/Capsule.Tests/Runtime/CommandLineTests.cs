@@ -211,7 +211,11 @@ public sealed class CommandLineTests : IDisposable
         ["--trace", "trace.csv", "1..", "Avatar"],
         ["--trace", "trace.csv", "1", "Avatar,"],
         ["--trace", "trace.csv", "1", "Avatar"],
-        ["--replay", "run.recording", "--trace", "trace.csv", "1", "Avatar"]);
+        ["--replay", "run.recording", "--trace", "trace.csv", "1", "Avatar"],
+        ["--headless", "--capture", "frames"],
+        ["--headless", "--capture", "frames", "9..5"],
+        ["--capture", "frames", "1"],
+        ["--headless", "--driver", "Idler", "--force"]);
 
     [Fact]
     public void Trace_TakesItsTicksAndNamesAsCommaLists()
@@ -222,6 +226,17 @@ public sealed class CommandLineTests : IDisposable
         Assert.Equal("trace.csv", parsed.TracePath);
         Assert.Equal([new TickRange(0, 0), new TickRange(100, 160), new TickRange(200, long.MaxValue)], parsed.TraceTicks!);
         Assert.Equal(["Avatar (1)", "*"], parsed.TraceNames!);
+    }
+
+    [Fact]
+    public void Capture_TakesItsDirectoryAndTicks_AndForceLiftsTheCeilings()
+    {
+        CommandLine parsed = CommandLine.Parse(
+            ["--replay", "run.recording", "--headless", "--capture", "frames", "0,100..160", "--force"], "Game", development: true);
+
+        Assert.Equal("frames", parsed.CapturePath);
+        Assert.Equal([new TickRange(0, 0), new TickRange(100, 160)], parsed.CaptureTicks!);
+        Assert.True(parsed.Force);
     }
 
     // The recording supplies the run's opening, seed and language, and a flag setting one would be ignored.
@@ -249,6 +264,8 @@ public sealed class CommandLineTests : IDisposable
     [InlineData("--replay", "run.recording")]
     [InlineData("--recordings", "runs")]
     [InlineData("--trace", "trace.csv", "1", "Avatar")]
+    [InlineData("--capture", "frames", "1")]
+    [InlineData("--force")]
     public void AShippingBuild_RefusesADevelopmentFlagAsUnknown(params string[] args)
     {
         CommandLineException refused = Assert.Throws<CommandLineException>(

@@ -6,7 +6,7 @@ using Capsule.Runtime.Platform;
 
 namespace Capsule.Runtime.Gpu;
 
-// SDL_GPUDevice and the window it presents to: creates the GPU resources and the command buffers that
+// SDL_GPUDevice and the window it presents to, if any: creates the GPU resources and the command buffers that
 // use them, with the frames in flight the game allows. A copy pass stages every upload in one transfer buffer the device
 // keeps, appended from the start of each frame, and records the uploads when the pass ends, after the
 // buffer is unmapped. The first staging of a frame cycles the buffer, which never waits on a frame
@@ -55,42 +55,29 @@ internal sealed unsafe class GpuDevice : IDisposable
     internal string Description { get; }
 
     // The swapchain's format, B8G8R8A8 or R8G8B8A8 unorm under SDR composition, which no present mode
-    // changes. Every surface the renderer draws into takes it, and every pipeline targets it. Each
-    // blends in gamma space.
+    // changes, and R8G8B8A8 unorm with no window. Every surface the renderer draws into takes it, and
+    // every pipeline targets it. Each blends in gamma space.
     internal GpuTextureFormat SwapchainFormat { get; }
 
     // Creates SDL's GPU device through the named driver, or the one SDL chooses when driver is null, and
     // claims the window for it in SDR composition under VSYNC.
     internal GpuDevice(nint window, string? driver, int framesInFlight)
+        : this(Claim(Create(driver), window, framesInFlight), window)
     {
+    }
+
+    // Creates SDL's GPU device as the windowed constructor does, with no window to present to. Its frames
+    // draw offscreen and acquire no swapchain texture, and its surfaces take the one colour format every
+    // driver must render to. The video subsystem must be initialised first.
+    internal GpuDevice(string? driver)
+        : this((Create(driver), GpuTextureFormat.R8G8B8A8Unorm), window: 0)
+    {
+    }
+
+    private GpuDevice((nint Device, GpuTextureFormat Format) created, nint window)
+    {
+        (_device, SwapchainFormat) = created;
         _window = window;
-        fixed (byte* name = driver is null ? null : Encoding.UTF8.GetBytes(driver + '\0'))
-        {
-            _device = Sdl3.SDL_CreateGPUDevice(Sdl3.GpuShaderFormatSpirv | Sdl3.GpuShaderFormatDxil | Sdl3.GpuShaderFormatMsl, debugMode: false, name);
-        }
-
-        if (_device == 0)
-        {
-            throw driver is null ? Unavailable("could not open a GPU") : new InvalidOperationException(DriverRefused(driver, Sdl3.Error(), OfferedDrivers()));
-        }
-
-        if (!Sdl3.SDL_ClaimWindowForGPUDevice(_device, window))
-        {
-            InvalidOperationException refused = new(ClaimRefused(Utf8(Sdl3.SDL_GetGPUDeviceDriver(_device)) ?? "unnamed", Sdl3.Error()));
-            Sdl3.SDL_DestroyGPUDevice(_device);
-            throw refused;
-        }
-
-        Sdl3.SDL_SetGPUAllowedFramesInFlight(_device, (uint)framesInFlight);
-        SwapchainFormat = Sdl3.SDL_GetGPUSwapchainTextureFormat(_device, window);
-        if (SwapchainFormat == GpuTextureFormat.Invalid)
-        {
-            InvalidOperationException refused = new($"The window's swapchain reported no texture format: {Sdl3.Error()}");
-            Sdl3.SDL_ReleaseWindowFromGPUDevice(_device, window);
-            Sdl3.SDL_DestroyGPUDevice(_device);
-            throw refused;
-        }
-
         _swapchain = new GpuTexture(0, 0, SwapchainFormat, 0, 0);
 
         uint formats = Sdl3.SDL_GetGPUShaderFormats(_device);
@@ -102,7 +89,10 @@ internal sealed unsafe class GpuDevice : IDisposable
         _staging = CreateTransferBuffer(Sdl3.GpuTransferUpload, _stagingSize);
     }
 
-    // The window's drawable extent in pixels, zero while it has none.
+    // Whether the device presents to a window. One with none draws offscreen alone.
+    internal bool HasWindow => _window != 0;
+
+    // The window's drawable extent in pixels, zero while it has none and for a device with no window.
     internal (int Width, int Height) WindowSize
     {
         get
@@ -110,7 +100,7 @@ internal sealed unsafe class GpuDevice : IDisposable
             int width;
             int height;
 
-            return Sdl3.SDL_GetWindowSizeInPixels(_window, &width, &height) ? (width, height) : (0, 0);
+            return HasWindow && Sdl3.SDL_GetWindowSizeInPixels(_window, &width, &height) ? (width, height) : (0, 0);
         }
     }
 
@@ -272,7 +262,7 @@ internal sealed unsafe class GpuDevice : IDisposable
             : throw new InvalidOperationException($"Shader '{info.FragmentShader.Info.Name}' could not be linked into a pipeline: {Sdl3.Error()}");
     }
 
-    // Waits for the GPU to go idle, releases what the device created, releases the window and destroys
+    // Waits for the GPU to go idle, releases what the device created, releases any window and destroys
     // the device. The window outlives it.
     public void Dispose()
     {
@@ -283,14 +273,24 @@ internal sealed unsafe class GpuDevice : IDisposable
             Sdl3.SDL_ReleaseGPUSampler(_device, sampler.Handle);
         }
 
-        Sdl3.SDL_ReleaseWindowFromGPUDevice(_device, _window);
+        if (HasWindow)
+        {
+            Sdl3.SDL_ReleaseWindowFromGPUDevice(_device, _window);
+        }
+
         Sdl3.SDL_DestroyGPUDevice(_device);
     }
 
-    // The window's swapchain texture for commands, or null when the window shows none this frame. The
-    // wait at the end of the previous frame leaves one free, and the acquire never waits.
+    // The window's swapchain texture for commands, or null when the window shows none this frame and on a
+    // device with no window. The wait at the end of the previous frame leaves one free, and the acquire
+    // never waits.
     internal GpuTexture? AcquireSwapchainTexture(nint commands)
     {
+        if (!HasWindow)
+        {
+            return null;
+        }
+
         nint swapchain;
         uint width;
         uint height;
@@ -522,6 +522,44 @@ internal sealed unsafe class GpuDevice : IDisposable
         }
 
         return names.Length == 0 ? "no GPU driver" : string.Join(", ", names);
+    }
+
+    // SDL's GPU device through the named driver, or the one SDL chooses when driver is null.
+    private static nint Create(string? driver)
+    {
+        nint device;
+        fixed (byte* name = driver is null ? null : Encoding.UTF8.GetBytes(driver + ' '))
+        {
+            device = Sdl3.SDL_CreateGPUDevice(Sdl3.GpuShaderFormatSpirv | Sdl3.GpuShaderFormatDxil | Sdl3.GpuShaderFormatMsl, debugMode: false, name);
+        }
+
+        return device != 0
+            ? device
+            : throw (driver is null ? Unavailable("could not open a GPU") : new InvalidOperationException(DriverRefused(driver, Sdl3.Error(), OfferedDrivers())));
+    }
+
+    // Claims window for device in SDR composition, and returns the device with its swapchain's format. A
+    // refused claim destroys the device.
+    private static (nint Device, GpuTextureFormat Format) Claim(nint device, nint window, int framesInFlight)
+    {
+        if (!Sdl3.SDL_ClaimWindowForGPUDevice(device, window))
+        {
+            InvalidOperationException refused = new(ClaimRefused(Utf8(Sdl3.SDL_GetGPUDeviceDriver(device)) ?? "unnamed", Sdl3.Error()));
+            Sdl3.SDL_DestroyGPUDevice(device);
+            throw refused;
+        }
+
+        Sdl3.SDL_SetGPUAllowedFramesInFlight(device, (uint)framesInFlight);
+        GpuTextureFormat format = Sdl3.SDL_GetGPUSwapchainTextureFormat(device, window);
+        if (format == GpuTextureFormat.Invalid)
+        {
+            InvalidOperationException refused = new($"The window's swapchain reported no texture format: {Sdl3.Error()}");
+            Sdl3.SDL_ReleaseWindowFromGPUDevice(device, window);
+            Sdl3.SDL_DestroyGPUDevice(device);
+            throw refused;
+        }
+
+        return (device, format);
     }
 
     private static InvalidOperationException Unavailable(string failure) => new(

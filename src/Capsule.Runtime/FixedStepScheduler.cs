@@ -31,6 +31,9 @@ internal sealed class FixedStepScheduler
     private bool _driverFinished;
     private bool _held;
 
+    // Set by EndFrame during a step, and taken once that step completes.
+    private bool _frameEnded;
+
     internal long Tick { get; private set; }
 
     internal int StepsThisFrame { get; private set; }
@@ -95,6 +98,10 @@ internal sealed class FixedStepScheduler
             replay?.Seed(_input);
         }
     }
+
+    // Ends the frame after the step that is running: no further step runs in it, and the time it was owed
+    // is dropped. Called from StepCompleted, it stops a frame catching up at that step.
+    internal void EndFrame() => _frameEnded = true;
 
     // The device the last consumed step read as active, for the host's pad-facing output.
     internal InputDevice ActiveDevice => _input.ActiveDevice;
@@ -247,6 +254,14 @@ internal sealed class FixedStepScheduler
             if (simulation.ExitRequested)
             {
                 return true;
+            }
+
+            if (_frameEnded)
+            {
+                _frameEnded = false;
+                _accumulatorSeconds = 0;
+
+                return false;
             }
         }
 

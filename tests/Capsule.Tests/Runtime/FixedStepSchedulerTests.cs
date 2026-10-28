@@ -53,6 +53,27 @@ public sealed class FixedStepSchedulerTests
         Assert.Equal(10 * stepsPerFrame, scheduler.Tick);
     }
 
+    // A frame owed several steps stops at the one whose completion ends it, and drops the time it was owed.
+    [Fact]
+    public void EndFrame_DuringAStep_RunsNoFurtherStepInThatFrame()
+    {
+        RecordingSimulation simulation = new(Jump);
+        FixedStepScheduler scheduler = CreateScheduler();
+        scheduler.StepCompleted = () =>
+        {
+            if (scheduler.Tick == 1)
+            {
+                scheduler.EndFrame();
+            }
+        };
+
+        Assert.False(scheduler.Advance(StepSeconds * 4.5, DeviceSnapshot.Empty, simulation));
+
+        Assert.Equal(2, simulation.Recorded.Count);
+        Assert.Equal(2, scheduler.StepsThisFrame);
+        Assert.Equal(0, scheduler.AccumulatorSeconds);
+    }
+
     // A frame cap below the step rate must not slow the simulation at any pace. A capped frame runs
     // every step its period buys past a bound of five, and steps costing half their length fit the
     // frame's time.

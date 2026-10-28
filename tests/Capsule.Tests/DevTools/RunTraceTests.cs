@@ -3,6 +3,7 @@ using System.Numerics;
 using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Runtime;
+using Capsule.Runtime.DevTools.Recordings;
 using Capsule.Scenes;
 using static Capsule.Tests.DevTools.RecordingFixtures;
 
@@ -116,6 +117,46 @@ public sealed class RunTraceTests : IDisposable
         Assert.Equal(Steps, lines.Skip(1).Select(Tick).Max());
         Assert.Contains(Row(0, "Walker", "Entity", "ZIndex", "0"), lines);
         Assert.DoesNotContain(sink.Entries, static entry => entry.Level == LogLevel.Warning);
+    }
+
+    // A closed selection past the ceiling is counted before the run, which never starts.
+    [Fact]
+    public void ASelectionPastTheCeiling_IsRefusedBeforeTheRun()
+    {
+        string csv = _workspace.PathTo("refused.csv");
+
+        CommandLineException refused = Assert.Throws<CommandLineException>(() => Builder(Carrying)
+            .WithInputDriver(new Pointing(Steps))
+            .WithCommandLine(["--headless", "--trace", csv, "0..3600", "Walker"]));
+
+        Assert.StartsWith("--trace selects 3601 ticks, past its ceiling of 3600.", refused.Message, StringComparison.Ordinal);
+        Assert.False(File.Exists(csv));
+    }
+
+    // A driver's run has no known end, and its open range halts the run at the first tick past the ceiling,
+    // keeping every row before it. --force lets the same run play to its end.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnOpenRangeOverADriver_HaltsAtTheCeiling_UnlessForced(bool force)
+    {
+        const int steps = RunTrace.Ceiling + 100;
+        string csv = _workspace.PathTo("halted.csv");
+        EngineBuilder builder = Builder(Carrying)
+            .WithInputDriver(new Pointing(steps))
+            .WithCommandLine(force ? ["--headless", "--trace", csv, "0..", "Walker", "--force"] : ["--headless", "--trace", csv, "0..", "Walker"]);
+
+        if (force)
+        {
+            Assert.Equal(0, builder.RunScene<Reading>());
+            Assert.Equal(steps, File.ReadAllLines(csv).Skip(1).Select(Tick).Max());
+        }
+        else
+        {
+            CommandLineException halted = Assert.Throws<CommandLineException>(() => builder.RunScene<Reading>());
+            Assert.StartsWith(string.Create(CultureInfo.InvariantCulture, $"--trace stopped the run at tick {RunTrace.Ceiling}, past its ceiling"), halted.Message, StringComparison.Ordinal);
+            Assert.Equal(RunTrace.Ceiling - 1, File.ReadAllLines(csv).Skip(1).Select(Tick).Max());
+        }
     }
 
     // Scene and Camera trace the scene's own panel and its camera's beside the entities.

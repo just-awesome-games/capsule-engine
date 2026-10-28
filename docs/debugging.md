@@ -1,6 +1,6 @@
 # Debugging
 
-After this page you can open the debug overlay, hold and step a run, record, replay and trace it, and add
+After this page you can open the debug overlay, hold and step a run, record, replay and trace it, capture its frames, and add
 your own rows and geometry to it. Each type's XML docs hold its rules.
 
 The debug overlay is development code. It holds the run while it is open, and a game writes to it
@@ -126,10 +126,39 @@ writes one row with an empty section and field, which ends all of its fields. An
 holds writes a row at the tick its result shows, `tick,<subject>,,Act,<act>`, such as a move under the moved
 entity's name.
 
-The run plays to its end and exits as one without a trace does. The log warns of a name that matched
+The run plays to its end and exits as one without a trace does, unless it passes the trace's
+[ceiling](#ceilings). The log warns of a name that matched
 nothing and of a tick past the run's end, the start of an open range included. A run that exits ends on the tick before its exiting step, where
 a windowed replay holds. A trace of a recording shows the run the current build plays from its input. After
 a divergence, that is no longer the run that was recorded.
+
+## Capturing frames
+
+`--capture <dir> <ticks>` beside `--headless` saves the frame of each named tick of the run a recording or a
+driver plays, as `<dir>/<tick>.png` with the tick padded to six digits, such as `001180.png`:
+
+```text
+--replay run.recording --headless --capture frames 1180..1200
+--driver Walkthrough --headless --capture frames 600,900 --trace avatar.csv 600..900 Avatar
+```
+
+The ticks are written as `--trace` takes them, and a run can do both. A tick's frame shows the state its
+trace rows hold, uninterpolated. It is the surface `Run.CaptureFrame` saves: the canvas at the render
+resolution, or with none the window pass. It is laid out at the output extent the run's steps saw, which
+a recording holds, else at the shell's window size. It never shows the overlay or a debug draw.
+
+The run draws on a GPU device with no window, through the driver `--gpu-driver` names, and only at the named
+ticks. A device that will not open, or a directory that cannot be written, is refused before the run. A
+headless run writes nothing `Run.CaptureFrame` requests, under `--capture` too. The log names the device
+and the frames written, and warns of a tick past the run's end.
+
+## Ceilings
+
+A trace writes at most 3,600 ticks and a capture at most 600, a simulated minute and ten seconds at 60 steps
+a second. A selection the run can count is refused before the run: a closed one, or an open one over a
+recording, which knows its end. An open range over a driver halts the run at its first tick past the
+ceiling. The run keeps what it wrote and is refused as a malformed command line is, with exit code 2.
+`--force` lifts both ceilings.
 
 ## The three seams a game writes to
 

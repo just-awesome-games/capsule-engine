@@ -12,7 +12,8 @@ internal static class FrameCapture
     internal const string TemporarySuffix = ".tmp";
 
     // Writes the PNG encode returns to path, creating the directory it names and overwriting the file.
-    internal static void Save(Func<byte[]> encode, string path)
+    // Returns whether the file was written.
+    internal static bool Save(Func<byte[]> encode, string path)
     {
         byte[] png;
 
@@ -23,17 +24,17 @@ internal static class FrameCapture
         catch (Exception error)
         {
             Log.Warning($"Frame capture to '{path}' failed before writing: {error.Message}");
-            return;
+            return false;
         }
 
-        Write(png, path);
+        return Write(png, path);
     }
 
     // The encoded PNG lands on a temporary sibling this call creates exclusively and moves onto the
     // destination once it is complete. Neither a partial write nor a denied one touches the file
     // already at path or any other file beside it. Resolving path is inside the protected operation.
-    // A path the file system rejects is logged instead of thrown.
-    internal static void Write(byte[] png, string path)
+    // A path the file system rejects is logged instead of thrown. Returns whether the file was written.
+    internal static bool Write(byte[] png, string path)
     {
         // Null until this call owns a staging file. Cleanup never deletes a sibling it found.
         string? created = null;
@@ -57,6 +58,8 @@ internal static class FrameCapture
 
             File.Move(temporary, full, overwrite: true);
             created = null;
+
+            return true;
         }
         catch (Exception error)
         {
@@ -66,6 +69,8 @@ internal static class FrameCapture
             {
                 Discard(created);
             }
+
+            return false;
         }
     }
 

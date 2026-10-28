@@ -13,7 +13,8 @@ namespace Capsule.Runtime.Rendering;
 // into a command buffer that Submit hands to the device once the overlay has joined it. The frame's
 // last pass, the window pass, draws straight into the swapchain texture, laid out at that texture's
 // extent. A capture reads a surface, never the swapchain: the canvas, or with no canvas a window pass
-// drawn offscreen on the capturing frame alone and then shown, ahead of the overlay.
+// drawn offscreen on the capturing frame alone and then shown, ahead of the overlay. A device with no
+// window acquires no swapchain texture, and its frames lay out at OffscreenExtent to be captured.
 internal sealed partial class FrameRenderer : IDisposable
 {
     private const string DefaultFontPageResource = "Capsule.Runtime.Assets.default-font.png";
@@ -84,6 +85,13 @@ internal sealed partial class FrameRenderer : IDisposable
     // and the screen layer land on the same window pixels at any factor.
     internal float WorldZoomOut { get; set; } = 1f;
 
+    // The extent a frame on a device with no window lays out at, as a window's drawable extent would lay
+    // it out. Zero until the host sets it, and a frame drawn at zero draws nothing.
+    internal (int Width, int Height) OffscreenExtent { get; set; }
+
+    // The captures Submit has written to their files since the renderer was made.
+    internal long CapturesSaved { get; private set; }
+
     // renderResolution: A fixed render surface, or null to draw the world in the window pass.
     //
     // textures: The scene texture cache, loading on first use. The caller owns it.
@@ -113,7 +121,8 @@ internal sealed partial class FrameRenderer : IDisposable
         }
     }
 
-    internal (int Width, int Height) WindowSize => _device.WindowSize;
+    // The window's drawable extent, or OffscreenExtent on a device with no window.
+    internal (int Width, int Height) WindowSize => _device.HasWindow ? _device.WindowSize : OffscreenExtent;
 
     // Where the screen layer lands in the window, from the last frame drawn or from
     // ResolveScreenLayer before the first one.
@@ -266,16 +275,19 @@ internal sealed partial class FrameRenderer : IDisposable
         if (wait && _capture is { } capture)
         {
             _capture = null;
-            WriteCapture(capture.Readback, capture.Path);
+            if (WriteCapture(capture.Readback, capture.Path))
+            {
+                CapturesSaved++;
+            }
         }
     }
 
     // Apart from Submit, whose every call would otherwise allocate the lambda's closure.
-    private static void WriteCapture(GpuReadback readback, string path)
+    private static bool WriteCapture(GpuReadback readback, string path)
     {
         using (readback)
         {
-            FrameCapture.Save(readback.EncodePng, path);
+            return FrameCapture.Save(readback.EncodePng, path);
         }
     }
 

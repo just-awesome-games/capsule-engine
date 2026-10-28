@@ -355,8 +355,8 @@ public sealed class Run
     /// the one before. An event that lasts one step can be missing from the image. Requesting again
     /// before the host takes the request replaces the path, and the request survives a scene transition.
     /// A frame with no surface to draw on, such as a minimised window, leaves the request pending. A run
-    /// with no graphics device (<c>RunHeadless</c>, or <c>--headless</c>) clears the request and writes
-    /// nothing. A failed save writes no file, reports through <see cref="Capsule.Diagnostics.Log"/> at
+    /// with no window (<c>RunHeadless</c>, or <c>--headless</c>, under <c>--capture</c> too) clears the
+    /// request and writes nothing. A failed save writes no file, reports through <see cref="Capsule.Diagnostics.Log"/> at
     /// <see cref="Capsule.Diagnostics.LogLevel.Warning"/>, and drops the request instead of throwing
     /// into the frame loop. See <c>docs/debugging.md</c> for the host side.
     /// </remarks>
