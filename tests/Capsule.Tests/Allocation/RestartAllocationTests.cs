@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using Capsule.Scenes;
 using Capsule.Tests.Generators;
 using Microsoft.CodeAnalysis;
-using Xunit.Abstractions;
 
 namespace Capsule.Tests.Allocation;
 

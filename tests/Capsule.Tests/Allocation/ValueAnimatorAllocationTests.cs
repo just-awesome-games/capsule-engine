@@ -2,7 +2,6 @@ using System.Numerics;
 using Capsule.Animation;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
-using Xunit.Abstractions;
 
 namespace Capsule.Tests.Allocation;
 

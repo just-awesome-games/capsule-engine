@@ -1,6 +1,5 @@
 using System.Numerics;
 using Capsule.Physics;
-using Xunit.Abstractions;
 
 namespace Capsule.Tests.Allocation;
 

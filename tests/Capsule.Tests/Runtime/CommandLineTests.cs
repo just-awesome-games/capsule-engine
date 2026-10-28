@@ -191,8 +191,7 @@ public sealed class CommandLineTests : IDisposable
         Assert.Contains("--frames <csv> [seconds]", reported, StringComparison.Ordinal);
     }
 
-    public static TheoryData<string[]> MalformedCommandLines() =>
-    [
+    public static TheoryData<string[]> MalformedCommandLines() => new(
         ["--driver"],
         ["--driver", "   "],
         ["--driver", "--headless"],
@@ -205,8 +204,7 @@ public sealed class CommandLineTests : IDisposable
         ["--seed", "18446744073709551616"],
         ["--rewind", "Idler"],
         ["--headless", "--headless"],
-        ["--gpu-driver"],
-    ];
+        ["--gpu-driver"]);
 
     // A shipping build declares no development flag. A player cannot drive, probe, reroute, reseed or
     // force the language of the game from its command line. The portable-saves lever and help stay.

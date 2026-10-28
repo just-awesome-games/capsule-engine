@@ -4,7 +4,6 @@ using Capsule.Audio;
 using Capsule.Scenes;
 using Capsule.Tests.Audio;
 using Capsule.Tests.Scenes;
-using Xunit.Abstractions;
 
 namespace Capsule.Tests.Allocation;
 

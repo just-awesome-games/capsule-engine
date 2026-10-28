@@ -2,6 +2,10 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <!-- A test's cancellation token only shortens a cancelled run. Every wait in the suite has its own
+         timeout and every compilation runs in memory. No call takes the token. -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
     <RootNamespace>Capsule.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
     <!-- Nothing here is a reference a consumer compiles against. It carries no API reference. -->
@@ -16,7 +20,7 @@
          they build in memory. A diagnostic is asserted there without failing this build. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
-    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.v3" Version="4.0.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -37,6 +41,11 @@
     <!-- Referenced as an ordinary library, not as an analyzer: these specs drive the generator
          directly so that a rejected input is an assertion here rather than a broken build. -->
     <ProjectReference Include="../../src/Capsule.Generators/Capsule.Generators.csproj" />
+  </ItemGroup>
+
+  <!-- xunit.v3 brings the test platform's usage telemetry, and the build leaves it unregistered. -->
+  <ItemGroup>
+    <TestingPlatformBuilderHook Remove="98058041-B5B6-4A75-9834-58E6DF796A22" />
   </ItemGroup>
 
   <ItemGroup>

@@ -6,7 +6,6 @@ using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Tests.Runtime;
 using Capsule.Tests.Scenes;
-using Xunit.Abstractions;
 
 namespace Capsule.Tests.Allocation;
 

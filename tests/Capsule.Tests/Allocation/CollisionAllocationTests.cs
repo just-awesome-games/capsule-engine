@@ -6,7 +6,6 @@ using Capsule.Scenes;
 using Capsule.Tests.Physics;
 using Capsule.Tests.Scenes;
 using Capsule.Tiles;
-using Xunit.Abstractions;
 
 namespace Capsule.Tests.Allocation;
 

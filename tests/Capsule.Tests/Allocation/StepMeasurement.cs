@@ -1,7 +1,6 @@
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
-using Xunit.Abstractions;
 
 namespace Capsule.Tests.Allocation;
 
