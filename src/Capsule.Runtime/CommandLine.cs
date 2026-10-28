@@ -1,5 +1,6 @@
 using System.Globalization;
 using Capsule.Diagnostics;
+using Capsule.Runtime.DevTools.Recordings;
 
 namespace Capsule.Runtime;
 
@@ -19,6 +20,8 @@ internal sealed class CommandLine
           --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
           --uncapped                 present without vertical sync or a frame cap
           --replay <file>            replay that recording, windowed unless --headless
+          --trace <csv> <ticks> <names>
+                                     write the named entities' panels at those ticks of a headless run
           --recordings <dir>         keep the run's recordings under that directory
 
         """;
@@ -28,6 +31,8 @@ internal sealed class CommandLine
           --gpu-driver <name>        draw through that GPU driver: direct3d12, vulkan or metal
           --help                     print this and exit
         """;
+
+    private const string TraceUsage = "--trace needs a CSV path, ticks and entity names: --trace trace.csv 100..160 Avatar.";
 
     internal bool HelpRequested { get; private set; }
 
@@ -63,6 +68,13 @@ internal sealed class CommandLine
 
     // The recordings directory, null unless --recordings was given.
     internal string? RecordingsPath { get; private set; }
+
+    // The trace's CSV, ticks and entity names, all null unless --trace was given.
+    internal string? TracePath { get; private set; }
+
+    internal TickRange[]? TraceTicks { get; private set; }
+
+    internal string[]? TraceNames { get; private set; }
 
     private CommandLine()
     {
@@ -146,6 +158,20 @@ internal sealed class CommandLine
                     parsed.RecordingsPath = Value(args, ref index, gameName, development, "--recordings needs a directory.");
                     break;
 
+                case "--trace" when development:
+                    parsed.TracePath = Value(args, ref index, gameName, development, TraceUsage);
+                    string ticks = Value(args, ref index, gameName, development, TraceUsage);
+                    parsed.TraceTicks = TickRange.TryParseList(ticks)
+                        ?? throw Refuse(gameName, development, $"--trace takes its ticks as a tick, a range such as 100..160 or 100.., or a comma list of them, not '{ticks}'.");
+                    string names = Value(args, ref index, gameName, development, TraceUsage);
+                    parsed.TraceNames = names.Split(',');
+                    if (Array.Exists(parsed.TraceNames, string.IsNullOrWhiteSpace))
+                    {
+                        throw Refuse(gameName, development, $"--trace takes a comma list of entity names, Scene, Camera or *, not '{names}'.");
+                    }
+
+                    break;
+
                 case "--saves":
                     parsed.SavesPath = Value(args, ref index, gameName, development, "--saves needs a directory.");
                     break;
@@ -169,6 +195,12 @@ internal sealed class CommandLine
                     throw Refuse(gameName, development, $"--replay and {conflict} were both given, and the recording supplies what {conflict} sets. Drop {conflict}.");
                 }
             }
+        }
+
+        // A trace is written by a run with no window, which a recording or a driver plays as fast as it can.
+        if (parsed.TracePath is not null && !parsed.Headless)
+        {
+            throw Refuse(gameName, development, "--trace writes a headless run. Give --headless with it, and --replay <file> or --driver <Name>.");
         }
 
         return parsed;

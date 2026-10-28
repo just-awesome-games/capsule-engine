@@ -19,6 +19,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
     // Null for a run with no medium behind its saves, which keeps them in memory and flushes nothing.
     private readonly ISaveStorage? _saveStorage;
 
+    private readonly SceneRegistry? _registry;
     private SceneTransition _target;
     private SceneSimulation _current;
 
@@ -54,19 +55,25 @@ internal sealed class SceneHost : ISimulation, IDisposable
     // which the simulation does not continue, is not reported here.
     internal bool TransitionFailed { get; private set; }
 
+    // The current scene's key, as --scene takes it, which the overlay, a recording's file name and a trace show.
+    internal string SceneKey { get; private set; }
+
     internal SceneHost(
         in SceneTransition initialTarget,
         SceneResolver resolve,
         Run run,
         ISaveStorage? saveStorage = null,
-        Action<Run>? onRunStart = null)
+        Action<Run>? onRunStart = null,
+        SceneRegistry? registry = null)
     {
         ArgumentNullException.ThrowIfNull(resolve);
         ArgumentNullException.ThrowIfNull(run);
 
         _resolve = resolve;
+        _registry = registry;
         Run = run;
         _target = initialTarget;
+        SceneKey = KeyOf(initialTarget);
 
         // Restored ahead of the first scene, whose start may read its settings.
         _saveStorage = saveStorage;
@@ -222,6 +229,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
     private static string NameOf(in SceneTransition target) => target.SceneType?.Name ?? target.DocumentName ?? "";
 
+    private string KeyOf(in SceneTransition target) => _registry?.KeyOf(in target) ?? NameOf(in target);
+
     // Runs the current scene's debug pass outside a step, as SceneSimulation.EmitDebugDraws defines
     // it. Nothing runs after an exit, which has nothing left to draw.
     internal void EmitDebugDraws()
@@ -336,6 +345,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
         _current = incoming;
         _target = target;
+        SceneKey = KeyOf(target);
         SceneEntered?.Invoke();
     }
 

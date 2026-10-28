@@ -116,6 +116,18 @@ public sealed class SceneRegistryTests
         }
     }
 
+    // A scene goes by the key --scene takes: its document's key whether the transition names the document or the
+    // class claiming it, and a plain class's name.
+    [Fact]
+    public void KeyOf_NamesADocumentByItsKey_AndAPlainClassByItsName()
+    {
+        SceneRegistry scenes = Registry(Menu, Room01);
+
+        Assert.Equal("room-01", scenes.KeyOf(SceneTransition.ToName("room-01", null)));
+        Assert.Equal("room-01", scenes.KeyOf(SceneTransition.ToScene(typeof(SceneFixtures.Room01), null)));
+        Assert.Equal(nameof(SceneFixtures.HookScene), scenes.KeyOf(SceneTransition.ToScene(typeof(SceneFixtures.HookScene), null)));
+    }
+
     private static SceneRegistration Menu => SceneRegistration.Plain(
         typeof(SceneFixtures.HookScene),
         static _ => new SceneFixtures.HookScene());

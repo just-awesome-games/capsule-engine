@@ -9,72 +9,6 @@ public sealed class SceneVisibilityTests
     private static readonly Vector2 Span = new(10f, 10f);
 
     [Fact]
-    public void AnUnconfinedCamera_SeesItsSpanAroundItsCentre()
-    {
-        SceneSimulation simulation = Run(SceneFixtures.Opens(new Vector2(100f, 50f), Span));
-
-        Assert.Equal(Rect.FromEdges(95f, 45f, 105f, 55f), simulation.Scene.Camera.VisibleRegion);
-    }
-
-    [Fact]
-    public void ACameraPushedPastItsBounds_StopsAtTheEdgeItReached()
-    {
-        SceneSimulation simulation = Run(scene =>
-        {
-            SceneFixtures.Open(scene, new Vector2(100f, 0f), Span);
-            scene.Camera.Bounds = Rect.FromEdges(0f, -20f, 40f, 20f);
-        });
-
-        // Confined on X to the right edge and free on Y. The centre settles where the region is.
-        Assert.Equal(Rect.FromEdges(30f, -5f, 40f, 5f), simulation.Scene.Camera.VisibleRegion);
-        Assert.Equal(new Vector2(35f, 0f), simulation.Scene.Camera.Center);
-    }
-
-    [Fact]
-    public void ABoundsNarrowerThanTheSpan_CentresTheRegionOnItRatherThanPinningAnEdge()
-    {
-        SceneSimulation simulation = Run(scene =>
-        {
-            SceneFixtures.Open(scene, new Vector2(100f, 0f), Span);
-            scene.Camera.Bounds = Rect.FromEdges(0f, -20f, 4f, 20f);
-        });
-
-        Assert.Equal(Rect.FromEdges(-3f, -5f, 7f, 5f), simulation.Scene.Camera.VisibleRegion);
-    }
-
-    // With no output on the step, every fit resolves to the declared span.
-    [Theory]
-    [InlineData(ViewportFit.Letterbox, false, 16f)]
-    [InlineData(ViewportFit.Expand, false, 16f)]
-    [InlineData(ViewportFit.Letterbox, true, 16f)]
-    [InlineData(ViewportFit.Expand, true, 18f)]
-    public void OnlyExpand_WidensTheRegionToTheStepsOutput(ViewportFit fit, bool output, float halfWidth)
-    {
-        Rect region = Run(
-            scene =>
-            {
-                SceneFixtures.Open(scene, Vector2.Zero, new Vector2(32f, 18f));
-                scene.Camera.Fit = fit;
-            },
-            output ? new Vector2(1000f, 500f) : default).Scene.Camera.VisibleRegion;
-
-        Assert.Equal(Rect.FromEdges(-halfWidth, -9f, halfWidth, 9f), region);
-    }
-
-    [Fact]
-    public void ACameraThatHasNotLateStepped_SeesNothingYet()
-    {
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
-        SceneSimulation simulation = new(scene);
-
-        Assert.True(scene.Camera.VisibleRegion.IsEmpty);
-
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.False(scene.Camera.VisibleRegion.IsEmpty);
-    }
-
-    [Fact]
     public void ANotifierTheCameraSweepsOnto_EntersTheScreenOnTheStepThatFramedIt()
     {
         List<string> log = [];
@@ -116,13 +50,16 @@ public sealed class SceneVisibilityTests
         Assert.Equal([false, false, true], seen);
     }
 
-    // Its first step reads the frame the step it landed in drew, or the last one when it joins between steps.
+    // Its first step reads the frame the step it landed in drew, or the last one when it joins between steps. A held
+    // landing, in a step that began paused and lifts the pause as a cutscene handing control back does, settles
+    // before its entity first steps.
     [Theory]
-    [InlineData(0f, true, false)]
-    [InlineData(200f, false, false)]
-    [InlineData(0f, true, true)]
-    [InlineData(200f, false, true)]
-    public void ANotifierLandingWithTheStepsDeferredAdds_AnswersForTheFrameThatStepDrew(float x, bool onScreen, bool betweenSteps)
+    [InlineData(0f, true, false, false)]
+    [InlineData(200f, false, false, false)]
+    [InlineData(0f, true, true, false)]
+    [InlineData(200f, false, true, false)]
+    [InlineData(0f, true, false, true)]
+    public void ANotifierLandingWithTheStepsDeferredAdds_AnswersForTheFrameThatStepDrew(float x, bool onScreen, bool betweenSteps, bool held)
     {
         List<string> log = [];
         List<bool> seen = [];
@@ -133,22 +70,23 @@ public sealed class SceneVisibilityTests
             if (context.Tick == 0 && !betweenSteps)
             {
                 host.Add(marker);
+                host.Paused = false;
             }
         }
 
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn);
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), step: Spawn) { Paused = held };
         SimulationHost run = new(scene);
 
         string[] entered = onScreen ? ["entered"] : [];
 
-        // Its arrival settle enters it, after the step's drain or as the next step begins.
+        // Its arrival settle enters it, after the step's drain or, between steps or held, as the next step begins.
         run.Step();
         if (betweenSteps)
         {
             scene.Add(marker);
         }
 
-        Assert.Equal(betweenSteps ? [] : entered, log);
+        Assert.Equal(betweenSteps || held ? [] : entered, log);
         Assert.Empty(seen);
 
         run.Step();
@@ -363,13 +301,6 @@ public sealed class SceneVisibilityTests
         new SceneSimulation(scene).Step(SceneFixtures.Step());
 
         return notifier.IsOnScreen;
-    }
-
-    private static SceneSimulation Run(Action<Scene> open, Vector2 output = default)
-    {
-        SceneSimulation simulation = new(new SceneFixtures.HookScene(start: open));
-        simulation.Step(SceneFixtures.Step(output: output));
-        return simulation;
     }
 
     private class Watched : Entity

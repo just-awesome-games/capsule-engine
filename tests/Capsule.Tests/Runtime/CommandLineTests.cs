@@ -2,6 +2,7 @@ using System.IO.Compression;
 using Capsule.Input;
 using Capsule.Persistence;
 using Capsule.Runtime;
+using Capsule.Runtime.DevTools.Recordings;
 using Capsule.Scenes;
 using Capsule.Tests.Persistence;
 using Capsule.Tests.Scenes;
@@ -204,7 +205,24 @@ public sealed class CommandLineTests : IDisposable
         ["--seed", "18446744073709551616"],
         ["--rewind", "Idler"],
         ["--headless", "--headless"],
-        ["--gpu-driver"]);
+        ["--gpu-driver"],
+        ["--trace", "trace.csv", "1"],
+        ["--trace", "trace.csv", "9..5", "Avatar"],
+        ["--trace", "trace.csv", "1..", "Avatar"],
+        ["--trace", "trace.csv", "1", "Avatar,"],
+        ["--trace", "trace.csv", "1", "Avatar"],
+        ["--replay", "run.recording", "--trace", "trace.csv", "1", "Avatar"]);
+
+    [Fact]
+    public void Trace_TakesItsTicksAndNamesAsCommaLists()
+    {
+        CommandLine parsed = CommandLine.Parse(
+            ["--replay", "run.recording", "--headless", "--trace", "trace.csv", "0,100..160,200..", "Avatar (1),*"], "Game", development: true);
+
+        Assert.Equal("trace.csv", parsed.TracePath);
+        Assert.Equal([new TickRange(0, 0), new TickRange(100, 160), new TickRange(200, long.MaxValue)], parsed.TraceTicks!);
+        Assert.Equal(["Avatar (1)", "*"], parsed.TraceNames!);
+    }
 
     // The recording supplies the run's opening, seed and language, and a flag setting one would be ignored.
     [Fact]
@@ -230,6 +248,7 @@ public sealed class CommandLineTests : IDisposable
     [InlineData("--language", "fr")]
     [InlineData("--replay", "run.recording")]
     [InlineData("--recordings", "runs")]
+    [InlineData("--trace", "trace.csv", "1", "Avatar")]
     public void AShippingBuild_RefusesADevelopmentFlagAsUnknown(params string[] args)
     {
         CommandLineException refused = Assert.Throws<CommandLineException>(

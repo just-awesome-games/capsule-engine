@@ -62,6 +62,8 @@ public sealed class EngineBuilder
     private bool _headless;
     // The recording --replay loaded, which a windowed run replays in place of its opening.
     private Recording? _commandLineReplay;
+    // What --trace writes, null without the flag.
+    private (string Path, TickRange[] Ticks, string[] Names)? _commandLineTrace;
 
     internal string GameName => _gameName;
 
@@ -572,6 +574,11 @@ public sealed class EngineBuilder
             }
         }
 
+        if (Development.IsSupported && parsed.TracePath is { } trace)
+        {
+            _commandLineTrace = (trace, parsed.TraceTicks!, parsed.TraceNames!);
+        }
+
         _recordingsDirectory = parsed.RecordingsPath ?? _recordingsDirectory;
         Uncapped = parsed.Uncapped;
         GpuDriver = parsed.GpuDriver;
@@ -710,7 +717,9 @@ public sealed class EngineBuilder
                 throw CommandLine.Refuse(_gameName, "--headless has nobody to play the game. Name an input driver with --driver or WithInputDriver.");
             }
 
-            RunHeadless(in opening, driver);
+            // The switch's check lets a trimmed publish drop the trace.
+            using RunTrace? trace = Development.IsSupported ? OpenTrace() : null;
+            RunHeadless(in opening, driver, trace);
 
             return 0;
         }
@@ -731,7 +740,9 @@ public sealed class EngineBuilder
 
         if (_headless)
         {
-            return RunReplayHeadless(recording, in opening, watch: null).DivergedAt is null ? 0 : 1;
+            using RunTrace? trace = OpenTrace();
+
+            return RunReplayHeadless(recording, in opening, watch: null, trace).DivergedAt is null ? 0 : 1;
         }
 
         RunRecorded(in opening, recording, RunHost);
@@ -747,6 +758,7 @@ public sealed class EngineBuilder
         Recorder? recorder = null;
         SceneHost? scenes = null;
         Replay? replay = null;
+        string openingKey = Scenes.KeyOf(in opening);
         try
         {
             // Installed before composing, because a scene's OnStart logs while the host is built.
@@ -771,11 +783,11 @@ public sealed class EngineBuilder
             replay = Development.IsSupported && replayed is not null ? new Replay(replayed, host, Scenes, recorder, holdsAtEnd: true) : null;
             run(host, recorder, replay);
 
-            SaveRecent(recorder, replay, scenes, crashed: false);
+            SaveRecent(recorder, replay, scenes?.SceneKey ?? openingKey, crashed: false);
         }
         catch (Exception exception) when (_writesCrashLog || recorder is not null)
         {
-            SaveRecent(recorder, replay, scenes, crashed: true);
+            SaveRecent(recorder, replay, scenes?.SceneKey ?? openingKey, crashed: true);
             if (_writesCrashLog)
             {
                 Platform.ReportCrash(_gameName, _localFolderName, exception);
@@ -809,7 +821,7 @@ public sealed class EngineBuilder
     }
 
     // Builds the headless host and plays the driver until it finishes or the game requests exit.
-    private HeadlessRunResult RunHeadless(in SceneTransition initialTarget, IInputDriver driver)
+    private HeadlessRunResult RunHeadless(in SceneTransition initialTarget, IInputDriver driver, RunTrace? trace = null)
     {
         ArgumentNullException.ThrowIfNull(driver);
 
@@ -821,15 +833,33 @@ public sealed class EngineBuilder
         // No medium unless one was named, which keeps a developer's local folder out of the run.
         using SceneHost scenes = CreateHost(initialTarget, NamedSaveStorage(), RunSeed(played: false), preferredLanguages: null, _commandLineLanguage);
         diagnostics?.Mark(FrameDiagnostics.Stage.HostConstructed);
-        HeadlessHost host = new(this, scenes, driver, replay: null, diagnostics);
+        HeadlessHost host = new(this, scenes, driver, replay: null, diagnostics, Traced(scenes, trace, watch: null));
         using TickStamp stamp = StampTicks(() => host.SimulationTick);
 
-        return host.Run();
+        return Finished(host.Run(), trace);
+    }
+
+    // The file --trace names, opened before the run so a path it cannot write is refused at once.
+    private RunTrace? OpenTrace()
+    {
+        if (_commandLineTrace is not var (path, ticks, names))
+        {
+            return null;
+        }
+
+        try
+        {
+            return new RunTrace(path, ticks, names);
+        }
+        catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
+        {
+            throw CommandLine.Refuse(_gameName, $"--trace could not write '{path}': {failure.Message}");
+        }
     }
 
     // Builds the headless host over the recording's boot state and replays it to its end. Its saves are
     // kept in memory and persist nowhere.
-    private HeadlessRunResult RunReplayHeadless(Recording recording, in SceneTransition opening, Action<Scene, long>? watch)
+    private HeadlessRunResult RunReplayHeadless(Recording recording, in SceneTransition opening, Action<Scene, long>? watch, RunTrace? trace = null)
     {
         InstallLogging();
 
@@ -839,10 +869,48 @@ public sealed class EngineBuilder
         RecordingHeader header = recording.Header;
         using SceneHost scenes = CreateHost(opening, new RecordedSaveStorage(header.Saves), header.Seed, header.PreferredLanguages, header.LanguageOverride);
         diagnostics?.Mark(FrameDiagnostics.Stage.HostConstructed);
-        HeadlessHost host = new(this, scenes, driver: null, new Replay(recording, scenes, Scenes, recorder: null, holdsAtEnd: false), diagnostics, watch);
+        Replay replay = new(recording, scenes, Scenes, recorder: null, holdsAtEnd: false);
+        if (Development.IsSupported && trace is not null)
+        {
+            replay.Acted = (tick, subject, act) => trace.Act(tick + 1, subject, act);
+        }
+
+        HeadlessHost host = new(this, scenes, driver: null, replay, diagnostics, Traced(scenes, trace, watch));
         using TickStamp stamp = StampTicks(() => host.SimulationTick);
 
-        return host.Run();
+        return Finished(host.Run(), trace);
+    }
+
+    // Writes trace's tick 0, the opening scene before its first step, and returns the watch that writes
+    // the rest. A trace's tick is the overlay's, one past the tick a step ran at. An exiting step tears its
+    // scene down and leaves no tick to write. A trace takes the place of watch.
+    private static Action<Scene, long>? Traced(SceneHost scenes, RunTrace? trace, Action<Scene, long>? watch)
+    {
+        if (!Development.IsSupported || trace is null)
+        {
+            return watch;
+        }
+
+        trace.Write(scenes, 0);
+
+        return (_, tick) =>
+        {
+            if (!scenes.ExitRequested)
+            {
+                trace.Write(scenes, tick + 1);
+            }
+        };
+    }
+
+    // A run that exits ends on the tick before its exiting step.
+    private static HeadlessRunResult Finished(HeadlessRunResult result, RunTrace? trace)
+    {
+        if (Development.IsSupported)
+        {
+            trace?.Finish(result.ExitRequested ? result.Steps - 1 : result.Steps);
+        }
+
+        return result;
     }
 
     // Why the recording cannot replay under this shell, or null with the opening it replays. The shell's
@@ -896,18 +964,17 @@ public sealed class EngineBuilder
                     + $"Configure the shell's {setting} as the recording's was, or record the run again.";
     }
 
-    // Saves the run into Recent and logs where, named for its scene, or for its opening when it crashed
+    // Saves the run into Recent and logs where, named for sceneKey: its scene's, or its opening's when it crashed
     // before its host was built. A replay never handed over to live input is the recording it replayed,
     // which is saved already. A failed write masks neither the run's end nor its crash.
-    private void SaveRecent(Recorder? recorder, Replay? replay, SceneHost? scenes, bool crashed)
+    private void SaveRecent(Recorder? recorder, Replay? replay, string sceneKey, bool crashed)
     {
         if (!Development.IsSupported || recorder is null || replay is { HandedOver: false })
         {
             return;
         }
 
-        string scene = scenes?.Scene.GetType().Name ?? recorder.OpeningScene;
-        if (RecordingFiles.SaveRecent(recorder, RecordingsDirectory(), scene, crashed) is { } path)
+        if (RecordingFiles.SaveRecent(recorder, RecordingsDirectory(), sceneKey, crashed) is { } path)
         {
             string ticks = recorder.Ticks.ToString(CultureInfo.InvariantCulture);
             if (crashed)
@@ -992,7 +1059,8 @@ public sealed class EngineBuilder
             new SceneComposer(Scenes, Platform).Resolve,
             new Run(new RandomSource(seed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, Display = Display, RenderResolution = RenderResolution },
             storage is null || recorder is null ? storage : new TeeSaveStorage(storage, recorder.Restored),
-            RunStart(preferredLanguages, language));
+            RunStart(preferredLanguages, language),
+            Scenes);
         recorder?.Attach(host);
 
         return host;

@@ -59,11 +59,11 @@ internal sealed class PanelRows
                 depth++;
             }
 
-            string label = DisplayName(entity);
+            string label = entity.Name;
             rows.Add(new OverlayRow(label.PadLeft(label.Length + (depth * Indent.Length)), () => _open(entity)));
         }
 
-        return scene.GetType().Name;
+        return _scenes.SceneKey;
     }
 
     // A field naming an entity, such as Parent, opens that entity's panel and steps nothing, as does a
@@ -82,11 +82,11 @@ internal sealed class PanelRows
             rows.Insert(at++, new OverlayRow("Children", null));
             foreach (Entity child in children)
             {
-                rows.Insert(at++, new OverlayRow(Indent + DisplayName(child), () => _open(child), ChildCount(child)));
+                rows.Insert(at++, new OverlayRow(Indent + child.Name, () => _open(child), ChildCount(child)));
             }
         }
 
-        return DisplayName(entity);
+        return entity.Name;
     }
 
     // The held scene's camera, titled by its type.
@@ -98,28 +98,6 @@ internal sealed class PanelRows
         AddRows(rows, PanelSubject.Camera, null);
 
         return camera.GetType().Name;
-    }
-
-    // Name or type name, numbered among same-named siblings: Enemy, Enemy (1), Enemy (2).
-    internal static string DisplayName(Entity entity)
-    {
-        string name = entity.Name ?? entity.GetType().Name;
-        int before = 0;
-        ReadOnlySpan<Entity> peers = entity.Parent is { } parent ? parent.Children : entity.Scene.Entities;
-        foreach (Entity peer in peers)
-        {
-            if (ReferenceEquals(peer, entity))
-            {
-                break;
-            }
-
-            if (ReferenceEquals(peer.Parent, entity.Parent) && (peer.Name ?? peer.GetType().Name) == name)
-            {
-                before++;
-            }
-        }
-
-        return before == 0 ? name : string.Create(CultureInfo.InvariantCulture, $"{name} ({before})");
     }
 
     // Null for a leaf, which leaves its value column empty.
@@ -171,7 +149,7 @@ internal sealed class PanelRows
         {
             if (row is { Kind: DebugPanelRowKind.Field, Subject: Entity entity } && Holds(entity))
             {
-                rows.Add(new OverlayRow(row.Label, () => _open(entity), DisplayName(entity)));
+                rows.Add(new OverlayRow(row.Label, () => _open(entity), entity.Name));
             }
             else if (row.Kind == DebugPanelRowKind.Field)
             {

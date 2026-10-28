@@ -13,6 +13,6 @@ public static class DebugPanelExtensions
     {
         ArgumentNullException.ThrowIfNull(panel);
 
-        panel.Link(label, value is null ? null : value.Name ?? value.GetType().Name, value);
+        panel.Link(label, value?.Name, value);
     }
 }

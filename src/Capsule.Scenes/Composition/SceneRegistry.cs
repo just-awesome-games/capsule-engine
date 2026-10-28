@@ -76,6 +76,24 @@ public sealed class SceneRegistry
 
     internal IReadOnlyList<SceneRegistration> Registrations => _registrations;
 
+    // The key target's scene goes by, as --scene takes it: its document's key when it has one, else its class's name.
+    internal string KeyOf(in SceneTransition target)
+    {
+        if (target.DocumentName is { } document)
+        {
+            return document;
+        }
+
+        if (target.SceneType is not { } type)
+        {
+            return string.Empty;
+        }
+
+        return _byType.TryGetValue(type, out SceneRegistration registration) && registration.DocumentName is { } claimed
+            ? claimed
+            : type.Name;
+    }
+
     // Returns the scene document backing sceneType, or null when none does.
     internal string? DocumentNameOf(Type sceneType) => Find(sceneType).DocumentName;
 

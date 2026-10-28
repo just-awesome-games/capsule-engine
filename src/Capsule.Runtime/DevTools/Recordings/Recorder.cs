@@ -44,9 +44,6 @@ internal sealed class Recorder
         _checkpointEvery = Math.Max(1, (long)Math.Round(1 / header.StepSeconds));
     }
 
-    // The scene a run opens with, until its host is built.
-    internal string OpeningScene => _header.Scene;
-
     // The host whose steps and state are recorded, once it is built.
     internal void Attach(SceneHost scenes) => _scenes = scenes;
 

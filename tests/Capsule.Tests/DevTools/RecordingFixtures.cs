@@ -87,7 +87,7 @@ internal static class RecordingFixtures
     }
 
     // Moves its walker by what the step reads. ExtraDrawAt draws once more from the random source at that
-    // tick, which a replay against it diverges on, and ExitAt requests exit at that tick. ThrowsOnStart
+    // tick, which a replay against it diverges on, ExitAt requests exit at that tick, and RestartAt a restart. ThrowsOnStart
     // fails the scene's start.
     internal sealed class Reading : Scene
     {
@@ -96,6 +96,8 @@ internal static class RecordingFixtures
         internal long? ExtraDrawAt { get; init; }
 
         internal long? ExitAt { get; init; }
+
+        internal long? RestartAt { get; init; }
 
         internal bool ThrowsOnStart { get; init; }
 
@@ -118,6 +120,11 @@ internal static class RecordingFixtures
             if (context.Tick == ExitAt)
             {
                 Run.RequestExit();
+            }
+
+            if (context.Tick == RestartAt)
+            {
+                Run.RequestRestart();
             }
 
             InputState input = context.Input;

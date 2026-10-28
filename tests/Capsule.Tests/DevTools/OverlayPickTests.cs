@@ -105,5 +105,27 @@ public sealed class OverlayPickTests
         }
     }
 
+    // The entity under the pointer leaves and joins again, which numbers its name afresh, while the pointer
+    // stays where it was.
+    [Fact]
+    public void ThePointerLine_FollowsTheNameAJoinGives()
+    {
+        Scene scene = new();
+        Piece piece = new(Vector2.Zero);
+        scene.Add(piece);
+        using SimulationHost host = new(scene);
+        OverlayScene overlay = new("`");
+        overlay.SetPointer(Vector2.Zero, piece, (-1, -1));
+        Assert.EndsWith("Piece", overlay.Readout()[2], StringComparison.Ordinal);
+
+        scene.Remove(piece);
+        host.Step();
+        scene.Add(piece);
+        host.Step();
+        overlay.SetPointer(Vector2.Zero, piece, (-1, -1));
+
+        Assert.EndsWith("Piece (1)", overlay.Readout()[2], StringComparison.Ordinal);
+    }
+
     private sealed class Piece(Vector2 position) : Entity(position);
 }

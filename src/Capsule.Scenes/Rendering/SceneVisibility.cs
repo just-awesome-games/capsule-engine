@@ -22,11 +22,12 @@ internal sealed class SceneVisibility
     internal int Count => _notifiers.Count;
 
     // A notifier joining between steps waits for the next step to begin. One landing with a step's deferred adds
-    // settles after the drain.
+    // settles after the drain, unless it lands held: that drain's settle passes it by, and it waits with the
+    // arrivals for the step its entity first runs.
     internal void Track(VisibleOnScreenNotifier2D notifier)
     {
         _notifiers.Add(notifier);
-        if (!_scene.Stepping)
+        if (!_scene.Stepping || notifier.Entity!.Held)
         {
             _arrivals.Add(notifier);
         }

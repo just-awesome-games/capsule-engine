@@ -67,17 +67,17 @@ public sealed class OverlayPanelTests
             rig.Rows());
     }
 
-    // The page lists in tree order, indented by depth, each entity suffixed among its siblings alone.
-    // A child's Parent row opens the parent's panel without a tick.
+    // The page lists in tree order, indented by depth, each entity by its name in the scene, numbered in
+    // the order the scene joined them. A child's Parent row opens the parent's panel without a tick.
     [Fact]
-    public void AChildsPanel_IsNamedAmongItsSiblingsAndOffersItsParentAsARowThatOpensWithoutATick()
+    public void AChildsPanel_IsNamedInItsSceneAndOffersItsParentAsARowThatOpensWithoutATick()
     {
         using OverlayRig rig = new(CreateHost(new Nested()));
 
         rig.Open();
         rig.Press(Key.S);
         Assert.Equal(
-            [.. Head, "Lone", "Walker", "  Spark", "    Entity", "    Entity (1)", "  Entity", "  Spark (1)"],
+            [.. Head, "Lone", "Walker", "  Spark", "    Entity", "    Entity (1)", "  Entity (2)", "  Spark (1)"],
             rig.Rows());
 
         rig.Press(Key.Up);
@@ -85,10 +85,10 @@ public sealed class OverlayPanelTests
 
         Assert.Equal("Spark (1)", rig.Overlay.Title);
         Assert.Equal(
-            ["[Entity]", "Parent", "Name", "Transform", "World Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [x] Visible", "  Remove"],
+            ["[Entity]", "Parent", "Transform", "World Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [x] Visible", "  Remove"],
             rig.Rows());
         Assert.Equal("Parent           Walker", Drawn(rig, 1));
-        Assert.Equal("World Transform  (14, 0) r 0 s (1, 1)", Drawn(rig, 4));
+        Assert.Equal("World Transform  (14, 0) r 0 s (1, 1)", Drawn(rig, 3));
         Assert.Equal(1, rig.Overlay.Focus);
 
         rig.Press(Key.Enter);
@@ -104,9 +104,9 @@ public sealed class OverlayPanelTests
 
         rig.Press(Key.Backspace);
         Assert.Equal("Spark (1)", rig.Overlay.Title);
-        Assert.Equal("World Transform  (15, 0) r 0 s (1, 1)", Drawn(rig, 4));
+        Assert.Equal("World Transform  (15, 0) r 0 s (1, 1)", Drawn(rig, 3));
 
-        // The count is the layer's: the second Entity under Spark, not the third in the scene.
+        // The second Entity the scene joined, under the first Spark.
         rig.Press(Key.Backspace);
         rig.Press(Key.Up);
         rig.Press(Key.Up);
@@ -124,12 +124,12 @@ public sealed class OverlayPanelTests
 
         rig.OpenEntityPanel("Spark");
         Assert.Equal(
-            ["[Entity]", "Parent", "Children", "  Entity", "  Entity (1)", "Name", "Transform", "World Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [x] Visible", "  Remove"],
+            ["[Entity]", "Parent", "Children", "  Entity", "  Entity (1)", "Transform", "World Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [x] Visible", "  Remove"],
             rig.Rows());
 
         rig.Press(Key.Enter);
         Assert.Equal("Walker", rig.Overlay.Title);
-        Assert.Equal(["[Entity]", "Children", "  Spark", "  Entity", "  Spark (1)", "Transform"], rig.Rows()[..6]);
+        Assert.Equal(["[Entity]", "Children", "  Spark", "  Entity (2)", "  Spark (1)", "Transform"], rig.Rows()[..6]);
         Assert.Equal("  Spark       2 children", Drawn(rig, 2));
         Assert.Equal("  Spark (1)", Drawn(rig, 4));
         Assert.Equal(2, rig.Overlay.Focus);
@@ -144,9 +144,9 @@ public sealed class OverlayPanelTests
         Assert.DoesNotContain("Children", rig.Rows());
     }
 
-    // A panel's title drops its suffix when an earlier entity of its type leaves.
+    // An entity keeps its name, and its panel its title, when an earlier one of the same name leaves.
     [Fact]
-    public void APanelsSuffix_FollowsThePageWhenAnEarlierEntityOfItsTypeLeaves()
+    public void AnEntitysName_StaysWhenAnEarlierOneOfItsNameLeaves()
     {
         using OverlayRig rig = new(CreateHost(new Departing()));
 
@@ -162,11 +162,11 @@ public sealed class OverlayPanelTests
         rig.Press(Key.Right);
 
         Assert.Equal(2, rig.Scheduler.Tick);
-        Assert.Equal("Vanisher", rig.Overlay.Title);
+        Assert.Equal("Vanisher (1)", rig.Overlay.Title);
         Assert.Equal(3, rig.Overlay.Depth);
 
         rig.Press(Key.Backspace);
-        Assert.Equal([.. Head, "Lone", "Vanisher"], rig.Rows());
+        Assert.Equal([.. Head, "Lone", "Vanisher (1)"], rig.Rows());
     }
 
     [Fact]

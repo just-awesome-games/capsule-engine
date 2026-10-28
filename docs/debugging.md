@@ -1,7 +1,7 @@
 # Debugging
 
-After this page you can open the debug overlay, hold and step a run, record and replay it, and add your
-own rows and geometry to it. Each type's XML docs hold its rules.
+After this page you can open the debug overlay, hold and step a run, record, replay and trace it, and add
+your own rows and geometry to it. Each type's XML docs hold its rules.
 
 The debug overlay is development code. It holds the run while it is open, and a game writes to it
 through three seams and reads nothing back.
@@ -36,7 +36,7 @@ tenth of the view's visible span.
 
 | Row | Key | Action |
 |---|---|---|
-| Scene | `S` | Opens the scene page. It lists the scene's panel, a Camera row that opens the camera's panel, and the entities as a tree. An entity row opens that entity's panel, which lists its parent and then its children, each of which opens its own. |
+| Scene | `S` | Opens the scene page. It lists the scene's panel, a Camera row that opens the camera's panel, and the entities as a tree, each by its `Name`, which the scene numbers in the order entities join: `Avatar`, then `Avatar (1)`. An entity row opens that entity's panel, which lists its parent and then its children, each of which opens its own. |
 | Step | Right | Runs one fixed step and holds again. |
 | Debug Draw | `D` | Lists the channels that have emitted and switches each on or off. |
 | Time Scale | `T` | Sets `Run.TimeScale` from 0.25x to 4x. |
@@ -79,7 +79,8 @@ step's input, and each host act at its tick. `EngineBuilder.WithoutRecording` tu
 headless run never records. Recordings live in `Recordings/` in the game's per-user local folder, beside
 `crash.log`, or under the directory `--recordings` names. Save Recording writes there, and the engine
 never deletes those files. A normal exit and a crash each save the run to `Recordings/Recent/`, which
-keeps the newest 20. A crash's recording path is logged, and a crash while the first scene starts saves
+keeps the newest 20. A recording's file is named for the scene the run was in when it was saved, by its
+key, and the local time. A crash's recording path is logged, and a crash while the first scene starts saves
 the boot state alone.
 
 `--replay <file>` replays a recording in the window. It fast-forwards silently, then holds at its last
@@ -96,6 +97,39 @@ recording's, and plays on to its end unless the game exits first. A divergence m
 something the recording does not hold, or the game changed since it was recorded. The log names both
 builds when they differ. The shell's canvas, render resolution and fixed step must match the recording's,
 and a replay is refused naming the one that differs.
+
+## Tracing a run
+
+`--trace <csv> <ticks> <names>` beside `--headless` writes what the named entities' panels show at the
+named ticks of the run a recording or a driver plays, with no overlay opened:
+
+```text
+--replay run.recording --headless --trace avatar.csv 1180..1200 Avatar
+--driver Walkthrough --headless --trace avatar.csv 600.. Scene,Camera,Avatar
+```
+
+The ticks are one tick, a range such as `100..160`, an open range such as `600..` that runs to the end, or a
+comma list of them. A tick is the one the overlay's tick line shows, the state after that many steps, and tick 0
+is the opening scene before its first step. A log line stamped 120 was written by the step whose result tick
+121 shows. The names are a comma list, and each matches an entity's `Name`, such as `Avatar (1)`, or its type name, which matches every entity of that
+type. `Scene` and `Camera` trace the scene's own panel and its camera's, and `*` matches all of them.
+
+Each CSV row is `tick,entity,section,field,value`: one field or toggle the entity's panel shows, under the
+section heading it sits in. The entity is its `Name`, and a repeated section or field is numbered as a name
+is. A field naming another entity holds that entity's name. A command writes no row.
+
+A stretch is a run of consecutive ticks in one scene. It opens with a row naming the scene by its key, as
+`--scene` takes it, `tick,,,Scene,<key>`, and its first tick writes every row. Each tick after it writes a row only where a
+value changed. A field's rows in a stretch are its history, and its value at a tick is its last row
+at or before that tick. A field gone from a panel writes an empty value. An entity gone from the trace
+writes one row with an empty section and field, which ends all of its fields. An overlay act a recording
+holds writes a row at the tick its result shows, `tick,<subject>,,Act,<act>`, such as a move under the moved
+entity's name.
+
+The run plays to its end and exits as one without a trace does. The log warns of a name that matched
+nothing and of a tick past the run's end, the start of an open range included. A run that exits ends on the tick before its exiting step, where
+a windowed replay holds. A trace of a recording shows the run the current build plays from its input. After
+a divergence, that is no longer the run that was recorded.
 
 ## The three seams a game writes to
 

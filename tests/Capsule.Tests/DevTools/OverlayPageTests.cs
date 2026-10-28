@@ -158,7 +158,7 @@ public sealed class OverlayPageTests
         rig.Frame();
 
         Assert.Equal(2, rig.Overlay.Depth);
-        Assert.Equal(["NamedScene", "tick 1", ""], rig.Overlay.Scene.Readout());
+        Assert.Equal([UnclaimedDocument, "tick 1", ""], rig.Overlay.Scene.Readout());
 
         rig.Press(Key.Up);
         rig.Press(Key.Enter);

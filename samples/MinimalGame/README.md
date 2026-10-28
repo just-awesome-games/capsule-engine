@@ -12,6 +12,7 @@ From the engine repository root, against engine source:
 dotnet run --project samples/MinimalGame/src/MinimalGame.Shell
 dotnet run --project samples/MinimalGame/src/MinimalGame.Shell -- --scene scenes/room --driver Walkthrough --headless
 dotnet run --project samples/MinimalGame/src/MinimalGame.Shell -- --scene scenes/halls/hall --payload WestArrival --driver Walkthrough --headless
+dotnet run --project samples/MinimalGame/src/MinimalGame.Shell -- --replay samples/MinimalGame/tests/MinimalGame.Tests/Recordings/Walkthrough.recording --headless --trace artifacts/player.csv 60..120 Player
 dotnet test samples/MinimalGame/MinimalGame.slnx
 ```
 

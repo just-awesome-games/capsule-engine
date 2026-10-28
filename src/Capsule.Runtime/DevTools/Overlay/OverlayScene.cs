@@ -64,6 +64,10 @@ internal sealed class OverlayScene : Scene
     // The entity the pointer line names, and its name read once per change.
     private Entity? _under;
     private string? _underName;
+
+    // The name _underName was spelled from, which a join can number afresh.
+    private string? _underRequested;
+    private int _underNumber;
     private (int X, int Y) _cell;
 
     // The last ShowPage and Place. RowAt reads them to turn a pointer into a row.
@@ -166,15 +170,18 @@ internal sealed class OverlayScene : Scene
     // menu's width.
     internal void SetPointer(Vector2? world, Entity? under, (int X, int Y) cell)
     {
-        if (world == _pointerWorld && ReferenceEquals(under, _under) && cell == _cell)
+        bool renamed = under is not null && (under.NameNumber != _underNumber || !ReferenceEquals(under.RequestedName, _underRequested));
+        if (world == _pointerWorld && ReferenceEquals(under, _under) && cell == _cell && !renamed)
         {
             return;
         }
 
-        if (!ReferenceEquals(under, _under))
+        if (!ReferenceEquals(under, _under) || renamed)
         {
             _under = under;
-            _underName = under is null ? null : PanelRows.DisplayName(under);
+            _underName = under?.Name;
+            _underRequested = under?.RequestedName;
+            _underNumber = under?.NameNumber ?? 0;
         }
 
         _pointerWorld = world;

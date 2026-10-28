@@ -213,7 +213,7 @@ public sealed class OverlayCommandTests
         Assert.Equal("Populated", rig.Overlay.Title);
         Assert.Equal(2, rig.Overlay.Depth);
         Assert.Contains("Walker", rig.Overlay.Scene.Status, StringComparison.Ordinal);
-        Assert.Equal([.. Head, "Lone", "Vanisher", "Walker"], rig.Rows());
+        Assert.Equal([.. Head, "Lone", "Vanisher", "Walker (1)"], rig.Rows());
     }
 
     // Only a failed scene start is a status-line matter. Any other failure of the tick is the game's

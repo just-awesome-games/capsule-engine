@@ -19,6 +19,10 @@ public partial class Scene
     // The roots of the detaches landing now, nested when a removal hook starts another.
     private readonly List<Entity> _detachingRoots = [];
 
+    // How many entities have joined under each name, which is the number the next one takes. Scene and Camera
+    // name the scene's own panel and its camera's, and an entity asking for either starts at (1).
+    private readonly Dictionary<string, int> _nameNumbers = new(StringComparer.Ordinal) { ["Scene"] = 1, ["Camera"] = 1 };
+
     private int _attaching;
     private bool _starting;
 
@@ -332,6 +336,18 @@ public partial class Scene
         }
     }
 
+    // The number the next entity joining under name takes, 0 for the first, whose name stays bare.
+    internal int NextNameNumber(string name)
+    {
+        ref int next = ref CollectionsMarshal.GetValueRefOrAddDefault(_nameNumbers, name, out _);
+
+        return next++;
+    }
+
+    // Holds a place for name at preload, where the scene may allocate. Its first join then allocates
+    // nothing.
+    internal void ReserveName(string name) => _nameNumbers.TryAdd(name, 0);
+
     private void AttachTree(Entity entity)
     {
         Place(entity);
@@ -343,6 +359,7 @@ public partial class Scene
     private void JoinTree(Entity entity)
     {
         entity.Joined = true;
+        entity.NameNumber = NextNameNumber(entity.RequestedName);
         Drawing.Invalidate();
 
         // Resolved against this step's state. A join during the step then settles its screen notifiers

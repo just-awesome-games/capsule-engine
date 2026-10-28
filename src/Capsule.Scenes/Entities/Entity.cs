@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
@@ -26,6 +27,10 @@ public partial class Entity
     // The half-length of the origin cross's arms, in world units.
     private const float OriginArm = 1.5f;
 
+    // Each entity type's name, read once and held. The runtime's own cache of a type's name can be
+    // collected and rebuilt on the next read, which allocates, and a join reads the name.
+    private static readonly ConcurrentDictionary<Type, string> TypeNames = new();
+
     private readonly List<Component> _components = [];
 
     // The first child allocates the list, because most entities have no children.
@@ -50,6 +55,10 @@ public partial class Entity
     private bool _started;
     private Vector2 _scrollFactor = Vector2.One;
 
+    // The name the game asked for, null for the type name. Only diagnostics read Name, and a numbered one
+    // is spelled on each read.
+    private string? _requestedName;
+
     // Facts a subclass fixes at construction, packed into one byte. Every entity carries them.
     private Traits _traits;
 
@@ -59,11 +68,42 @@ public partial class Entity
     // Whether this entity is idle in Pool right now, refused by Scene.Add until it is taken.
     internal bool IdleInPool { get; set; }
 
+    // The number the scene gave the name as the entity joined or was renamed, 0 for none.
+    internal int NameNumber { get; set; }
+
     /// <summary>
-    /// A label the debug overlay shows in place of the type name, or null to show the type name. Only
-    /// diagnostics read it, and duplicates are allowed.
+    /// The entity's name in its scene, which the debug overlay, a trace and the game's logs show: the name
+    /// set here, or the type name while none is set.
     /// </summary>
-    public string? Name { get; set; }
+    /// <remarks>
+    /// Joining a scene numbers the name when the scene has held it before: the first <c>Avatar</c> stays
+    /// <c>Avatar</c>, and later ones are <c>Avatar (1)</c>, <c>Avatar (2)</c> and on. A number is never
+    /// reused in that scene, and an entity keeps its name while others come and go. A pooled entity taken
+    /// again joins as a new one with a new number. Setting the name while in a scene numbers it the same
+    /// way at once. A number in parentheses ending a name is the scene's to give, and setting a name that
+    /// ends in one throws. <c>Scene</c> and <c>Camera</c> name the scene's own panel and its camera's in the
+    /// debug overlay and a trace, and an entity asking for either is numbered from <c>(1)</c>.
+    /// </remarks>
+    [AllowNull]
+    public string Name
+    {
+        get => NameNumber == 0
+            ? RequestedName
+            : string.Create(CultureInfo.InvariantCulture, $"{RequestedName} ({NameNumber})");
+
+        set
+        {
+            if (value is not null && EndsInNumber(value))
+            {
+                throw new ArgumentException(
+                    $"'{value}' ends in a number in parentheses, which the scene gives to a name it has held before. Set the name without it.",
+                    nameof(value));
+            }
+
+            _requestedName = value;
+            NameNumber = Joined && SceneOrNull is { } scene ? scene.NextNameNumber(RequestedName) : 0;
+        }
+    }
 
     /// <summary>
     /// The render band: an ordering key applied to all attached renderers. Each renderer's draw
@@ -395,6 +435,10 @@ public partial class Entity
         set => _traits = value ? _traits | Traits.Joined : _traits & ~Traits.Joined;
     }
 
+    // The name the scene numbers, before its number.
+    internal string RequestedName => _requestedName ?? TypeNames.GetOrAdd(GetType(), static type => type.Name);
+
+
     // Set by ScreenEntity alone.
     internal bool OnScreen
     {
@@ -683,7 +727,7 @@ public partial class Entity
     }
 
     /// <summary>
-    /// Fills this entity's panel section. The engine writes <see cref="Name"/>,
+    /// Fills this entity's panel section. The engine writes <see cref="Parent"/>,
     /// <see cref="Transform"/>, <see cref="WorldTransform"/>, <see cref="ZIndex"/>,
     /// <see cref="ScrollFactor"/>, <see cref="Visible"/>, <see cref="Tint"/>, <see cref="Flash"/>,
     /// <see cref="StepMode"/> and <c>Remove</c> before this call.
@@ -750,6 +794,8 @@ public partial class Entity
         {
             return;
         }
+
+        scene?.ReserveName(RequestedName);
 
         IEntityPool? previous = scene?.Pools.EnterDeclaringPool(OwningSharedPool());
         try
@@ -925,6 +971,18 @@ public partial class Entity
         }
     }
 
+    // Whether name ends as the scene numbers one: a space, then digits in parentheses.
+    private static bool EndsInNumber(string name)
+    {
+        ReadOnlySpan<char> text = name;
+        int open = text.LastIndexOf(" (", StringComparison.Ordinal);
+
+        return open >= 0
+            && text.Length > open + 3
+            && text[^1] == ')'
+            && !text[(open + 2)..^1].ContainsAnyExceptInRange('0', '9');
+    }
+
     // The engine writes its own rows before any hook runs, and an override cannot lose them. Hooks
     // follow the same started-only rule as RunStep. Every component gets a heading whether or not it
     // has started, and the panel always lists the entity's components.
@@ -934,11 +992,6 @@ public partial class Entity
         if (_parent is not null)
         {
             panel.Field("Parent", _parent);
-        }
-
-        if (Name is { } name)
-        {
-            panel.Field("Name", name);
         }
 
         panel.Field("Transform", _local);

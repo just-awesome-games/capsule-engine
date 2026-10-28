@@ -620,7 +620,6 @@ internal sealed class DebugOverlay : IDisposable
         _pageShown = false;
         while (_pages[^1] is { Kind: PageKind.Entity } departed && !_panelRows.Holds(departed.Subject!))
         {
-            // The name it had when opened. An entity out of the scene has no place among its siblings.
             SetStatus($"{departed.Name} left the scene");
             Pop();
         }
@@ -642,7 +641,7 @@ internal sealed class DebugOverlay : IDisposable
         };
 
         _cursor.Fit();
-        Scene.SetReadout(_scenes.Scene.GetType().Name, _scheduler.Tick);
+        Scene.SetReadout(_scenes.SceneKey, _scheduler.Tick);
     }
 
     // A row's act may have moved the run to another scene since the point was read.
@@ -722,7 +721,7 @@ internal sealed class DebugOverlay : IDisposable
     private void Open(PageKind kind) => Open(new Page(kind, null, _cursor.Focus, null));
 
     private void Open(Entity subject) =>
-        Open(new Page(PageKind.Entity, subject, _cursor.Focus, PanelRows.DisplayName(subject)));
+        Open(new Page(PageKind.Entity, subject, _cursor.Focus, subject.Name));
 
     private void Open(Page page)
     {
@@ -890,7 +889,7 @@ internal sealed class DebugOverlay : IDisposable
         Recorder recorder = _scheduler.Recorder!;
         try
         {
-            string path = RecordingFiles.Save(recorder, _recordings!, _scenes.Scene.GetType().Name, DateTime.Now);
+            string path = RecordingFiles.Save(recorder, _recordings!, _scenes.SceneKey, DateTime.Now);
             string saved = string.Create(CultureInfo.InvariantCulture, $"Saved {recorder.Ticks} ticks to {path}");
             Log.Info(saved);
             SetStatus(saved);

@@ -43,6 +43,10 @@ internal sealed class Replay
     // The first tick a checkpoint or a host act disagreed at, or null.
     internal long? DivergedAt { get; private set; }
 
+    // Told of each act as it applies, with the tick of the step it runs inside, its subject's name (empty for the
+    // run) and what it does. Null unless a trace listens.
+    internal Action<long, string, string>? Acted { get; set; }
+
     // recorder carries the replayed steps and acts into the live run's recording. A replay that holds
     // at its end stops short of a final step that exits, which leaves a run to resume.
     internal Replay(Recording recording, SceneHost scenes, SceneRegistry registry, Recorder? recorder, bool holdsAtEnd)
@@ -173,6 +177,7 @@ internal sealed class Replay
                 {
                     Vector2 point = act.Point;
                     work = () => DebugOverlay.MoveTo(moved, point);
+                    Acted?.Invoke(tick, moved.Name, string.Create(CultureInfo.InvariantCulture, $"Move to ({point.X}, {point.Y})"));
                 }
                 else
                 {
@@ -183,7 +188,17 @@ internal sealed class Replay
             case HostActKind.Command:
                 work = Command(scene, in act);
                 missing = work is null ? $"no panel command '{act.Name}' (occurrence {act.Occurrence}) is offered" : null;
+                if (work is not null)
+                {
+                    Acted?.Invoke(tick, SubjectName(scene, in act), $"Command {act.Name}");
+                }
+
                 break;
+        }
+
+        if (act.Kind is HostActKind.Restart or HostActKind.Exit or HostActKind.Load && missing is null)
+        {
+            Acted?.Invoke(tick, string.Empty, act.Kind == HostActKind.Load ? $"Load {act.Name}" : act.Kind.ToString());
         }
 
         if (missing is not null)
@@ -227,6 +242,14 @@ internal sealed class Replay
 
         return null;
     }
+
+    // The name a trace gives a command's panel: Scene, Camera or its entity's name.
+    private static string SubjectName(Scene scene, in HostAct act) => act.Subject switch
+    {
+        PanelSubject.Scene => "Scene",
+        PanelSubject.Camera => "Camera",
+        _ => EntityPath.Find(scene, act.Path!)?.Name ?? string.Empty,
+    };
 
     // Builds the subject's panel as the overlay does and finds the command or toggle it ran.
     private Action? Command(Scene scene, in HostAct act)
