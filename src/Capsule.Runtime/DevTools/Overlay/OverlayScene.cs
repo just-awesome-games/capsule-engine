@@ -4,7 +4,7 @@ using Capsule.Scenes;
 using Capsule.Tiles;
 using Capsule.UI;
 
-namespace Capsule.Runtime.DevTools;
+namespace Capsule.Runtime.DevTools.Overlay;
 
 // Draws the overlay. It is told what to show only on the frames that change it.
 internal sealed class OverlayScene : Scene

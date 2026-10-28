@@ -3,7 +3,8 @@ using System.Numerics;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
-using Capsule.Runtime.DevTools;
+using Capsule.Runtime.DevTools.Overlay;
+using Capsule.Runtime.DevTools.Recordings;
 using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
@@ -37,16 +38,18 @@ internal sealed class OverlayRig : IDisposable
     // is in window pixels while the game layer is unplaced.
     internal WorldPlacement? World { get; set; }
 
-    // The run defaults to a RecordingScene that records nothing. The rig disposes it.
+    // The run defaults to a RecordingScene that records nothing. The rig disposes it. A rig given
+    // recordings records the run and offers Save Recording, which writes there.
     internal OverlayRig(
         SceneHost? host = null,
         SceneRegistry? registry = null,
         InputButton? toggle = null,
-        FixedStepScheduler? scheduler = null)
+        FixedStepScheduler? scheduler = null,
+        string? recordings = null)
     {
         Host = host ?? RecordingHost();
-        Scheduler = scheduler ?? CreateScheduler();
-        Overlay = new DebugOverlay(toggle ?? Key.Grave, Scheduler, Host, registry, () => _ticks);
+        Scheduler = scheduler ?? (recordings is null ? CreateScheduler() : RecordingScheduler(Host));
+        Overlay = new DebugOverlay(toggle ?? Key.Grave, Scheduler, Host, registry, () => _ticks, recordings);
     }
 
     internal RecordingSimulation Recording => ((RecordingScene)Host.Scene).Recorder;
@@ -149,6 +152,15 @@ internal sealed class OverlayRig : IDisposable
 
     internal static FixedStepScheduler CreateScheduler(ActionBindings? bindings = null) =>
         new(StepSeconds, 5, bindings ?? new ActionBindings());
+
+    // A scheduler recording every step of host.
+    internal static FixedStepScheduler RecordingScheduler(SceneHost host)
+    {
+        Recorder recorder = new(new RecordingHeader { StepSeconds = StepSeconds });
+        recorder.Attach(host);
+
+        return new FixedStepScheduler(StepSeconds, 5, new ActionBindings(), scenes: host, recorder: recorder);
+    }
 
     // A run of one RecordingScene reading actions.
     internal static SceneHost RecordingHost(params InputAction[] actions)

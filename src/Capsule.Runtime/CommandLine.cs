@@ -18,6 +18,8 @@ internal sealed class CommandLine
           --language <tag>           start in the shipped language closest to that BCP 47 tag
           --frames <csv> [seconds]   write host frame timing, exiting after seconds when given
           --uncapped                 present without vertical sync or a frame cap
+          --replay <file>            replay that recording, windowed unless --headless
+          --recordings <dir>         keep the run's recordings under that directory
 
         """;
 
@@ -55,6 +57,12 @@ internal sealed class CommandLine
 
     // The GPU driver's name, null unless --gpu-driver was given.
     internal string? GpuDriver { get; private set; }
+
+    // The recording to replay, null unless --replay was given.
+    internal string? ReplayPath { get; private set; }
+
+    // The recordings directory, null unless --recordings was given.
+    internal string? RecordingsPath { get; private set; }
 
     private CommandLine()
     {
@@ -130,6 +138,14 @@ internal sealed class CommandLine
                     parsed.Uncapped = true;
                     break;
 
+                case "--replay" when development:
+                    parsed.ReplayPath = Value(args, ref index, gameName, development, "--replay needs a recording file.");
+                    break;
+
+                case "--recordings" when development:
+                    parsed.RecordingsPath = Value(args, ref index, gameName, development, "--recordings needs a directory.");
+                    break;
+
                 case "--saves":
                     parsed.SavesPath = Value(args, ref index, gameName, development, "--saves needs a directory.");
                     break;
@@ -140,6 +156,18 @@ internal sealed class CommandLine
 
                 default:
                     throw Refuse(gameName, development, $"unknown option '{flag}'.");
+            }
+        }
+
+        // A recording carries the run's input, opening, seed and language.
+        if (parsed.ReplayPath is not null)
+        {
+            foreach (string conflict in (ReadOnlySpan<string>)["--driver", "--scene", "--payload", "--seed", "--language"])
+            {
+                if (given.Contains(conflict))
+                {
+                    throw Refuse(gameName, development, $"--replay and {conflict} were both given, and the recording supplies what {conflict} sets. Drop {conflict}.");
+                }
             }
         }
 

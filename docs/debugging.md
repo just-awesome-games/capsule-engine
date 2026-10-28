@@ -1,7 +1,7 @@
 # Debugging
 
-After this page you can open the debug overlay, hold and step a run, and add your own rows and geometry
-to it. Each type's XML docs hold its rules.
+After this page you can open the debug overlay, hold and step a run, record and replay it, and add your
+own rows and geometry to it. Each type's XML docs hold its rules.
 
 The debug overlay is development code. It holds the run while it is open, and a game writes to it
 through three seams and reads nothing back.
@@ -16,7 +16,7 @@ through three seams and reads nothing back.
 | Backspace, Left, pad east, D-pad left | Menu | Returns to the previous page. |
 | Right, D-pad right | Menu | Steps the game once. Held, it repeats. |
 | `S`, `D`, `T`, `L`, `F1` | Root page | Opens Scene, Debug Draw, Time Scale, Load Scene or Help. |
-| `R`, `C`, `P`, `H`, `E` | Any page | Restart, Game Camera, Frame Pane, Hide or Exit. |
+| `R`, `C`, `P`, `W`, `H`, `E` | Any page | Restart, Game Camera, Frame Pane, Save Recording, Hide or Exit. |
 | `H`, `C` | Hidden | Shows the menu again, or returns the view to the game's camera. |
 | Pointer, left click | Row | Pointing focuses the row and a click activates it. |
 | Wheel | Menu | Scrolls the rows, with or without a modifier. |
@@ -44,6 +44,7 @@ tenth of the view's visible span.
 | Load Scene | `L` | Loads a registered scene. The row shows only when scenes are registered. |
 | Game Camera | `C` | Returns the view to the game's camera. |
 | Frame Pane | `P` | Shows or hides the frame rate, frame times, steps per second, GC counts and heap. With sound, it also counts `underruns`, when the mix fell behind the device, and `starved` blocks, when a streamed voice's decoding fell behind. |
+| Save Recording | `W` | Saves the run so far to `Recordings/`, and the status line names the file. The row shows only while the run records. |
 | Hide | `H` | Withdraws the menu and keeps the run held. |
 | Help | `F1` | Lists each control no row shows by its main keys. |
 | Exit | `E` | Ends the run. |
@@ -65,10 +66,36 @@ whatever the Debug Draw page has switched on. `F` flies the view to it.
 
 Nothing reads back from the overlay. No code can learn what it shows or has switched on. A command, a
 toggle, Step, Move, Restart, Load Scene or Exit is a host act that changes the run as input would. A run
-that took one is not reproducible from its driver alone. A time-scale change leaves a run reproducible.
+that took one is not reproducible from its driver alone, and its recording holds the act and reproduces
+it. A time-scale change leaves a run reproducible.
 
 A headless run has no overlay. A windowed run driven by an input driver opens one as any other run does,
 and stepping asks the driver for the step's snapshot.
+
+## Record and replay
+
+Every windowed development run records itself from boot: its seed, opening scene, restored saves, each
+step's input, and each host act at its tick. `EngineBuilder.WithoutRecording` turns it off, and a
+headless run never records. Recordings live in `Recordings/` in the game's per-user local folder, beside
+`crash.log`, or under the directory `--recordings` names. Save Recording writes there, and the engine
+never deletes those files. A normal exit and a crash each save the run to `Recordings/Recent/`, which
+keeps the newest 20. A crash's recording path is logged, and a crash while the first scene starts saves
+the boot state alone.
+
+`--replay <file>` replays a recording in the window. It fast-forwards silently, then holds at its last
+tick with the overlay open, and the status line says `Replay matched` or `Replay diverged by tick <n>`. A
+run that ended by exiting holds before its exiting step. Closing the overlay, or taking a step from the
+hold, hands the run to the devices from that tick, and recording carries on with the replayed run in it.
+A replay never handed over saves nothing at exit. Under `--frames` the replay plays at the run's pace.
+With `--headless` it plays to its end and exits 0 when it matched and 1 when it diverged. In a test,
+`EngineBuilder.RunHeadless(Recording)` replays one and reports `DivergedAt`.
+
+A recording holds a checksum of the run's state once a simulated second. A replay diverges at the first
+checkpoint that disagrees, at a host act whose target is gone, or where its exit disagrees with the
+recording's, and plays on to its end unless the game exits first. A divergence means the simulation read
+something the recording does not hold, or the game changed since it was recorded. The log names both
+builds when they differ. The shell's canvas, render resolution and fixed step must match the recording's,
+and a replay is refused naming the one that differs.
 
 ## The three seams a game writes to
 

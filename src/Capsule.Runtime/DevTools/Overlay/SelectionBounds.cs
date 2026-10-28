@@ -3,7 +3,7 @@ using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
 
-namespace Capsule.Runtime.DevTools;
+namespace Capsule.Runtime.DevTools.Overlay;
 
 // Where a selected entity's subtree stands in the world, as its renderers and colliders report it.
 internal static class SelectionBounds

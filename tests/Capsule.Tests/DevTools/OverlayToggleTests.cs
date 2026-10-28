@@ -1,6 +1,6 @@
 using System.Numerics;
 using Capsule.Input;
-using Capsule.Runtime.DevTools;
+using Capsule.Runtime.DevTools.Overlay;
 using static Capsule.Tests.DevTools.OverlayFixtures;
 using static Capsule.Tests.DevTools.OverlayRig;
 

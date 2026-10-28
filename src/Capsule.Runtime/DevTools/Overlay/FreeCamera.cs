@@ -4,7 +4,7 @@ using Capsule.Rendering;
 using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
 
-namespace Capsule.Runtime.DevTools;
+namespace Capsule.Runtime.DevTools.Overlay;
 
 // The overlay's view of the held world. It stays attached to the game's camera until a pan, a scroll or
 // a zoom touches it, then stands in for that camera's view through the scene host. The game's Camera is never

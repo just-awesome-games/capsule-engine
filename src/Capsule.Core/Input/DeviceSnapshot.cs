@@ -22,7 +22,8 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <summary>Buttons whose <see cref="MouseButton"/> value must remain below this to be representable.</summary>
     public const int MouseCapacity = 8;
 
-    private const int AxisCount = 6;
+    // The axes a snapshot holds, one slot per PadAxis value above None.
+    internal const int AxisCount = 6;
 
     private readonly UInt128 _down;
     private readonly uint _padDown;
@@ -67,6 +68,36 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
 
     // Whether the window has focus, the pad is generic, nothing is held, every axis is at rest, the wheel is still and the pointer is at the origin.
     internal bool IsEmpty => Equals(Empty);
+
+    // The raw parts a recording writes and reads back. Bit n of a mask is the key or button of value n.
+    internal UInt128 KeyBits => _down;
+
+    internal uint PadBits => _padDown;
+
+    internal uint MouseBits => _mouseDown;
+
+    // The axis in slot index, which is its PadAxis value less one.
+    internal float AxisAt(int index) => _axes[index];
+
+    // A snapshot from the parts a recording read, which a writer took from a valid one.
+    internal static DeviceSnapshot FromParts(
+        UInt128 keys,
+        uint pad,
+        uint mouse,
+        Vector2 pointer,
+        Vector2 scroll,
+        ReadOnlySpan<float> axes,
+        bool focused,
+        PadFamily family)
+    {
+        AxisSet set = default;
+        for (int index = 0; index < AxisCount; index++)
+        {
+            set[index] = axes[index];
+        }
+
+        return new DeviceSnapshot(keys, pad, mouse, pointer, scroll, set, !focused, family);
+    }
 
     /// <summary>
     /// Where the pointer sits at this instant, in canvas pixels from the canvas's top-left corner.

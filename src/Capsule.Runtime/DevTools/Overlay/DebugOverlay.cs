@@ -5,13 +5,14 @@ using System.Runtime.InteropServices;
 using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Rendering;
+using Capsule.Runtime.DevTools.Recordings;
 using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Tiles;
 using Capsule.UI;
 
-namespace Capsule.Runtime.DevTools;
+namespace Capsule.Runtime.DevTools.Overlay;
 
 // The overlay holds the run while open. The page rebuilds only after the host's own acts.
 internal sealed class DebugOverlay : IDisposable
@@ -33,6 +34,9 @@ internal sealed class DebugOverlay : IDisposable
     private readonly FixedStepScheduler _scheduler;
     private readonly SceneHost _scenes;
     private readonly Func<long> _timestamp;
+
+    // Where Save Recording writes, null when the run records nothing.
+    private readonly string? _recordings;
 
     // The overlay's own scene is never stepped. Its rows are written straight onto it.
     private readonly SceneSimulation _sceneSimulation;
@@ -126,18 +130,28 @@ internal sealed class DebugOverlay : IDisposable
         FixedStepScheduler scheduler,
         SceneHost scenes,
         SceneRegistry? registry = null,
-        Func<long>? timestamp = null)
+        Func<long>? timestamp = null,
+        string? recordings = null)
     {
         _scheduler = scheduler;
         _scenes = scenes;
         _timestamp = timestamp ?? Stopwatch.GetTimestamp;
+        _recordings = scheduler.Recorder is null ? null : recordings;
         _toggle = button;
         _cursor = new RowCursor(_rows);
 
         Scene = new OverlayScene(OverlayActions.KeyName(button));
         _draws = new DebugDrawRenderer(scheduler, scenes);
         Scene.Add(new DebugDrawEntity(_draws));
-        _panelRows = new PanelRows(scenes, activate => StepGameReporting("Command", activate), Open, () => Open(PageKind.Camera));
+        _panelRows = new PanelRows(
+            scenes,
+            (act, activate) =>
+            {
+                _scheduler.Recorder?.Act(in act);
+                StepGameReporting("Command", activate);
+            },
+            Open,
+            () => Open(PageKind.Camera));
         _freeCamera = new FreeCamera(scenes, scheduler);
         BuildRoot(registry?.Registrations ?? []);
 
@@ -442,7 +456,41 @@ internal sealed class DebugOverlay : IDisposable
         _pageStale = true;
     }
 
-    internal void Load(in SceneTransition transition) => Request("Load", in transition);
+    internal void Load(in SceneTransition transition, string? registration = null) =>
+        Request("Load", in transition, registration is null ? null : HostAct.Load(registration));
+
+    // Opens the overlay over a held run with status on its status line, as a replay's end does.
+    internal void HoldAt(string status)
+    {
+        _state = OverlayState.Open;
+        if (!_scheduler.Held)
+        {
+            _scheduler.Held = true;
+            HoldChanged?.Invoke(true);
+        }
+
+        _draws.Attach();
+        _pageStale = true;
+        SetStatus(status);
+    }
+
+    // A camera following the entity or anything under it cuts with it. Closing shows no sweep. A replay
+    // repeats a recorded move through this.
+    internal static void MoveTo(Entity entity, Vector2 world)
+    {
+        entity.Teleport(entity.Parent is { } parent ? parent.WorldTransform.InverseTransformPoint(world) : world);
+
+        Camera camera = entity.Scene.Camera;
+        for (Entity? carried = camera.Subject; carried is not null; carried = carried.Parent)
+        {
+            if (ReferenceEquals(carried, entity))
+            {
+                camera.Teleport(camera.Subject!.WorldPosition + camera.FollowOffset);
+
+                return;
+            }
+        }
+    }
 
     public void Dispose()
     {
@@ -464,7 +512,7 @@ internal sealed class DebugOverlay : IDisposable
             SceneTransition target = registration.DocumentName is { } name
                 ? SceneTransition.ToName(name, null)
                 : SceneTransition.ToScene(registration.SceneType!, null);
-            _loadRows.Add(new OverlayRow(registration.Name, () => Load(in target)));
+            _loadRows.Add(new OverlayRow(registration.Name, () => Load(in target, registration.Name)));
         }
 
         _loadRows.Sort(static (a, b) => OverlayRow.CompareLabels(a.Label, b.Label));
@@ -473,7 +521,7 @@ internal sealed class DebugOverlay : IDisposable
         Add("Step", () => StepGame(null), OverlayActions.Step, repeats: true);
         Add("Debug Draw", OpenDebugDraw, OverlayActions.DebugDraw, opensPage: true);
         Add("Time Scale", () => Open(PageKind.TimeScale), OverlayActions.TimeScale, opensPage: true);
-        Add("Restart", () => Request("Restart", SceneTransition.Restart(null, false)), OverlayActions.Restart);
+        Add("Restart", () => Request("Restart", SceneTransition.Restart(null, false), HostAct.Restart()), OverlayActions.Restart);
         if (_loadRows.Count > 0)
         {
             Add("Load Scene", () => Open(PageKind.LoadScene), OverlayActions.LoadScene, opensPage: true);
@@ -481,6 +529,11 @@ internal sealed class DebugOverlay : IDisposable
 
         Add("Game Camera", _freeCamera.Attach, OverlayActions.GameCamera);
         Add("Frame Pane", ToggleFramePane, OverlayActions.FramePane);
+        if (_recordings is not null)
+        {
+            Add("Save Recording", SaveRecording, OverlayActions.SaveRecording);
+        }
+
         Add("Hide", () => _state = OverlayState.Hidden, OverlayActions.Hide);
         Add("Help", () => Open(PageKind.Help), OverlayActions.Help, opensPage: true);
         Add("Exit", Exit, OverlayActions.Exit);
@@ -798,24 +851,8 @@ internal sealed class DebugOverlay : IDisposable
 
         // Set first. A failure the step reports replaces it.
         SetStatus(string.Create(CultureInfo.InvariantCulture, $"Moved {name} to {point.X:0.##}, {point.Y:0.##}"));
+        _scheduler.Recorder?.Act(HostAct.Move(entity, point));
         StepGameReporting("Move", () => MoveTo(entity, point));
-    }
-
-    // A camera following the entity or anything under it cuts with it. Closing shows no sweep.
-    private static void MoveTo(Entity entity, Vector2 world)
-    {
-        entity.Teleport(entity.Parent is { } parent ? parent.WorldTransform.InverseTransformPoint(world) : world);
-
-        Camera camera = entity.Scene.Camera;
-        for (Entity? carried = camera.Subject; carried is not null; carried = carried.Parent)
-        {
-            if (ReferenceEquals(carried, entity))
-            {
-                camera.Teleport(camera.Subject!.WorldPosition + camera.FollowOffset);
-
-                return;
-            }
-        }
     }
 
     // The view flies to the union of the open entity's renderer and collider bounds, grown by a margin. An
@@ -847,14 +884,33 @@ internal sealed class DebugOverlay : IDisposable
         }
     }
 
+    // The run so far, into the recordings directory. A failed write is shown and the run goes on.
+    private void SaveRecording()
+    {
+        Recorder recorder = _scheduler.Recorder!;
+        try
+        {
+            string path = RecordingFiles.Save(recorder, _recordings!, _scenes.Scene.GetType().Name, DateTime.Now);
+            string saved = string.Create(CultureInfo.InvariantCulture, $"Saved {recorder.Ticks} ticks to {path}");
+            Log.Info(saved);
+            SetStatus(saved);
+        }
+        catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
+        {
+            Report("Save Recording", failure);
+        }
+    }
+
     private void Exit()
     {
         _scenes.Run.RequestExit();
+        _scheduler.Recorder?.Act(HostAct.Exit());
         StepGame(null);
     }
 
-    // A declined or refused request is shown and not stepped. The run stays held on its scene.
-    private void Request(string action, in SceneTransition transition)
+    // A declined or refused request is shown and not stepped. The run stays held on its scene. A request
+    // taken is recorded as act.
+    private void Request(string action, in SceneTransition transition, HostAct? act)
     {
         try
         {
@@ -870,6 +926,11 @@ internal sealed class DebugOverlay : IDisposable
             Report(action, failure);
 
             return;
+        }
+
+        if (act is { } taken)
+        {
+            _scheduler.Recorder?.Act(in taken);
         }
 
         StepGameReporting(action, null);

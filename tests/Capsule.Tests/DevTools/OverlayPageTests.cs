@@ -1,5 +1,5 @@
 using Capsule.Input;
-using Capsule.Runtime.DevTools;
+using Capsule.Runtime.DevTools.Overlay;
 using Capsule.Scenes;
 using static Capsule.Tests.DevTools.OverlayFixtures;
 
@@ -10,15 +10,16 @@ public sealed class OverlayPageTests
 {
     private const string UnclaimedDocument = "attic";
 
+    // A run that records offers Save Recording.
     [Fact]
-    public void TheRootPage_ListsTheEngineRowsForARunOfScenes()
+    public void TheRootPage_ListsTheEngineRowsForARecordedRunOfScenes()
     {
-        using OverlayRig rig = new(CreateHost(), CreateRegistry());
+        using OverlayRig rig = new(CreateHost(), CreateRegistry(), recordings: "unwritten");
 
         rig.Open();
 
         Assert.Equal(
-            ["Scene", "Step", "Debug Draw", "Time Scale", "Restart", "Load Scene", "Game Camera", "Frame Pane", "Hide", "Help", "Exit"],
+            ["Scene", "Step", "Debug Draw", "Time Scale", "Restart", "Load Scene", "Game Camera", "Frame Pane", "Save Recording", "Hide", "Help", "Exit"],
             rig.Rows());
         Assert.Equal(0, rig.Overlay.Focus);
         Assert.Null(rig.Overlay.Title);
@@ -64,7 +65,7 @@ public sealed class OverlayPageTests
     [Fact]
     public void EveryOverlayAction_IsTaughtByARootRowOrALineOfTheHelpPage()
     {
-        using OverlayRig rig = new(CreateHost(), CreateRegistry());
+        using OverlayRig rig = new(CreateHost(), CreateRegistry(), recordings: "unwritten");
         rig.Open();
         HashSet<InputAction> taught = [];
         foreach (OverlayRow row in rig.Overlay.Rows)

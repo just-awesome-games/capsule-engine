@@ -206,6 +206,17 @@ public sealed class CommandLineTests : IDisposable
         ["--headless", "--headless"],
         ["--gpu-driver"]);
 
+    // The recording supplies the run's opening, seed and language, and a flag setting one would be ignored.
+    [Fact]
+    public void Replay_WithAFlagTheRecordingSupplies_IsRefusedNamingIt()
+    {
+        CommandLineException refused = Assert.Throws<CommandLineException>(
+            () => CommandLine.Parse(["--replay", "run.recording", "--seed", "42"], "Game", development: true));
+
+        Assert.Contains("--seed", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("the recording supplies", refused.Message, StringComparison.Ordinal);
+    }
+
     // A shipping build declares no development flag. A player cannot drive, probe, reroute, reseed or
     // force the language of the game from its command line. The portable-saves lever and help stay.
     [Theory]
@@ -217,6 +228,8 @@ public sealed class CommandLineTests : IDisposable
     [InlineData("--uncapped")]
     [InlineData("--seed", "42")]
     [InlineData("--language", "fr")]
+    [InlineData("--replay", "run.recording")]
+    [InlineData("--recordings", "runs")]
     public void AShippingBuild_RefusesADevelopmentFlagAsUnknown(params string[] args)
     {
         CommandLineException refused = Assert.Throws<CommandLineException>(

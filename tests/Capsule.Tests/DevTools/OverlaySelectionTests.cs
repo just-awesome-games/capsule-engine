@@ -3,7 +3,7 @@ using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Physics;
 using Capsule.Rendering;
-using Capsule.Runtime.DevTools;
+using Capsule.Runtime.DevTools.Overlay;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 using Capsule.UI;

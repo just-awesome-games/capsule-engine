@@ -4,7 +4,7 @@ using Capsule.Runtime.Audio;
 using Capsule.Scenes;
 using Capsule.UI;
 
-namespace Capsule.Runtime.DevTools;
+namespace Capsule.Runtime.DevTools.Overlay;
 
 // One host frame in wall-clock milliseconds, and the fixed steps it ran.
 internal readonly record struct FrameSample(double IntervalMs, double UpdateMs, double DrawMs, int Steps);

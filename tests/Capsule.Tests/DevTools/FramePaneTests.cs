@@ -1,6 +1,6 @@
 using Capsule.Input;
 using Capsule.Rendering;
-using Capsule.Runtime.DevTools;
+using Capsule.Runtime.DevTools.Overlay;
 
 namespace Capsule.Tests.DevTools;
 

@@ -1,7 +1,7 @@
 using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Runtime;
-using Capsule.Runtime.DevTools;
+using Capsule.Runtime.DevTools.Overlay;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using static Capsule.Tests.DevTools.OverlayFixtures;

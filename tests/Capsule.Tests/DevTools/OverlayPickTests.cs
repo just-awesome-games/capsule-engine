@@ -1,7 +1,7 @@
 using System.Numerics;
 using Capsule.Input;
 using Capsule.Rendering;
-using Capsule.Runtime.DevTools;
+using Capsule.Runtime.DevTools.Overlay;
 using Capsule.Runtime.Rendering;
 using Capsule.Scenes;
 using static Capsule.Tests.DevTools.OverlayFixtures;

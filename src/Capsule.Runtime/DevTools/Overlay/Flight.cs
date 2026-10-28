@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace Capsule.Runtime.DevTools;
+namespace Capsule.Runtime.DevTools.Overlay;
 
 // The overlay view's smooth pan and zoom between two framings. The closed-form path keeps the motion on
 // screen at an even pace. A far target zooms out part-way to show both ends, and a near one is almost a

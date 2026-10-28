@@ -4,7 +4,7 @@ using Capsule.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 
-namespace Capsule.Runtime.DevTools;
+namespace Capsule.Runtime.DevTools.Overlay;
 
 // Draws the enabled debug-draw channels under the menu and over the game. Allocation-free once warm.
 internal sealed class DebugDrawRenderer : Renderer

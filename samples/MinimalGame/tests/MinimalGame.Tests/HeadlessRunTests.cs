@@ -96,9 +96,11 @@ public sealed class HeadlessRunTests
         Assert.Equal(probe.EntranceAt, probe.PlayerAt);
     }
 
-    private static EngineBuilder Boot() =>
+    // The shell's builder, render resolution included, which a recording made in the shell checks.
+    internal static EngineBuilder Boot() =>
         CapsuleBoot.Configure("Minimal Game")
             .WithRunStart(GameBoot.Start)
+            .WithRenderResolution((int)World.ViewportSize.X, (int)World.ViewportSize.Y)
             .WithoutLogging();
 
     // Presses Confirm on the menu, which opens focused on Start, and asks QuitsFrom each step in play

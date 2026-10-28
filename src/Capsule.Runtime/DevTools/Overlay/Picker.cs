@@ -3,7 +3,7 @@ using Capsule.Rendering;
 using Capsule.Runtime.Rendering;
 using Capsule.Scenes;
 
-namespace Capsule.Runtime.DevTools;
+namespace Capsule.Runtime.DevTools.Overlay;
 
 // What a held frame draws under a world point, read back through the entity each run of its world sprites
 // was attributed to. A sprite is hit anywhere inside its drawn rect, whatever its texels' alpha.

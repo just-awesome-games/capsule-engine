@@ -134,7 +134,8 @@ public sealed class MenuTour : IInputDriver
 A driver that decides what to press from what is on screen implements `IInputDriver` directly and
 reads the `Scene` it is handed. The sample's
 [`Walkthrough`](../samples/MinimalGame/src/MinimalGame.Game/Drivers/Walkthrough.cs) drives a whole
-level.
+level. A driver reads the scene and survives tuning changes, while a recording replays one exact run
+([`debugging.md`](debugging.md#record-and-replay)).
 
 Put drivers in a directory carrying a `.capsuleignore`. They are then part of every ordinary build and
 of no publish ([`build-and-publish.md`](build-and-publish.md#development-only-directories)).

@@ -1,16 +1,27 @@
 using System.Diagnostics;
 using Capsule.Diagnostics;
 using Capsule.Input;
+using Capsule.Runtime.DevTools.Recordings;
 using Capsule.Runtime.Scenes;
+using Capsule.Scenes;
 
 namespace Capsule.Runtime;
 
-// The host with no window, device or media, which plays a driver through the scenes a windowed run
-// would host. Transitions, the seed and the run settings behave as they do in a window. It steps as
-// fast as the driver allows, or in real-time frames when frame diagnostics are on.
-internal sealed class HeadlessHost(EngineBuilder builder, SceneHost scenes, IInputDriver driver, FrameDiagnostics? diagnostics)
+// The host with no window, device or media, which plays a driver or a recording through the scenes a
+// windowed run would host. Transitions, the seed and the run settings behave as they do in a window. It
+// steps as fast as its input allows, or in real-time frames when frame diagnostics are on. It records
+// nothing. It takes exactly one of driver and replay, and watch runs after each step with the scene and
+// the tick the step ran at.
+internal sealed class HeadlessHost(
+    EngineBuilder builder,
+    SceneHost scenes,
+    IInputDriver? driver,
+    Replay? replay,
+    FrameDiagnostics? diagnostics,
+    Action<Scene, long>? watch = null)
 {
-    private readonly FixedStepScheduler _scheduler = new(builder.StepSeconds, builder.MaxStepsPerFrame, builder.Input.Bindings, driver, scenes, builder.Timestamp);
+    private readonly FixedStepScheduler _scheduler =
+        Watched(new(builder.StepSeconds, builder.MaxStepsPerFrame, builder.Input.Bindings, driver, scenes, builder.Timestamp, replay: replay), scenes, watch);
 
     internal long SimulationTick => _scheduler.Tick;
 
@@ -34,7 +45,17 @@ internal sealed class HeadlessHost(EngineBuilder builder, SceneHost scenes, IInp
         // body never sees.
         EndFrame();
 
-        return new HeadlessRunResult(_scheduler.Tick, scenes.ExitRequested, scenes.View.Metrics);
+        return new HeadlessRunResult(_scheduler.Tick, scenes.ExitRequested, scenes.View.Metrics, replay?.DivergedAt);
+    }
+
+    private static FixedStepScheduler Watched(FixedStepScheduler scheduler, SceneHost scenes, Action<Scene, long>? watch)
+    {
+        if (watch is not null)
+        {
+            scheduler.StepCompleted = () => watch(scenes.Scene, scheduler.Tick);
+        }
+
+        return scheduler;
     }
 
     // Frames as a window presenting once per fixed step runs them. Each frame advances by the wall

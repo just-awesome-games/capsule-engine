@@ -1,7 +1,7 @@
 using System.Globalization;
 using Capsule.Runtime.Platform;
 
-namespace Capsule.Runtime.DevTools;
+namespace Capsule.Runtime.DevTools.Latency;
 
 // Measures each press from its event's SDL timestamp to the return of the present of the first frame
 // whose steps consumed it. A press taken on a frame that runs no step waits for the next frame that

@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Numerics;
+using Capsule.Diagnostics;
 using Capsule.Input;
+using Capsule.Runtime.DevTools.Recordings;
 using Capsule.Runtime.Scenes;
 
 namespace Capsule.Runtime;
@@ -33,8 +35,16 @@ internal sealed class FixedStepScheduler
 
     internal int StepsThisFrame { get; private set; }
 
+    // Takes every step a windowed run runs, a replayed one included. Null in a headless run, a run the
+    // shell does not record and a shipping build, where a step pays a null check.
+    internal Recorder? Recorder { get; }
+
+    // Supplies each step's input to the recording's end. Null when the run replays nothing, and once a
+    // windowed replay has handed over to live input.
+    internal Replay? Replay { get; private set; }
+
     // The extent in pixels of the output the host draws this run to. Driven runs get it too: a
-    // driver scripts input, the host still owns the output.
+    // driver scripts input, the host still owns the output. A replay writes the recorded one.
     internal Vector2 Output { get; set; }
 
     // The shortest seconds between the window's frames, set by a frame cap or vertical sync, 0 when
@@ -53,11 +63,13 @@ internal sealed class FixedStepScheduler
         ActionBindings bindings,
         IInputDriver? driver = null,
         SceneHost? scenes = null,
-        Func<long>? timestamp = null)
+        Func<long>? timestamp = null,
+        Recorder? recorder = null,
+        Replay? replay = null)
     {
         ArgumentNullException.ThrowIfNull(bindings);
 
-        if (driver is not null && scenes is null)
+        if ((driver is not null || replay is not null) && scenes is null)
         {
             throw new ArgumentNullException(nameof(scenes), "An input driver needs the scene it drives. Pass a scene host for a driven run.");
         }
@@ -76,23 +88,16 @@ internal sealed class FixedStepScheduler
         _input = new InputState(bindings);
         _driver = driver;
         _scenes = scenes;
+        if (Development.IsSupported)
+        {
+            Recorder = recorder;
+            Replay = replay;
+            replay?.Seed(_input);
+        }
     }
 
     // The device the last consumed step read as active, for the host's pad-facing output.
     internal InputDevice ActiveDevice => _input.ActiveDevice;
-
-    // Seeds the run's initial active device. Called before the first step.
-    internal void SeedDevice(InputDevice device) => _input.Seed(device);
-
-    // Reads key characters from the player's keyboard layout, which the host rewrites in place on a
-    // change. A driven run ignores it and reads a US layout's, as its replay and a headless run do.
-    internal void UseKeyLayout(string?[] characters)
-    {
-        if (_driver is null)
-        {
-            _input.UseKeyLayout(characters);
-        }
-    }
 
     internal bool Held
     {
@@ -109,6 +114,10 @@ internal sealed class FixedStepScheduler
             {
                 _accumulatorSeconds = 0;
                 _latch.DiscardPending();
+            }
+            else
+            {
+                HandOverFinishedReplay();
             }
         }
     }
@@ -136,6 +145,26 @@ internal sealed class FixedStepScheduler
 
     internal float InterpolationAlpha => _held ? 1f : (float)(_accumulatorSeconds / _stepSeconds);
 
+    // Seeds the run's initial active device. Called before the first step. A replay keeps the recorded one.
+    internal void SeedDevice(InputDevice device)
+    {
+        if (Replay is null)
+        {
+            _input.Seed(device);
+        }
+    }
+
+    // Reads key characters from the player's keyboard layout, which the host rewrites in place on a
+    // change. A driven run ignores it and reads a US layout's, as a headless run does. A replay reads the
+    // recorded layout, and keeps it after handing over to live input.
+    internal void UseKeyLayout(string?[] characters)
+    {
+        if (_driver is null && Replay is null)
+        {
+            _input.UseKeyLayout(characters);
+        }
+    }
+
     internal bool Advance(double elapsedSeconds, in DeviceSnapshot snapshot, ISimulation simulation)
     {
         if (!double.IsFinite(elapsedSeconds) || elapsedSeconds < 0)
@@ -154,8 +183,17 @@ internal sealed class FixedStepScheduler
             return _driverFinished || simulation.ExitRequested;
         }
 
-        // Under a driver the sampled device is not input, and none of it reaches the simulation.
-        if (_driver is null)
+        // A replay standing at its end runs nothing until it is released.
+        if (Replay is { Finished: true })
+        {
+            _accumulatorSeconds = 0;
+
+            return false;
+        }
+
+        // Under a driver or a replay the sampled device is not input, and none of it reaches the
+        // simulation.
+        if (_driver is null && Replay is null)
         {
             _latch.Observe(snapshot);
         }
@@ -188,26 +226,14 @@ internal sealed class FixedStepScheduler
                 return false;
             }
 
-            DeviceSnapshot stepped;
-            if (_driver is { } driver)
+            if (!TryTakeInput(out DeviceSnapshot stepped, out Action? act))
             {
-                // Asked once per step, holding the scene the step is about to run.
-                if (!driver.TryNext(_scenes!.Scene, Tick, out stepped))
-                {
-                    _driverFinished = true;
-                    StepsThisFrame = stepsRun;
+                StepsThisFrame = stepsRun;
 
-                    return true;
-                }
-            }
-            else
-            {
-                stepped = _latch.Consume();
+                return InputEnded();
             }
 
-            _input.Advance(stepped);
-            simulation.Step(new StepContext(_stepSeconds, _input, Tick, Output));
-            StepCompleted?.Invoke();
+            RunStep(in stepped, simulation, act);
 
             _accumulatorSeconds -= _stepSeconds;
             if (_accumulatorSeconds < 0 && _accumulatorSeconds >= -stepEpsilon)
@@ -216,7 +242,6 @@ internal sealed class FixedStepScheduler
             }
 
             stepsRun++;
-            Tick++;
             StepsThisFrame = stepsRun;
 
             if (simulation.ExitRequested)
@@ -229,10 +254,10 @@ internal sealed class FixedStepScheduler
     }
 
     // One fixed step while held, through the input path a played step takes. The sampled snapshot is
-    // latched and consumed, or the driver is asked for the step's snapshot. The accumulator is
-    // untouched, and a held run stays drawn at the settled step. Returns whether the simulation has
-    // requested exit. `before` runs inside the step, after it begins and before the simulation's own
-    // work.
+    // latched and consumed, or the driver or the replay is asked for the step's snapshot. The
+    // accumulator is untouched, and a held run stays drawn at the settled step. Returns whether the
+    // simulation has requested exit. `before` runs inside the step, after it begins and before the
+    // simulation's own work.
     internal bool StepOnce(in DeviceSnapshot snapshot, ISimulation simulation, Action? before = null)
     {
         if (!_held)
@@ -242,20 +267,116 @@ internal sealed class FixedStepScheduler
 
         StepsThisFrame = 0;
 
-        DeviceSnapshot stepped;
-        if (_driver is { } driver)
+        // A step taken at a finished replay's hold is the first live one, the overlay's act in it.
+        HandOverFinishedReplay();
+        if (_driverFinished)
         {
-            if (_driverFinished || !driver.TryNext(_scenes!.Scene, Tick, out stepped))
-            {
-                _driverFinished = true;
+            return true;
+        }
 
+        if (_driver is null && Replay is null)
+        {
+            _latch.Observe(snapshot);
+        }
+
+        if (!TryTakeInput(out DeviceSnapshot stepped, out Action? act))
+        {
+            return InputEnded();
+        }
+
+        RunStep(in stepped, simulation, act + before);
+        StepsThisFrame = 1;
+
+        return simulation.ExitRequested;
+    }
+
+    // A windowed replay's fast-forward: replayed steps back to back until budgetTicks of real time have
+    // passed or the replay ends, with no accumulator. Returns whether the simulation requested exit.
+    internal bool FastForward(long budgetTicks, ISimulation simulation)
+    {
+        StepsThisFrame = 0;
+        _accumulatorSeconds = 0;
+        if (_held)
+        {
+            return simulation.ExitRequested;
+        }
+
+        long started = _timestamp();
+        while (Replay is { Finished: false } && _timestamp() - started < budgetTicks)
+        {
+            if (!TryTakeInput(out DeviceSnapshot stepped, out Action? act))
+            {
+                return InputEnded();
+            }
+
+            RunStep(in stepped, simulation, act);
+            StepsThisFrame++;
+            if (simulation.ExitRequested)
+            {
                 return true;
             }
         }
-        else
+
+        return false;
+    }
+
+    // A windowed replay at its end hands the run to the devices from this tick, when it is released or
+    // when a step is taken from its hold.
+    private void HandOverFinishedReplay()
+    {
+        if (Replay is { Finished: true } replay)
         {
-            _latch.Observe(snapshot);
-            stepped = _latch.Consume();
+            replay.HandedOver = true;
+            Replay = null;
+        }
+    }
+
+    // The step's input: the replay's, the driver's, or the latched sample. False once the replay or the
+    // driver has none left. act is a replayed host act to run inside the step.
+    private bool TryTakeInput(out DeviceSnapshot stepped, out Action? act)
+    {
+        act = null;
+        if (Development.IsSupported && Replay is { } replay)
+        {
+            Vector2 output = Output;
+            bool more = replay.TryNext(Tick, ref output, out stepped, out act);
+            Output = output;
+
+            return more;
+        }
+
+        if (_driver is { } driver)
+        {
+            // Asked once per step, holding the scene the step is about to run.
+            return driver.TryNext(_scenes!.Scene, Tick, out stepped);
+        }
+
+        stepped = _latch.Consume();
+
+        return true;
+    }
+
+    // A driver's end ends the run. A replay's ends it too unless the replay holds at its end, which
+    // leaves the run standing on its last tick until the host releases it.
+    private bool InputEnded()
+    {
+        if (Replay is { HoldsAtEnd: true })
+        {
+            _accumulatorSeconds = 0;
+
+            return false;
+        }
+
+        _driverFinished = true;
+
+        return true;
+    }
+
+    private void RunStep(in DeviceSnapshot stepped, ISimulation simulation, Action? before)
+    {
+        if (Development.IsSupported)
+        {
+            Recorder?.Step(in stepped, Output, _input);
         }
 
         _input.Advance(stepped);
@@ -270,10 +391,12 @@ internal sealed class FixedStepScheduler
         }
 
         StepCompleted?.Invoke();
-
         Tick++;
-        StepsThisFrame = 1;
 
-        return simulation.ExitRequested;
+        if (Development.IsSupported)
+        {
+            Recorder?.Stepped(Tick);
+            Replay?.Stepped(Tick);
+        }
     }
 }

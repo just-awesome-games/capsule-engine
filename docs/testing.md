@@ -12,6 +12,7 @@ A game's simulation runs the same in a test as in a window, under the
 | --- | --- |
 | Scene behaviour over time | `SimulationHost`, which owns ticks, input state and teardown. |
 | Scene transitions, boot configuration or exit results | `EngineBuilder.RunHeadless`, from `JAG.Capsule.Runtime`. |
+| A recorded playtest, replayed exactly | `EngineBuilder.RunHeadless(Recording.Load(path))`, asserting `DivergedAt` is null. |
 
 A headless test references the shell and begins with its generated `CapsuleBoot.Configure`, which hands
 `CapsuleEngine.Configure` every generated registry, the input drivers and `IScenePayload` classes included.

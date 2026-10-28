@@ -9,7 +9,9 @@ using Capsule.Localization;
 using Capsule.Persistence;
 using Capsule.Rendering;
 using Capsule.Runtime.Audio;
+using Capsule.Runtime.DevTools.Recordings;
 using Capsule.Runtime.Persistence;
+using Capsule.Runtime.Platform;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 
@@ -35,6 +37,9 @@ public sealed class EngineBuilder
     private (int Width, int Height)? _canvas;
     private string _localFolderName;
     private bool _writesCrashLog = true;
+    private bool _records = true;
+    // Null for Recordings in the local folder, unless --recordings named one.
+    private string? _recordingsDirectory;
     private string? _saveDirectory;
     private ISaveStorage? _saveStorage;
     private ILogSink? _logSink;
@@ -55,6 +60,8 @@ public sealed class EngineBuilder
     private string? _commandLineDocument;
     private IScenePayload? _commandLinePayload;
     private bool _headless;
+    // The recording --replay loaded, which a windowed run replays in place of its opening.
+    private Recording? _commandLineReplay;
 
     internal string GameName => _gameName;
 
@@ -324,6 +331,16 @@ public sealed class EngineBuilder
         return this;
     }
 
+    /// <summary>Stops a windowed development run recording itself.</summary>
+    /// <remarks>
+    /// The debug overlay then offers no Save Recording row, and nothing is saved at exit or on a crash.
+    /// </remarks>
+    public EngineBuilder WithoutRecording()
+    {
+        _records = false;
+        return this;
+    }
+
     /// <summary>
     /// Keeps save documents directly under <paramref name="path"/> instead of on the platform's own
     /// medium.
@@ -542,6 +559,20 @@ public sealed class EngineBuilder
             _commandLineLanguage = ShippedLanguage(language);
         }
 
+        // A shipping build parses no --replay, and the check lets a trimmed publish drop the decoder.
+        if (Development.IsSupported && parsed.ReplayPath is { } replay)
+        {
+            try
+            {
+                _commandLineReplay = Recording.Load(replay);
+            }
+            catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
+            {
+                throw CommandLine.Refuse(_gameName, $"--replay could not read '{replay}': {failure.Message}");
+            }
+        }
+
+        _recordingsDirectory = parsed.RecordingsPath ?? _recordingsDirectory;
         Uncapped = parsed.Uncapped;
         GpuDriver = parsed.GpuDriver;
 
@@ -589,9 +620,49 @@ public sealed class EngineBuilder
         RunHeadless(SceneTransition.ToName(scene.Required(nameof(scene)), payload), driver);
 
     /// <summary>
+    /// Replays <paramref name="recording"/> with no window, as <see cref="RunHeadless{TScene}(IInputDriver, IScenePayload?)"/>
+    /// runs a driver, and reports whether the run diverged from it.
+    /// </summary>
+    /// <remarks>
+    /// The recording supplies the opening scene and payload, the seed, the language and the saves restored
+    /// at boot, and the shell's other settings apply. Restored saves are kept in memory and persist
+    /// nowhere. The whole recording plays whether or not the run diverges, unless the game exits first,
+    /// which ends the run there and is itself a divergence.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// HeadlessRunResult result = builder.RunHeadless(Recording.Load(path));
+    /// Assert.Null(result.DivergedAt);
+    /// </code>
+    /// </example>
+    /// <param name="recording">The run to replay.</param>
+    /// <param name="watch">Runs after every step with the scene and the tick that step ran at.</param>
+    /// <exception cref="InvalidOperationException">
+    /// The shell's canvas, render resolution or fixed step differs from the recording's, the recording
+    /// opens a scene or payload this game does not register, or <see cref="Development.IsSupported"/> is
+    /// false.
+    /// </exception>
+    public HeadlessRunResult RunHeadless(Recording recording, Action<Scene, long>? watch = null)
+    {
+        ArgumentNullException.ThrowIfNull(recording);
+
+        if (!Development.IsSupported)
+        {
+            throw new InvalidOperationException(Recording.ShippingRefusal);
+        }
+
+        if (ReplayRefusal(recording, out SceneTransition opening) is { } refusal)
+        {
+            throw new InvalidOperationException(refusal);
+        }
+
+        return RunReplayHeadless(recording, in opening, watch);
+    }
+
+    /// <summary>
     /// Opens the window and runs <typeparamref name="TScene"/> until game code requests exit,
     /// composing it from the document that backs it when one does. Returns 0 as the process's exit
-    /// code.
+    /// code, or 1 when a <c>--replay</c> run under <c>--headless</c> diverged.
     /// </summary>
     /// <typeparam name="TScene">A scene this builder's registry holds.</typeparam>
     /// <param name="payload">
@@ -620,11 +691,17 @@ public sealed class EngineBuilder
         RunWindowed(SceneTransition.ToName(scene.Required(nameof(scene)), payload));
 
     // Opens the window, or plays the driver with no window under --headless, and runs until the game
-    // requests exit.
+    // requests exit. Under --replay the recording supplies the opening, and a headless replay's exit code
+    // says whether it diverged.
     private int RunWindowed(in SceneTransition target)
     {
-        SceneTransition opening = Opening(in target);
+        // The switch's check lets a trimmed publish drop the replay and its decoder.
+        if (Development.IsSupported && _commandLineReplay is { } recording)
+        {
+            return RunCommandLineReplay(recording);
+        }
 
+        SceneTransition opening = Opening(in target);
         if (_headless)
         {
             // Checked here, not by WithCommandLine. A WithInputDriver call after it supplies the driver.
@@ -638,26 +715,74 @@ public sealed class EngineBuilder
             return 0;
         }
 
-        // Everything from here on reaches the crash log, the first scene's composition included. The
-        // exception is rethrown to preserve the exit code and the debugger break.
+        RunRecorded(in opening, replayed: null, RunHost);
+
+        return 0;
+    }
+
+    // --replay: the recording's opening in the window, or with none under --headless, whose exit code says
+    // whether it diverged.
+    private int RunCommandLineReplay(Recording recording)
+    {
+        if (ReplayRefusal(recording, out SceneTransition opening) is { } refusal)
+        {
+            throw CommandLine.Refuse(_gameName, refusal);
+        }
+
+        if (_headless)
+        {
+            return RunReplayHeadless(recording, in opening, watch: null).DivergedAt is null ? 0 : 1;
+        }
+
+        RunRecorded(in opening, recording, RunHost);
+
+        return 0;
+    }
+
+    // Builds the scenes a windowed run hosts, from replayed's boot state when given, and hands them to run.
+    // Everything from here on reaches the crash log and the run's recording, the first scene's composition
+    // included. The exception is rethrown to preserve the exit code and the debugger break.
+    internal void RunRecorded(in SceneTransition opening, Recording? replayed, Action<SceneHost, Recorder?, Replay?> run)
+    {
+        Recorder? recorder = null;
+        SceneHost? scenes = null;
+        Replay? replay = null;
         try
         {
             // Installed before composing, because a scene's OnStart logs while the host is built.
             InstallLogging();
 
-            ulong seed = RunSeed(played: Driver is null);
+            // Read only when no replay supplies the boot state.
+            bool played = Driver is null;
+            ulong seed = replayed?.Header.Seed ?? RunSeed(played);
             Log.Info($"random seed {seed.ToString(CultureInfo.InvariantCulture)}");
 
-            using SceneHost host = CreateHost(opening, NamedSaveStorage() ?? Platform.OpenSaveStorage(_localFolderName), seed, played: Driver is null);
-            RunHost(host);
+            string[]? languages = replayed is null ? PreferredLanguages(played) : replayed.Header.PreferredLanguages;
+            string? language = replayed is null ? _commandLineLanguage : replayed.Header.LanguageOverride;
+            ISaveStorage storage = replayed is null
+                ? NamedSaveStorage() ?? Platform.OpenSaveStorage(_localFolderName)
+                : new RecordedSaveStorage(replayed.Header.Saves);
+
+            // Before the host is built, which runs the game's startup. A crash inside it still saves the
+            // boot state, and the shell settings are read before a run-start hook can change them.
+            recorder = NewRecorder(in opening, seed, languages, language);
+            using SceneHost host = CreateHost(in opening, storage, seed, languages, language, recorder);
+            scenes = host;
+            replay = Development.IsSupported && replayed is not null ? new Replay(replayed, host, Scenes, recorder, holdsAtEnd: true) : null;
+            run(host, recorder, replay);
+
+            SaveRecent(recorder, replay, scenes, crashed: false);
         }
-        catch (Exception exception) when (_writesCrashLog)
+        catch (Exception exception) when (_writesCrashLog || recorder is not null)
         {
-            Platform.ReportCrash(_gameName, _localFolderName, exception);
+            SaveRecent(recorder, replay, scenes, crashed: true);
+            if (_writesCrashLog)
+            {
+                Platform.ReportCrash(_gameName, _localFolderName, exception);
+            }
+
             throw;
         }
-
-        return 0;
     }
 
     // The scene the run opens: what --scene named, else the call's own, with the payload --payload
@@ -672,12 +797,12 @@ public sealed class EngineBuilder
     }
 
     // Builds the window host and runs the scenes until they request exit.
-    private void RunHost(SceneHost scenes)
+    private void RunHost(SceneHost scenes, Recorder? recorder, Replay? replay)
     {
         // Declared first so the host is disposed before it, with its last frame already written.
         using FrameDiagnostics? diagnostics = OpenFrameDiagnostics();
 
-        WindowHost window = new(this, scenes, diagnostics);
+        WindowHost window = new(this, scenes, diagnostics, recorder, replay);
         using TickStamp stamp = StampTicks(() => window.SimulationTick);
 
         window.Run();
@@ -694,13 +819,111 @@ public sealed class EngineBuilder
         using FrameDiagnostics? diagnostics = OpenFrameDiagnostics();
 
         // No medium unless one was named, which keeps a developer's local folder out of the run.
-        using SceneHost scenes = CreateHost(initialTarget, NamedSaveStorage(), RunSeed(played: false), played: false);
+        using SceneHost scenes = CreateHost(initialTarget, NamedSaveStorage(), RunSeed(played: false), preferredLanguages: null, _commandLineLanguage);
         diagnostics?.Mark(FrameDiagnostics.Stage.HostConstructed);
-        HeadlessHost host = new(this, scenes, driver, diagnostics);
+        HeadlessHost host = new(this, scenes, driver, replay: null, diagnostics);
         using TickStamp stamp = StampTicks(() => host.SimulationTick);
 
         return host.Run();
     }
+
+    // Builds the headless host over the recording's boot state and replays it to its end. Its saves are
+    // kept in memory and persist nowhere.
+    private HeadlessRunResult RunReplayHeadless(Recording recording, in SceneTransition opening, Action<Scene, long>? watch)
+    {
+        InstallLogging();
+
+        // Declared first so the host is disposed before it, with its last frame already written.
+        using FrameDiagnostics? diagnostics = OpenFrameDiagnostics();
+
+        RecordingHeader header = recording.Header;
+        using SceneHost scenes = CreateHost(opening, new RecordedSaveStorage(header.Saves), header.Seed, header.PreferredLanguages, header.LanguageOverride);
+        diagnostics?.Mark(FrameDiagnostics.Stage.HostConstructed);
+        HeadlessHost host = new(this, scenes, driver: null, new Replay(recording, scenes, Scenes, recorder: null, holdsAtEnd: false), diagnostics, watch);
+        using TickStamp stamp = StampTicks(() => host.SimulationTick);
+
+        return host.Run();
+    }
+
+    // Why the recording cannot replay under this shell, or null with the opening it replays. The shell's
+    // settings the simulation reads must match, and the opening must be registered here.
+    private string? ReplayRefusal(Recording recording, out SceneTransition opening)
+    {
+        opening = default;
+        RecordingHeader header = recording.Header;
+        if (Mismatch("fixed step", Hertz(header.StepSeconds), Hertz(StepSeconds)) is { } step)
+        {
+            return step;
+        }
+
+        if (Mismatch("canvas", Size(header.Canvas), Size(Canvas)) is { } canvas)
+        {
+            return canvas;
+        }
+
+        if (Mismatch("render resolution", Declared(header.RenderResolution), Declared(RenderResolution)) is { } resolution)
+        {
+            return resolution;
+        }
+
+        if (!Scenes.TryResolveName(header.Scene, out Type? sceneType, out string? document)
+            || (header.OpensDocument ? document is null : sceneType is null))
+        {
+            return $"the recording opens scene '{header.Scene}', which this game does not register. Replay it with the build that recorded it.";
+        }
+
+        IScenePayload? payload = null;
+        if (header.Payload is { } named && !_payloads.TryCreate(named, out payload))
+        {
+            return $"the recording opens {header.Scene} with a {named} payload, which is not a registered payload class. "
+                + $"Give {named} a public parameterless constructor, which registers it as --payload needs, then record the run again.";
+        }
+
+        opening = header.OpensDocument ? SceneTransition.ToName(document!, payload) : SceneTransition.ToScene(sceneType!, payload);
+
+        return null;
+
+        static string Hertz(double seconds) => (1 / seconds).ToString("0.###", CultureInfo.InvariantCulture) + " Hz";
+
+        static string Size(Vector2 size) => string.Create(CultureInfo.InvariantCulture, $"{size.X}x{size.Y}");
+
+        static string Declared((int Width, int Height)? size) =>
+            size is { } declared ? string.Create(CultureInfo.InvariantCulture, $"{declared.Width}x{declared.Height}") : "none";
+
+        static string? Mismatch(string setting, string recorded, string configured) =>
+            recorded == configured ? null
+                : $"the recording was made with a {setting} of {recorded} and this shell configures {configured}. "
+                    + $"Configure the shell's {setting} as the recording's was, or record the run again.";
+    }
+
+    // Saves the run into Recent and logs where, named for its scene, or for its opening when it crashed
+    // before its host was built. A replay never handed over to live input is the recording it replayed,
+    // which is saved already. A failed write masks neither the run's end nor its crash.
+    private void SaveRecent(Recorder? recorder, Replay? replay, SceneHost? scenes, bool crashed)
+    {
+        if (!Development.IsSupported || recorder is null || replay is { HandedOver: false })
+        {
+            return;
+        }
+
+        string scene = scenes?.Scene.GetType().Name ?? recorder.OpeningScene;
+        if (RecordingFiles.SaveRecent(recorder, RecordingsDirectory(), scene, crashed) is { } path)
+        {
+            string ticks = recorder.Ticks.ToString(CultureInfo.InvariantCulture);
+            if (crashed)
+            {
+                Log.Error($"the crashed run's recording of {ticks} ticks is at {path}");
+            }
+            else
+            {
+                Log.Info($"Saved {ticks} ticks to {path}");
+            }
+        }
+    }
+
+    // Where the overlay saves recordings, and whose Recent holds the automatic ones.
+    internal string RecordingsDirectory() =>
+        _recordingsDirectory ?? Path.Combine(LocalFolder.Resolve(_localFolderName), RecordingFiles.DirectoryName);
 
     // The configured seed, else a fresh one for a run a person plays. A headless or driven run is a
     // test or a replay and starts from the default.
@@ -722,18 +945,67 @@ public sealed class EngineBuilder
         return BinaryPrimitives.ReadUInt64LittleEndian(entropy);
     }
 
-    // A played run is windowed with no driver, and the only kind that asks the platform for a language.
+    // The recorder of a windowed run, with its boot state and the shell's settings as they stand before
+    // the game's startup runs, or null when the shell turned recording off.
+    internal Recorder? NewRecorder(in SceneTransition opening, ulong seed, string[]? languages, string? language)
+    {
+        if (!Development.IsSupported || !_records)
+        {
+            return null;
+        }
+
+        RecordingHeader boot = new()
+        {
+            GameVersion = BuildIdentity.Version(System.Reflection.Assembly.GetEntryAssembly()),
+            CapsuleVersion = BuildIdentity.Version(typeof(EngineBuilder).Assembly),
+            Seed = seed,
+            StepSeconds = StepSeconds,
+            Canvas = Canvas,
+            RenderResolution = RenderResolution,
+            OpensDocument = opening.Kind == SceneTransitionKind.Named,
+            Scene = opening.Kind == SceneTransitionKind.Named ? opening.DocumentName! : opening.SceneType!.Name,
+            Payload = opening.Payload?.GetType().Name,
+            PreferredLanguages = languages,
+            LanguageOverride = language,
+        };
+
+        return new Recorder(boot);
+    }
+
+    // A played run asks the platform for its languages, and --language overrides.
     internal SceneHost CreateHost(in SceneTransition opening, ISaveStorage? storage, ulong seed, bool played) =>
-        new(
+        CreateHost(in opening, storage, seed, PreferredLanguages(played), _commandLineLanguage);
+
+    // preferredLanguages is what the platform reported, null for a run that asked for none, and language
+    // is the --language override. recorder records the host from its first step and copies every document
+    // the storage restores.
+    internal SceneHost CreateHost(
+        in SceneTransition opening,
+        ISaveStorage? storage,
+        ulong seed,
+        string[]? preferredLanguages,
+        string? language,
+        Recorder? recorder = null)
+    {
+        SceneHost host = new(
             opening,
             new SceneComposer(Scenes, Platform).Resolve,
             new Run(new RandomSource(seed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, Display = Display, RenderResolution = RenderResolution },
-            storage,
-            RunStart(played));
+            storage is null || recorder is null ? storage : new TeeSaveStorage(storage, recorder.Restored),
+            RunStart(preferredLanguages, language));
+        recorder?.Attach(host);
+
+        return host;
+    }
+
+    // A played run is windowed with no driver, and the only kind that asks the platform for its languages,
+    // in a game with string tables.
+    private string[]? PreferredLanguages(bool played) =>
+        played && _strings is not null ? [.. Platform.PreferredLanguages()] : null;
 
     // The starting language around the game's hooks. The player's is set before them, and a saved choice
     // they apply wins over it. --language is set after them and wins over both.
-    private Action<Run>? RunStart(bool played)
+    private Action<Run>? RunStart(string[]? preferredLanguages, string? language)
     {
         if (_strings is not { } strings)
         {
@@ -742,24 +1014,22 @@ public sealed class EngineBuilder
 
         return run =>
         {
-            string preferred = "";
-            if (played)
+            if (preferredLanguages is not null)
             {
-                string[] languages = [.. Platform.PreferredLanguages()];
-                int matched = LanguageMatcher.Match(strings.Languages, languages);
+                int matched = LanguageMatcher.Match(strings.Languages, preferredLanguages);
                 run.Language = strings.Languages[matched < 0 ? strings.Fallback : matched];
-                preferred = languages.Length == 0 ? "none" : string.Join(", ", languages);
             }
 
             _runStart?.Invoke(run);
 
-            if (_commandLineLanguage is { } language)
+            if (language is not null)
             {
                 run.Language = language;
             }
 
-            if (played)
+            if (preferredLanguages is not null)
             {
+                string preferred = preferredLanguages.Length == 0 ? "none" : string.Join(", ", preferredLanguages);
                 Log.Info($"language {strings.Languages[strings.Resolve(run.Language)]} from preferred {preferred}");
             }
         };

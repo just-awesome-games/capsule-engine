@@ -118,6 +118,9 @@ public sealed class InputState
     // replays with.
     internal void UseKeyLayout(string?[]? characters) => _keyLayout = characters;
 
+    // The layout key characters are read from, null for a US layout's.
+    internal string?[]? KeyLayout => _keyLayout;
+
     // The initial device, part of the run's initial state. Set before the first step and raises no
     // change.
     internal void Seed(InputDevice device)

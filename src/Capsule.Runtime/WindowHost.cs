@@ -11,7 +11,9 @@ using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime.Assets;
 using Capsule.Runtime.Audio;
-using Capsule.Runtime.DevTools;
+using Capsule.Runtime.DevTools.Latency;
+using Capsule.Runtime.DevTools.Overlay;
+using Capsule.Runtime.DevTools.Recordings;
 using Capsule.Runtime.Gpu;
 using Capsule.Runtime.Input;
 using Capsule.Runtime.Platform;
@@ -63,6 +65,13 @@ internal sealed unsafe class WindowHost
     // The logical name a shell embeds its window icon under.
     private const string WindowIconResource = "Icon.png";
 
+    // The real time a fast-forwarding replay steps for in one frame, which keeps the window answering.
+    private static readonly long FastForwardTicks = Stopwatch.Frequency / 30;
+
+    // Opens the overlay over a replay that has reached its end, with the outcome on its status line. Null
+    // in a shipping build.
+    private readonly Action<string>? _holdOverlay;
+
     // SDL's window, zero until Open creates it and after Close destroys it.
     private nint _window;
 
@@ -89,6 +98,11 @@ internal sealed unsafe class WindowHost
     private bool _deviceSeeded;
     private bool _minimized;
 
+    // A windowed replay is announced once at its end, and the refresh rate is read again once it hands
+    // over to live input.
+    private bool _replaying;
+    private bool _replayAnnounced;
+
     // When the current frame started, from which the next frame's elapsed time is measured.
     private long _frameStarted;
 
@@ -105,12 +119,21 @@ internal sealed unsafe class WindowHost
     // window coordinate is a pixel, which a move between displays leaves unscaled.
     private float _sizedScale = 1f;
 
-    internal WindowHost(EngineBuilder builder, SceneHost scenes, FrameDiagnostics? diagnostics)
+    // recorder records the run and replay replays one into it. Both are null in a shipping build.
+    internal WindowHost(EngineBuilder builder, SceneHost scenes, FrameDiagnostics? diagnostics, Recorder? recorder = null, Replay? replay = null)
     {
         _builder = builder;
         _diagnostics = diagnostics;
         _scenes = scenes;
-        _scheduler = new FixedStepScheduler(builder.StepSeconds, builder.MaxStepsPerFrame, builder.Input.Bindings, builder.Driver, scenes);
+        _scheduler = new FixedStepScheduler(
+            builder.StepSeconds,
+            builder.MaxStepsPerFrame,
+            builder.Input.Bindings,
+            replay is null ? builder.Driver : null,
+            scenes,
+            recorder: recorder,
+            replay: replay);
+        _replaying = replay is not null;
 
         if (Development.IsSupported && builder.InputLatencyPath is { } latencyPath)
         {
@@ -123,8 +146,9 @@ internal sealed unsafe class WindowHost
 
         if (Development.IsSupported)
         {
-            DebugOverlay overlay = new(builder.Input.DebugOverlayButton, _scheduler, scenes, builder.Scenes);
+            DebugOverlay overlay = new(builder.Input.DebugOverlayButton, _scheduler, scenes, builder.Scenes, recordings: recorder is null ? null : builder.RecordingsDirectory());
             _overlayHost = overlay;
+            _holdOverlay = overlay.HoldAt;
             _interceptOverlay = (snapshot, renderer) => overlay.Intercept(
                 snapshot,
                 renderer.ScreenLayer,
@@ -430,13 +454,40 @@ internal sealed unsafe class WindowHost
             ReadRefreshRate();
         }
 
+        // A replay released at its end has handed over to live input, and the display's rate is the
+        // window's again.
+        if (_replaying && _scheduler.Replay is null)
+        {
+            _replaying = false;
+            ReadRefreshRate();
+        }
+
         // The run owns the pace and the scheduler holds what is applied. Copied after the overlay's
         // intercept, which may move it, and before the frame's elapsed time is spent. The output is
-        // the window's extent in pixels.
+        // the window's extent in pixels, and a replay writes its recorded one into each step.
         _scheduler.TimeScale = _scenes.Run.TimeScale;
         (int outputWidth, int outputHeight) = _renderer.WindowSize;
         _scheduler.Output = new Vector2(outputWidth, outputHeight);
-        bool exiting = _scheduler.Advance(elapsedSeconds, sampled, _scenes);
+
+        // A replay fast-forwards, silent and undrawn, unless frame diagnostics time it at the run's pace.
+        bool fastForward = _scheduler.Replay is { Finished: false } && _diagnostics is null;
+        if (fastForward)
+        {
+            _audio?.Suspend();
+        }
+
+        bool exiting = fastForward
+            ? _scheduler.FastForward(FastForwardTicks, _scenes)
+            : _scheduler.Advance(elapsedSeconds, sampled, _scenes);
+
+        // At its end a replay holds the run with the overlay open, and the log and the status line say
+        // whether it matched.
+        if (_scheduler.Replay is { Finished: true } ended && !_replayAnnounced)
+        {
+            _replayAnnounced = true;
+            Log.Info(ended.Outcome);
+            _holdOverlay?.Invoke(ended.Outcome);
+        }
 
         // After the steps, which may have changed the trigger deadzone. The next frame's events are
         // read against the deadzone the run settled.
@@ -493,8 +544,9 @@ internal sealed unsafe class WindowHost
         _diagnostics?.EndUpdate(_scheduler.StepsThisFrame);
 
         // A minimized window shows nothing. Its frames build and draw nothing. A run that is exiting
-        // draws nothing either: its scenes have released what the frame would draw.
-        if (!_minimized && !exiting)
+        // draws nothing either: its scenes have released what the frame would draw. Nor does a replay
+        // fast-forwarding.
+        if (!_minimized && !exiting && !fastForward)
         {
             exiting = Draw();
         }
@@ -509,6 +561,11 @@ internal sealed unsafe class WindowHost
         // SDL pumps the events once this returns. The next frame samples what the player did while
         // this one waited. The swapchain wait holds the sample back until the device can take the
         // frame it starts, and the cap's wait holds it to the run's rate.
+        if (fastForward)
+        {
+            return true;
+        }
+
         if (!_minimized)
         {
             _gpu.WaitForSwapchain();

@@ -1,4 +1,4 @@
-namespace Capsule.Runtime.DevTools;
+namespace Capsule.Runtime.DevTools.Overlay;
 
 // Not FocusNavigator: the overlay's scene never steps, and its rows are a window over a longer page.
 internal sealed class RowCursor(IReadOnlyList<OverlayRow> rows)

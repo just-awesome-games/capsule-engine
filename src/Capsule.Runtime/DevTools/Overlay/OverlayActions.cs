@@ -1,6 +1,6 @@
 using Capsule.Input;
 
-namespace Capsule.Runtime.DevTools;
+namespace Capsule.Runtime.DevTools.Overlay;
 
 // The only place the overlay's devices are named.
 internal static class OverlayActions
@@ -19,6 +19,7 @@ internal static class OverlayActions
     internal static readonly InputAction ScenePage = new("debug-overlay.scene");
     internal static readonly InputAction GameCamera = new("debug-overlay.game-camera");
     internal static readonly InputAction Exit = new("debug-overlay.exit");
+    internal static readonly InputAction SaveRecording = new("debug-overlay.save-recording");
     internal static readonly InputAction Help = new("debug-overlay.help");
     internal static readonly InputAction Click = new("debug-overlay.click");
     internal static readonly InputAction Move = new("debug-overlay.move");
@@ -37,7 +38,7 @@ internal static class OverlayActions
     // Every button bound here is withheld from the game while the overlay holds the run.
     internal static readonly InputAction[] Actions =
     [
-        MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, TimeScale, FramePane, ScenePage, GameCamera, Exit, Help, Click,
+        MenuUp, MenuDown, Confirm, Back, Step, Hide, Restart, LoadScene, DebugDraw, TimeScale, FramePane, ScenePage, GameCamera, Exit, SaveRecording, Help, Click,
         Move, Frame, Pan, Grab, Zoom, Sideways,
     ];
 
@@ -58,6 +59,7 @@ internal static class OverlayActions
             .Bind(ScenePage, Key.S)
             .Bind(GameCamera, Key.C)
             .Bind(Exit, Key.E)
+            .Bind(SaveRecording, Key.W)
             .Bind(Help, Key.F1)
             .Bind(Click, MouseButton.Left)
             .Bind(Move, Key.G)

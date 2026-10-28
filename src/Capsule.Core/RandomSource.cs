@@ -68,6 +68,9 @@ public sealed class RandomSource
         DrawCount = 0;
     }
 
+    // The generator's whole state, which a run's checksum folds in.
+    internal (ulong S0, ulong S1, ulong S2, ulong S3) State => (_s0, _s1, _s2, _s3);
+
     /// <summary>Draws the raw 64-bit output the other methods are built from. One draw.</summary>
     public ulong NextUInt64()
     {

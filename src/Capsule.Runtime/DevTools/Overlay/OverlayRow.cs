@@ -1,6 +1,6 @@
 using Capsule.Input;
 
-namespace Capsule.Runtime.DevTools;
+namespace Capsule.Runtime.DevTools.Overlay;
 
 // A row with no action is never focused. An opener's hotkey fires only at the root.
 internal readonly record struct OverlayRow(

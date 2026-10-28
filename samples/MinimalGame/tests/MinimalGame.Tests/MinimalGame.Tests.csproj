@@ -30,4 +30,9 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Recorded playtests, each replayed headless by RecordingTests. -->
+  <ItemGroup>
+    <None Include="Recordings/*.recording" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
