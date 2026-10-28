@@ -254,15 +254,14 @@
       "x": 608,
       "y": 144,
       "exit": {
-        "destination": "scenes/halls/hall",
-        "arriveAt": "west"
+        "destination": "scenes/halls/hall"
       }
     },
     {
       "type": "entrance",
       "x": 584,
       "y": 168,
-      "key": "east"
+      "from": "scenes/halls/hall"
     },
     {
       "type": "camera-zone",

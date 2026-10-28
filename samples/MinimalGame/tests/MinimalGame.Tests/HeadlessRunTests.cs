@@ -249,7 +249,7 @@ public sealed class HeadlessRunTests
         public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
         {
             PlayerAt = scene.FindSingle<Player>().Position;
-            EntranceAt = scene.FindFirst<Entrance>(entrance => entrance.Key == "west")?.Position;
+            EntranceAt = scene.FindFirst<Entrance>(entrance => entrance.From == CapsuleAssets.Scenes.RoomScene)?.Position;
             snapshot = DeviceSnapshot.Empty;
 
             return false;

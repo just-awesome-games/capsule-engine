@@ -5,7 +5,7 @@ namespace MinimalGame.Game.Scenes;
 
 /// <summary>
 /// The base of every level document (<c>"baseScene": "playable-scene"</c>): the sky, the head-up display,
-/// the pause menu, arriving at the <see cref="Entrance"/> an <see cref="Arrival"/> names, and returning to
+/// the pause menu, arriving at the <see cref="Entrance"/> from the room an <see cref="Arrival"/> left, and returning to
 /// the <see cref="MainMenu"/> at no health. The document supplies the level, the camera and the track.
 /// </summary>
 public abstract class PlayableScene : Scene
@@ -40,9 +40,9 @@ public abstract class PlayableScene : Scene
 
         if (EntryPayload is Arrival arrival)
         {
-            Entrance entrance = FindFirst<Entrance>(entrance => entrance.Key == arrival.Entrance)
+            Entrance entrance = FindFirst<Entrance>(entrance => entrance.From == arrival.From)
                 ?? throw new InvalidOperationException(
-                    $"No entrance in this room has the key \"{arrival.Entrance}\". Place an entrance with that key, or fix the arriveAt that leads here.");
+                    $"No entrance in this room is from \"{arrival.From}\". Place an entrance whose from names that room.");
             Player.Teleport(entrance.Position);
         }
 

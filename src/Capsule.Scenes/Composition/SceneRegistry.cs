@@ -288,7 +288,7 @@ public sealed class SceneRegistry
 
     private Scene Compose(string name, SceneDocument document)
     {
-        SceneContent content = new(document, _entities);
+        SceneContent content = new(document, _entities, new SceneKey(name));
 
         return _byDocumentName.TryGetValue(name, out SceneRegistration claimed)
             ? claimed.Create(content)

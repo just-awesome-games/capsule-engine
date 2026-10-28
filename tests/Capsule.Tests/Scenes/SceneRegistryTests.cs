@@ -56,6 +56,16 @@ public sealed class SceneRegistryTests
         Assert.Equal(typeof(Scene), composed.GetType());
     }
 
+    [Fact]
+    public void AComposedSceneReportsItsDocumentsKey_AndOneBuiltInCodeNone()
+    {
+        SceneRegistry scenes = Registry(Menu, Room01);
+
+        Assert.Equal(new SceneKey("room-01"), scenes.Create(new SceneKey("room-01"), SceneFixtures.Room()).DocumentKey);
+        Assert.Equal(new SceneKey("attic"), scenes.Create(new SceneKey("attic"), SceneFixtures.Room()).DocumentKey);
+        Assert.Null(scenes.Create(typeof(SceneFixtures.HookScene)).DocumentKey);
+    }
+
     [Theory]
     [MemberData(nameof(Refused))]
     public void AConflictingOrEmptyRegistration_IsRejectedWhereTheRegistryIsBuilt(SceneRegistration[] registrations, string named)

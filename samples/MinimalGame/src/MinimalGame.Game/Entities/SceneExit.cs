@@ -3,8 +3,7 @@ using MinimalGame.Game.Scenes;
 namespace MinimalGame.Game.Entities;
 
 /// <summary>
-/// Leaves for another room when the player walks into its doorway, arriving at the entrance there that
-/// its arrival key names.
+/// Leaves for another room when the player walks into its doorway, arriving at the entrance there from this room.
 /// </summary>
 /// <param name="size">The doorway, from its entity's corner.</param>
 public sealed class SceneExit(Vector2 size) : Component
@@ -15,10 +14,6 @@ public sealed class SceneExit(Vector2 size) : Component
     /// <summary>The room to leave for.</summary>
     [Authorable(Required = true)]
     public SceneKey Destination { get; set; }
-
-    /// <summary>The key of the <see cref="Entrance"/> in <see cref="Destination"/> the player arrives at.</summary>
-    [Authorable(Required = true)]
-    public string ArriveAt { get; set; } = string.Empty;
 
     protected override void OnAttached(Entity entity)
     {
@@ -38,7 +33,7 @@ public sealed class SceneExit(Vector2 size) : Component
         if (!_leaving)
         {
             _leaving = true;
-            Run.RequestScene(Destination, new Arrival(ArriveAt));
+            Run.RequestScene(Destination, new Arrival(Entity!.Scene.DocumentKey));
         }
     }
 }

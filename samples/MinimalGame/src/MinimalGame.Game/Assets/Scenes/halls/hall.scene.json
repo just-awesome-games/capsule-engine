@@ -38,8 +38,7 @@
       "x": 144,
       "y": -16,
       "exit": {
-        "destination": "scenes/room",
-        "arriveAt": "east"
+        "destination": "scenes/room"
       }
     },
     {
@@ -72,7 +71,7 @@
       "type": "entrance",
       "x": 24,
       "y": 8,
-      "key": "west"
+      "from": "scenes/room"
     }
   ]
 }

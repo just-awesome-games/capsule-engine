@@ -192,6 +192,12 @@ public partial class Scene
     /// </example>
     public bool IsFrozen => _freezeTicks > 0 || _frozenThisStep;
 
+    /// <summary>
+    /// The key of the document this scene was composed from, or null for a scene built in code. A restart composes the
+    /// same document and keeps the key.
+    /// </summary>
+    public SceneKey? DocumentKey { get; }
+
     /// <summary>State supplied by the transition that opened this scene.</summary>
     protected IScenePayload? EntryPayload { get; private set; }
 
@@ -222,6 +228,7 @@ public partial class Scene
     public Scene(SceneContent content)
         : this()
     {
+        DocumentKey = content.DocumentKey;
         AuthoredAssets = SceneComposition.Compose(this, content);
     }
 
