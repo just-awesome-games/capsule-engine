@@ -211,15 +211,15 @@ public sealed class OptionsMenu : ScreenEntity
     {
         _fullscreen.SetCaption(_settings.Fullscreen ? CapsuleStrings.Options.Fullscreen : CapsuleStrings.Options.Windowed);
         _windowSize.SetCaption(CapsuleStrings.Options.WindowScale, _settings.WindowScale);
-        _vsync.SetCaption(_settings.VSync switch
+        _vsync.SetCaption(CapsuleStrings.Options.Vsync, _settings.VSync switch
         {
-            VSyncMode.On => CapsuleStrings.Options.VsyncOn,
-            VSyncMode.Mailbox => CapsuleStrings.Options.VsyncMailbox,
-            _ => CapsuleStrings.Options.VsyncOff,
+            VSyncMode.On => CapsuleStrings.Options.On,
+            VSyncMode.Mailbox => CapsuleStrings.Options.Mailbox,
+            _ => CapsuleStrings.Options.Off,
         });
         if (_settings.MaxFrameRate == 0)
         {
-            _frameCap.SetCaption(CapsuleStrings.Options.FrameCapOff);
+            _frameCap.SetCaption(CapsuleStrings.Options.FrameCap, CapsuleStrings.Options.Off);
         }
         else
         {

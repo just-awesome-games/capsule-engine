@@ -92,6 +92,19 @@ worker threads. The scene starts once the last file has landed. `Scene.CollectAs
 protected override void CollectAssets(AssetCollection assets) => assets.Add(_texture);
 ```
 
+A scene opened with a payload reads it as `EntryPayload` in its hook. A scene showing one of several
+figures declares only the one its payload names:
+
+```csharp
+protected override void CollectAssets(AssetCollection assets)
+{
+    if (EntryPayload is Portrait portrait)
+    {
+        assets.Add(portrait.Texture);
+    }
+}
+```
+
 The engine's renderers, audio sources, labels and materials declare what they hold. An entity that
 attaches its components in its constructor is preloaded with them. A scene's pool is declared with
 `assets.Pool<T>(capacity)` ([Pooling](entities.md#pooling)), and an `EntityPool<T>` a
@@ -100,5 +113,5 @@ that at info, and stays cached for the rest of the scene.
 
 The outgoing scene's resources are released at transition or exit, except those the incoming preload also
 uses. A packed texture is resident as its atlas page. A headless run collects the same way and loads no
-media. `Scene.CollectPreloads` lets a test read what a scene preloads, and `Run.PrefetchScene` starts a
-scene's preload before it is requested.
+media. `Scene.CollectPreloads` lets a test read what a scene preloads, with or without a payload, and
+`Run.PrefetchScene` starts a scene's preload before it is requested, with the payload the request will carry.

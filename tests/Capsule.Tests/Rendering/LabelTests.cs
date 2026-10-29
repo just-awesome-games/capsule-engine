@@ -13,7 +13,7 @@ public sealed class LabelTests
         Scene scene = new();
         scene.Add(Prompt("A"));
 
-        Assert.Equal([FontFixtures.Page], scene.CollectAssetPreloads().Textures);
+        Assert.Equal([FontFixtures.Page], scene.CollectAssetPreloads(entryPayload: null).Textures);
     }
 
     [Fact]

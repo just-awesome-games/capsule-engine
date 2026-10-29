@@ -7,18 +7,19 @@ namespace Capsule.Tests.Localization;
 // One small table the keyed text specs share, laid out as the build lays a generated one out: English
 // first, then German, French and Polish, each placeholder already the marker byte and its argument's
 // digit. hud.bolts is "{count, plural, =0 {No bolts} one {# bolt} other {# bolts}}" and its translations.
+// French lacks menu.on, whose slot holds the source text after its marker byte.
 internal static class StringTableFixtures
 {
     internal static readonly StringTable Table = new FixtureTable(
         ["en", "de", "fr", "pl"],
         fallback: 0,
-        ["menu.title", "hud.score", "hud.pair", "hud.bolts"],
-        [0, 1, 2, 1],
-        [0, 0, 0, 1],
-        ["Title", "Score: \u00010", "\u00010 of \u00011", "\u00020\u00040\u0005No bolts\u00031\u0006 bolt\u00035\u0006 bolts\u0007"],
-        ["Titel", "Punkte: \u00010", "\u00011 hat \u00010", "\u00020\u00031\u0006 Bolzen\u00035\u0006 Bolzen\u0007"],
-        ["Titre", "Score : \u00010", "\u00010 sur \u00011", "\u00020\u00031\u0006 boulon\u00035\u0006 boulons\u0007"],
-        ["Tytuł", "Wynik: \u00010", "\u00010 z \u00011", "\u00020\u00031\u0006 śruba\u00033\u0006 śruby\u00034\u0006 śrub\u00035\u0006 śruby\u0007"]);
+        ["menu.title", "hud.score", "hud.pair", "hud.bolts", "menu.on"],
+        [0, 1, 2, 1, 0],
+        [0, 0, 0, 1, 0],
+        ["Title", "Score: \u00010", "\u00010 of \u00011", "\u00020\u00040\u0005No bolts\u00031\u0006 bolt\u00035\u0006 bolts\u0007", "On"],
+        ["Titel", "Punkte: \u00010", "\u00011 hat \u00010", "\u00020\u00031\u0006 Bolzen\u00035\u0006 Bolzen\u0007", "An"],
+        ["Titre", "Score : \u00010", "\u00010 sur \u00011", "\u00020\u00031\u0006 boulon\u00035\u0006 boulons\u0007", "\u0008On"],
+        ["Tytuł", "Wynik: \u00010", "\u00010 z \u00011", "\u00020\u00031\u0006 śruba\u00033\u0006 śruby\u00034\u0006 śrub\u00035\u0006 śruby\u0007", "Wł."]);
 
     internal static TextKey Title => new(Table, 0);
 
@@ -31,6 +32,8 @@ internal static class StringTableFixtures
     internal static TextKey Pair => new(Table, 2);
 
     internal static TextKey Bolts => new(Table, 3);
+
+    internal static TextKey On => new(Table, 4);
 
     private sealed class FixtureTable : StringTable
     {

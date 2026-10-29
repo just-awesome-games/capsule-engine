@@ -1,8 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
-using System.Runtime.CompilerServices;
-using System.Text.Unicode;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Localization;
@@ -58,15 +56,10 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     // Counts every write to the text. The cached layout reads it to tell the characters changed.
     private int _textVersion;
 
-    // The key the text resolves from while _keyed, and the text of each argument formatted once at the
-    // call, each ending at its entry in _argumentEnds. A language change substitutes them again.
-    private TextKey _key;
+    // The key and arguments the text resolves from while _keyed, built on the first keyed write and kept
+    // for the next. A language change decodes them again.
+    private KeyedText? _keyedText;
     private bool _keyed;
-    private char[] _arguments = [];
-    private ArgumentEnds _argumentEnds;
-    private ArgumentCounts _counts;
-    private int _negatives;
-    private int _argumentCount;
 
     // The run and its language version the keyed text was resolved under. A null run resolves on the next read.
     private Run? _resolvedRun;
@@ -126,52 +119,66 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
 
     /// <summary>Shows <paramref name="text"/> in the run's active language, in place of any text or key before it.</summary>
     /// <param name="text">A <c>CapsuleStrings</c> member taking no arguments.</param>
-    public void SetText(TextKey text) => Key(text, 0, 0);
+    public void SetText(TextKey text)
+    {
+        (_keyedText ??= new KeyedText()).Set(text);
+        ShowKeyedText();
+    }
 
     /// <summary>Shows <paramref name="text"/> in the run's active language with its one placeholder filled.</summary>
     /// <remarks>
-    /// The argument is formatted once, now, with the invariant culture, and kept across a language change.
-    /// Optimized code formats a value type without boxing. A placeholder that selects a plural form takes
-    /// an integer type, <see langword="sbyte"/> to <see langword="ulong"/>, and a language change selects
-    /// the form again.
+    /// A <see cref="TextKey"/> argument, or a <see cref="Nullable{T}"/> or <see cref="object"/> holding one,
+    /// shows its own text in the run's active language and follows a language change. Its key takes no
+    /// arguments. Any other argument is formatted once, now, with the invariant culture, and optimized code
+    /// formats a value type without boxing. A placeholder that selects a plural form takes an integer type,
+    /// <see langword="sbyte"/> to <see langword="ulong"/>, and a language change selects the form again.
     /// </remarks>
     /// <example>
     /// <code>
     /// label.SetText(CapsuleStrings.Options.WindowScale, scale);
+    /// label.SetText(CapsuleStrings.Options.Speed, CapsuleStrings.Options.Fast); // "Speed: {speed}" and "Fast"
     /// </code>
     /// </example>
     /// <param name="text">A <c>CapsuleStrings</c> member taking one argument.</param>
     /// <param name="arg0">The value of the text's first placeholder.</param>
     public void SetText<T0>(TextKey text, T0 arg0)
     {
-        Key(text, 1, Integer<T0>(0));
-        Append(arg0);
+        (_keyedText ??= new KeyedText()).Set(text, arg0);
+        ShowKeyedText();
     }
 
     /// <summary>Shows <paramref name="text"/> in the run's active language with its two placeholders filled.</summary>
-    /// <remarks>Each argument is formatted once, as <see cref="SetText{T0}(TextKey, T0)"/> formats one.</remarks>
+    /// <remarks>
+    /// Each argument is formatted once, or shown in the active language when it is or holds a
+    /// <see cref="TextKey"/>, as <see cref="SetText{T0}(TextKey, T0)"/> fills one.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// label.SetText(CapsuleStrings.Status.Holds, CapsuleStrings.Names.Avatar, CapsuleStrings.Items.Lamp); // "{who} holds {what}"
+    /// </code>
+    /// </example>
     /// <param name="text">A <c>CapsuleStrings</c> member taking two arguments.</param>
     /// <param name="arg0">The value of the text's first placeholder.</param>
     /// <param name="arg1">The value of the text's second placeholder.</param>
     public void SetText<T0, T1>(TextKey text, T0 arg0, T1 arg1)
     {
-        Key(text, 2, Integer<T0>(0) | Integer<T1>(1));
-        Append(arg0);
-        Append(arg1);
+        (_keyedText ??= new KeyedText()).Set(text, arg0, arg1);
+        ShowKeyedText();
     }
 
     /// <summary>Shows <paramref name="text"/> in the run's active language with its three placeholders filled.</summary>
-    /// <remarks>Each argument is formatted once, as <see cref="SetText{T0}(TextKey, T0)"/> formats one.</remarks>
+    /// <remarks>
+    /// Each argument is formatted once, or shown in the active language when it is or holds a
+    /// <see cref="TextKey"/>, as <see cref="SetText{T0}(TextKey, T0)"/> fills one.
+    /// </remarks>
     /// <param name="text">A <c>CapsuleStrings</c> member taking three arguments.</param>
     /// <param name="arg0">The value of the text's first placeholder.</param>
     /// <param name="arg1">The value of the text's second placeholder.</param>
     /// <param name="arg2">The value of the text's third placeholder.</param>
     public void SetText<T0, T1, T2>(TextKey text, T0 arg0, T1 arg1, T2 arg2)
     {
-        Key(text, 3, Integer<T0>(0) | Integer<T1>(1) | Integer<T2>(2));
-        Append(arg0);
-        Append(arg1);
-        Append(arg2);
+        (_keyedText ??= new KeyedText()).Set(text, arg0, arg1, arg2);
+        ShowKeyedText();
     }
 
     /// <summary>
@@ -526,110 +533,8 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         return _layout;
     }
 
-    // 1 << index when T is an integer type a plural form selects on, else 0. The JIT folds it to a constant.
-    private static int Integer<T>(int index) =>
-        typeof(T) == typeof(sbyte) || typeof(T) == typeof(byte) || typeof(T) == typeof(short) || typeof(T) == typeof(ushort)
-        || typeof(T) == typeof(int) || typeof(T) == typeof(uint) || typeof(T) == typeof(long) || typeof(T) == typeof(ulong)
-            ? 1 << index
-            : 0;
-
-    // An integer value's magnitude, and whether it is negative. The JIT keeps only T's branch.
-    private static ulong Magnitude<T>(T value, out bool negative)
-    {
-        if (typeof(T) == typeof(byte) || typeof(T) == typeof(ushort) || typeof(T) == typeof(uint) || typeof(T) == typeof(ulong))
-        {
-            negative = false;
-
-            return typeof(T) == typeof(byte) ? Unsafe.As<T, byte>(ref value)
-                : typeof(T) == typeof(ushort) ? Unsafe.As<T, ushort>(ref value)
-                : typeof(T) == typeof(uint) ? Unsafe.As<T, uint>(ref value)
-                : Unsafe.As<T, ulong>(ref value);
-        }
-
-        long signed = typeof(T) == typeof(sbyte) ? Unsafe.As<T, sbyte>(ref value)
-            : typeof(T) == typeof(short) ? Unsafe.As<T, short>(ref value)
-            : typeof(T) == typeof(int) ? Unsafe.As<T, int>(ref value)
-            : Unsafe.As<T, long>(ref value);
-        negative = signed < 0;
-
-        // Negating long.MinValue wraps to itself, whose bits as a ulong are its magnitude.
-        return negative ? unchecked((ulong)-signed) : (ulong)signed;
-    }
-
-    // Takes a key, once its argument count is checked and every argument that selects a plural form is an
-    // integer, and drops the arguments of any key before it.
-    private void Key(TextKey text, int arguments, int integers)
-    {
-        _ = text.Required(nameof(text));
-        if (text.ArgumentCount != arguments)
-        {
-            throw new ArgumentException(
-                $"The text '{text}' takes {text.ArgumentCount} argument(s), and {arguments} were passed. Call the SetText overload taking {text.ArgumentCount}.",
-                nameof(text));
-        }
-
-        if ((text.PluralMask & ~integers) is not 0 and int refused)
-        {
-            throw new ArgumentException(
-                $"The text '{text}' selects a plural form on argument {int.TrailingZeroCount(refused)}, which was passed no integer. Pass a count of an integer type, sbyte to ulong.",
-                nameof(text));
-        }
-
-        _key = text;
-        _keyed = true;
-        _argumentCount = 0;
-        _resolvedRun = null;
-    }
-
-    // Formats one argument after the ones before it, growing the buffer they share while it is too short.
-    // An integer is also kept as the count a plural form selects on.
-    private void Append<T>(T value)
-    {
-        int start = _argumentCount == 0 ? 0 : _argumentEnds[_argumentCount - 1];
-        int written;
-        if (Integer<T>(0) != 0)
-        {
-            _counts[_argumentCount] = Magnitude(value, out bool negative);
-            _negatives = negative ? _negatives | (1 << _argumentCount) : _negatives & ~(1 << _argumentCount);
-        }
-
-        if (value is string text)
-        {
-            Reserve(ref _arguments, start + text.Length);
-            text.CopyTo(_arguments.AsSpan(start));
-            written = text.Length;
-        }
-        else if (value is ISpanFormattable)
-        {
-            // Optimized code (tiered JIT, Release, NativeAOT) elides the box this cast makes of a value
-            // type, as the runtime's own interpolated-string handler relies on. Debug code boxes.
-            while (!((ISpanFormattable)value).TryFormat(_arguments.AsSpan(start), out written, default, CultureInfo.InvariantCulture))
-            {
-                Reserve(ref _arguments, Math.Max(start + 16, _arguments.Length * 2));
-            }
-        }
-        else
-        {
-            string formatted = value?.ToString() ?? string.Empty;
-            Reserve(ref _arguments, start + formatted.Length);
-            formatted.CopyTo(_arguments.AsSpan(start));
-            written = formatted.Length;
-        }
-
-        _argumentEnds[_argumentCount++] = start + written;
-    }
-
-    // Grows buffer to at least length, keeping what it holds.
-    private static void Reserve(ref char[] buffer, int length)
-    {
-        if (buffer.Length < length)
-        {
-            Array.Resize(ref buffer, Math.Max(length, buffer.Length * 2));
-        }
-    }
-
     // Brings a keyed label's text up to its run's active language: one compare while that is unchanged.
-    // The template is decoded into the label's own buffer with each argument's text in its placeholder.
+    // The text is decoded into the label's own buffer with each argument's text in its placeholder.
     private void Resolve()
     {
         if (!_keyed)
@@ -638,7 +543,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         }
 
         Run run = Entity?.SceneOrNull?.RunOrNull ?? throw new InvalidOperationException(
-            $"This label shows the text '{_key}', which resolves against its run's language. Read its text or measures from OnStart on, once its entity is in a running scene.");
+            $"This label shows the text '{_keyedText!.Key}', which resolves against its run's language. Read its text or measures from OnStart on, once its entity is in a running scene.");
         if (run == _resolvedRun && run.LanguageVersion == _resolvedVersion)
         {
             return;
@@ -646,75 +551,18 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
 
         _resolvedRun = run;
         _resolvedVersion = run.LanguageVersion;
-        StringTable table = _key.Table;
-        int language = table.Resolve(run.ActiveLanguage);
-        ReadOnlySpan<byte> template = table.Template(language, _key.Index);
-
-        // A slot the language lacks holds the source text, whose plurals take the source language's rules.
-        if (!template.IsEmpty && template[0] == StringTable.SourceText)
-        {
-            template = template[1..];
-            language = 0;
-        }
-
-        int length = Write(table, language, template, counted: -1, length: 0);
+        int length = _keyedText!.Decode(run.ActiveLanguage, ref _buffer);
         _memory = _buffer.AsMemory(0, length);
         _text = null;
         _textVersion++;
     }
 
-    // Decodes template into the buffer from length on, and returns the new length. A plural block writes
-    // the branch its count selects, in which each count mark writes the text of argument counted.
-    private int Write(StringTable table, int language, ReadOnlySpan<byte> template, int counted, int length)
+    // Shows _keyedText from the next read, once a keyed write has filled it. A refused write never gets here
+    // and leaves the earlier text showing.
+    private void ShowKeyedText()
     {
-        while (true)
-        {
-            int marker = template.IndexOfAny(StringTable.Placeholder, StringTable.PluralOpen, StringTable.Count);
-            ReadOnlySpan<byte> literal = marker < 0 ? template : template[..marker];
-
-            // A UTF-8 byte decodes to at most one char.
-            Reserve(ref _buffer, length + literal.Length);
-            _ = Utf8.ToUtf16(literal, _buffer.AsSpan(length), out _, out int decoded);
-            length += decoded;
-            if (marker < 0)
-            {
-                return length;
-            }
-
-            byte code = template[marker];
-            if (code == StringTable.Count)
-            {
-                length = WriteArgument(counted, length);
-                template = template[(marker + 1)..];
-                continue;
-            }
-
-            int argument = template[marker + 1] - '0';
-            template = template[(marker + 2)..];
-            if (code == StringTable.Placeholder)
-            {
-                length = WriteArgument(argument, length);
-                continue;
-            }
-
-            int close = template.IndexOf(StringTable.PluralClose);
-            ulong magnitude = _counts[argument];
-            ReadOnlySpan<byte> branch = StringTable.Branch(
-                template[..close], magnitude, (_negatives & (1 << argument)) != 0, table.Category(language, magnitude));
-            length = Write(table, language, branch, argument, length);
-            template = template[(close + 1)..];
-        }
-    }
-
-    // Copies argument's formatted text into the buffer at length, and returns the new length.
-    private int WriteArgument(int argument, int length)
-    {
-        int start = argument == 0 ? 0 : _argumentEnds[argument - 1];
-        int count = _argumentEnds[argument] - start;
-        Reserve(ref _buffer, length + count);
-        _arguments.AsSpan(start, count).CopyTo(_buffer.AsSpan(length));
-
-        return length + count;
+        _keyed = true;
+        _resolvedRun = null;
     }
 
     // The scale a line query lays the run out at, which is the one the next draw uses.
@@ -766,19 +614,5 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         panel.Field("MaxLines", MaxLines?.ToString(CultureInfo.InvariantCulture));
         panel.Field("LineSpacing", LineSpacing);
         panel.Field("Exclusions", Exclusions.Length);
-    }
-
-    // The end of each argument's text in _arguments, one per placeholder a key can take.
-    [InlineArray(3)]
-    private struct ArgumentEnds
-    {
-        private int _end;
-    }
-
-    // The magnitude of each integer argument, the count a plural form selects on. _negatives holds the signs.
-    [InlineArray(3)]
-    private struct ArgumentCounts
-    {
-        private ulong _count;
     }
 }

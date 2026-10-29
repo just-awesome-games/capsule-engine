@@ -94,7 +94,7 @@ public sealed class AuthorableArrayTests
             """
             {"id": 1, "type": "lift", "x": 0, "y": 0},
             {"id": 2, "type": "gate", "x": 0, "y": 0, "icon": "textures/hazard.png", "chimes": ["audio/chime.wav"], "lifts": [1]}
-            """).CollectAssetPreloads();
+            """).CollectAssetPreloads(entryPayload: null);
 
         Assert.Equal([new TextureHandle("textures/hazard", ".png")], preload.Textures);
         Assert.Equal([new AudioClip("audio/chime", ".wav", 0.5)], preload.Clips);

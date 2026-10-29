@@ -198,7 +198,12 @@ public partial class Scene
     /// </summary>
     public SceneKey? DocumentKey { get; }
 
-    /// <summary>State supplied by the transition that opened this scene.</summary>
+    /// <summary>
+    /// State supplied by the transition that opened this scene, readable from <see cref="CollectAssets"/> onward.
+    /// </summary>
+    /// <remarks>
+    /// The constructor runs before the payload is known. A prefetch collects with the payload it was given.
+    /// </remarks>
     protected IScenePayload? EntryPayload { get; private set; }
 
     /// <summary>An empty world, for a scene that builds itself in code.</summary>
@@ -470,7 +475,22 @@ public partial class Scene
     /// Appends assets this scene declares beyond those owned by its entities and components.
     /// Collection can run before <see cref="OnStart"/>.
     /// </summary>
-    /// <inheritdoc cref="Component.CollectAssets" path="/remarks"/>
+    /// <remarks>
+    /// Declare from construction-time state and <see cref="EntryPayload"/>, which already holds the payload the
+    /// scene opens with. An override appends to <paramref name="assets"/> and changes nothing else.
+    /// </remarks>
+    /// <example>
+    /// A scene showing one of several figures, named by its payload:
+    /// <code>
+    /// protected override void CollectAssets(AssetCollection assets)
+    /// {
+    ///     if (EntryPayload is Portrait portrait)
+    ///     {
+    ///         assets.Add(portrait.Texture);
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
     protected internal virtual void CollectAssets(AssetCollection assets)
     {
     }
@@ -484,16 +504,19 @@ public partial class Scene
         }
 
         _started = true;
-        EntryPayload = entryPayload;
 
         // The game default fills in behind the scene's own setting.
         _sampling ??= Run.Sampling;
 
         // A host with nothing to load still collects. Forwarding a pool is recorded before any start
-        // hook can take from it.
-        if (!Pools.PreloadsCollected)
+        // hook can take from it. A host's collection already set the same payload.
+        if (Pools.PreloadsCollected)
         {
-            CollectAssetPreloads();
+            EntryPayload = entryPayload;
+        }
+        else
+        {
+            CollectAssetPreloads(entryPayload);
         }
 
         // Join everything composed before the scene started, then start it as a batch.

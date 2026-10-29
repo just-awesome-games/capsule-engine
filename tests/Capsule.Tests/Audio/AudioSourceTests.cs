@@ -148,7 +148,7 @@ public sealed class AudioSourceTests
         Scene scene = new();
         scene.Add(entity);
 
-        AssetCollection assets = scene.CollectAssetPreloads();
+        AssetCollection assets = scene.CollectAssetPreloads(entryPayload: null);
 
         Assert.Equal([Step], assets.Clips);
     }

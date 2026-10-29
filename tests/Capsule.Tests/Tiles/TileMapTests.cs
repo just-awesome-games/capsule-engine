@@ -98,7 +98,7 @@ public sealed class TileMapTests
 
         Assert.Equal(2, simulation.View.Sprites.Length);
         Assert.Equal([new MaterialRun(0, stone)], simulation.View.MaterialRuns.ToArray());
-        Assert.Equal([stone.Shader], scene.CollectAssetPreloads().Shaders);
+        Assert.Equal([stone.Shader], scene.CollectAssetPreloads(entryPayload: null).Shaders);
     }
 
     [Fact]

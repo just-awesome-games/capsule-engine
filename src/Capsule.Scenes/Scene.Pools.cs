@@ -36,11 +36,12 @@ public partial class Scene
         where T : Entity, new() => Pools.Get<T>();
 
     /// <summary>
-    /// Returns a new collection of every asset this scene and its entities declare now, as the scene
-    /// boundary would preload them.
+    /// Returns a new collection of every asset this scene and its entities declare now, with the scene's
+    /// current <c>EntryPayload</c>, as the scene boundary would preload them.
     /// </summary>
     /// <remarks>
-    /// A scene read before it starts reports what its boundary loads. The read runs the
+    /// The payload is the one the scene opened with, else the last one a
+    /// <see cref="CollectPreloads(IScenePayload)"/> call gave it, else none. The read runs the
     /// <c>CollectAssets</c> hooks and loads no asset. It builds the shared pools those hooks declare,
     /// entities included, and counts as no pool's forwarding.
     /// </remarks>
@@ -51,6 +52,37 @@ public partial class Scene
     /// </example>
     public AssetCollection CollectPreloads() => Pools.Collect(new AssetCollection { IsProbe = true });
 
-    // Collects the preload the scene boundary loads, which sizes the scene's pools and its growth.
-    internal AssetCollection CollectAssetPreloads() => Pools.Collect(new AssetCollection());
+    /// <summary>
+    /// Returns a new collection of every asset this scene and its entities declare when it opens with
+    /// <paramref name="entryPayload"/>, as a transition carrying it would preload them.
+    /// </summary>
+    /// <remarks>
+    /// The scene holds <paramref name="entryPayload"/> as its <c>EntryPayload</c> until it starts, and its start
+    /// replaces it. The read is otherwise <see cref="CollectPreloads()"/>.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// Assert.Equal([north.Texture], new Gallery().CollectPreloads(new Portrait(north)).Textures);
+    /// </code>
+    /// </example>
+    /// <exception cref="InvalidOperationException">The scene has started, and keeps the payload it opened with.</exception>
+    public AssetCollection CollectPreloads(IScenePayload? entryPayload)
+    {
+        if (_started)
+        {
+            throw new InvalidOperationException(
+                $"A {GetType().Name} has started and keeps the payload it opened with. Read CollectPreloads() on it, or pass the payload to a new {GetType().Name}.");
+        }
+
+        EntryPayload = entryPayload;
+        return CollectPreloads();
+    }
+
+    // Collects the preload the scene boundary loads with the payload the scene opens with, which sizes the
+    // scene's pools and its growth.
+    internal AssetCollection CollectAssetPreloads(IScenePayload? entryPayload)
+    {
+        EntryPayload = entryPayload;
+        return Pools.Collect(new AssetCollection());
+    }
 }

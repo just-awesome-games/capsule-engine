@@ -37,7 +37,7 @@ public sealed class SharedPoolAllocationTests
         // The host collects the incoming scene's preloads before the outgoing one stops.
         Scene incoming = new();
         incoming.Add(new PoolOwner(crates));
-        incoming.CollectAssetPreloads();
+        incoming.CollectAssetPreloads(entryPayload: null);
         running.Dispose();
 
         using SceneSimulation next = new(incoming);

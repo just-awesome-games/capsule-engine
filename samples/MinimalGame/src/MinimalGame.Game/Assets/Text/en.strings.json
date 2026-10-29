@@ -19,11 +19,11 @@
     "fullscreen": "Display: Fullscreen",
     "windowed": "Display: Window",
     "windowScale": "Window: {scale}x",
-    "vsyncOn": "VSync: On",
-    "vsyncMailbox": "VSync: Mailbox",
-    "vsyncOff": "VSync: Off",
+    "vsync": "VSync: {mode}",
     "frameCap": "Frame cap: {fps}",
-    "frameCapOff": "Frame cap: Off"
+    "on": "On",
+    "mailbox": "Mailbox",
+    "off": "Off"
   },
   "tips": [
     "Down + Jump: drop through a ledge",

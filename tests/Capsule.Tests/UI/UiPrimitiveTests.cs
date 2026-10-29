@@ -47,7 +47,7 @@ public sealed class UiPrimitiveTests
         Scene scene = new();
         scene.Add(new SceneFixtures.Holder(HolderPosition, panel));
 
-        Assert.Equal([SceneFixtures.Atlas], scene.CollectAssetPreloads().Textures);
+        Assert.Equal([SceneFixtures.Atlas], scene.CollectAssetPreloads(entryPayload: null).Textures);
 
         using SimulationHost run = new(scene);
         run.Step();

@@ -1,4 +1,5 @@
 using Capsule;
+using Capsule.Generated;
 using Capsule.Input;
 using Capsule.Scenes;
 using MinimalGame.Game;
@@ -59,6 +60,6 @@ public sealed class RebindingTests
 
         // The Jump row is the first item the menu adds. Its caption and prompt are the capture's state.
         MenuItem jump = host.Scene.FindFirst<MenuItem>()!;
-        Assert.Equal(("Jump:", true), (jump.Caption, jump.ShowsPrompt));
+        Assert.Equal((run.GetText(CapsuleStrings.Options.Jump), true), (jump.Caption, jump.ShowsPrompt));
     }
 }

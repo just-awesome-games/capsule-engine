@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Audio;
 using Capsule.Input;
+using Capsule.Localization;
 using Capsule.Persistence;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -35,6 +36,11 @@ public sealed class Run
     // Whether a step has begun, after which a language request waits for the next one.
     private bool _stepped;
     private bool _languagePending;
+
+    // The key and arguments GetText fills, and the buffer it decodes them into, both kept for the next call.
+    // A call holds _keyedText out of the field while it fills it.
+    private KeyedText? _keyedText;
+    private char[] _textBuffer = [];
 
     // Whether this run's scenes draw the engine's debug channels. On for the game's run. A host turns
     // it off on the run backing its own overlay, whose entities are not the game's.
@@ -298,19 +304,26 @@ public sealed class Run
     public void RequestScene(SceneKey scene, IScenePayload? payload = null) =>
         TryRequest(SceneTransition.ToName(scene.Required(nameof(scene)), payload));
 
-    /// <summary>Starts loading the media <typeparamref name="TScene"/> preloads after the current step.</summary>
+    /// <summary>
+    /// Starts loading the media <typeparamref name="TScene"/> preloads when it opens with
+    /// <paramref name="payload"/>, after the current step.
+    /// </summary>
     /// <remarks>
     /// Call it on intent, such as a highlighted menu item, not from a proximity sweep. The scene's
-    /// constructor runs twice. At most one scene is prefetched, and a later call replaces an earlier one.
+    /// constructor runs twice. At most one scene is prefetched, and a later call replaces an earlier one
+    /// unless it names the same scene and an equal payload. A request opening the scene with another payload
+    /// preloads what that payload declares, and the prefetched media it does not declare is released.
     /// </remarks>
-    public void PrefetchScene<TScene>()
+    /// <param name="payload">The payload the scene's <c>CollectAssets</c> reads as its <c>EntryPayload</c>.</param>
+    public void PrefetchScene<TScene>(IScenePayload? payload = null)
         where TScene : Scene =>
-        Prefetch(SceneTransition.ToScene(typeof(TScene), null));
+        Prefetch(SceneTransition.ToScene(typeof(TScene), payload));
 
     /// <summary>Prefetches the named document's scene, as <see cref="PrefetchScene{TScene}"/> does for a class.</summary>
     /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
-    public void PrefetchScene(SceneKey scene) =>
-        Prefetch(SceneTransition.ToName(scene.Required(nameof(scene)), null));
+    /// <param name="payload">The payload the scene's <c>CollectAssets</c> reads as its <c>EntryPayload</c>.</param>
+    public void PrefetchScene(SceneKey scene, IScenePayload? payload = null) =>
+        Prefetch(SceneTransition.ToName(scene.Required(nameof(scene)), payload));
 
     /// <summary>Asks the host to reconstruct the current scene after the current step.</summary>
     public void RequestRestart() => TryRequest(SceneTransition.Restart(null, false));
@@ -368,6 +381,73 @@ public sealed class Run
         FrameCaptureRequested = path;
     }
 
+    /// <summary>Returns <paramref name="text"/> in the run's active language, the one its labels show.</summary>
+    /// <remarks>
+    /// The string keeps this language after a later <see cref="Language"/> request. Text on screen belongs in
+    /// a <see cref="Label"/>, which follows the request and allocates nothing. Once warm, a call allocates
+    /// only the string it returns.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// Log.Info(Run.GetText(CapsuleStrings.Menu.Begin));
+    /// </code>
+    /// </example>
+    /// <param name="text">A <c>CapsuleStrings</c> member taking no arguments.</param>
+    public string GetText(TextKey text)
+    {
+        KeyedText keyed = TakeKeyedText();
+        keyed.Set(text);
+
+        return KeepAndDecode(keyed);
+    }
+
+    /// <summary>Returns <paramref name="text"/> in the run's active language with its one placeholder filled.</summary>
+    /// <remarks>
+    /// The argument fills as <see cref="Label.SetText{T0}(TextKey, T0)"/> fills it, and the string keeps
+    /// this language as <see cref="GetText(TextKey)"/> states.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// string speed = Run.GetText(CapsuleStrings.Options.Speed, CapsuleStrings.Options.Fast);
+    /// </code>
+    /// </example>
+    /// <param name="text">A <c>CapsuleStrings</c> member taking one argument.</param>
+    /// <param name="arg0">The value of the text's first placeholder.</param>
+    public string GetText<T0>(TextKey text, T0 arg0)
+    {
+        KeyedText keyed = TakeKeyedText();
+        keyed.Set(text, arg0);
+
+        return KeepAndDecode(keyed);
+    }
+
+    /// <summary>Returns <paramref name="text"/> in the run's active language with its two placeholders filled.</summary>
+    /// <remarks>Each argument fills as <see cref="GetText{T0}(TextKey, T0)"/> fills one.</remarks>
+    /// <param name="text">A <c>CapsuleStrings</c> member taking two arguments.</param>
+    /// <param name="arg0">The value of the text's first placeholder.</param>
+    /// <param name="arg1">The value of the text's second placeholder.</param>
+    public string GetText<T0, T1>(TextKey text, T0 arg0, T1 arg1)
+    {
+        KeyedText keyed = TakeKeyedText();
+        keyed.Set(text, arg0, arg1);
+
+        return KeepAndDecode(keyed);
+    }
+
+    /// <summary>Returns <paramref name="text"/> in the run's active language with its three placeholders filled.</summary>
+    /// <remarks>Each argument fills as <see cref="GetText{T0}(TextKey, T0)"/> fills one.</remarks>
+    /// <param name="text">A <c>CapsuleStrings</c> member taking three arguments.</param>
+    /// <param name="arg0">The value of the text's first placeholder.</param>
+    /// <param name="arg1">The value of the text's second placeholder.</param>
+    /// <param name="arg2">The value of the text's third placeholder.</param>
+    public string GetText<T0, T1, T2>(TextKey text, T0 arg0, T1 arg1, T2 arg2)
+    {
+        KeyedText keyed = TakeKeyedText();
+        keyed.Set(text, arg0, arg1, arg2);
+
+        return KeepAndDecode(keyed);
+    }
+
     // Opens a step: a language request made since the last one applies from here.
     internal void BeginStep()
     {
@@ -423,6 +503,26 @@ public sealed class Run
         ThrowIfExitRequested();
 
         _prefetch = target;
+    }
+
+    // Takes the kept KeyedText out of the run for one call. A GetText that an argument's formatting makes
+    // during the call finds none and builds its own, which leaves the outer call's key and arguments intact.
+    private KeyedText TakeKeyedText()
+    {
+        KeyedText keyed = _keyedText ?? new KeyedText();
+        _keyedText = null;
+
+        return keyed;
+    }
+
+    // Keeps keyed for the next call, decodes it in the active language into the kept buffer, and copies it
+    // out as the one allocation. Decoding formats no argument, and no other call reaches the buffer before the copy.
+    private string KeepAndDecode(KeyedText keyed)
+    {
+        _keyedText = keyed;
+        int length = keyed.Decode(ActiveLanguage, ref _textBuffer);
+
+        return new string(_textBuffer, 0, length);
     }
 
     private void ApplyLanguage()

@@ -11,7 +11,7 @@ namespace Capsule.Tests.Allocation;
 public sealed class KeyedLabelAllocationTests
 {
     // Every step switches the language, and each draw resolves the texts again with their kept arguments,
-    // selecting the plural form anew. The buffers grown on the first passes serve the rest.
+    // selecting the plural form anew and resolving a key argument in the new language. The buffers grown on the first passes serve the rest.
     [Fact]
     public void AKeyedLabel_ResolvesAndReResolvesAllocatingNothingOnceWarm()
     {
@@ -19,9 +19,12 @@ public sealed class KeyedLabelAllocationTests
         label.SetText(StringTableFixtures.Score, 12345);
         Label plural = new(FontFixtures.Font());
         plural.SetText(StringTableFixtures.Bolts, 22L);
+        Label nested = new(FontFixtures.Font());
+        nested.SetText(StringTableFixtures.Pair, StringTableFixtures.On, 7);
         Scene scene = new();
         scene.Add(new SceneFixtures.Holder(Vector2.Zero, label));
         scene.Add(new SceneFixtures.Holder(Vector2.Zero, plural));
+        scene.Add(new SceneFixtures.Holder(Vector2.Zero, nested));
         scene.Add(new Switcher());
         using SceneSimulation simulation = new(scene);
 

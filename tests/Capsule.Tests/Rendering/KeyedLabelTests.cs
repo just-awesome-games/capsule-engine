@@ -92,6 +92,50 @@ public sealed class KeyedLabelTests
         Assert.Equal("Avatar hat 1.5", label.Text);
     }
 
+    // A key argument is kept as a key, and resolves in the template's language each time the template does.
+    // A nullable from the table's lookup and an object holding a key are kept the same way.
+    [Theory]
+    [InlineData("key")]
+    [InlineData("nullable")]
+    [InlineData("object")]
+    public void AKeyArgument_ShowsItsTextInTheActiveLanguage_AndFollowsALanguageSwitch(string shape)
+    {
+        Label label = new(FontFixtures.Font());
+        Run run = new() { Language = "de" };
+        using SceneSimulation simulation = Started(label, run);
+
+        switch (shape)
+        {
+            case "key":
+                label.SetText(StringTableFixtures.Score, StringTableFixtures.On);
+                break;
+            case "nullable":
+                label.SetText(StringTableFixtures.Score, StringTableFixtures.Table.Find("menu.on"));
+                break;
+            default:
+                label.SetText(StringTableFixtures.Score, (object)StringTableFixtures.On);
+                break;
+        }
+
+        Assert.Equal("Punkte: An", label.Text);
+
+        run.Language = "pl";
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal("Wynik: Wł.", label.Text);
+    }
+
+    [Fact]
+    public void AKeyArgumentATranslationLacks_ShowsTheSourceText()
+    {
+        Label label = new(FontFixtures.Font());
+        using SceneSimulation simulation = Started(label, new Run { Language = "fr" });
+
+        label.SetText(StringTableFixtures.Pair, StringTableFixtures.On, StringTableFixtures.Title);
+
+        Assert.Equal("On sur Titre", label.Text);
+    }
+
     [Fact]
     public void WritingLiteralText_DropsTheKey()
     {
@@ -136,13 +180,18 @@ public sealed class KeyedLabelTests
         Assert.Equal("Titre", label.Text);
     }
 
-    // A key passed with the wrong number of arguments, a count that is no integer, or the default key,
-    // names the defect.
+    // A key passed with the wrong number of arguments, a count that is no integer, the default key, or a key
+    // argument that is null, default or has placeholders of its own, names the defect, however it is held.
     [Theory]
     [InlineData(0, "'hud.score' takes 1 argument(s), and 0 were passed")]
     [InlineData(2, "'hud.score' takes 1 argument(s), and 2 were passed")]
     [InlineData(1, "'hud.bolts' selects a plural form on argument 0, which was passed no integer")]
     [InlineData(-1, "is default and names no text")]
+    [InlineData(3, "'hud.score' takes 1 argument(s) and cannot fill a placeholder")]
+    [InlineData(4, "is default and names no text")]
+    [InlineData(5, "is null and names no text. Pass a key that names one.")]
+    [InlineData(6, "is default and names no text")]
+    [InlineData(7, "'hud.score' takes 1 argument(s) and cannot fill a placeholder")]
     public void AKeyTheLabelCannotFill_IsRefused(int arguments, string defect)
     {
         Label label = new(FontFixtures.Font());
@@ -160,6 +209,21 @@ public sealed class KeyedLabelTests
                     break;
                 case 1:
                     label.SetText(StringTableFixtures.Bolts, 1.5f);
+                    break;
+                case 3:
+                    label.SetText(score, score);
+                    break;
+                case 4:
+                    label.SetText(score, default(TextKey));
+                    break;
+                case 5:
+                    label.SetText(score, StringTableFixtures.Table.Find("menu.absent"));
+                    break;
+                case 6:
+                    label.SetText(score, (object)default(TextKey));
+                    break;
+                case 7:
+                    label.SetText(score, (TextKey?)score);
                     break;
                 default:
                     label.SetText(default(TextKey));

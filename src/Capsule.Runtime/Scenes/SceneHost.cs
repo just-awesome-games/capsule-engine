@@ -86,7 +86,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
         // Collected before the start, as a transition collects its incoming scene.
         Scene initial = resolve(initialTarget);
-        _initialPreloads = Prepare(initial, prepare: null);
+        _initialPreloads = Prepare(initial, initialTarget.Payload, prepare: null);
         _current = new SceneSimulation(initial, initialTarget.Payload, run);
     }
 
@@ -198,8 +198,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
     }
 
-    // The target is built and abandoned in every mode. A run with a device and one without construct
-    // the same scenes.
+    // The target is built, collected with its payload and abandoned in every mode. A run with a device and
+    // one without construct the same scenes. The same scene under another payload is another prefetch.
     private void TakePrefetch()
     {
         if (ExitRequested || !Run.TryTakePrefetch(out SceneTransition target) || _prefetched == target)
@@ -211,7 +211,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
         AssetCollection preloads;
         try
         {
-            preloads = throwaway.CollectAssetPreloads();
+            preloads = throwaway.CollectAssetPreloads(target.Payload);
         }
         finally
         {
@@ -354,21 +354,22 @@ internal sealed class SceneHost : ISimulation, IDisposable
     // its simulation.
     private SceneSimulation Bring(in SceneTransition target)
     {
-        // The boundary consumes any prefetch, whether or not it named this scene.
+        // The boundary consumes any prefetch, whether or not it named this scene or its payload, and collects
+        // the scene with the payload it opens with.
         _prefetched = null;
         Scene next = _resolve(target);
-        Prepare(next, PrepareAssets);
+        Prepare(next, target.Payload, PrepareAssets);
 
         return new SceneSimulation(next, target.Payload, Run);
     }
 
-    // Collects a scene's preloads under every host and hands them to prepare, which only a host with
-    // a device sets. A failure releases the scene, which never started.
-    private static AssetCollection Prepare(Scene scene, Action<AssetCollection>? prepare)
+    // Collects a scene's preloads with the payload it opens with under every host and hands them to prepare,
+    // which only a host with a device sets. A failure releases the scene, which never started.
+    private static AssetCollection Prepare(Scene scene, IScenePayload? payload, Action<AssetCollection>? prepare)
     {
         try
         {
-            AssetCollection preloads = scene.CollectAssetPreloads();
+            AssetCollection preloads = scene.CollectAssetPreloads(payload);
             prepare?.Invoke(preloads);
 
             return preloads;

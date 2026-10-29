@@ -29,6 +29,15 @@ placeholders, and `'{'` and `'}'` draw braces. A scene document names a key by i
 A plural picks its form by exact count, else by the language's CLDR category, and `#` shows the count.
 Its argument is an integer.
 
+A placeholder takes another text when it is passed that text's key, as
+`label.SetText(CapsuleStrings.Options.Speed, CapsuleStrings.Options.Fast)` for `"Speed: {speed}"`. The
+inner text follows the language as the outer one does. It takes no arguments of its own and has one form.
+A word whose form changes with its place in the sentence needs a whole text for each place.
+
+`Run.GetText` returns a text as a string in the active language, taking the arguments a label takes, for a
+log line, a platform call or a test. The string keeps that language after a switch. Text on screen belongs
+in a label, which follows the switch and allocates nothing.
+
 An array of texts is a list, as `"speech": ["Hello.", "Welcome back."]`. It declares a `TextList`,
 whose `Count` texts are each a `TextKey`, shown as `label.SetText(speech[i])`. Its texts are keyed by position
 from `speech.0`, and a translation gives the source's count. A text inserted in the source moves every later

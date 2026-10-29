@@ -34,6 +34,23 @@ public sealed class SceneHostAssetTests
     }
 
     [Fact]
+    public void TheOpeningSceneATransitionAndARestart_PrepareWhatTheirPayloadDeclares()
+    {
+        using SceneHost host = new(ToScene<DeclaresFromPayload>(new Tag("north")), (in SceneTransition _) => new DeclaresFromPayload(), new Run());
+        List<string> prepared = [];
+        host.PrepareAssets = assets => prepared.Add(Names(assets.Textures));
+
+        host.PrepareInitialAssets();
+        host.Run.RequestScene<DeclaresFromPayload>(new Tag("south"));
+        host.Step(Step(0));
+        host.Run.RequestRestart();
+        host.Step(Step(1));
+
+        Assert.Equal(["north", "south", "south"], prepared);
+        Assert.Equal(["south"], ((DeclaresFromPayload)host.Scene).Collected);
+    }
+
+    [Fact]
     public void ATransitionWhoseAssetsCannotBePrepared_ReleasesTheResolvedSceneAndKeepsTheCurrentOne()
     {
         List<string> lifecycle = [];

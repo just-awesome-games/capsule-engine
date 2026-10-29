@@ -19,11 +19,11 @@
     "fullscreen": "Anzeige: Vollbild",
     "windowed": "Anzeige: Fenster",
     "windowScale": "Fenster: {scale}x",
-    "vsyncOn": "VSync: An",
-    "vsyncMailbox": "VSync: Mailbox",
-    "vsyncOff": "VSync: Aus",
+    "vsync": "VSync: {mode}",
     "frameCap": "Bildratenlimit: {fps}",
-    "frameCapOff": "Bildratenlimit: Aus"
+    "on": "An",
+    "mailbox": "Mailbox",
+    "off": "Aus"
   },
   "tips": [
     "Unten + Springen: durch Kanten fallen",

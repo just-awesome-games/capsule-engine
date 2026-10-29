@@ -55,6 +55,31 @@ public sealed class ScenePrefetchTests
     }
 
     [Fact]
+    public void APrefetch_CollectsWithItsPayload_AndARequestWithAnotherPayloadCollectsAgain()
+    {
+        using SceneHost host = new(
+            ToScene<Scene>(),
+            static (in SceneTransition target) => target.SceneType == typeof(DeclaresFromPayload) ? new DeclaresFromPayload() : new Scene(),
+            new Run());
+        List<string> warmed = [];
+        List<string> prepared = [];
+        host.PrefetchAssets = assets => warmed.Add(string.Join(",", assets.Textures.Select(static handle => handle.Name)));
+        host.PrepareAssets = assets => prepared.Add(string.Join(",", assets.Textures.Select(static handle => handle.Name)));
+
+        host.Run.PrefetchScene<DeclaresFromPayload>(new Tag("north"));
+        host.Step(Step(0));
+        host.Run.PrefetchScene<DeclaresFromPayload>(new Tag("north"));
+        host.Step(Step(1));
+        host.Run.PrefetchScene<DeclaresFromPayload>(new Tag("south"));
+        host.Step(Step(2));
+        host.Run.RequestScene<DeclaresFromPayload>(new Tag("east"));
+        host.Step(Step(3));
+
+        Assert.Equal(["north", "south"], warmed);
+        Assert.Equal(["east"], prepared);
+    }
+
+    [Fact]
     public void ADifferentPrefetchOrARequest_ReleasesTheUnsharedWarmSet()
     {
         Dictionary<string, List<DisposalProbe>> created = [];

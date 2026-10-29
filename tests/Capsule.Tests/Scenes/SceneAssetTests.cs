@@ -4,6 +4,7 @@ using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tiles;
+using static Capsule.Tests.Runtime.SceneHostFixtures;
 
 namespace Capsule.Tests.Scenes;
 
@@ -52,7 +53,7 @@ public sealed class SceneAssetTests
 
         Assert.Equal(
             [SceneFixtures.Atlas, SpriteTexture, AnimationA, AnimationB],
-            scene.CollectAssetPreloads().Textures);
+            scene.CollectAssetPreloads(entryPayload: null).Textures);
     }
 
     [Fact]
@@ -65,7 +66,7 @@ public sealed class SceneAssetTests
 
         Assert.Equal(
             [SceneExtra, EntityExtra, ComponentExtra, SpriteTexture],
-            scene.CollectAssetPreloads().Textures);
+            scene.CollectAssetPreloads(entryPayload: null).Textures);
     }
 
     [Fact]
@@ -75,7 +76,7 @@ public sealed class SceneAssetTests
             [new EntityRegistration("unused", static spawn => new TestEntity(new SpriteRenderer(Frame(Unused))))]);
         Scene scene = new(SceneFixtures.Content(SceneFixtures.Room(), registry));
 
-        Assert.Empty(scene.CollectAssetPreloads().Textures);
+        Assert.Empty(scene.CollectAssetPreloads(entryPayload: null).Textures);
     }
 
     [Fact]
@@ -84,7 +85,7 @@ public sealed class SceneAssetTests
         Scene scene = new();
         scene.Add(new StartsAnimationEntity());
 
-        Assert.Empty(scene.CollectAssetPreloads().Textures);
+        Assert.Empty(scene.CollectAssetPreloads(entryPayload: null).Textures);
     }
 
     // A pool's entities reach a scene's preloads only through an owner that forwards the pool. An idle
@@ -115,6 +116,21 @@ public sealed class SceneAssetTests
         Assert.Equal([new TextureHandle("pooled/0", ".png"), new TextureHandle("pooled/1", ".png")], assets.Textures);
     }
 
+    // A scene started without a host collects as it starts, with the payload it starts with.
+    [Fact]
+    public void APayloadProbe_ReadsWhatItsPayloadDeclares_AndAStartedSceneKeepsItsOwn()
+    {
+        DeclaresFromPayload scene = new();
+
+        Assert.Equal([new TextureHandle("north", ".png")], scene.CollectPreloads(new Tag("north")).Textures);
+
+        using SceneSimulation simulation = new(scene, new Tag("south"));
+
+        Assert.Equal(["north", "south"], scene.Collected);
+        Assert.Equal([new TextureHandle("south", ".png")], scene.CollectPreloads().Textures);
+        Assert.Throws<InvalidOperationException>(() => scene.CollectPreloads(new Tag("north")));
+    }
+
     // An entity that assigns a material after collection declares it, and its shader and every texture
     // set on it load with the scene rather than on the first draw.
     [Fact]
@@ -123,7 +139,7 @@ public sealed class SceneAssetTests
         Scene scene = new();
         scene.Add(new AssignsMaterialLater());
 
-        AssetCollection preloads = scene.CollectAssetPreloads();
+        AssetCollection preloads = scene.CollectAssetPreloads(entryPayload: null);
 
         Assert.Equal([AssignsMaterialLater.Palette.Shader], preloads.Shaders);
         Assert.Equal([EntityExtra], preloads.Textures);

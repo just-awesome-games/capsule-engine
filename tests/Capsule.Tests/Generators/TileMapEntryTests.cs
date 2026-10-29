@@ -52,7 +52,7 @@ public sealed class TileMapEntryTests
         Assert.Equal(TileTransform.FlipX, map.TransformAt(0, 0));
         Assert.True(map.Has<TileMapCollider2D>());
         Assert.Equal(new Vector2(32f, 16f), scene.Size);
-        Assert.Equal([new TextureHandle("textures/frost", ".png")], scene.CollectAssetPreloads().Textures);
+        Assert.Equal([new TextureHandle("textures/frost", ".png")], scene.CollectAssetPreloads(entryPayload: null).Textures);
     }
 
     // Every map composed from one document shares its cells until it edits one. The edit stays in its own scene,

@@ -169,7 +169,9 @@ outside the root namespace claims its kebab-cased name. A type key no class clai
 
 The shell boots the first scene with `RunScene`, and a step asks for the next with `Run.RequestScene` or
 loads its media early with `Run.PrefetchScene`. A request may carry an `IScenePayload`, which the opened
-scene reads as its `EntryPayload`. A test reads the request the host would act on as a `SceneTransition`.
+scene reads as its `EntryPayload` from its `CollectAssets` onward. The payload can choose what the scene preloads,
+and a prefetch takes the payload its request will carry. A test reads the request the host would act on as a
+`SceneTransition`.
 A scene composed from a document reports that document's key as `Scene.DocumentKey`, and a scene built in code
 reports null. A payload names the room it came from by it, and a save keys a record to a room by it.
 
@@ -181,7 +183,7 @@ run's attached object, `Run.State<T>()`. A menu over a paused world is an entity
 public sealed record SlotChoice(int Slot) : IScenePayload;
 
 // In the title menu's step: prefetch while Start is highlighted, and open the hall when it is pressed.
-Run.PrefetchScene(CapsuleAssets.Scenes.Halls.HallScene);
+Run.PrefetchScene(CapsuleAssets.Scenes.Halls.HallScene, new SlotChoice(1));
 Run.RequestScene(CapsuleAssets.Scenes.Halls.HallScene, new SlotChoice(1));
 
 // In the scene class claiming the hall's document.

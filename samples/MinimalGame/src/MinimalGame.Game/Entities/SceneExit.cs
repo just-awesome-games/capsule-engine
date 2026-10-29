@@ -21,6 +21,10 @@ public sealed class SceneExit(Vector2 size) : Component
         entity.Add(_doorway);
     }
 
+    // The destination loads behind the room, collected with the arrival the doorway will carry. A room with a
+    // second exit would prefetch only the last to start.
+    protected override void OnStart() => Run.PrefetchScene(Destination, ArrivalHere());
+
     protected override void OnDetached(Entity entity)
     {
         _doorway.ContactEntered -= Enter;
@@ -33,7 +37,9 @@ public sealed class SceneExit(Vector2 size) : Component
         if (!_leaving)
         {
             _leaving = true;
-            Run.RequestScene(Destination, new Arrival(Entity!.Scene.DocumentKey));
+            Run.RequestScene(Destination, ArrivalHere());
         }
     }
+
+    private Arrival ArrivalHere() => new(Entity!.Scene.DocumentKey);
 }
