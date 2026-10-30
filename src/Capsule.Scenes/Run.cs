@@ -14,8 +14,9 @@ namespace Capsule;
 /// every scene before the scene starts, and every scene the run opens shares it.
 /// </summary>
 /// <remarks>
-/// Bus volumes, the random sequence, the save documents and a pending frame capture survive
-/// transitions. Every member is fixed before the run starts or set by game code. The host writes only
+/// Bus volumes, the random sequence, the save documents, the clock and a pending frame capture survive
+/// transitions. Every member is fixed before the run starts or set by game code, except the clock, which
+/// each step advances. The host writes only
 /// the save stamps it restores and sets, and the debug overlay raises scene-flow requests
 /// through these same members.
 /// <para>
@@ -36,6 +37,9 @@ public sealed class Run
     // Whether a step has begun, after which a language request waits for the next one.
     private bool _stepped;
     private bool _languagePending;
+
+    // The step length the last step ran at. Before the first step the clock reads 0 whatever it is.
+    private double _stepSeconds;
 
     // The key and arguments GetText fills, and the buffer it decodes them into, both kept for the next call.
     // A call holds _keyedText out of the field while it fills it.
@@ -226,6 +230,26 @@ public sealed class Run
             field = value;
         }
     } = 1;
+
+    /// <summary>
+    /// The index of the step running, and between steps the number of steps the run has run. Inside a
+    /// step it equals <see cref="StepContext.Tick"/>.
+    /// </summary>
+    /// <remarks>
+    /// It reads 0 in a <c>EngineBuilder.WithRunStart</c> hook and the run's whole length in steps in a
+    /// <c>EngineBuilder.WithRunEnd</c> hook. A scene transition does not reset it.
+    /// </remarks>
+    public long Tick { get; private set; }
+
+    /// <summary>
+    /// Simulated seconds at <see cref="Tick"/>, not wall clock. Inside a step it equals
+    /// <see cref="StepContext.TotalSeconds"/>.
+    /// </summary>
+    /// <remarks>
+    /// It reads 0 in a <c>EngineBuilder.WithRunStart</c> hook and the run's whole simulated length in a
+    /// <c>EngineBuilder.WithRunEnd</c> hook.
+    /// </remarks>
+    public double TotalSeconds => Tick * _stepSeconds;
 
     /// <summary>Starts a run with the default random seed, a 1280 by 720 canvas and linear sampling.</summary>
     public Run()
@@ -448,9 +472,12 @@ public sealed class Run
         return KeepAndDecode(keyed);
     }
 
-    // Opens a step: a language request made since the last one applies from here.
-    internal void BeginStep()
+    // Opens a step: the clock reads the step's tick, and a language request made since the last one
+    // applies from here.
+    internal void BeginStep(in StepContext context)
     {
+        Tick = context.Tick;
+        _stepSeconds = context.StepSeconds;
         _stepped = true;
         if (_languagePending)
         {
@@ -458,6 +485,9 @@ public sealed class Run
             ApplyLanguage();
         }
     }
+
+    // Closes a step that completed: between steps the clock reads the count of steps run.
+    internal void EndStep() => Tick++;
 
     internal bool TryTakeTransition(out SceneTransition transition)
     {

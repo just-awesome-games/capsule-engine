@@ -78,14 +78,18 @@ focus, and a driver sets it with `DeviceSnapshot.WithPadFamily`.
 ## Rebind at a settings screen
 
 `Run.Input` is the configuration the shell installed, and it stays live. A settings screen replaces
-what an action is bound to, and the next read sees it:
+the one button the player changed, in its place, and the action keeps its other buttons. The next read
+sees it:
 
 ```csharp
-if (context.Input.WasAnyPressed(out InputButton button))
+if (context.Input.WasAnyPressed(out InputButton pressed))
 {
-    Run.Input.Rebind(GameInput.Pause, button);
+    Run.Input.Replace(GameInput.Jump, shown, pressed);
 }
 ```
+
+`shown` is the button the row shows, one of those `ButtonsFor` returns. `Rebind(action, buttons)`
+replaces every button an action has.
 
 A "press a button" prompt waits on `WasAnyPressed`. Set `FocusNavigator.Interactable` false while it
 waits, and the menu behind it holds still.

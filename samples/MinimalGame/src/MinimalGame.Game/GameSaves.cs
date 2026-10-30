@@ -41,6 +41,13 @@ public sealed record GameSettings
     }
 }
 
+/// <summary>What the game keeps about the player's runs. One document, written when a run ends.</summary>
+public sealed record GameProfile
+{
+    /// <summary>Simulated seconds of every run that has ended, menus included.</summary>
+    public double PlayedSeconds { get; set; }
+}
+
 /// <summary>One pair per rebindable action, its two devices edited and saved as one thing.</summary>
 public sealed record InputSettings
 {
@@ -65,9 +72,14 @@ public static class GameSaves
     /// <summary>The settings document, which reads as the default settings on a first run that has none.</summary>
     public static readonly SaveKey<GameSettings> Settings =
         new("settings", GameSaveContext.Default.GameSettings, new GameSettings());
+
+    /// <summary>The profile document, which reads as a profile with nothing played on a first run.</summary>
+    public static readonly SaveKey<GameProfile> Profile =
+        new("profile", GameSaveContext.Default.GameProfile, new GameProfile());
 }
 
 // Serialization is generated, because a game ships under NativeAOT and reflection-based
 // serialization is off.
 [JsonSerializable(typeof(GameSettings))]
+[JsonSerializable(typeof(GameProfile))]
 internal sealed partial class GameSaveContext : JsonSerializerContext;

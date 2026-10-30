@@ -34,6 +34,30 @@ public sealed class RunTests
         Assert.Equal(2, run.TimeScale);
     }
 
+    // Inside a step the run's clock is the step's own. Outside one it counts the steps run.
+    [Fact]
+    public void TheRunsClock_ReadsTheStepInsideOneAndTheStepsRunOutsideOne()
+    {
+        List<(long Tick, double Seconds)> run = [];
+        List<(long Tick, double Seconds)> step = [];
+        using SimulationHost host = new(
+            new SceneFixtures.HookScene(step: (Scene scene, in StepContext context) =>
+            {
+                run.Add((scene.Run.Tick, scene.Run.TotalSeconds));
+                step.Add((context.Tick, context.TotalSeconds));
+            }),
+            stepHertz: 10);
+
+        Assert.Equal((0L, 0d), (host.Run.Tick, host.Run.TotalSeconds));
+
+        host.Step();
+        host.Step();
+        host.Step();
+
+        Assert.Equal(step, run);
+        Assert.Equal((3L, 3 * host.StepSeconds), (host.Run.Tick, host.Run.TotalSeconds));
+    }
+
     [Fact]
     public void Exit_ReplacesAPendingTransitionAndRejectsLaterRequests()
     {

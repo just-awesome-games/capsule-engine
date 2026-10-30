@@ -145,18 +145,21 @@ public sealed class OptionsMenu : ScreenEntity
     }
 
     // A save moment: the document is written where the player changed it, and the bind is applied
-    // from the same value so the run does not wait for a restart.
+    // from the same value so the run does not wait for a restart. Each device's button is replaced in
+    // its place, and the one the player left alone is replaced with itself, which changes nothing.
     private void Apply(MenuItem item, Binding binding)
     {
+        InputAction action = item == _jump ? GameInput.Jump : GameInput.Shoot;
+        Binding bound = item == _jump ? _settings.Input.Jump : _settings.Input.Shoot;
+        Run.Input.Replace(action, bound.Key, binding.Key).Replace(action, bound.Pad, binding.Pad);
+
         if (item == _jump)
         {
             _settings.Input.Jump = binding;
-            Run.Input.Rebind(GameInput.Jump, binding.Key, binding.Pad);
         }
         else
         {
             _settings.Input.Shoot = binding;
-            Run.Input.Rebind(GameInput.Shoot, binding.Key, binding.Pad);
         }
 
         Run.Saves.Write(GameSaves.Settings, _settings);

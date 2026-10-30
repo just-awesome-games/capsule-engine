@@ -46,6 +46,8 @@ public sealed class ActionBindingsTests
         yield return [new Action<InputConfiguration>(b => b.Bind(Jump, Key.Space, Key.None))];
         yield return [new Action<InputConfiguration>(b => b.Bind(Jump, (Key)DeviceSnapshot.Capacity))];
         yield return [new Action<InputConfiguration>(b => b.Bind(Move, PadAxis.None))];
+        yield return [new Action<InputConfiguration>(b => b.Bind(Jump, Key.Space).Replace(Jump, Key.Space, Key.None))];
+        yield return [new Action<InputConfiguration>(b => b.Bind(Jump, Key.Space).Replace(Jump, Key.F, Key.G))];
     }
 
     [Fact]
@@ -108,6 +110,30 @@ public sealed class ActionBindingsTests
         Assert.Equal(expected, input.ButtonsFor(Jump).ToArray());
         Assert.False(input.Bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.Space)));
         Assert.True(input.Bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.F)));
+    }
+
+    [Fact]
+    public void ReplacingOneButton_PutsTheNewOneInItsPlaceAndKeepsTheOthers()
+    {
+        InputConfiguration input = new InputConfiguration().Bind(Jump, Key.Space, Key.F, PadButton.South);
+
+        input.Replace(Jump, Key.F, Key.G).Replace(Jump, PadButton.South, PadButton.South);
+
+        InputButton[] expected = [Key.Space, Key.G, PadButton.South];
+        Assert.Equal(expected, input.ButtonsFor(Jump).ToArray());
+        Assert.False(input.Bindings.IsAnyDown(Jump, DeviceSnapshot.Of(Key.F)));
+    }
+
+    // The action never holds a button twice: the one already bound moves into the replaced one's place.
+    [Fact]
+    public void ReplacingOneButtonWithOneAlreadyBound_MovesThatOneIntoItsPlace()
+    {
+        InputConfiguration input = new InputConfiguration().Bind(Jump, Key.Space, PadButton.South, Key.F);
+
+        input.Replace(Jump, Key.Space, Key.F);
+
+        InputButton[] expected = [Key.F, PadButton.South];
+        Assert.Equal(expected, input.ButtonsFor(Jump).ToArray());
     }
 
     [Fact]

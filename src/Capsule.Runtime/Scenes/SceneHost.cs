@@ -20,6 +20,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
     private readonly ISaveStorage? _saveStorage;
 
     private readonly SceneRegistry? _registry;
+    private readonly Action<Run>? _onRunEnd;
     private SceneTransition _target;
     private SceneSimulation _current;
 
@@ -28,6 +29,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
     // The initial scene's collection, taken before it started and held until a device can load it.
     private AssetCollection? _initialPreloads;
+    private bool _ended;
     private bool _disposed;
 
     public bool ExitRequested { get; private set; }
@@ -64,13 +66,15 @@ internal sealed class SceneHost : ISimulation, IDisposable
         Run run,
         ISaveStorage? saveStorage = null,
         Action<Run>? onRunStart = null,
-        SceneRegistry? registry = null)
+        SceneRegistry? registry = null,
+        Action<Run>? onRunEnd = null)
     {
         ArgumentNullException.ThrowIfNull(resolve);
         ArgumentNullException.ThrowIfNull(run);
 
         _resolve = resolve;
         _registry = registry;
+        _onRunEnd = onRunEnd;
         Run = run;
         _target = initialTarget;
         SceneKey = KeyOf(initialTarget);
@@ -290,6 +294,23 @@ internal sealed class SceneHost : ISimulation, IDisposable
         {
             Run.Saves.Flush(storage, DateTimeOffset.Now);
         }
+    }
+
+    // Ends a run that did not crash, once, after its last step: the last scene stops unless an exit
+    // already stopped it, then the run-end hook runs. Dispose then persists what either wrote. A host
+    // calls it when its loop returns, and a crash unwinds past it to Dispose alone.
+    internal void End()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (_ended)
+        {
+            return;
+        }
+
+        _ended = true;
+        _current.Dispose();
+        _onRunEnd?.Invoke(Run);
     }
 
     public void Dispose()

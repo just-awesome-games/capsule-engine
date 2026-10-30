@@ -59,6 +59,46 @@ internal sealed class ActionBindings
         return Bind(action, buttons);
     }
 
+    // Writes a new row rather than editing the old one, as Union does. A span ButtonsFor handed out
+    // keeps the set it was read from.
+    internal ActionBindings Replace(InputAction action, InputButton from, InputButton to)
+    {
+        RequireName(action.Index, nameof(action));
+        RequireButton(to, action.Name, nameof(to));
+
+        ReadOnlySpan<InputButton> bound = Bound(_buttons, action.Index);
+        int slot = bound.IndexOf(from);
+        if (slot < 0)
+        {
+            throw new ArgumentException(
+                $"'{action.Name}' has no {from} bound to replace. Pass one of the buttons ButtonsFor returns, or bind {to} with Bind.",
+                nameof(from));
+        }
+
+        if (from == to)
+        {
+            return this;
+        }
+
+        InputButton[] row = new InputButton[bound.Contains(to) ? bound.Length - 1 : bound.Length];
+        int written = 0;
+        for (int i = 0; i < bound.Length; i++)
+        {
+            if (i == slot)
+            {
+                row[written++] = to;
+            }
+            else if (bound[i] != to)
+            {
+                row[written++] = bound[i];
+            }
+        }
+
+        _buttons[action.Index] = row;
+
+        return this;
+    }
+
     internal ActionBindings Unbind(InputAction action)
     {
         RequireName(action.Index, nameof(action));

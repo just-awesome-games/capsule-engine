@@ -166,6 +166,8 @@ public sealed class SceneSimulation : ISimulation, IDisposable
             _stepping = false;
         }
 
+        Run.EndStep();
+
         // A step that throws leaves a view already built showing the step before it.
         _viewStale = true;
     }
@@ -174,7 +176,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     {
         // Opened first. A sound or rumble pulse played during the step then belongs to this step's tick,
         // and the whole step shows one language.
-        Run.BeginStep();
+        Run.BeginStep(in context);
         Run.Audio.BeginStep(in context);
         Run.Rumble.BeginStep(in context);
 

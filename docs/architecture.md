@@ -77,8 +77,8 @@ the same state transitions and render intents.
   focus navigators and screen notifiers.
 - A duration typed `int` counts fixed steps, 60 a second unless the shell calls
   `EngineBuilder.WithFixedStep`, and a duration typed `float` counts seconds.
-- `StepContext.TotalSeconds` is derived from its tick. Randomness comes from `Run`'s seeded `RandomSource`,
-  which persists across scene transitions. A windowed run no driver plays draws a fresh seed unless the shell
+- `StepContext.TotalSeconds` and `Run.TotalSeconds` are derived from their tick. Randomness comes from
+  `Run`'s seeded `RandomSource`, which persists across scene transitions. A windowed run no driver plays draws a fresh seed unless the shell
   configures one, and it logs the seed. A headless or driven run with no configured seed starts from
   `RandomSource.DefaultSeed`.
 - Simulation arithmetic is IEEE-exact. Transcendental functions differ between operating systems, and
@@ -112,8 +112,10 @@ Every thread the engine runs is the host's, and each has one shape: a step emits
 it, a worker fulfils it, and only the hand-off touches a device or the file system. A headless run runs no
 worker.
 
-State that outlives a scene belongs to `Run`: saves (`Run.Saves`), sound (`Run.Audio`), and the one
-object a game attaches at run start (`Run.Attach`) and reads anywhere as `Run.State<T>()`.
+State that outlives a scene belongs to `Run`: saves (`Run.Saves`), sound (`Run.Audio`), the simulated
+clock (`Run.Tick`, `Run.TotalSeconds`), and the one object a game attaches at run start (`Run.Attach`)
+and reads anywhere as `Run.State<T>()`. `EngineBuilder.WithRunStart` runs before the first scene starts,
+and `EngineBuilder.WithRunEnd` after the last one stops.
 
 ## Platforms
 

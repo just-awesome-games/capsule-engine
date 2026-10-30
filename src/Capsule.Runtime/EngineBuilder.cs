@@ -44,6 +44,7 @@ public sealed partial class EngineBuilder
     private string? _frameDiagnosticsPath;
     private double? _frameDiagnosticsExitAfterSeconds;
     private Action<Run>? _runStart;
+    private Action<Run>? _runEnd;
     // The shipped tag --language matched, applied after the run-start hook. Null without the flag.
     private string? _commandLineLanguage;
 
@@ -398,6 +399,26 @@ public sealed partial class EngineBuilder
     {
         ArgumentNullException.ThrowIfNull(start);
         _runStart += start;
+        return this;
+    }
+
+    /// <summary>
+    /// Runs <paramref name="end"/> once when the run ends, after its last step and the last scene's stop,
+    /// and before the host persists the saves for the last time.
+    /// </summary>
+    /// <remarks>
+    /// A game writes what it saves at quit here, and a document it writes goes out in the host's last
+    /// save flush. The run ends after the step that calls <see cref="Run.RequestExit"/>, when the window
+    /// closes or the operating system asks the game to quit, and when a headless run's driver or
+    /// recording finishes. A replay's run ends the same way, and its saves stay in memory. A run that
+    /// crashes ends without it, as does a process killed from outside. Nothing can refuse the end. The
+    /// hook reads the run's whole length as <see cref="Run.Tick"/> and <see cref="Run.TotalSeconds"/>.
+    /// Repeated calls run in order.
+    /// </remarks>
+    public EngineBuilder WithRunEnd(Action<Run> end)
+    {
+        ArgumentNullException.ThrowIfNull(end);
+        _runEnd += end;
         return this;
     }
 

@@ -50,6 +50,19 @@ protected override void OnStart() =>
     Run.Audio.SetVolume(AudioBuses.Sfx, Run.Saves.Read(GameSaves.Settings).SoundOn ? 1f : 0f);
 ```
 
+The save moment at quit is `EngineBuilder.WithRunEnd`. It runs once however the run ends
+short of a crash, and what it writes goes out in the host's last save flush. `Run.TotalSeconds` there is
+the run's whole simulated length:
+
+```csharp
+builder.WithRunEnd(run =>
+{
+    Profile profile = run.Saves.Read(GameSaves.Profile);
+    profile.PlayedSeconds += run.TotalSeconds;
+    run.Saves.Write(GameSaves.Profile, profile);
+});
+```
+
 Split documents by how often they change: settings, a profile, a slot. Inside one document, each system
 contributes and reads back its own part.
 

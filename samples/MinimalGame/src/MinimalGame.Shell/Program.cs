@@ -9,6 +9,7 @@ try
     return CapsuleBoot.Configure("Minimal Game")
         .WithCommandLine(args)
         .WithRunStart(GameBoot.Start)
+        .WithRunEnd(GameBoot.End)
         .WithRenderResolution((int)World.ViewportSize.X, (int)World.ViewportSize.Y)
         .WithSampling(TextureSampling.Point)
         .RunScene<MainMenu>();

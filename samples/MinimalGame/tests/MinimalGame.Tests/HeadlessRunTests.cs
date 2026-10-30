@@ -100,6 +100,7 @@ public sealed class HeadlessRunTests
     internal static EngineBuilder Boot() =>
         CapsuleBoot.Configure("Minimal Game")
             .WithRunStart(GameBoot.Start)
+            .WithRunEnd(GameBoot.End)
             .WithRenderResolution((int)World.ViewportSize.X, (int)World.ViewportSize.Y)
             .WithoutLogging();
 

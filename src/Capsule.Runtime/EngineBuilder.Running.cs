@@ -196,7 +196,12 @@ public sealed partial class EngineBuilder
             replay = Development.IsSupported && replayed is not null ? new Replay(replayed, host, Scenes, recorder, holdsAtEnd: true) : null;
             run(host, recorder, replay);
 
+            // Saved before the run ends. The recording's final checksum covers the run as its last step
+            // left it, which the scene's stop and the run-end hook would change. A hook that throws then
+            // reaches the crash log and saves no second recording.
             SaveRecent(recorder, replay, scenes?.SceneKey ?? openingKey, crashed: false);
+            recorder = null;
+            host.End();
         }
         catch (Exception exception) when (_writesCrashLog || recorder is not null)
         {
@@ -221,7 +226,7 @@ public sealed partial class EngineBuilder
             : target.WithPayload(payload);
     }
 
-    // Builds the window host and runs the scenes until they request exit.
+    // Builds the window host and runs the scenes until they request exit or the window closes.
     private void RunHost(SceneHost scenes, Recorder? recorder, Replay? replay)
     {
         // Declared first so the host is disposed before it, with its last frame already written.
@@ -249,7 +254,10 @@ public sealed partial class EngineBuilder
         HeadlessHost host = new(this, scenes, driver, replay: null, diagnostics, watch: null, trace, capture);
         using TickStamp stamp = StampTicks(() => host.SimulationTick);
 
-        return Finished(host.Run(), trace, capture);
+        HeadlessRunResult result = host.Run();
+        scenes.End();
+
+        return Finished(result, trace, capture);
     }
 
     // The configured seed, else a fresh one for a run a person plays. A headless or driven run is a
@@ -293,7 +301,8 @@ public sealed partial class EngineBuilder
             new Run(new RandomSource(seed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, Display = Display, RenderResolution = RenderResolution },
             storage is null || recorder is null ? storage : new TeeSaveStorage(storage, recorder.Restored),
             RunStart(preferredLanguages, language),
-            Scenes);
+            Scenes,
+            _runEnd);
         recorder?.Attach(host);
 
         return host;

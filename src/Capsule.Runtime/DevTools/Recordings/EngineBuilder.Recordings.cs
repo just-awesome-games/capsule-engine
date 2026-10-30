@@ -105,7 +105,10 @@ public sealed partial class EngineBuilder
         HeadlessHost host = new(this, scenes, driver: null, replay, diagnostics, watch, trace, capture);
         using TickStamp stamp = StampTicks(() => host.SimulationTick);
 
-        return Finished(host.Run(), trace, capture);
+        HeadlessRunResult result = host.Run();
+        scenes.End();
+
+        return Finished(result, trace, capture);
     }
 
     // A run that exits ends on the tick before its exiting step. A run a trace or a capture halted is refused

@@ -112,6 +112,34 @@ public sealed class InputConfiguration
         return this;
     }
 
+    /// <summary>
+    /// Replaces <paramref name="from"/> with <paramref name="to"/> in the buttons bound to
+    /// <paramref name="action"/>, in its place, and keeps the others and their order.
+    /// </summary>
+    /// <remarks>
+    /// A button already bound to the action moves into the replaced one's place, and the action never
+    /// holds a button twice. Replacing a button with itself changes nothing.
+    /// </remarks>
+    /// <example>
+    /// A settings screen replaces only the button of the device the player pressed:
+    /// <code>
+    /// if (context.Input.WasAnyPressed(out InputButton pressed))
+    /// {
+    ///     Run.Input.Replace(Confirm, current, pressed);
+    /// }
+    /// </code>
+    /// </example>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="from"/> is not bound to <paramref name="action"/>. Pass one of the buttons
+    /// <see cref="ButtonsFor"/> returns, or add a button with <see cref="Bind(InputAction, ReadOnlySpan{InputButton})"/>.
+    /// </exception>
+    public InputConfiguration Replace(InputAction action, InputButton from, InputButton to)
+    {
+        Bindings.Replace(action, from, to);
+
+        return this;
+    }
+
     /// <summary>Removes every button bound to <paramref name="action"/>, which then reads as unbound.</summary>
     public InputConfiguration Unbind(InputAction action)
     {
