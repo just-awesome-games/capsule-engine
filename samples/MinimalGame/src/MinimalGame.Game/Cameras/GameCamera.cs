@@ -21,6 +21,10 @@ public sealed class GameCamera : Camera
 
         // Seconds the view takes to settle back out of a camera zone's bounds. Lower snaps, higher drifts.
         BoundsTransition = BoundsTransition.Smooth(0.35f);
+
+        // A shake moves only the picture. The player's screen shake setting never changes what the game
+        // counts as on screen.
+        ShakeMovesVisibleRegion = false;
     }
 
     /// <inheritdoc/>

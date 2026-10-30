@@ -133,15 +133,15 @@ public partial class Camera
     /// <summary>
     /// The world rect the frame draws: <see cref="ViewportSize"/> over <see cref="Zoom"/>, centred
     /// on <see cref="Center"/>, held inside <see cref="Bounds"/> or the rect easing toward them, and
-    /// moved by <see cref="Offset"/> and the shake. The engine owns it and settles it once per step,
-    /// after the follow and the shake.
+    /// moved by <see cref="Offset"/> and, unless <see cref="ShakeMovesVisibleRegion"/> is false, the
+    /// shake. The engine owns it and settles it once per step, after the follow and the shake.
     /// </summary>
     /// <remarks>
     /// An entity or component that reads it during its own step sees the region the previous step
     /// settled. It reads empty before the first late step of the scene this camera frames, and
     /// whenever <see cref="ViewportSize"/> is not positive on both axes. Under every <see cref="Fit"/>
-    /// it is the rect the host draws at the settled centre, and a step handed no output resolves the
-    /// declared span.
+    /// it is the rect the host draws at the settled centre, less a shake that does not move it, and a
+    /// step handed no output resolves the declared span.
     /// </remarks>
     public Rect VisibleRegion { get; private set; }
 
@@ -356,10 +356,16 @@ public partial class Camera
         }
 
         _settled = true;
-        (VisibleRegion, _canvasMap) = Frame(context.Output);
+        (VisibleRegion, _canvasMap) = Frame(context.Output, shaken: true);
+
+        // The canvas map stays the drawn picture's. A pointer lands where the player sees it.
+        if (!ShakeMovesVisibleRegion && ShakeOffset != Vector2.Zero)
+        {
+            VisibleRegion = Frame(context.Output, shaken: false).Region;
+        }
     }
 
-    private CanvasMap CurrentCanvasMap() => _canvasMap ?? Frame(Vector2.Zero).Map;
+    private CanvasMap CurrentCanvasMap() => _canvasMap ?? Frame(Vector2.Zero, shaken: true).Map;
 
     // A layer at factor f is drawn as if the camera's centre sat at C + (c - C) * f, where C is the
     // resolved ScrollCenter and c the placed region's centre. A canvas point lands (C - c) * (1 - f)
@@ -370,15 +376,15 @@ public partial class Camera
     // The region and canvas map of the frame the host draws on an output of this extent, through the
     // host's own layout. The region is the camera placed at the layout's quantised span. With no output
     // the region is the declared span, and the canvas is letterboxed over it as a surface of the
-    // canvas's own size would draw it.
-    private (Rect Region, CanvasMap Map) Frame(Vector2 output)
+    // canvas's own size would draw it. Unshaken, it frames the camera with the shake taken out.
+    private (Rect Region, CanvasMap Map) Frame(Vector2 output, bool shaken)
     {
         if (!(ViewportSize.X > 0f) || !(ViewportSize.Y > 0f))
         {
             return (default, CanvasMap.Identity);
         }
 
-        CameraView view = ToView();
+        CameraView view = shaken ? ToView() : ToView() with { Offset = Offset };
 
         if (HostLayout(view, output) is not { } layout)
         {

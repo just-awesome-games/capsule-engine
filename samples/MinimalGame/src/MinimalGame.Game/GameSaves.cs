@@ -14,6 +14,12 @@ public sealed record GameSettings
     /// <summary>The sound effects bus's level, from 0 to 1.</summary>
     public float EffectsVolume { get; set; } = 1f;
 
+    /// <summary>The camera shake's strength, from 0 for none to 1.</summary>
+    public float ShakeStrength { get; set; } = 1f;
+
+    /// <summary>The gamepad rumble's level, from 0 for none to 1.</summary>
+    public float RumbleVolume { get; set; } = 1f;
+
     /// <summary>The bindings the player may change.</summary>
     public InputSettings Input { get; set; } = new();
 

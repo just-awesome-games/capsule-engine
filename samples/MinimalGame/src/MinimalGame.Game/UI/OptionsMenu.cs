@@ -4,8 +4,8 @@ namespace MinimalGame.Game.UI;
 
 /// <summary>
 /// The options screen's menu: a panel showing three and a half rows of a scrolling column of Jump and Shoot
-/// rebinding, the music and effects levels, the display settings, the language and Back, with a
-/// <see cref="ScrollBar"/> beside it, over one <see cref="FocusNavigator"/>.
+/// rebinding, the music, effects, screen shake and rumble levels, the display settings, the language and
+/// Back, with a <see cref="ScrollBar"/> beside it, over one <see cref="FocusNavigator"/>.
 /// </summary>
 public sealed class OptionsMenu : ScreenEntity
 {
@@ -22,6 +22,8 @@ public sealed class OptionsMenu : ScreenEntity
     private readonly MenuItem _shoot = new(CapsuleStrings.Options.Shoot, GameInput.Shoot);
     private readonly VolumeSlider _music = new(CapsuleStrings.Options.Music);
     private readonly VolumeSlider _effects = new(CapsuleStrings.Options.Effects);
+    private readonly VolumeSlider _shake = new(CapsuleStrings.Options.Shake);
+    private readonly VolumeSlider _rumble = new(CapsuleStrings.Options.Rumble);
 
     // Captioned by ShowDisplay from the settings.
     private readonly MenuItem _fullscreen = new();
@@ -57,6 +59,8 @@ public sealed class OptionsMenu : ScreenEntity
         _shoot.Parent = column;
         _music.Parent = column;
         _effects.Parent = column;
+        _shake.Parent = column;
+        _rumble.Parent = column;
         _fullscreen.Parent = column;
         _windowSize.Parent = column;
         _vsync.Parent = column;
@@ -79,6 +83,8 @@ public sealed class OptionsMenu : ScreenEntity
 
         _music.Changed += _ => SetVolume(AudioBuses.Music, _music);
         _effects.Changed += _ => SetVolume(AudioBuses.Sfx, _effects);
+        _shake.Changed += _ => SetFeedback();
+        _rumble.Changed += _ => SetFeedback();
         _fullscreen.Pressed += () => ChangeDisplay(static settings => settings.Fullscreen = !settings.Fullscreen);
         _windowSize.Pressed += () => ChangeDisplay(static settings => settings.WindowScale = settings.WindowScale >= LargestWindowScale ? SmallestWindowScale : settings.WindowScale + 1);
         _vsync.Pressed += () => ChangeDisplay(static settings => settings.VSync = settings.VSync switch
@@ -98,6 +104,8 @@ public sealed class OptionsMenu : ScreenEntity
         _settings = Run.Saves.Read(GameSaves.Settings);
         _music.Value = _settings.MusicVolume;
         _effects.Value = _settings.EffectsVolume;
+        _shake.Value = _settings.ShakeStrength;
+        _rumble.Value = _settings.RumbleVolume;
         ShowDisplay();
         Fit();
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.TitleSound);
@@ -185,6 +193,17 @@ public sealed class OptionsMenu : ScreenEntity
         Run.Audio.SetVolume(bus, slider.Value);
     }
 
+    // A save moment like Apply: the document takes the shake and rumble levels from their sliders, and
+    // the run takes both at once.
+    private void SetFeedback()
+    {
+        _settings.ShakeStrength = _shake.Value;
+        _settings.RumbleVolume = _rumble.Value;
+        Run.Saves.Write(GameSaves.Settings, _settings);
+        Run.Display.ShakeStrength = _shake.Value;
+        Run.Rumble.Volume = _rumble.Value;
+    }
+
     // A save moment like Apply: the run takes the changed display from the same document it is
     // written from.
     private void ChangeDisplay(Action<GameSettings> change)
@@ -234,7 +253,9 @@ public sealed class OptionsMenu : ScreenEntity
     // tells the player there is more below.
     private void Fit()
     {
-        float widest = Math.Max(_music.ContentWidth, _effects.ContentWidth);
+        float widest = Math.Max(
+            Math.Max(_music.ContentWidth, _effects.ContentWidth),
+            Math.Max(_shake.ContentWidth, _rumble.ContentWidth));
         foreach (MenuItem item in _items)
         {
             widest = Math.Max(widest, item.ContentWidth);

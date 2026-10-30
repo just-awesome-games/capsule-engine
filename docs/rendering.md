@@ -65,6 +65,11 @@ public PlayField()
 | A shake, or one shaped per call | `Shake`, with a `CameraShake` |
 | A cut with no glide | `Teleport` |
 
+A player's screen shake setting writes `Run.Display.ShakeStrength`, which scales every camera's shake
+from the next step. A shake moves `VisibleRegion` with the picture, and so what counts as on screen. A
+camera whose play must not change with that setting sets `ShakeMovesVisibleRegion` to false and shakes
+only the picture.
+
 ## Renderers
 
 Each renderer carries an `Offset` from the entity's position, a `Color`, and a `ZIndex` of its own within

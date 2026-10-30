@@ -197,6 +197,89 @@ public sealed class CameraShakeTests
         Assert.Throws<ArgumentOutOfRangeException>(() => camera.Shake(shake));
     }
 
+    // A twin camera at full strength draws the offset the strength scales, step for step, to the float
+    // rounding of placing the region.
+    [Fact]
+    public void TheShakeStrength_ScalesEveryDrawnOffset_AndZeroDrawsNone()
+    {
+        static Rect[] Shaken(float strength)
+        {
+            (SceneSimulation simulation, Camera camera) = SceneFixtures.Pinned();
+            simulation.Run.Display.ShakeStrength = strength;
+            camera.Shake(1f, 0.25f);
+
+            return Steps(simulation, camera, 15);
+        }
+
+        Rect[] full = Shaken(1f);
+        Rect[] half = Shaken(0.5f);
+        Rect[] none = Shaken(0f);
+
+        for (int step = 0; step < 15; step++)
+        {
+            Assert.NotEqual(OneScreen, full[step]);
+            Assert.Equal(full[step].Left * 0.5f, half[step].Left, 1e-4f);
+            Assert.Equal(full[step].Top * 0.5f, half[step].Top, 1e-4f);
+            Assert.Equal(OneScreen, none[step]);
+        }
+    }
+
+    // The shake runs on under a strength of zero. Turned back up, it draws what an untouched twin draws.
+    [Fact]
+    public void AStrengthChangedMidShake_AppliesFromTheNextStep_AndTheShakeResumesWhenRestored()
+    {
+        (SceneSimulation twin, Camera twinCamera) = SceneFixtures.Pinned();
+        twinCamera.Shake(1f);
+        Rect[] expected = Steps(twin, twinCamera, 12);
+
+        (SceneSimulation simulation, Camera camera) = SceneFixtures.Pinned();
+        camera.Shake(1f);
+        Rect[] before = Steps(simulation, camera, 4);
+        simulation.Run.Display.ShakeStrength = 0f;
+        Rect[] silenced = Steps(simulation, camera, 4);
+        simulation.Run.Display.ShakeStrength = 1f;
+        Rect[] restored = Steps(simulation, camera, 4);
+
+        Assert.Equal(expected[..4], before);
+        Assert.All(silenced, region => Assert.Equal(OneScreen, region));
+        Assert.Equal(expected[8..], restored);
+        Assert.NotEqual(OneScreen, restored[0]);
+    }
+
+    // A camera whose shake leaves the region draws the offset its shaken twin settles, step for step,
+    // while its region stays unshaken.
+    [Fact]
+    public void AShakeThatLeavesTheRegion_StillDrawsItsOffset()
+    {
+        (SceneSimulation twin, Camera twinCamera) = SceneFixtures.Pinned();
+        twinCamera.Shake(1f, 0.25f);
+        Rect[] shaken = Steps(twin, twinCamera, 15);
+
+        (SceneSimulation simulation, Camera camera) = SceneFixtures.Pinned();
+        camera.ShakeMovesVisibleRegion = false;
+        camera.Shake(1f, 0.25f);
+        for (int step = 0; step < 15; step++)
+        {
+            simulation.Step(SceneFixtures.Step(step));
+            Assert.Equal(OneScreen, camera.VisibleRegion);
+            Assert.NotEqual(OneScreen, shaken[step]);
+            Vector2 drawn = camera.ToView().Offset;
+            Assert.Equal(shaken[step].Left - OneScreen.Left, drawn.X, 1e-4f);
+            Assert.Equal(shaken[step].Top - OneScreen.Top, drawn.Y, 1e-4f);
+        }
+    }
+
+    [Theory]
+    [InlineData(-0.1f)]
+    [InlineData(1.1f)]
+    [InlineData(float.NaN)]
+    public void AShakeStrengthOutsideTheUnitRange_IsRefused(float strength)
+    {
+        (SceneSimulation simulation, _) = SceneFixtures.Pinned();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => simulation.Run.Display.ShakeStrength = strength);
+    }
+
     private static Rect[] Steps(SceneSimulation simulation, Camera camera, int count, double? stepSeconds = null)
     {
         Rect[] regions = new Rect[count];

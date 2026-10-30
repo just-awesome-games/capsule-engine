@@ -16,6 +16,8 @@
     "shootListening": "Schießen: Taste drücken",
     "music": "Musik",
     "effects": "Effekte",
+    "shake": "Bildschirmwackeln",
+    "rumble": "Vibration",
     "fullscreen": "Anzeige: Vollbild",
     "windowed": "Anzeige: Fenster",
     "windowScale": "Fenster: {scale}x",

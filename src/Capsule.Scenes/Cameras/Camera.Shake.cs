@@ -60,6 +60,16 @@ public partial class Camera
         set => field = Guard.Positive(value, nameof(value));
     } = 0.5f;
 
+    /// <summary>
+    /// Whether the shake moves <see cref="VisibleRegion"/> as it moves the drawn view, true by default.
+    /// </summary>
+    /// <remarks>
+    /// False shakes only the picture. The region, the visibility notifiers and everything else that reads
+    /// it then never depend on a shake or on <see cref="Capsule.Rendering.Display.ShakeStrength"/>. A
+    /// player's shake setting then cannot change how a run plays.
+    /// </remarks>
+    public bool ShakeMovesVisibleRegion { get; set; } = true;
+
     // The offset the shake adds to the drawn view this step.
     private Vector2 ShakeOffset { get; set; }
 
@@ -79,7 +89,8 @@ public partial class Camera
     /// </summary>
     /// <remarks>
     /// The shake moves as <see cref="ShakeWave.Noise"/> at <see cref="ShakeFrequency"/> and fades from
-    /// its first step. It draws nothing from <see cref="Run.Random"/>.
+    /// its first step. It draws nothing from <see cref="Run.Random"/>, and
+    /// <see cref="Capsule.Rendering.Display.ShakeStrength"/> scales the offset it draws.
     /// </remarks>
     public void Shake(float intensity, float seconds)
     {
@@ -103,7 +114,10 @@ public partial class Camera
     /// Shakes the view with <paramref name="shake"/>. A call whose amplitude is shorter than the shake
     /// on screen reaches now changes nothing.
     /// </summary>
-    /// <remarks>The shake draws nothing from <see cref="Run.Random"/>.</remarks>
+    /// <remarks>
+    /// The shake draws nothing from <see cref="Run.Random"/>, and
+    /// <see cref="Capsule.Rendering.Display.ShakeStrength"/> scales the offset it draws.
+    /// </remarks>
     public void Shake(in CameraShake shake)
     {
         Guard.NonNegative(shake.Amplitude, nameof(shake));
@@ -150,6 +164,7 @@ public partial class Camera
 
     // The camera-wide phase advances ShakeFrequency cells a second and runs between shakes too. The
     // offset is taken before the envelope falls, and a spent shake gives exactly zero without sampling.
+    // The run's shake strength scales only the offset drawn. The shake's own state runs on under it.
     private void StepShake(float seconds)
     {
         Advance(ref _shakeCell, ref _shakeFraction, ShakeFrequency * seconds);
@@ -167,7 +182,8 @@ public partial class Camera
             : new Vector2(ValueNoise.Sample(0, cell, fraction), ValueNoise.Sample(1, cell, fraction));
         Vector2 amplitude = _isProfile ? _profileAmplitude : ShakeAmplitude;
         float fall = Fall;
-        ShakeOffset = amplitude * (_intensity * fall * fall) * wave;
+        float strength = _scene?.RunOrNull?.Display.ShakeStrength ?? 1f;
+        ShakeOffset = amplitude * (_intensity * fall * fall * strength) * wave;
 
         if (_isProfile)
         {

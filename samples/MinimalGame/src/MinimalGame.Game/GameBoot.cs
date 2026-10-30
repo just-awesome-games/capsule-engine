@@ -20,6 +20,8 @@ public static class GameBoot
         GameInput.Configure(run.Input, settings);
         run.Audio.SetVolume(AudioBuses.Sfx, settings.EffectsVolume);
         run.Audio.SetVolume(AudioBuses.Music, settings.MusicVolume);
+        run.Display.ShakeStrength = settings.ShakeStrength;
+        run.Rumble.Volume = settings.RumbleVolume;
     }
 
     // A save moment at quit, whichever way the player quits: the run's length is banked in the profile.

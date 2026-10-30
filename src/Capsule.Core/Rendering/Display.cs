@@ -3,15 +3,15 @@ using System.Numerics;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// The run's window and frame pacing: fullscreen, the window's size, vertical sync and the frame caps.
-/// Reached as <c>Run.Display</c> and held for the run.
+/// The run's window, frame pacing and screen shake: fullscreen, the window's size, vertical sync, the
+/// frame caps and the shake strength. Reached as <c>Run.Display</c> and held for the run.
 /// </summary>
 /// <remarks>
 /// The shell's builder sets where each starts, and game code changes them from a settings screen. A
 /// run-start hook runs before the window opens, and the window opens in the settings a game restores
-/// there. The host applies a change after the frame's steps. <see cref="RefreshRate"/> is the one value
-/// the host writes, before a frame's steps. A headless run ignores the settings and reads a refresh rate
-/// of 0.
+/// there. The host applies a change to the window after the frame's steps. <see cref="RefreshRate"/> is
+/// the one value the host writes, before a frame's steps. A headless run ignores the window settings and
+/// reads a refresh rate of 0.
 /// </remarks>
 /// <example>
 /// A game keeps its player's choices in a save document of its own and applies them at run start:
@@ -88,6 +88,21 @@ public sealed class Display
     /// <see cref="MaxFrameRate"/> beside <see cref="VSyncMode.Mailbox"/> or <see cref="VSyncMode.Off"/>.
     /// </remarks>
     public double RefreshRate { get; internal set; }
+
+    /// <summary>
+    /// The scale on every camera's shake, in [0, 1] and 1 by default. Zero stills the view for players
+    /// who turn screen shake off.
+    /// </summary>
+    /// <remarks>
+    /// A settings screen writes it, and it holds for every later scene. Each camera reads it as the
+    /// step settles, and a change applies from the next step. Every shake still runs its course, and
+    /// one still playing when the strength rises again draws again.
+    /// </remarks>
+    public float ShakeStrength
+    {
+        get;
+        set => field = Guard.InUnit(value, nameof(value));
+    } = 1f;
 
     internal Display()
     {

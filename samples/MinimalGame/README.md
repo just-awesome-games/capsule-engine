@@ -39,6 +39,7 @@ The gate is `sh hooks/pre-commit` from the sample root.
 
 Jump and shoot can be rebound under Options on the title menu, where the list scrolls with the wheel or its bar.
 Delete, the north pad button or a right-click on a binding's row puts its default back.
-Options also switches the language between English and German, fullscreen, the window's size, vertical sync and a
-frame cap that includes the display's own refresh rate, and the game opens as they were left. It starts in the
-system's language, and `-- --language de` starts it in German.
+Options also sets the music, effects, screen shake and rumble levels, where 0 turns each off, and switches the
+language between English and German, fullscreen, the window's size, vertical sync and a frame cap that includes the
+display's own refresh rate, and the game opens as they were left. It starts in the system's language, and
+`-- --language de` starts it in German.

@@ -16,6 +16,8 @@
     "shootListening": "Shoot: press a button",
     "music": "Music",
     "effects": "Effects",
+    "shake": "Screen shake",
+    "rumble": "Rumble",
     "fullscreen": "Display: Fullscreen",
     "windowed": "Display: Window",
     "windowScale": "Window: {scale}x",
