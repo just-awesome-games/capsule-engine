@@ -8,8 +8,8 @@ using static System.FormattableString;
 
 namespace Capsule.Tests.Runtime;
 
-// The run-end hooks run once, in order, after the last step and the last scene's stop, however a run
-// that does not crash ends. What they write is persisted before the run returns.
+// The game object ends once, after the last step and the last scene's stop, however a run that does not
+// crash ends. What it writes is persisted before the run returns.
 [Collection(LogSinkCollection.Name)]
 public sealed class RunEndTests
 {
@@ -21,7 +21,7 @@ public sealed class RunEndTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void AHeadlessRunThatExitsOrRunsOutOfInput_EndsOnceAfterItsSceneStops_AndPersistsWhatTheHookWrote(bool exits)
+    public void AHeadlessRunThatExitsOrRunsOutOfInput_EndsOnceAfterItsSceneStops_AndPersistsWhatItsEndWrote(bool exits)
     {
         using TempWorkspace workspace = new(nameof(RunEndTests));
         List<string> events = [];
@@ -31,19 +31,19 @@ public sealed class RunEndTests
             .RunHeadless<Ending>(new InputScript().Wait(3).Build());
 
         Assert.Equal(exits ? 2 : 3, result.Steps);
-        Assert.Equal(["stop", Ended(result.Steps), "second"], events);
+        Assert.Equal(["stop", Ended(result.Steps)], events);
 
         int read = 0;
-        Builder([], () => new Ending([]))
+        Registered(() => new Ending([]))
+            .WithGame(CallbackGame.Starting(run => read = run.Saves.Read(Length)))
             .WithSaveDirectory(workspace.Root)
-            .WithRunStart(run => read = run.Saves.Read(Length))
             .RunHeadless<Ending>(new InputScript().Build());
 
         Assert.Equal(result.Steps, read);
     }
 
     [Fact]
-    public void ARunWhoseStepThrows_EndsWithoutTheHook()
+    public void ARunWhoseStepThrows_EndsWithoutTheGameObjectsEnd()
     {
         List<string> events = [];
 
@@ -53,15 +53,15 @@ public sealed class RunEndTests
         Assert.Equal(["stop"], events);
     }
 
-    // A windowed run whose window closes, with no exit requested. Its recording is saved before the hook
-    // draws from the run's random source, and the replay of it does not diverge. The replay ends the same way.
+    // A windowed run whose window closes, with no exit requested. Its recording is saved before the game
+    // object's end draws from the run's random source, and the replay of it does not diverge. The replay
+    // ends the same way.
     [Fact]
     public void ARecordedRunWhoseWindowCloses_EndsAfterSavingItsRecording_AndItsReplayEndsTheSameWay()
     {
         using TempWorkspace workspace = new("recordings");
         List<string> events = [];
         EngineBuilder builder = Builder(events, () => new Ending(events))
-            .WithRunEnd(static run => run.Random.NextFloat())
             .WithSaveStorage(new RecordedSaveStorage([]))
             .WithCommandLine(["--recordings", workspace.Root]);
 
@@ -74,32 +74,38 @@ public sealed class RunEndTests
             }
         });
 
-        Assert.Equal(["stop", Ended(3), "second"], events);
+        Assert.Equal(["stop", Ended(3)], events);
 
         Recording recording = Recording.Load(Assert.Single(Directory.GetFiles(Path.Combine(workspace.Root, "Recent"))));
         HeadlessRunResult replayed = builder.RunHeadless(recording);
 
         Assert.Null(replayed.DivergedAt);
-        Assert.Equal(["stop", Ended(3), "second", "stop", Ended(3), "second"], events);
+        Assert.Equal(["stop", Ended(3), "stop", Ended(3)], events);
     }
 
-    // Two hooks, which run in the order they were added. The first reads the run's clock, and the second
-    // writes the run's length in steps.
     private static EngineBuilder Builder(List<string> events, Func<Ending> scene) =>
+        Registered(scene).WithGame(run => new Timing(run, events));
+
+    private static EngineBuilder Registered(Func<Ending> scene) =>
         CapsuleEngine.Configure(
                 "Ending Game",
                 new SceneRegistry(new EntityRegistry([]), [SceneRegistration.Plain(typeof(Ending), _ => scene())]))
             .WithFixedStep(Hertz)
             .WithoutCrashLog()
-            .WithoutLogging()
-            .WithRunEnd(run => events.Add(Invariant($"end at {run.Tick}, {run.TotalSeconds} s")))
-            .WithRunEnd(run =>
-            {
-                events.Add("second");
-                run.Saves.Write(Length, (int)run.Tick);
-            });
+            .WithoutLogging();
 
     private static string Ended(long steps) => Invariant($"end at {steps}, {steps * (1.0 / Hertz)} s");
+
+    // Reports the run's clock at its end, writes the run's length in steps, and draws from the run's random source.
+    private sealed class Timing(Run run, List<string> events) : GameInstance(run)
+    {
+        protected override void OnEnd()
+        {
+            events.Add(Invariant($"end at {Run.Tick}, {Run.TotalSeconds} s"));
+            Run.Saves.Write(Length, (int)Run.Tick);
+            Run.Random.NextFloat();
+        }
+    }
 
     // Requests exit at exitAt, or throws from its first step, and reports its stop.
     private sealed class Ending(List<string> events, long? exitAt = null, bool throws = false) : Scene

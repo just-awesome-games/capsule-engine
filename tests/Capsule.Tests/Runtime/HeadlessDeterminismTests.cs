@@ -32,7 +32,7 @@ public sealed class HeadlessDeterminismTests
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(Wandering), _ => scene)]))
             .WithFixedStep(10)
-            .WithRunStart(static run => run.Input.Bind(Nudge, Key.Space))
+            .WithGame(CallbackGame.Starting(static run => run.Input.Bind(Nudge, Key.Space)))
             .WithoutCrashLog()
             .WithoutLogging()
             .RunHeadless<Wandering>(new InputScript().Wait(3).Tap(Key.Space).Wait(4).Build());

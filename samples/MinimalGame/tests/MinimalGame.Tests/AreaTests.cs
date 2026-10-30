@@ -106,7 +106,7 @@ public sealed class AreaTests
     public void TheHallsGust_PushesThePlayerInItWhileItBlows()
     {
         Run run = new();
-        GameBoot.Start(run);
+        run.StartGame(static run => new MinimalGameInstance(run));
         using SimulationHost hall = new(CapsuleScenes.Registry.Create(CapsuleAssets.Scenes.Halls.HallScene), run: run);
         Player player = hall.Scene.FindSingle<Player>();
         Gust gust = hall.Scene.FindSingle<Gust>();

@@ -189,7 +189,7 @@ public sealed partial class EngineBuilder
                 : new RecordedSaveStorage(replayed.Header.Saves);
 
             // Before the host is built, which runs the game's startup. A crash inside it still saves the
-            // boot state, and the shell settings are read before a run-start hook can change them.
+            // boot state, and the shell settings are read before the game object's start can change them.
             recorder = NewRecorder(in opening, seed, languages, language);
             using SceneHost host = CreateHost(in opening, storage, seed, languages, language, recorder);
             scenes = host;
@@ -197,7 +197,7 @@ public sealed partial class EngineBuilder
             run(host, recorder, replay);
 
             // Saved before the run ends. The recording's final checksum covers the run as its last step
-            // left it, which the scene's stop and the run-end hook would change. A hook that throws then
+            // left it, which the scene's stop and the game object's end would change. An end that throws then
             // reaches the crash log and saves no second recording.
             SaveRecent(recorder, replay, scenes?.SceneKey ?? openingKey, crashed: false);
             recorder = null;
@@ -301,8 +301,7 @@ public sealed partial class EngineBuilder
             new Run(new RandomSource(seed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, Display = Display, RenderResolution = RenderResolution },
             storage is null || recorder is null ? storage : new TeeSaveStorage(storage, recorder.Restored),
             RunStart(preferredLanguages, language),
-            Scenes,
-            _runEnd);
+            Scenes);
         recorder?.Attach(host);
 
         return host;
@@ -313,13 +312,14 @@ public sealed partial class EngineBuilder
     private string[]? PreferredLanguages(bool played) =>
         played && _strings is not null ? [.. Platform.PreferredLanguages()] : null;
 
-    // The starting language around the game's hooks. The player's is set before them, and a saved choice
-    // they apply wins over it. --language is set after them and wins over both.
+    // The starting language around the game object's start. The player's is set before it, and a saved
+    // choice it applies wins over it. --language is set after it and wins over both.
     private Action<Run>? RunStart(string[]? preferredLanguages, string? language)
     {
+        Action<Run>? startGame = _createGame is { } create ? run => run.StartGame(create) : null;
         if (_strings is not { } strings)
         {
-            return _runStart;
+            return startGame;
         }
 
         return run =>
@@ -330,7 +330,7 @@ public sealed partial class EngineBuilder
                 run.Language = strings.Languages[matched < 0 ? strings.Fallback : matched];
             }
 
-            _runStart?.Invoke(run);
+            startGame?.Invoke(run);
 
             if (language is not null)
             {

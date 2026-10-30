@@ -19,12 +19,12 @@ public static class SmokeSaves
 public static class FixtureInput
 {
     public static readonly InputAction Quit = new("quit");
+}
 
-    public static void Configure(Run run)
-    {
-        ArgumentNullException.ThrowIfNull(run);
-        run.Input.Bind(Quit, Key.Escape);
-    }
+// The smoke's game object, which binds its input as the run starts.
+public sealed class FixtureGame(Run run) : GameInstance(run)
+{
+    protected override void OnStart() => Run.Input.Bind(FixtureInput.Quit, Key.Escape);
 }
 
 [TypeKey("scenes/fixture")]

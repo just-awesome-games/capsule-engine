@@ -2,9 +2,8 @@ namespace MinimalGame.Game;
 
 /// <summary>
 /// The game's actions, and the one place devices are named. An action is the seam between a device
-/// and the logic that reacts to it: <see cref="GameBoot.Start"/> installs this configuration once
-/// through <c>WithRunStart</c>, and everything else in the game reads actions, never keys or pad
-/// buttons.
+/// and the logic that reacts to it: <see cref="MinimalGameInstance"/> installs this configuration
+/// once as the run starts, and everything else in the game reads actions, never keys or pad buttons.
 /// </summary>
 public static class GameInput
 {

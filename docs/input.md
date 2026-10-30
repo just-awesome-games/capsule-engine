@@ -47,8 +47,8 @@ public static class GameInput
 }
 ```
 
-The function passed to `EngineBuilder.WithRunStart` hands `Run.Input` to `Configure`. Pad deadzones are
-tuned in the same place with `InputConfiguration.GamepadDeadzones`.
+The game object's `GameInstance.OnStart` hands `Run.Input` to `Configure`. Pad deadzones are tuned in the
+same place with `InputConfiguration.GamepadDeadzones`.
 
 ## Read them in a step
 
@@ -74,6 +74,15 @@ player last used. `InputState.PadFamily` picks the art set, and `InputState.KeyC
 character the player's keyboard layout prints on a key. Every word a prompt shows comes from the game's
 string tables ([`localization.md`](localization.md)). The pad family is recorded input like window
 focus, and a driver sets it with `DeviceSnapshot.WithPadFamily`.
+
+## Fit bindings to the player's pad
+
+`InputState.PadHas` reads whether the player's pad has a button, as the pad's mapping defines it. A
+pad with no triggers or no shoulders lacks them, and a button its mapping lacks can never be pressed.
+Every button reads present until a pad is found, and the last pad's buttons stay after it is
+disconnected. `InputState.PadButtonsChanged` is set on the step the set changes, when a game moves a
+default binding off a button the pad lacks. The set is recorded input like the pad family, and a
+driver sets it with `DeviceSnapshot.WithPadLacking`.
 
 ## Rebind at a settings screen
 

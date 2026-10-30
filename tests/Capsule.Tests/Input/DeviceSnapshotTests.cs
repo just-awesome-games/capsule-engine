@@ -117,6 +117,27 @@ public sealed class DeviceSnapshotTests
         Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithPadFamily((PadFamily)4));
     }
 
+    // A snapshot starts on a full pad. The builder replaces the set rather than adding to it, and the
+    // set is recorded input that a latched frame takes from the newest sample.
+    [Fact]
+    public void ThePadsButtons_StartFullAndAreSetByWithPadLacking()
+    {
+        DeviceSnapshot noTriggers = DeviceSnapshot.Empty.WithPadLacking(PadButton.LeftTrigger, PadButton.RightTrigger);
+
+        Assert.All(Enum.GetValues<PadButton>(), button => Assert.Equal(button != PadButton.None, DeviceSnapshot.Empty.PadHas(button)));
+        Assert.All(Enum.GetValues<PadButton>(), button => Assert.Equal(
+            button is not (PadButton.None or PadButton.LeftTrigger or PadButton.RightTrigger),
+            noTriggers.PadHas(button)));
+        Assert.False(DeviceSnapshot.Empty.PadHas((PadButton)DeviceSnapshot.PadCapacity));
+
+        Assert.NotEqual(DeviceSnapshot.Empty, noTriggers);
+        Assert.Equal(DeviceSnapshot.Empty.WithPadLacking(PadButton.RightTrigger, PadButton.LeftTrigger).GetHashCode(), noTriggers.GetHashCode());
+        Assert.Equal(DeviceSnapshot.Empty, noTriggers.WithPadLacking());
+        Assert.True(noTriggers.WithPadLacking(PadButton.East).PadHas(PadButton.RightTrigger));
+        Assert.True(noTriggers.LatchedWith(DeviceSnapshot.Empty).PadHas(PadButton.RightTrigger));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithPadLacking((PadButton)DeviceSnapshot.PadCapacity));
+    }
+
     [Fact]
     public void AButtonPastItsDeviceCapacity_ThrowsOnAWriteAndReadsUp()
     {

@@ -176,7 +176,7 @@ A scene composed from a document reports that document's key as `Scene.DocumentK
 reports null. A payload names the room it came from by it, and a save keys a record to a room by it.
 
 One scene runs at a time, and its entities leave with it. State that must outlive a scene lives on the
-run's attached object, `Run.State<T>()`. A menu over a paused world is an entity in the same scene
+run's game object, `Run.State<T>()`. A menu over a paused world is an entity in the same scene
 ([Pausing](entities.md#pausing)).
 
 ```csharp

@@ -58,6 +58,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
 
         // The run boots here, whichever host built it. A scene's start hook already sees a booted run.
         Run.Input.Started = true;
+        Run.SceneStarted = true;
 
         // A transition builds a new simulation as well. The last scene's camera is not this one's.
         Run.Audio.ForgetListener();
@@ -149,7 +150,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
 
     void ISimulation.Step(in StepContext context) => Step(in context, null);
 
-    // The host's before-step action runs after the mixer's step opens and before the scene's own step.
+    // The host's before-step action runs after the mixer's step opens and before the game object's step.
     void ISimulation.Step(in StepContext context, Action before) => Step(in context, before);
 
     private void Step(in StepContext context, Action? before)
@@ -181,6 +182,9 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Run.Rumble.BeginStep(in context);
 
         before?.Invoke();
+
+        // The game object steps first, and every entity reads what it set this step.
+        Run.StepGame(in context);
 
         Scene.BeginStep();
         Scene.RunStep(in context);

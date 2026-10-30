@@ -92,8 +92,8 @@ sound out as it leaves the screen, and voices whose ranges overlap off screen ad
 
 ## Music
 
-A voice started through `Run.Audio` survives a scene transition. The game keeps its handle on the object
-it attaches with `Run.Attach`, which every scene reads as `Run.State<T>()`:
+A voice started through `Run.Audio` survives a scene transition. The game keeps its handle on its
+`GameInstance`, which every scene reads as `Run.State<T>()`:
 
 ```csharp
 _music = Run.Audio.Play(new AudioPlayback(CapsuleAssets.Music.MenuThemeSound) { Bus = AudioBuses.Music, Loop = true });

@@ -123,7 +123,7 @@ public sealed class CameraZoneTests
             JsonSerializer.SerializeToElement(new { camera = new { type = "game-camera" }, track = "audio/music/room.ogg" }));
 
         Run run = new();
-        GameBoot.Start(run);
+        run.StartGame(static run => new MinimalGameInstance(run));
 
         return new SimulationHost(CapsuleScenes.Registry.Create(CapsuleAssets.Scenes.RoomScene, document), run: run);
     }

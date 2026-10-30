@@ -21,7 +21,7 @@ public sealed class RebindingTests
         settings.Input.Jump = settings.Input.Jump.With(Key.F);
         run.Saves.Write(GameSaves.Settings, settings);
 
-        GameBoot.Start(run);
+        run.StartGame(static run => new MinimalGameInstance(run));
 
         Assert.Contains((InputButton)Key.F, run.Input.ButtonsFor(GameInput.Jump).ToArray());
         Assert.DoesNotContain((InputButton)Key.Space, run.Input.ButtonsFor(GameInput.Jump).ToArray());
@@ -31,7 +31,7 @@ public sealed class RebindingTests
     public void TheOptionsScreenCaptures_APressIntoTheDocumentAndTheLiveBindings()
     {
         Run run = new();
-        GameBoot.Start(run);
+        run.StartGame(static run => new MinimalGameInstance(run));
 
         using SimulationHost host = new(new Options(), run: run);
 
@@ -50,7 +50,7 @@ public sealed class RebindingTests
     public void ThePressThatEndsACapture_DoesNotReopenIt()
     {
         Run run = new();
-        GameBoot.Start(run);
+        run.StartGame(static run => new MinimalGameInstance(run));
 
         using SimulationHost host = new(new Options(), run: run);
 

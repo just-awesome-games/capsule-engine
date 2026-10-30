@@ -18,7 +18,7 @@ public sealed class LanguageTests
         settings.Language = "de";
         run.Saves.Write(GameSaves.Settings, settings);
 
-        GameBoot.Start(run);
+        run.StartGame(static run => new MinimalGameInstance(run));
 
         using SimulationHost host = new(new Options(), run: run);
         host.Step();

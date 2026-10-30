@@ -168,7 +168,7 @@ public sealed class EngineBuilderTests
             .WithRandomSeed(7)
             .WithoutCrashLog()
             .WithoutLogging()
-            .WithRunStart(static run => run.Input.GamepadDeadzones(0.25f, 0.12f));
+            .WithGame(CallbackGame.Starting(static run => run.Input.GamepadDeadzones(0.25f, 0.12f)));
 
     private static SceneRegistration MenuRegistration =>
         SceneRegistration.Plain(typeof(Menu), static _ => new Menu());

@@ -43,6 +43,9 @@ internal sealed class InputEvents(TriggerEdges triggers)
     // Whether a joystick or a gamepad was added or removed.
     internal bool PadsChanged { get; private set; }
 
+    // Whether a pad's mapping changed, which may change the buttons it has.
+    internal bool PadsRemapped { get; private set; }
+
     // Whether the keyboard layout changed, which relabels the keys.
     internal bool KeymapChanged { get; private set; }
 
@@ -135,6 +138,10 @@ internal sealed class InputEvents(TriggerEdges triggers)
                 PadsChanged = true;
                 break;
 
+            case Sdl3.EventGamepadRemapped:
+                PadsRemapped = true;
+                break;
+
             case Sdl3.EventKeymapChanged:
                 KeymapChanged = true;
                 break;
@@ -160,6 +167,7 @@ internal sealed class InputEvents(TriggerEdges triggers)
         WheelY = 0;
         LastPadPressed = 0;
         PadsChanged = false;
+        PadsRemapped = false;
         KeymapChanged = false;
         DisplayScaleMayHaveChanged = false;
         RefreshRateMayHaveChanged = false;

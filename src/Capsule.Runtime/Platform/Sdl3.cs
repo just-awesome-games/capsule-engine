@@ -25,6 +25,7 @@ internal static unsafe partial class Sdl3
     internal const uint EventGamepadButtonDown = 0x651;
     internal const uint EventGamepadAdded = 0x653;
     internal const uint EventGamepadRemoved = 0x654;
+    internal const uint EventGamepadRemapped = 0x655;
     internal const uint EventJoystickAdded = 0x605;
     internal const uint EventJoystickRemoved = 0x606;
 
@@ -207,6 +208,14 @@ internal static unsafe partial class Sdl3
 
     [DllImport(LibraryName, ExactSpelling = true)]
     internal static extern short SDL_GetGamepadAxis(nint gamepad, GamepadAxis axis);
+
+    [DllImport(LibraryName, ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    internal static extern bool SDL_GamepadHasButton(nint gamepad, GamepadButton button);
+
+    [DllImport(LibraryName, ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.U1)]
+    internal static extern bool SDL_GamepadHasAxis(nint gamepad, GamepadAxis axis);
 
     [DllImport(LibraryName, ExactSpelling = true)]
     internal static extern uint SDL_GetGamepadProperties(nint gamepad);

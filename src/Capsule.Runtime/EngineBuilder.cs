@@ -43,9 +43,8 @@ public sealed partial class EngineBuilder
     private ulong? _randomSeed;
     private string? _frameDiagnosticsPath;
     private double? _frameDiagnosticsExitAfterSeconds;
-    private Action<Run>? _runStart;
-    private Action<Run>? _runEnd;
-    // The shipped tag --language matched, applied after the run-start hook. Null without the flag.
+    private Func<Run, GameInstance>? _createGame;
+    // The shipped tag --language matched, applied after the game object starts. Null without the flag.
     private string? _commandLineLanguage;
 
     // What the command line asked for: the scene class to boot in place of the RunScene call's, the
@@ -388,37 +387,25 @@ public sealed partial class EngineBuilder
     }
 
     /// <summary>
-    /// Runs <paramref name="start"/> once when the run starts, after saves are restored and before
-    /// the first scene starts.
+    /// Builds every run's game object through <paramref name="create"/> once its saves are restored, and
+    /// starts it before the first scene. Without this, a run has no game object.
     /// </summary>
     /// <remarks>
-    /// A game binds its input and applies its saved settings here. Repeated calls run in order. The
-    /// run's starting language is already set, and a language a hook sets wins over it.
+    /// The factory may read <see cref="Run.Saves"/>. The run steps the object before each scene step and
+    /// ends it after the last scene stops, as <see cref="GameInstance"/> describes.
     /// </remarks>
-    public EngineBuilder WithRunStart(Action<Run> start)
+    /// <param name="create">Builds the game object of the run it is handed.</param>
+    /// <exception cref="InvalidOperationException">A game factory is already configured.</exception>
+    public EngineBuilder WithGame(Func<Run, GameInstance> create)
     {
-        ArgumentNullException.ThrowIfNull(start);
-        _runStart += start;
-        return this;
-    }
+        ArgumentNullException.ThrowIfNull(create);
 
-    /// <summary>
-    /// Runs <paramref name="end"/> once when the run ends, after its last step and the last scene's stop,
-    /// and before the host persists the saves for the last time.
-    /// </summary>
-    /// <remarks>
-    /// A game writes what it saves at quit here, and a document it writes goes out in the host's last
-    /// save flush. The run ends after the step that calls <see cref="Run.RequestExit"/>, when the window
-    /// closes or the operating system asks the game to quit, and when a headless run's driver or
-    /// recording finishes. A replay's run ends the same way, and its saves stay in memory. A run that
-    /// crashes ends without it, as does a process killed from outside. Nothing can refuse the end. The
-    /// hook reads the run's whole length as <see cref="Run.Tick"/> and <see cref="Run.TotalSeconds"/>.
-    /// Repeated calls run in order.
-    /// </remarks>
-    public EngineBuilder WithRunEnd(Action<Run> end)
-    {
-        ArgumentNullException.ThrowIfNull(end);
-        _runEnd += end;
+        if (_createGame is not null)
+        {
+            throw new InvalidOperationException("A game has one game object. Call WithGame once, and hold every run-wide object as a member of it.");
+        }
+
+        _createGame = create;
         return this;
     }
 
@@ -521,8 +508,8 @@ public sealed partial class EngineBuilder
     /// would choose, and the window fails to open on a machine that cannot draw through it. A later <see cref="WithInputDriver"/> or <see cref="WithRandomSeed"/> call
     /// replaces what <c>--driver</c> or <c>--seed</c> set. Only <c>RunScene</c> applies <c>--scene</c>
     /// and <c>--payload</c>, and each replaces only its own half of that call's opening scene.
-    /// <c>--language</c> sets <see cref="Run.Language"/> after <see cref="WithRunStart"/> hooks run, in
-    /// every run.
+    /// <c>--language</c> sets <see cref="Run.Language"/> after the game object's
+    /// <see cref="GameInstance.OnStart"/>, in every run.
     /// </remarks>
     /// <param name="args">
     /// The process arguments, holding standard flags only. Capsule refuses a flag it does not

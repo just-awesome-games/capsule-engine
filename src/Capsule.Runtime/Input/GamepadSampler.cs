@@ -9,7 +9,8 @@ namespace Capsule.Runtime.Input;
 // connected pad is opened, and PadRoster keeps the active one: a button or trigger going down on
 // another pad makes that pad active and counts as its press. One instance per windowed host, which
 // holds SDL's gamepad subsystem open for its lifetime. An unfocused window folds none of it but the
-// active pad's family, which every sample carries and which outlasts the pad's disconnection.
+// active pad's family and the buttons it has, which every sample carries and which outlast the pad's
+// disconnection.
 internal sealed class GamepadSampler : IDisposable
 {
     private static readonly (PadButton Button, Sdl3.GamepadButton Sdl)[] Mappings = BuildLookup();
@@ -17,6 +18,7 @@ internal sealed class GamepadSampler : IDisposable
     private readonly PadRoster _pads = new();
     private readonly Func<uint, Pad?> _openPad;
     private readonly Action<Pad> _closePad;
+    private readonly Func<Pad, Pad> _remapPad;
 
     // The joysticks already reported as no gamepad, by SDL instance id.
     private readonly HashSet<uint> _unmapped = [];
@@ -29,6 +31,9 @@ internal sealed class GamepadSampler : IDisposable
     // The family of the pad last active, kept when it disconnects so a prompt does not flicker.
     private PadFamily _family;
 
+    // The PadButton bits the pad last active lacks, kept with its family.
+    private uint _lacking;
+
     // Pads plugged in before the watch existed raised their added events unheard. They are read from
     // SDL's list here, after the player's mappings, and every later change from the feed. openContent
     // reads a player's gamecontrollerdb.txt, and null reads none.
@@ -36,6 +41,7 @@ internal sealed class GamepadSampler : IDisposable
     {
         _openPad = Open;
         _closePad = Close;
+        _remapPad = Remap;
         _open = Sdl3.SDL_InitSubSystem(Sdl3.InitGamepad);
         if (!_open)
         {
@@ -117,14 +123,36 @@ internal sealed class GamepadSampler : IDisposable
         _ => PadFamily.Generic,
     };
 
-    // snapshot with the active pad's family, held buttons and those that went down since the last
-    // sample, and its axes set through filter. With no pad connected or the window inactive it gains
-    // only the last active pad's family.
+    // The PadButton bits a pad lacks, from the SDL_GamepadButton bits its mapping defines and whether
+    // it defines each trigger axis. The triggers have no SDL button and come from their axes.
+    internal static uint Lacking(uint sdlButtons, bool leftTrigger, bool rightTrigger)
+    {
+        uint lacking = 0;
+        foreach ((PadButton button, Sdl3.GamepadButton sdl) in Mappings)
+        {
+            if ((sdlButtons & (1u << (int)sdl)) == 0)
+            {
+                lacking |= 1u << (int)button;
+            }
+        }
+
+        lacking |= leftTrigger ? 0 : 1u << (int)PadButton.LeftTrigger;
+        return lacking | (rightTrigger ? 0 : 1u << (int)PadButton.RightTrigger);
+    }
+
+    // snapshot with the active pad's family, the buttons it has, held buttons and those that went down
+    // since the last sample, and its axes set through filter. With no pad connected or the window
+    // inactive it gains only the last active pad's family and buttons.
     internal DeviceSnapshot SampleOnto(in DeviceSnapshot snapshot, PadFilter filter, bool windowActive, InputEvents events)
     {
         if (events.PadsChanged)
         {
             Reconcile();
+        }
+
+        if (events.PadsRemapped)
+        {
+            _pads.Refresh(_remapPad);
         }
 
         if (windowActive)
@@ -136,9 +164,10 @@ internal sealed class GamepadSampler : IDisposable
         if (connected)
         {
             _family = active.Family;
+            _lacking = active.Lacking;
         }
 
-        DeviceSnapshot sampled = snapshot.WithPadFamily(_family);
+        DeviceSnapshot sampled = snapshot.WithPadFamily(_family).WithPadLackingBits(_lacking);
         if (!windowActive || !connected)
         {
             return sampled;
@@ -299,7 +328,26 @@ internal sealed class GamepadSampler : IDisposable
         string name = Marshal.PtrToStringUTF8((nint)Sdl3.SDL_GetGamepadName(handle)) ?? "unnamed";
         Log.Info($"gamepad '{name}' connected");
 
-        return new Pad(id, handle, name, Family(Sdl3.SDL_GetGamepadType(handle)));
+        return new Pad(id, handle, name, Family(Sdl3.SDL_GetGamepadType(handle)), Lacking(handle));
+    }
+
+    // A remapping can change the pad's type as well as the buttons its mapping defines.
+    private static Pad Remap(Pad pad) =>
+        pad with { Family = Family(Sdl3.SDL_GetGamepadType(pad.Handle)), Lacking = Lacking(pad.Handle) };
+
+    // What the pad's mapping defines, which SDL answers without reading the hardware.
+    private static uint Lacking(nint handle)
+    {
+        uint buttons = 0;
+        foreach ((PadButton _, Sdl3.GamepadButton sdl) in Mappings)
+        {
+            buttons |= Sdl3.SDL_GamepadHasButton(handle, sdl) ? 1u << (int)sdl : 0;
+        }
+
+        return Lacking(
+            buttons,
+            Sdl3.SDL_GamepadHasAxis(handle, Sdl3.GamepadAxis.LeftTrigger),
+            Sdl3.SDL_GamepadHasAxis(handle, Sdl3.GamepadAxis.RightTrigger));
     }
 
     private static void Close(Pad pad)

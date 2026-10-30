@@ -99,8 +99,7 @@ public sealed class HeadlessRunTests
     // The shell's builder, render resolution included, which a recording made in the shell checks.
     internal static EngineBuilder Boot() =>
         CapsuleBoot.Configure("Minimal Game")
-            .WithRunStart(GameBoot.Start)
-            .WithRunEnd(GameBoot.End)
+            .WithGame(static run => new MinimalGameInstance(run))
             .WithRenderResolution((int)World.ViewportSize.X, (int)World.ViewportSize.Y)
             .WithoutLogging();
 
@@ -212,7 +211,7 @@ public sealed class HeadlessRunTests
 
         protected override bool QuitsFrom(PlayableScene scene)
         {
-            GameInstance game = scene.Run.Game;
+            MinimalGameInstance game = scene.Run.Game;
 
             if (!_jumped)
             {

@@ -63,7 +63,7 @@ of text, counted over every language, adds about 1.4 s to a rebuild and 1.7 MB t
 source language unless the build project calls `WithFallbackLanguage`. A played run
 starts in the one closest to the player's system preference, and a headless or driven run in the fallback.
 The getter returns the request at once for the save ([`persistence.md`](persistence.md)) that keeps it. A
-saved choice applied in the `EngineBuilder.WithRunStart` hook wins and shows from the first step:
+saved choice applied in the game object's `GameInstance.OnStart` wins and shows from the first step:
 
 ```csharp
 if (settings.Language is { } chosen) { run.Language = chosen; }

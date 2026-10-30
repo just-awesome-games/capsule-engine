@@ -4,8 +4,9 @@ using System.Runtime.CompilerServices;
 namespace Capsule.Input;
 
 /// <summary>
-/// An allocation-free snapshot of window focus, the active pad's family, held keys, pad buttons and
-/// mouse buttons, axis positions, the pointer, and the wheel notches turned since the previous sample.
+/// An allocation-free snapshot of window focus, the active pad's family and the buttons it has, held
+/// keys, pad buttons and mouse buttons, axis positions, the pointer, and the wheel notches turned since
+/// the previous sample.
 /// </summary>
 /// <remarks>
 /// A key or button outside the capacity its device declares cannot be held. The builders throw on
@@ -36,7 +37,11 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     private readonly bool _unfocused;
     private readonly PadFamily _padFamily;
 
-    private DeviceSnapshot(UInt128 down, uint padDown, uint mouseDown, Vector2 pointer, Vector2 scroll, AxisSet axes, bool unfocused, PadFamily padFamily)
+    // The pad buttons the active pad lacks, bit n for the button of value n, inverted so that default
+    // reads a full pad.
+    private readonly uint _padLacking;
+
+    private DeviceSnapshot(UInt128 down, uint padDown, uint mouseDown, Vector2 pointer, Vector2 scroll, AxisSet axes, bool unfocused, PadFamily padFamily, uint padLacking)
     {
         _down = down;
         _padDown = padDown;
@@ -46,11 +51,13 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         _axes = axes;
         _unfocused = unfocused;
         _padFamily = padFamily;
+        _padLacking = padLacking;
     }
 
     /// <summary>
-    /// A snapshot with window focus, a <see cref="PadFamily.Generic"/> pad, nothing held, every axis at
-    /// rest, the wheel still and the pointer on the canvas's top-left corner. Equal to <c>default</c>.
+    /// A snapshot with window focus, a <see cref="PadFamily.Generic"/> pad having every
+    /// <see cref="PadButton"/>, nothing held, every axis at rest, the wheel still and the pointer on the
+    /// canvas's top-left corner. Equal to <c>default</c>.
     /// </summary>
     public static DeviceSnapshot Empty => default;
 
@@ -63,10 +70,10 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
             down |= Bit(keys[i]);
         }
 
-        return new DeviceSnapshot(down, 0, 0, Vector2.Zero, Vector2.Zero, default, false, PadFamily.Generic);
+        return new DeviceSnapshot(down, 0, 0, Vector2.Zero, Vector2.Zero, default, false, PadFamily.Generic, 0);
     }
 
-    // Whether the window has focus, the pad is generic, nothing is held, every axis is at rest, the wheel is still and the pointer is at the origin.
+    // Whether the window has focus, the pad is generic and full, nothing is held, every axis is at rest, the wheel is still and the pointer is at the origin.
     internal bool IsEmpty => Equals(Empty);
 
     // The raw parts a recording writes and reads back. Bit n of a mask is the key or button of value n.
@@ -75,6 +82,8 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     internal uint PadBits => _padDown;
 
     internal uint MouseBits => _mouseDown;
+
+    internal uint PadLackingBits => _padLacking;
 
     // The axis in slot index, which is its PadAxis value less one.
     internal float AxisAt(int index) => _axes[index];
@@ -88,7 +97,8 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         Vector2 scroll,
         ReadOnlySpan<float> axes,
         bool focused,
-        PadFamily family)
+        PadFamily family,
+        uint padLacking)
     {
         AxisSet set = default;
         for (int index = 0; index < AxisCount; index++)
@@ -96,7 +106,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
             set[index] = axes[index];
         }
 
-        return new DeviceSnapshot(keys, pad, mouse, pointer, scroll, set, !focused, family);
+        return new DeviceSnapshot(keys, pad, mouse, pointer, scroll, set, !focused, family, padLacking);
     }
 
     /// <summary>
@@ -120,6 +130,17 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// <remarks>It keeps the last pad's family while no pad is connected, and changing it alone is no use of the pad.</remarks>
     public PadFamily PadFamily => _padFamily;
 
+    /// <summary>
+    /// Whether the player's pad has <paramref name="button"/>, as its mapping defines it. Every button
+    /// reads present until a pad is found, and <see cref="PadButton.None"/> never does.
+    /// </summary>
+    /// <remarks>
+    /// The answer comes from the pad's mapping and not its hardware, and a button the mapping lacks can
+    /// never be pressed. It keeps the last pad's buttons while no pad is connected.
+    /// </remarks>
+    public bool PadHas(PadButton button) =>
+        button != PadButton.None && (uint)button < PadCapacity && (_padLacking & (1u << (int)button)) == 0;
+
     /// <summary>Whether <paramref name="key"/> is held down at this instant.</summary>
     public bool IsDown(Key key) => (uint)key < Capacity && (_down & (UInt128.One << (int)key)) != UInt128.Zero;
 
@@ -138,22 +159,22 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     }
 
     /// <summary>This snapshot with <paramref name="key"/> additionally held.</summary>
-    public DeviceSnapshot With(Key key) => new(_down | Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily);
+    public DeviceSnapshot With(Key key) => new(_down | Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
 
     /// <summary>This snapshot with <paramref name="button"/> additionally held.</summary>
-    public DeviceSnapshot With(PadButton button) => new(_down, _padDown | PadBit(button), _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily);
+    public DeviceSnapshot With(PadButton button) => new(_down, _padDown | PadBit(button), _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
 
     /// <summary>This snapshot with <paramref name="button"/> additionally held.</summary>
-    public DeviceSnapshot With(MouseButton button) => new(_down, _padDown, _mouseDown | MouseBit(button), _pointer, _scroll, _axes, _unfocused, _padFamily);
+    public DeviceSnapshot With(MouseButton button) => new(_down, _padDown, _mouseDown | MouseBit(button), _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
 
     /// <summary>This snapshot with <paramref name="key"/> released.</summary>
-    public DeviceSnapshot Without(Key key) => new(_down & ~Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily);
+    public DeviceSnapshot Without(Key key) => new(_down & ~Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
 
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
-    public DeviceSnapshot Without(PadButton button) => new(_down, _padDown & ~PadBit(button), _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily);
+    public DeviceSnapshot Without(PadButton button) => new(_down, _padDown & ~PadBit(button), _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
 
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
-    public DeviceSnapshot Without(MouseButton button) => new(_down, _padDown, _mouseDown & ~MouseBit(button), _pointer, _scroll, _axes, _unfocused, _padFamily);
+    public DeviceSnapshot Without(MouseButton button) => new(_down, _padDown, _mouseDown & ~MouseBit(button), _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
 
     // Whether a pad button is down here that was not down in the older snapshot.
     internal bool AnyPadButtonNewlyDown(in DeviceSnapshot older) => (_padDown & ~older._padDown) != 0;
@@ -199,7 +220,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     }
 
     // Mouse buttons as a mask whose bit n is the button of value n.
-    internal DeviceSnapshot WithMouseButtons(uint buttons) => new(_down, _padDown, _mouseDown | buttons, _pointer, _scroll, _axes, _unfocused, _padFamily);
+    internal DeviceSnapshot WithMouseButtons(uint buttons) => new(_down, _padDown, _mouseDown | buttons, _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
 
     /// <summary>
     /// This snapshot with <paramref name="button"/> additionally held. A stick direction is held by
@@ -224,7 +245,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     {
         Guard.Finite(position, nameof(position));
 
-        return new DeviceSnapshot(_down, _padDown, _mouseDown, position, _scroll, _axes, _unfocused, _padFamily);
+        return new DeviceSnapshot(_down, _padDown, _mouseDown, position, _scroll, _axes, _unfocused, _padFamily, _padLacking);
     }
 
     /// <summary>This snapshot with the wheel having turned <paramref name="notches"/>.</summary>
@@ -236,11 +257,11 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     {
         Guard.Finite(notches, nameof(notches));
 
-        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, notches, _axes, _unfocused, _padFamily);
+        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, notches, _axes, _unfocused, _padFamily, _padLacking);
     }
 
     /// <summary>This snapshot with the game's window focused or not.</summary>
-    public DeviceSnapshot WithWindowFocus(bool focused) => new(_down, _padDown, _mouseDown, _pointer, _scroll, _axes, !focused, _padFamily);
+    public DeviceSnapshot WithWindowFocus(bool focused) => new(_down, _padDown, _mouseDown, _pointer, _scroll, _axes, !focused, _padFamily, _padLacking);
 
     /// <summary>This snapshot with the player's pad of <paramref name="family"/>.</summary>
     public DeviceSnapshot WithPadFamily(PadFamily family)
@@ -250,8 +271,33 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
             throw new ArgumentOutOfRangeException(nameof(family), family, $"{nameof(PadFamily)} has no such family.");
         }
 
-        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused, family);
+        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused, family, _padLacking);
     }
+
+    /// <summary>
+    /// This snapshot with the player's pad lacking <paramref name="buttons"/> and having every other
+    /// <see cref="PadButton"/>, which replaces the buttons any earlier call set.
+    /// </summary>
+    /// <param name="buttons">The buttons the pad lacks. None lacked is a full pad.</param>
+    /// <example>
+    /// A pad with no triggers:
+    /// <code>
+    /// DeviceSnapshot.Empty.WithPadLacking(PadButton.LeftTrigger, PadButton.RightTrigger)
+    /// </code>
+    /// </example>
+    public DeviceSnapshot WithPadLacking(params ReadOnlySpan<PadButton> buttons)
+    {
+        uint lacking = 0;
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            lacking |= PadBit(buttons[i]);
+        }
+
+        return WithPadLackingBits(lacking);
+    }
+
+    // The pad buttons as a mask whose bit n is the button of value n the pad lacks.
+    internal DeviceSnapshot WithPadLackingBits(uint lacking) => new(_down, _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily, lacking);
 
     /// <summary>This snapshot with <paramref name="axis"/> at <paramref name="value"/>.</summary>
     /// <param name="axis">The axis to place. Must not be <see cref="PadAxis.None"/>.</param>
@@ -264,12 +310,12 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         AxisSet axes = _axes;
         axes[index] = value;
 
-        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, _scroll, axes, _unfocused, _padFamily);
+        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, _scroll, axes, _unfocused, _padFamily, _padLacking);
     }
 
     // Unions held buttons and window focus loss with a newer sample, sums the wheel notches, and takes
-    // the newer axis values, pointer and pad family. A click, notch or window focus loss between two fixed steps
-    // survives to the next step.
+    // the newer axis values, pointer, pad family and pad buttons. A click, notch or window focus loss
+    // between two fixed steps survives to the next step.
     internal DeviceSnapshot LatchedWith(in DeviceSnapshot newer) =>
         new(
             _down | newer._down,
@@ -279,17 +325,18 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
             _scroll + newer._scroll,
             newer._axes,
             _unfocused | newer._unfocused,
-            newer._padFamily);
+            newer._padFamily,
+            newer._padLacking);
 
     /// <summary>
-    /// Whether window focus and the pad family are the same, the same keys and buttons are held, every
-    /// axis and the wheel read the same, and the pointer is on the same position.
+    /// Whether window focus, the pad family and the pad's buttons are the same, the same keys and buttons
+    /// are held, every axis and the wheel read the same, and the pointer is on the same position.
     /// </summary>
     public bool Equals(DeviceSnapshot other)
     {
         if (_down != other._down || _padDown != other._padDown || _mouseDown != other._mouseDown ||
             _pointer != other._pointer || _scroll != other._scroll || _unfocused != other._unfocused ||
-            _padFamily != other._padFamily)
+            _padFamily != other._padFamily || _padLacking != other._padLacking)
         {
             return false;
         }
@@ -319,6 +366,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         hash.Add(_scroll);
         hash.Add(_unfocused);
         hash.Add(_padFamily);
+        hash.Add(_padLacking);
         for (int i = 0; i < AxisCount; i++)
         {
             hash.Add(_axes[i]);
@@ -327,10 +375,10 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         return hash.ToHashCode();
     }
 
-    /// <summary>Whether the two snapshots read the same in window focus, pad family, everything held, every axis, the wheel and the pointer.</summary>
+    /// <summary>Whether the two snapshots read the same in window focus, the pad's family and buttons, everything held, every axis, the wheel and the pointer.</summary>
     public static bool operator ==(DeviceSnapshot left, DeviceSnapshot right) => left.Equals(right);
 
-    /// <summary>Whether the two snapshots differ in window focus, pad family, anything held, any axis, the wheel or the pointer.</summary>
+    /// <summary>Whether the two snapshots differ in window focus, the pad's family or buttons, anything held, any axis, the wheel or the pointer.</summary>
     public static bool operator !=(DeviceSnapshot left, DeviceSnapshot right) => !left.Equals(right);
 
     // A None value is the empty set. Bit 0 is unused in all three masks.

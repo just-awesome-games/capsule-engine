@@ -36,7 +36,7 @@ public sealed class PlayFieldTests
     public void HoldingD_MovesTheBlobRight()
     {
         Run run = new();
-        GameInput.Configure(run.Input);
+        run.StartGame(static run => new MyGameInstance(run));
         using SimulationHost host = new(new PlayField(), run: run);
         Blob blob = host.Scene.FindSingle<Blob>();
         float startX = blob.Position.X;
@@ -47,6 +47,9 @@ public sealed class PlayFieldTests
     }
 }
 ```
+
+`Run.StartGame` starts the game object as the shell's `WithGame` does, and the host steps it ahead of each
+scene step. `SimulationHost.End` stops the scene and runs the game object's `OnEnd`, as a run's end does.
 
 A test composes a shipped scene document through the generated `CapsuleScenes.Registry` in
 `Capsule.Generated`, as `Registry.Create(CapsuleAssets.Scenes.Halls.HallScene)`. One test catches every placement

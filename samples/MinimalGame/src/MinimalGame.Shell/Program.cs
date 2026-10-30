@@ -8,8 +8,7 @@ try
     // The render resolution is the viewport, and one canvas pixel is one world pixel.
     return CapsuleBoot.Configure("Minimal Game")
         .WithCommandLine(args)
-        .WithRunStart(GameBoot.Start)
-        .WithRunEnd(GameBoot.End)
+        .WithGame(static run => new MinimalGameInstance(run))
         .WithRenderResolution((int)World.ViewportSize.X, (int)World.ViewportSize.Y)
         .WithSampling(TextureSampling.Point)
         .RunScene<MainMenu>();

@@ -24,7 +24,8 @@ internal static class RecordingFormat
     // each added under a version bump. A reader refuses a tag it does not know.
     internal const byte End = 0xFF;
 
-    // A Step record's mask bits. An axis bit is its slot's, from AxisBit up.
+    // A Step record's mask bits. An axis bit is its slot's, from AxisBit up, and LackingBit follows the
+    // axes. A recording made before LackingBit existed never sets it and replays a full pad.
     internal const int KeysBit = 1 << 0;
     internal const int PadBit = 1 << 1;
     internal const int MouseBit = 1 << 2;
@@ -33,6 +34,7 @@ internal static class RecordingFormat
     internal const int FocusBit = 1 << 5;
     internal const int FamilyBit = 1 << 6;
     internal const int AxisBit = 7;
+    internal const int LackingBit = 1 << 13;
 
     internal static ReadOnlySpan<byte> Magic => "CAPSREC\0"u8;
 }

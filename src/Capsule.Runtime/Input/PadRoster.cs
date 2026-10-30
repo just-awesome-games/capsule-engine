@@ -2,8 +2,9 @@ using Capsule.Input;
 
 namespace Capsule.Runtime.Input;
 
-// An open pad: SDL's joystick id and gamepad handle, the name the log uses and its button family.
-internal readonly record struct Pad(uint Id, nint Handle, string Name, PadFamily Family);
+// An open pad: SDL's joystick id and gamepad handle, the name the log uses, its button family and
+// the PadButton bits its mapping lacks.
+internal readonly record struct Pad(uint Id, nint Handle, string Name, PadFamily Family, uint Lacking = 0);
 
 // The open pads in connection order and the active one, the pad last used. SDL numbers joystick
 // instances in increasing order as it detects them and lists them per driver. Connection order is id
@@ -73,6 +74,15 @@ internal sealed class PadRoster
         if (IndexOf(_active) < 0)
         {
             _active = _pads.Count > 0 ? _pads[0].Id : 0;
+        }
+    }
+
+    // Replaces every open pad with what refresh reads of it.
+    internal void Refresh(Func<Pad, Pad> refresh)
+    {
+        for (int index = 0; index < _pads.Count; index++)
+        {
+            _pads[index] = refresh(_pads[index]);
         }
     }
 

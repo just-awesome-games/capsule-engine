@@ -113,9 +113,9 @@ it, a worker fulfils it, and only the hand-off touches a device or the file syst
 worker.
 
 State that outlives a scene belongs to `Run`: saves (`Run.Saves`), sound (`Run.Audio`), the simulated
-clock (`Run.Tick`, `Run.TotalSeconds`), and the one object a game attaches at run start (`Run.Attach`)
-and reads anywhere as `Run.State<T>()`. `EngineBuilder.WithRunStart` runs before the first scene starts,
-and `EngineBuilder.WithRunEnd` after the last one stops.
+clock (`Run.Tick`, `Run.TotalSeconds`), and the game's one `GameInstance` (`EngineBuilder.WithGame`), read
+anywhere as `Run.State<T>()`. Its `OnStart` runs before the first scene starts, its `OnStep` ahead of each
+scene step, and its `OnEnd` after the last scene stops.
 
 ## Platforms
 

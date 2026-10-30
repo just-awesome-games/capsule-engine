@@ -29,7 +29,7 @@ public static class RoomFixture
     public static SimulationHost Simulate()
     {
         Run run = new();
-        GameBoot.Start(run);
+        run.StartGame(static run => new MinimalGameInstance(run));
 
         return new SimulationHost(Compose(), run: run);
     }

@@ -13,11 +13,11 @@ public sealed class ProfileTests
     {
         Run run = new();
         run.Saves.Write(GameSaves.Profile, new GameProfile { PlayedSeconds = 10 });
-        GameBoot.Start(run);
+        run.StartGame(static run => new MinimalGameInstance(run));
 
         using SimulationHost host = new(new Options(), run: run);
         host.Step(60);
-        GameBoot.End(run);
+        host.End();
 
         Assert.Equal(10 + (60 * host.StepSeconds), run.Saves.Read(GameSaves.Profile).PlayedSeconds);
     }

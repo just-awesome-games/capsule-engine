@@ -32,7 +32,8 @@ public sealed class Run
 
     private SceneTransition? _transition;
     private SceneTransition? _prefetch;
-    private object? _state;
+    private GameInstance? _game;
+    private bool _gameEnded;
 
     // Whether a step has begun, after which a language request waits for the next one.
     private bool _stepped;
@@ -45,6 +46,9 @@ public sealed class Run
     // A call holds _keyedText out of the field while it fills it.
     private KeyedText? _keyedText;
     private char[] _textBuffer = [];
+
+    // Whether a scene has started under this run, after which its game object can no longer start.
+    internal bool SceneStarted { get; set; }
 
     // Whether this run's scenes draw the engine's debug channels. On for the game's run. A host turns
     // it off on the run backing its own overlay, whose entities are not the game's.
@@ -179,7 +183,7 @@ public sealed class Run
 
     /// <summary>
     /// The run's save documents, one store shared by every scene it opens. The host restores it before
-    /// the first scene composes, and settings are readable from the first start hook.
+    /// the first scene composes, and settings are readable from the game object's constructor.
     /// </summary>
     public SaveStore Saves { get; }
 
@@ -193,9 +197,8 @@ public sealed class Run
     public string? FrameCaptureRequested { get; private set; }
 
     /// <summary>
-    /// The run's input configuration, the one the shell built through
-    /// <c>EngineBuilder.WithRunStart</c>. It stays live: a rebind applies from the next read and a
-    /// deadzone change from the next sampled frame.
+    /// The run's input configuration, which the game object binds in <see cref="GameInstance.OnStart"/>.
+    /// It stays live: a rebind applies from the next read and a deadzone change from the next sampled frame.
     /// </summary>
     public InputConfiguration Input { get; init; } = new();
 
@@ -236,8 +239,8 @@ public sealed class Run
     /// step it equals <see cref="StepContext.Tick"/>.
     /// </summary>
     /// <remarks>
-    /// It reads 0 in a <c>EngineBuilder.WithRunStart</c> hook and the run's whole length in steps in a
-    /// <c>EngineBuilder.WithRunEnd</c> hook. A scene transition does not reset it.
+    /// It reads 0 in <see cref="GameInstance.OnStart"/> and the run's whole length in steps in
+    /// <see cref="GameInstance.OnEnd"/>. A scene transition does not reset it.
     /// </remarks>
     public long Tick { get; private set; }
 
@@ -246,8 +249,8 @@ public sealed class Run
     /// <see cref="StepContext.TotalSeconds"/>.
     /// </summary>
     /// <remarks>
-    /// It reads 0 in a <c>EngineBuilder.WithRunStart</c> hook and the run's whole simulated length in a
-    /// <c>EngineBuilder.WithRunEnd</c> hook.
+    /// It reads 0 in <see cref="GameInstance.OnStart"/> and the run's whole simulated length in
+    /// <see cref="GameInstance.OnEnd"/>.
     /// </remarks>
     public double TotalSeconds => Tick * _stepSeconds;
 
@@ -274,40 +277,66 @@ public sealed class Run
         Saves = new SaveStore();
     }
 
-    /// <summary>Attaches the game's one run-scoped object.</summary>
-    /// <param name="state">The object to attach.</param>
-    /// <exception cref="InvalidOperationException">A run already holds one attached object.</exception>
-    public void Attach<TState>(TState state)
-        where TState : class
+    /// <summary>
+    /// Creates the run's game object through <paramref name="create"/> and runs its
+    /// <see cref="GameInstance.OnStart"/>, as the engine's host does for <c>EngineBuilder.WithGame</c>.
+    /// </summary>
+    /// <remarks>
+    /// A test that builds its run by hand calls it before the run's first scene. The run then steps the
+    /// object in every <see cref="SceneSimulation"/> it backs, and <see cref="SimulationHost.End"/> ends it.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// Run run = new();
+    /// MyGameInstance game = run.StartGame(static run => new MyGameInstance(run));
+    /// using SimulationHost host = new(new Title(), run: run);
+    /// </code>
+    /// </example>
+    /// <param name="create">Builds the game object of the run it is handed.</param>
+    /// <returns>The game object <paramref name="create"/> built.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The run already holds a game object, or its first scene has started.
+    /// </exception>
+    public TGame StartGame<TGame>(Func<Run, TGame> create)
+        where TGame : GameInstance
     {
-        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(create);
 
-        if (_state is not null)
+        if (_game is not null)
         {
-            throw new InvalidOperationException("A run holds one attached object. Attach it once, at run start. Hold every run-wide object as a member of that one object.");
+            throw new InvalidOperationException("A run holds one game object. Start it once, and hold every run-wide object as a member of it.");
         }
 
-        _state = state;
+        if (SceneStarted)
+        {
+            throw new InvalidOperationException("This run's first scene has started. Start the game object before building the run's first scene.");
+        }
+
+        TGame game = create(this);
+        _game = game;
+        game.Start();
+
+        return game;
     }
 
-    /// <summary>The object <see cref="Attach{TState}"/> attached, as <typeparamref name="TState"/>.</summary>
+    /// <summary>The run's game object, as <typeparamref name="TGame"/>.</summary>
     /// <exception cref="InvalidOperationException">
-    /// Nothing is attached, or the attached object is not a <typeparamref name="TState"/>.
+    /// The run has no game object, or its game object is not a <typeparamref name="TGame"/>.
     /// </exception>
-    public TState State<TState>()
-        where TState : class
+    public TGame State<TGame>()
+        where TGame : GameInstance
     {
-        if (_state is null)
+        if (_game is null)
         {
-            throw new InvalidOperationException("Nothing is attached to this run. Attach the game's object at run start.");
+            throw new InvalidOperationException("This run has no game object. Pass the game's factory to EngineBuilder.WithGame, or to Run.StartGame in a test.");
         }
 
-        if (_state is not TState state)
+        if (_game is not TGame game)
         {
-            throw new InvalidOperationException($"The run's attached object is a {_state.GetType()}, not a {typeof(TState)}.");
+            throw new InvalidOperationException($"The run's game object is a {_game.GetType()}, not a {typeof(TGame)}.");
         }
 
-        return state;
+        return game;
     }
 
     /// <summary>
@@ -488,6 +517,21 @@ public sealed class Run
 
     // Closes a step that completed: between steps the clock reads the count of steps run.
     internal void EndStep() => Tick++;
+
+    // Steps the game object, once the step has opened and before the scene's own step.
+    internal void StepGame(in StepContext context) => _game?.Step(in context);
+
+    // Ends the game object once, after the run's last scene has stopped.
+    internal void EndGame()
+    {
+        if (_gameEnded)
+        {
+            return;
+        }
+
+        _gameEnded = true;
+        _game?.End();
+    }
 
     internal bool TryTakeTransition(out SceneTransition transition)
     {

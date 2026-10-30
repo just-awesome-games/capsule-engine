@@ -84,6 +84,20 @@ public sealed class InputState
     public PadFamily PadFamily => _current.PadFamily;
 
     /// <summary>
+    /// Whether the player's pad has <paramref name="button"/> this step, as its mapping defines it.
+    /// Every button reads present until a pad is found, and <see cref="PadButton.None"/> never does.
+    /// </summary>
+    /// <remarks>
+    /// The answer comes from the pad's mapping and not its hardware, and a button the mapping lacks can
+    /// never be pressed. It keeps the last pad's buttons after the pad is disconnected, and a replay
+    /// reproduces it. A game fits its default bindings to it when <see cref="PadButtonsChanged"/> is set.
+    /// </remarks>
+    public bool PadHas(PadButton button) => _current.PadHas(button);
+
+    /// <summary>Whether the buttons <see cref="PadHas"/> reads are not those of the previous step.</summary>
+    public bool PadButtonsChanged => _current.PadLackingBits != _previous.PadLackingBits;
+
+    /// <summary>
     /// The character the player's keyboard layout prints on <paramref name="button"/>'s key position,
     /// uppercased, as <c>Z</c> for <see cref="Key.W"/> on an AZERTY keyboard.
     /// </summary>

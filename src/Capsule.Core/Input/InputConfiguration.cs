@@ -183,13 +183,13 @@ public sealed class InputConfiguration
     /// </summary>
     /// <param name="button">The button that toggles the overlay on its leading edge.</param>
     /// <exception cref="InvalidOperationException">
-    /// The run's first scene has started. Call this from <c>WithRunStart</c>.
+    /// The run's first scene has started. Call this from the game object's <c>OnStart</c>.
     /// </exception>
     public InputConfiguration DebugOverlay(InputButton button)
     {
         if (Started)
         {
-            throw new InvalidOperationException("The debug-overlay button is read at boot. Set it from WithRunStart.");
+            throw new InvalidOperationException("The debug-overlay button is read at boot. Set it from the game object's OnStart.");
         }
 
         DebugOverlayButton = button;

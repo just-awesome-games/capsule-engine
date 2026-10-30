@@ -141,9 +141,21 @@ public sealed class SimulationHost : IDisposable
     }
 
     /// <summary>
+    /// Ends the run as the engine's host ends one that did not crash: the scene stops, then the run's
+    /// game object runs its <see cref="GameInstance.OnEnd"/>. Repeated calls do nothing.
+    /// </summary>
+    /// <exception cref="AggregateException">More than one stop hook failed. Each failure is an inner exception.</exception>
+    public void End()
+    {
+        Simulation.Dispose();
+        Run.EndGame();
+    }
+
+    /// <summary>
     /// Stops the simulation and releases all entities, completing cleanup even when a hook throws.
     /// Repeated calls do nothing.
     /// </summary>
+    /// <remarks>It does not end the run, as a run that crashes is not ended. <see cref="End"/> ends it.</remarks>
     /// <exception cref="AggregateException">More than one stop hook failed. Each failure is an inner exception.</exception>
     public void Dispose() => Simulation.Dispose();
 

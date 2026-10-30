@@ -9,7 +9,7 @@ using Capsule.Tests.Localization;
 namespace Capsule.Tests.Runtime;
 
 // Which language a run starts in: the player's in a played run, the fallback in a headless or driven one,
-// a run-start hook's choice over either, and --language over everything.
+// the game object's choice over either, and --language over everything.
 [Collection(LogSinkCollection.Name)]
 public sealed class StartingLanguageTests
 {
@@ -18,17 +18,17 @@ public sealed class StartingLanguageTests
     private string? _seen = "never started";
 
     // fr-CA ships nowhere, and the closest shipped language is fr-FR, which the first scene sees as it
-    // starts. A choice the run-start hook restores from a save wins over the player's preference.
+    // starts. A choice the game object restores from a save wins over the player's preference.
     [Theory]
     [InlineData(null, "fr-FR")]
     [InlineData("en", "en")]
-    public void APlayedRun_StartsInThePlayersLanguage_AndTheRunStartHookWins(string? saved, string expected)
+    public void APlayedRun_StartsInThePlayersLanguage_AndTheGameObjectsChoiceWins(string? saved, string expected)
     {
         Preferring platform = new("fr-CA", "en");
         EngineBuilder builder = Builder(platform);
         if (saved is not null)
         {
-            builder.WithRunStart(run => run.Language = saved);
+            builder.WithGame(CallbackGame.Starting(run => run.Language = saved));
         }
 
         using SceneHost host = builder.CreateHost(Opening, null, 0, played: true);
@@ -48,14 +48,14 @@ public sealed class StartingLanguageTests
         Assert.Equal(0, platform.Asked);
     }
 
-    // The flag names a shipped language by its closest tag and wins over the hook, played or not.
+    // The flag names a shipped language by its closest tag and wins over the game object's choice, played or not.
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void TheLanguageFlag_WinsOverTheRunStartHook(bool played)
+    public void TheLanguageFlag_WinsOverTheGameObjectsChoice(bool played)
     {
         EngineBuilder builder = Builder(new Preferring("en"))
-            .WithRunStart(static run => run.Language = "en")
+            .WithGame(CallbackGame.Starting(static run => run.Language = "en"))
             .WithCommandLine(["--language", "fr"]);
 
         using SceneHost host = builder.CreateHost(Opening, null, 0, played);

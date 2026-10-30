@@ -7,9 +7,9 @@ namespace Capsule.Rendering;
 /// frame caps and the shake strength. Reached as <c>Run.Display</c> and held for the run.
 /// </summary>
 /// <remarks>
-/// The shell's builder sets where each starts, and game code changes them from a settings screen. A
-/// run-start hook runs before the window opens, and the window opens in the settings a game restores
-/// there. The host applies a change to the window after the frame's steps. <see cref="RefreshRate"/> is
+/// The shell's builder sets where each starts, and game code changes them from a settings screen. The
+/// game object's <c>OnStart</c> runs before the window opens, and the window opens in the settings a game
+/// restores there. The host applies a change to the window after the frame's steps. <see cref="RefreshRate"/> is
 /// the one value the host writes, before a frame's steps. A headless run ignores the window settings and
 /// reads a refresh rate of 0.
 /// </remarks>

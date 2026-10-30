@@ -43,7 +43,7 @@ public sealed class MenuNavigationTests
                     new EntityRegistry([]),
                     [SceneRegistration.Plain(typeof(Menu), _ => played = new Menu())]))
             .WithRenderResolution((int)Canvas.X, (int)Canvas.Y)
-            .WithRunStart(Bind)
+            .WithGame(CallbackGame.Starting(Bind))
             .WithoutCrashLog()
             .WithoutLogging()
             .RunHeadless<Menu>(ByPointer());

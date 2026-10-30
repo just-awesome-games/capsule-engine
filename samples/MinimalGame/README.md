@@ -2,7 +2,7 @@
 
 A small, complete Capsule platformer laid out as [`docs/build-and-publish.md`](../../docs/build-and-publish.md)
 describes: a title menu, an options screen and two rooms to walk, jump and shoot through. CI builds it
-against the shipped packages. Start reading at `GameBoot.cs` and `Scenes/`.
+against the shipped packages. Start reading at `MinimalGameInstance.cs` and `Scenes/`.
 
 ## Running
 

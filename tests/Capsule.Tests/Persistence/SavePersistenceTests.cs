@@ -60,10 +60,10 @@ public sealed class SavePersistenceTests : IDisposable
         Assert.Empty(_log.Entries);
     }
 
-    // The hook binds from a document a storage already holds, and the run's first step already reads
-    // the binding it made: the run-start hook runs after saves are restored and before that step.
+    // The game object binds from a document a storage already holds, and the run's first step already
+    // reads the binding it made: the game object starts after saves are restored and before that step.
     [Fact]
-    public void AHeadlessRunWithAStorageHoldingADocument_TheRunStartHookBindsFromIt_AndTheFirstStepReadsTheAction()
+    public void AHeadlessRunWithAStorageHoldingADocument_TheGameObjectBindsFromIt_AndTheFirstStepReadsTheAction()
     {
         MemorySaveStorage storage = new();
         storage.Documents["jump-binding"] = "{\"Button\":\"Key.F\"}";
@@ -78,7 +78,7 @@ public sealed class SavePersistenceTests : IDisposable
                     [SceneRegistration.Plain(typeof(Jumping), _ => new Jumping(pressed => pressedOnFirstStep = pressed))]))
             .WithFixedStep(10)
             .WithSaveStorage(storage)
-            .WithRunStart(run => run.Input.Bind(Jump, run.Saves.Read(JumpBinding).Button))
+            .WithGame(CallbackGame.Starting(run => run.Input.Bind(Jump, run.Saves.Read(JumpBinding).Button)))
             .WithoutCrashLog()
             .WithLogSink(_log)
             .RunHeadless<Jumping>(new InputScript().Tap(Key.F).Build());
@@ -191,7 +191,7 @@ public sealed class SavePersistenceTests : IDisposable
         }
     }
 
-    // The run-start hook's bind is already live for this scene's first step, not just its second.
+    // The game object's bind is already live for this scene's first step, not just its second.
     private sealed class Jumping(Action<bool> pressed) : Scene
     {
         protected override void OnStep(in StepContext context) => pressed(context.Input.WasPressed(Jump));

@@ -119,6 +119,25 @@ public sealed class ActiveDeviceTests
         Assert.Equal([InputDevice.KeyboardMouse, InputDevice.KeyboardMouse, InputDevice.Gamepad], scene.Devices);
     }
 
+    // A pad found on the second step lacks its triggers, and its replacement on the fourth has them.
+    // The change flag is set on each of those steps alone, and neither moves the active device.
+    [Fact]
+    public void ThePadsButtons_ReachTheStepAndFlagTheStepTheyChangeOn()
+    {
+        InputState input = new(new ActionBindings());
+        DeviceSnapshot noTriggers = DeviceSnapshot.Empty.WithPadLacking(PadButton.LeftTrigger, PadButton.RightTrigger);
+        List<(bool Has, bool Changed)> steps = [];
+
+        foreach (DeviceSnapshot snapshot in (DeviceSnapshot[])[DeviceSnapshot.Empty, noTriggers, noTriggers, DeviceSnapshot.Empty])
+        {
+            input.Advance(snapshot);
+            steps.Add((input.PadHas(PadButton.RightTrigger), input.PadButtonsChanged));
+            Assert.False(input.ActiveDeviceChanged);
+        }
+
+        Assert.Equal([(true, false), (false, true), (false, false), (true, true)], steps);
+    }
+
     private sealed class DeviceRecorder : Scene
     {
         internal List<InputDevice> Devices { get; } = [];

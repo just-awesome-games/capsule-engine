@@ -37,7 +37,7 @@ try
 {
     return CapsuleBoot.Configure("My Game")
         .WithCommandLine(args)
-        .WithRunStart(run => GameInput.Configure(run.Input))
+        .WithGame(static run => new MyGameInstance(run))
         .RunScene<PlayField>();
 }
 catch (CommandLineException failure)
@@ -71,7 +71,17 @@ public static class GameInput
 }
 ```
 
-The shell's run start hands `Run.Input` to `Configure`. The rest of input is [`input.md`](input.md).
+The shell's `WithGame` builds the game's one run-scoped object, which hands `Run.Input` to `Configure` as
+the run starts:
+
+```csharp
+public sealed class MyGameInstance(Run run) : GameInstance(run)
+{
+    protected override void OnStart() => GameInput.Configure(Run.Input);
+}
+```
+
+The rest of input is [`input.md`](input.md).
 
 ## A scene with one entity
 

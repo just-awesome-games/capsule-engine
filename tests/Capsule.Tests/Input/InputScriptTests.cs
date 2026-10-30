@@ -150,6 +150,18 @@ public sealed class InputScriptTests
         Assert.Equal([PadFamily.Generic, PadFamily.Nintendo, PadFamily.Nintendo], steps.Select(snapshot => snapshot.PadFamily));
     }
 
+    [Fact]
+    public void PadLacking_IsHeldUntilTheScriptChangesIt()
+    {
+        List<DeviceSnapshot> steps = Steps(new InputScript()
+            .Wait(1)
+            .PadLacking(PadButton.LeftShoulder, PadButton.RightShoulder)
+            .Wait(2)
+            .Build());
+
+        Assert.Equal([true, false, false], steps.Select(snapshot => snapshot.PadHas(PadButton.LeftShoulder)));
+    }
+
     private static List<DeviceSnapshot> Steps(IInputDriver driver)
     {
         Scene scene = new();

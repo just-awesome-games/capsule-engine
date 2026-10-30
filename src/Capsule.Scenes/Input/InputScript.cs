@@ -69,6 +69,17 @@ public sealed class InputScript
         return this;
     }
 
+    /// <summary>
+    /// Makes the pad the player holds lack <paramref name="buttons"/> and have every other
+    /// <see cref="PadButton"/> from the next emitted step on, the way a pad of that mapping picked up
+    /// would. A script starts on a pad lacking nothing.
+    /// </summary>
+    public InputScript PadLacking(params ReadOnlySpan<PadButton> buttons)
+    {
+        _held = _held.WithPadLacking(buttons);
+        return this;
+    }
+
     /// <summary>Places <paramref name="axis"/> at <paramref name="value"/> from the next emitted step on.</summary>
     /// <param name="axis">The axis to place. Not <see cref="PadAxis.None"/>.</param>
     /// <param name="value">In [-1, 1] for a stick, or [0, 1] for a trigger.</param>

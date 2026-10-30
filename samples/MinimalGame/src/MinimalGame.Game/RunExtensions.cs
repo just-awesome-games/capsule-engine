@@ -1,11 +1,11 @@
 namespace MinimalGame.Game;
 
-/// <summary>The game's typed door onto the run object <see cref="GameBoot.Start"/> attached.</summary>
+/// <summary>The game's typed door onto the run's <see cref="MinimalGameInstance"/>.</summary>
 public static class RunExtensions
 {
     extension(Run run)
     {
         /// <summary>The game's run object.</summary>
-        public GameInstance Game => run.State<GameInstance>();
+        public MinimalGameInstance Game => run.State<MinimalGameInstance>();
     }
 }
