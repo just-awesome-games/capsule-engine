@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Capsule.Animation;
 using Capsule.Diagnostics;
 using Capsule.Physics;
@@ -88,6 +89,9 @@ public sealed class ParticleEmitter : Renderer
     private float _rateAccumulator;
     private float _distanceAccumulator;
 
+    // How far the noise field has drifted at its Scroll since the emitter joined the scene.
+    private Vector2 _noiseDrift;
+
     // An Emit before OnStart has no transform or random source yet, and one out of a scene has no stream
     // for its next life. OnStart or the next join spawns each waiting call in order, at its own point. A
     // call spawns at least one particle, and a pool holds as many calls as particles. A call past that
@@ -105,7 +109,16 @@ public sealed class ParticleEmitter : Renderer
     public int Capacity { get; }
 
     /// <summary>Where live particles are kept, <see cref="ParticleSpace.World"/> by default and fixed at construction.</summary>
-    public ParticleSpace Space { get; init; }
+    /// <exception cref="InvalidOperationException">The space is <see cref="ParticleSpace.Local"/> on an emitter with a <see cref="Collision"/>.</exception>
+    public ParticleSpace Space
+    {
+        get;
+        init
+        {
+            RequireCollidable(value, Collision);
+            field = value;
+        }
+    }
 
     /// <summary>The point in the entity's own space the emit shape is centred on, placed as <see cref="SpriteRenderer.Offset"/> is. Zero by default.</summary>
     public Vector2 Offset { get; set; }
@@ -165,6 +178,48 @@ public sealed class ParticleEmitter : Renderer
             if (value is { } shape)
             {
                 Shape2D.RequireBuilt(shape, nameof(value));
+            }
+
+            field = value;
+        }
+    }
+
+    /// <summary>
+    /// What a particle does when its move meets something in the scene's <see cref="Scene.Collision"/> world.
+    /// Collides with nothing by default.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The emitter's <see cref="Space"/> is <see cref="ParticleSpace.Local"/>, where particles never collide.</exception>
+    public ParticleCollision Collision
+    {
+        get;
+        set
+        {
+            RequireCollidable(Space, value);
+            field = value;
+        }
+    }
+
+    /// <summary>The swirling field every live particle drifts through. Off by default.</summary>
+    /// <remarks>Under <see cref="ParticleSpace.Local"/> the field rides the entity.</remarks>
+    public ParticleNoise Noise { get; set; }
+
+    /// <summary>A burst another emitter spawns where each particle of this one dies. None by default.</summary>
+    /// <remarks>
+    /// A particle dies when its life runs out, in the <see cref="KillZone"/> or on a <see cref="ParticleCollision.Kill"/>,
+    /// and the burst is centred on the world point it died at. <see cref="Clear"/>, a full pool's replacement,
+    /// leaving the scene and the prewarm burst nothing. A burst into an emitter that has not started or is out of a
+    /// scene is dropped. When the burst's emitter shares this emitter's entity, this one finishes only once that one
+    /// has nothing alive.
+    /// </remarks>
+    /// <exception cref="ArgumentException">The burst is into this emitter.</exception>
+    public SubEmission EmitOnDeath
+    {
+        get;
+        set
+        {
+            if (value.Into == this)
+            {
+                throw new ArgumentException("An emitter cannot burst into itself on death. Emit into a second emitter.", nameof(value));
             }
 
             field = value;
@@ -314,8 +369,15 @@ public sealed class ParticleEmitter : Renderer
     /// <see cref="Emit(int)"/>: <see cref="Emitting"/> is false, or <see cref="Rate"/> and
     /// <see cref="RateOverDistance"/> are zero.
     /// </summary>
-    /// <remarks>Removal from the scene clears it. A reused emitter finishes only after it spawns again.</remarks>
-    public bool IsFinished => _spawned && _alive == 0 && (!Emitting || (Rate == 0f && RateOverDistance == 0f));
+    /// <remarks>
+    /// Removal from the scene clears it. A reused emitter finishes only after it spawns again. An
+    /// <see cref="EmitOnDeath"/> emitter on the same entity must have nothing alive too.
+    /// </remarks>
+    public bool IsFinished =>
+        _spawned
+        && _alive == 0
+        && (!Emitting || (Rate == 0f && RateOverDistance == 0f))
+        && (EmitOnDeath.Into is not { } into || into.Entity != Entity || into.Alive == 0);
 
     /// <summary>
     /// The rect covering every live particle's last move, grown by the largest frame's reach at its
@@ -448,6 +510,7 @@ public sealed class ParticleEmitter : Renderer
         _nextFrame = 0;
         _prewarmed = false;
         _lastDeltaSeconds = DefaultDeltaSeconds;
+        _noiseDrift = Vector2.Zero;
     }
 
     /// <inheritdoc/>
@@ -613,6 +676,26 @@ public sealed class ParticleEmitter : Renderer
                 : current.With(current.Position, current.Scale * Flip);
         }
 
+        // The noise field is read in lattice cells.
+        ParticleNoise noise = Noise;
+        bool swirls = noise.Strength > 0f;
+        float perCell = swirls ? 1f / noise.Size : 0f;
+        Vector2 noiseDrift = _noiseDrift;
+        _noiseDrift += noise.Scroll * dt;
+        uint noiseChannel = (uint)_particleStream;
+
+        ParticleCollision collision = Collision;
+        CollisionWorld2D? world = null;
+        CollisionFilter filter = default;
+        if (collision.Mask is { } mask)
+        {
+            world = Entity!.Scene.Physics.World;
+            filter = Collider2D.ResolveFilter(world, mask);
+        }
+
+        SubEmission burst = _prewarming ? default : EmitOnDeath;
+        Transform2D deathFrame = local ? Frame(current) : Transform2D.Identity;
+
         // Survivors move down over the dead in order, one run of them at a time. Draw order never
         // changes between steps.
         // A particle spawned this step, such as by the entity's own OnStep, first draws as spawned.
@@ -638,7 +721,13 @@ public sealed class ParticleEmitter : Renderer
                 particle.Position += particle.Velocity * dt;
                 particle.Rotation += particle.AngularVelocity;
 
-                if (!kills || !zone.Contains(zoneFrame.InverseTransformPoint(particle.Position)))
+                if (swirls)
+                {
+                    particle.Position += Swirl(noiseChannel, (particle.PreviousPosition - noiseDrift) * perCell, noise.Strength * dt);
+                }
+
+                bool killed = world is not null && Collide(world, filter, collision, particle.PreviousPosition, ref particle.Position, ref particle.Velocity);
+                if (!killed && (!kills || !zone.Contains(zoneFrame.InverseTransformPoint(particle.Position))))
                 {
                     ExtendBounds(particle.PreviousPosition, particle.Position);
                     continue;
@@ -646,6 +735,11 @@ public sealed class ParticleEmitter : Renderer
             }
 
             // Expired or killed, it leaves the live set the same way.
+            if (burst.Into is { } into)
+            {
+                into.BurstAt(burst.Count, local ? deathFrame.TransformPoint(particle.Position) : particle.Position);
+            }
+
             Array.Copy(_particles, run, _particles, live, index - run);
             live += index - run;
             run = index + 1;
@@ -721,6 +815,16 @@ public sealed class ParticleEmitter : Renderer
         }
     }
 
+    // A death burst centred on a world point, now or never. The point goes into the entity's own space unmirrored,
+    // which the spawn's placement mirrors back to where it was.
+    private void BurstAt(int count, Vector2 world)
+    {
+        if (_started && _inScene)
+        {
+            SpawnImmediate(count, RenderTransform.InverseTransformPoint(world) * Flip);
+        }
+    }
+
     // Places one particle at fraction f of the centre's move, offset by its shape sample. The launch is
     // drawn in the entity's unit frame, and launch mirrors it and, in World space, turns it into the world.
     private void SpawnOne(Vector2 sample, Vector2 previousCentre, Vector2 currentCentre, Vector2 emitterVelocity, float f, float dt, in Transform2D launch)
@@ -778,8 +882,27 @@ public sealed class ParticleEmitter : Renderer
         // A mirror conjugates the spin, as it does a child entity's turn.
         float spin = launch.Mirrored ? -1f : 1f;
 
-        ref Particle particle = ref _particles[_alive < _particles.Length ? _alive++ : NearestEnd()];
+        Vector2 previous = origin - (velocity * f * dt);
+        Vector2 position = origin + (velocity * (1f - f) * dt);
         _spawned = true;
+
+        // The spawn's first part-step is a move like any other. One that meets a surface dies before it takes a
+        // slot, or starts on the surface.
+        if (Collision.Mask is { } mask)
+        {
+            CollisionWorld2D world = Entity!.Scene.Physics.World;
+            if (Collide(world, Collider2D.ResolveFilter(world, mask), Collision, origin, ref position, ref velocity))
+            {
+                if (!_prewarming && EmitOnDeath.Into is { } into)
+                {
+                    into.BurstAt(EmitOnDeath.Count, position);
+                }
+
+                return;
+            }
+        }
+
+        ref Particle particle = ref _particles[_alive < _particles.Length ? _alive++ : NearestEnd()];
 
         particle.Velocity = velocity;
         particle.Rotation = spin * float.DegreesToRadians(rotationDegrees);
@@ -791,8 +914,8 @@ public sealed class ParticleEmitter : Renderer
         particle.SpriteIndex = spriteIndex;
         particle.FlipX = launch.Scale.X < 0f;
         particle.FlipY = launch.Scale.Y < 0f;
-        particle.Position = origin + (velocity * (1f - f) * dt);
-        particle.PreviousPosition = origin - (velocity * f * dt);
+        particle.Position = position;
+        particle.PreviousPosition = previous;
         // A prewarmed particle counts as spawned the step before. Later prewarm ticks then age it.
         particle.SpawnStep = (Entity!.SceneOrNull?.StepsBegun ?? 0) - (_prewarming ? 1 : 0);
 
@@ -839,6 +962,54 @@ public sealed class ParticleEmitter : Renderer
 
     // The transform's turn and mirror at unit size about the origin: the frame a launch is drawn in.
     private static Transform2D Turn(in Transform2D transform) => transform.With(Vector2.Zero, Mirror(transform.Scale));
+
+    // Casts a particle's move from a point to where it now stands, and reports whether it dies. A hit ends the
+    // move: a kill dies on the surface, and a bounce stands a skin off it with its velocity turned. It and Swirl
+    // stay out of line. An emitter without either feature then steps its particles in a tight loop.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool Collide(CollisionWorld2D world, CollisionFilter filter, in ParticleCollision collision, Vector2 from, ref Vector2 position, ref Vector2 velocity)
+    {
+        if (!world.SegmentCast(from, position, filter, out RayHit2D hit))
+        {
+            return false;
+        }
+
+        if (collision.Kills)
+        {
+            position = hit.Point;
+
+            return true;
+        }
+
+        // The skin keeps the next step's ray from starting inside the surface.
+        position = hit.Point + (hit.Normal * CollisionTolerance.ContactSkin);
+        float into = Vector2.Dot(velocity, hit.Normal);
+        if (into < 0f)
+        {
+            Vector2 normal = hit.Normal * into;
+            velocity = ((velocity - normal) * (1f - collision.Friction)) - (normal * collision.Bounciness);
+        }
+
+        return false;
+    }
+
+    // The noise field's push over one step at a point in lattice cells: the curl of the field's value, which flows
+    // round its hills and never into a sink.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static Vector2 Swirl(uint channel, Vector2 cell, float reach)
+    {
+        Vector2 slope = ValueNoise.Slope(channel, cell);
+
+        return new Vector2(slope.Y, -slope.X) * reach;
+    }
+
+    private static void RequireCollidable(ParticleSpace space, in ParticleCollision collision)
+    {
+        if (space == ParticleSpace.Local && collision.Mask is not null)
+        {
+            throw new InvalidOperationException("A particle in Local space never collides. Use World space for an emitter with a Collision.");
+        }
+    }
 
     private static Vector2 Mirror(Vector2 scale) => new(scale.X < 0f ? -1f : 1f, scale.Y < 0f ? -1f : 1f);
 

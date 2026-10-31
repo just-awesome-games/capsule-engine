@@ -18,6 +18,7 @@ public sealed class SparkBurst : Entity
             RadialSpeed = (60f, 140f),
             Lifetime = (0.15f, 0.35f),
             Gravity = new Vector2(0f, 300f),
+            Collision = ParticleCollision.Bounce(CollisionLayers.Blocking, bounce: 0.4f, friction: 0.3f),
             Scale = (1f, 2f),
             ScaleOverLifetime = Curve.Linear(1f, 0f),
             Color = Glow.FadeToClear(BoltTuning.Default.Tint),

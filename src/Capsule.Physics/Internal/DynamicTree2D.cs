@@ -154,6 +154,9 @@ internal sealed class DynamicTree2D
         InsertLeaf(proxyId);
     }
 
+    // Whether any of the mask's layers has a proxy.
+    internal bool Holds(ulong mask) => (mask & _rooted) != 0;
+
     // The layers' trees are walked in bit order, and each in the order a single tree is.
     internal void Query<TVisitor>(in Aabb2D box, ulong mask, ref TVisitor visitor)
         where TVisitor : struct, ITreeVisitor2D, allows ref struct

@@ -522,6 +522,45 @@ public sealed partial class CollisionWorld2D
         return nearest.Hit;
     }
 
+    // The nearest hit on the segment from one point to another, for a caller that has validated the filter: a
+    // particle's move in one step. Most such moves stay inside one empty cell and skip the walk.
+    internal bool SegmentCast(Vector2 from, Vector2 to, CollisionFilter filter, out RayHit2D hit)
+    {
+        hit = default;
+        Vector2 move = to - from;
+        float distance = move.Length();
+
+        return distance > 0f && MayMeet(from, to, filter) && RaycastWalk(from, move / distance, distance, filter, default, out hit);
+    }
+
+    // Whether a segment could meet anything: a collider on the filter's layers, or a grid cell other than one
+    // empty cell holding the whole segment.
+    private bool MayMeet(Vector2 from, Vector2 to, CollisionFilter filter)
+    {
+        if (_tree.Holds(filter.Bits))
+        {
+            return true;
+        }
+
+        foreach (CollisionGrid2D grid in Grids)
+        {
+            if ((filter & grid.Layers).IsEmpty)
+            {
+                continue;
+            }
+
+            int size = grid.CellSize;
+            int x = CollisionGrid2D.FloorDiv(from.X, size);
+            int y = CollisionGrid2D.FloorDiv(from.Y, size);
+            if (x != CollisionGrid2D.FloorDiv(to.X, size) || y != CollisionGrid2D.FloorDiv(to.Y, size) || grid.StateAt(x, y) != CellState2D.None)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>
     /// The nearest things a ray meets, cast as
     /// <see cref="Raycast(Vector2, Vector2, float, CollisionFilter, out RayHit2D, ColliderHandle)"/>

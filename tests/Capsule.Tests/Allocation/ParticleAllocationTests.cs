@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Animation;
 using Capsule.Particles;
+using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
@@ -44,6 +45,43 @@ public sealed class ParticleAllocationTests
 
         Assert.Equal(0, bytes);
         Assert.True(emitter.Alive > 0);
+    }
+
+    // Particles that swirl, bounce off a floor and die into a second emitter's bursts: every 11d path at once.
+    [Fact]
+    public void AStepThatSwirlsCollidesAndBurstsOnDeath_AllocatesNothing()
+    {
+        ParticleEmitter splash = new(SceneFixtures.Frame(2, 2), capacity: 64) { Lifetime = new FloatRange(0.1f, 0.1f) };
+        ParticleEmitter drops = new(SceneFixtures.Frame(4, 4), capacity: 64)
+        {
+            Rate = 90f,
+            Shape = EmitShape.Rect(48f, 0f),
+            Lifetime = new FloatRange(0.4f, 0.6f),
+            Gravity = new Vector2(0f, 600f),
+            Noise = new ParticleNoise(20f, 16f) { Scroll = new Vector2(10f, 0f) },
+            Collision = ParticleCollision.Bounce(new CollisionMask("solid"), bounce: 0.3f),
+            EmitOnDeath = new SubEmission(splash, count: 1),
+        };
+
+        EntityHierarchyFixtures.Node root = new(new Vector2(32f, 4f));
+        root.Add(drops);
+        root.Add(splash);
+
+        Scene scene = SceneFixtures.Terrain("....", "....", "####");
+        scene.Add(root);
+        SimulationHost host = new(scene);
+
+        long bytes = StepMeasurement.Bytes(
+            step =>
+            {
+                host.Step();
+                _ = host.Simulation.View;
+            },
+            warmup: 100,
+            measured: 1000);
+
+        Assert.Equal(0, bytes);
+        Assert.True(splash.Alive > 0);
     }
 
     // A pooled entity's emitter is built ahead and first starts mid-run, when the entity first joins. Starting and

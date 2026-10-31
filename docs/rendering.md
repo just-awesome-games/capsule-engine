@@ -159,6 +159,21 @@ _puff.FlipX = facingLeft;
 _puff.Emit(1);
 ```
 
+`Noise` swirls particles through a flow field, `Collision` bounces them off or ends them on what a
+`CollisionMask` names, and `EmitOnDeath` bursts a second emitter where each one dies:
+
+```csharp
+ParticleEmitter spray = new(Sprite.White, capacity: 48) { Noise = new ParticleNoise(strength: 18f, size: 24f) };
+Add(new ParticleEmitter(Sprite.White, capacity: 32)
+{
+    Rate = 20f,
+    Gravity = new Vector2(0f, 400f),
+    Collision = ParticleCollision.Kill(new CollisionMask("solid")),
+    EmitOnDeath = new SubEmission(spray, count: 3),
+});
+Add(spray);
+```
+
 ## Lighting
 
 A scene lowers the light with `Scene.Ambient`. A `PointLight` draws into the frame's light map, which the

@@ -7,7 +7,7 @@ namespace Capsule.Bench.Logic.Scenes;
 /// <summary>A parked camera over one emitter holding 10 000 particles at a full pool, measured in the lane each workload subclass declares.</summary>
 public abstract class ParticlesScene : Scene
 {
-    protected ParticlesScene()
+    protected ParticlesScene(ParticleNoise noise = default)
     {
         Camera = new ParkedCamera();
         Add(new Holder(new ParticleEmitter(SpriteField.Tile, capacity: 10_000)
@@ -17,6 +17,7 @@ public abstract class ParticlesScene : Scene
             Lifetime = new FloatRange(1f, 1f),
             Speed = new FloatRange(5f, 20f),
             Gravity = new Vector2(0f, 20f),
+            Noise = noise,
             ScaleOverLifetime = Curve.Linear(1f, 0.5f),
             Color = Gradient.Linear(ColorRgba.White, new ColorRgba(255, 255, 255, 0)),
             Blend = BlendMode.Additive,
