@@ -7,6 +7,8 @@ internal static class EntityRenderer
 {
     private const string FileName = "CapsuleEntities.g.cs";
 
+    private const string TileMapType = "global::" + MetadataNames.TileMap;
+
     // A multi-line registration's arguments sit one level inside the registration.
     private const string ArgumentIndent = "                    ";
 
@@ -28,6 +30,9 @@ internal static class EntityRenderer
         List<RegisteredEntity> registrations = [.. plan.Registrations];
         List<string> claims = [.. registrations.Select(static entry =>
             GeneratedFile.ClaimAttribute(RegistryClaimKind.Entity, entry.Key, entry.Model.QualifiedName))];
+        claims.AddRange(registrations
+            .Where(static entry => entry.Model.AssignableTo.Items.Contains(TileMapType, StringComparer.Ordinal))
+            .Select(static entry => GeneratedFile.TileMapAttribute(entry.Key)));
         List<PropertyModel> authored = [.. registrations.SelectMany(static entry => entry.Model.Authored)];
         string members = string.Concat(registrations
                 .Where(static entry => entry.Model.Required)

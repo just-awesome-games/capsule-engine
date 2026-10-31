@@ -1,10 +1,11 @@
 <Project>
 
   <!-- The asset pipeline, on when CapsuleBuildAssets is true. MSBuild never walks Assets/. Every
-       build runs the game's build project once (CapsuleRunBuildTool), which writes everything under
-       obj/capsule/, or obj/capsule-shipping/ for a publish: imported/, assets/, CapsuleAssets.g.cs,
-       CapsuleStrings.g.cs when the game authors texts, icon/ when it authors an Icon.png, and
-       derivation-cache.json. CapsuleAddBuildOutputs hands assets/ and the generated sources to MSBuild,
+       build runs the game's build project before the compile (CapsuleRunBuildTool), which writes everything
+       under obj/capsule/, or obj/capsule-shipping/ for a publish: imported/, assets/, CapsuleAssets.g.cs,
+       CapsuleStrings.g.cs when the game authors texts, icon/ when it authors an Icon.png, tile-maps.txt and
+       derivation-cache.json. A compile that writes a new logic assembly runs it once more
+       (CapsuleReadTileMapKeys). CapsuleAddBuildOutputs hands assets/ and the generated sources to MSBuild,
        and CapsuleGetApplicationIcon hands icon/ to the shell. -->
 
   <!-- Every path the run is handed starts from _CapsuleProjectDirectory, Capsule.Defaults.props's
@@ -78,14 +79,36 @@
            here or forwarded by the shell. docs/packages.md names the options the tool takes. -->
       <_CapsuleShaderFormatArguments>@(CapsuleShaderFormat->' --shader-format &quot;%(Identity)=%(Tool)&quot;', '')</_CapsuleShaderFormatArguments>
       <_CapsuleShaderFormatArguments Condition="'$(CapsuleShaderFormatTools)' != ''">$(_CapsuleShaderFormatArguments) --shader-format &quot;$(CapsuleShaderFormatTools.Replace('|', '&quot; --shader-format &quot;'))&quot;</_CapsuleShaderFormatArguments>
+      <!-- The command line in two halves, between which the run after the compile names the logic assembly. -->
+      <_CapsuleBuildToolCommand>&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --assets &quot;$(_CapsuleAssetsArgument)&quot; --out &quot;$(_CapsuleOutArgument)&quot;$(_CapsuleShippingArgument)</_CapsuleBuildToolCommand>
+      <_CapsuleShaderToolArguments>--shader-tools &quot;$(_CapsuleShaderTools)&quot;$(_CapsuleShaderFormatArguments)</_CapsuleShaderToolArguments>
     </PropertyGroup>
 
     <MakeDir Directories="$(CapsuleObjDir)" />
-    <Exec Command="&quot;$(CapsuleDotNetHost)&quot; &quot;@(_CapsuleBuildTool)&quot; --assets &quot;$(_CapsuleAssetsArgument)&quot; --out &quot;$(_CapsuleOutArgument)&quot;$(_CapsuleShippingArgument) --shader-tools &quot;$(_CapsuleShaderTools)&quot;$(_CapsuleShaderFormatArguments)"
+    <Exec Command="$(_CapsuleBuildToolCommand) $(_CapsuleShaderToolArguments)"
           WorkingDirectory="$(_CapsuleProjectDirectory)"
           EnvironmentVariables="DOTNET_TieredPGO=0"
           LogStandardErrorAsError="true"
           StandardOutputImportance="normal" />
+  </Target>
+
+  <!-- Only the compiled logic assembly knows which entry types are TileMap classes, whose cells a scene document
+       ships compiled. Its generator records their keys. Once a compile writes a new assembly, the tool reads
+       them and builds again only when they differ from those tile-maps.txt keeps, the keys every document
+       was last built with. The touch dates the file past the assembly. A build whose compile wrote nothing
+       then skips this target. -->
+  <Target Name="CapsuleReadTileMapKeys"
+          Condition="'$(CapsuleBuildAssets)' == 'true' and '$(CapsuleGameLogic)' == 'true' and '$(DesignTimeBuild)' != 'true'"
+          AfterTargets="CoreCompile"
+          DependsOnTargets="CapsuleRunBuildTool"
+          Inputs="@(IntermediateAssembly)"
+          Outputs="$(CapsuleObjDir)/tile-maps.txt">
+    <Exec Command="$(_CapsuleBuildToolCommand) --tile-maps &quot;@(IntermediateAssembly->'%(FullPath)')&quot; $(_CapsuleShaderToolArguments)"
+          WorkingDirectory="$(_CapsuleProjectDirectory)"
+          EnvironmentVariables="DOTNET_TieredPGO=0"
+          LogStandardErrorAsError="true"
+          StandardOutputImportance="normal" />
+    <Touch Files="$(CapsuleObjDir)/tile-maps.txt" />
   </Target>
 
   <!-- A platform module declares its formats on the shell, and the logic library it references builds

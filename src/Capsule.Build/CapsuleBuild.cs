@@ -1,4 +1,5 @@
 using System.Reflection;
+using Capsule.Build.Scenes;
 using Capsule.Build.Shaders;
 
 namespace Capsule.Build;
@@ -6,9 +7,9 @@ namespace Capsule.Build;
 /// <summary>A game's build configuration, which its build project's entry point configures and runs.</summary>
 /// <remarks>
 /// The build project is a console app referencing the <c>JAG.Capsule.Build</c> package, and the logic project
-/// names it in <c>CapsuleBuildProject</c>. Capsule's build targets run it on every build, and its
-/// arguments go to <see cref="Configure"/> unchanged. The run reuses whatever it derived before from
-/// sources that have not changed since.
+/// names it in <c>CapsuleBuildProject</c>. Capsule's build targets run it before every compile, and again after
+/// a compile that changed the logic assembly, and its arguments go to <see cref="Configure"/> unchanged. The run
+/// reuses whatever it derived before from sources that have not changed since.
 /// </remarks>
 /// <example>
 /// <code>
@@ -21,13 +22,16 @@ namespace Capsule.Build;
 public sealed class CapsuleBuild
 {
     private const string Usage =
-        "usage: <build project> --assets <dir> --out <dir> [--shipping] --shader-tools <dir> [--shader-format <name>=<tool>]... Capsule's build targets run the build project with these.";
+        "usage: <build project> --assets <dir> --out <dir> [--shipping] [--tile-maps <logic assembly>] --shader-tools <dir> [--shader-format <name>=<tool>]... Capsule's build targets run the build project with these.";
 
     private readonly string[] _args;
 
     private readonly List<(string Extension, IAssetImporter Importer)> _claims = [];
 
     internal int? TileSize { get; private set; }
+
+    // The tile-map keys a run after a compile read from the logic assembly, or null to build with the kept ones.
+    internal string[]? TileMaps { get; private set; }
 
     internal string SourceLanguage { get; private set; } = "en";
 
@@ -125,14 +129,32 @@ public sealed class CapsuleBuild
     internal int Run(TextWriter output, TextWriter error)
     {
         // The options come in the order Usage names them.
-        bool shipping = _args is [_, _, _, _, "--shipping", ..];
-        if (_args is not ["--assets", string assets, "--out", string outputDirectory, .. var rest]
-            || rest[(shipping ? 1 : 0)..] is not ["--shader-tools", string shaderTools, .. var formats]
-            || ShaderFormats(formats) is not { } further)
+        if (_args is not ["--assets", string assets, "--out", string outputDirectory, .. var options])
         {
             error.WriteLine(Usage);
 
             return 2;
+        }
+
+        bool shipping = options is ["--shipping", ..];
+        options = options[(shipping ? 1 : 0)..];
+        string? tileMaps = options is ["--tile-maps", string assembly, ..] ? Path.GetFullPath(assembly) : null;
+        options = options[(tileMaps is null ? 0 : 2)..];
+        if (options is not ["--shader-tools", string shaderTools, .. var formats] || ShaderFormats(formats) is not { } further)
+        {
+            error.WriteLine(Usage);
+
+            return 2;
+        }
+
+        // The run after a compile builds only when the new logic assembly changed which entry types are tile maps.
+        if (tileMaps is not null)
+        {
+            TileMaps = TileMapKeys.Changed(outputDirectory, tileMaps, error, out int exitCode);
+            if (TileMaps is null)
+            {
+                return exitCode;
+            }
         }
 
         return AssetPipeline.Run(assets, new ShaderTools(shaderTools, further), shipping, outputDirectory, this, output, error);

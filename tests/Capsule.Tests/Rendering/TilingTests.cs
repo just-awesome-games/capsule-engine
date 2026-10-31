@@ -147,15 +147,17 @@ public sealed class TilingTests
     }
 
     // Each copy is culled on its own. A finite run reaching past the camera costs only the copies
-    // the camera can see.
+    // the camera can see, and the last of those stays whole: only the run's final copy is cropped.
     [Fact]
     public void CopiesAreCulledOneByOne()
     {
         FrameView view = new() { Camera = new CameraView(new Vector2(40, 4), new Vector2(20, 8)) };
 
-        view.Add(At(Vector2.Zero), new Vector2(160, 0));
+        view.Add(At(Vector2.Zero), new Vector2(152, 0));
 
-        Assert.Equal([16f, 32f, 48f], view.Sprites.ToArray().Select(copy => copy.Position.X));
+        SpriteIntent[] copies = view.Sprites.ToArray();
+        Assert.Equal([16f, 32f, 48f], copies.Select(copy => copy.Position.X));
+        Assert.All(copies, copy => Assert.Equal(new Vector2(16, 8), copy.Size));
     }
 
     private static SpriteIntent At(Vector2 corner) =>

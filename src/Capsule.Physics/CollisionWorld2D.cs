@@ -399,38 +399,20 @@ public sealed partial class CollisionWorld2D
         return TryIndexOf(handle, out int index) ? _slots[index].UserData : null;
     }
 
-    // Adds a grid anchored at the world origin whose cell i collides as profile
-    // lookup[(cells[i] * stride) + variants[i]]. The grid reads cells and variants without copying them, and
-    // variants may run past the grid's area. A caller that writes a cell then calls the grid's Refresh.
+    // Adds a grid anchored at the world origin whose cell collides as profile lookup[(value * stride) + variant].
+    // The grid reads cells without copying them. A caller that writes a cell then calls the grid's Refresh.
     internal CollisionGrid2D AddGrid(
         int cellSize,
-        int width,
-        int height,
-        int[] cells,
-        byte[] variants,
+        CellBlocks cells,
         int[] lookup,
         int stride,
         ReadOnlySpan<CellProfile2D> profiles,
         object? userData = null)
     {
         ArgumentNullException.ThrowIfNull(cells);
-        ArgumentNullException.ThrowIfNull(variants);
         ArgumentNullException.ThrowIfNull(lookup);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellSize);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(stride);
-
-        if (width <= 0 || height <= 0)
-        {
-            throw new ArgumentException($"Grid size {width}x{height} is empty. Use at least one cell on each axis.", nameof(width));
-        }
-
-        // Widened because an int product wraps, and a wrapped area would let a mismatched cell array
-        // through.
-        long area = (long)width * height;
-        if (cells.Length != area)
-        {
-            throw new ArgumentException($"cells has {cells.Length} entries but {width}x{height} requires {area}.", nameof(cells));
-        }
 
         if (profiles.Length == 0)
         {
@@ -465,11 +447,6 @@ public sealed partial class CollisionWorld2D
             }
         }
 
-        if (variants.Length < area)
-        {
-            throw new ArgumentException($"variants has {variants.Length} entries but {width}x{height} requires {area}.", nameof(variants));
-        }
-
         if (lookup.Length % stride != 0)
         {
             throw new ArgumentException($"lookup has {lookup.Length} entries, which is not a whole number of rows of {stride}.", nameof(lookup));
@@ -485,16 +462,7 @@ public sealed partial class CollisionWorld2D
             }
         }
 
-        int values = lookup.Length / stride;
-        for (int index = 0; index < cells.Length; index++)
-        {
-            if ((uint)cells[index] >= (uint)values || variants[index] >= stride)
-            {
-                throw new ArgumentException(
-                    $"cells[{index}] is {cells[index]} with variant {variants[index]}, which names no lookup entry ({values} values of {stride} variants).",
-                    nameof(cells));
-            }
-        }
+        RequireLookedUp(cells, lookup.Length / stride, stride);
 
         int slotIndex = AllocateSlot();
         ref ColliderSlot slot = ref _slots[slotIndex];
@@ -505,10 +473,7 @@ public sealed partial class CollisionWorld2D
         CollisionGrid2D grid = new(
             HandleAt(slotIndex),
             cellSize,
-            width,
-            height,
             cells,
-            variants,
             lookup,
             stride,
             profiles);
@@ -1051,6 +1016,23 @@ public sealed partial class CollisionWorld2D
         Guard.Finite(origin + translation, nameof(translation));
         RequireOwn(filter, nameof(filter));
         RequireIgnorable(ignore);
+    }
+
+    // Every cell names a lookup entry. A cell outside every block holds value 0 with variant 0, which an empty
+    // lookup leaves unnamed too.
+    private static void RequireLookedUp(CellBlocks cells, int values, int stride)
+    {
+        if (values == 0)
+        {
+            throw new ArgumentException($"lookup is empty. Give it at least one row of {stride} variants.", "lookup");
+        }
+
+        if (cells.TryFindBeyond(values, stride, out int x, out int y))
+        {
+            throw new ArgumentException(
+                $"The cell at ({x}, {y}) is {cells.ValueAt(x, y)} with variant {cells.VariantAt(x, y)}, which names no lookup entry ({values} values of {stride} variants).",
+                nameof(cells));
+        }
     }
 
     // A grid cell's shape is a plain convex polygon inside its cell.

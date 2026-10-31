@@ -38,9 +38,10 @@ does. The `capsule-engine` tag lets a package search find every Capsule package 
 
 ## The build project
 
-Every build of a game's logic project builds its build project first and runs it once, from the logic
-project's directory. The run reads every file under `Assets/` and writes what the game ships and the
-`CapsuleAssets` it compiles. Game-wide build configuration and importers live on `CapsuleBuild`:
+Every build of a game's logic project builds its build project first and runs it before the compile, from the
+logic project's directory. The run reads every file under `Assets/` and writes what the game ships and the
+`CapsuleAssets` it compiles. A compile that writes a new logic assembly runs it once more, to learn which entry
+types derive from `TileMap`, whose cells a scene document ships packed. It builds again only when that set changed. Game-wide build configuration and importers live on `CapsuleBuild`:
 
 ```csharp
 using Capsule.Build;

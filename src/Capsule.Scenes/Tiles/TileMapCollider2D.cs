@@ -120,7 +120,7 @@ public sealed class TileMapCollider2D : Component
     internal void Refresh(int x, int y) => Grid?.Refresh(x, y);
 
     // Points the registered grid at the map's own copy of its cells.
-    internal void Rebind(int[] cells, byte[] facings) => Grid?.Rebind(cells, facings);
+    internal void Rebind(CellBlocks cells) => Grid?.Rebind(cells);
 
     internal void AddRider(KinematicBody2D body) => _riders.Add(body);
 
@@ -294,7 +294,7 @@ public sealed class TileMapCollider2D : Component
             }
         }
 
-        Grid = world.AddGrid(tiles.TileSize, tiles.Width, tiles.Height, map.Cells, map.Facings, lookup, TileTransforms.Count, profiles, this);
+        Grid = world.AddGrid(tiles.TileSize, map.Cells, lookup, TileTransforms.Count, profiles, this);
     }
 
     private void Unregister()

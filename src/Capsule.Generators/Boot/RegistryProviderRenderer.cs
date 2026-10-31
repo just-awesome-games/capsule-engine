@@ -24,8 +24,8 @@ internal static class RegistryProviderRenderer
         + string.Concat(providers.Select(provider => $"{indent}{provider}.AddScenes(scenes);\n"))
         + $"{indent}return scenes.Build();\n";
 
-    // The provider an assembly is reached through, plus the two attributes a shell reads its
-    // registry metadata from. Only generated code calls these members.
+    // The provider an assembly is reached through, plus the two attributes a shell reads its registry metadata
+    // from and the one the asset build reads its tile-map keys from. Only generated code calls these members.
     internal static string Render(string providerName) => GeneratedFile.Write(
         [$"[assembly: global::Capsule.Generated.CapsuleGeneratedRegistryProviderAttribute(typeof(global::Capsule.Generated.{providerName}))]"],
         $$"""
@@ -50,6 +50,14 @@ internal static class RegistryProviderRenderer
                     Key = key;
                     DeclaringType = declaringType;
                 }
+            }
+
+            [global::System.AttributeUsage(global::System.AttributeTargets.Assembly, AllowMultiple = true)]
+            {{GeneratedFile.ExcludeFromCodeCoverage}}
+            internal sealed class CapsuleGeneratedTileMapAttribute : global::System.Attribute
+            {
+                public string Key { get; }
+                public CapsuleGeneratedTileMapAttribute(string key) => Key = key;
             }
 
             /// <summary>This assembly's registries, read by the shell's generated <c>CapsuleBoot</c> and by <c>CapsuleScenes.Registry</c>.</summary>

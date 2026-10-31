@@ -18,21 +18,25 @@ internal static class Narrowphase2D
         Vector2.Dot(target.Support(normal), normal) + target.Radius
         - (Vector2.Dot(moving.Support(-normal), normal) - moving.Radius);
 
-    // The normal a sweep meets an edge along. A box face meeting the end of an edge rests on that
-    // endpoint, and its face's axis is the surface there, not the edge's slope. The narrowphase normal
+    // The normal a sweep meets an edge along, where the box stands at `box` and the edge's nearest point
+    // is `point`. A box face meeting the end of an edge rests on that endpoint, and its face's axis is
+    // the surface there, not the edge's slope. A corner meeting the edge just short of its end has the
+    // endpoint nearest too, but lies off the face, and stops on the edge's slope. The narrowphase normal
     // carries rounding error. It only chooses between the two exact candidates.
-    internal static Vector2 EdgeNormal(in Shape2D moving, Vector2 swept, Vector2 outward)
+    internal static Vector2 EdgeNormal(in Shape2D moving, in Aabb2D box, Vector2 point, Vector2 swept, Vector2 outward)
     {
         if (moving.Kind != ShapeKind2D.Box)
         {
             return outward;
         }
 
-        Vector2 axis = MathF.Abs(swept.X) >= MathF.Abs(swept.Y)
-            ? new Vector2(MathF.Sign(swept.X), 0f)
-            : new Vector2(0f, MathF.Sign(swept.Y));
+        bool across = MathF.Abs(swept.X) >= MathF.Abs(swept.Y);
+        Vector2 axis = across ? new Vector2(MathF.Sign(swept.X), 0f) : new Vector2(0f, MathF.Sign(swept.Y));
+        bool onFace = across
+            ? point.Y >= box.Min.Y && point.Y <= box.Max.Y
+            : point.X >= box.Min.X && point.X <= box.Max.X;
 
-        return Vector2.Dot(swept, axis) > Vector2.Dot(swept, outward) && Vector2.Dot(axis, outward) > 0f
+        return onFace && Vector2.Dot(swept, axis) > Vector2.Dot(swept, outward) && Vector2.Dot(axis, outward) > 0f
             ? axis
             : outward;
     }

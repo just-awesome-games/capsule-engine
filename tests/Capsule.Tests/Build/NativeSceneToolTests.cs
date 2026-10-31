@@ -1,6 +1,10 @@
+using System.Collections.Immutable;
 using System.IO.Compression;
 using Capsule.Scenes;
 using Capsule.Tests.Documents;
+using Capsule.Tests.Generators;
+using Capsule.Tiles;
+using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Build;
 
@@ -101,6 +105,76 @@ public sealed class NativeSceneToolTests
 
         Assert.Contains(because, errors, StringComparison.Ordinal);
         Assert.Contains(documents[^1], errors, StringComparison.Ordinal);
+    }
+
+    // Only the compiled logic assembly knows that a key names a TileMap class. The run after its compile reads the keys
+    // its generator recorded and ships that entry's cells compiled, which every run until the next compile reuses. Once
+    // every document ships with them, an assembly recording the same keys builds nothing. An entry of any other type
+    // ships the members it authors.
+    [Fact]
+    public void ATileMapClassUnderItsOwnKey_ShipsCompiledFromTheRunAfterTheCompile()
+    {
+        const string Game = """
+            using Capsule.Scenes;
+            using Capsule.Tiles;
+
+            namespace Game;
+
+            public sealed class FrozenMap(EntitySpawn spawn) : TileMap(spawn);
+
+            public sealed class Board(EntitySpawn spawn) : Entity(spawn)
+            {
+                [Authorable]
+                public System.ReadOnlyMemory<int> Tiles { get; private set; }
+
+                [Authorable]
+                public int Width { get; private set; }
+
+                [Authorable]
+                public int Height { get; private set; }
+            }
+            """;
+        int[] tiles = new int[40];
+        int[] transforms = new int[40];
+        (tiles[3], tiles[37], transforms[37]) = (1, 1, (int)TileTransform.FlipX);
+        string document = $$"""
+            {"entities": [
+                {"type": "frozen-map", "tileSize": 16, "width": 20, "height": 2, "tileTypes": [{"name": "empty"}, {"name": "ice"}],
+                 "tiles": [{{string.Join(", ", tiles)}}], "transforms": [{{string.Join(", ", transforms)}}]},
+                {"type": "board", "width": 2, "height": 1, "tiles": [3, 4]}
+            ]}
+            """;
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(Game, logic: true, ("scenes/hall.scene.json", document));
+        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+        using ToolWorkspace workspace = new();
+        workspace.Write("Assets/Scenes/hall.scene.json", document);
+        string assembly = workspace.Write("obj/Game.dll", []);
+        Assert.True(compiled.Emit(assembly).Success);
+        string path = Shipped + "hall.scene.json.gz";
+
+        workspace.Succeed();
+        Assert.True(Load(path).Entries[0].Authored!.TryGetValue("tiles", out _));
+
+        // A run with any defect, even one a step before the scenes reports, keeps the old keys, and its retry builds again.
+        workspace.Write("Assets/broken.sheet.json", "{");
+        workspace.Fail("--tile-maps", assembly);
+        File.Delete("Assets/broken.sheet.json");
+        workspace.Succeed("--tile-maps", assembly);
+        Assert.NotEmpty(workspace.Output);
+        SceneDocument shipped = Load(path);
+        Assert.Equal((false, true), (shipped.Entries[0].Authored!.TryGetValue("tiles", out _), shipped.Entries[0].Authored!.TryGetValue("blocks", out _)));
+        Assert.True(shipped.Entries[1].Authored!.TryGetValue("tiles", out _));
+        SceneRegistry registry = (SceneRegistry)GeneratorHarness.Loaded(compiled).GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;
+        TileMap map = Assert.IsAssignableFrom<TileMap>(registry.Create(new SceneKey("scenes/hall"), shipped).Entities[0]);
+        for (int cell = 0; cell < tiles.Length; cell++)
+        {
+            Assert.Equal((tiles[cell] == 1 ? "ice" : TileGrid.EmptyTileName, (TileTransform)transforms[cell]), (map.TileAt(cell % 20, cell / 20).Name, map.TransformAt(cell % 20, cell / 20)));
+        }
+
+        workspace.Succeed("--tile-maps", assembly);
+        Assert.Empty(workspace.Output);
+        workspace.Succeed();
+        Assert.Equal((false, []), (Load(path).Entries[0].Authored!.TryGetValue("tiles", out _), workspace.Built));
     }
 
     private static SceneDocument Load(string path)

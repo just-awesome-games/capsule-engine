@@ -46,7 +46,7 @@ public sealed class TileGridTests
     {
         TileGrid grid = new(16, 2, 1, [TileGrid.EmptyTile, new TileType { Name = "hazard" }], [0, 1]);
 
-        Assert.Equal("hazard", grid.TileTypes[grid.Tiles[1]].Name);
+        Assert.Equal("hazard", grid.TileAt(1, 0).Name);
         Assert.Null(grid.TileTypes[1].Cell);
         Assert.Null(grid.Texture);
         Assert.Null(grid.Sprites.Span[1]);

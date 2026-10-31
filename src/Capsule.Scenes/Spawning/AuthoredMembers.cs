@@ -444,6 +444,19 @@ public readonly struct AuthoredMembers
 
     private string OwnerName => _owner?.Name ?? "the spawn";
 
+    // What build made of key's value, kept with the document so every composition of it shares one, or null when
+    // the members author no key. Only an entry's own members, not an array element, keep a read.
+    internal T? Built<T>(string key, Func<ReadOnlyMemory<byte>, T> build)
+        where T : class
+    {
+        if (_index >= 0 || !Find(key, out ReadOnlyMemory<byte> value))
+        {
+            return null;
+        }
+
+        return _members!.Kept(key) as T ?? (T)_members.Keep(key, build(value));
+    }
+
     // An entity constructor's refusal of what the entry authors, as the failure naming the entry.
     internal SceneDocumentFormatException Refused(Exception defect) =>
         new($"{OwnerName} cannot be built: {defect.Message}", defect);

@@ -9,25 +9,27 @@ using Capsule.Rendering;
 namespace Capsule.Tiles;
 
 /// <summary>A validated rectangular grid of palette indices.</summary>
+/// <remarks>
+/// The grid keeps only painted cells, in blocks of 16 by 16 tiles. A block with no painted cell costs one
+/// reference, and a block keeps per-tile transforms only once one of its tiles is mirrored or turned.
+/// </remarks>
 public sealed class TileGrid
 {
     /// <summary>The name of the palette entry at index 0, meaning "no tile here". Reserved, and not available to a game's own tile types.</summary>
     public const string EmptyTileName = "empty";
 
-    // Each authored transforms array as the facings it stands for, built once per array. Every scene composed
-    // from one document reads the same authored array, and so the same facings.
-    private static readonly ConditionalWeakTable<int[], byte[]> AuthoredFacings = new();
+    // The cells built from each authored tiles array, once per array. Every scene composed from one document
+    // reads the same authored arrays, and so shares the same cells.
+    private static readonly ConditionalWeakTable<int[], AuthoredCells> Authored = new();
 
     /// <summary>The plain palette entry every unpainted cell points at, named <see cref="EmptyTileName"/>.</summary>
     public static TileType EmptyTile { get; } = new() { Name = EmptyTileName };
 
     private readonly TileType[] _tileTypes;
 
-    // Never written. A grid built from a scene document shares its tiles with every other grid built from it.
-    private readonly int[] _tiles;
-
-    // A TileTransform per tile as its byte, never written. Grids built from one scene document share them.
-    private readonly byte[] _transforms;
+    // The palette index and TileTransform of every painted cell, never written. A grid built from a scene
+    // document shares them with every other grid built from it.
+    private readonly CellBlocks _cells;
 
     // One sprite per palette entry, cut once so drawing a cell is a table lookup instead of arithmetic
     // per tile. An entry is null when its tile type draws nothing. An animated entry holds its first
@@ -61,7 +63,7 @@ public sealed class TileGrid
     /// <param name="tileSize">The edge length of one tile. See <see cref="TileSize"/>.</param>
     /// <param name="width">Grid width in tiles.</param>
     /// <param name="height">Grid height in tiles.</param>
-    /// <param name="tileTypes">The palette, starting with <see cref="EmptyTile"/>.</param>
+    /// <param name="tileTypes">The palette, starting with <see cref="EmptyTile"/>, of at most 65,536 entries.</param>
     /// <param name="tiles">Palette indices, row-major, <paramref name="width"/> * <paramref name="height"/> of them.</param>
     /// <param name="texture">The texture every drawn tile is cut from, or null for a grid that draws nothing.</param>
     /// <param name="columns">
@@ -90,8 +92,10 @@ public sealed class TileGrid
             [.. tiles ?? throw new ArgumentNullException(nameof(tiles))],
             texture,
             columns,
+            cells: null,
             transforms,
-            authored: null)
+            authored: null,
+            shared: false)
     {
     }
 
@@ -106,21 +110,30 @@ public sealed class TileGrid
         TextureHandle? texture,
         int columns,
         ReadOnlyMemory<int>? transforms)
-        : this(tileSize, width, height, [.. tileTypes], Whole(tiles), texture, columns, null, transforms is { } authored ? Whole(authored) : null)
+        : this(tileSize, width, height, [.. tileTypes], Whole(tiles), texture, columns, cells: null, transforms: null, authored: transforms is { } dense ? Whole(dense) : null, shared: true)
     {
     }
 
-    // The transforms are listed, authored or neither, and are read only once the rest of the grid is valid.
+    // A grid over a compiled scene document's cells, which it shares and never writes.
+    internal TileGrid(int tileSize, int width, int height, TileType[] tileTypes, CellBlocks cells, TextureHandle? texture, int columns)
+        : this(tileSize, width, height, [.. tileTypes], tiles: null, texture, columns, cells, transforms: null, authored: null, shared: true)
+    {
+    }
+
+    // The grid takes compiled cells or dense tiles. Dense transforms are listed, authored or neither, and are read
+    // only once the rest of the grid is valid. Shared dense cells are built once per authored tiles array.
     private TileGrid(
         int tileSize,
         int width,
         int height,
         TileType[] tileTypes,
-        int[] tiles,
+        int[]? tiles,
         TextureHandle? texture,
         int columns,
+        CellBlocks? cells,
         IReadOnlyList<TileTransform>? transforms,
-        int[]? authored)
+        int[]? authored,
+        bool shared)
     {
         TileSize = tileSize;
         Width = width;
@@ -128,13 +141,18 @@ public sealed class TileGrid
         Texture = texture;
         Columns = columns;
         _tileTypes = tileTypes;
-        _tiles = tiles;
         _shapes = TileGridValidation.Validate(tileSize, width, height, tileTypes, tiles, texture, columns);
-
-        _transforms = authored is not null ? AuthoredFacings.GetValue(authored, TileGridValidation.Turned)
-            : transforms is not null ? [.. transforms.Select(static transform => (byte)transform)]
-            : new byte[_tiles.Length];
-        TileGridValidation.ValidateTransforms(_transforms, width, height, _tiles.Length);
+        if (cells is not null)
+        {
+            TileGridValidation.ValidateCells(cells, tileTypes.Length);
+            _cells = cells;
+        }
+        else
+        {
+            _cells = shared
+                ? Shared(tiles!, authored, width, height)
+                : Build(tiles!, transforms is null ? null : [.. transforms.Select(static transform => (byte)transform)], width, height);
+        }
 
         _sprites = CutCells();
         _animations = CutAnimations();
@@ -143,19 +161,8 @@ public sealed class TileGrid
     /// <summary>The tile palette. Index 0 is an empty tile like <see cref="EmptyTile"/>, and names are unique.</summary>
     public ReadOnlySpan<TileType> TileTypes => _tileTypes;
 
-    /// <summary>Palette indices, row-major from the top row, <see cref="Width"/> * <see cref="Height"/> of them.</summary>
-    public ReadOnlySpan<int> Tiles => _tiles;
-
-    /// <summary>
-    /// How each tile is mirrored or turned, parallel to <see cref="Tiles"/>. Every entry is
-    /// <see cref="TileTransform.None"/> on a grid built without transforms.
-    /// </summary>
-    public ReadOnlySpan<TileTransform> Transforms => MemoryMarshal.Cast<byte, TileTransform>(_transforms);
-
-    // The arrays behind Tiles and Transforms, which a map reads until it edits a cell. Neither is ever written.
-    internal int[] SharedTiles => _tiles;
-
-    internal byte[] SharedFacings => _transforms;
+    // The cells a map reads until it edits one. They are never written.
+    internal CellBlocks Cells => _cells;
 
     // Whether any palette entry is on a layer. A grid with none needs no collider.
     internal bool Collides => Array.Exists(_tileTypes, static tileType => tileType.Layer is not null);
@@ -170,6 +177,48 @@ public sealed class TileGrid
 
     // Parallel to TileTypes. A collider reads each entry's polygon here, not off its points.
     internal ReadOnlySpan<Shape2D?> Shapes => _shapes;
+
+    /// <summary>
+    /// Returns the palette entry at a tile coordinate, and the entry named <see cref="EmptyTileName"/> where the
+    /// grid is empty.
+    /// </summary>
+    public TileType TileAt(int x, int y)
+    {
+        _cells.RequireOnGrid(x, y);
+
+        return _tileTypes[_cells.ValueAt(x, y)];
+    }
+
+    /// <summary>Returns how the tile at a tile coordinate is mirrored or turned.</summary>
+    public TileTransform TransformAt(int x, int y)
+    {
+        _cells.RequireOnGrid(x, y);
+
+        return (TileTransform)_cells.VariantAt(x, y);
+    }
+
+    // The cells of validated tiles and their facings, which are null for tiles drawn as authored.
+    private static CellBlocks Build(int[] tiles, byte[]? facings, int width, int height)
+    {
+        if (facings is not null)
+        {
+            TileGridValidation.ValidateTransforms(facings, width, height, tiles.Length);
+        }
+
+        return CellBlocks.FromDense(width, height, tiles, facings);
+    }
+
+    private static CellBlocks BuildAuthored(int[] tiles, int[]? authored, int width, int height) =>
+        Build(tiles, authored is null ? null : TileGridValidation.Turned(authored), width, height);
+
+    // The cells of authored tiles and transforms, built once per tiles array. Tiles authored once come with the
+    // same transforms every time, and other transforms build cells of their own.
+    private static CellBlocks Shared(int[] tiles, int[]? authored, int width, int height)
+    {
+        AuthoredCells built = Authored.GetValue(tiles, _ => new AuthoredCells(authored, BuildAuthored(tiles, authored, width, height)));
+
+        return ReferenceEquals(built.Transforms, authored) ? built.Cells : BuildAuthored(tiles, authored, width, height);
+    }
 
     // The array a memory spans, or a copy when it spans part of one.
     private static int[] Whole(ReadOnlyMemory<int> memory) =>
@@ -238,6 +287,9 @@ public sealed class TileGrid
         texture,
         new TextureRegion(cell % Columns * TileSize, cell / Columns * TileSize, TileSize, TileSize),
         new Vector2(TileSize / 2f, TileSize / 2f));
+
+    // The cells built from one authored tiles array, and the transforms array they were built with.
+    private sealed record AuthoredCells(int[]? Transforms, CellBlocks Cells);
 
     // One animated palette entry and the looping clip its frames make.
     internal readonly record struct Animation(int Palette, SpriteClip Clip);

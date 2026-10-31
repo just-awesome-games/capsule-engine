@@ -28,6 +28,14 @@ namespace Capsule.Generated
         }
     }
 
+    [global::System.AttributeUsage(global::System.AttributeTargets.Assembly, AllowMultiple = true)]
+    [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+    internal sealed class CapsuleGeneratedTileMapAttribute : global::System.Attribute
+    {
+        public string Key { get; }
+        public CapsuleGeneratedTileMapAttribute(string key) => Key = key;
+    }
+
     /// <summary>This assembly's registries, read by the shell's generated <c>CapsuleBoot</c> and by <c>CapsuleScenes.Registry</c>.</summary>
     /// <remarks>Generated code. Do not edit.</remarks>
     [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]

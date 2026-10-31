@@ -46,6 +46,13 @@ internal static class GeneratedFile
     internal static string ClaimAttribute(RegistryClaimKind kind, string key, string qualifiedType) =>
         $"[assembly: global::Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute({(int)kind}, {CodeText.Literal(key)}, typeof({qualifiedType}))]";
 
+    /// <summary>
+    /// The assembly attribute a logic assembly records one tile-map key with, a key whose class is or derives from the
+    /// engine's <c>TileMap</c>, for the asset build to compile that entry's cells.
+    /// </summary>
+    internal static string TileMapAttribute(string key) =>
+        $"[assembly: global::Capsule.Generated.CapsuleGeneratedTileMapAttribute({CodeText.Literal(key)})]";
+
     // One line each, then a blank line before the namespace.
     private static string AssemblyAttributes(IReadOnlyCollection<string> attributes) =>
         attributes.Count == 0 ? string.Empty : string.Concat(attributes.Select(static attribute => attribute + "\n")) + "\n";

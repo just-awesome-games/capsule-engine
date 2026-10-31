@@ -51,6 +51,47 @@ public sealed class SlopeTests
         Assert.Equal(40f, result.Translation.X, CollisionFixtures.Tolerance);
     }
 
+    // A 1:4 slope split across two cells, its line y = 24 - x / 4 with the seam at x = 16. A box falling
+    // onto it meets a floor wherever its bottom-right corner stands, and ends on or above the line. Just
+    // short of the seam the edge's endpoint is the nearest feature to the corner, and the narrowphase
+    // normal there leans toward the box's side, which a fall would pass straight down.
+    [Fact]
+    public void MoveBox_FallingOntoASlopeAtACellSeam_LandsOnTheSlope()
+    {
+        CollisionWorld2D world = new();
+        CollisionLayer solid = world.Layer(CollisionFixtures.Solid);
+        world.AddGrid(
+            CollisionFixtures.TileSize,
+            2,
+            2,
+            [0, 0, 1, 2],
+            [
+                new CellProfile2D(null),
+                new CellProfile2D(solid, Shape2D.Polygon([new(0f, 8f), new(16f, 4f), new(16f, 16f), new(0f, 16f)])),
+                new CellProfile2D(solid, Shape2D.Polygon([new(0f, 4f), new(16f, 0f), new(16f, 16f), new(0f, 16f)])),
+            ]);
+        Vector2 slope = Vector2.Normalize(new Vector2(-1f, -4f));
+        Contact2D[] contacts = new Contact2D[4];
+
+        for (float right = 15.98f; right <= 16.02f; right += 0.0005f)
+        {
+            float bottom = 24f - (right / 4f) - 0.0088f;
+            MoveResult2D result = world.MoveBox(
+                CollisionFixtures.Box(right - 15f, bottom - 16f, 15f, 16f),
+                new Vector2(0f, 4f),
+                CollisionFilter.Everything,
+                contacts);
+
+            Vector2 corner = new Vector2(right, bottom) + result.Translation;
+            Assert.True(
+                corner.Y <= 24f - (corner.X / 4f) + CollisionFixtures.Tolerance,
+                $"a box whose side stood at x = {right} ended with its corner at {corner}, below the slope");
+            Assert.True(
+                contacts[0].Normal.Y <= slope.Y + 1e-4f,
+                $"a box whose side stood at x = {right} met the slope along {contacts[0].Normal}");
+        }
+    }
+
     // The slope's right side and the box's left side cover each other fully. Neither is a surface,
     // and the ground under the slope culls its bottom.
     // A filter that cannot see the box turns it back into empty space, and the slope's side is live

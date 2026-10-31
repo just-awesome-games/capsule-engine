@@ -22,11 +22,11 @@ public sealed class CollisionGridTests
     public void AGridReadsItsOwnersCells_AndARefreshedCellCollidesAsWritten()
     {
         CollisionWorld2D world = new();
-        int[] cells = [0, 1];
+        CellBlocks cells = CellBlocks.FromDense(2, 1, [0, 1], default);
 
-        CollisionGrid2D grid = world.AddGrid(16, 2, 1, cells, CollisionFixtures.Profiles(world));
-        cells[0] = 1;
-        cells[1] = 0;
+        CollisionGrid2D grid = world.AddGrid(16, cells, CollisionFixtures.Profiles(world));
+        cells.Set(0, 0, 1, 0);
+        cells.Set(1, 0, 0, 0);
         grid.Refresh(0, 0);
         grid.Refresh(1, 0);
 

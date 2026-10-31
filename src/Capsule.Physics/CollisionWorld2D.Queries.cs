@@ -975,7 +975,8 @@ public sealed partial class CollisionWorld2D
             // Report the edge's own normal, unless a box face met its end. A rounded shape meeting the
             // end of an edge is nearest its endpoint, where GJK answers with a diagonal the authored line
             // does not have.
-            RecordCast(ref accumulator, contacts, translation, fraction, target, topOnly ? outward : Narrowphase2D.EdgeNormal(moving, normal, outward), point);
+            Vector2 reported = topOnly ? outward : Narrowphase2D.EdgeNormal(moving, moving.Bounds.Translated(translation * fraction), point, normal, outward);
+            RecordCast(ref accumulator, contacts, translation, fraction, target, reported, point);
         }
     }
 

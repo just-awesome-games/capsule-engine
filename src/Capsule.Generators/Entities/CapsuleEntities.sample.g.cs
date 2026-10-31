@@ -6,6 +6,7 @@
 [assembly: global::Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute(0, "lamp", typeof(global::Game.Lamp))]
 [assembly: global::Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute(0, "portal", typeof(global::Game.Portal))]
 [assembly: global::Capsule.Generated.CapsuleGeneratedRegistryClaimAttribute(0, "tile-map", typeof(global::Capsule.Tiles.TileMap))]
+[assembly: global::Capsule.Generated.CapsuleGeneratedTileMapAttribute("tile-map")]
 
 namespace Capsule.Generated
 {
@@ -76,7 +77,10 @@ namespace Capsule.Generated
                             SetColumns(entity, members.Int("columns"));
                         }
                         SetTileTypes(entity, members.Array<global::Capsule.Tiles.TileType>("tileTypes", static element => Object_Capsule_Tiles_TileType(null, element.Object("tileTypes"), replaces: true)));
-                        SetTiles(entity, members.Shared<int>("tiles", static element => element.Int("tiles")));
+                        if (members.Has("tiles"))
+                        {
+                            SetTiles(entity, members.Shared<int>("tiles", static element => element.Int("tiles")));
+                        }
                         if (members.Has("transforms"))
                         {
                             SetTransforms(entity, members.IsNull("transforms") ? null : members.Shared<int>("transforms", static element => element.Int("transforms")));

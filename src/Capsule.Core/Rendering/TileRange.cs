@@ -44,7 +44,7 @@ internal readonly record struct TileRange(int First, int Last, float Period, flo
         int count = (int)Math.Clamp(Math.Ceiling(extent / period), 1, int.MaxValue);
         float lastExtent = extent - ((count - 1) * period);
 
-        return Bounded(Math.Max(first, 0), Math.Min(last, count - 1), period, lastExtent);
+        return Bounded(Math.Max(first, 0), Math.Min(last, count - 1), period, lastExtent, count - 1);
     }
 
     // The texel span copy index draws of a region starting at origin and texels wide, cropped to
@@ -62,6 +62,12 @@ internal readonly record struct TileRange(int First, int Last, float Period, flo
         return (flipped ? origin + texels - kept : origin, kept);
     }
 
-    private static TileRange Bounded(int first, int last, float period, float lastExtent) =>
-        new(first, (int)Math.Min((long)last, (long)first + MaxCopies - 1), period, lastExtent);
+    // The extent cuts short only the run's final copy. A cull or the cap that stops the range before it
+    // leaves the copy at Last whole.
+    private static TileRange Bounded(int first, int last, float period, float lastExtent, int final = int.MaxValue)
+    {
+        int bounded = (int)Math.Min((long)last, (long)first + MaxCopies - 1);
+
+        return new TileRange(first, bounded, period, bounded == final ? lastExtent : period);
+    }
 }

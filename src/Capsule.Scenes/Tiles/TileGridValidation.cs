@@ -10,13 +10,13 @@ namespace Capsule.Tiles;
 internal static class TileGridValidation
 {
     // Checks everything but the transforms, and returns each palette entry's collision polygon, or null
-    // for a whole tile.
+    // for a whole tile. Compiled cells, passed as null tiles, are checked by ValidateCells.
     internal static Shape2D?[] Validate(
         int tileSize,
         int width,
         int height,
         TileType[] tileTypes,
-        int[] tiles,
+        int[]? tiles,
         TextureHandle? texture,
         int columns)
     {
@@ -37,9 +37,27 @@ internal static class TileGridValidation
 
         Shape2D?[] shapes = ValidatePalette(tileTypes, tileSize);
         ValidateTexture(tileTypes, texture, columns, tileSize);
-        ValidateTiles(tiles, width, height, tileTypes.Length);
+        if (tiles is not null)
+        {
+            ValidateTiles(tiles, width, height, tileTypes.Length);
+        }
 
         return shapes;
+    }
+
+    // Checks every painted cell names a palette entry and a TileTransform, naming it by its index in the dense
+    // tiles it stands for.
+    internal static void ValidateCells(CellBlocks cells, int paletteLength)
+    {
+        if (!cells.TryFindBeyond(paletteLength, TileTransforms.Count, out int x, out int y))
+        {
+            return;
+        }
+
+        long index = ((long)y * cells.Width) + x;
+        throw cells.ValueAt(x, y) >= paletteLength
+            ? Malformed($"tiles[{index}] is {cells.ValueAt(x, y)}. Use a tileTypes index in 0..{paletteLength - 1}.", "tiles")
+            : Malformed($"transforms[{index}] is {cells.VariantAt(x, y)}. Use a TileTransform in 0..{TileTransforms.Count - 1}.", "transforms");
     }
 
     internal static void ValidateTransforms(byte[] transforms, int width, int height, int tileCount)
@@ -84,6 +102,14 @@ internal static class TileGridValidation
         if (missing >= 0)
         {
             throw Malformed($"tileTypes[{missing}] is null. Give every palette entry a tile type.", "tileTypes");
+        }
+
+        // A cell holds its palette index in 16 bits.
+        if (tileTypes.Length > CellBlocks.MaxValue + 1)
+        {
+            throw Malformed(
+                $"tileTypes has {tileTypes.Length} entries, more than the {CellBlocks.MaxValue + 1} a grid can index. Drop the entries no tile uses, or split the palette across maps.",
+                "tileTypes");
         }
 
         if (tileTypes.Length == 0 || !IsEmpty(tileTypes[0]))

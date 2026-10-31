@@ -141,6 +141,10 @@ public void EveryScenePlacementIsValid() => CapsuleScenes.Registry.ComposeAll();
 `TileType` object. A document may carry any number, interleaved with game entities, all anchored at the world
 origin and drawn by their `zIndex` bands. A scene that authors no `size` spans its largest map.
 
+A map's `tiles` and `transforms` are authored dense, one per cell. The build ships the cells of every entry whose
+class is or derives from `TileMap` packed into blocks of 16 by 16, holding only the blocks with a painted cell, and
+a map reads them without parsing a cell. A document composed without the build reads its dense cells.
+
 ### Entries and composition
 
 Every `type` names an entity class: the engine's `tile-map`, or one in the game's logic assembly. A concrete
