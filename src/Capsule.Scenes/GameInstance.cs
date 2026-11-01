@@ -64,10 +64,11 @@ public abstract class GameInstance
     /// </summary>
     /// <remarks>
     /// A game writes what it saves at quit here, and the host's last save flush writes it out. A run ends
-    /// after the step that calls <see cref="Run.RequestExit"/>, when the window closes or the system quits
-    /// the game, and when a headless driver or recording finishes. A replay ends the same way, its saves
-    /// kept in memory. A crash or a killed process skips it. <see cref="Run.Tick"/> and
-    /// <see cref="Run.TotalSeconds"/> read the run's whole length.
+    /// after the step that calls <see cref="Run.RequestExit"/>, when the window closes, when the system quits
+    /// the game, ends the user's session or signals the process to end, and when a headless driver or
+    /// recording finishes. A replay ends the same way, its saves kept in memory. A crash or a killed process
+    /// skips it. At a session's end the system ends the process once the flush returns, and the end is
+    /// kept short. <see cref="Run.Tick"/> and <see cref="Run.TotalSeconds"/> read the run's whole length.
     /// </remarks>
     protected virtual void OnEnd()
     {

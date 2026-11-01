@@ -92,6 +92,10 @@ internal sealed unsafe class WindowHost
     // The first exception a callback caught, which Run throws once SDL has returned.
     private ExceptionDispatchInfo? _failure;
 
+    // Set from a signal's thread when the system asks the process to end, which the next iteration takes
+    // as a quit.
+    private volatile bool _quitRequested;
+
     private bool _closed;
     private bool _windowRaised;
     private bool _focusSeen;
@@ -182,10 +186,15 @@ internal sealed unsafe class WindowHost
     internal long SimulationTick => _scheduler.Tick;
 
     // Runs the scenes until they request exit or the window closes. An exception escaping a callback
-    // ends the run and is rethrown here, once the host has closed and SDL has quit.
+    // ends the run and is rethrown here, once the host has closed and SDL has quit. A signal asking the
+    // process to end, as a Linux session's end or a terminal's Ctrl+C sends, quits as closing the window
+    // does, where .NET would end the process before the run ends.
     internal void Run()
     {
         Running = this;
+        using PosixSignalRegistration terminate = PosixSignalRegistration.Create(PosixSignal.SIGTERM, RequestQuit);
+        using PosixSignalRegistration interrupt = PosixSignalRegistration.Create(PosixSignal.SIGINT, RequestQuit);
+        using PosixSignalRegistration hangUp = PosixSignalRegistration.Create(PosixSignal.SIGHUP, RequestQuit);
 
         try
         {
@@ -226,7 +235,7 @@ internal sealed unsafe class WindowHost
 
         try
         {
-            return host.Frame() ? Sdl3.AppResult.Continue : Sdl3.AppResult.Success;
+            return !host._quitRequested && host.Frame() ? Sdl3.AppResult.Continue : Sdl3.AppResult.Success;
         }
         catch (Exception exception)
         {
@@ -272,6 +281,29 @@ internal sealed unsafe class WindowHost
         }
     }
 
+    // The session's end, from inside the window procedure: the process ends once it returns, and the run
+    // ends and persists first. The next iteration quits.
+    private void EndSession()
+    {
+        try
+        {
+            _scenes.EndAndPersist();
+        }
+        catch (Exception exception)
+        {
+            _ = Fail(exception);
+        }
+
+        _quitRequested = true;
+    }
+
+    // On the signal's thread. Cancelling keeps .NET from ending the process before the run ends.
+    private void RequestQuit(PosixSignalContext context)
+    {
+        context.Cancel = true;
+        _quitRequested = true;
+    }
+
     private Sdl3.AppResult Fail(Exception exception)
     {
         _failure ??= ExceptionDispatchInfo.Capture(exception);
@@ -291,6 +323,7 @@ internal sealed unsafe class WindowHost
         // The run has started by now, and the window opens as its start left the display.
         Display display = _scenes.Run.Display;
         OpenWindow(display);
+        WindowsSessionEnd.Watch(_window, EndSession);
         _gpu = new GpuDevice(_window, _builder.GpuDriver, _builder.FramesInFlight);
         if (Development.IsSupported)
         {
@@ -663,6 +696,7 @@ internal sealed unsafe class WindowHost
 
         if (_window != nint.Zero)
         {
+            WindowsSessionEnd.Stop(_window);
             Sdl3.SDL_DestroyWindow(_window);
             _window = nint.Zero;
         }

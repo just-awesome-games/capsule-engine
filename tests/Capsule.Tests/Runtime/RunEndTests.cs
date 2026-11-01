@@ -83,6 +83,43 @@ public sealed class RunEndTests
         Assert.Equal(["stop", Ended(3), "stop", Ended(3)], events);
     }
 
+    // The operating system ending the process, as a Windows session's end does, ends the run and persists what its
+    // end wrote before the host returns, after which nothing runs. The host's own end then adds nothing.
+    [Fact]
+    public void ARunTheSystemTerminates_EndsAndPersistsBeforeTheHostReturns()
+    {
+        using TempWorkspace workspace = new(nameof(RunEndTests));
+        string saves = Path.Combine(workspace.Root, "saves");
+        List<string> events = [];
+        EngineBuilder builder = Builder(events, () => new Ending(events))
+            .WithSaveDirectory(saves)
+            .WithCommandLine(["--recordings", Path.Combine(workspace.Root, "recordings")]);
+        bool persisted = false;
+
+        builder.RunRecorded(SceneTransition.ToScene(typeof(Ending), null), replayed: null, (host, recorder, _) =>
+        {
+            FixedStepScheduler scheduler = new(builder.StepSeconds, 8, builder.Input.Bindings, scenes: host, recorder: recorder);
+            for (int step = 0; step < 3; step++)
+            {
+                scheduler.Advance(builder.StepSeconds, DeviceSnapshot.Empty, host);
+            }
+
+            host.EndAndPersist();
+            persisted = Directory.Exists(saves) && Directory.GetFiles(saves).Length > 0;
+        });
+
+        Assert.True(persisted, "nothing was written before the host returned");
+        Assert.Equal(["stop", Ended(3)], events);
+
+        int read = 0;
+        Registered(() => new Ending([]))
+            .WithGame(CallbackGame.Starting(run => read = run.Saves.Read(Length)))
+            .WithSaveDirectory(saves)
+            .RunHeadless<Ending>(new InputScript().Build());
+
+        Assert.Equal(3, read);
+    }
+
     private static EngineBuilder Builder(List<string> events, Func<Ending> scene) =>
         Registered(scene).WithGame(run => new Timing(run, events));
 
