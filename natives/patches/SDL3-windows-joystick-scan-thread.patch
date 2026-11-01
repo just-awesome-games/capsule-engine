@@ -1,0 +1,594 @@
+Capsule's fix for SDL 3.4.18's joystick hotplug stall on Windows. Every HID device arrival or removal made
+the next joystick update rescan DirectInput's game controllers on the thread that updates joysticks:
+IDirectInput8_EnumDevices creates and queries each device, 100 ms and more, up to three times a plug (the
+change, then the 300 ms and 2 s timers). The joystick thread now runs that scan with a DirectInput object of
+its own, and the detect merges the scan once it lands, holding the device list as it stands until then. The
+first detect at init still scans synchronously, and the detect scans itself whenever the thread cannot. Drop
+it once SDL releases a fix (libsdl-org/SDL#15403).
+
+diff --git a/src/joystick/windows/SDL_dinputjoystick.c b/src/joystick/windows/SDL_dinputjoystick.c
+index 70115fb..514cf8f 100644
+--- a/src/joystick/windows/SDL_dinputjoystick.c
++++ b/src/joystick/windows/SDL_dinputjoystick.c
+@@ -46,6 +46,19 @@ extern HWND SDL_HelperWindow;
+ static bool coinitialized = false;
+ static LPDIRECTINPUT8 dinput = NULL;
+ 
++// The joystick thread's own DirectInput object, which its scans enumerate with, off the thread that updates joysticks.
++static LPDIRECTINPUT8 scanner = NULL;
++
++// One attached game controller as a scan read it from DirectInput: everything the detect needs that takes device I/O.
++struct SDL_DINPUT_ScannedDevice
++{
++    DIDEVICEINSTANCE instance;
++    char *path;
++    Uint16 vendor;
++    Uint16 product;
++    char *name; // DIPROP_PRODUCTNAME, or NULL when the device reported none
++};
++
+ // Taken from Wine - Thanks!
+ static DIOBJECTDATAFORMAT dfDIJoystick2[] = {
+     { &GUID_XAxis, DIJOFS_X, DIDFT_OPTIONAL | DIDFT_AXIS | DIDFT_ANYINSTANCE, DIDOI_ASPECTPOSITION },
+@@ -263,35 +276,39 @@ static bool SDL_IsXInputDevice(Uint16 vendor_id, Uint16 product_id, const char *
+     return false;
+ }
+ 
+-static bool QueryDeviceName(LPDIRECTINPUTDEVICE8 device, Uint16 vendor_id, Uint16 product_id, char **manufacturer_string, char **product_string)
++// The device's DirectInput product name, or NULL.
++static char *QueryProductName(LPDIRECTINPUTDEVICE8 device)
+ {
+     DIPROPSTRING dipstr;
+ 
+-    if (!device || !manufacturer_string || !product_string) {
+-        return false;
+-    }
+-
+-#ifdef SDL_JOYSTICK_HIDAPI
+-    *manufacturer_string = HIDAPI_GetDeviceManufacturerName(vendor_id, product_id);
+-    *product_string = HIDAPI_GetDeviceProductName(vendor_id, product_id);
+-    if (*product_string) {
+-        return true;
+-    }
+-#endif
+-
+     dipstr.diph.dwSize = sizeof(dipstr);
+     dipstr.diph.dwHeaderSize = sizeof(dipstr.diph);
+     dipstr.diph.dwObj = 0;
+     dipstr.diph.dwHow = DIPH_DEVICE;
+ 
+     if (FAILED(IDirectInputDevice8_GetProperty(device, DIPROP_PRODUCTNAME, &dipstr.diph))) {
+-        return false;
++        return NULL;
+     }
+ 
++    return WIN_StringToUTF8W(dipstr.wsz);
++}
++
++// HIDAPI's names for the device, else its DirectInput product name. False when it has neither.
++static bool QueryDeviceName(const struct SDL_DINPUT_ScannedDevice *device, char **manufacturer_string, char **product_string)
++{
++#ifdef SDL_JOYSTICK_HIDAPI
++    *manufacturer_string = HIDAPI_GetDeviceManufacturerName(device->vendor, device->product);
++    *product_string = HIDAPI_GetDeviceProductName(device->vendor, device->product);
++    if (*product_string) {
++        return true;
++    }
++    SDL_free(*manufacturer_string);
++#endif
++
+     *manufacturer_string = NULL;
+-    *product_string = WIN_StringToUTF8W(dipstr.wsz);
++    *product_string = device->name ? SDL_strdup(device->name) : NULL;
+ 
+-    return true;
++    return *product_string != NULL;
+ }
+ 
+ static bool QueryDevicePath(LPDIRECTINPUTDEVICE8 device, char **device_path)
+@@ -451,8 +468,70 @@ static int GetSteamVirtualGamepadSlot(Uint16 vendor_id, Uint16 product_id, const
+     return slot;
+ }
+ 
+-// helper function for direct input, gets called for each connected joystick
+-static BOOL CALLBACK EnumJoystickDetectCallback(LPCDIDEVICEINSTANCE pDeviceInstance, LPVOID pContext)
++typedef struct
++{
++    LPDIRECTINPUT8 dinput;
++    SDL_DINPUT_Scan *scan;
++    int capacity;
++} ScanContext;
++
++// Reads each connected HID game controller: all of a detect's device I/O, and none of SDL's joystick state.
++static BOOL CALLBACK EnumJoystickScanCallback(LPCDIDEVICEINSTANCE pDeviceInstance, LPVOID pContext)
++{
++    ScanContext *context = (ScanContext *)pContext;
++    SDL_DINPUT_Scan *scan = context->scan;
++    struct SDL_DINPUT_ScannedDevice *scanned;
++    LPDIRECTINPUTDEVICE8 device = NULL;
++    char *path = NULL;
++    Uint16 vendor = 0;
++    Uint16 product = 0;
++
++    // We are only supporting HID devices.
++    if (!(pDeviceInstance->dwDevType & DIDEVTYPE_HID) ||
++        FAILED(IDirectInput8_CreateDevice(context->dinput, &pDeviceInstance->guidInstance, &device, NULL))) {
++        return DIENUM_CONTINUE;
++    }
++
++    if (QueryDevicePath(device, &path) && QueryDeviceInfo(device, &vendor, &product)) {
++        if (scan->count == context->capacity) {
++            int capacity = context->capacity ? context->capacity * 2 : 4;
++            struct SDL_DINPUT_ScannedDevice *devices = (struct SDL_DINPUT_ScannedDevice *)SDL_realloc(scan->devices, capacity * sizeof(*devices));
++            if (devices) {
++                scan->devices = devices;
++                context->capacity = capacity;
++            }
++        }
++
++        if (scan->count < context->capacity) {
++            scanned = &scan->devices[scan->count++];
++            SDL_memcpy(&scanned->instance, pDeviceInstance, sizeof(DIDEVICEINSTANCE));
++            scanned->path = path;
++            scanned->vendor = vendor;
++            scanned->product = product;
++            scanned->name = QueryProductName(device);
++            path = NULL;
++        }
++    }
++
++    SDL_free(path);
++    IDirectInputDevice8_Release(device);
++
++    return DIENUM_CONTINUE; // get next device, please
++}
++
++static void ScanWith(LPDIRECTINPUT8 di, SDL_DINPUT_Scan *scan)
++{
++    ScanContext context;
++
++    SDL_zerop(scan);
++    SDL_zero(context);
++    context.dinput = di;
++    context.scan = scan;
++    IDirectInput8_EnumDevices(di, DI8DEVCLASS_GAMECTRL, EnumJoystickScanCallback, &context, DIEDFL_ATTACHEDONLY);
++}
++
++// Decides what one scanned controller is, and keeps or adds it, as the detect did for each it enumerated.
++static void DetectScannedDevice(const struct SDL_DINPUT_ScannedDevice *scanned, JoyStick_DeviceData **pContext)
+ {
+ #define CHECK(expression)  \
+     {                      \
+@@ -461,21 +540,15 @@ static BOOL CALLBACK EnumJoystickDetectCallback(LPCDIDEVICEINSTANCE pDeviceInsta
+     }
+     JoyStick_DeviceData *pNewJoystick = NULL;
+     JoyStick_DeviceData *pPrevJoystick = NULL;
+-    Uint16 vendor = 0;
+-    Uint16 product = 0;
++    const DIDEVICEINSTANCE *pDeviceInstance = &scanned->instance;
++    const char *hidPath = scanned->path;
++    Uint16 vendor = scanned->vendor;
++    Uint16 product = scanned->product;
+     Uint16 version = 0;
+-    char *hidPath = NULL;
+     char *manufacturer_string = NULL;
+     char *product_string = NULL;
+-    LPDIRECTINPUTDEVICE8 device = NULL;
+ 
+-    // We are only supporting HID devices.
+-    CHECK(pDeviceInstance->dwDevType & DIDEVTYPE_HID);
+-
+-    CHECK(SUCCEEDED(IDirectInput8_CreateDevice(dinput, &pDeviceInstance->guidInstance, &device, NULL)));
+-    CHECK(QueryDevicePath(device, &hidPath));
+-    CHECK(QueryDeviceInfo(device, &vendor, &product));
+-    CHECK(QueryDeviceName(device, vendor, product, &manufacturer_string, &product_string));
++    CHECK(QueryDeviceName(scanned, &manufacturer_string, &product_string));
+ 
+     CHECK(!SDL_IsXInputDevice(vendor, product, hidPath));
+     CHECK(!SDL_ShouldIgnoreJoystick(vendor, product, version, product_string));
+@@ -531,25 +604,86 @@ err:
+         SDL_free(pNewJoystick);
+     }
+ 
+-    SDL_free(hidPath);
+     SDL_free(manufacturer_string);
+     SDL_free(product_string);
++#undef CHECK
++}
+ 
+-    if (device) {
+-        IDirectInputDevice8_Release(device);
+-    }
++bool SDL_DINPUT_JoystickEnabled(void)
++{
++    return dinput != NULL;
++}
+ 
+-    return DIENUM_CONTINUE; // get next device, please
+-#undef CHECK
++void SDL_DINPUT_JoystickDetectScan(const SDL_DINPUT_Scan *scan, JoyStick_DeviceData **pContext)
++{
++    int i;
++
++    for (i = 0; i < scan->count; ++i) {
++        DetectScannedDevice(&scan->devices[i], pContext);
++    }
+ }
+ 
++// Scans and detects on the calling thread, which the device I/O blocks.
+ void SDL_DINPUT_JoystickDetect(JoyStick_DeviceData **pContext)
+ {
++    SDL_DINPUT_Scan scan;
++
+     if (!dinput) {
+         return;
+     }
+ 
+-    IDirectInput8_EnumDevices(dinput, DI8DEVCLASS_GAMECTRL, EnumJoystickDetectCallback, pContext, DIEDFL_ATTACHEDONLY);
++    ScanWith(dinput, &scan);
++    SDL_DINPUT_JoystickDetectScan(&scan, pContext);
++    SDL_DINPUT_FreeScan(&scan);
++}
++
++// On the joystick thread, which has initialized COM: the DirectInput object its scans use, none while DirectInput is
++// off. The main thread sets dinput before it starts the thread, and releases it after the thread stops.
++void SDL_DINPUT_ScannerInit(void)
++{
++    HINSTANCE instance = GetModuleHandle(NULL);
++
++    if (!dinput || !instance || FAILED(CoCreateInstance(&CLSID_DirectInput8, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectInput8, (LPVOID *)&scanner))) {
++        scanner = NULL;
++        return;
++    }
++
++    if (FAILED(IDirectInput8_Initialize(scanner, instance, DIRECTINPUT_VERSION))) {
++        IDirectInput8_Release(scanner);
++        scanner = NULL;
++    }
++}
++
++// On the joystick thread. False when it has no DirectInput to scan with.
++bool SDL_DINPUT_ScanJoysticks(SDL_DINPUT_Scan *scan)
++{
++    if (!scanner) {
++        SDL_zerop(scan);
++        return false;
++    }
++
++    ScanWith(scanner, scan);
++    return true;
++}
++
++void SDL_DINPUT_FreeScan(SDL_DINPUT_Scan *scan)
++{
++    int i;
++
++    for (i = 0; i < scan->count; ++i) {
++        SDL_free(scan->devices[i].path);
++        SDL_free(scan->devices[i].name);
++    }
++    SDL_free(scan->devices);
++    SDL_zerop(scan);
++}
++
++void SDL_DINPUT_ScannerQuit(void)
++{
++    if (scanner) {
++        IDirectInput8_Release(scanner);
++        scanner = NULL;
++    }
+ }
+ 
+ // helper function for direct input, gets called for each connected joystick
+@@ -1178,10 +1312,38 @@ bool SDL_DINPUT_JoystickInit(void)
+     return true;
+ }
+ 
++typedef struct SDL_DINPUT_Scan SDL_DINPUT_Scan;
++
++bool SDL_DINPUT_JoystickEnabled(void)
++{
++    return false;
++}
++
+ void SDL_DINPUT_JoystickDetect(JoyStick_DeviceData **pContext)
+ {
+ }
+ 
++void SDL_DINPUT_ScannerInit(void)
++{
++}
++
++bool SDL_DINPUT_ScanJoysticks(SDL_DINPUT_Scan *scan)
++{
++    return false;
++}
++
++void SDL_DINPUT_FreeScan(SDL_DINPUT_Scan *scan)
++{
++}
++
++void SDL_DINPUT_ScannerQuit(void)
++{
++}
++
++void SDL_DINPUT_JoystickDetectScan(const SDL_DINPUT_Scan *scan, JoyStick_DeviceData **pContext)
++{
++}
++
+ bool SDL_DINPUT_JoystickPresent(Uint16 vendor, Uint16 product, Uint16 version)
+ {
+     return false;
+diff --git a/src/joystick/windows/SDL_dinputjoystick_c.h b/src/joystick/windows/SDL_dinputjoystick_c.h
+index 6f89f72..19f92f2 100644
+--- a/src/joystick/windows/SDL_dinputjoystick_c.h
++++ b/src/joystick/windows/SDL_dinputjoystick_c.h
+@@ -25,8 +25,21 @@
+ extern "C" {
+ #endif
+ 
++// The attached DirectInput game controllers as one scan read them, before the detect decides what each is.
++typedef struct SDL_DINPUT_Scan
++{
++    struct SDL_DINPUT_ScannedDevice *devices;
++    int count;
++} SDL_DINPUT_Scan;
++
+ extern bool SDL_DINPUT_JoystickInit(void);
++extern bool SDL_DINPUT_JoystickEnabled(void);
+ extern void SDL_DINPUT_JoystickDetect(JoyStick_DeviceData **pContext);
++extern void SDL_DINPUT_ScannerInit(void);
++extern bool SDL_DINPUT_ScanJoysticks(SDL_DINPUT_Scan *scan);
++extern void SDL_DINPUT_FreeScan(SDL_DINPUT_Scan *scan);
++extern void SDL_DINPUT_ScannerQuit(void);
++extern void SDL_DINPUT_JoystickDetectScan(const SDL_DINPUT_Scan *scan, JoyStick_DeviceData **pContext);
+ extern bool SDL_DINPUT_JoystickPresent(Uint16 vendor, Uint16 product, Uint16 version);
+ extern bool SDL_DINPUT_JoystickOpen(SDL_Joystick *joystick, JoyStick_DeviceData *joystickdevice);
+ extern bool SDL_DINPUT_JoystickRumble(SDL_Joystick *joystick, Uint16 low_frequency_rumble, Uint16 high_frequency_rumble);
+diff --git a/src/joystick/windows/SDL_windowsjoystick.c b/src/joystick/windows/SDL_windowsjoystick.c
+index a7ed293..5b3373d 100644
+--- a/src/joystick/windows/SDL_windowsjoystick.c
++++ b/src/joystick/windows/SDL_windowsjoystick.c
+@@ -63,6 +63,23 @@ static GUID GUID_DEVINTERFACE_HID = { 0x4D1E55B2L, 0xF16F, 0x11CF, { 0x88, 0xCB,
+ 
+ JoyStick_DeviceData *SYS_Joystick; // array to hold joystick ID values
+ 
++/* The DirectInput scans the joystick thread runs for the detect, whose device I/O would otherwise stall the thread that
++ * updates joysticks. The detect counts a request up and the thread answers it, both under s_mutexJoyStickEnum; the
++ * thread also reads the count while it waits for messages, unlocked. A change during a scan raises the count again,
++ * and the detect waits for the scan that answers the latest. */
++static SDL_AtomicInt s_scanRequested;
++static int s_scanCompleted;
++static bool s_scanFailed;
++static SDL_DINPUT_Scan s_scan;
++
++// Set by the joystick thread once it takes requests, and cleared as it leaves.
++static SDL_AtomicInt s_scanThreadReady;
++
++// The detect's own: whether it waits on a requested scan, and whether it may request one, from after the first detect,
++// which runs synchronously so the devices present at init are known when init returns.
++static bool s_scanPending = false;
++static bool s_scanAsync = false;
++
+ 
+ static bool WindowsDeviceChanged(void)
+ {
+@@ -79,6 +96,12 @@ void WINDOWS_RAWINPUTEnabledChanged(void)
+     SetWindowsDeviceChanged();
+ }
+ 
++// Read by the joystick thread, which alone writes s_scanCompleted.
++static bool DirectInputScanRequested(void)
++{
++    return SDL_GetAtomicInt(&s_scanRequested) != s_scanCompleted;
++}
++
+ #if !defined(SDL_PLATFORM_XBOXONE) && !defined(SDL_PLATFORM_XBOXSERIES)
+ 
+ typedef struct
+@@ -200,7 +223,7 @@ static bool SDL_WaitForDeviceNotification(SDL_DeviceNotificationData *data, SDL_
+     }
+ 
+     SDL_UnlockMutex(mutex);
+-    while (lastret > 0 && !WindowsDeviceChanged()) {
++    while (lastret > 0 && !WindowsDeviceChanged() && !DirectInputScanRequested()) {
+         lastret = GetMessage(&msg, NULL, 0, 0); // WM_QUIT causes return value of 0
+         if (lastret > 0) {
+             TranslateMessage(&msg);
+@@ -217,6 +240,24 @@ static bool SDL_WaitForDeviceNotification(SDL_DeviceNotificationData *data, SDL_
+ static SDL_DeviceNotificationData s_notification_data;
+ #endif
+ 
++// On the joystick thread, which holds s_mutexJoyStickEnum on entry and on return: answers the latest request, with the
++// mutex released through the scan.
++static void SDL_RunDirectInputScan(void)
++{
++    const int request = SDL_GetAtomicInt(&s_scanRequested);
++    SDL_DINPUT_Scan scan;
++    bool scanned;
++
++    SDL_UnlockMutex(s_mutexJoyStickEnum);
++    scanned = SDL_DINPUT_ScanJoysticks(&scan);
++    SDL_LockMutex(s_mutexJoyStickEnum);
++
++    SDL_DINPUT_FreeScan(&s_scan);
++    s_scan = scan;
++    s_scanFailed = !scanned;
++    s_scanCompleted = request;
++}
++
+ // Function/thread to scan the system for joysticks.
+ static int SDLCALL SDL_JoystickThread(void *_data)
+ {
+@@ -231,8 +272,16 @@ static int SDLCALL SDL_JoystickThread(void *_data)
+     }
+ #endif
+ 
++    SDL_DINPUT_ScannerInit();
++
+     SDL_LockMutex(s_mutexJoyStickEnum);
++    SDL_SetAtomicInt(&s_scanThreadReady, 1);
+     while (s_bJoystickThreadQuit == false) {
++        if (DirectInputScanRequested()) {
++            SDL_RunDirectInputScan();
++            continue;
++        }
++
+ #if !defined(SDL_PLATFORM_XBOXONE) && !defined(SDL_PLATFORM_XBOXSERIES)
+         if (SDL_WaitForDeviceNotification(&s_notification_data, s_mutexJoyStickEnum) == false) {
+ #else
+@@ -261,8 +310,11 @@ static int SDLCALL SDL_JoystickThread(void *_data)
+         }
+     }
+ 
++    SDL_SetAtomicInt(&s_scanThreadReady, 0);
+     SDL_UnlockMutex(s_mutexJoyStickEnum);
+ 
++    SDL_DINPUT_ScannerQuit();
++
+ #if !defined(SDL_PLATFORM_XBOXONE) && !defined(SDL_PLATFORM_XBOXSERIES)
+     SDL_CleanupDeviceNotification(&s_notification_data);
+ #endif
+@@ -270,6 +322,20 @@ static int SDLCALL SDL_JoystickThread(void *_data)
+     return 1;
+ }
+ 
++// With s_mutexJoyStickEnum held: asks the joystick thread for a scan, waking it from its message or condition wait.
++// False when the detect must scan itself.
++static bool SDL_RequestDirectInputScan(void)
++{
++    if (!s_scanAsync || !s_joystickThread || !SDL_GetAtomicInt(&s_scanThreadReady) || !SDL_DINPUT_JoystickEnabled()) {
++        return false;
++    }
++
++    SDL_AddAtomicInt(&s_scanRequested, 1);
++    SDL_BroadcastCondition(s_condJoystickThread);
++    PostThreadMessage((DWORD)SDL_GetThreadID(s_joystickThread), WM_NULL, 0, 0);
++    return true;
++}
++
+ // spin up the thread to detect hotplug of devices
+ static bool SDL_StartJoystickThread(void)
+ {
+@@ -367,6 +433,7 @@ static bool WINDOWS_JoystickInit(void)
+     SetWindowsDeviceChanged(); // force a scan of the system for joysticks this first time
+ 
+     WINDOWS_JoystickDetect();
++    s_scanAsync = true;
+ 
+     return true;
+ }
+@@ -388,9 +455,10 @@ static int WINDOWS_JoystickGetCount(void)
+ void WINDOWS_JoystickDetect(void)
+ {
+     JoyStick_DeviceData *pCurList = NULL;
++    bool scanned = false;
+ 
+-    // only enum the devices if the joystick thread told us something changed
+-    if (!WindowsDeviceChanged()) {
++    // only enum the devices if the joystick thread told us something changed, or a scan we asked it for may be in
++    if (!WindowsDeviceChanged() && !s_scanPending) {
+         return; // thread hasn't signaled, nothing to do right now.
+     }
+ 
+@@ -398,13 +466,33 @@ void WINDOWS_JoystickDetect(void)
+         SDL_LockMutex(s_mutexJoyStickEnum);
+     }
+ 
+-    s_lastDeviceChange = WIN_GetLastDeviceNotification();
++    if (WindowsDeviceChanged()) {
++        s_lastDeviceChange = WIN_GetLastDeviceNotification();
++        s_scanPending = SDL_RequestDirectInputScan();
++        if (s_scanPending) {
++            SDL_XINPUT_JoystickProbe();
++        }
++    }
++
++    // The device list changes once, from the scan that answers the latest change, and stands as it is until then.
++    if (s_scanPending) {
++        if (s_scanCompleted != SDL_GetAtomicInt(&s_scanRequested)) {
++            SDL_UnlockMutex(s_mutexJoyStickEnum);
++            return;
++        }
++        s_scanPending = false;
++        scanned = !s_scanFailed;
++    }
+ 
+     pCurList = SYS_Joystick;
+     SYS_Joystick = NULL;
+ 
+     // Look for DirectInput joysticks, wheels, head trackers, gamepads, etc..
+-    SDL_DINPUT_JoystickDetect(&pCurList);
++    if (scanned) {
++        SDL_DINPUT_JoystickDetectScan(&s_scan, &pCurList);
++    } else {
++        SDL_DINPUT_JoystickDetect(&pCurList);
++    }
+ 
+     // Look for XInput devices. Do this last, so they're first in the final list.
+     SDL_XINPUT_JoystickDetect(&pCurList);
+@@ -669,6 +757,14 @@ void WINDOWS_JoystickQuit(void)
+     }
+ #endif
+ 
++    // The thread has stopped, and a later init starts from none.
++    SDL_DINPUT_FreeScan(&s_scan);
++    SDL_SetAtomicInt(&s_scanRequested, 0);
++    s_scanCompleted = 0;
++    s_scanFailed = false;
++    s_scanPending = false;
++    s_scanAsync = false;
++
+     SDL_DINPUT_JoystickQuit();
+     SDL_XINPUT_JoystickQuit();
+ 
+diff --git a/src/joystick/windows/SDL_xinputjoystick.c b/src/joystick/windows/SDL_xinputjoystick.c
+index d7a132e..29709c2 100644
+--- a/src/joystick/windows/SDL_xinputjoystick.c
++++ b/src/joystick/windows/SDL_xinputjoystick.c
+@@ -211,6 +211,22 @@ static void AddXInputDevice(Uint8 userid, BYTE SubType, JoyStick_DeviceData **pC
+     WINDOWS_AddJoystickDevice(pNewJoystick);
+ }
+ 
++// Asks each slot for its capabilities, as the detect does, for a detect that waits on a DirectInput scan: a controller
++// on a wireless adapter must answer XInput before the Raw Input driver takes hold of it (see AddXInputDevice).
++void SDL_XINPUT_JoystickProbe(void)
++{
++    int iuserid;
++
++    if (!s_bXInputEnabled) {
++        return;
++    }
++
++    for (iuserid = 0; iuserid < XUSER_MAX_COUNT; iuserid++) {
++        XINPUT_CAPABILITIES capabilities;
++        (void)XINPUTGETCAPABILITIES((Uint8)iuserid, XINPUT_FLAG_GAMEPAD, &capabilities);
++    }
++}
++
+ void SDL_XINPUT_JoystickDetect(JoyStick_DeviceData **pContext)
+ {
+     int iuserid;
+@@ -444,6 +460,10 @@ bool SDL_XINPUT_JoystickInit(void)
+     return true;
+ }
+ 
++void SDL_XINPUT_JoystickProbe(void)
++{
++}
++
+ void SDL_XINPUT_JoystickDetect(JoyStick_DeviceData **pContext)
+ {
+ }
+diff --git a/src/joystick/windows/SDL_xinputjoystick_c.h b/src/joystick/windows/SDL_xinputjoystick_c.h
+index 9ac1224..dadc8fc 100644
+--- a/src/joystick/windows/SDL_xinputjoystick_c.h
++++ b/src/joystick/windows/SDL_xinputjoystick_c.h
+@@ -29,6 +29,7 @@ extern "C" {
+ 
+ extern bool SDL_XINPUT_Enabled(void);
+ extern bool SDL_XINPUT_JoystickInit(void);
++extern void SDL_XINPUT_JoystickProbe(void);
+ extern void SDL_XINPUT_JoystickDetect(JoyStick_DeviceData **pContext);
+ extern bool SDL_XINPUT_JoystickPresent(Uint16 vendor, Uint16 product, Uint16 version);
+ extern bool SDL_XINPUT_JoystickOpen(SDL_Joystick *joystick, JoyStick_DeviceData *joystickdevice);
