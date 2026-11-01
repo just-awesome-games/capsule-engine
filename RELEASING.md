@@ -110,7 +110,8 @@ bump lands in two changes:
    git push origin natives-v<n>
    ```
 
-   The tag's run pushes both packages, and NuGet.org skips the one whose version it already holds.
+   The tag's run builds and pushes only the packages whose `Version` NuGet.org does not hold yet, and a
+   tag that bumped none fails before it builds.
 2. Once the packages index, move the engine to them: `JAG.Capsule.Native.SDL3` in
    `src/Capsule.Runtime/Capsule.Runtime.csproj`, or `CapsuleShaderToolsVersion` in
    `build/Capsule.ShaderTools.targets`. Regenerate the lock files with

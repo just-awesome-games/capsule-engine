@@ -2,8 +2,8 @@ name: Native packages
 
 # Builds JAG.Capsule.Native.SDL3 and JAG.Capsule.ShaderTools from the upstream releases natives/build.sh
 # pins, each identifier on its own operating system and architecture. A dispatch builds and keeps the
-# packages as an artifact, and can build one package alone. A natives-v* tag on main builds both and also
-# pushes them to NuGet.org. RELEASING.md says when.
+# packages as an artifact, and can build one package alone. A natives-v* tag on main builds each package
+# whose Version NuGet.org does not hold yet, and pushes it there. RELEASING.md says when.
 
 on:
   workflow_dispatch:
@@ -25,12 +25,55 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
+  # The packages to build: a dispatch's choice, or for a tag each package whose project's Version NuGet.org
+  # does not serve yet, which a release bumps. A tag that bumped none fails here rather than rebuilding
+  # packages the publish would skip.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.plan.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: plan
+        env:
+          CHOICE: ${{ inputs.package }}
+        run: |
+          if [ -n "$CHOICE" ]; then
+            case $CHOICE in
+              sdl3) packages='["sdl3"]' ;;
+              shadertools) packages='["shadertools"]' ;;
+              *) packages='["sdl3","shadertools"]' ;;
+            esac
+          else
+            unpublished() {
+              id=$(sed -n 's:.*<PackageId>\(.*\)</PackageId>.*:\1:p' "$1" | tr '[:upper:]' '[:lower:]')
+              version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$1")
+              status=$(curl -s -o /dev/null -w '%{http_code}' "https://api.nuget.org/v3-flatcontainer/$id/$version/$id.$version.nupkg")
+              echo "$id $version: NuGet.org answers $status"
+              case $status in
+                404) return 0 ;;
+                200) return 1 ;;
+                *) echo "NuGet.org could not say whether it holds $id $version." >&2; exit 1 ;;
+              esac
+            }
+            chosen=()
+            if unpublished natives/JAG.Capsule.Native.SDL3.csproj; then chosen+=('"sdl3"'); fi
+            if unpublished natives/JAG.Capsule.ShaderTools.csproj; then chosen+=('"shadertools"'); fi
+            if [ ${#chosen[@]} -eq 0 ]; then
+              echo "NuGet.org already holds every native package's Version. Bump the Version of the package that changed." >&2
+              exit 1
+            fi
+            packages="[$(IFS=,; echo "${chosen[*]}")]"
+          fi
+          echo "packages=$packages" | tee -a "$GITHUB_OUTPUT"
+
   build:
+    needs: plan
     strategy:
       fail-fast: false
       matrix:
-        # A tag has no input and builds both.
-        package: ${{ fromJSON(inputs.package == 'sdl3' && '["sdl3"]' || inputs.package == 'shadertools' && '["shadertools"]' || '["sdl3", "shadertools"]') }}
+        package: ${{ fromJSON(needs.plan.outputs.packages) }}
         rid: [win-x64, win-arm64, linux-x64, linux-arm64, osx]
         include:
           - rid: win-x64
@@ -74,11 +117,11 @@ jobs:
           if-no-files-found: error
 
   pack:
-    needs: build
+    needs: [plan, build]
     runs-on: ubuntu-latest
     env:
-      SDL3: ${{ inputs.package != 'shadertools' }}
-      SHADERTOOLS: ${{ inputs.package != 'sdl3' }}
+      SDL3: ${{ contains(fromJSON(needs.plan.outputs.packages), 'sdl3') }}
+      SHADERTOOLS: ${{ contains(fromJSON(needs.plan.outputs.packages), 'shadertools') }}
     steps:
       - uses: actions/checkout@v7
 
