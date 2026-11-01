@@ -223,45 +223,6 @@ public sealed class ParticleEmitterTests
     }
 
     [Fact]
-    public void Bounds_CoversEveryLiveParticleAndReadsEmptyWithNoneAlive()
-    {
-        (_, ParticleEmitter emitter, SimulationHost host) = Build(capacity: 8);
-
-        Assert.True(emitter.Bounds.IsEmpty);
-
-        emitter.Emit(1);
-        host.Step();
-
-        Assert.False(emitter.Bounds.IsEmpty);
-
-        SpriteIntent intent = host.Simulation.View.Sprites.ToArray().Single();
-        Rect bounds = emitter.Bounds;
-        Assert.True(bounds.Contains(intent.Position) || intent.Position.X == bounds.Right || intent.Position.Y == bounds.Bottom);
-
-        // A spawn after the step that folded Bounds is not lost until the next fold: Emit extends
-        // Bounds itself. A late burst under a culling camera still draws the same frame.
-        Vector2 far = new(100f, 100f);
-        emitter.Emit(1, far);
-
-        Assert.True(emitter.Bounds.Contains(far) || far.X == emitter.Bounds.Right || far.Y == emitter.Bounds.Bottom);
-    }
-
-    // A negative scale mirrors the frame. Its bounds once inflated by a negative reach and read empty,
-    // which culled the particle.
-    [Fact]
-    public void Bounds_InflateByTheScalesMagnitude()
-    {
-        (_, ParticleEmitter emitter, _) = Build(capacity: 8);
-        emitter.Scale = 2f;
-        emitter.Emit(1);
-        Rect upright = emitter.Bounds;
-
-        emitter.Scale = -2f;
-
-        Assert.Equal(upright, emitter.Bounds);
-    }
-
-    [Fact]
     public void AOneTickParticleEmittedFromTheEntitysOwnStep_DrawsOnce()
     {
         SelfEmitter entity = new();
@@ -332,9 +293,12 @@ public sealed class ParticleEmitterTests
         return [.. host.Simulation.View.Sprites.ToArray()];
     }
 
-    private static (EntityHierarchyFixtures.Node Root, ParticleEmitter Emitter, SimulationHost Host) Build(int capacity)
+    internal static (EntityHierarchyFixtures.Node Root, ParticleEmitter Emitter, SimulationHost Host) Build(int capacity, Sprite? frame = null) =>
+        Build(new ParticleEmitter(frame ?? Tile, capacity));
+
+    // The emitter on a root entity at the origin, in a scene of its own.
+    internal static (EntityHierarchyFixtures.Node Root, ParticleEmitter Emitter, SimulationHost Host) Build(ParticleEmitter emitter)
     {
-        ParticleEmitter emitter = new(Tile, capacity);
         EntityHierarchyFixtures.Node root = new(Vector2.Zero);
         root.Add(emitter);
 

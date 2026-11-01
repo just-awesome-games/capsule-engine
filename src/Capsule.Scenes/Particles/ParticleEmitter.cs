@@ -105,6 +105,10 @@ public sealed class ParticleEmitter : Renderer
     private Vector2 _boundsMin;
     private Vector2 _boundsMax;
 
+    // The largest scale magnitude any particle spawned with since the pool last emptied. A particle keeps its spawn scale
+    // when Scale changes. It only grows while particles live, which keeps it off the per-particle step.
+    private float _boundsScale;
+
     /// <summary>The pool's fixed size, set at construction.</summary>
     public int Capacity { get; }
 
@@ -355,7 +359,7 @@ public sealed class ParticleEmitter : Renderer
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(capacity, 0);
 
         _clip = clip;
-        _boundsRadius = LargestHalfDiagonal(clip.Frames);
+        _boundsRadius = LargestReach(clip.Frames);
         Capacity = capacity;
         _particles = new Particle[capacity];
         _pending = new PendingEmit[capacity];
@@ -400,9 +404,12 @@ public sealed class ParticleEmitter : Renderer
                 PlaceBox(Frame(PreviousRenderTransform), Frame(RenderTransform), ref min, ref max);
             }
 
-            return Inflate(min, max, _boundsRadius * MathF.Max(-Scale.Min, Scale.Max) * ScaleOverLifetime.Reach);
+            return Inflate(min, max, BoundsRadius);
         }
     }
+
+    // The farthest any live particle's sprite reaches from its position, at the largest scale it draws at.
+    private float BoundsRadius => _boundsRadius * _boundsScale * ScaleOverLifetime.Reach;
 
     /// <summary>
     /// Spawns <paramref name="count"/> particles now, at <see cref="Shape"/> about <see cref="Offset"/>,
@@ -463,6 +470,7 @@ public sealed class ParticleEmitter : Renderer
     public void Clear()
     {
         _alive = 0;
+        _boundsScale = 0f;
         _pendingCalls = 0;
         _rateAccumulator = 0f;
         _distanceAccumulator = 0f;
@@ -592,10 +600,28 @@ public sealed class ParticleEmitter : Renderer
             frameFlipY = currentFrame.Scale.Y < 0f;
         }
 
+        // A particle whose path, grown by the farthest reach any particle's sprite has, misses the region draws nothing.
+        // It is skipped before its frame is built, because a wide emitter shows only a few of its particles. Slack of a
+        // thousandth of the reach and a unit covers rounding where the view's own test reaches the same edge.
+        Vector2 reach = new((BoundsRadius * 1.001f) + 1f);
+
         for (int index = 0; index < _alive; index++)
         {
             ref readonly Particle particle = ref _particles[index];
             bool still = held && particle.SpawnStep != step;
+
+            Vector2 previousPosition = still ? particle.Position : particle.PreviousPosition;
+            Vector2 position = particle.Position;
+            if (local)
+            {
+                previousPosition = previousFrame.TransformPoint(previousPosition);
+                position = currentFrame.TransformPoint(position);
+            }
+
+            if (!unculled && !Rect.Sweep(previousPosition, position, reach).Intersects(region))
+            {
+                continue;
+            }
 
             float t = (float)particle.Age / particle.Lifetime;
             Sprite frame = frames[mode switch
@@ -607,14 +633,10 @@ public sealed class ParticleEmitter : Renderer
             float scale = particle.Scale * scaleOverLifetime.Evaluate(t);
             Vector2 size = new Vector2(frame.Region.Width, frame.Region.Height) * scale;
 
-            Vector2 previousPosition = still ? particle.Position : particle.PreviousPosition;
-            Vector2 position = particle.Position;
             float previousRotation = still ? particle.Rotation : particle.PreviousRotation;
             float rotation = particle.Rotation;
             if (local)
             {
-                previousPosition = previousFrame.TransformPoint(previousPosition);
-                position = currentFrame.TransformPoint(position);
                 previousRotation = previousFrame.Rotation + (previousTurn * previousRotation);
                 rotation = currentFrame.Rotation + (currentTurn * rotation);
             }
@@ -747,6 +769,10 @@ public sealed class ParticleEmitter : Renderer
 
         Array.Copy(_particles, run, _particles, live, _alive - run);
         _alive = live + _alive - run;
+        if (_alive == 0)
+        {
+            _boundsScale = 0f;
+        }
 
         Vector2 displacement = current.Position - previous.Position;
         Vector2 emitterVelocity = dt > 0f && !local ? displacement / dt : Vector2.Zero;
@@ -911,6 +937,7 @@ public sealed class ParticleEmitter : Renderer
         particle.Age = 0;
         particle.Lifetime = lifetimeTicks;
         particle.Scale = scale;
+        _boundsScale = MathF.Max(_boundsScale, MathF.Abs(scale));
         particle.SpriteIndex = spriteIndex;
         particle.FlipX = launch.Scale.X < 0f;
         particle.FlipY = launch.Scale.Y < 0f;
@@ -1052,13 +1079,17 @@ public sealed class ParticleEmitter : Renderer
     private static Rect Inflate(Vector2 min, Vector2 max, float radius) =>
         Rect.FromEdges(min.X - radius, min.Y - radius, max.X + radius, max.Y + radius);
 
-    private static float LargestHalfDiagonal(ReadOnlySpan<Sprite> sprites)
+    // The farthest any frame's region reaches from the pivot it is drawn at, its farthest corner. A flip mirrors the
+    // region about the pivot and a turn spins it there, and neither moves that corner farther.
+    private static float LargestReach(ReadOnlySpan<Sprite> sprites)
     {
         float max = 0f;
         foreach (Sprite sprite in sprites)
         {
             TextureRegion region = sprite.Region;
-            max = MathF.Max(max, 0.5f * MathF.Sqrt((region.Width * region.Width) + (region.Height * region.Height)));
+            float x = MathF.Max(MathF.Abs(sprite.Pivot.X), MathF.Abs(region.Width - sprite.Pivot.X));
+            float y = MathF.Max(MathF.Abs(sprite.Pivot.Y), MathF.Abs(region.Height - sprite.Pivot.Y));
+            max = MathF.Max(max, MathF.Sqrt((x * x) + (y * y)));
         }
 
         return max;
