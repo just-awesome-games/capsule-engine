@@ -51,8 +51,8 @@
       },
       "JAG.Capsule.Native.SDL3": {
         "type": "Transitive",
-        "resolved": "3.4.18.5",
-        "contentHash": "SFz6fkzeZFk2cdbB5p8SkeVbH8NIZ7KyVjdUFTj13y/sm4P3B825OM4ahA5eu1+1Kflf1wC2jbZlDGPg6CtCAQ=="
+        "resolved": "3.4.18.6",
+        "contentHash": "tZH3u/bEy4N0ehtJIddbq+1dSd0/q5bVyxI3knso7L110lA/XoaOzQfyl5d4ZyU3ETcafoQgslQ3VIqh/TgQKA=="
       },
       "JAG.Capsule.ShaderTools": {
         "type": "Transitive",
@@ -244,7 +244,7 @@
         "type": "Project",
         "dependencies": {
           "JAG.Capsule": "[0.0.0, )",
-          "JAG.Capsule.Native.SDL3": "[3.4.18.5, )"
+          "JAG.Capsule.Native.SDL3": "[3.4.18.6, )"
         }
       }
     }
