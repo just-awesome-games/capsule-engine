@@ -27,6 +27,9 @@ public sealed class TileGrid
 
     private readonly TileType[] _tileTypes;
 
+    // Each palette entry's index by its name, built the first time a map sets a tile by name.
+    private Dictionary<string, int>? _indexByName;
+
     // The palette index and TileTransform of every painted cell, never written. A grid built from a scene
     // document shares them with every other grid built from it.
     private readonly CellBlocks _cells;
@@ -163,6 +166,23 @@ public sealed class TileGrid
 
     // The cells a map reads until it edits one. They are never written.
     internal CellBlocks Cells => _cells;
+
+    // The palette index of the entry named name, or -1 where none is. The index holds each unique name once.
+    internal int IndexOf(string name)
+    {
+        if (_indexByName is null)
+        {
+            Dictionary<string, int> indexByName = new(_tileTypes.Length, StringComparer.Ordinal);
+            for (int index = 0; index < _tileTypes.Length; index++)
+            {
+                indexByName[_tileTypes[index].Name] = index;
+            }
+
+            _indexByName = indexByName;
+        }
+
+        return _indexByName.GetValueOrDefault(name, -1);
+    }
 
     // Whether any palette entry is on a layer. A grid with none needs no collider.
     internal bool Collides => Array.Exists(_tileTypes, static tileType => tileType.Layer is not null);

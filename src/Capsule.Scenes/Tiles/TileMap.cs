@@ -362,18 +362,13 @@ public class TileMap : Entity
 
     private int PaletteIndexOf(string name)
     {
-        ReadOnlySpan<TileType> palette = _grid.TileTypes;
-        for (int index = 0; index < palette.Length; index++)
-        {
-            if (string.Equals(palette[index].Name, name, StringComparison.Ordinal))
-            {
-                return index;
-            }
-        }
+        int index = _grid.IndexOf(name);
 
-        throw new ArgumentException(
-            $"The palette has no tile type named \"{name}\". Use one of: {string.Join(", ", palette.ToArray().Select(static tileType => tileType.Name))}.",
-            nameof(name));
+        return index >= 0
+            ? index
+            : throw new ArgumentException(
+                $"The palette has no tile type named \"{name}\". Use one of: {string.Join(", ", _grid.TileTypes.ToArray().Select(static tileType => tileType.Name))}.",
+                nameof(name));
     }
 
     // Steps each animated entry's clip and writes its current frame into the map's table. It steps with
