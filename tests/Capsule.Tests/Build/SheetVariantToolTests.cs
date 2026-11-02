@@ -1,3 +1,8 @@
+using System.Numerics;
+using System.Reflection;
+using Capsule.Assets;
+using Capsule.Rendering;
+
 namespace Capsule.Tests.Build;
 
 /// <summary>
@@ -20,20 +25,32 @@ public sealed class SheetVariantToolTests
     [Fact]
     public void AVariant_CompilesIntoItsFramesAndAVariantOfEveryBaseFrame()
     {
-        string generated = SheetToolTests.Emitted(("actors/player", SheetToolTests.Player), ("actors/player-hat", Hat));
+        Assembly game = SheetToolTests.Loaded(SheetToolTests.Emitted(("actors/player", SheetToolTests.Player), ("actors/player-hat", Hat)));
+        SpriteVariant variant = SheetToolTests.Member<SpriteVariant>(game, "Actors+PlayerHatSheet", "Variant");
+        Sprite hat = SheetToolTests.Member<Sprite>(game, "Actors+PlayerHatSheet+Frames", "Idle0");
 
-        Assert.Contains("public static class PlayerHatSheet", generated, StringComparison.Ordinal);
-        Assert.Contains("new global::Capsule.Rendering.TextureRegion(0, 0, 6, 3),", generated, StringComparison.Ordinal);
-        Assert.Single(generated.Split("Sprite Walk0 =>")[1..]);
-        Assert.Contains(
-            "public static global::Capsule.Rendering.SpriteVariant Variant { get; } = new global::Capsule.Rendering.SpriteVariant(",
-            generated,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "new global::Capsule.Rendering.Sprite[] { global::Capsule.Generated.CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Idle0, global::Capsule.Generated.CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Walk0 },",
-            generated,
-            StringComparison.Ordinal);
-        Assert.Contains("new global::Capsule.Rendering.Sprite?[] { Frames.Idle0, null });", generated, StringComparison.Ordinal);
+        Assert.Equal(new Sprite(new TextureHandle("p", ".png"), new TextureRegion(0, 0, 6, 3), new Vector2(3f, 10f)), hat);
+        Assert.Null(game.GetType("Capsule.Generated.CapsuleAssets+Sprites+Actors+PlayerHatSheet+Frames")!.GetProperty("Walk0"));
+        Assert.True(variant.TryGet(SheetToolTests.Member<Sprite>(game, "Actors+PlayerSheet+Frames", "Idle0"), out Sprite? idle));
+        Assert.Equal(hat, idle);
+        Assert.True(variant.TryGet(SheetToolTests.Member<Sprite>(game, "Actors+PlayerSheet+Frames", "Walk0"), out Sprite? walk));
+        Assert.Null(walk);
+    }
+
+    // A variant whose every frame draws nothing declares no frames and maps every base frame to nothing.
+    [Fact]
+    public void AVariantDrawingNothing_MapsEveryBaseFrameToNothing()
+    {
+        const string bare = """
+            { "formatVersion": 1, "texture": "p.png", "variantOf": "Sprites/actors/player.sheet.json",
+              "frames": [ { "name": "idle-0" }, { "name": "walk-0" } ] }
+            """;
+        Assembly game = SheetToolTests.Loaded(SheetToolTests.Emitted(("actors/player", SheetToolTests.Player), ("actors/player-bare", bare)));
+        SpriteVariant variant = SheetToolTests.Member<SpriteVariant>(game, "Actors+PlayerBareSheet", "Variant");
+
+        Assert.Null(game.GetType("Capsule.Generated.CapsuleAssets+Sprites+Actors+PlayerBareSheet+Frames"));
+        Assert.True(variant.TryGet(SheetToolTests.Member<Sprite>(game, "Actors+PlayerSheet+Frames", "Idle0"), out Sprite? idle));
+        Assert.Null(idle);
     }
 
     [Theory]

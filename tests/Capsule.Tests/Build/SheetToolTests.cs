@@ -1,8 +1,19 @@
+using System.Collections.Immutable;
+using System.Numerics;
+using System.Reflection;
+using Capsule.Animation;
+using Capsule.Assets;
+using Capsule.Rendering;
+using Capsule.Scenes;
+using Capsule.Tests.Generators;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+
 namespace Capsule.Tests.Build;
 
 /// <summary>
-/// What the build will and will not read out of a sprite sheet, and what a game compiles against
-/// once it has: every frame and clip is literal data by the time the game runs, and no sheet ships.
+/// What a game compiles against once the build has read a sprite sheet. Every frame and clip is
+/// constant data by the time the game runs, and no sheet ships.
 /// </summary>
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class SheetToolTests
@@ -39,36 +50,39 @@ public sealed class SheetToolTests
             { "frame": "walk-0", "ticks": 6, "events": ["footstep"] }, { "frame": "walk-1", "ticks": 6 } ] } ] }
         """;
 
+    // A frame's member reads its sheet's table. A sheet compiles to data, not to code per frame.
+    // An absent pivot is the region's top-left corner, which is Sprite.Pivot's own default.
     [Fact]
-    public void AFrame_CompilesIntoASpriteCarryingItsRegionPivotAndTexture()
+    public void AFrame_IsASpriteCarryingItsRegionPivotAndTexture()
     {
         string generated = Emitted(("actors/player", Player));
+        Assembly game = Loaded(generated);
+        TextureHandle texture = new("actors/player", ".png");
 
-        Assert.Contains("public static class Actors", generated, StringComparison.Ordinal);
-        Assert.Contains("public static class PlayerSheet", generated, StringComparison.Ordinal);
-        Assert.Contains("public static global::Capsule.Rendering.Sprite Idle0 => new global::Capsule.Rendering.Sprite(", generated, StringComparison.Ordinal);
-        Assert.Contains("new global::Capsule.Assets.TextureHandle(\"actors/player\", \".png\"),", generated, StringComparison.Ordinal);
-        Assert.Contains("new global::Capsule.Rendering.TextureRegion(0, 0, 8, 8),", generated, StringComparison.Ordinal);
-        Assert.Contains("new global::System.Numerics.Vector2(4F, 8F));", generated, StringComparison.Ordinal);
-
-        // An absent pivot is the region's top-left corner, which is Sprite.Pivot's own default.
-        Assert.Contains("new global::System.Numerics.Vector2(0F, 0F));", generated, StringComparison.Ordinal);
+        Assert.Contains("public static global::Capsule.Rendering.Sprite Idle0 => Frames_Cut[0];", generated, StringComparison.Ordinal);
+        Assert.Equal(new Sprite(texture, new TextureRegion(0, 0, 8, 8), new Vector2(4f, 8f)), Member<Sprite>(game, "Actors+PlayerSheet+Frames", "Idle0"));
+        Assert.Equal(new Sprite(texture, new TextureRegion(8, 0, 8, 8)), Member<Sprite>(game, "Actors+PlayerSheet+Frames", "Walk0"));
     }
 
-    // A clip is identified by instance. The member hands back one instance rather than rebuilding
-    // it per read: a property with a field initializer, never an expression body.
+    // A clip is identified by instance. Every read of its member hands back the same one.
     [Fact]
-    public void AClip_CompilesIntoOneSpriteClipOfItsFramesTicksAndLoop()
+    public void AClip_IsOneSpriteClipOfItsFramesTicksAndLoop()
     {
         string generated = Emitted(("actors/player", Player));
+        Assembly game = Loaded(generated);
+        Sprite idle = Member<Sprite>(game, "Actors+PlayerSheet+Frames", "Idle0");
+        Sprite walk = Member<Sprite>(game, "Actors+PlayerSheet+Frames", "Walk0");
+        SpriteClip looped = Member<SpriteClip>(game, "Actors+PlayerSheet+Clips", "Idle");
+        SpriteClip once = Member<SpriteClip>(game, "Actors+PlayerSheet+Clips", "Land");
 
-        Assert.Contains("public static global::Capsule.Animation.SpriteClip Idle { get; } = new global::Capsule.Animation.SpriteClip(", generated, StringComparison.Ordinal);
-        Assert.Contains("new global::Capsule.Rendering.Sprite[] { Frames.Idle0 },", generated, StringComparison.Ordinal);
-        Assert.Contains("new int[] { 6 },", generated, StringComparison.Ordinal);
+        Assert.Same(looped, Member<SpriteClip>(game, "Actors+PlayerSheet+Clips", "Idle"));
+        Assert.Equal([idle], looped.Frames.ToArray());
+        Assert.Equal([6], looped.FrameTicks.ToArray());
+        Assert.True(looped.Loop);
+        Assert.Equal([walk, idle], once.Frames.ToArray());
+        Assert.Equal([1, 2], once.FrameTicks.ToArray());
+        Assert.False(once.Loop);
         Assert.Contains("<c>idle</c>: 1 frame, 6 ticks, looping.", generated, StringComparison.Ordinal);
-
-        Assert.Contains("new global::Capsule.Rendering.Sprite[] { Frames.Walk0, Frames.Idle0 },", generated, StringComparison.Ordinal);
-        Assert.Contains("new int[] { 1, 2 },", generated, StringComparison.Ordinal);
         Assert.Contains("<c>land</c>: 2 frames, 3 ticks, played once.", generated, StringComparison.Ordinal);
     }
 
@@ -85,38 +99,33 @@ public sealed class SheetToolTests
     }
 
     // A socket or a box is a name constant the game binds by and a mark each frame carries or leaves
-    // out. One table per frame is what makes two reads of that frame equal and allocation-free. An
-    // event is a name constant and a list on each clip entry, never on the frame it plays.
+    // out. One marks instance per frame is what makes two reads of that frame equal and
+    // allocation-free. An event is a name constant and a list on each clip entry, never on the frame
+    // it plays.
     [Fact]
     public void SocketsBoxesAndEvents_CompileIntoNameConstantsAndTheMarksAndEntriesThatSetThem()
     {
         string generated = Emitted(("armed", Armed));
+        Assembly game = Loaded(generated);
+        Sprite first = Member<Sprite>(game, "ArmedSheet+Frames", "Walk0");
+        Sprite second = Member<Sprite>(game, "ArmedSheet+Frames", "Walk1");
+        SpriteClip walk = Member<SpriteClip>(game, "ArmedSheet+Clips", "Walk");
 
-        Assert.Contains("public const string Muzzle = \"muzzle\";", generated, StringComparison.Ordinal);
-        Assert.Contains("public const string OffHand = \"off-hand\";", generated, StringComparison.Ordinal);
-        Assert.Contains(
-            "new global::Capsule.Rendering.SpriteSocket(\"muzzle\", new global::System.Numerics.Vector2(8F, 4F)),",
-            generated,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "new global::Capsule.Rendering.SpriteSocket(\"off-hand\", new global::System.Numerics.Vector2(0F, 5.5F))",
-            generated,
-            StringComparison.Ordinal);
-        Assert.Contains("private static readonly global::Capsule.Rendering.SpriteMarks Walk1_Marks", generated, StringComparison.Ordinal);
-        Assert.DoesNotContain("Walk2_Marks", generated, StringComparison.Ordinal);
-
-        Assert.Contains("public const string Hurt = \"hurt\";", generated, StringComparison.Ordinal);
-        Assert.Contains(
-            "new global::Capsule.Rendering.SpriteBox(\"hurt\", new global::Capsule.Rendering.Rect(-1F, 0.5F, 10F, 7F))",
-            generated,
-            StringComparison.Ordinal);
+        Assert.Equal("muzzle", Member<string>(game, "ArmedSheet+Sockets", "Muzzle"));
+        Assert.Equal("off-hand", Member<string>(game, "ArmedSheet+Sockets", "OffHand"));
+        Assert.Equal("hurt", Member<string>(game, "ArmedSheet+Boxes", "Hurt"));
+        Assert.Equal("footstep", Member<string>(game, "ArmedSheet+Events", "Footstep"));
+        Assert.Equal(
+            [new SpriteSocket("muzzle", new Vector2(8f, 4f)), new SpriteSocket("off-hand", new Vector2(0f, 5.5f))],
+            first.Marks!.Sockets.ToArray());
+        Assert.Equal([new SpriteBox("hurt", new Rect(-1f, 0.5f, 10f, 7f))], first.Marks.Boxes.ToArray());
+        Assert.Equal([new SpriteSocket("muzzle", new Vector2(8f, 3f))], second.Marks!.Sockets.ToArray());
+        Assert.Empty(second.Marks.Boxes.ToArray());
+        Assert.Same(second.Marks, Member<Sprite>(game, "ArmedSheet+Frames", "Walk1").Marks);
+        Assert.Null(Member<Sprite>(game, "ArmedSheet+Frames", "Walk2").Marks);
+        Assert.Equal(["footstep"], walk.EventsAt(0).ToArray());
+        Assert.Empty(walk.EventsAt(1).ToArray());
         Assert.Contains("<c>walk-0</c>: 8x8 at (0, 0), sockets <c>muzzle</c>, <c>off-hand</c>, box <c>hurt</c>.", generated, StringComparison.Ordinal);
-
-        Assert.Contains("public const string Footstep = \"footstep\";", generated, StringComparison.Ordinal);
-        Assert.Contains(
-            "new string[][] { new string[] { \"footstep\" }, global::System.Array.Empty<string>() });",
-            generated,
-            StringComparison.Ordinal);
     }
 
     // The sheet's own spelling of the texture is normalized to the key the build ships it under. A
@@ -162,8 +171,11 @@ public sealed class SheetToolTests
                   "clips": [ { "name": "c", "loop": null, "frames": [ { "frame": "a", "ticks": 1, "events": null } ] } ] }
                 """));
 
-        Assert.Contains("new global::System.Numerics.Vector2(0F, 0F));", generated, StringComparison.Ordinal);
-        Assert.Contains("played once", generated, StringComparison.Ordinal);
+        Assembly game = Loaded(generated);
+
+        Assert.Equal(Vector2.Zero, Member<Sprite>(game, "PropSheet+Frames", "A").Pivot);
+        Assert.Null(Member<Sprite>(game, "PropSheet+Frames", "A").Marks);
+        Assert.False(Member<SpriteClip>(game, "HeldSheet+Clips", "C").Loop);
     }
 
     // The identifier rule is applied to the text a name's escapes decode to.
@@ -177,181 +189,24 @@ public sealed class SheetToolTests
                 """)),
             StringComparison.Ordinal);
 
-    [Theory]
+    private static readonly ImmutableArray<MetadataReference> References =
+        GeneratorHarness.Referenced(null, typeof(Sprite).Assembly, typeof(SceneKey).Assembly, typeof(object).Assembly);
 
-    // The version gate.
-    [InlineData("""{ "texture": "p.png", "frames": [] }""", "formatVersion")]
-    [InlineData("""{ "formatVersion": 2, "texture": "p.png", "frames": [] }""", "unsupported")]
+    // The generated members as the game runs them.
+    internal static Assembly Loaded(string generated) =>
+        GeneratorHarness.Loaded(CSharpCompilation.Create(
+            "SheetSpecs",
+            [CSharpSyntaxTree.ParseText(generated)],
+            References,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)));
 
-    // A texture that is not one asset path under the textures root.
-    [InlineData("""{ "formatVersion": 1, "frames": [] }""", "names no texture")]
-    [InlineData("""{ "formatVersion": 1, "texture": null, "frames": [] }""", "names no texture")]
-    [InlineData("""{ "formatVersion": 1, "texture": "sub//p.png", "frames": [] }""", "extension included")]
-    [InlineData("""{ "formatVersion": 1, "texture": "../p.png", "frames": [] }""", "extension included")]
-    [InlineData("""{ "formatVersion": 1, "texture": "player", "frames": [] }""", "extension included")]
-    [InlineData("""{ "formatVersion": 1, "texture": "01/p.png", "frames": [] }""", "no C# name")]
-
-    // A sheet names at least one region of its texture.
-    [InlineData("""{ "formatVersion": 1, "texture": "p.png" }""", "has no frames")]
-    [InlineData("""{ "formatVersion": 1, "texture": "p.png", "frames": [] }""", "has no frames")]
-    [InlineData("""{ "formatVersion": 1, "texture": "p.png", "frames": [ null ] }""", "frames[0] as null")]
-
-    // Frame geometry.
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 0, "height": 1 } ] }
-        """, "at least one texel")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": -1, "y": 0, "width": 1, "height": 1 } ] }
-        """, "not negative")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "y": 0, "width": 1, "height": 1 } ] }
-        """, "no x")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": null, "y": 0, "width": 1, "height": 1 } ] }
-        """, "no x")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "pivot": [1] } ] }
-        """, "1 components")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "pivot": [1, 2, 3] } ] }
-        """, "3 components")]
-
-    // Names.
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 },
-                      { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ] }
-        """, "second \"a\"")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a-b", "x": 0, "y": 0, "width": 1, "height": 1 },
-                      { "name": "a_b", "x": 0, "y": 0, "width": 1, "height": 1 } ] }
-        """, "one C# name")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a b", "x": 0, "y": 0, "width": 1, "height": 1 } ] }
-        """, "no C# name")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "frames", "x": 0, "y": 0, "width": 1, "height": 1 } ] }
-        """, "'Frames' class")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ],
-          "clips": [ { "name": "clips", "frames": [ { "frame": "a", "ticks": 1 } ] } ] }
-        """, "'Clips' class")]
-
-    // Sockets, boxes and events: declared once, set by name, and set by at least one frame or entry.
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "boxes": [ { "name": "hurt" } ],
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "boxes": { "hrt": { "x": 0, "y": 0, "width": 1, "height": 1 } } } ] }
-        """, "setting box \"hrt\", which the sheet does not declare")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png", "events": [ { "name": "step" } ],
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ],
-          "clips": [ { "name": "c", "frames": [ { "frame": "a", "ticks": 1, "events": ["step", "stpe"] } ] } ] }
-        """, "raising event \"stpe\", which the sheet does not declare")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "sockets": [ { "name": "muzzle" } ],
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "sockets": { "muzle": [1, 1] } } ] }
-        """, "does not declare")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "sockets": [ { "name": "muzzle" }, { "name": "hand" } ],
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "sockets": { "muzzle": [1, 1] } } ] }
-        """, "no frame sets")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "sockets": [ { "name": "muzzle" }, { "name": "muzzle" } ],
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "sockets": { "muzzle": [1, 1] } } ] }
-        """, "second \"muzzle\"")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "sockets": [ { "name": "sockets" } ],
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "sockets": { "sockets": [1, 1] } } ] }
-        """, "'Sockets' class")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "sockets": [ { "name": "muzzle" } ],
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "sockets": { "muzzle": [1] } } ] }
-        """, "1 components")]
-
-    // A JSON number too large for a float reads as an infinity, which no texel offset is.
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "pivot": [1e400, 0] } ] }
-        """, "pivot that is not finite")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "sockets": [ { "name": "muzzle" } ],
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "sockets": { "muzzle": [1e400, 1] } } ] }
-        """, "not finite")]
-
-    // Clip entries.
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ],
-          "clips": [ { "name": "c", "frames": [ { "frame": "b", "ticks": 1 } ] } ] }
-        """, "no frame named")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ],
-          "clips": [ { "name": "c", "frames": [ { "frame": "a", "ticks": 0 } ] } ] }
-        """, "at least one fixed step")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ],
-          "clips": [ { "name": "c", "frames": [] } ] }
-        """, "no frames")]
-
-    // "$schema" is a string at the root and nowhere else.
-    [InlineData("""{ "$schema": null, "formatVersion": 1, "texture": "p.png", "frames": [] }""", "\"$schema\" is null")]
-    [InlineData("""{ "$schema": {}, "formatVersion": 1, "texture": "p.png", "frames": [] }""", "\"$schema\" is an object")]
-    [InlineData("""
-        { "$schema": "sheet.schema.json", "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "$schema": "sheet.schema.json", "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ] }
-        """, "has an unknown member or value at $.frames[0].$schema (line 2, byte 27). A sheet holds")]
-    public void ASheetTheBuildCannotRead_FailsTheBuildNamingTheDefect(string json, string defect)
+    // The value of a sheet member, named by its classes under CapsuleAssets.Sprites, such as "PropSheet+Frames".
+    internal static T Member<T>(Assembly game, string classes, string name)
     {
-        string refused = Refused(("prop", json));
+        Type declaring = game.GetType("Capsule.Generated.CapsuleAssets+Sprites+" + classes, throwOnError: true)!;
 
-        Assert.Contains("Assets/Sprites/prop.sheet.json", refused, StringComparison.Ordinal);
-        Assert.Contains(defect, refused, StringComparison.Ordinal);
+        return (T)(declaring.GetProperty(name)?.GetValue(null) ?? declaring.GetField(name)!.GetValue(null))!;
     }
-
-    // JSON the reader cannot get through at all, or a member the format does not declare, which is
-    // what a typo looks like. The reader's own message names the member and the line.
-    [Theory]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png", "fps": 12,
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ] }
-        """)]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": 0, "y": 0, "w": 1, "height": 1 } ] }
-        """)]
-    [InlineData("""{ "formatVersion": 1, "texture": "p.png", """)]
-    [InlineData("not json")]
-    [InlineData("")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": 01, "y": 0, "width": 1, "height": 1 } ] }
-        """)]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": 0, "y": 0, "width": 1, "height": 1, "pivot": [.5, 0] } ] }
-        """)]
-
-    public void JsonTheReaderRefuses_FailsTheBuild(string json) =>
-        Assert.Contains("Assets/Sprites/prop.sheet.json", Refused(("prop", json)), StringComparison.Ordinal);
 
     internal static string Emitted(params (string Key, string Json)[] sheets)
     {
