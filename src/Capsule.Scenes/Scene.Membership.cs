@@ -51,7 +51,10 @@ public partial class Scene
     /// The scene has stopped, the entity is already in a scene or queued, the entity has a parent,
     /// a component refused the scene, or it is called inside a <see cref="Renderer.Draw"/>.
     /// </exception>
-    public void Add(Entity entity)
+    /// <typeparam name="T">The entity's type, which the call site keeps.</typeparam>
+    /// <returns>The entity, which a deferred add has not yet placed in the scene.</returns>
+    public T Add<T>(T entity)
+        where T : Entity
     {
         ArgumentNullException.ThrowIfNull(entity);
 
@@ -62,6 +65,8 @@ public partial class Scene
         }
 
         Enqueue(entity);
+
+        return entity;
     }
 
     /// <summary>

@@ -12,14 +12,12 @@ public sealed class Spikes : Entity
     public Spikes(EntitySpawn spawn)
         : base(spawn)
     {
-        SpriteRenderer sprite = new(CapsuleAssets.Sprites.Traps.SpikesSheet.Frames.Down);
-        Add(sprite);
+        SpriteRenderer sprite = Add(new SpriteRenderer(CapsuleAssets.Sprites.Traps.SpikesSheet.Frames.Down));
 
         // Live on the frames the sheet gives a spikes box, off on the rest.
         sprite.Box(CapsuleAssets.Sprites.Traps.SpikesSheet.Boxes.Spikes).Layer = CollisionLayers.Hazard;
 
-        SpriteAnimator animator = new(sprite);
-        Add(animator);
+        SpriteAnimator animator = Add(new SpriteAnimator(sprite));
         animator.Play(CapsuleAssets.Sprites.Traps.SpikesSheet.Clips.Cycle, atTick: _phase);
     }
 }

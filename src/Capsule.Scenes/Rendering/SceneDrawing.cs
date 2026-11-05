@@ -76,7 +76,7 @@ internal sealed class SceneDrawing
                     view.SortsWithWorld = entity.InWorldOrder;
                     view.ScrollFactor = entity.ScrollFactor;
                     view.SetStyle(tint, flash);
-                    view.Material = renderer.Material;
+                    view.Material = renderer.Material ?? entity.Material;
 
                     // A clip is per renderer state, and only screen space has one. A world renderer
                     // between two clipped ones leaves it alone, and a subtree computes its region once.

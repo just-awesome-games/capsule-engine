@@ -12,7 +12,7 @@ and the flash. What a pixel becomes is the game's.
 | --- | --- |
 | A fragment function | An `.fx` file under `Assets/`, named in code as a `CapsuleAssets` member |
 | A shader with its parameter values | `Material` |
-| A renderer or a tile map drawn with it | `Renderer.Material`, `TileMap.Material` |
+| One renderer drawn with it, or all of an entity's | `Renderer.Material`, `Entity.Material` |
 | A value every material of a shader shares | `Scene.ShaderGlobals` |
 
 ## The fragment

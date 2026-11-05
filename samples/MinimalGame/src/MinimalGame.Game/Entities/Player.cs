@@ -43,7 +43,19 @@ public sealed class Player : Entity
     private Countdown _jumpBuffer;
 
     /// <summary>What is left of <see cref="PlayerTuning.MaxHealth"/>: one spent per hazard contact, never below zero.</summary>
-    public int Health { get; private set; }
+    public int Health
+    {
+        get;
+
+        private set
+        {
+            field = value;
+            HealthChanged?.Invoke();
+        }
+    }
+
+    /// <summary>Raised whenever <see cref="Health"/> is written, after it has been.</summary>
+    public event Action? HealthChanged;
 
     /// <summary>Whether the last step took off from the floor, cleared as each step begins.</summary>
     public bool JumpedThisStep { get; private set; }
@@ -70,8 +82,7 @@ public sealed class Player : Entity
 
         _visual = new PlayerVisual(this, FramePivot, _tuning);
 
-        BoxCollider2D bodyCollider = new(Body) { Layer = CollisionLayers.Player };
-        Add(bodyCollider);
+        BoxCollider2D bodyCollider = Add(new BoxCollider2D(Body) { Layer = CollisionLayers.Player });
 
         // A body walks the hill at the speed it is given and follows the ground down its far side. The
         // step height walks it over the curb without a jump. Resting on the center stands the player's
@@ -97,8 +108,7 @@ public sealed class Player : Entity
         _hurtbox.ContactExited += OnHurtboxExited;
         Add(_hurtbox);
 
-        _footfall = new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx };
-        Add(_footfall);
+        _footfall = Add(new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx });
 
         // A burst on landing, from the body's bottom centre: the pattern for a one-shot effect tied
         // to an entity's own lifetime. On the root, it draws under the PlayerVisual child at the same key.

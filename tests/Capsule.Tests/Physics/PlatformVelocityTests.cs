@@ -108,8 +108,8 @@ public sealed class PlatformVelocityTests
         SceneSimulation simulation = new(scene);
         Slab platform = new(new Vector2(0f, 40f));
         Rider rider = new(new Vector2(12f, 32f), movedBy) { Falls = true };
-        scene.Add(platformFirst ? platform : rider);
-        scene.Add(platformFirst ? rider : platform);
+        scene.Add<Entity>(platformFirst ? platform : rider);
+        scene.Add<Entity>(platformFirst ? rider : platform);
 
         return (platform, rider, simulation);
     }

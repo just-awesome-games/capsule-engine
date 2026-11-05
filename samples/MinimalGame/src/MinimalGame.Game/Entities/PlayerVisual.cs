@@ -25,8 +25,7 @@ internal sealed class PlayerVisual : Entity
         _player = player;
         _tuning = tuning;
 
-        SpriteRenderer sprite = new(CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Idle0);
-        Add(sprite);
+        SpriteRenderer sprite = Add(new SpriteRenderer(CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Idle0));
 
         // The socket sits under this child, and the facing scale mirrors it with the frame.
         Muzzle = sprite.Socket(CapsuleAssets.Sprites.Actors.PlayerSheet.Sockets.Muzzle);
@@ -39,11 +38,9 @@ internal sealed class PlayerVisual : Entity
         };
         Add(_cap);
 
-        _animator = new SpriteAnimator(sprite, _cap);
-        Add(_animator);
+        _animator = Add(new SpriteAnimator(sprite, _cap));
 
-        _footstep = new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx };
-        Add(_footstep);
+        _footstep = Add(new AudioSource(CapsuleAssets.Audio.StepSoftSound) { Bus = AudioBuses.Sfx });
     }
 
     /// <summary>The sign of the X the player faces along, which mirrors the frame.</summary>

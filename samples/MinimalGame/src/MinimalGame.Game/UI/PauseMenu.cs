@@ -37,8 +37,7 @@ public sealed class PauseMenu : ScreenEntity
         _resume.Parent = panel;
         _quit.Parent = panel;
 
-        _navigator = new FocusNavigator(GameInput.MenuFocus);
-        Add(_navigator);
+        _navigator = Add(new FocusNavigator(GameInput.MenuFocus));
 
         _resume.Pressed += Close;
         _quit.Pressed += Quit;

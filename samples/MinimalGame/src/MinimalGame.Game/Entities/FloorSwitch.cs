@@ -22,8 +22,7 @@ public sealed class FloorSwitch : Entity
     public FloorSwitch(EntitySpawn spawn)
         : base(spawn)
     {
-        _plate = new ColorRect(Size) { Color = ColorRgba.FromHex("#a8433a") };
-        Add(_plate);
+        _plate = Add(new ColorRect(Size) { Color = ColorRgba.FromHex("#a8433a") });
 
         BoxCollider2D plate = new(Size) { ReportsContacts = true, Detects = new(CollisionLayers.Player) };
         plate.ContactEntered += OnPlayerEntered;

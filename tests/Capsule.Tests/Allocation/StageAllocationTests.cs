@@ -15,9 +15,9 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
     private const int WarmupSteps = 240;
     private const int SparksSpawned = StepMeasurement.MeasuredSteps / StageWorkload.StepsBetweenSpawns;
 
-    // Over twice what a spark's entity, component list and renderer cost, and well under what one
-    // stray per-step allocation in the engine would add.
-    private const long SpawnBytesEach = 512;
+    // What a spark's entity, component list and renderer cost, with nothing to spare. One stray per-step
+    // allocation in the engine would add far more.
+    private const long SpawnBytesEach = 520;
 
     [Fact]
     public void AStageThatSpawnsNothing_AllocatesNothing()

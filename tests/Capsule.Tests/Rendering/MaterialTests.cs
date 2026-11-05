@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Assets;
 using Capsule.Rendering;
+using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Rendering;
@@ -116,9 +117,35 @@ public sealed class MaterialTests
         Assert.Equal([new MaterialRun(0, stone), new MaterialRun(1, null)], view.ScreenMaterialRuns.ToArray());
     }
 
+    // An entity's material draws its renderers that name none. A renderer's own wins, and a child entity keeps the default.
+    [Fact]
+    public void AnEntitysMaterial_DrawsItsRenderersNamingNone_AndNoChild()
+    {
+        Material stone = new(Stone);
+        Material moss = new(Stone);
+        Sprite frame = SceneFixtures.Frame(1, 1);
+        Figure figure = new() { Material = stone };
+        figure.Add(new SpriteRenderer(frame));
+        figure.Add(new SpriteRenderer(frame) { Material = moss });
+        figure.Add(new SpriteRenderer(frame));
+        new Entity(figure, Vector2.Zero).Add(new SpriteRenderer(frame));
+        Scene scene = new();
+        scene.Add(figure);
+        SceneFixtures.Open(scene, Vector2.Zero, new Vector2(8f, 8f));
+        SceneSimulation simulation = new(scene);
+
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal(
+            [new MaterialRun(0, stone), new MaterialRun(1, moss), new MaterialRun(2, stone), new MaterialRun(3, null)],
+            simulation.View.MaterialRuns.ToArray());
+    }
+
     private static void Store(FrameView view, Material? material, RenderSpace space)
     {
         view.Material = material;
         view.Add(new SpriteIntent(SceneFixtures.Frame(1, 1), Vector2.Zero, Vector2.Zero, 0f, 0f, Vector2.One, false, false, ColorRgba.White), space);
     }
+
+    private sealed class Figure() : Entity(Vector2.Zero);
 }

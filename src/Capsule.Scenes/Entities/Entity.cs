@@ -459,7 +459,8 @@ public partial class Entity
     // the one it last visited. One attached once that one and every later one are gone can wait a walk.
     private ComponentWalk LiveComponents => new(_components);
 
-    /// <summary>Attaches <paramref name="component"/>, which no entity may already own.</summary>
+    /// <summary>Attaches <paramref name="component"/>, which no entity may already own, and returns it.</summary>
+    /// <typeparam name="T">The component's type, which the call site keeps.</typeparam>
     /// <exception cref="InvalidOperationException">
     /// The component is already attached to an entity, or this entity refuses it. An entity refuses
     /// a second <see cref="Physics.KinematicBody2D"/>, a collider, body, tile-map collider or notifier
@@ -474,7 +475,8 @@ public partial class Entity
     /// The component takes the next place in attachment order before its <see cref="Component.OnAttached"/>
     /// runs. A component that attaches its parts there steps before them.
     /// </remarks>
-    public void Add(Component component)
+    public T Add<T>(T component)
+        where T : Component
     {
         ArgumentNullException.ThrowIfNull(component);
         SceneOrNull?.Drawing.ThrowIfDrawing("attached a component");
@@ -561,6 +563,8 @@ public partial class Entity
         {
             component.RunStart();
         }
+
+        return component;
     }
 
     /// <summary>Detaches <paramref name="component"/> so it may be attached elsewhere.</summary>
@@ -801,6 +805,11 @@ public partial class Entity
         try
         {
             CollectAssets(assets);
+
+            if (Material is { } own)
+            {
+                assets.Add(own);
+            }
 
             foreach (Component component in Components)
             {

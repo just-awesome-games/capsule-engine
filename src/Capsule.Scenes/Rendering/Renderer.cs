@@ -51,8 +51,8 @@ public abstract class Renderer : Component
     public bool Visible { get; set; } = true;
 
     /// <summary>
-    /// The material this renderer draws with, and null for the engine's own sprite shader, the
-    /// default.
+    /// The material this renderer draws with, and null for its entity's <see cref="Entity.Material"/>, the
+    /// default, which is the engine's own sprite shader where the entity names none.
     /// </summary>
     /// <remarks>
     /// Neighbouring sprites draw in one batch when they share a texture and a material instance.
@@ -129,6 +129,6 @@ public abstract class Renderer : Component
     {
         panel.Toggle("Visible", Visible, value => Visible = value);
         panel.Field("ZIndex", ZIndex);
-        panel.Field("Material", Material is { } material ? material.Shader.Name : "default");
+        panel.Field("Material", (Material ?? Entity?.Material) is { } material ? material.Shader.Name : "default");
     }
 }

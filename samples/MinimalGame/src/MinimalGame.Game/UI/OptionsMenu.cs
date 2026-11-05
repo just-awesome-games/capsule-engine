@@ -70,8 +70,7 @@ public sealed class OptionsMenu : ScreenEntity
 
         _ = new ScrollBar(list) { Parent = this };
 
-        _navigator = new FocusNavigator(GameInput.MenuFocus);
-        Add(_navigator);
+        _navigator = Add(new FocusNavigator(GameInput.MenuFocus));
 
         _language.Pressed += NextLanguage;
         _jump.Pressed += () => Listen(_jump);

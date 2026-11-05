@@ -107,6 +107,25 @@ public partial class Entity
         }
     } = ColorRgba.White;
 
+    /// <summary>
+    /// The material the renderers on this entity draw with where they name none of their own, and null for the
+    /// engine's own sprite shader, the default.
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="Tint"/> and <see cref="Flash"/> it does not reach child entities, and each child sets its own.
+    /// Renderers sharing it batch as any sharing one instance do. A material held at construction is loaded with the
+    /// scene, and one set later loads on its first draw.
+    /// </remarks>
+    /// <example>
+    /// A figure of several parts, recoloured as one:
+    /// <code>
+    /// avatar.Add(new SpriteRenderer(Body));
+    /// avatar.Add(new SpriteRenderer(Hat));
+    /// avatar.Material = Palette;
+    /// </code>
+    /// </example>
+    public Material? Material { get; set; }
+
     // Whether this entity and every ancestor is visible. Focus reads this and not the tint. A faded
     // item can still hold the focus.
     internal bool ShownInTree

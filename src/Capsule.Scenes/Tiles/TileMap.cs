@@ -39,7 +39,6 @@ public class TileMap : Entity
 
     // Null for a map whose grid has no texture.
     private VisibleTiles? _tiles;
-    private Material? _material;
 
     /// <summary>The edge length of one tile in world units, which also equals its edge in atlas pixels.</summary>
     [Authorable(Required = true)]
@@ -137,22 +136,6 @@ public class TileMap : Entity
 
     /// <summary>How many world units the grid spans, measured from the world origin.</summary>
     public Vector2 Size => new(Width * TileSize, Height * TileSize);
-
-    /// <summary>The material every tile draws with, and null for the engine's own sprite shader, the default.</summary>
-    /// <remarks>
-    /// The map switches to it once, not per tile. <see cref="Entity.Tint"/> and <see cref="Entity.Flash"/>
-    /// still apply. A material set in the scene's constructor loads with the scene, and one set later
-    /// loads on its first draw. A map whose grid has no texture keeps the material and never loads it.
-    /// </remarks>
-    public Material? Material
-    {
-        get => _material;
-        set
-        {
-            _material = value;
-            _tiles?.Material = value;
-        }
-    }
 
     internal TileGrid Grid => _grid;
 
