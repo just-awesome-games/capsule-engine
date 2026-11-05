@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Capsule.Build.Shaders;
 using Capsule.Rendering;
 using Capsule.Runtime.Rendering;
@@ -135,8 +136,8 @@ public sealed class ShaderBuildTests
         }
     }
 
-    // A fragment that reads the picture says so in its key, and takes one sampler and the third uniform buffer
-    // beyond its own, in every format. One that doesn't pays for neither: the frame reads the key to decide to copy.
+    // A fragment that reads the picture says so in its key, which is how a frame knows to copy, and takes a sampler
+    // and the third uniform buffer past its own in every format. One that doesn't read takes neither.
     [Fact]
     public void ReadingTheScreen_IsDeclared_AndBindsAfterTheFragmentsOwnTextures()
     {
@@ -149,17 +150,20 @@ public sealed class ShaderBuildTests
         Assert.Contains("""Shader("shaders/keeps", new""", workspace.Generated, StringComparison.Ordinal);
         foreach (string format in ShaderCompiler.Formats)
         {
-            ShaderContainer reads = ShaderContainer.Read(File.ReadAllBytes($"{ToolWorkspace.Out}/assets/shaders/reads.{format}.shader"), "reads");
-            ShaderContainer keeps = ShaderContainer.Read(File.ReadAllBytes($"{ToolWorkspace.Out}/assets/shaders/keeps.{format}.shader"), "keeps");
+            ShaderContainer reads = Shipped("reads", format);
+            ShaderContainer keeps = Shipped("keeps", format);
             Assert.Equal((3, 3), (reads.Samplers, reads.UniformBuffers));
             Assert.Equal((2, 0), (keeps.Samplers, keeps.UniformBuffers));
         }
 
-        string metal = Encoding.UTF8.GetString(ShaderContainer.Read(File.ReadAllBytes($"{ToolWorkspace.Out}/assets/shaders/reads.{ShaderCompiler.Msl}.shader"), "reads").Code);
+        string metal = Encoding.UTF8.GetString(Shipped("reads", ShaderCompiler.Msl).Code);
         foreach (string binding in (string[])["CapsuleScreen [[texture(2)]]", "CapsuleSampler_CapsuleScreen [[sampler(2)]]", "[[buffer(2)]]", "[[position]]"])
         {
             Assert.Contains(binding, metal, StringComparison.Ordinal);
         }
+
+        static ShaderContainer Shipped(string name, string format) =>
+            ShaderContainer.Read(File.ReadAllBytes($"{ToolWorkspace.Out}/assets/shaders/{name}.{format}.shader"), name);
     }
 
     // Direct3D 12 links the two stages by register and refuses a pipeline whose registers differ. A fragment ignoring
@@ -175,13 +179,15 @@ public sealed class ShaderBuildTests
         ShaderCompilation pixelStage = ShaderCompiler.CompileFragment(ToolWorkspace.ShaderTools, "fragment/fragment", fragment, "fragment.fx");
         ShaderCompilation vertexStage = ShaderCompiler.CompileVertex(ToolWorkspace.ShaderTools, "vertex/vertex");
 
-        string[] reads = Registers(Tool("dxc", "-dumpbin", Write("fragment.dxil", Assert.Single(pixelStage.Shaders!, static shader => shader.Format == ShaderCompiler.Dxil).Code)), "; Input signature:");
-        string[] writes = Registers(Tool("dxc", "-dumpbin", Write("vertex.dxil", Assert.Single(vertexStage.Shaders!, static shader => shader.Format == ShaderCompiler.Dxil).Code)), "; Output signature:");
+        string[] reads = Registers(Tool("dxc", "-dumpbin", Write("fragment.dxil", In(pixelStage, ShaderCompiler.Dxil))), "; Input signature:");
+        string[] writes = Registers(Tool("dxc", "-dumpbin", Write("vertex.dxil", In(vertexStage, ShaderCompiler.Dxil))), "; Output signature:");
         Assert.Equal(writes.Take(reads.Length), reads);
 
-        string msl = Encoding.UTF8.GetString(Assert.Single(pixelStage.Shaders!, static shader => shader.Format == ShaderCompiler.Msl).Code);
-        string vertexMsl = Encoding.UTF8.GetString(Assert.Single(vertexStage.Shaders!, static shader => shader.Format == ShaderCompiler.Msl).Code);
-        Assert.Subset(UserLocations(vertexMsl), UserLocations(msl));
+        Assert.Subset(UserLocations(In(vertexStage, ShaderCompiler.Msl)), UserLocations(In(pixelStage, ShaderCompiler.Msl)));
+
+        static byte[] In(ShaderCompilation compiled, string format) => Assert.Single(compiled.Shaders!, shader => shader.Format == format).Code;
+
+        static HashSet<string> UserLocations(byte[] msl) => [.. Regex.Matches(Encoding.UTF8.GetString(msl), @"user\(locn\d+\)").Select(static match => match.Value)];
     }
 
     // The vertex stage reads the runtime's sprite and uniforms where the runtime writes them, and
@@ -251,11 +257,7 @@ public sealed class ShaderBuildTests
         return output;
     }
 
-    // The interpolants a stage of Metal source names, the ones its two stages link by.
-    private static HashSet<string> UserLocations(string msl) =>
-        [.. System.Text.RegularExpressions.Regex.Matches(msl, @"user\(locn\d+\)").Select(static match => match.Value)];
-
-    // Each row of a dumped signature as its name, index and register, up to the first system value's own columns.
+    // Each row of a dumped signature as its name, index and register.
     private static string[] Registers(string dump, string heading)
     {
         string[] lines = dump.ReplaceLineEndings("\n").Split('\n');

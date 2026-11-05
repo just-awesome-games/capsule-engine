@@ -19,7 +19,7 @@ internal sealed class SpriteDrawList : IDisposable
     private readonly TextureSamplers _samplers;
 
     // How far past its sprite a read of the picture reaches before it repeats the copy's edge, in the sprite's
-    // units. Copying the whole surface for a small strip is what this saves.
+    // units. The copy stops there, and a small strip does not pay for the whole surface.
     private const float ReadReach = 64f;
 
     private SpriteInstance[] _instances = new SpriteInstance[1024];
@@ -28,9 +28,6 @@ internal sealed class SpriteDrawList : IDisposable
     private int _drawCount;
     private Pass[] _passes = new Pass[8];
     private int _passCount;
-
-    // The pass of the read Widen grows.
-    private int _reading;
     private GpuBuffer? _buffer;
     private float _alpha;
 
@@ -78,8 +75,8 @@ internal sealed class SpriteDrawList : IDisposable
     internal void BeginRead(SampledTexture copy)
     {
         Grow(ref _passes, _passCount);
-        _passes[_passCount] = new Pass(_passes[_passCount - 1].Target, null, _drawCount) { Read = new ScreenRead(copy) };
-        _reading = _passCount++;
+        _passes[_passCount] = new Pass(_passes[_passCount - 1].Target, null, _drawCount, copy);
+        _passCount++;
         _open = false;
     }
 
@@ -94,7 +91,7 @@ internal sealed class SpriteDrawList : IDisposable
     // transform, plus the reach of a read past its sprite. Only the pixels a read can reach are copied.
     internal void Widen(in Rect rect, Vector2 shift)
     {
-        ref ScreenRead read = ref _passes[_reading].Read;
+        ref Area copied = ref _passes[_passCount - 1].Copied;
         float reach = ReadReach * _state.ReadScale;
         Vector2 low = Vector2.Transform(new Vector2(rect.Left, rect.Top) + shift, _state.Transform);
         Vector2 high = Vector2.Transform(new Vector2(rect.Right, rect.Bottom) + shift, _state.Transform);
@@ -108,9 +105,15 @@ internal sealed class SpriteDrawList : IDisposable
             return;
         }
 
-        read.Copied = read.Copied.Width == 0
-            ? new Area(left, top, right - left, bottom - top)
-            : Area.Union(read.Copied, left, top, right, bottom);
+        if (copied.Width > 0)
+        {
+            left = Math.Min(left, copied.X);
+            top = Math.Min(top, copied.Y);
+            right = Math.Max(right, copied.X + copied.Width);
+            bottom = Math.Max(bottom, copied.Y + copied.Height);
+        }
+
+        copied = new Area(left, top, right - left, bottom - top);
     }
 
     // The rect of the target the quads drawn next land in. The transform maps into it.
@@ -235,11 +238,11 @@ internal sealed class SpriteDrawList : IDisposable
         {
             Pass recorded = _passes[p];
             GpuTexture target = recorded.Target;
-            if (recorded.Read.Copy is { } copy && recorded.Read.Copied.Width > 0)
+            if (recorded.Screen is { } screen && recorded.Copied.Width > 0)
             {
-                Area area = recorded.Read.Copied;
+                Area area = recorded.Copied;
                 GpuCopyPass copying = commands.BeginCopyPass();
-                copying.CopyTexture(target, copy.Texture, area.X, area.Y, area.Width, area.Height);
+                copying.CopyTexture(target, screen.Texture, area.X, area.Y, area.Width, area.Height);
                 copying.End();
             }
 
@@ -248,7 +251,7 @@ internal sealed class SpriteDrawList : IDisposable
                 : new GpuColorTarget(target, GpuLoadOp.Load));
             pass.BindVertexStorageBuffer(0, _buffer!);
             int last = p + 1 < _passCount ? _passes[p + 1].FirstDraw : _drawCount;
-            Execute(commands, pass, target, in recorded.Read, _draws.AsSpan(recorded.FirstDraw, last - recorded.FirstDraw));
+            Execute(commands, pass, in recorded, _draws.AsSpan(recorded.FirstDraw, last - recorded.FirstDraw));
             pass.End();
         }
     }
@@ -290,11 +293,11 @@ internal sealed class SpriteDrawList : IDisposable
         (((a.M41 * b.M14) + (a.M42 * b.M24)) + (a.M43 * b.M34)) + (a.M44 * b.M44));
 
     // One pass's draws, binding only the state each changes from the one before.
-    private void Execute(GpuCommandBuffer commands, GpuRenderPass pass, GpuTexture target, in ScreenRead read, ReadOnlySpan<Draw> draws)
+    private void Execute(GpuCommandBuffer commands, GpuRenderPass pass, in Pass recorded, ReadOnlySpan<Draw> draws)
     {
-        SampledTexture? screen = read.Copy;
+        SampledTexture? screen = recorded.Screen;
         float readScale = 0f;
-        Area full = new(0, 0, target.Width, target.Height);
+        Area full = new(0, 0, recorded.Target.Width, recorded.Target.Height);
         Area viewport = full;
         Area scissor = full;
         Matrix4x4 transform = default;
@@ -340,7 +343,7 @@ internal sealed class SpriteDrawList : IDisposable
             if (screen is not null && state.ReadScale != readScale)
             {
                 readScale = state.ReadScale;
-                PushRead(commands, read.Copied, readScale);
+                PushRead(commands, recorded.Copied, readScale);
             }
 
             GpuTexture texture = draw.Texture.Texture;
@@ -382,7 +385,8 @@ internal sealed class SpriteDrawList : IDisposable
         0f, 0f, 1f, 0f,
         -1f, 1f, 0f, 1f);
 
-    // A read's uniforms, the copy's pixel centres it stays inside and its scale, as the pixel stage lays them out.
+    // A read's uniforms, in the buffer after the material's and the scene globals': the copy's pixel centres it stays
+    // inside and its scale, as the pixel stage lays them out.
     private static void PushRead(GpuCommandBuffer commands, in Area area, float scale)
     {
         Span<float> values = stackalloc float[8];
@@ -391,7 +395,7 @@ internal sealed class SpriteDrawList : IDisposable
         values[2] = area.X + area.Width - 0.5f;
         values[3] = area.Y + area.Height - 0.5f;
         values[4] = scale;
-        commands.PushFragmentUniformData(ShaderStore.ScreenSlot, MemoryMarshal.AsBytes(values));
+        commands.PushFragmentUniformData(2, MemoryMarshal.AsBytes(values));
     }
 
     private static uint Bytes(int r, int g, int b, int a) => (uint)r | ((uint)g << 8) | ((uint)b << 16) | ((uint)a << 24);
@@ -426,23 +430,7 @@ internal sealed class SpriteDrawList : IDisposable
         return ref _instances[_count++];
     }
 
-    private readonly record struct Area(int X, int Y, int Width, int Height)
-    {
-        internal static Area Union(in Area area, int left, int top, int right, int bottom)
-        {
-            int x = Math.Min(area.X, left);
-            int y = Math.Min(area.Y, top);
-
-            return new Area(x, y, Math.Max(area.X + area.Width, right) - x, Math.Max(area.Y + area.Height, bottom) - y);
-        }
-    }
-
-    // What a pass that opens on a material's read of the picture copies, and into what.
-    private struct ScreenRead(SampledTexture copy)
-    {
-        internal readonly SampledTexture? Copy = copy;
-        internal Area Copied;
-    }
+    private readonly record struct Area(int X, int Y, int Width, int Height);
 
     private struct State
     {
@@ -467,12 +455,9 @@ internal sealed class SpriteDrawList : IDisposable
         internal int Count;
     }
 
-    // The pass runs from FirstDraw to the next pass's.
-    private struct Pass(GpuTexture target, ColorRgba? clear, int firstDraw)
+    // The pass runs from FirstDraw to the next pass's. One that opens on a read of the picture copies Copied into Screen.
+    private record struct Pass(GpuTexture Target, ColorRgba? Clear, int FirstDraw, SampledTexture? Screen = null)
     {
-        internal readonly GpuTexture Target = target;
-        internal readonly ColorRgba? Clear = clear;
-        internal readonly int FirstDraw = firstDraw;
-        internal ScreenRead Read;
+        internal Area Copied;
     }
 }

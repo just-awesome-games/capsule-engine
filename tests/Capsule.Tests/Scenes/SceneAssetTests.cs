@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Animation;
 using Capsule.Assets;
+using Capsule.Particles;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tiles;
@@ -54,6 +55,17 @@ public sealed class SceneAssetTests
         Assert.Equal(
             [SceneFixtures.Atlas, SpriteTexture, AnimationA, AnimationB],
             scene.CollectAssetPreloads(entryPayload: null).Textures);
+    }
+
+    [Fact]
+    public void AParticleEmitter_DeclaresEveryFrameOfItsClip()
+    {
+        Scene scene = new();
+        scene.Add(new TestEntity(new ParticleEmitter(
+            new SpriteClip([Frame(AnimationA), Frame(AnimationB), Frame(AnimationA)], [1, 1, 1]),
+            capacity: 1)));
+
+        Assert.Equal([AnimationA, AnimationB], scene.CollectAssetPreloads(entryPayload: null).Textures);
     }
 
     [Fact]

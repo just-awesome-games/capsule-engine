@@ -45,8 +45,8 @@ public sealed class Still : Scene
         }
         else if (Workloads.Running == Read)
         {
-            Add(new ReadBand(new Vector2(0f, 120f), new Vector2(World.ViewportSize.X, 48f)));
-            Add(new ReadBand(new Vector2(100f, 124f), new Vector2(8f, 8f), new ColorRgba(255, 0, 255)));
+            Add(new Band(new Vector2(0f, 120f), new ColorRect(new Vector2(World.ViewportSize.X, 48f)) { Material = new(CapsuleAssets.Shaders.RippleShader) }));
+            Add(new Band(new Vector2(100f, 124f), new ColorRect(new Vector2(8f, 8f)) { Color = new ColorRgba(255, 0, 255) }));
         }
 
         Add(new Caption(Anchor.TopLeft, new Vector2(8f, 8f), "Capsule bench 0123 AaBb"));
@@ -66,19 +66,10 @@ public sealed class Still : Scene
         }
     }
 
-    // A band of the picture behind it in shifted rows, or a plain colour over one.
-    private sealed class ReadBand : Entity
+    private sealed class Band : Entity
     {
-        internal ReadBand(Vector2 position, Vector2 size)
-            : base(position)
-        {
-            Material ripple = new(CapsuleAssets.Shaders.RippleShader);
-            ripple.Set("Rise", 0f);
-            Add(new ColorRect(size) { Material = ripple });
-        }
-
-        internal ReadBand(Vector2 position, Vector2 size, ColorRgba color)
-            : base(position) => Add(new ColorRect(size) { Color = color });
+        internal Band(Vector2 position, ColorRect rect)
+            : base(position) => Add(rect);
     }
 
     // A point light beside one additive sprite. The capture covers both light-map paths: an

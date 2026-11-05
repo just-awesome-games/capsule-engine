@@ -1,8 +1,8 @@
 namespace MinimalGame.Game.UI;
 
 /// <summary>
-/// The menu over a paused room: the room dimmed and drained of colour across the whole canvas, and a panel centred on it holding Resume
-/// and Quit over one <see cref="FocusNavigator"/>. The scene opens and closes it, and the menu owns what
+/// The menu over a paused room: the whole canvas dimmed and drained of colour, and a panel centred on it holding
+/// Resume and Quit over one <see cref="FocusNavigator"/>. The scene opens and closes it, and the menu owns what
 /// pausing means: the world, the sound effects and the rumble all stop.
 /// </summary>
 public sealed class PauseMenu : ScreenEntity

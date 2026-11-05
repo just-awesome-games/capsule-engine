@@ -80,8 +80,8 @@ internal readonly unsafe struct GpuCommandBuffer(GpuDevice device, nint handle)
 // its render passes.
 internal readonly unsafe struct GpuCopyPass(GpuDevice device, nint handle)
 {
-    // Copies the region at x, y from source to the same place in destination, which has source's format
-    // and is at least as large. Commands run in order, and a draw recorded earlier still reads what it read.
+    // Copies the region at x, y from source to the same place in destination, which has source's format and
+    // is at least as large.
     internal void CopyTexture(GpuTexture source, GpuTexture destination, int x, int y, int width, int height)
     {
         Sdl3.GpuTextureLocation from = new() { Texture = source.Handle, X = (uint)x, Y = (uint)y };

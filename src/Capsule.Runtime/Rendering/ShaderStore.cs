@@ -34,9 +34,6 @@ internal sealed class ShaderStore : IDisposable
         GpuBlendFactor.One,
         GpuBlendOp.Add);
 
-    // The uniform buffer a screen read's uniforms are pushed to, after the material's and the scene globals'.
-    internal const int ScreenSlot = 2;
-
     private const string EngineResources = "Capsule.Runtime.Rendering.Shaders.";
 
     private static readonly AssetFiles Files = new("Shader", "shader");

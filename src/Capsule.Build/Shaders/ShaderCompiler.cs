@@ -157,10 +157,10 @@ internal static partial class ShaderCompiler
 
         // A fragment keeps its whole interface. Direct3D 12 links a pixel stage to the vertex stage by register, and one
         // that ignores an input, such as the tint, would otherwise move every input after it and fail to link. The
-        // optimizer drops such an input whatever the flag says, and each GPU format's own compiler optimizes after it.
-        (int exit, string output, string errors) = layout.Stage == ShaderStage.Vertex
-            ? Run(Binary(tools, "dxc"), directory, "-spirv", "-T", profile, "-E", layout.EntryPoint, "-Fo", spirv, name + ".bound.fx")
-            : Run(Binary(tools, "dxc"), directory, "-spirv", "-fspv-preserve-interface", "-O0", "-T", profile, "-E", layout.EntryPoint, "-Fo", spirv, name + ".bound.fx");
+        // optimizer drops such an input whatever the flag says, and it stays off here. Each GPU format's own compiler
+        // optimizes after it.
+        string[] keepInterface = layout.Stage == ShaderStage.Vertex ? [] : ["-fspv-preserve-interface", "-O0"];
+        (int exit, string output, string errors) = Run(Binary(tools, "dxc"), directory, ["-spirv", .. keepInterface, "-T", profile, "-E", layout.EntryPoint, "-Fo", spirv, name + ".bound.fx"]);
         if (exit != 0)
         {
             List<ShaderDiagnostic> errorsOnly = [.. Diagnostics(output + '\n' + errors).Where(static diagnostic => !diagnostic.Warning).Select(Paired)];

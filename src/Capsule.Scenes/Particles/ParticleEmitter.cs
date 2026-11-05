@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Capsule.Animation;
+using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Physics;
 using Capsule.Rendering;
@@ -553,6 +554,17 @@ public sealed class ParticleEmitter : Renderer
         if (RemovesEntityWhenFinished && IsFinished)
         {
             Entity!.Scene.Remove(Entity);
+        }
+    }
+
+    /// <inheritdoc/>
+    protected internal override void CollectAssets(AssetCollection assets)
+    {
+        ArgumentNullException.ThrowIfNull(assets);
+
+        foreach (Sprite frame in _clip.Frames)
+        {
+            assets.Add(frame.Texture);
         }
     }
 

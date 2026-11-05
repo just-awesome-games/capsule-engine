@@ -1,6 +1,4 @@
-using Capsule.Bench.Logic.Cameras;
 using Capsule.Bench.Logic.Components;
-using Capsule.Bench.Logic.Entities;
 
 namespace Capsule.Bench.Logic.Scenes;
 
@@ -18,7 +16,7 @@ namespace Capsule.Bench.Logic.Scenes;
 [Workload(WorkloadKind.Rendering, Surface.Hd1080, Row = HdStrip)]
 [Workload(WorkloadKind.Rendering, Surface.Hd1080, Row = HdView)]
 [Workload(WorkloadKind.Rendering, Surface.Hd1080, Row = HdBands8)]
-public sealed class ScreenRead : Scene
+public sealed class ScreenRead : SpriteFieldScene
 {
     public const string None = "ScreenReadNone";
 
@@ -42,13 +40,10 @@ public sealed class ScreenRead : Scene
     private int _steps;
 
     public ScreenRead()
+        : base(SpriteField.Tile, 8f, ViewSize, 2_000)
     {
-        string? row = Workloads.Running;
-        Vector2 view = row is HdNone or HdStrip or HdView or HdBands8 ? World.HdViewportSize : World.ViewportSize;
-        Camera = new ParkedCamera(view / 2f, view);
-        Add(new Holder(new SpriteField(SpriteField.Tile, 8f, view, 2_000, false)));
-
-        switch (row)
+        Vector2 view = ViewSize;
+        switch (Workloads.Running)
         {
             case None or HdNone:
                 Add(new Band(new Vector2(0f, view.Y / 2f), new Vector2(view.X, StripHeight), null));
@@ -73,6 +68,8 @@ public sealed class ScreenRead : Scene
                 break;
         }
     }
+
+    private static Vector2 ViewSize => Workloads.Running is HdNone or HdStrip or HdView or HdBands8 ? World.HdViewportSize : World.ViewportSize;
 
     protected override void OnStep(in StepContext context) => _ripple.Set("Rise", ++_steps / 4);
 

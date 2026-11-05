@@ -516,7 +516,7 @@ internal sealed partial class FrameRenderer : IDisposable
 
         _sprites.SetViewport(fit.X, fit.Y, fit.Width, fit.Height);
         Pass pass = WorldPass(alpha, snap, fit.Scale, topLeft);
-        pass.Surface = ReferenceEquals(target, _window) ? null : target;
+        pass.Surface = target;
 
         // A canvas run lands where the screen layer would on this surface, through the narrowed viewport
         // the world draws in, on the grid the canvas had at a factor of 1.
@@ -607,15 +607,8 @@ internal sealed partial class FrameRenderer : IDisposable
         {
             while (next < layers.Length && layers[next].FirstSprite <= index)
             {
-                bool wasOnCanvas = pass.OnCanvas;
                 Place(in layers[next], parallax, ref pass);
                 next++;
-
-                // A read's offset is in its sprite's units, and a run can cross from the world to a screen root.
-                if (pass.Reading && pass.OnCanvas != wasOnCanvas)
-                {
-                    _sprites.SetReadScale(ReadScale(in pass));
-                }
             }
 
             while (nextMaterial < materials.Length && materials[nextMaterial].FirstSprite <= index)
@@ -705,6 +698,12 @@ internal sealed partial class FrameRenderer : IDisposable
             _sprites.SetTransform(run.Canvas ? pass.CanvasTransform : pass.WorldTransform);
             pass.Scale = pass.LineScale = run.Canvas ? pass.CanvasScale : pass.WorldScale;
             pass.FrameCorner = run.Canvas ? Vector2.Zero : pass.WorldCorner;
+
+            // A read's offset is in its sprite's units, and a run can cross from the world to a screen root.
+            if (pass.Reading)
+            {
+                _sprites.SetReadScale(ReadScale(in pass));
+            }
         }
 
         pass.LayerCorner = run.Canvas ? Vector2.Zero : ScrollLayout.Corner(pass.FrameCorner, parallax, run.ScrollFactor);
@@ -793,8 +792,8 @@ internal sealed partial class FrameRenderer : IDisposable
         internal TextureHandle Resolved;
         internal TextureSlice Slice;
 
-        // The surface a material can read as the picture, null where it is the window's, and whether the
-        // current run is reading it.
+        // The surface a material can read as the picture, which a frame holding one never draws straight into
+        // the window but for a screen layer past the present, and whether the current run is reading it.
         internal GpuTexture? Surface;
         internal bool Reading;
     }
