@@ -28,23 +28,24 @@ internal static partial class ShaderCompiler
             return FragmentReflection.Failed("the shader cross-compiler could not reflect it: " + Flatten(output + errors));
         }
 
-        if (Reflect(output, out List<ShaderBinding> constants, out int bufferSize, out int globalsSize, out List<string> textures) is { } refused)
+        if (Reflect(output, out List<ShaderBinding> constants, out int bufferSize, out int globalsSize, out List<string> textures, out bool readsScreen) is { } refused)
         {
             return FragmentReflection.Failed(refused);
         }
 
-        return new FragmentReflection(true, constants, textures, bufferSize > 0, globalsSize > 0, null);
+        return new FragmentReflection(true, constants, textures, bufferSize > 0, globalsSize > 0, readsScreen, null);
     }
 
     // The parameter table from SPIRV-Cross's reflection: the members of the global block and of the
     // scene globals block with their offsets in their own block, and every texture beyond the
     // sprite's. Returns why a parameter cannot be set, or null.
-    private static string? Reflect(string json, out List<ShaderBinding> constants, out int bufferSize, out int globalsSize, out List<string> textures)
+    private static string? Reflect(string json, out List<ShaderBinding> constants, out int bufferSize, out int globalsSize, out List<string> textures, out bool readsScreen)
     {
         constants = [];
         textures = [];
         bufferSize = 0;
         globalsSize = 0;
+        readsScreen = false;
 
         using JsonDocument document = JsonDocument.Parse(json);
         JsonElement root = document.RootElement;
@@ -54,6 +55,11 @@ internal static partial class ShaderCompiler
             foreach (JsonElement block in blocks.EnumerateArray())
             {
                 string blockName = block.GetProperty("name").GetString()!;
+                if (blockName == "type." + ShaderTemplate.ScreenBlock)
+                {
+                    continue;
+                }
+
                 bool scene = blockName == "type." + ShaderTemplate.SceneGlobalsBlock;
                 if (!scene && blockName != "type.$Globals")
                 {
@@ -113,6 +119,12 @@ internal static partial class ShaderCompiler
             foreach (JsonElement image in images.EnumerateArray())
             {
                 string name = image.GetProperty("name").GetString()!;
+                if (name == ShaderTemplate.ScreenTexture)
+                {
+                    readsScreen = true;
+                    continue;
+                }
+
                 if (Reserved(name))
                 {
                     return $"declares texture '{name}', a name the engine reserves. Rename it without the {ShaderTemplate.ReservedPrefix} prefix.";
@@ -150,8 +162,8 @@ internal static partial class ShaderCompiler
 
     // A fragment's parameter table, or why its compile failed: the constants at their offsets in their
     // buffers and the textures beyond the sprite's in slot order.
-    private sealed record FragmentReflection(bool Compiled, List<ShaderBinding> Constants, List<string> Textures, bool HasMaterialBuffer, bool HasGlobalsBuffer, string? Failure)
+    private sealed record FragmentReflection(bool Compiled, List<ShaderBinding> Constants, List<string> Textures, bool HasMaterialBuffer, bool HasGlobalsBuffer, bool ReadsScreen, string? Failure)
     {
-        internal static FragmentReflection Failed(string? failure) => new(false, [], [], false, false, failure);
+        internal static FragmentReflection Failed(string? failure) => new(false, [], [], false, false, false, failure);
     }
 }

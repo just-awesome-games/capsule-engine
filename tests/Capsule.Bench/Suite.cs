@@ -185,7 +185,7 @@ internal static class Suite
     private static WorkloadRecord? Windowed(string executable, string workload, WorkloadAttribute lane, string label, bool uncapped)
     {
         string csv = Path.Combine(ArtifactsDirectory, workload + ".csv");
-        bool captured = workload is nameof(Still) or Still.Lit or Still.Shaded or Still.Hd;
+        bool captured = workload is nameof(Still) or Still.Lit or Still.Shaded or Still.Hd or Still.Read;
 
         List<string> arguments = ["--frames", csv, "--exit-after", SecondsPerFramedWorkload.ToString(CultureInfo.InvariantCulture)];
         if (captured)

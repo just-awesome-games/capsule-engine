@@ -78,8 +78,17 @@ internal readonly unsafe struct GpuCommandBuffer(GpuDevice device, nint handle)
 
 // SDL_GPUCopyPass. Every upload and download a command buffer records sits in a copy pass outside
 // its render passes.
-internal readonly struct GpuCopyPass(GpuDevice device, nint handle)
+internal readonly unsafe struct GpuCopyPass(GpuDevice device, nint handle)
 {
+    // Copies the region at x, y from source to the same place in destination, which has source's format
+    // and is at least as large. Commands run in order, and a draw recorded earlier still reads what it read.
+    internal void CopyTexture(GpuTexture source, GpuTexture destination, int x, int y, int width, int height)
+    {
+        Sdl3.GpuTextureLocation from = new() { Texture = source.Handle, X = (uint)x, Y = (uint)y };
+        Sdl3.GpuTextureLocation to = new() { Texture = destination.Handle, X = (uint)x, Y = (uint)y };
+        Sdl3.SDL_CopyGPUTextureToTexture(handle, &from, &to, (uint)width, (uint)height, 1, false);
+    }
+
     // Writes texels, rows of width tightly packed in the texture's format, to the region at x, y.
     internal void UploadToTexture(GpuTexture texture, int x, int y, int width, int height, ReadOnlySpan<byte> texels) =>
         device.UploadToTexture(handle, texture, x, y, width, height, texels);

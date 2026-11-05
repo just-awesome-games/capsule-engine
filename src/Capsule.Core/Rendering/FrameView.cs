@@ -276,6 +276,10 @@ public sealed class FrameView
 
     internal ReadOnlySpan<MaterialRun> ScreenMaterialRuns => CollectionsMarshal.AsSpan(ScreenList.Runs);
 
+    // Whether a sprite this frame draws through a shader that reads the picture. A frame with none copies
+    // nothing and may draw straight into the window.
+    internal bool ReadsScreen { get; private set; }
+
     // The runs of each list drawn under one clip, in list order and back-to-back. A run opens where the
     // clip changed and closes where the next one opens. The world's list has runs only where a screen root
     // sorted with the world stores under a clip. Invalidated by the next mutation.
@@ -635,6 +639,7 @@ public sealed class FrameView
         {
             layer.Runs.Add(new MaterialRun(layer.Sprites.Count, Material));
             layer.RunMaterial = Material;
+            ReadsScreen |= Material is { Shader.ReadsScreen: true };
         }
 
         Enter(route);
@@ -689,6 +694,7 @@ public sealed class FrameView
     {
         WorldList.Clear();
         ScreenList.Clear();
+        ReadsScreen = false;
         _placements.Clear();
         _lights.Clear();
         _clipLevels.Clear();

@@ -15,6 +15,15 @@ internal static class ShaderTemplate
     /// <summary>The sprite texture parameter, which the renderer binds per draw and no material sets.</summary>
     internal const string SpriteTexture = "SpriteTexture";
 
+    /// <summary>The picture a fragment reads with <c>SampleScreen</c>, in the slot after its own textures.</summary>
+    /// <remarks>The compiler drops it from a fragment that never calls <c>SampleScreen</c>, which is how the build knows.</remarks>
+    internal const string ScreenTexture = "CapsuleScreen";
+
+    /// <summary>The uniforms of <c>SampleScreen</c>, the fragment's third uniform buffer.</summary>
+    internal const string ScreenBlock = "CapsuleScreenUniforms";
+
+    private const string ScreenDeclarations = "static float2 CapsuleScreenPixel;\ncbuffer " + ScreenBlock + " { float4 CapsuleScreenArea; float CapsuleScreenScale; };\n";
+
     /// <summary>
     /// The prefix of every name the template and the host introduce.
     /// </summary>
@@ -73,6 +82,7 @@ internal static class ShaderTemplate
     // bound prelude pairs samplers with. No stage compiled from it ships.
     private const string Prelude = """
         Texture2D SpriteTexture;
+        Texture2D CapsuleScreen;
         SamplerState CapsuleSampler;
         static float CapsuleSpriteCoverage;
 
@@ -81,7 +91,7 @@ internal static class ShaderTemplate
             return source.Sample(CapsuleSampler, uv);
         }
 
-        """;
+        """ + ScreenDeclarations;
 
     // Sample reads through the sampler named for the texture, and only a texture parameter has one.
     private const string BoundSampling = """
@@ -107,9 +117,9 @@ internal static class ShaderTemplate
     /// <param name="textures">The fragment's texture parameters beyond the sprite's.</param>
     internal static string ComposeBound(string fragment, string fragmentPath, IEnumerable<string> textures)
     {
-        string samplers = string.Concat(textures.Prepend(SpriteTexture).Select(static texture => $"SamplerState {PairedSampler}{texture};\n"));
+        string samplers = string.Concat(textures.Prepend(SpriteTexture).Append(ScreenTexture).Select(static texture => $"SamplerState {PairedSampler}{texture};\n"));
 
-        return Compose($"Texture2D {SpriteTexture};\n{samplers}static float CapsuleSpriteCoverage;\n\n{BoundSampling}", fragment, fragmentPath);
+        return Compose($"Texture2D {SpriteTexture};\nTexture2D {ScreenTexture};\n{samplers}static float CapsuleSpriteCoverage;\n{ScreenDeclarations}\n{BoundSampling}", fragment, fragmentPath);
     }
 
     // The sampling header reports as the pixel stage's first line, since no file holds it.

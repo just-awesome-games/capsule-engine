@@ -8,10 +8,11 @@ namespace Capsule.Build.Shaders;
 internal static class ShaderMembers
 {
     // A property with an initializer. Every read hands back the one instance materials batch by.
-    internal static void Write(StringBuilder code, string indent, string identifier, Source shader, IReadOnlyList<ShaderParameter> parameters)
+    internal static void Write(StringBuilder code, string indent, string identifier, Source shader, ShaderFacts compiled)
     {
+        ShaderParameter[] parameters = compiled.Parameters;
         code.Append(indent).Append("/// <summary><c>").Append(shader.Key).Append(shader.Extension).Append("</c>");
-        if (parameters.Count == 0)
+        if (parameters.Length == 0)
         {
             code.Append(", with no parameters");
         }
@@ -24,6 +25,10 @@ internal static class ShaderMembers
         code.AppendLine(".</summary>");
         code.Append(indent).Append("public static ").Append(GeneratedTypes.Shader).Append(' ').Append(identifier)
             .Append(" { get; } = new ").Append(GeneratedTypes.Shader).Append('(').Append(Literal.Of(shader.Key));
+        if (compiled.ReadsScreen)
+        {
+            code.Append(", true");
+        }
 
         foreach (ShaderParameter parameter in parameters)
         {
@@ -36,7 +41,7 @@ internal static class ShaderMembers
     }
 
     // The parameters of one scope, as a prefixed list. Nothing when the shader has none of that scope.
-    private static void AppendNames(StringBuilder code, string prefix, IReadOnlyList<ShaderParameter> parameters, bool global)
+    private static void AppendNames(StringBuilder code, string prefix, ShaderParameter[] parameters, bool global)
     {
         bool first = true;
         foreach (ShaderParameter parameter in parameters)

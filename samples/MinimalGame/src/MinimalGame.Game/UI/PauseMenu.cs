@@ -1,7 +1,7 @@
 namespace MinimalGame.Game.UI;
 
 /// <summary>
-/// The menu over a paused room: a dim over the whole canvas, and a panel centred on it holding Resume
+/// The menu over a paused room: the room dimmed and drained of colour across the whole canvas, and a panel centred on it holding Resume
 /// and Quit over one <see cref="FocusNavigator"/>. The scene opens and closes it, and the menu owns what
 /// pausing means: the world, the sound effects and the rumble all stop.
 /// </summary>
@@ -10,7 +10,6 @@ public sealed class PauseMenu : ScreenEntity
     // Canvas pixels between the panel's edge and its items.
     private const float PanelPadding = 8f;
 
-    private static readonly ColorRgba DimColor = new(0, 0, 0, 160);
     private static readonly ColorRgba PanelColor = new(24, 24, 32);
 
     private readonly MenuItem _resume = new(CapsuleStrings.Menu.Resume);
@@ -23,7 +22,7 @@ public sealed class PauseMenu : ScreenEntity
     {
         // Steps only while the scene is paused. Its focus never reads the player's input.
         StepMode = StepMode.WhenPaused;
-        Add(new ColorRect { Color = DimColor });
+        Add(new ColorRect { Material = new(CapsuleAssets.Shaders.PauseDimShader) });
 
         // The panel fits its items, and its colour fills the fitted rect.
         BoxContainer panel = new(Axis.Vertical, Anchor.Center, Vector2.Zero)

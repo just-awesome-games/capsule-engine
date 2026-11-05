@@ -34,6 +34,9 @@ internal sealed class ShaderStore : IDisposable
         GpuBlendFactor.One,
         GpuBlendOp.Add);
 
+    // The uniform buffer a screen read's uniforms are pushed to, after the material's and the scene globals'.
+    internal const int ScreenSlot = 2;
+
     private const string EngineResources = "Capsule.Runtime.Rendering.Shaders.";
 
     private static readonly AssetFiles Files = new("Shader", "shader");
@@ -110,8 +113,9 @@ internal sealed class ShaderStore : IDisposable
     }
 
     // Pushes material's values and the scene's globals, and binds its textures from slot 1, each through
-    // its own sampling's sampler or else through sampler. Capsule's own shader reads none.
-    internal void BindMaterial(GpuCommandBuffer commands, GpuRenderPass pass, Material? material, GpuSampler sampler)
+    // its own sampling's sampler or else through sampler, and after them screen, if the shader reads the
+    // picture, or the transparent texel where nothing was copied. Capsule's own shader reads none.
+    internal void BindMaterial(GpuCommandBuffer commands, GpuRenderPass pass, Material? material, GpuSampler sampler, SampledTexture? screen)
     {
         if (material is null)
         {
@@ -153,6 +157,11 @@ internal sealed class ShaderStore : IDisposable
         if (binding.SceneGlobals.Length > 0)
         {
             commands.PushFragmentUniformData(1, binding.SceneGlobals);
+        }
+
+        if (material.Shader.ReadsScreen)
+        {
+            _textures[textures++] = new GpuTextureSamplerBinding((screen ?? WholeTexture!(default)).Texture, sampler);
         }
 
         pass.BindFragmentSamplers(1, _textures.AsSpan(0, textures));

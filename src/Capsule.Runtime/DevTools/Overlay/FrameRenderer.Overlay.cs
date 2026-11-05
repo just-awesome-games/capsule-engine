@@ -28,7 +28,7 @@ internal sealed partial class FrameRenderer
             DrawOverlayWorld(view, in world, width, height);
         }
 
-        DrawScreen(view, alpha: 1f, new ScreenPlacement(Vector2.Zero, scale), width, height, surfaceFactor: 1);
+        DrawScreen(view, alpha: 1f, null, new ScreenPlacement(Vector2.Zero, scale), width, height, surfaceFactor: 1);
 
         GpuCopyPass copy = commands.BeginCopyPass();
         _sprites.Upload(copy);

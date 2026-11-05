@@ -117,6 +117,27 @@ public sealed class MaterialTests
         Assert.Equal([new MaterialRun(0, stone), new MaterialRun(1, null)], view.ScreenMaterialRuns.ToArray());
     }
 
+    // A frame copies the picture and leaves the window pass only for a sprite it will really draw through a reading
+    // shader: one the camera culled costs nothing, and the next frame starts clear.
+    [Fact]
+    public void ReadsScreen_HoldsOnlyForADrawnSprite_AndOnlyForItsFrame()
+    {
+        FrameView view = new() { Camera = new CameraView(Vector2.Zero, new Vector2(100f, 100f)) };
+        Store(view, new Material(Stone), RenderSpace.World);
+        Assert.False(view.ReadsScreen);
+
+        view.Clear();
+        view.Material = new Material(new Shader("reads", readsScreen: true));
+        view.Add(Quad(new Vector2(4096f, 4096f)));
+        Assert.False(view.ReadsScreen);
+
+        view.Add(Quad(Vector2.Zero));
+        Assert.True(view.ReadsScreen);
+
+        view.Clear();
+        Assert.False(view.ReadsScreen);
+    }
+
     // An entity's material draws its renderers that name none. A renderer's own wins, and a child entity keeps the default.
     [Fact]
     public void AnEntitysMaterial_DrawsItsRenderersNamingNone_AndNoChild()
@@ -140,6 +161,8 @@ public sealed class MaterialTests
             [new MaterialRun(0, stone), new MaterialRun(1, moss), new MaterialRun(2, stone), new MaterialRun(3, null)],
             simulation.View.MaterialRuns.ToArray());
     }
+
+    private static SpriteIntent Quad(Vector2 at) => new(SceneFixtures.Frame(1, 1), at, at, 0f, 0f, Vector2.One, false, false, ColorRgba.White);
 
     private static void Store(FrameView view, Material? material, RenderSpace space)
     {

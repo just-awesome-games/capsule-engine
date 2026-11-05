@@ -69,6 +69,9 @@ internal static partial class ShaderCompiler
             {
                 [LooseParameters] = (FragmentUniforms, 0),
                 [ShaderTemplate.SceneGlobalsBlock] = (FragmentUniforms, 1),
+                [ShaderTemplate.ScreenBlock] = (FragmentUniforms, 2),
+                [ShaderTemplate.ScreenTexture] = (FragmentResources, reflected.Textures.Count + 1),
+                [ShaderTemplate.PairedSampler + ShaderTemplate.ScreenTexture] = (FragmentResources, reflected.Textures.Count + 1),
             };
 
             List<ShaderBinding> table = [.. reflected.Constants];
@@ -87,10 +90,10 @@ internal static partial class ShaderCompiler
                 string.Empty,
                 ShaderStage.Fragment,
                 ShaderTemplate.EntryPoint,
-                Samplers: reflected.Textures.Count + 1,
+                Samplers: reflected.Textures.Count + (reflected.ReadsScreen ? 2 : 1),
                 StorageTextures: 0,
                 StorageBuffers: 0,
-                UniformBuffers: reflected.HasGlobalsBuffer ? 2 : reflected.HasMaterialBuffer ? 1 : 0,
+                UniformBuffers: reflected.ReadsScreen ? 3 : reflected.HasGlobalsBuffer ? 2 : reflected.HasMaterialBuffer ? 1 : 0,
                 [.. table],
                 []);
 
@@ -103,7 +106,7 @@ internal static partial class ShaderCompiler
 
             ShaderParameter[] parameters = [.. table.Select(static parameter => new ShaderParameter(parameter.Name, parameter.Kind, parameter.Global))];
 
-            return new ShaderCompilation([.. shaders], parameters, diagnostics, null);
+            return new ShaderCompilation([.. shaders], parameters, reflected.ReadsScreen, diagnostics, null);
         }
         finally
         {
@@ -129,7 +132,7 @@ internal static partial class ShaderCompiler
                 [VertexUniformBlock] = (VertexUniforms, 0),
             };
             return CompileBound(tools, basePath, layout, places, shaders, diagnostics, out string? failure)
-                ? new ShaderCompilation([.. shaders], [], diagnostics, null)
+                ? new ShaderCompilation([.. shaders], [], false, diagnostics, null)
                 : Failed(failure, diagnostics);
         }
         finally
@@ -152,7 +155,12 @@ internal static partial class ShaderCompiler
         string profile = layout.Stage == ShaderStage.Vertex ? "vs_6_0" : "ps_6_0";
         string spirv = name + ".bound.spv";
 
-        (int exit, string output, string errors) = Run(Binary(tools, "dxc"), directory, "-spirv", "-T", profile, "-E", layout.EntryPoint, "-Fo", spirv, name + ".bound.fx");
+        // A fragment keeps its whole interface. Direct3D 12 links a pixel stage to the vertex stage by register, and one
+        // that ignores an input, such as the tint, would otherwise move every input after it and fail to link. The
+        // optimizer drops such an input whatever the flag says, and each GPU format's own compiler optimizes after it.
+        (int exit, string output, string errors) = layout.Stage == ShaderStage.Vertex
+            ? Run(Binary(tools, "dxc"), directory, "-spirv", "-T", profile, "-E", layout.EntryPoint, "-Fo", spirv, name + ".bound.fx")
+            : Run(Binary(tools, "dxc"), directory, "-spirv", "-fspv-preserve-interface", "-O0", "-T", profile, "-E", layout.EntryPoint, "-Fo", spirv, name + ".bound.fx");
         if (exit != 0)
         {
             List<ShaderDiagnostic> errorsOnly = [.. Diagnostics(output + '\n' + errors).Where(static diagnostic => !diagnostic.Warning).Select(Paired)];
@@ -339,7 +347,7 @@ internal static partial class ShaderCompiler
     }
 
     private static ShaderCompilation Failed(string? failure, IReadOnlyList<ShaderDiagnostic> diagnostics) =>
-        new(null, [], diagnostics, failure);
+        new(null, [], false, diagnostics, failure);
 
     private static string Flatten(string output) => output.Trim().ReplaceLineEndings(" ");
 

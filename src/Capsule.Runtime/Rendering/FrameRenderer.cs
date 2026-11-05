@@ -56,8 +56,16 @@ internal sealed partial class FrameRenderer : IDisposable
     // the window shows nothing new this frame.
     private GpuTexture? _window;
 
-    // The offscreen window pass of a capturing frame with no canvas, released once the frame is submitted.
-    private SampledTexture? _captured;
+    // The offscreen window pass of a capturing or picture-reading frame with no canvas, since nothing reads the
+    // swapchain's texture. Allocated on the first such frame and reallocated when the window's size changes.
+    private SampledTexture? _offscreen;
+
+    // What a material reads as the picture, at the surface's size, allocated on the first frame that draws
+    // one and reallocated when that size changes. Null while no frame has.
+    private SampledTexture? _screen;
+
+    // Whether the warning that a screen material cannot read here has been logged.
+    private bool _warnedUnreadable;
 
     // Where the screen layer landed on the last frame drawn. It turns a sampled mouse position back
     // into a canvas position, and ResolveScreenLayer seeds it before the first frame.
@@ -166,10 +174,9 @@ internal sealed partial class FrameRenderer : IDisposable
         // capture, at the window's extent.
         (int outputWidth, int outputHeight) = _window is { } shown ? (shown.Width, shown.Height) : WindowSize;
         GpuTexture? windowPass = _window;
-        if (capturePath is not null && _canvas is null && outputWidth > 0 && outputHeight > 0)
+        if ((capturePath is not null || view.ReadsScreen) && _canvas is null && outputWidth > 0 && outputHeight > 0)
         {
-            _captured = Surface(outputWidth, outputHeight);
-            windowPass = _captured.Texture;
+            windowPass = Sized(ref _offscreen, outputWidth, outputHeight).Texture;
         }
 
         CameraView camera = view.Camera.At(alpha);
@@ -186,14 +193,14 @@ internal sealed partial class FrameRenderer : IDisposable
             DrawWorld(view, alpha, windowPass, world, layout.Span, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity, layout.OnSurface, surfaceFactor: 1);
             if (windowPass is not null)
             {
-                DrawScreen(view, alpha, layout.OnSurface, outputWidth, outputHeight, surfaceFactor: 1);
+                DrawScreen(view, alpha, windowPass, layout.OnSurface, outputWidth, outputHeight, surfaceFactor: 1);
             }
 
-            // The captured window pass is shown as drawn, texel for texel.
-            if (_captured is { } captured && _window is { } window)
+            // The offscreen window pass is shown as drawn, texel for texel.
+            if (!ReferenceEquals(windowPass, _window) && _window is { } window)
             {
                 _sprites.BeginPass(window, ColorRgba.Black);
-                _sprites.AddWhole(captured, Vector2.Zero, Vector2.Zero, Vector2.One, rotation: 0f, ColorRgba.White);
+                _sprites.AddWhole(_offscreen!, Vector2.Zero, Vector2.Zero, Vector2.One, rotation: 0f, ColorRgba.White);
             }
         }
         else
@@ -216,14 +223,14 @@ internal sealed partial class FrameRenderer : IDisposable
             // centred in it on whole pixels. Nothing lands on a grid the world did not use.
             if (layout.ScreenOnSurface)
             {
-                DrawScreen(view, alpha, drawn.OnSurface, width, height, factor);
+                DrawScreen(view, alpha, target.Texture, drawn.OnSurface, width, height, factor);
             }
 
             Present(target, view.Sampling, layout.Present, factor);
 
             if (!layout.ScreenOnSurface && _window is not null)
             {
-                DrawScreen(view, alpha, layout.Layer, outputWidth, outputHeight, surfaceFactor: 1);
+                DrawScreen(view, alpha, null, layout.Layer, outputWidth, outputHeight, surfaceFactor: 1);
             }
         }
 
@@ -269,9 +276,6 @@ internal sealed partial class FrameRenderer : IDisposable
             commands.Submit();
         }
 
-        // Released only once submitted, which keeps it alive until the GPU has run the frame.
-        _captured?.Dispose();
-        _captured = null;
         if (wait && _capture is { } capture)
         {
             _capture = null;
@@ -434,7 +438,7 @@ internal sealed partial class FrameRenderer : IDisposable
     // overlay's, for Submit to write to path.
     private void Capture(GpuCommandBuffer commands, string path)
     {
-        if ((_target ?? _captured)?.Texture is not { } surface)
+        if ((_target ?? _offscreen)?.Texture is not { } surface)
         {
             return;
         }
@@ -512,6 +516,7 @@ internal sealed partial class FrameRenderer : IDisposable
 
         _sprites.SetViewport(fit.X, fit.Y, fit.Width, fit.Height);
         Pass pass = WorldPass(alpha, snap, fit.Scale, topLeft);
+        pass.Surface = ReferenceEquals(target, _window) ? null : target;
 
         // A canvas run lands where the screen layer would on this surface, through the narrowed viewport
         // the world draws in, on the grid the canvas had at a factor of 1.
@@ -547,7 +552,7 @@ internal sealed partial class FrameRenderer : IDisposable
     // The screen layer, in canvas pixels placed by placement. Drawn after the world and across the
     // full surface. It covers the bars the world's fit left. On a surface drawn surfaceFactor times
     // larger it snaps to the grid it had at a factor of 1, and its pixels are those pixels enlarged.
-    private void DrawScreen(FrameView view, float alpha, in ScreenPlacement placement, int surfaceWidth, int surfaceHeight, int surfaceFactor)
+    private void DrawScreen(FrameView view, float alpha, GpuTexture? surface, in ScreenPlacement placement, int surfaceWidth, int surfaceHeight, int surfaceFactor)
     {
         TextureSampling sampling = view.Sampling;
         ReadOnlySpan<SpriteIntent> sprites = view.ScreenSprites;
@@ -573,6 +578,7 @@ internal sealed partial class FrameRenderer : IDisposable
             Placement = placement,
             SurfaceWidth = surfaceWidth,
             SurfaceHeight = surfaceHeight,
+            Surface = surface,
         };
 
         DrawIntents(sprites, lines, default, default, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, ref pass);
@@ -601,13 +607,21 @@ internal sealed partial class FrameRenderer : IDisposable
         {
             while (next < layers.Length && layers[next].FirstSprite <= index)
             {
+                bool wasOnCanvas = pass.OnCanvas;
                 Place(in layers[next], parallax, ref pass);
                 next++;
+
+                // A read's offset is in its sprite's units, and a run can cross from the world to a screen root.
+                if (pass.Reading && pass.OnCanvas != wasOnCanvas)
+                {
+                    _sprites.SetReadScale(ReadScale(in pass));
+                }
             }
 
             while (nextMaterial < materials.Length && materials[nextMaterial].FirstSprite <= index)
             {
                 _sprites.SetMaterial(materials[nextMaterial].Material);
+                pass.Reading = materials[nextMaterial].Material is { Shader.ReadsScreen: true } && BeginRead(in pass);
                 nextMaterial++;
             }
 
@@ -619,6 +633,11 @@ internal sealed partial class FrameRenderer : IDisposable
 
             if (!hidden)
             {
+                if (pass.Reading && sprites[index].TryGetSweptBounds(out Rect swept))
+                {
+                    _sprites.Widen(in swept, pass.FrameCorner - pass.LayerCorner);
+                }
+
                 DrawSprite(in sprites[index], ref pass);
             }
         }
@@ -651,6 +670,30 @@ internal sealed partial class FrameRenderer : IDisposable
 
         _sprites.ClearClip();
     }
+
+    // Splits the pass for a material that reads the picture. Returns false where the surface cannot be read: a
+    // canvas declared apart from the render resolution draws the screen layer on the window after the world.
+    private bool BeginRead(in Pass pass)
+    {
+        if (pass.Surface is not { } surface)
+        {
+            if (!_warnedUnreadable)
+            {
+                _warnedUnreadable = true;
+                Log.Warning("A screen entity's material calls SampleScreen, but a canvas declared apart from the render resolution draws the screen layer on the window, which it cannot read. The read shows nothing. Declare the canvas at the render resolution, or draw it in the world.");
+            }
+
+            return false;
+        }
+
+        _sprites.BeginRead(Sized(ref _screen, surface.Width, surface.Height));
+        _sprites.SetReadScale(ReadScale(in pass));
+
+        return true;
+    }
+
+    // The surface pixels one unit of the current placement spans.
+    private static float ReadScale(in Pass pass) => pass.WorldScale > 0f && !pass.OnCanvas ? pass.WorldScale : pass.Placement.Scale;
 
     // Moves the pass onto run's placement: a scroll factor's corner on the world's grid, or canvas pixels on
     // the canvas's grid. Only a world pass holds a canvas run, and it swaps the draw list's transform to reach it.
@@ -749,6 +792,11 @@ internal sealed partial class FrameRenderer : IDisposable
 
         internal TextureHandle Resolved;
         internal TextureSlice Slice;
+
+        // The surface a material can read as the picture, null where it is the window's, and whether the
+        // current run is reading it.
+        internal GpuTexture? Surface;
+        internal bool Reading;
     }
 
     // A pass over a world surface at scale pixels per unit, its grid anchored at corner.
@@ -880,7 +928,8 @@ internal sealed partial class FrameRenderer : IDisposable
         _target?.Dispose();
         _lightMap?.Dispose();
         _prescaled?.Dispose();
-        _captured?.Dispose();
+        _offscreen?.Dispose();
+        _screen?.Dispose();
         _sprites.Dispose();
     }
 }

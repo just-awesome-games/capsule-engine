@@ -18,7 +18,7 @@ internal readonly record struct ShaderBinding(string Name, ShaderParameterKind K
 // One stage of one shader compiled to one GPU format, as the asset build ships it at
 // {name}.{format}.shader: the code, its entry point, the resource counts SDL's GPU API creates a shader
 // with, and the parameter table the host binds a material through. The material's uniform buffer is
-// slot 0 and the scene globals' slot 1.
+// slot 0, the scene globals' slot 1 and a screen read's slot 2. A screen read's texture is its last sampler.
 internal sealed record ShaderContainer(
     string Format,
     ShaderStage Stage,
@@ -31,7 +31,7 @@ internal sealed record ShaderContainer(
     byte[] Code)
 {
     // The layout version this file reads and writes. A change to the layout bumps it, and every shader rebuilds.
-    internal const byte Version = 1;
+    internal const byte Version = 2;
 
     // The extension every container ships under, after its format.
     internal const string Extension = ".shader";

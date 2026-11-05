@@ -44,7 +44,7 @@ internal static class ShaderStep
                 pass.Warn(warning.Anchor, warning.Report);
             }
 
-            pass.Declare(shader, compiled.Parameters, ShaderMembers.Write);
+            pass.Declare(shader, compiled, ShaderMembers.Write);
         }
 
         if (tools.Further.Count > 0)
@@ -84,12 +84,12 @@ internal static class ShaderStep
                 pass.Fail(source.Path, failure);
             }
 
-            return new ShaderFacts([], []);
+            return new ShaderFacts([], false, []);
         }
 
         Ship(files, source.Key, shaders);
 
-        return new ShaderFacts([.. result.Parameters], [.. result.Diagnostics.Where(static diagnostic => diagnostic.Warning)]);
+        return new ShaderFacts([.. result.Parameters], result.ReadsScreen, [.. result.Diagnostics.Where(static diagnostic => diagnostic.Warning)]);
     }
 
     // The engine's sprite fragment and vertex stage in each further format, which a host on that

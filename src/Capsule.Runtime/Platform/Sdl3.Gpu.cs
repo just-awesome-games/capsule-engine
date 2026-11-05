@@ -202,6 +202,9 @@ internal static unsafe partial class Sdl3
     internal static extern void SDL_UploadToGPUBuffer(nint copyPass, GpuTransferBufferLocation* source, GpuBufferRegion* destination, [MarshalAs(UnmanagedType.U1)] bool cycle);
 
     [DllImport(LibraryName, ExactSpelling = true)]
+    internal static extern void SDL_CopyGPUTextureToTexture(nint copyPass, GpuTextureLocation* source, GpuTextureLocation* destination, uint width, uint height, uint depth, [MarshalAs(UnmanagedType.U1)] bool cycle);
+
+    [DllImport(LibraryName, ExactSpelling = true)]
     internal static extern void SDL_DownloadFromGPUTexture(nint copyPass, GpuTextureRegion* source, GpuTextureTransferInfo* destination);
 
     [DllImport(LibraryName, ExactSpelling = true)]
@@ -503,6 +506,17 @@ internal static unsafe partial class Sdl3
         public uint W;
         public uint H;
         public uint D;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct GpuTextureLocation
+    {
+        public nint Texture;
+        public uint MipLevel;
+        public uint Layer;
+        public uint X;
+        public uint Y;
+        public uint Z;
     }
 
     [StructLayout(LayoutKind.Sequential)]

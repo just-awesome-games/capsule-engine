@@ -6,7 +6,7 @@
 // CapsuleSprite and CapsuleVertexUniforms are the runtime's SpriteInstance and SpriteUniforms, member for
 // member, in SDL's binding layout: the sprites in storage buffer slot 0, the uniforms in uniform buffer 0.
 // The stage snaps in float, which every GPU format has. Its outputs are the pixel stage's inputs in
-// location order: tint, flash, texture coordinate, coverage. The build compiles this file to the
+// location order: tint, flash, texture coordinate, coverage, quad. The build compiles this file to the
 // vertex.<format>.shader files beside it.
 
 struct CapsuleSprite
@@ -45,6 +45,7 @@ struct CapsuleVertexOutput
     [[vk::location(1)]] float4 Flash : COLOR1;
     [[vk::location(2)]] float2 UV : TEXCOORD0;
     [[vk::location(3)]] float Coverage : TEXCOORD1;
+    [[vk::location(4)]] float4 Quad : TEXCOORD2;
     float4 Position : SV_Position;
 };
 
@@ -195,5 +196,6 @@ CapsuleVertexOutput CapsuleVertex(uint vertexId : SV_VertexID)
     output.Flash = CapsuleUnpack(sprite.Flash);
     output.UV = float2(corner & 1 ? uvTo.x : uvFrom.x, corner >> 1 ? uvTo.y : uvFrom.y);
     output.Coverage = CapsuleCoverage;
+    output.Quad = float4(abs(drawn) * axes, abs(drawn));
     return output;
 }
