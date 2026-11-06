@@ -64,6 +64,32 @@ public sealed class SheetToolTests
         Assert.Equal(new Sprite(texture, new TextureRegion(8, 0, 8, 8)), Member<Sprite>(game, "Actors+PlayerSheet+Frames", "Walk0"));
     }
 
+    // A frame may read another's region mirrored. Its pivot and marks are written as it draws and reach it unchanged.
+    [Fact]
+    public void AFrame_CarriesItsFlips_OverTheRegionItShares()
+    {
+        const string mirrored = """
+            { "formatVersion": 1, "texture": "p.png",
+              "sockets": [ { "name": "muzzle" } ],
+              "frames": [
+                { "name": "left", "x": 0, "y": 0, "width": 8, "height": 8, "pivot": [4, 8] },
+                { "name": "right", "x": 0, "y": 0, "width": 8, "height": 8, "pivot": [3, 8], "flipX": true, "sockets": { "muzzle": [7, 2] } },
+                { "name": "under", "x": 0, "y": 0, "width": 8, "height": 8, "flipY": true },
+                { "name": "both", "x": 0, "y": 0, "width": 8, "height": 8, "flipX": true, "flipY": true } ] }
+            """;
+        string generated = Emitted(("mirrored", mirrored));
+        Assembly game = Loaded(generated);
+        TextureRegion region = new(0, 0, 8, 8);
+        Sprite right = Member<Sprite>(game, "MirroredSheet+Frames", "Right");
+
+        Assert.False(Member<Sprite>(game, "MirroredSheet+Frames", "Left").FlipX);
+        Assert.Equal((region, new Vector2(3f, 8f), true, false), (right.Region, right.Pivot, right.FlipX, right.FlipY));
+        Assert.Equal(new Vector2(7f, 2f), Assert.Single(right.Marks!.Sockets.ToArray()).Point);
+        Assert.Equal(new Sprite(new TextureHandle("p", ".png"), region, FlipY: true), Member<Sprite>(game, "MirroredSheet+Frames", "Under"));
+        Assert.Equal(new Sprite(new TextureHandle("p", ".png"), region, FlipX: true, FlipY: true), Member<Sprite>(game, "MirroredSheet+Frames", "Both"));
+        Assert.Contains("flipped x", generated, StringComparison.Ordinal);
+    }
+
     // A clip is identified by instance. Every read of its member hands back the same one.
     [Fact]
     public void AClip_IsOneSpriteClipOfItsFramesTicksAndLoop()

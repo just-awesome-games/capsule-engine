@@ -7,11 +7,12 @@ namespace Capsule.Tests.Rendering;
 public sealed class BlendModeTests
 {
     // Blend landed in the padding after the two bools, and the flash in the padding after Blend. A
-    // sprite's marks are one reference, which took the intent from 112 bytes to 104.
+    // sprite's marks are one reference, which took the intent from 112 bytes to 104. A frame's two flips
+    // took it to 112 again, and the frame build measured flat.
     [Fact]
     public void SpriteIntent_KeepsItsSize()
     {
-        Assert.Equal(104, Unsafe.SizeOf<SpriteIntent>());
+        Assert.Equal(112, Unsafe.SizeOf<SpriteIntent>());
     }
 
     // Additive premultiplies by alpha and packs alpha zero. A glow fades as its alpha falls. Opaque adds

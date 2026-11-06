@@ -196,8 +196,12 @@ internal sealed class SpriteDrawList : IDisposable
         instance.Extent = SpriteInstance.Pack(region.Width, region.Height);
         instance.Tint = Tint(sprite.Color, sprite.Blend);
         instance.Flash = Flash(sprite.Flash, sprite.Color.A);
-        instance.Flags = (sprite.FlipX ? SpriteFlags.FlipX : SpriteFlags.None) | (sprite.FlipY ? SpriteFlags.FlipY : SpriteFlags.None);
+        instance.Flags = FlagsOf(in sprite);
     }
+
+    // The way the texels read: the intent's flips over the frame's own.
+    internal static SpriteFlags FlagsOf(in SpriteIntent sprite) =>
+        (sprite.MirrorsX ? SpriteFlags.FlipX : SpriteFlags.None) | (sprite.MirrorsY ? SpriteFlags.FlipY : SpriteFlags.None);
 
     // The entire texture where it stands: position is where origin lands, origin is in texels, scale is
     // drawn units per texel, and rotation is radians clockwise about origin. It blends as alpha.

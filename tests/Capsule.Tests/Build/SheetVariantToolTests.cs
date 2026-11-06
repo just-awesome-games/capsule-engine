@@ -37,6 +37,32 @@ public sealed class SheetVariantToolTests
         Assert.Null(walk);
     }
 
+    // A base frame found by its sprite is found with its flip, two frames of one region mirrored apart are two
+    // sprites, and a variant's frame reads its own texels whichever way it says.
+    [Fact]
+    public void FlippedBaseFrames_AreTheirOwnSprites_AndAVariantDrawsEachItsOwnWay()
+    {
+        const string mirrored = """
+            { "formatVersion": 1, "texture": "p.png",
+              "frames": [
+                { "name": "left", "x": 0, "y": 0, "width": 4, "height": 4 },
+                { "name": "right", "x": 0, "y": 0, "width": 4, "height": 4, "flipX": true } ] }
+            """;
+        const string hat = """
+            { "formatVersion": 1, "texture": "p.png", "variantOf": "Sprites/mirrored.sheet.json",
+              "frames": [
+                { "name": "left", "x": 0, "y": 0, "width": 2, "height": 2 },
+                { "name": "right", "x": 0, "y": 0, "width": 2, "height": 2, "flipX": true } ] }
+            """;
+        Assembly game = SheetToolTests.Loaded(SheetToolTests.Emitted(("mirrored", mirrored), ("mirrored-hat", hat)));
+        SpriteVariant variant = SheetToolTests.Member<SpriteVariant>(game, "MirroredHatSheet", "Variant");
+
+        Assert.True(variant.TryGet(SheetToolTests.Member<Sprite>(game, "MirroredSheet+Frames", "Left"), out Sprite? left));
+        Assert.True(variant.TryGet(SheetToolTests.Member<Sprite>(game, "MirroredSheet+Frames", "Right"), out Sprite? right));
+        Assert.False(left!.Value.FlipX);
+        Assert.True(right!.Value.FlipX);
+    }
+
     // A variant whose every frame draws nothing declares no frames and maps every base frame to nothing.
     [Fact]
     public void AVariantDrawingNothing_MapsEveryBaseFrameToNothing()

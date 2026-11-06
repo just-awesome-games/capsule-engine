@@ -17,7 +17,7 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
 
     // What a spark's entity, component list and renderer cost, with nothing to spare. One stray per-step
     // allocation in the engine would add far more.
-    private const long SpawnBytesEach = 520;
+    private const long SpawnBytesEach = 528;
 
     [Fact]
     public void AStageThatSpawnsNothing_AllocatesNothing()

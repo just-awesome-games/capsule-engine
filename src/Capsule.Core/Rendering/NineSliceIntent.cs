@@ -11,7 +11,7 @@ namespace Capsule.Rendering;
 /// <see cref="FrameView.Add(in NineSliceIntent)"/> expands it into one <see cref="SpriteIntent"/>
 /// per slice that has both texels and extent. A panel interpolates, culls and counts per slice.
 /// </remarks>
-/// <param name="Sprite">The frame cut into slices. Its pivot is not read. A panel is placed by its top-left corner.</param>
+/// <param name="Sprite">The frame cut into slices. Its pivot is not read. A panel is placed by its top-left corner, and the insets cut the frame as it draws.</param>
 /// <param name="Insets">Where the cuts fall inside the frame's region.</param>
 /// <param name="PreviousPosition">Where the panel's top-left corner sat at the end of the previous step, in the drawn space's units.</param>
 /// <param name="Position">Where the panel's top-left corner sits now, in the drawn space's units.</param>
@@ -42,20 +42,20 @@ public readonly record struct NineSliceIntent(
     {
         TextureRegion region = Sprite.Region;
 
-        Axis(region.X, region.Width, Insets.Left, Insets.Right, Size.X, columns);
-        Axis(region.Y, region.Height, Insets.Top, Insets.Bottom, Size.Y, rows);
+        Axis(region.X, region.Width, Insets.Left, Insets.Right, Size.X, Sprite.FlipX, columns);
+        Axis(region.Y, region.Height, Insets.Top, Insets.Bottom, Size.Y, Sprite.FlipY, rows);
     }
 
     // One axis of the cut. The far edge is placed from the target's far side. It stays on that edge
-    // however much the middle was squeezed.
-    private static void Axis(int origin, int extent, int near, int far, float size, Span<SliceSpan> slices)
+    // however much the middle was squeezed. A flipped frame's near slice is cut from its region's far side.
+    private static void Axis(int origin, int extent, int near, int far, float size, bool flipped, Span<SliceSpan> slices)
     {
         int low = Math.Clamp(near, 0, Math.Max(extent, 0));
         int high = Math.Clamp(far, 0, Math.Max(extent - low, 0));
 
-        slices[0] = new SliceSpan(origin, low, 0f, low);
-        slices[1] = new SliceSpan(origin + low, extent - low - high, low, MathF.Max(size - low - high, 0f));
-        slices[2] = new SliceSpan(origin + extent - high, high, size - high, high);
+        slices[0] = new SliceSpan(flipped ? origin + extent - low : origin, low, 0f, low);
+        slices[1] = new SliceSpan(origin + (flipped ? high : low), extent - low - high, low, MathF.Max(size - low - high, 0f));
+        slices[2] = new SliceSpan(flipped ? origin : origin + extent - high, high, size - high, high);
     }
 }
 

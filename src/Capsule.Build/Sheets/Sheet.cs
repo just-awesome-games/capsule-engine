@@ -16,6 +16,8 @@ internal readonly record struct Sheet(
 
 /// <summary>One region of the sheet's texture, with the pivot, sockets and boxes it carries.</summary>
 /// <param name="IsEmpty">Whether a variant's frame names no region and draws nothing. Its region and pivot are then zero.</param>
+/// <param name="FlipX">Whether the frame reads its region's texels mirrored left to right.</param>
+/// <param name="FlipY">Whether the frame reads its region's texels mirrored top to bottom.</param>
 internal readonly record struct SheetFrame(
     string Name,
     int X,
@@ -26,12 +28,14 @@ internal readonly record struct SheetFrame(
     float PivotY,
     SheetSocket[] Sockets,
     SheetBox[] Boxes,
-    bool IsEmpty = false)
+    bool IsEmpty = false,
+    bool FlipX = false,
+    bool FlipY = false)
 {
-    /// <summary>Whether this frame and <paramref name="other"/> draw the same region from the same pivot.</summary>
+    /// <summary>Whether this frame and <paramref name="other"/> draw the same region from the same pivot, mirrored the same way.</summary>
     internal bool DrawsAs(in SheetFrame other) =>
         IsEmpty == other.IsEmpty && X == other.X && Y == other.Y && Width == other.Width && Height == other.Height
-        && PivotX.Equals(other.PivotX) && PivotY.Equals(other.PivotY);
+        && PivotX.Equals(other.PivotX) && PivotY.Equals(other.PivotY) && FlipX == other.FlipX && FlipY == other.FlipY;
 }
 
 /// <summary>One socket a frame sets, in the pivot's texel space.</summary>

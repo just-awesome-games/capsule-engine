@@ -16,7 +16,7 @@ internal sealed class SheetJson
 
     /// <summary>Every member a sheet and its parts may hold, as a refusal lists them.</summary>
     internal const string Shape = "A sheet holds \"formatVersion\", \"texture\" and \"frames\", and may hold \"variantOf\", \"sockets\", \"boxes\", \"events\", \"clips\" and \"source\". "
-        + "A frame holds \"name\", \"x\", \"y\", \"width\" and \"height\", and may hold \"pivot\", \"sockets\" and \"boxes\". A variant's frame that draws nothing holds only \"name\". A frame's box holds \"x\", \"y\", \"width\" and \"height\". "
+        + "A frame holds \"name\", \"x\", \"y\", \"width\" and \"height\", and may hold \"pivot\", \"flipX\", \"flipY\", \"sockets\" and \"boxes\". A variant's frame that draws nothing holds only \"name\". A frame's box holds \"x\", \"y\", \"width\" and \"height\". "
         + "A clip holds \"name\" and \"frames\", each a \"frame\" and its \"ticks\", and may hold \"loop\". An entry may hold \"events\". "
         + "A socket, a box or an event holds \"name\", and \"source\" holds \"tool\", \"path\" and \"hash\".";
 
@@ -107,7 +107,7 @@ internal sealed class EventJson
     public string? Name { get; set; }
 }
 
-[Description("One region of the sheet's texture, with the pivot, sockets and boxes it carries. A variant's frame carries no sockets or boxes, and one giving only its name draws nothing.")]
+[Description("One region of the sheet's texture, with the pivot, flips, sockets and boxes it carries. A variant's frame carries no sockets or boxes, and one giving only its name draws nothing.")]
 internal sealed class FrameJson
 {
     [Description("The frame's name, unique among the frames. Letters, digits, '-' and '_', not starting with a digit.")]
@@ -134,6 +134,14 @@ internal sealed class FrameJson
     [Description("The pivot as [x, y] in texels of the frame from its own top-left corner, both finite. Absent is that corner.")]
     [SchemaLength(SheetJson.PointLength, SheetJson.PointLength)]
     public float[]? Pivot { get; set; }
+
+    [Description("Whether the frame reads its region's texels mirrored left to right. A mirrored drawing then needs no texels of its own. The pivot, sockets and boxes are measured on the frame as it draws.")]
+    [DefaultValue(false)]
+    public bool? FlipX { get; set; }
+
+    [Description("Whether the frame reads its region's texels mirrored top to bottom. The pivot, sockets and boxes are measured on the frame as it draws.")]
+    [DefaultValue(false)]
+    public bool? FlipY { get; set; }
 
     [Description("A declared socket's name mapped to its point on this frame, [x, y] in the pivot's texel space. A frame sets the sockets it has a point for and leaves the rest out.")]
     public Dictionary<string, float[]>? Sockets { get; set; }

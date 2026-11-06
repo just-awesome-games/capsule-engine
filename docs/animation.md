@@ -54,6 +54,16 @@ A sheet may also declare `sockets` and `boxes`, named points and rects each fram
 belongs to the drawing. An event belongs to the clip entry, and the same frame played by another clip
 raises none of it. Pivots, socket points and boxes are texels from the frame's top-left corner, and
 `ticks` are fixed steps. A clip plays once and holds its last frame unless its entry sets `"loop": true`.
+
+A frame that is another's mirror image cuts the same region and sets `"flipX": true` or `"flipY": true`, and
+needs no texels of its own. Its pivot, sockets and boxes are measured on the frame as it draws, and a
+renderer's `FlipX` or `FlipY` mirrors it again:
+
+```json
+{ "name": "left", "x": 0, "y": 0, "width": 16, "height": 16, "pivot": [8, 16] },
+{ "name": "right", "x": 0, "y": 0, "width": 16, "height": 16, "pivot": [8, 16], "flipX": true }
+```
+
 The format's JSON Schema documents every field ([Editor completion](configuring-assets.md#editor-completion)).
 
 ## Playing a clip

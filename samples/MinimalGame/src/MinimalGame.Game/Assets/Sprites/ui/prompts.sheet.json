@@ -68,10 +68,11 @@
     },
     {
       "name": "mouse-right",
-      "x": 144,
+      "x": 128,
       "y": 0,
       "width": 16,
-      "height": 16
+      "height": 16,
+      "flipX": true
     }
   ]
 }

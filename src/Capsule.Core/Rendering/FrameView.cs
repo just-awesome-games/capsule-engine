@@ -441,7 +441,7 @@ public sealed class FrameView
 
         for (int row = rows.First; row <= rows.Last; row++)
         {
-            (int sourceY, int sourceHeight) = rows.Crop(row, region.Y, region.Height, texelSize.Y, sprite.FlipY);
+            (int sourceY, int sourceHeight) = rows.Crop(row, region.Y, region.Height, texelSize.Y, sprite.MirrorsY);
             if (sourceHeight <= 0)
             {
                 continue;
@@ -449,7 +449,7 @@ public sealed class FrameView
 
             for (int column = columns.First; column <= columns.Last; column++)
             {
-                (int sourceX, int sourceWidth) = columns.Crop(column, region.X, region.Width, texelSize.X, sprite.FlipX);
+                (int sourceX, int sourceWidth) = columns.Crop(column, region.X, region.Width, texelSize.X, sprite.MirrorsX);
                 if (sourceWidth <= 0)
                 {
                     continue;
@@ -461,7 +461,7 @@ public sealed class FrameView
                 Sprite copy = new(
                     sprite.Sprite.Texture,
                     new TextureRegion(sourceX, sourceY, sourceWidth, sourceHeight),
-                    new Vector2(sprite.FlipX ? sourceWidth : 0, sprite.FlipY ? sourceHeight : 0));
+                    new Vector2(sprite.MirrorsX ? sourceWidth : 0, sprite.MirrorsY ? sourceHeight : 0));
 
                 Add(
                     new SpriteIntent(
@@ -471,8 +471,8 @@ public sealed class FrameView
                         PreviousRotation: 0f,
                         Rotation: 0f,
                         new Vector2(sourceWidth * texelSize.X, sourceHeight * texelSize.Y),
-                        sprite.FlipX,
-                        sprite.FlipY,
+                        sprite.MirrorsX,
+                        sprite.MirrorsY,
                         sprite.Color,
                         sprite.Blend),
                     space);
@@ -616,7 +616,9 @@ public sealed class FrameView
                                 horizontal.SourceOffset,
                                 vertical.SourceOffset,
                                 horizontal.SourceExtent,
-                                vertical.SourceExtent)),
+                                vertical.SourceExtent),
+                            FlipX: panel.Sprite.FlipX,
+                            FlipY: panel.Sprite.FlipY),
                         corner + travel,
                         corner,
                         PreviousRotation: 0f,

@@ -20,8 +20,8 @@ namespace Capsule.Rendering;
 /// The extent the region is drawn at, in the drawn space's units. Equal to the region's texel size
 /// draws one texel per unit.
 /// </param>
-/// <param name="FlipX">Whether the region is mirrored horizontally about the pivot.</param>
-/// <param name="FlipY">Whether the region is mirrored vertically about the pivot.</param>
+/// <param name="FlipX">Whether the region is mirrored horizontally about the pivot, on top of any mirror the frame itself carries.</param>
+/// <param name="FlipY">Whether the region is mirrored vertically about the pivot, on top of any mirror the frame itself carries.</param>
 /// <param name="Color">Multiplied into every texel. <see cref="ColorRgba.White"/> draws the texture unchanged.</param>
 /// <param name="Blend">How the sprite's colour combines with what is already drawn.</param>
 public readonly record struct SpriteIntent(
@@ -40,8 +40,14 @@ public readonly record struct SpriteIntent(
     // in RGB and the amount in alpha. Set by the frame at store and by nothing a game writes.
     internal ColorRgba Flash { get; init; }
 
-    // The anchor the renderer draws from, in region texels. It mirrors on a flipped axis. The pivot texel
-    // stays on the position whichever way the frame faces.
+    // Whether the texels read mirrored on each axis. The intent's flip and the frame's own cancel.
+    internal bool MirrorsX => FlipX ^ Sprite.FlipX;
+
+    internal bool MirrorsY => FlipY ^ Sprite.FlipY;
+
+    // The anchor the renderer draws from, in texels of the drawn rect. It mirrors on an axis the intent
+    // flips, and the pivot texel stays on the position whichever way the frame faces. A frame's own flip
+    // leaves it, since a frame's pivot is measured as the frame draws.
     internal Vector2 DrawOrigin => new(
         FlipX ? Sprite.Region.Width - Sprite.Pivot.X : Sprite.Pivot.X,
         FlipY ? Sprite.Region.Height - Sprite.Pivot.Y : Sprite.Pivot.Y);

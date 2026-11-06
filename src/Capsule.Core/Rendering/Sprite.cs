@@ -7,7 +7,7 @@ namespace Capsule.Rendering;
 /// <param name="Texture">The texture the region is cut from.</param>
 /// <param name="Region">The region drawn, in texels of <paramref name="Texture"/>.</param>
 /// <param name="Pivot">
-/// The anchor, in texels of <paramref name="Region"/> from its top-left corner, and the corner itself
+/// The anchor, in texels from the top-left corner of the frame as it draws, and that corner
 /// by default. This texel lands on whatever position the frame is drawn at, and a flip mirrors the
 /// region about it. A pivot halfway across an axis flips in place, while a pivot at the edge swings the
 /// region across the position.
@@ -16,11 +16,19 @@ namespace Capsule.Rendering;
 /// The named sockets and boxes this frame carries, in <paramref name="Pivot"/>'s texel space, and none
 /// by default. Sprites of one frame share one instance.
 /// </param>
+/// <param name="FlipX">
+/// Whether this frame reads its region's texels mirrored left to right, and false by default. A mirrored
+/// drawing then needs no texels of its own. The pivot and marks are measured on the frame as it draws. A
+/// flip on whatever draws the frame mirrors it again, about the pivot.
+/// </param>
+/// <param name="FlipY">Whether this frame reads its region's texels mirrored top to bottom, as <paramref name="FlipX"/> does left to right. False by default.</param>
 public readonly record struct Sprite(
     TextureHandle Texture,
     TextureRegion Region,
     Vector2 Pivot = default,
-    SpriteMarks? Marks = null)
+    SpriteMarks? Marks = null,
+    bool FlipX = false,
+    bool FlipY = false)
 {
     /// <summary>
     /// The engine's white texel, anchored at its corner. Flat colour is drawn from this frame,

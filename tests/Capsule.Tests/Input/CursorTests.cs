@@ -23,4 +23,16 @@ public sealed class CursorTests
 
         Assert.Null(cursor.Image);
     }
+
+    // The operating system draws a cursor from its region's own texels, and a flip would not reach it.
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void AFlippedFrame_IsRefused(bool flipX, bool flipY)
+    {
+        Cursor cursor = new();
+        Sprite frame = new(new TextureHandle("cursors", ".png"), new TextureRegion(0, 0, 9, 9), FlipX: flipX, FlipY: flipY);
+
+        Assert.Throws<ArgumentException>(() => cursor.Image = frame);
+    }
 }

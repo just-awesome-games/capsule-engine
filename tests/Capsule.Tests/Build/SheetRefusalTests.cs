@@ -33,6 +33,10 @@ public sealed class SheetRefusalTests
         """, "at least one texel")]
     [InlineData("""
         { "formatVersion": 1, "texture": "p.png",
+          "frames": [ { "name": "a", "flipX": true } ] }
+        """, "with no x")]
+    [InlineData("""
+        { "formatVersion": 1, "texture": "p.png",
           "frames": [ { "name": "a", "x": -1, "y": 0, "width": 1, "height": 1 } ] }
         """, "not negative")]
     [InlineData("""

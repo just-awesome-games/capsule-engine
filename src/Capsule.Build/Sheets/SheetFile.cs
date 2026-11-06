@@ -101,7 +101,8 @@ internal static class SheetFile
                     $"has frame \"{name}\" setting a {(frame.Sockets is { Count: > 0 } ? "socket" : "box")}, and is a variant. Sockets and boxes come from the base's frame, and a variant never moves them. Remove them from the variant's frame.");
             }
 
-            frames[i] = frame.X is null && frame.Y is null && frame.Width is null && frame.Height is null && frame.Pivot is null
+            frames[i] = frame.X is null && frame.Y is null && frame.Width is null && frame.Height is null
+                && frame.Pivot is null && frame.FlipX is null && frame.FlipY is null
                 ? new SheetFrame(name, 0, 0, 0, 0, 0F, 0F, [], [], IsEmpty: true)
                 : Region(frame, name, [], []);
         }
@@ -199,7 +200,7 @@ internal static class SheetFile
 
         (float pivotX, float pivotY) = frame.Pivot is { } pivot ? Point(pivot, name, "a pivot") : (0F, 0F);
 
-        return new SheetFrame(name, x, y, width, height, pivotX, pivotY, sockets, boxes);
+        return new SheetFrame(name, x, y, width, height, pivotX, pivotY, sockets, boxes, FlipX: frame.FlipX ?? false, FlipY: frame.FlipY ?? false);
     }
 
     private static void RequireAllSet(string[] declared, bool[] set, string kind, string shape)

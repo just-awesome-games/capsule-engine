@@ -14,7 +14,8 @@ namespace Capsule.Rendering;
 /// <remarks>
 /// The frame's pivot lands on <see cref="Offset"/> as placed by the entity's world transform, and
 /// the frame turns about that point and takes its scale from the transform. A negative scale axis
-/// mirrors the frame about the pivot, the same way a flip does. Coordinates are Y-down, in world
+/// mirrors the frame about the pivot, the same way a flip does, and <see cref="FlipX"/> and
+/// <see cref="FlipY"/> mirror it again over any flip the frame carries. Coordinates are Y-down, in world
 /// units under a world root and canvas pixels under a screen root. A frame's
 /// sockets are placed the same way, as child entities bound through <see cref="Socket"/>, and its
 /// boxes as colliders bound through <see cref="Box"/>. Detaching the renderer disables its boxes, and
@@ -533,6 +534,8 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         base.OnDebugPanel(panel);
         TextureRegion region = Sprite.Region;
         panel.Field("Sprite", string.Create(CultureInfo.InvariantCulture, $"({region.X}, {region.Y}) {region.Width}x{region.Height}"));
+        panel.Field("Frame flips X", Sprite.FlipX);
+        panel.Field("Frame flips Y", Sprite.FlipY);
         if (_extras?.Look is { } look)
         {
             panel.Field(

@@ -92,8 +92,8 @@ internal static class SheetStep
             }
         }
 
-        // Two unmarked base frames drawing the same region from the same pivot are one sprite, which a
-        // variant looks up by value and so draws one way.
+        // Two unmarked base frames drawing the same region from the same pivot, mirrored the same way, are
+        // one sprite, which a variant looks up by value and so draws one way.
         SheetFrame[] frames = baseSheet.Frames;
         for (int i = 0; i < frames.Length; i++)
         {

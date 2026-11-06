@@ -44,8 +44,11 @@ internal static class SheetMembers
             [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
             internal static class {{BuilderClass}}
             {
-                /// <summary>Each frame's sprite, from its region as x, y, width and height, and its pivot as x and y.</summary>
-                internal static {{GeneratedTypes.Sprite}}[] Cut({{GeneratedTypes.TextureHandle}} texture, global::System.ReadOnlySpan<int> regions, global::System.ReadOnlySpan<float> pivots)
+                /// <summary>
+                /// Each frame's sprite, from its region as x, y, width and height, and its pivot as x and y. Where any frame
+                /// flips, flips holds each frame's, 1 for x and 2 for y.
+                /// </summary>
+                internal static {{GeneratedTypes.Sprite}}[] Cut({{GeneratedTypes.TextureHandle}} texture, global::System.ReadOnlySpan<int> regions, global::System.ReadOnlySpan<float> pivots, global::System.ReadOnlySpan<int> flips)
                 {
                     {{GeneratedTypes.Sprite}}[] frames = new {{GeneratedTypes.Sprite}}[pivots.Length / 2];
                     for (int i = 0; i < frames.Length; i++)
@@ -53,7 +56,9 @@ internal static class SheetMembers
                         frames[i] = new {{GeneratedTypes.Sprite}}(
                             texture,
                             new {{GeneratedTypes.TextureRegion}}(regions[i * 4], regions[(i * 4) + 1], regions[(i * 4) + 2], regions[(i * 4) + 3]),
-                            new {{GeneratedTypes.Vector2}}(pivots[i * 2], pivots[(i * 2) + 1]));
+                            new {{GeneratedTypes.Vector2}}(pivots[i * 2], pivots[(i * 2) + 1]),
+                            FlipX: !flips.IsEmpty && (flips[i] & 1) != 0,
+                            FlipY: !flips.IsEmpty && (flips[i] & 2) != 0);
                     }
 
                     return frames;
@@ -272,7 +277,10 @@ internal static class SheetMembers
         string cut = Builder + ".Cut(new " + GeneratedTypes.TextureHandle + "(" + Literal.Of(document.TextureKey) + ", "
             + Literal.Of(document.TextureExtension) + "), ["
             + string.Join(", ", list.SelectMany(static frame => new[] { frame.X, frame.Y, frame.Width, frame.Height }).Select(Literal.Of)) + "], ["
-            + string.Join(", ", list.SelectMany(static frame => new[] { frame.PivotX, frame.PivotY }).Select(Literal.Of)) + "])";
+            + string.Join(", ", list.SelectMany(static frame => new[] { frame.PivotX, frame.PivotY }).Select(Literal.Of)) + "], ["
+            + (list.Any(static frame => frame.FlipX || frame.FlipY)
+                ? string.Join(", ", list.Select(static frame => Literal.Of((frame.FlipX ? 1 : 0) | (frame.FlipY ? 2 : 0))))
+                : string.Empty) + "])";
 
         code.Append(indent).Append("private static readonly ").Append(GeneratedTypes.Sprite).Append("[] ").Append(Frames).Append(" = ");
         if (!list.Any(static frame => frame.Sockets.Length > 0 || frame.Boxes.Length > 0))
@@ -325,7 +333,8 @@ internal static class SheetMembers
 
             code.Append(member).Append("/// <summary><c>").Append(frame.Name).Append("</c>: ")
                 .Append(Literal.Of(frame.Width)).Append('x').Append(Literal.Of(frame.Height))
-                .Append(" at (").Append(Literal.Of(frame.X)).Append(", ").Append(Literal.Of(frame.Y)).Append(')');
+                .Append(" at (").Append(Literal.Of(frame.X)).Append(", ").Append(Literal.Of(frame.Y)).Append(')')
+                .Append(frame.FlipX ? ", flipped x" : string.Empty).Append(frame.FlipY ? ", flipped y" : string.Empty);
             if (frame.Sockets.Length > 0)
             {
                 code.Append(frame.Sockets.Length == 1 ? ", socket " : ", sockets ")

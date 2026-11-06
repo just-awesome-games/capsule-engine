@@ -25,11 +25,13 @@ public sealed class Cursor
 
     /// <summary>The sprite drawn as the cursor, or null for the system arrow.</summary>
     /// <remarks>
-    /// The sprite's pivot is the hotspot, the texel that points. Any sprite cut from the game's
-    /// textures works, including an atlas-packed texture or a frame of a sheet. The host scales the
-    /// image with the canvas by the nearest whole factor, at least 1, with nearest-neighbour sampling.
-    /// The image then keeps its size against the game's art. The factor is lowered, down to 1, to keep
-    /// each side within 256 window pixels, and a region already wider than that stays at 1.
+    /// The sprite's pivot is the hotspot, the texel that points. Any unflipped sprite cut from the game's
+    /// textures works, including an atlas-packed texture or a frame of a sheet. A flipped frame is
+    /// refused, because the operating system draws a cursor from the region's own texels. The host
+    /// scales the image with the canvas by the nearest whole factor, at least 1, with
+    /// nearest-neighbour sampling. The image then keeps its size against the game's art. The factor is
+    /// lowered, down to 1, to keep each side within 256 window pixels, and a region already wider than
+    /// that stays at 1.
     /// </remarks>
     /// <example>
     /// An animated cursor is a clip the game steps and assigns every step:
@@ -59,6 +61,13 @@ public sealed class Cursor
 
     private static void RequireHotspot(in Sprite sprite, string parameterName)
     {
+        if (sprite.FlipX || sprite.FlipY)
+        {
+            throw new ArgumentException(
+                "The cursor's frame is flipped, and the operating system draws a cursor from the region's own texels. Use a frame with no flip, whose region holds the drawing as it should show.",
+                parameterName);
+        }
+
         float x = MathF.Floor(sprite.Pivot.X);
         float y = MathF.Floor(sprite.Pivot.Y);
         if (x >= 0f && x < sprite.Region.Width && y >= 0f && y < sprite.Region.Height)

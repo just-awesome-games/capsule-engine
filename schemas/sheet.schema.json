@@ -118,6 +118,16 @@
             "minItems": 2,
             "maxItems": 2
           },
+          "flipX": {
+            "description": "Whether the frame reads its region's texels mirrored left to right. A mirrored drawing then needs no texels of its own. The pivot, sockets and boxes are measured on the frame as it draws.",
+            "default": false,
+            "type": "boolean"
+          },
+          "flipY": {
+            "description": "Whether the frame reads its region's texels mirrored top to bottom. The pivot, sockets and boxes are measured on the frame as it draws.",
+            "default": false,
+            "type": "boolean"
+          },
           "sockets": {
             "description": "A declared socket's name mapped to its point on this frame, [x, y] in the pivot's texel space. A frame sets the sockets it has a point for and leaves the rest out.",
             "type": "object",

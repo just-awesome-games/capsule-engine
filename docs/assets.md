@@ -42,7 +42,7 @@ compile into the game and ship nothing.
 
 ## Textures
 
-A `Sprite` is a region of a texture with its own pivot:
+A `Sprite` is a region of a texture with its own pivot, and it may read that region mirrored:
 
 ```csharp
 private static readonly Sprite Bulb = new(CapsuleAssets.Textures.LampTexture, new TextureRegion(0, 0, 16, 16), new Vector2(8f, 16f));
