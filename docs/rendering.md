@@ -147,6 +147,16 @@ Add(new ParticleEmitter(Sprite.White, capacity: 32)
 });
 ```
 
+An emitter leaves with its entity, and its particles with it. A burst that outlives what asked for it is an entity of its
+own, removed by `RemovesEntityWhenFinished`. A trail that outlives what it follows is the same entity placed as a child. It
+rides along, and `RateOverDistance` counts the distance. Before its parent is removed, detach it and turn it off:
+
+```csharp
+_trail.Parent = null;
+_trailEmitter.Emitting = false;
+Scene.Remove(this);
+```
+
 An emitter built from a sheet's clip plays it on every particle, each frame for its authored steps, and a
 clip that does not loop ends its particle. `FrameMode` stretches the clip over each particle's life instead,
 or picks one frame at spawn. `FlipX` mirrors each new particle as a negative X scale on the entity would,

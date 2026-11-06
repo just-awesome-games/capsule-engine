@@ -126,7 +126,20 @@ public partial class Entity
         Position = position;
         _previousLocal = _local;
         Invalidate(previous: true);
+        CountTeleport();
     }
+
+    private void CountTeleport()
+    {
+        Teleports++;
+        foreach (Entity child in Children)
+        {
+            child.CountTeleport();
+        }
+    }
+
+    // How many teleports have moved this entity, its own and its ancestors'. Motion measured across one never happened.
+    internal int Teleports { get; private set; }
 
     // Called at the top of a step, parent before child as the scene walks. It saves the locals and
     // copies the world transform they compose as the previous world.

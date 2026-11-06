@@ -84,6 +84,16 @@ public sealed class ParticleEmitter : Renderer
     // Whether a particle has spawned in this life. A burst finishes only after it has.
     private bool _spawned;
 
+    // Whether a spawning emitter was turned off in a scene this life, which leaves it nothing to wait for.
+    private bool _stopped;
+    private bool _emitting = true;
+
+    // Where the entity stood at the last step, as motion in a late step reaches the scene's previous transform before
+    // this emitter steps. Valid while _measured, and until a teleport moves the entity.
+    private Transform2D _measuredFrom;
+    private bool _measured;
+    private int _measuredTeleports;
+
     // The frame the next particle takes under FrameMode.InOrderAtSpawn, from the first in each life.
     private int _nextFrame;
     private float _lastDeltaSeconds = DefaultDeltaSeconds;
@@ -293,7 +303,17 @@ public sealed class ParticleEmitter : Renderer
     /// Whether <see cref="Rate"/> and <see cref="RateOverDistance"/> spawn, true by default.
     /// <see cref="Emit(int)"/> spawns either way.
     /// </summary>
-    public bool Emitting { get; set; } = true;
+    public bool Emitting
+    {
+        get => _emitting;
+
+        set
+        {
+            _stopped |= _emitting && !value && _inScene && (Rate > 0f || RateOverDistance > 0f);
+            _stopped &= !value;
+            _emitting = value;
+        }
+    }
 
     /// <summary>Particles spawned per second while <see cref="Emitting"/>, zero by default. A fractional remainder carries to the next step.</summary>
     public float Rate
@@ -370,16 +390,17 @@ public sealed class ParticleEmitter : Renderer
     public int Alive => _alive;
 
     /// <summary>
-    /// Whether the emitter has spawned a particle, none is alive, and none will spawn without an
-    /// <see cref="Emit(int)"/>: <see cref="Emitting"/> is false, or <see cref="Rate"/> and
+    /// Whether the emitter has spawned a particle or was turned off in a scene while it had a rate, none is alive, and none
+    /// will spawn without an <see cref="Emit(int)"/>: <see cref="Emitting"/> is false, or <see cref="Rate"/> and
     /// <see cref="RateOverDistance"/> are zero.
     /// </summary>
     /// <remarks>
-    /// Removal from the scene clears it. A reused emitter finishes only after it spawns again. An
+    /// Removal from the scene clears it. A reused emitter finishes only after it spawns again or is turned off again. An
     /// <see cref="EmitOnDeath"/> emitter on the same entity must have nothing alive too.
     /// </remarks>
     public bool IsFinished =>
-        _spawned
+        (_spawned || _stopped)
+        && _pendingCalls == 0
         && _alive == 0
         && (!Emitting || (Rate == 0f && RateOverDistance == 0f))
         && (EmitOnDeath.Into is not { } into || into.Entity != Entity || into.Alive == 0);
@@ -516,6 +537,8 @@ public sealed class ParticleEmitter : Renderer
         Clear();
         _inScene = false;
         _spawned = false;
+        _stopped = false;
+        _measured = false;
         _nextFrame = 0;
         _prewarmed = false;
         _lastDeltaSeconds = DefaultDeltaSeconds;
@@ -529,7 +552,11 @@ public sealed class ParticleEmitter : Renderer
         _lastDeltaSeconds = dt;
 
         Transform2D current = RenderTransform;
-        Transform2D previous = PreviousRenderTransform;
+        Entity entity = Entity!;
+        Transform2D previous = _measured && _measuredTeleports == entity.Teleports ? _measuredFrom : PreviousRenderTransform;
+        _measuredFrom = current;
+        _measuredTeleports = entity.Teleports;
+        _measured = true;
 
         if (!_prewarmed)
         {
