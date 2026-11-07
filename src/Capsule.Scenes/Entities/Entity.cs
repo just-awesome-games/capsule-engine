@@ -127,7 +127,7 @@ public partial class Entity
 
             SceneOrNull?.Drawing.ThrowIfDrawing("set an entity's ZIndex");
             field = value;
-            SceneOrNull?.Drawing.Invalidate();
+            SceneOrNull?.Drawing.Changed(this);
         }
     }
 
@@ -142,6 +142,10 @@ public partial class Entity
 
     // The entity's draw band: ancestry ZIndex summed before children read it.
     internal long DrawBand { get; set; }
+
+    // Where this entity's first renderer sits in tree order in its scene's draw order, with the rest after it
+    // in attachment order. The entity's keys are found by it as the entity leaves.
+    internal long DrawPosition { get; set; }
 
     /// <summary>
     /// A marker or pivot at <paramref name="parent"/>'s origin. It has a place in the world and no
@@ -514,6 +518,9 @@ public partial class Entity
             _steppers++;
         }
 
+        // Before the hooks, since one may remove this entity and the draw order must know what it now holds.
+        NoteRendererChange(component);
+
         bool registered = false;
         try
         {
@@ -539,15 +546,13 @@ public partial class Entity
                 }
 
                 component.Entity = null;
+
+                // A hook may have read the draw order while the renderer was attached.
+                NoteRendererChange(component);
             }
 
-            // OnAttached may have attached and detached other components before throwing.
-            SceneOrNull?.Drawing.Invalidate();
             throw;
         }
-
-        // Attaching to an entity a scene already holds changes that scene's renderer set.
-        SceneOrNull?.Drawing.Invalidate();
 
         // OnAttached may have detached the component, which must then not enter the scene. An entity
         // composed by a scene that has not started enters its components when it joins.
@@ -590,6 +595,7 @@ public partial class Entity
 
         // Clear the owner before hooks run. Hooks cannot then observe the component still attached.
         component.Entity = null;
+        NoteRendererChange(component);
 
         // Every hook runs and the engine's own release always follows. A throwing hook then leaves no
         // detached component registered or drawn. Failures propagate once detachment finishes.
@@ -613,8 +619,16 @@ public partial class Entity
         }
 
         component.OnDetachingFrom(this);
-        SceneOrNull?.Drawing.Invalidate();
         Scenes.Scene.ThrowCleanupFailures(failures);
+    }
+
+    // A renderer joining or leaving an entity a scene already holds changes that scene's draw order.
+    private void NoteRendererChange(Component component)
+    {
+        if (component is Renderer)
+        {
+            SceneOrNull?.Drawing.Changed(this);
+        }
     }
 
     /// <summary>Finds the first attached component assignable to <typeparamref name="T"/>.</summary>

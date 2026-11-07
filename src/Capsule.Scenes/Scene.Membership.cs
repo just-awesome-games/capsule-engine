@@ -305,9 +305,18 @@ public partial class Scene
 
     private void Place(Entity entity)
     {
-        _tree.Insert(entity, _batchingAdds);
+        bool atEnd = _tree.Insert(entity, _batchingAdds);
         entity.SceneOrNull = this;
         entity.PendingScene = null;
+
+        if (atEnd)
+        {
+            Drawing.Appended(entity);
+        }
+        else
+        {
+            Drawing.Invalidate();
+        }
     }
 
     // Joins every entity composed before the scene started, in tree order. A hook that adds attaches
@@ -365,7 +374,6 @@ public partial class Scene
     {
         entity.Joined = true;
         entity.NameNumber = NextNameNumber(entity.RequestedName);
-        Drawing.Invalidate();
 
         // Resolved against this step's state. A join during the step then settles its screen notifiers
         // as the rest of the tree does.
@@ -529,7 +537,7 @@ public partial class Scene
     {
         Entity entity = _tree.Vacate(index);
 
-        Drawing.Invalidate();
+        Drawing.Left(entity);
         bool joined = entity.Joined;
         entity.Leaving = true;
         entity.SceneOrNull = null;

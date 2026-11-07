@@ -9,9 +9,24 @@ namespace Capsule.Rendering;
 // it runs, which keeps the order valid for the whole pass.
 internal sealed class SceneDrawing
 {
+    // An entity's DrawPosition from landing at the end of the tree until the order next reads it.
+    private const long AwaitingOrder = -1;
+
+    // The most arrivals a read inserts one by one. Past this a rebuild costs less, whatever the order's size.
+    private const int MostInserts = 256;
+
     private readonly Scene _scene;
     private readonly List<Renderer> _renderers = [];
     private readonly List<DrawKey> _keys = [];
+
+    // The entities that landed at the end of the tree since the order was last read.
+    private readonly List<Entity> _appended = [];
+
+    // Above every key's position. A renderer appended to the tree follows every renderer in tree order.
+    private long _nextPosition;
+
+    // The lowest slot a leaving renderer nulled since the order was last read.
+    private int? _firstVacated;
     private bool _renderersStale = true;
     private bool _drawing;
 
@@ -128,7 +143,7 @@ internal sealed class SceneDrawing
 
     private ReadOnlySpan<Renderer> GetDrawOrder(ReadOnlySpan<Entity> entities)
     {
-        if (_renderersStale)
+        if (_renderersStale || _appended.Count > MostInserts)
         {
             RebuildRenderers(entities);
         }
@@ -136,23 +151,72 @@ internal sealed class SceneDrawing
         {
             Resort();
         }
+        else if (_firstVacated is not null || _appended.Count > 0)
+        {
+            Patch();
+        }
 
         return CollectionsMarshal.AsSpan(_renderers);
     }
 
+    // The next read rebuilds the whole order.
     internal void Invalidate() => _renderersStale = true;
 
-    // Sizes the order for renderers held at once. A rebuild after pooled entities attach then grows nothing.
-    internal void Reserve(int renderers)
+    // An entity's band or renderers changed. One still waiting to enter the order is read as it enters.
+    internal void Changed(Entity entity) => _renderersStale |= entity.DrawPosition != AwaitingOrder;
+
+    // The entity landed at the end of the tree, and every entity already held kept its place in tree order.
+    // A Y-sorted order rebuilds instead, because a key's Y moves and a search cannot find it.
+    internal void Appended(Entity entity)
+    {
+        _renderersStale |= YSort;
+        if (!_renderersStale)
+        {
+            entity.DrawPosition = AwaitingOrder;
+            _appended.Add(entity);
+        }
+    }
+
+    // The entity left, and every other entity kept its place in tree order. One still waiting holds no key to
+    // find, and rebuilds.
+    internal void Left(Entity entity)
+    {
+        long position = entity.DrawPosition;
+        entity.DrawPosition = 0;
+        _renderersStale |= YSort || position == AwaitingOrder;
+        if (_renderersStale)
+        {
+            return;
+        }
+
+        Span<DrawKey> keys = CollectionsMarshal.AsSpan(_keys);
+        foreach (Component component in entity.Components)
+        {
+            if (component is Renderer renderer)
+            {
+                int slot = keys.BinarySearch(new DrawKey(entity.DrawBand + renderer.ZIndex, position++));
+                _renderers[slot] = null!;
+                _firstVacated = Math.Min(_firstVacated ?? slot, slot);
+            }
+        }
+    }
+
+    // Sizes the order for renderers held at once and the entities that hold them. A read after pooled
+    // entities attach then grows nothing.
+    internal void Reserve(int renderers, int entities)
     {
         _renderers.EnsureCapacity(renderers);
         _keys.EnsureCapacity(renderers);
+        _appended.EnsureCapacity(entities);
     }
 
     internal void Clear()
     {
         _renderers.Clear();
         _keys.Clear();
+        _appended.Clear();
+        _firstVacated = null;
+        _nextPosition = 0;
         _renderersStale = false;
     }
 
@@ -162,6 +226,8 @@ internal sealed class SceneDrawing
     {
         _renderers.Clear();
         _keys.Clear();
+        _appended.Clear();
+        _firstVacated = null;
 
         bool ySort = YSort;
         bool banded = false;
@@ -171,18 +237,20 @@ internal sealed class SceneDrawing
 
             // A root only moves out of the scene, which rebuilds the order. The key can hold it.
             Entity? root = ySort && entity.Space == RenderSpace.World ? entity.Root : null;
+            entity.DrawPosition = _renderers.Count;
             foreach (Component component in entity.Components)
             {
                 if (component is Renderer renderer)
                 {
                     long key = band + renderer.ZIndex;
                     banded |= key != 0;
-                    _keys.Add(new DrawKey(key, root?.Position.Y ?? float.NegativeInfinity, _renderers.Count, root));
+                    _keys.Add(new DrawKey(key, _renderers.Count, root?.Position.Y ?? float.NegativeInfinity, root));
                     _renderers.Add(renderer);
                 }
             }
         }
 
+        _nextPosition = _renderers.Count;
         _renderersStale = false;
 
         // The walk yields entity order and then attachment order, which equal keys preserve. A scene
@@ -191,6 +259,52 @@ internal sealed class SceneDrawing
         {
             CollectionsMarshal.AsSpan(_keys).Sort(CollectionsMarshal.AsSpan(_renderers));
         }
+    }
+
+    // Takes out the entities that left and inserts those that arrived, with no comparison of the rest.
+    private void Patch()
+    {
+        if (_firstVacated is { } first)
+        {
+            CloseVacated(first);
+        }
+
+        foreach (Entity entity in CollectionsMarshal.AsSpan(_appended))
+        {
+            entity.DrawPosition = _nextPosition;
+            long band = entity.DrawBand = (entity.Parent?.DrawBand ?? 0) + entity.ZIndex;
+            foreach (Component component in entity.Components)
+            {
+                if (component is Renderer renderer)
+                {
+                    DrawKey key = new(band + renderer.ZIndex, _nextPosition++);
+                    int slot = ~CollectionsMarshal.AsSpan(_keys).BinarySearch(key);
+                    _keys.Insert(slot, key);
+                    _renderers.Insert(slot, renderer);
+                }
+            }
+        }
+
+        _appended.Clear();
+    }
+
+    private void CloseVacated(int first)
+    {
+        Span<DrawKey> keys = CollectionsMarshal.AsSpan(_keys);
+        Span<Renderer> renderers = CollectionsMarshal.AsSpan(_renderers);
+        int kept = first;
+        for (int slot = first + 1; slot < renderers.Length; slot++)
+        {
+            if (renderers[slot] is { } renderer)
+            {
+                keys[kept] = keys[slot];
+                renderers[kept++] = renderer;
+            }
+        }
+
+        _keys.RemoveRange(kept, keys.Length - kept);
+        _renderers.RemoveRange(kept, renderers.Length - kept);
+        _firstVacated = null;
     }
 
     // Refreshes each key's Y and re-sorts the order the last frame kept. Motion barely reorders between
@@ -231,11 +345,12 @@ internal sealed class SceneDrawing
         }
     }
 
-    // Each key carries its renderer's walk position beside the band and the root's Y. No two keys compare
-    // equal, and the runtime's unstable sort produces the same order a stable sort would. Root is
+    // Each key carries its renderer's place in tree order beside the band and the root's Y. No two keys
+    // compare equal, and the runtime's unstable sort produces the same order a stable sort would. Root is
     // null where Y takes no part: with Y-sorting off, and in screen space, whose Y stays below every root's.
     // A screen root sorted with the world then draws first in its band.
-    private readonly record struct DrawKey(long Band, float Y, int Position, Entity? Root) : IComparable<DrawKey>
+    private readonly record struct DrawKey(long Band, long Position, float Y = float.NegativeInfinity, Entity? Root = null)
+        : IComparable<DrawKey>
     {
         public int CompareTo(DrawKey other)
         {

@@ -213,6 +213,10 @@ internal static class StageWorkload
                     Remove(_flicker);
                 }
             }
+            else if (_churn == StageChurn.Rebanding)
+            {
+                _flicker.ZIndex ^= 1;
+            }
             else if (_churn != StageChurn.None && context.Tick % StepsBetweenSpawns == 0)
             {
                 Spark spark = _sparkPool is null ? new Spark() : _sparkPool.Take();
@@ -226,6 +230,7 @@ internal enum StageChurn
 {
     None,
     DrawListOnly,
+    Rebanding,
     Spawning,
     Pooled,
 }

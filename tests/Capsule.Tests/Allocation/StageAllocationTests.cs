@@ -17,7 +17,7 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
 
     // What a spark's entity, component list and renderer cost, with nothing to spare. One stray per-step
     // allocation in the engine would add far more.
-    private const long SpawnBytesEach = 528;
+    private const long SpawnBytesEach = 536;
 
     [Fact]
     public void AStageThatSpawnsNothing_AllocatesNothing()
@@ -26,9 +26,10 @@ public sealed class StageAllocationTests(ITestOutputHelper output)
 
         AssertWithinBudget("no structural change", document, StageChurn.None, budget: 0);
 
-        // The draw list is derived and rebuilt whole whenever anything joins or leaves. Rebuilding
-        // it every step must still cost no allocation at all.
-        AssertWithinBudget("draw list every step", document, StageChurn.DrawListOnly, budget: 0);
+        // A join or a departure patches the draw order, and a change of band rebuilds it whole. Doing
+        // either every step must still cost no allocation at all.
+        AssertWithinBudget("draw order patched every step", document, StageChurn.DrawListOnly, budget: 0);
+        AssertWithinBudget("draw order rebuilt every step", document, StageChurn.Rebanding, budget: 0);
     }
 
     [Fact]

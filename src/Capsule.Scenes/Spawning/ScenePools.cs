@@ -235,7 +235,7 @@ internal sealed class ScenePools
         scene.ReserveMembers(entities);
         physics.Reserve(colliders, grids, reporters);
         scene.Visibility.Reserve(notifiers);
-        scene.Drawing.Reserve(renderers);
+        scene.Drawing.Reserve(renderers, entities);
     }
 
     // One shared pool's declarations in a collection: the sum of those that are not ancestral, and the
