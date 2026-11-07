@@ -42,6 +42,7 @@ internal sealed class CommandLine
         every build
           --saves <dir>              keep save documents under that directory
           --gpu-driver <name>        draw through that GPU driver: direct3d12, vulkan or metal
+          --low-latency              start each frame as late as it can still make its refresh
           --help                     print this and exit
         """;
 
@@ -78,6 +79,9 @@ internal sealed class CommandLine
 
     // The saves directory, null unless --saves was given.
     internal string? SavesPath { get; private set; }
+
+    // Whether --low-latency was given.
+    internal bool LowLatency { get; private set; }
 
     // The GPU driver's name, null unless --gpu-driver was given.
     internal string? GpuDriver { get; private set; }
@@ -214,6 +218,10 @@ internal sealed class CommandLine
 
                 case "--saves":
                     parsed.SavesPath = Value(args, ref index, gameName, development, "--saves needs a directory.");
+                    break;
+
+                case "--low-latency":
+                    parsed.LowLatency = true;
                     break;
 
                 case "--gpu-driver":

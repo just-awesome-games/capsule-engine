@@ -22,8 +22,8 @@
   <!-- Paths compare under MSBuild's own rule for the host: ordinal on Linux, where its paths are
        case-sensitive, and case-folded on Windows and macOS. -->
   <PropertyGroup>
-    <_CapsulePathFoldsCase>true</_CapsulePathFoldsCase>
-    <_CapsulePathFoldsCase Condition="$([MSBuild]::IsOSPlatform('Linux'))">false</_CapsulePathFoldsCase>
+    <_CapsulePathComparison>System.StringComparison.OrdinalIgnoreCase</_CapsulePathComparison>
+    <_CapsulePathComparison Condition="$([MSBuild]::IsOSPlatform('Linux'))">System.StringComparison.Ordinal</_CapsulePathComparison>
   </PropertyGroup>
 
   <!-- Removes the Compile items under each marked directory, one directory per batch. It runs after
@@ -36,20 +36,11 @@
     <!-- A property avoids cross-batching directory metadata with Compile. -->
     <PropertyGroup>
       <_CapsuleDevelopmentOnlyDirectory>$([System.String]::Copy('%(_CapsuleDevelopmentOnlySourceDir.Identity)').Replace('\', '/'))</_CapsuleDevelopmentOnlyDirectory>
-      <_CapsuleDevelopmentOnlyDirectory Condition="'$(_CapsulePathFoldsCase)' == 'true'">$(_CapsuleDevelopmentOnlyDirectory.ToUpperInvariant())</_CapsuleDevelopmentOnlyDirectory>
-      <_CapsuleDevelopmentOnlyDirectoryLength>$(_CapsuleDevelopmentOnlyDirectory.Length)</_CapsuleDevelopmentOnlyDirectoryLength>
     </PropertyGroup>
 
-    <!-- Two exclusive passes compare each compile path's prefix with the directory. The first is
-         ordinal, for Linux. The second is case-folded, for Windows and macOS. -->
-    <ItemGroup Condition="'$(_CapsuleDevelopmentOnlyDirectory)' != ''">
-      <_CapsuleDevelopmentOnlyCompile Include="@(Compile)"
-                                      Condition="'$(_CapsulePathFoldsCase)' != 'true' and $([System.String]::CompareOrdinal($([System.String]::Copy('%(Compile.FullPath)').Replace('\', '/')), 0, '$(_CapsuleDevelopmentOnlyDirectory)', 0, $(_CapsuleDevelopmentOnlyDirectoryLength))) == 0" />
-      <_CapsuleDevelopmentOnlyCompile Include="@(Compile)"
-                                      Condition="'$(_CapsulePathFoldsCase)' == 'true' and $([System.String]::CompareOrdinal($([System.String]::Copy('%(Compile.FullPath)').Replace('\', '/').ToUpperInvariant()), 0, '$(_CapsuleDevelopmentOnlyDirectory)', 0, $(_CapsuleDevelopmentOnlyDirectoryLength))) == 0" />
-    </ItemGroup>
-
     <ItemGroup>
+      <_CapsuleDevelopmentOnlyCompile Include="@(Compile)"
+                                      Condition="$([System.String]::Copy('%(Compile.FullPath)').Replace('\', '/').StartsWith('$(_CapsuleDevelopmentOnlyDirectory)', $(_CapsulePathComparison)))" />
       <Compile Remove="@(_CapsuleDevelopmentOnlyCompile)" />
     </ItemGroup>
   </Target>

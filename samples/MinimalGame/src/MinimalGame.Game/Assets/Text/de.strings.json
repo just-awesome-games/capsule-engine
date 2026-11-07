@@ -23,6 +23,7 @@
     "windowScale": "Fenster: {scale}x",
     "vsync": "VSync: {mode}",
     "frameCap": "Bildratenlimit: {fps}",
+    "lowLatency": "Niedrige Latenz: {mode}",
     "on": "An",
     "mailbox": "Mailbox",
     "off": "Aus"

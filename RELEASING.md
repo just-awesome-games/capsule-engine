@@ -31,9 +31,9 @@ compiles but does not run. The smoke plays twice and expects the second run to r
 save. It needs a saves directory, because a headless run persists nothing unless one is named.
 
 ```bash
+dotnet format whitespace . --folder --verify-no-changes --exclude "**/bin/**" "**/obj/**" "**/artifacts/**"
 dotnet restore --locked-mode
 dotnet build --no-restore
-dotnet format --verify-no-changes --no-restore
 dotnet test --no-build
 dotnet run --no-build --project tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj -- --saves "$(mktemp -d)"
 ```

@@ -65,7 +65,7 @@ The frame CSV's `bytes` column is what the frame thread allocated from that fram
 ## Input latency
 
 ```text
-dotnet run -c Release --project tests/Capsule.Bench -- latency [--label <text>] [--cap <hz>]
+dotnet run -c Release --project tests/Capsule.Bench -- latency [--label <text>] [--cap <hz>] [--low-latency]
 ```
 
 `latency` plays `Still` windowed for 25 seconds under vertical sync, or with no vertical sync at the frame cap `--cap` names. A thread in the run presses and releases F13 for 20 seconds, at random gaps of 30 to 110 ms and holds of 10 to 45 ms, after two seconds of warm-up. On Windows each press is a scancode `SendInput`, which reaches SDL through the OS queue as a player's does and is sent only while the window is in front. Leave it in front for the run. Elsewhere the press is an SDL event pushed straight into SDL's queue. The run measures each press from its event's SDL timestamp to the return of the present of the first frame whose steps consumed it. A record goes to `results/latency/<UTC timestamp>.json` with the suite's header less `lane` and `uncapped`, then `workload`, `vsync`, `cap`, `injection` (`SendInput` or `SDL_PushEvent`), `injected` and `presses` counts, `latencyMs` {median, p95, max}, and `injectedLatencyMs`, the same span from the injector's own clock, paired press for press and null when a press went unmeasured. Windows stamps an event with its message time, in whole ticks of a coarse clock, which puts `latencyMs` above `injectedLatencyMs`. Compare by label.
@@ -77,7 +77,7 @@ presentmon --process_name Capsule.Bench.exe --output_file artifacts/bench/presen
 tests/Capsule.Bench/bin/Release/net10.0/Capsule.Bench.exe --scene Still --frames artifacts/bench/latency/frames.csv --exit-after 25 --latency artifacts/bench/latency
 ```
 
-`DisplayLatency` runs from the return of the previous present to the frame on screen, and a press is sampled about one host wait into it. Whether the desktop compositor takes the window varies between runs of one build and costs about a refresh. Compare runs with the same `PresentMode`, two of each side. `SDL_GPU_DRIVER` set to `direct3d12` or `vulkan` measures one driver.
+`DisplayLatency` runs from the return of the previous present to the frame on screen, and a press is sampled about one host wait into it. `DisplayLatency` less `FrameTime` is a present's return to the frame on screen, and `injectedLatencyMs` plus that is a press to the frame on screen. Compare `--low-latency` with the default that way, since `Display.LowLatency` moves only the second half. Whether the desktop compositor takes the window varies between runs of one build and costs about a refresh. Compare runs with the same `PresentMode`, two of each side. `SDL_GPU_DRIVER` set to `direct3d12` or `vulkan` measures one driver.
 
 ## Asset build
 

@@ -917,7 +917,7 @@ public sealed class ParticleEmitter : Renderer
         }
         else
         {
-            origin = Vector2.Lerp(previousCentre, currentCentre, f) + launch.TransformPoint(sample);
+            origin = DeterministicMath.Lerp(previousCentre, currentCentre, f) + launch.TransformPoint(sample);
             velocity = launch.TransformPoint(velocity) + (InheritVelocity * emitterVelocity);
         }
 

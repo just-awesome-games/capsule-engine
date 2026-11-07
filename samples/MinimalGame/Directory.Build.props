@@ -9,13 +9,11 @@
   </PropertyGroup>
 
   <!-- What sitting inside the engine repository forces, and nothing a game copies. The sample builds
-       from engine source unless -p:CapsuleSourcePath= empties the path. Source mode restores without
-       the local feed, which exists only after a pack (NU1301). The release lane passes its own
+       from engine source unless -p:CapsuleSourcePath= empties the path. The release lane passes its own
        CapsuleVersion. Under the engine's solution the sample takes the engine's configuration. -->
   <PropertyGroup>
     <CapsuleVersion Condition="'$(CapsuleVersion)' == ''">0.0.0</CapsuleVersion>
     <CapsuleSourcePath Condition="'$(CapsuleSourcePath)' == '' and Exists('$(MSBuildThisFileDirectory)../../build/Capsule.Build.props')">../..</CapsuleSourcePath>
-    <RestoreSources Condition="'$(CapsuleSourcePath)' != ''">https://api.nuget.org/v3/index.json</RestoreSources>
     <CapsuleEngineRepository Condition="'$(SolutionDir)' == '$([MSBuild]::NormalizeDirectory($(MSBuildThisFileDirectory)../..))'">true</CapsuleEngineRepository>
     <IsPackable>false</IsPackable>
   </PropertyGroup>

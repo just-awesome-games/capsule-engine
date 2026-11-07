@@ -11,7 +11,6 @@ permissions:
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
-  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
   publish:
@@ -68,7 +67,7 @@ jobs:
       - name: Restore sample from release packages
         run: >
           dotnet restore samples/MinimalGame/MinimalGame.slnx
-          --configfile samples/MinimalGame/NuGet.config
+          --configfile samples/MinimalGame/NuGet.package-mode.config
           --runtime linux-x64
           -p:CapsuleVersion=$CAPSULE_PACKAGE_VERSION
           -p:CapsuleSourcePath=

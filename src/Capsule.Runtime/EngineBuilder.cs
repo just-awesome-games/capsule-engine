@@ -193,6 +193,13 @@ public sealed partial class EngineBuilder
         return this;
     }
 
+    /// <summary>Starts <see cref="Display.LowLatency"/> on. Each frame starts as late as it can still make its refresh.</summary>
+    public EngineBuilder WithLowLatency()
+    {
+        Display.LowLatency = true;
+        return this;
+    }
+
     /// <summary>The value <see cref="Display.MaxFrameRate"/> starts at, 0 for no cap.</summary>
     public EngineBuilder WithMaxFrameRate(int framesPerSecond)
     {
@@ -504,7 +511,7 @@ public sealed partial class EngineBuilder
     /// <summary>Applies Capsule's standard command line, the flags <c>--help</c> prints.</summary>
     /// <remarks>
     /// A shipping build (<see cref="Development.IsSupported"/> false) accepts only <c>--saves</c>,
-    /// <c>--gpu-driver</c> and <c>--help</c>. <c>--gpu-driver</c> replaces the driver the platform
+    /// <c>--gpu-driver</c>, <c>--low-latency</c> and <c>--help</c>. <c>--gpu-driver</c> replaces the driver the platform
     /// would choose, and the window fails to open on a machine that cannot draw through it. A later <see cref="WithInputDriver"/> or <see cref="WithRandomSeed"/> call
     /// replaces what <c>--driver</c> or <c>--seed</c> set. Only <c>RunScene</c> applies <c>--scene</c>
     /// and <c>--payload</c>, and each replaces only its own half of that call's opening scene.
@@ -598,6 +605,11 @@ public sealed partial class EngineBuilder
 
         _recordingsDirectory = parsed.RecordingsPath ?? _recordingsDirectory;
         Uncapped = parsed.Uncapped;
+        if (parsed.LowLatency)
+        {
+            Display.LowLatency = true;
+        }
+
         FastForward = parsed.FastForward;
         GpuDriver = parsed.GpuDriver;
 

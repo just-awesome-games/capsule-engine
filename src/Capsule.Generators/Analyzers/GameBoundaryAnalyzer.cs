@@ -13,6 +13,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     private const string ShellFix = "Leave sockets, processes, devices and the environment to the shell";
     private const string WaitFix = "Wait with a Countdown, or a Sequence of Wait values, that its owner steps";
     private const string StepFix = "Do the work inside the step";
+    private const string PlainMathFix = "Write it as plain arithmetic, which every machine rounds the same";
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [
@@ -47,6 +48,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         context.RegisterOperationAction(AnalyzeAwait, OperationKind.Await);
         context.RegisterOperationAction(AnalyzeLock, OperationKind.Lock);
         context.RegisterOperationAction(AnalyzeMethodReference, OperationKind.MethodReference);
+        context.RegisterOperationAction(AnalyzeOperator, OperationKind.Binary, OperationKind.CompoundAssignment);
         context.RegisterSymbolAction(AnalyzeStoredRandom, SymbolKind.Field, SymbolKind.Property);
         context.RegisterSymbolAction(AnalyzeNativeImport, SymbolKind.Method);
     }
@@ -94,6 +96,21 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         if (Classify(subject) is { } rule)
         {
             Report(context, rule, operation.Syntax.GetLocation(), subject, Display(subject.Symbol));
+        }
+    }
+
+    private static void AnalyzeOperator(OperationAnalysisContext context)
+    {
+        IMethodSymbol? method = context.Operation switch
+        {
+            IBinaryOperation binary => binary.OperatorMethod,
+            ICompoundAssignmentOperation assignment => assignment.OperatorMethod,
+            _ => null,
+        };
+
+        if (method is not null && new Subject(method) is var subject && IsPlatformMath(subject))
+        {
+            Report(context, Diagnostics.PlatformMath, context.Operation.Syntax.GetLocation(), subject, Display(method));
         }
     }
 
@@ -268,21 +285,51 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         || (subject.IsSystem("Guid") && subject.Symbol.Name == "NewGuid")
         || (subject.Type?.Name == "RandomNumberGenerator" && subject.In("System.Security.Cryptography"));
 
+    private static bool IsPlatformMath(in Subject subject) =>
+        subject.Symbol is IMethodSymbol method && (IsTranscendental(subject) || IsEstimate(subject) || IsFusedVectorMath(subject, method));
+
     // Exactly the functions DeterministicMath replaces. Every report names its replacement. The
     // double overloads are refused too, since Math.Sin is the habitual call, though a float twin is no
     // drop-in for them. A function DeterministicMath gains later joins this list.
-    private static bool IsPlatformMath(in Subject subject) =>
+    private static bool IsTranscendental(in Subject subject) =>
         subject.Symbol.Name is "Sin" or "Cos" or "SinCos" or "Tan" or "Asin" or "Acos" or "Atan" or "Atan2"
             or "Exp" or "Exp2" or "Log" or "Log2" or "Log10" or "Pow"
-        && subject.Symbol is IMethodSymbol
-        && (subject.IsSystem("MathF") || subject.IsSystem("Math") || subject.IsSystem("Single") || subject.IsSystem("Double"));
+        && IsSystemMath(subject);
 
-    private static string Replacement(IMethodSymbol method) => method switch
+    // The runtime resolves these by the build and the processor. Fused or not, a result differs in its last bits.
+    private static bool IsEstimate(in Subject subject) =>
+        subject.Symbol.Name is "Lerp" or "MultiplyAddEstimate" or "ReciprocalEstimate" or "ReciprocalSqrtEstimate"
+        && IsSystemMath(subject);
+
+    private static bool IsSystemMath(in Subject subject) =>
+        subject.IsSystem("MathF") || subject.IsSystem("Math") || subject.IsSystem("Single") || subject.IsSystem("Double");
+
+    // System.Numerics fuses the multiplies of these where the build or the processor offers it. Its plain operators
+    // stay exact, and so do a dot product, a length, a normalize and a turn by a quaternion. The product of two 4x4
+    // matrices is the one operator that fuses.
+    private static bool IsFusedVectorMath(in Subject subject, IMethodSymbol method)
     {
-        { Name: "SinCos" } => "DeterministicMath.Sin and DeterministicMath.Cos",
+        if (!subject.In("System.Numerics") && !subject.In("System.Runtime.Intrinsics"))
+        {
+            return false;
+        }
+
+        return method.Name is "Lerp" or "MultiplyAddEstimate" or "TransformNormal" or "Reflect"
+            || (method.Name == "Transform" && !method.Parameters.Any(static parameter => parameter.Type.Name == "Quaternion"))
+            || (subject.Type?.Name == "Matrix4x4"
+                && method.Name is "op_Multiply" or "Multiply"
+                && method.Parameters.Length == 2
+                && method.Parameters[1].Type.Name == "Matrix4x4");
+    }
+
+    private static string Replacement(in Subject subject, IMethodSymbol method) => method switch
+    {
+        { Name: "SinCos" } => "Call DeterministicMath.Sin and DeterministicMath.Cos",
         { Name: "Log", Parameters.Length: 2 } =>
-            $"DeterministicMath.Log({method.Parameters[0].Name}) / DeterministicMath.Log({method.Parameters[1].Name})",
-        _ => "DeterministicMath." + method.Name,
+            $"Call DeterministicMath.Log({method.Parameters[0].Name}) / DeterministicMath.Log({method.Parameters[1].Name})",
+        { Name: "Lerp" } when subject.Type?.Name is "Vector2" or "Single" => "Call DeterministicMath.Lerp",
+        _ when IsTranscendental(subject) => "Call DeterministicMath." + method.Name,
+        _ => PlainMathFix,
     };
 
     private static bool IsExternalState(in Subject subject) =>
@@ -299,7 +346,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
 
     // CAP102, CAP103 and CAP107 name the replacement for what they refuse in a second placeholder.
     private static string? Fix(DiagnosticDescriptor rule, in Subject subject) =>
-        rule == Diagnostics.PlatformMath ? Replacement((IMethodSymbol)subject.Symbol)
+        rule == Diagnostics.PlatformMath ? Replacement(subject, (IMethodSymbol)subject.Symbol)
         : rule == Diagnostics.ExternalIo ? subject.IsSystem("Console") && subject.Symbol.Name.StartsWith("Write", StringComparison.Ordinal) ? LogFix : subject.Under("System.IO") ? SaveFix : ShellFix
         : rule == Diagnostics.Concurrency ? Waits(subject) ? WaitFix : StepFix
         : null;

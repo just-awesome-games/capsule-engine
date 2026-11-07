@@ -72,6 +72,9 @@ internal readonly unsafe struct GpuCommandBuffer(GpuDevice device, nint handle)
 
     internal void Submit() => device.Submit(handle);
 
+    // Submits, and the device's WaitForFrame returns once the GPU has run this frame. Never waits.
+    internal void SubmitWatched() => device.SubmitWatched(handle);
+
     // Submits, then blocks until the GPU has run every command, after which a readback holds its texels.
     internal void SubmitAndWait() => device.SubmitAndWait(handle);
 }

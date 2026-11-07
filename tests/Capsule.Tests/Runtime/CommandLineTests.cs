@@ -221,6 +221,14 @@ public sealed class CommandLineTests : IDisposable
 
     // Every registry holds the class-free document HallKey. A documentKey adds a second one. The
     // recording scenes add what they opened with to opened.
+    [Fact]
+    public void LowLatency_StartsOffAndEitherOptInStartsItOn()
+    {
+        Assert.False(Builder().Display.LowLatency);
+        Assert.True(Builder().WithLowLatency().Display.LowLatency);
+        Assert.True(Builder().WithCommandLine(["--low-latency"]).Display.LowLatency);
+    }
+
     private static EngineBuilder Builder(string? documentKey = null, List<object>? opened = null) =>
         CapsuleEngine.Configure(
                 "Command Line Game",

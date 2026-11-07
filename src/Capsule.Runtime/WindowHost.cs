@@ -37,6 +37,7 @@ internal sealed unsafe class WindowHost
     private readonly FixedStepScheduler _scheduler;
     private readonly GamepadRumble _rumble = new(GamepadRumble.WriteToPad);
     private readonly FramePacer _pacer = new();
+    private readonly FrameStart _frameStart = new();
     private readonly InputFeed _input = new();
 
     // What the player's keyboard layout prints on each key, indexed by key, which the run's input
@@ -109,6 +110,10 @@ internal sealed unsafe class WindowHost
 
     // When the current frame started, from which the next frame's elapsed time is measured.
     private long _frameStarted;
+
+    // When the display could next take a frame, which a held frame's clock reads and a late wake from the hold
+    // never moves, or 0 for a frame that reads the clock as it starts.
+    private long _frameDue;
 
     // The run's display as the window last applied it.
     private WindowRequest _applied;
@@ -433,8 +438,8 @@ internal sealed unsafe class WindowHost
     {
         // SDL pumped and handed over the events just before this, after the last frame's wait. The
         // frame starts at its input.
-        long frameStarted = Stopwatch.GetTimestamp();
-        double elapsedSeconds = (double)(frameStarted - _frameStarted) / Stopwatch.Frequency;
+        long frameStarted = _frameDue != 0 ? _frameDue : Stopwatch.GetTimestamp();
+        double elapsedSeconds = (double)Math.Max(frameStarted - _frameStarted, 0) / Stopwatch.Frequency;
         _frameStarted = frameStarted;
 
         _diagnostics?.BeginUpdate();
@@ -602,18 +607,29 @@ internal sealed unsafe class WindowHost
 
         // SDL pumps the events once this returns. The next frame samples what the player did while
         // this one waited. The swapchain wait holds the sample back until the device can take the
-        // frame it starts, and the cap's wait holds it to the run's rate.
+        // frame it starts, the cap's wait holds it to the run's rate, and the frame start holds it as
+        // close to the next refresh as the frame can run.
         if (fastForward)
         {
             return true;
         }
 
+        long waitStarted = Stopwatch.GetTimestamp();
+        long ready = waitStarted;
         if (!_minimized)
         {
+            // The GPU runs inside the swapchain wait, and only what follows its finish is spare.
+            _gpu.WaitForFrame();
+            ready = Stopwatch.GetTimestamp();
             _gpu.WaitForSwapchain();
         }
 
+        long woke = Stopwatch.GetTimestamp();
         _pacer.Wait(_capPeriodSeconds);
+        double held = FrameStart.PeriodSeconds(_scenes.Run.Display, _presented, _minimized, _capPeriodSeconds);
+        _renderer.WatchesFrames = held > 0;
+        _frameStart.Hold(ready, woke, held);
+        _frameDue = held > 0 ? woke : 0;
         return true;
     }
 

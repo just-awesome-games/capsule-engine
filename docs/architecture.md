@@ -47,8 +47,8 @@ lives in `tests/Capsule.Tests/Support/` under `Capsule.Tests`.
 The compiler refuses, in a logic assembly: a reference to `Capsule.Runtime` (`CAP100`), external I/O
 (`CAP102`), ambient concurrency or asynchronous execution (`CAP103`), process or wall-clock time
 (`CAP104`), randomness outside the seeded `RandomSource`, `System.Random` included (`CAP105`), a save
-document property declared `init` instead of `set` (`CAP106`), a platform transcendental that
-`DeterministicMath` replaces (`CAP107`), reflection (`CAP109`), and a dead method on an entity, component
+document property declared `init` instead of `set` (`CAP106`), math whose result differs between
+machines (`CAP107`), reflection (`CAP109`), and a dead method on an entity, component
 or scene named like a lifecycle hook Capsule never calls, such as `Update` (`CAP110`).
 
 ## Argument validation
@@ -82,7 +82,9 @@ the same state transitions and render intents.
   configures one, and it logs the seed. A headless or driven run with no configured seed starts from
   `RandomSource.DefaultSeed`.
 - Simulation arithmetic is IEEE-exact. Transcendental functions differ between operating systems, and
-  simulation code calls `DeterministicMath` in place of `MathF`.
+  simulation code calls `DeterministicMath` in place of `MathF`. The blends and transforms of `System.Numerics`,
+  such as `Vector2.Lerp`, fuse their multiplies where the build or the processor offers it. Simulation code
+  calls `DeterministicMath.Lerp` or writes plain arithmetic, whose operators stay exact.
 - A frame runs at most the configured number of fixed steps, and starts no further step once its steps
   have taken one step length of real time. A frame cap, or vertical sync at the display's reported
   refresh rate, widens both to the steps and time a frame's period covers, and neither slows the
@@ -99,7 +101,9 @@ audio commands after every step. Neither rendering nor audio feeds state back in
 
 A step and a frame are separate clocks. Steps run at the fixed rate and hold all game logic. A frame
 samples input, runs the steps its elapsed wall time owes, from none up to the bound, draws once and
-waits for the display and the frame cap. A frame runs no game code but the renderers' `Draw`. How often
+waits for the display and the frame cap. A game that turns `Display.LowLatency` on then holds the next frame's start
+as close to its refresh as the frame can run, and its clock stays on the display's cadence. A frame runs no game code
+but the renderers' `Draw`. How often
 frames run never reaches the simulation, and a game plays the same at any frame rate. Motion is smooth
 at any rate through the host's interpolation.
 

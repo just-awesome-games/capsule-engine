@@ -1,17 +1,72 @@
+using System.Numerics;
+using System.Text.RegularExpressions;
+using Capsule.Tests.Packaging;
+
 namespace Capsule.Tests.Core;
 
 // The platform's own sine and exponential are correctly rounded by no standard. Simulation code
 // may not call them. These are the replacements: what is asserted is that they are accurate enough
 // to stand in for the real functions over the range they claim, and honest about where that ends,
 // since being identical everywhere is what they are built of.
-public sealed class DeterministicMathTests
+public sealed partial class DeterministicMathTests
 {
+    // Over the inputs LerpDigest walks. The NativeAOT smoke program asserts the same digest, and a build or a
+    // processor that fused these multiplies would move it.
+    private const ulong ExpectedLerpDigest = 0x192EB20C26DCD9D9UL;
+
     // The bound every member publishes: absolute for a sine, relative for the exponential. Neither
     // is correctly rounded. This is about a unit in the last place rather than half of one.
     private const double Bound = 6e-8;
 
     // The magnitude sine and cosine claim their accuracy out to.
     private const float SineRange = 16777216f;
+
+    [Fact]
+    public void Lerp_IsPlainArithmeticOnEveryBuild() => Assert.Equal(ExpectedLerpDigest, LerpDigest());
+
+    // A Lerp whose multiplies fuse lands a last bit away from one whose multiplies round. The analyzer holds game logic
+    // to this, and nothing but this scan holds the engine's own simulation.
+    [Fact]
+    public void NoSimulationSource_CallsMathThatDiffersBetweenMachines()
+    {
+        string root = ProseTests.RepositoryRoot();
+        string[] found =
+        [
+            .. new[] { "Capsule.Core", "Capsule.Physics", "Capsule.Scenes" }
+                .SelectMany(module => Directory.EnumerateFiles(Path.Combine(root, "src", module), "*.cs", SearchOption.AllDirectories))
+                .Where(static path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+                .SelectMany(path => File.ReadLines(path)
+                    .Where(static line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal) && MachineDependentMath().IsMatch(line))
+                    .Select(line => $"{Path.GetRelativePath(root, path)}: {line.Trim()}")),
+        ];
+
+        Assert.True(found.Length == 0, $"These lines round differently between machines. Call DeterministicMath.Lerp or write plain arithmetic:{Environment.NewLine}{string.Join(Environment.NewLine, found)}");
+    }
+
+    private static ulong LerpDigest()
+    {
+        ulong digest = 14695981039346656037UL;
+        uint state = 1;
+        for (int sample = 0; sample < 20_000; sample++)
+        {
+            Vector2 from = new(Next(ref state), Next(ref state));
+            Vector2 to = new(Next(ref state), Next(ref state));
+            Vector2 point = DeterministicMath.Lerp(from, to, Next(ref state) / 1000f);
+            digest = (digest ^ BitConverter.SingleToUInt32Bits(point.X)) * 1099511628211UL;
+            digest = (digest ^ BitConverter.SingleToUInt32Bits(point.Y)) * 1099511628211UL;
+        }
+
+        return digest;
+
+        static float Next(ref uint state)
+        {
+            state = (state * 1664525u) + 1013904223u;
+            return (state >> 8) / 16777.216f;
+        }
+    }
+
+    [GeneratedRegex(@"\b(Vector[234]|Matrix3x2|Matrix4x4|Quaternion|Plane|float|double|Single|Double|MathF|Math)\.(Lerp|Transform(?![^;]*Quaternion)|TransformNormal|Reflect|MultiplyAddEstimate|ReciprocalEstimate|ReciprocalSqrtEstimate)\b")]
+    private static partial Regex MachineDependentMath();
 
     [Fact]
     public void SineOverTheRangeItClaims_IsWithinThePublishedBound()

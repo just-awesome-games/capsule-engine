@@ -84,6 +84,9 @@ internal sealed partial class FrameRenderer : IDisposable
     // Whether the frame's submission waits for the GPU, which a capture's readback needs.
     private bool _waitForFrame;
 
+    // Whether a frame is submitted for the device's WaitForFrame to wait on.
+    internal bool WatchesFrames { get; set; }
+
     // Wall-clock milliseconds the last game frame's recording and submission took, excluding the
     // present and its vsync wait. Zero before the first.
     internal double LastFrameMs { get; private set; }
@@ -270,6 +273,10 @@ internal sealed partial class FrameRenderer : IDisposable
         if (wait)
         {
             commands.SubmitAndWait();
+        }
+        else if (WatchesFrames)
+        {
+            commands.SubmitWatched();
         }
         else
         {

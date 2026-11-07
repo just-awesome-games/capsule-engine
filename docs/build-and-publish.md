@@ -213,6 +213,11 @@ not ship, whatever an earlier publish left there.
 On Windows the native link needs the MSVC Build Tools with the C++ workload, and a Build Tools-only install
 also needs `C:\Program Files (x86)\Microsoft Visual Studio\Installer` on `PATH`.
 
+A game that needs more speed can raise its processor floor with `-p:IlcInstructionSet=avx`, which ran the
+engine's steps 6% and frame builds 14% faster in its bench. A processor without AVX then ends the game at launch, and a
+windowed build shows no message. Leave it off unless your players' hardware allows it. `x86-64-v3` runs no faster
+and changes what `System.Numerics` blends return.
+
 A shell's publish carries a `licenses/` folder: Capsule's license, its third-party notices for what Capsule carries and a
 game redistributes, and, when the runtime ships with the game, the .NET runtime's license and notices.
 

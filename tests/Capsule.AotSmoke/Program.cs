@@ -42,6 +42,9 @@ internal static class Program
 
     private const int ShoveSteps = 128;
 
+    // DeterministicMathTests pins the same digest over the same inputs under the JIT.
+    private const ulong ExpectedLerpDigest = 0x192EB20C26DCD9D9UL;
+
     public static int Main(string[] args)
     {
         try
@@ -53,6 +56,28 @@ internal static class Program
             Console.Error.WriteLine(exception);
 
             return 1;
+        }
+    }
+
+    private static ulong LerpDigest()
+    {
+        ulong digest = 14695981039346656037UL;
+        uint state = 1;
+        for (int sample = 0; sample < 20_000; sample++)
+        {
+            Vector2 from = new(Next(ref state), Next(ref state));
+            Vector2 to = new(Next(ref state), Next(ref state));
+            Vector2 point = DeterministicMath.Lerp(from, to, Next(ref state) / 1000f);
+            digest = (digest ^ BitConverter.SingleToUInt32Bits(point.X)) * 1099511628211UL;
+            digest = (digest ^ BitConverter.SingleToUInt32Bits(point.Y)) * 1099511628211UL;
+        }
+
+        return digest;
+
+        static float Next(ref uint state)
+        {
+            state = (state * 1664525u) + 1013904223u;
+            return (state >> 8) / 16777.216f;
         }
     }
 
@@ -95,6 +120,15 @@ internal static class Program
     {
         bool shipping = !Development.IsSupported;
         bool published = !RuntimeFeature.IsDynamicCodeSupported;
+
+        // A build or a processor that fused the multiplies of a simulation's blend would move this digest.
+        if (LerpDigest() != ExpectedLerpDigest)
+        {
+            Console.Error.WriteLine(
+                "AOT smoke failed (12): DeterministicMath.Lerp no longer rounds as the test suite's run does, and a recording would diverge between them.");
+
+            return 12;
+        }
 
         // A NativeAOT binary is the publish, and a publish ships: this is what holds CI's run to the
         // shipping direction of every check below.

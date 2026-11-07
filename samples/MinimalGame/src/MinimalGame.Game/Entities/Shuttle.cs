@@ -38,7 +38,7 @@ public sealed class Shuttle : Entity
     protected override void OnStep(in StepContext context)
     {
         _leg.Step();
-        Position = _origin + Vector2.Lerp(Path[_from], Path[_from + _step], _leg.Value);
+        Position = _origin + DeterministicMath.Lerp(Path[_from], Path[_from + _step], _leg.Value);
         if (_leg.JustFinished)
         {
             _from += _step;

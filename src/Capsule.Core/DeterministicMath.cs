@@ -1,18 +1,23 @@
+using System.Numerics;
+
 namespace Capsule;
 
 /// <summary>
-/// The transcendental functions a simulation calls instead of <see cref="MathF"/>, whose results
-/// differ between operating systems. Each function is built from operations IEEE 754 specifies
-/// exactly.
+/// The math a simulation calls where the platform's differs between machines: the transcendental functions of
+/// <see cref="MathF"/> and the blends of <see cref="Vector2"/>. Each function is built from operations IEEE 754
+/// specifies exactly.
 /// </summary>
 /// <remarks>
-/// Its result depends only on the bits of its arguments and is identical on every platform. No
-/// function is correctly rounded, and each member states its error bound. Presentation-only
-/// arithmetic may call <see cref="MathF"/>.
+/// Its result depends only on the bits of its arguments and is identical on every platform.
+/// Presentation-only arithmetic may call <see cref="MathF"/>.
 /// <para>
-/// NaN, the infinities, the signed zeros, a domain error and the quadrant of <see cref="Atan2"/>
-/// follow the <see cref="Math"/> function's double result rounded to float, and every NaN returned
-/// is <see cref="float.NaN"/>.
+/// No transcendental is correctly rounded, and each states its error bound. NaN, the infinities, the
+/// signed zeros, a domain error and the quadrant of <see cref="Atan2"/> follow the <see cref="Math"/>
+/// function's double result rounded to float, and every NaN one returns is <see cref="float.NaN"/>.
+/// </para>
+/// <para>
+/// <c>Lerp</c> is the arithmetic it states, each operation rounded as IEEE 754 specifies, and a NaN
+/// passes through it as that arithmetic carries one.
 /// </para>
 /// </remarks>
 public static class DeterministicMath
@@ -105,6 +110,19 @@ public static class DeterministicMath
     private const double TanTwelfthPi = 0.26794919243112270;
     private const double InverseSqrt3 = 0.57735026918962576;
     private const double SixthPi = Math.PI / 6.0;
+
+    /// <summary>The value <paramref name="amount"/> of the way from <paramref name="from"/> to <paramref name="to"/>, which is exactly <c>from * (1 - amount) + to * amount</c>.</summary>
+    /// <param name="from">The value at an amount of 0.</param>
+    /// <param name="to">The value at an amount of 1.</param>
+    /// <param name="amount">The fraction of the way. Outside 0 to 1 it extrapolates.</param>
+    public static float Lerp(float from, float to, float amount) => (from * (1f - amount)) + (to * amount);
+
+    /// <summary>The point <paramref name="amount"/> of the way from <paramref name="from"/> to <paramref name="to"/>, each axis as <see cref="Lerp(float, float, float)"/> takes it.</summary>
+    /// <param name="from">The point at an amount of 0.</param>
+    /// <param name="to">The point at an amount of 1.</param>
+    /// <param name="amount">The fraction of the way. Outside 0 to 1 it extrapolates.</param>
+    public static Vector2 Lerp(Vector2 from, Vector2 to, float amount) =>
+        new(Lerp(from.X, to.X, amount), Lerp(from.Y, to.Y, amount));
 
     /// <summary>The sine of <paramref name="radians"/>, within 6e-8 of the true sine in absolute terms.</summary>
     /// <param name="radians">The angle in radians. Accurate to a magnitude of 2^24.</param>

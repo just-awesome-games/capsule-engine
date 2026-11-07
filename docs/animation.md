@@ -125,7 +125,7 @@ _slide.Start(20, Ease.OutCubic);
 
 ```csharp
 _slide.Step();
-Position = Vector2.Lerp(_hiddenAt, _shownAt, _slide.Value);
+Position = DeterministicMath.Lerp(_hiddenAt, _shownAt, _slide.Value);
 ```
 
 A `Sequence` runs an iterator's beats, waiting between them, and its owner steps it the same way:

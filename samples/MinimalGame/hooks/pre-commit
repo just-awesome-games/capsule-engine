@@ -16,6 +16,8 @@ run() {
     fi
 }
 
+run "whitespace check" dotnet format whitespace . --folder --verify-no-changes --exclude "**/bin/**" "**/obj/**" "**/artifacts/**"
+
 # Only a package restore is held to a committed lock file. A source build resolves the engine
 # through project references and locks under obj/. CapsuleSourceRoot is the evaluated property. It
 # folds in every way the source override can be set. Every later step runs with --no-restore: an
@@ -32,7 +34,6 @@ else
     run "locked restore" dotnet restore --locked-mode
 fi
 run "build" dotnet build --no-restore
-run "format check" dotnet format --verify-no-changes --no-restore
 run "tests" dotnet test --no-build
 
 echo "pre-commit: all gates passed"

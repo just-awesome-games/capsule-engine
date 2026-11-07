@@ -37,6 +37,9 @@ public sealed record GameSettings
     /// <summary>The most frames a second, 0 for no cap.</summary>
     public int MaxFrameRate { get; set; }
 
+    /// <summary>Whether each frame starts as late as it can, which brings input to the screen sooner, on by default in this game.</summary>
+    public bool LowLatency { get; set; } = true;
+
     /// <summary>Hands the display choices to the run, at boot and whenever the options screen changes one.</summary>
     public void ApplyDisplay(Display display)
     {
@@ -44,6 +47,7 @@ public sealed record GameSettings
         display.WindowSize = World.ViewportSize * WindowScale;
         display.VSync = VSync;
         display.MaxFrameRate = MaxFrameRate;
+        display.LowLatency = LowLatency;
     }
 }
 

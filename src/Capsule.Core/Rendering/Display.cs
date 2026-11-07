@@ -81,6 +81,18 @@ public sealed class Display
         set => field = NonNegativeRate(value);
     } = 30;
 
+    /// <summary>
+    /// Whether each frame starts as late as it can still make its refresh, which brings input to the screen sooner,
+    /// or by default as soon as the display can take one.
+    /// </summary>
+    /// <remarks>
+    /// It applies under <see cref="VSyncMode.On"/> with no <see cref="MaxFrameRate"/> below the refresh rate.
+    /// The host measures what each frame leaves spare of its refresh, its GPU work included, and starts sooner
+    /// at once when that runs short. It spends the room a frame has to run long, and a frame that spikes past what
+    /// is left misses a refresh it would otherwise have made. Motion and the simulation are the same either way.
+    /// </remarks>
+    public bool LowLatency { get; set; }
+
     /// <summary>The refresh rate in hertz of the display the window is on, or 0 where the platform reports none.</summary>
     /// <remarks>
     /// It follows the window to another display and a change of the display's mode. Under

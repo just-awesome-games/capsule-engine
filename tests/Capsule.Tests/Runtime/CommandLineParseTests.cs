@@ -90,17 +90,19 @@ public sealed class CommandLineParseTests
     }
 
     [Fact]
-    public void AShippingBuild_KeepsSavesGpuDriverAndHelp()
+    public void AShippingBuild_KeepsThePlayersFlags()
     {
-        CommandLine parsed = CommandLine.Parse(["--saves", "portable", "--gpu-driver", "vulkan", "--help"], "Game", development: false);
+        CommandLine parsed = CommandLine.Parse(["--saves", "portable", "--gpu-driver", "vulkan", "--low-latency", "--help"], "Game", development: false);
 
         Assert.Equal("portable", parsed.SavesPath);
         Assert.Equal("vulkan", parsed.GpuDriver);
+        Assert.True(parsed.LowLatency);
         Assert.True(parsed.HelpRequested);
 
         string usage = CommandLine.UsageFor("Game", development: false);
         Assert.Contains("--saves <dir>", usage, StringComparison.Ordinal);
         Assert.Contains("--gpu-driver <name>", usage, StringComparison.Ordinal);
+        Assert.Contains("--low-latency", usage, StringComparison.Ordinal);
         Assert.Contains("--help", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--driver", usage, StringComparison.Ordinal);
         Assert.DoesNotContain("--headless", usage, StringComparison.Ordinal);

@@ -176,8 +176,8 @@ internal static class Diagnostics
 
     internal static readonly DiagnosticDescriptor PlatformMath = Rule(
         "CAP107", ArchitectureCategory, LogicBoundaryPage,
-        "Game logic cannot call a platform transcendental that DeterministicMath replaces",
-        "'{0}' differs between operating systems. Call {1}");
+        "Game logic cannot call math whose result differs between machines",
+        "'{0}' differs between machines. {1}");
 
     internal static readonly SuppressionDescriptor UnassignedAuthorableField = new(
         "CAP108", "CS0649", "A scene document placement writes this [Authorable] field.");

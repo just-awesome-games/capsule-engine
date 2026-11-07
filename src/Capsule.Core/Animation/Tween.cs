@@ -12,7 +12,7 @@ namespace Capsule.Animation;
 /// _slide.Start(12, Ease.OutQuad);
 /// ...
 /// _slide.Step();
-/// Position = Vector2.Lerp(_closedAt, _openAt, _slide.Value);
+/// Position = DeterministicMath.Lerp(_closedAt, _openAt, _slide.Value);
 /// if (_slide.JustFinished)
 /// {
 ///     _state = State.Open;

@@ -34,6 +34,9 @@ internal sealed unsafe class GpuDevice : IDisposable
     private StagingSettle _settle = new(QuietTicks);
 
     private nint _staging;
+
+    // The fence of the frame SubmitWatched submitted, until it is waited on.
+    private nint _watched;
     private int _stagingSize;
 
     // Bytes the frame has staged across every buffer it filled, and whether it grew or overflowed one.
@@ -266,6 +269,7 @@ internal sealed unsafe class GpuDevice : IDisposable
     // the device. The window outlives it.
     public void Dispose()
     {
+        ReleaseWatched();
         Sdl3.SDL_WaitForGPUIdle(_device);
         Sdl3.SDL_ReleaseGPUTransferBuffer(_device, _staging);
         foreach (GpuSampler sampler in _samplers)
@@ -320,6 +324,39 @@ internal sealed unsafe class GpuDevice : IDisposable
     }
 
     // Submits and blocks until the GPU has run the command buffer.
+    // Submits as Submit does, and WaitForFrame then returns once the GPU has run this frame.
+    internal void SubmitWatched(nint commands)
+    {
+        ReleaseWatched();
+        _watched = Sdl3.SDL_SubmitGPUCommandBufferAndAcquireFence(commands);
+        if (_watched == 0)
+        {
+            throw new InvalidOperationException($"The GPU refused the frame: {Sdl3.Error()}");
+        }
+
+        EndFrame();
+    }
+
+    // Returns once the GPU has run the frame SubmitWatched last submitted, or at once with none.
+    internal void WaitForFrame()
+    {
+        if (_watched != 0)
+        {
+            nint fence = _watched;
+            Sdl3.SDL_WaitForGPUFences(_device, waitAll: true, &fence, 1);
+            ReleaseWatched();
+        }
+    }
+
+    private void ReleaseWatched()
+    {
+        if (_watched != 0)
+        {
+            Sdl3.SDL_ReleaseGPUFence(_device, _watched);
+            _watched = 0;
+        }
+    }
+
     internal void SubmitAndWait(nint commands)
     {
         nint fence = Sdl3.SDL_SubmitGPUCommandBufferAndAcquireFence(commands);

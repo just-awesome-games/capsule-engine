@@ -6,7 +6,7 @@ using Capsule.Runtime.Platform;
 
 namespace Capsule.Bench;
 
-// `latency [--label <text>] [--cap <hz>]`: plays Still in a child process while a thread in that child
+// `latency [--label <text>] [--cap <hz>] [--low-latency]`: plays Still in a child process while a thread in that child
 // presses a key at random phases against the frames, and records each press from its event's SDL
 // timestamp to the present of the first frame whose steps consumed it. Vertical sync paces the run
 // unless --cap names a frame cap, which runs without it.
@@ -23,12 +23,15 @@ internal static class LatencyBench
     internal const int WarmUpMs = 2000;
     internal const int PressingMs = 20000;
 
-    private const string Usage = "usage: Capsule.Bench latency [--label <text>] [--cap <hz>]";
+    private const string LowLatencyOption = "--low-latency";
+
+    private const string Usage = "usage: Capsule.Bench latency [--label <text>] [--cap <hz>] [--low-latency]";
 
     internal static int Run(string[] args)
     {
         string? label = null;
         int cap = 0;
+        bool lowLatency = false;
         for (int index = 0; index < args.Length; index++)
         {
             if (args[index] == "--label" && index + 1 < args.Length && label is null)
@@ -40,6 +43,12 @@ internal static class LatencyBench
             if (args[index] == CapOption && index + 1 < args.Length && cap == 0 && int.TryParse(args[index + 1], CultureInfo.InvariantCulture, out cap) && cap > 0)
             {
                 index++;
+                continue;
+            }
+
+            if (args[index] == LowLatencyOption)
+            {
+                lowLatency = true;
                 continue;
             }
 
@@ -64,6 +73,11 @@ internal static class LatencyBench
         {
             start.ArgumentList.Add(CapOption);
             start.ArgumentList.Add(cap.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (lowLatency)
+        {
+            start.ArgumentList.Add(LowLatencyOption);
         }
 
         Console.WriteLine($"bench: latency ({(cap > 0 ? $"cap {cap} Hz, no vertical sync" : "vertical sync")}) for {RunSeconds} s. Leave the window in front.");

@@ -8,6 +8,8 @@ namespace Capsule.Tests.Generators;
 
 public sealed class GameBoundaryLogicTests
 {
+    private const string PlainMath = "Write it as plain arithmetic, which every machine rounds the same";
+
     [Fact]
     public async Task Logic_RejectsExternalIoConcurrencyTimeAndAmbientRandomness()
     {
@@ -149,10 +151,21 @@ public sealed class GameBoundaryLogicTests
     [InlineData("MathF.SinCos(1f)", "DeterministicMath.Sin and DeterministicMath.Cos")]
     [InlineData("MathF.Tan(1f)", "DeterministicMath.Tan")]
     [InlineData("Math.Log(8d, 2d)", "DeterministicMath.Log(a) / DeterministicMath.Log(newBase)")]
-    public async Task Logic_RejectsAPlatformTranscendentalThatDeterministicMathReplaces(string call, string replacement)
+    [InlineData("Vector2.Lerp(Vector2.Zero, Vector2.One, 0.5f)", "Call DeterministicMath.Lerp")]
+    [InlineData("float.Lerp(0f, 1f, 0.5f)", "Call DeterministicMath.Lerp")]
+    [InlineData("Vector3.Lerp(Vector3.Zero, Vector3.One, 0.5f)", PlainMath)]
+    [InlineData("Vector2.Transform(Vector2.One, Matrix3x2.Identity)", PlainMath)]
+    [InlineData("Vector2.TransformNormal(Vector2.One, Matrix4x4.Identity)", PlainMath)]
+    [InlineData("Vector2.Reflect(Vector2.One, Vector2.UnitX)", PlainMath)]
+    [InlineData("Matrix4x4.Identity * Matrix4x4.Identity", PlainMath)]
+    [InlineData("Quaternion.Lerp(Quaternion.Identity, Quaternion.Identity, 0.5f)", PlainMath)]
+    [InlineData("float.MultiplyAddEstimate(2f, 3f, 4f)", PlainMath)]
+    [InlineData("float.ReciprocalEstimate(2f)", PlainMath)]
+    public async Task Logic_RejectsMathWhoseResultDiffersBetweenMachines(string call, string replacement)
     {
         string source = $$"""
             using System;
+            using System.Numerics;
 
             public static class Logic
             {
@@ -164,7 +177,32 @@ public sealed class GameBoundaryLogicTests
 
         Diagnostic diagnostic = Assert.Single(diagnostics);
         Assert.Equal("CAP107", diagnostic.Id);
-        Assert.EndsWith("Call " + replacement, diagnostic.GetMessage(), StringComparison.Ordinal);
+        Assert.EndsWith(replacement, diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    // What stays exact on every machine stays allowed, or a game could not move anything.
+    [Theory]
+    [InlineData("new Vector2(1f, 2f) * 0.5f + Vector2.One")]
+    [InlineData("Vector2.Dot(Vector2.One, Vector2.UnitX)")]
+    [InlineData("Vector2.Normalize(Vector2.One)")]
+    [InlineData("Vector2.One.Length()")]
+    [InlineData("Matrix4x4.Identity * 2f")]
+    [InlineData("Vector2.Transform(Vector2.One, Quaternion.Identity)")]
+    [InlineData("Vector3.Transform(Vector3.One, Quaternion.Identity)")]
+    [InlineData("MathF.Sqrt(2f)")]
+    public async Task Logic_AllowsMathEveryMachineRoundsTheSame(string call)
+    {
+        string source = $$"""
+            using System;
+            using System.Numerics;
+
+            public static class Logic
+            {
+                public static object Value() => {{call}};
+            }
+            """;
+
+        Assert.Empty(await Analyze(source, logic: true));
     }
 
     // Reflection is refused on its own terms, not as I/O, and the report names what to write instead.

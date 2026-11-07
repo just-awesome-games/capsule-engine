@@ -16,7 +16,7 @@ A NativeAOT publish on Windows needs the native toolchain [`docs/build-and-publi
 
 ## The gate
 
-[`.githooks/pre-commit`](.githooks/pre-commit) gates every commit: a locked restore, the build, the format check, and the tests. CI adds pack, then on Windows, Linux and macOS NativeAOT publishes of the sample shell from those packages, which it plays. The smoke, `tests/Capsule.AotSmoke`, asserts both directions of the `CapsuleShipping` axis. CI runs it once from an ordinary build and once published on Linux. Releases follow [`RELEASING.md`](RELEASING.md).
+[`.githooks/pre-commit`](.githooks/pre-commit) gates every commit: the whitespace check, a locked restore, the build, and the tests. The whitespace check reads no project and skips code under a defined `#if`. The build holds style through `.editorconfig`, except for qualification, predefined types and using order. CI adds the whole `dotnet format` pass, which sees both, and pack, then on Windows, Linux and macOS NativeAOT publishes of the sample shell from those packages, which it plays. The smoke, `tests/Capsule.AotSmoke`, asserts both directions of the `CapsuleShipping` axis. CI runs it once from an ordinary build and once published on Linux. Releases follow [`RELEASING.md`](RELEASING.md).
 
 The runtime embeds its sprite shader precompiled in every GPU format, as the files under `src/Capsule.Runtime/Rendering/Shaders/`. A test fails when the shader template, compiler or tools change them. Running the tests with `CAPSULE_UPDATE_ENGINE_SHADER=1` regenerates the files. Review them and commit them.
 
