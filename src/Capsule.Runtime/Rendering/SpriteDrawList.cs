@@ -221,6 +221,24 @@ internal sealed class SpriteDrawList : IDisposable
         instance.Flags = SpriteFlags.Whole;
     }
 
+    // One triangle of a polygon on texture, the white texel's page, each corner given at both ends of the step.
+    // Every triangle of one polygon starts at its first point, which the vertex stage snaps for them all.
+    internal void AddTriangle(SampledTexture texture, Vector2 previousA, Vector2 a, Vector2 previousB, Vector2 b, Vector2 previousC, Vector2 c, uint tint, uint flash)
+    {
+        ref SpriteInstance instance = ref Open(texture);
+        instance.PreviousPosition = previousA;
+        instance.Position = a;
+        instance.PreviousRotation = previousB.X;
+        instance.Rotation = previousB.Y;
+        instance.Origin = b;
+        instance.Size = previousC;
+        instance.Region = BitConverter.SingleToUInt32Bits(c.X);
+        instance.Extent = BitConverter.SingleToUInt32Bits(c.Y);
+        instance.Tint = tint;
+        instance.Flash = flash;
+        instance.Flags = SpriteFlags.Triangle;
+    }
+
     // Uploads every recorded instance in the frame's copy pass. The upload cycles the buffer, and draws
     // recorded before it keep reading the instances they were recorded with.
     internal void Upload(GpuCopyPass copy)

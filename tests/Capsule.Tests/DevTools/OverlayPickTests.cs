@@ -56,6 +56,31 @@ public sealed class OverlayPickTests
         Assert.Equal(1, rig.Overlay.Depth);
     }
 
+    // A polygon is hit inside its outline, over the rect it covers, and a triangle of its fan with no area covers
+    // nothing.
+    [Theory]
+    [InlineData("a triangle", 210f, 100f, true)]
+    [InlineData("a triangle", 240f, 85f, false)]
+    [InlineData("a point", 240f, 85f, false)]
+    [InlineData("a repeated first point", 210f, 100f, true)]
+    [InlineData("a repeated first point", 240f, 85f, false)]
+    public void APolygon_IsHitInsideItsOutline_AndAFanTriangleWithNoAreaNowhere(string outline, float x, float y, bool hit)
+    {
+        Vector2[] points = outline switch
+        {
+            "a point" => [new(220f, 100f), new(220f, 100f), new(220f, 100f)],
+            "a repeated first point" => [new(200f, 90f), new(200f, 90f), new(200f, 90f), new(250f, 90f), new(200f, 140f)],
+            _ => [new(200f, 90f), new(250f, 90f), new(200f, 140f)],
+        };
+        Pile pile = new();
+        Piece fan = new(Vector2.Zero) { Name = "Fan", ZIndex = 2 };
+        fan.Add(new ColorPolygon(points));
+        pile.Add(fan);
+        using SceneSimulation simulation = new(pile);
+
+        Assert.Equal(hit ? [fan, pile.Back] : [pile.Back], Pick(simulation, new Vector2(x, y)));
+    }
+
     private static Entity[] Pick(SceneSimulation simulation, Vector2 point, Vector2 parallax = default)
     {
         List<DrawRun> runs = [];

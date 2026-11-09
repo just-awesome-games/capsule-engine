@@ -7,8 +7,8 @@ namespace Capsule.Rendering;
 
 /// <summary>
 /// Mutable render intent, built from a scene on the first read after each step and on the first read
-/// before any step. It holds two ordered layers of sprites and lines, one in world units and one in
-/// canvas pixels, and the screen layer draws over the world layer.
+/// before any step. It holds two ordered layers of sprites, polygons and lines, one in world units and one
+/// in canvas pixels, and the screen layer draws over the world layer.
 /// </summary>
 /// <remarks>
 /// Text and nine-sliced panels expand onto those lists, one sprite per glyph and one per slice.
@@ -32,6 +32,9 @@ public sealed class FrameView
 
     private readonly List<PlacementRun> _placements = [];
     private readonly List<LightIntent> _lights = [];
+
+    // Every stored polygon's outline, back to back: its previous points, then its current ones.
+    private readonly List<Vector2> _points = [];
 
     // Every level of every clip set this frame, which both lists' clip runs name.
     private readonly List<ClipRegion> _clipLevels = [];
@@ -263,13 +266,23 @@ public sealed class FrameView
     /// </summary>
     public ReadOnlySpan<LineIntent> ScreenLines => CollectionsMarshal.AsSpan(ScreenList.Lines);
 
-    // The runs of Sprites, Lines and Lights drawn by one placement, in list order and back-to-back: a scroll
+    // The world layer's polygons in the order added, each drawn among Sprites before the sprite its Before
+    // names. Invalidated by the next mutation.
+    internal ReadOnlySpan<StoredPolygon> Polygons => CollectionsMarshal.AsSpan(WorldList.Polygons);
+
+    internal ReadOnlySpan<StoredPolygon> ScreenPolygons => CollectionsMarshal.AsSpan(ScreenList.Polygons);
+
+    // The outlines both lists' polygons name, each one's previous points then its current ones. Invalidated by
+    // the next mutation.
+    internal ReadOnlySpan<Vector2> PolygonPoints => CollectionsMarshal.AsSpan(_points);
+
+    // The runs of Sprites, Polygons, Lines and Lights drawn by one placement, in list order and back-to-back: a scroll
     // factor, or canvas pixels for a screen root sorted with the world. A run opens where the placement
     // changed and closes where the next one opens. Intent before the first run draws with the world.
     // Invalidated by the next mutation.
     internal ReadOnlySpan<PlacementRun> PlacementRuns => CollectionsMarshal.AsSpan(_placements);
 
-    // The runs of Sprites and of ScreenSprites drawn by one material, in list order and back-to-back. A
+    // The runs of each list's sprites and polygons drawn by one material, in list order and back-to-back. A
     // run opens where the material changed and closes where the next one opens. Invalidated by the
     // next mutation.
     internal ReadOnlySpan<MaterialRun> MaterialRuns => CollectionsMarshal.AsSpan(WorldList.Runs);
@@ -292,16 +305,17 @@ public sealed class FrameView
     internal ReadOnlySpan<ClipRegion> ClipLevels => CollectionsMarshal.AsSpan(_clipLevels);
 
     /// <summary>
-    /// Submission counts from the current rewrite, across both layers, lines included.
+    /// Submission counts from the current rewrite, across both layers, polygons and lines included.
     /// </summary>
     /// <remarks>
-    /// One submission is one sprite or line offered to the culler. Text, a panel and a tiling count
-    /// the copies they expand to, and an expansion that produces nothing counts nothing. A text run
+    /// One submission is one sprite, polygon or line offered to the culler. Text, a panel and a tiling
+    /// count the copies they expand to, and an expansion that produces nothing counts nothing. A text run
     /// rejected whole before layout counts nothing.
     /// </remarks>
     public RenderMetrics Metrics => new(
         _submitted,
-        WorldList.Sprites.Count + ScreenList.Sprites.Count + WorldList.Lines.Count + ScreenList.Lines.Count,
+        WorldList.Sprites.Count + ScreenList.Sprites.Count + WorldList.Polygons.Count + ScreenList.Polygons.Count
+            + WorldList.Lines.Count + ScreenList.Lines.Count,
         _lights.Count);
 
     // The colour the running renderer's entity is tinted by, and white outside a renderer, with its
@@ -498,6 +512,65 @@ public sealed class FrameView
         route.List.Lines.Add(_tinted ? line with { Color = ColorRgba.Multiply(line.Color, _tint) } : line);
     }
 
+    /// <summary>Adds a polygon, culled by the rect its outline sweeps as a sprite is.</summary>
+    public void Add(in PolygonIntent polygon) => Add(in polygon, Space);
+
+    /// <summary>Adds a polygon to <paramref name="space"/>'s list, culled as that space culls.</summary>
+    public void Add(in PolygonIntent polygon, RenderSpace space)
+    {
+        _submitted++;
+
+        ReadOnlySpan<Vector2> previous = polygon.PreviousPoints;
+        ReadOnlySpan<Vector2> current = polygon.Points;
+        Rect swept = Rect.FromEdges(current[0].X, current[0].Y, current[0].X, current[0].Y);
+        Route route = RouteOf(space);
+        if (!TryWiden(ref swept, previous) || !TryWiden(ref swept, current) || (route.Culls && !swept.Intersects(route.Bounds)))
+        {
+            return;
+        }
+
+        Layer layer = route.List;
+        OpenMaterialRun(layer);
+        Enter(route);
+
+        int first = _points.Count;
+        _points.AddRange(previous);
+        _points.AddRange(current);
+        layer.Polygons.Add(new StoredPolygon(
+            layer.Sprites.Count,
+            first,
+            current.Length,
+            _tinted ? ColorRgba.Multiply(polygon.Color, _tint) : polygon.Color,
+            polygon.Blend,
+            _flashing ? _flash : default,
+            swept));
+    }
+
+    // Grows swept over every point of outline, or returns false at a point that is not finite.
+    private static bool TryWiden(ref Rect swept, ReadOnlySpan<Vector2> outline)
+    {
+        float left = swept.Left;
+        float top = swept.Top;
+        float right = swept.Right;
+        float bottom = swept.Bottom;
+        foreach (Vector2 point in outline)
+        {
+            if (!float.IsFinite(point.X) || !float.IsFinite(point.Y))
+            {
+                return false;
+            }
+
+            left = MathF.Min(left, point.X);
+            top = MathF.Min(top, point.Y);
+            right = MathF.Max(right, point.X);
+            bottom = MathF.Max(bottom, point.Y);
+        }
+
+        swept = Rect.FromEdges(left, top, right, bottom);
+
+        return true;
+    }
+
     /// <summary>
     /// Lays <paramref name="text"/> out and adds one sprite per glyph, each culled and counted on
     /// its own.
@@ -637,15 +710,21 @@ public sealed class FrameView
     private void Store(Route route, in SpriteIntent sprite)
     {
         Layer layer = route.List;
+        OpenMaterialRun(layer);
+        Enter(route);
+        layer.Sprites.Add(_styled ? Styled(in sprite) : sprite);
+    }
+
+    // Opens a material run where the running material differs from the one layer's last run opened with.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void OpenMaterialRun(Layer layer)
+    {
         if (!ReferenceEquals(Material, layer.RunMaterial))
         {
-            layer.Runs.Add(new MaterialRun(layer.Sprites.Count, Material));
+            layer.Runs.Add(new MaterialRun(layer.Sprites.Count, Material, layer.Polygons.Count));
             layer.RunMaterial = Material;
             ReadsScreen |= Material is { Shader.ReadsScreen: true };
         }
-
-        Enter(route);
-        layer.Sprites.Add(_styled ? Styled(in sprite) : sprite);
     }
 
     // Opens the clip run and the placement run route's intent is stored under where its list's last ones
@@ -667,7 +746,7 @@ public sealed class FrameView
         if (route.Key >> 1 != layer.RunKey >> 1)
         {
             bool clipped = route.ClipSerial != Unclipped;
-            layer.ClipRuns.Add(new ClipRun(layer.Sprites.Count, layer.Lines.Count, clipped ? _clipStart : 0, clipped ? _clipCount : 0));
+            layer.ClipRuns.Add(new ClipRun(layer.Sprites.Count, layer.Lines.Count, clipped ? _clipStart : 0, clipped ? _clipCount : 0, layer.Polygons.Count));
         }
 
         if (route.Canvas != layer.RunCanvas)
@@ -681,7 +760,7 @@ public sealed class FrameView
     // Opens a run on the world's list placed in canvas pixels, or by the running scroll factor.
     private void OpenPlacementRun(bool canvas)
     {
-        _placements.Add(new PlacementRun(WorldList.Sprites.Count, WorldList.Lines.Count, _scrollFactor, _lights.Count, canvas));
+        _placements.Add(new PlacementRun(WorldList.Sprites.Count, WorldList.Lines.Count, _scrollFactor, _lights.Count, canvas, WorldList.Polygons.Count));
         WorldList.RunKey = (WorldList.RunKey & ~1) | (canvas ? 1 : 0);
     }
 
@@ -699,6 +778,7 @@ public sealed class FrameView
         ReadsScreen = false;
         _placements.Clear();
         _lights.Clear();
+        _points.Clear();
         _clipLevels.Clear();
         _clipStart = 0;
         _clipCount = 0;
@@ -766,13 +846,16 @@ public sealed class FrameView
         _screenRoute.Culls = true;
     }
 
-    // One of the frame's two ordered lists, and the runs that cut it by material and by clip.
+    // One of the frame's two ordered lists, its polygons placed among its sprites, and the runs that cut it by
+    // material and by clip.
     // unclipped: the clip serial the list starts under, which opens no run for intent stored under no clip.
     private sealed class Layer(int unclipped)
     {
         private readonly int _unclipped = unclipped;
 
         internal List<SpriteIntent> Sprites { get; } = [];
+
+        internal List<StoredPolygon> Polygons { get; } = [];
 
         internal List<LineIntent> Lines { get; } = [];
 
@@ -792,6 +875,7 @@ public sealed class FrameView
         internal void Clear()
         {
             Sprites.Clear();
+            Polygons.Clear();
             Lines.Clear();
             Runs.Clear();
             ClipRuns.Clear();

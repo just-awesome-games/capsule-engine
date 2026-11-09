@@ -23,7 +23,7 @@ internal sealed partial class FrameRenderer
         _sprites.Reset(1f);
         _sprites.BeginPass(window, null);
 
-        if (_world is { } world && (!view.Sprites.IsEmpty || !view.Lines.IsEmpty))
+        if (_world is { } world && (!view.Sprites.IsEmpty || !view.Polygons.IsEmpty || !view.Lines.IsEmpty))
         {
             DrawOverlayWorld(view, in world, width, height);
         }
@@ -70,6 +70,6 @@ internal sealed partial class FrameRenderer
             FrameCorner = world.TopLeft,
         };
 
-        DrawIntents(view.Sprites, view.Lines, default, default, default, default, default, ref pass);
+        DrawIntents(view.Sprites, view.Polygons, view.PolygonPoints, view.Lines, default, default, default, default, default, ref pass);
     }
 }

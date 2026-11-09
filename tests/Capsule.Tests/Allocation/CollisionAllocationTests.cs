@@ -234,6 +234,39 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         Assert.Equal(320f, rider.Position.X, 0.01f);
     }
 
+    // A reporting beam opens from a line, spreads past a post, and closes again on a cycle shorter than
+    // the warm-up. The measured steps reshape it every step and cross the collapse both ways.
+    [Fact]
+    public void ABeamReshapedEveryStep_AllocatesNothingPerStep()
+    {
+        Scene scene = new();
+        Beam beam = new();
+        scene.Add(beam);
+        scene.Add(new SceneFixtures.Holder(new Vector2(40f, 4f), new BoxCollider2D(new Vector2(4f, 4f))));
+        int entered = 0;
+        int exited = 0;
+        beam.Collider.ContactEntered += _ => entered++;
+        beam.Collider.ContactExited += _ => exited++;
+
+        using SceneSimulation simulation = new(scene, run: StageWorkload.Defaults);
+        InputState input = new(new ActionBindings());
+        int enteredWarm = 0;
+
+        long bytes = StepMeasurement.Bytes(step =>
+        {
+            if (step == StepMeasurement.WarmupSteps)
+            {
+                enteredWarm = entered;
+            }
+
+            simulation.Step(new StepContext(StepMeasurement.StepSeconds, input, step));
+        });
+
+        StepMeasurement.Report(output, "beam reshaped every step", bytes);
+        Assert.True(entered - enteredWarm >= StepMeasurement.MeasuredSteps / Beam.Cycle, $"the beam entered {entered - enteredWarm} times.");
+        Assert.True(exited >= entered - 1);
+    }
+
     // A sensor spans a row whose cells turn solid one a step. Its contact count rises by one on every
     // step. Buffers grown to the exact count would allocate on each of those steps. Doubling
     // allocates each buffer twice past its starting sixteen, and the bound is twice that.
@@ -292,6 +325,35 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         }
 
         return world;
+    }
+
+    // A triangle from the entity's position whose far edge opens from nothing to 32 across and back,
+    // spending a step of each cycle closed.
+    private sealed class Beam : Entity
+    {
+        internal const int Cycle = 24;
+
+        private int _step;
+
+        internal PolygonCollider2D Collider { get; }
+
+        internal Beam()
+            : base(Vector2.Zero)
+        {
+            Collider = new PolygonCollider2D([Vector2.Zero, new Vector2(48f, -1f), new Vector2(48f, 1f)])
+            {
+                ReportsContacts = true,
+                Detects = new(CollisionWorld2D.DefaultLayerName),
+            };
+            Add(Collider);
+        }
+
+        protected internal override void OnStep(in StepContext context)
+        {
+            int phase = _step++ % Cycle;
+            float spread = Math.Min(phase, Cycle - phase) * 32f / Cycle;
+            Collider.SetPoints([Vector2.Zero, new Vector2(48f, -spread), new Vector2(48f, spread)]);
+        }
     }
 
     private sealed class Sensor : Entity

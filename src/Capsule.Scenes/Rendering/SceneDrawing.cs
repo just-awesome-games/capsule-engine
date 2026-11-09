@@ -112,7 +112,7 @@ internal sealed class SceneDrawing
 
                     if (runs is not null && (runs.Count == 0 || !ReferenceEquals(runs[^1].Entity, entity)))
                     {
-                        runs.Add(new DrawRun(entity, view.Sprites.Length));
+                        runs.Add(new DrawRun(entity, view.Sprites.Length, view.Polygons.Length));
                     }
 
                     renderer.Draw(view);

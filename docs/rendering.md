@@ -4,8 +4,8 @@ After this page you can put sprites, rects and text on screen, frame them with a
 what draws over what. Each type's XML docs hold its rules.
 
 An entity looks like the renderer components it holds. A camera places the world layer, and the screen
-layer draws over it in canvas pixels. Capsule draws sprites, flat rects, text, particles, tile maps and
-lights. What a game's world looks like is the game's.
+layer draws over it in canvas pixels. Capsule draws sprites, flat rects and polygons, text, particles, tile
+maps and lights. What a game's world looks like is the game's.
 
 | Need | Piece |
 | --- | --- |
@@ -80,12 +80,13 @@ a sprite that turns or flips in place.
 | --- | --- |
 | `SpriteRenderer` | One `Sprite`, or that sprite tiled across `Tiling`. |
 | `ColorRect` | A flat rect of `Size`. |
+| `ColorPolygon` | A flat convex polygon through the points `SetPoints` gives, which can shape a `PolygonCollider2D` too. |
 | `Label` | A run of a `BitmapFont`, wrapped and aligned inside `Size`. |
 | `NineSlice` | A sprite stretched to `Size` with its corners kept. |
 | `ParticleEmitter` | A fixed pool of sprite particles stepped on the fixed tick. |
 
-A game that needs geometry no renderer draws subclasses `Renderer` and writes into the `FrameView` it is
-handed. When `Draw` runs is in [`architecture.md`](architecture.md#simulation-and-host).
+A game that needs geometry no renderer draws subclasses `Renderer` and writes sprite, polygon and line
+intents into the `FrameView` it is handed. When `Draw` runs is in [`architecture.md`](architecture.md#simulation-and-host).
 
 ## Hiding, fading and flashing
 
@@ -187,8 +188,8 @@ Add(spray);
 ## Lighting
 
 A scene lowers the light with `Scene.Ambient`. A `PointLight` draws into the frame's light map, which the
-host multiplies over the world layer. A world sprite drawn with `BlendMode.Additive` in a lit frame lights
-the map too, and a glow stays bright in a dim room. A scene with white ambient and no light runs no pass.
+host multiplies over the world layer. A world sprite or polygon drawn with `BlendMode.Additive` in a lit frame
+lights the map too, and a glow stays bright in a dim room. A scene with white ambient and no light runs no pass.
 
 ## Text
 

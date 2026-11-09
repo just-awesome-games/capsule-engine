@@ -1,6 +1,8 @@
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Capsule.Animation;
+using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Scenes;
@@ -233,4 +235,31 @@ public sealed class SceneStepOrderTests
         Assert.Null(fleeting.SceneOrNull);
     }
 
+    // A routine has no step context. It moves by the length its scene reads for the step it runs in.
+    [Fact]
+    public void StepSeconds_IsZeroBeforeTheFirstStep_ThenTheLengthOfTheStepRunning()
+    {
+        Sequence beats = new();
+        List<float> read = [];
+
+        async Routine Read(Scene scene)
+        {
+            while (true)
+            {
+                await Wait.Ticks(1);
+                read.Add(scene.StepSeconds);
+            }
+        }
+
+        SceneFixtures.HookScene scene = new(step: (Scene _, in StepContext _) => beats.Step());
+        SceneSimulation simulation = Simulation(scene);
+        float before = scene.StepSeconds;
+        beats.Start(Read(scene));
+
+        simulation.Step(new StepContext(1.0 / 30.0, new InputState(new ActionBindings()), 0));
+        simulation.Step(new StepContext(1.0 / 60.0, new InputState(new ActionBindings()), 1));
+
+        Assert.Equal(0f, before);
+        Assert.Equal([(float)(1.0 / 30.0), (float)(1.0 / 60.0)], read);
+    }
 }

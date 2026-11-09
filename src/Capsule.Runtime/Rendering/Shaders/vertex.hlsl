@@ -1,7 +1,8 @@
 // Capsule's sprite vertex stage, which every sprite shader shares. Sprites are pulled, not pushed. The
 // renderer uploads one CapsuleSprite per sprite into a storage buffer, binds no vertex buffer and draws
 // six vertices a sprite. Each vertex reads its sprite at SV_VertexID / 6 and places its own corner. This
-// is the one place a sprite is placed.
+// is the one place a sprite is placed. A polygon's triangle rides the same buffer as a sprite flagged
+// CapsuleTriangle, whose fields hold its three corners instead.
 //
 // CapsuleSprite and CapsuleVertexUniforms are the runtime's SpriteInstance and SpriteUniforms, member for
 // member, in SDL's binding layout: the sprites in storage buffer slot 0, the uniforms in uniform buffer 0.
@@ -52,6 +53,7 @@ struct CapsuleVertexOutput
 static const uint CapsuleFlipX = 1;
 static const uint CapsuleFlipY = 2;
 static const uint CapsuleWhole = 4;
+static const uint CapsuleTriangle = 8;
 static const float CapsulePi = 3.14159265358979;
 static const float CapsuleTau = 6.28318530717959;
 
@@ -73,6 +75,39 @@ float2 CapsulePixel(float2 origin, float2 value, float scale)
     return float2(CapsulePixel(origin.x, value.x, scale), CapsulePixel(origin.y, value.y, scale));
 }
 
+// A point at the frame's fraction of the way across the step, exactly either end where it did not move.
+float2 CapsuleBetween(float2 previous, float2 current)
+{
+    precise float2 between = previous + ((current - previous) * CapsuleAlpha);
+    return all(previous == current) ? current : between;
+}
+
+// One vertex of a polygon's triangle, numbered within its six. The corners are interpolated, then the
+// triangle moves by however far its first corner moves to land on the pixel grid where the grid is set.
+// Every triangle of a polygon starts at the polygon's first point and moves alike. The polygon keeps its
+// shape as it travels, and its triangles meet without a seam. The quad carries the corner's offset from that
+// first point and no extent. Vertices three to five collapse onto the first corner and draw nothing.
+CapsuleVertexOutput CapsuleTriangleVertex(CapsuleSprite sprite, uint index)
+{
+    precise float2 first = CapsuleBetween(sprite.PreviousPosition, sprite.Position);
+    precise float2 corner = index == 1 ? CapsuleBetween(float2(sprite.PreviousRotation, sprite.Rotation), sprite.Origin)
+        : index == 2 ? CapsuleBetween(sprite.Size, float2(asfloat(sprite.Region), asfloat(sprite.Extent)))
+        : first;
+    precise float2 placed = CapsuleGrid > 0.0
+        ? CapsuleFrameCorner + (CapsulePixel(CapsuleLayerCorner, first, CapsuleGrid) / CapsuleGrid)
+        : CapsuleFrameCorner + (first - CapsuleLayerCorner);
+    precise float2 offset = corner - first;
+
+    CapsuleVertexOutput output;
+    output.Position = mul(float4(placed + offset, 0.0, 1.0), MatrixTransform);
+    output.Tint = CapsuleUnpack(sprite.Tint);
+    output.Flash = CapsuleUnpack(sprite.Flash);
+    output.UV = float2(0.5, 0.5);
+    output.Coverage = CapsuleCoverage;
+    output.Quad = float4(offset, 0.0, 0.0);
+    return output;
+}
+
 // One sprite's six vertices, numbered from SV_VertexID: the sprite interpolated by the frame's
 // fraction, moved from its layer's corner onto the frame's, snapped to whole pixels where the grid
 // is set, and placed. A quad snapped at a whole number of quarter turns has every edge on the grid.
@@ -80,6 +115,10 @@ float2 CapsulePixel(float2 origin, float2 value, float scale)
 CapsuleVertexOutput CapsuleVertex(uint vertexId : SV_VertexID)
 {
     CapsuleSprite sprite = CapsuleSprites[CapsuleFirstSprite + (vertexId / 6)];
+    if ((sprite.Flags & CapsuleTriangle) != 0)
+    {
+        return CapsuleTriangleVertex(sprite, vertexId % 6);
+    }
 
     // Top left, top right, bottom left, then top right, bottom right, bottom left.
     uint corner = (0xB64u >> ((vertexId % 6) * 2)) & 3;

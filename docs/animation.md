@@ -154,8 +154,12 @@ private async Routine ShowDoor(Entity followed)
 A routine can await another: `await Walk(north);` runs `Walk` to its end before the next line. It awaits nothing
 else. A `Task` would resume outside the step, and `CAP103` refuses it.
 
-An optimized build pools routine calls and allocates nothing. A pooled entity can start its behaviour as a routine
-on every spawn. A debug build allocates on each call. A `Wait.Until` given its state and a `static` lambda, as above,
-allocates nothing. A lambda that captures anything allocates each time its `await` runs.
+A routine has no `StepContext`. A beat that moves its entity steps it each tick by `Scene.StepSeconds`, the length of
+the step running now.
+
+An optimized build pools routine calls by method. A method's pool grows only when more of its calls are live than
+ever before, and a call goes back when its routine ends or its sequence stops. An entity stops its sequence when it
+leaves the scene. A pooled entity then starts its behaviour as a routine on every spawn and allocates nothing. A
+debug build allocates on each call. A `Wait.Until` given its state and a `static` lambda, as above, allocates nothing. A lambda that captures anything allocates each time its `await` runs.
 
 `Stop` abandons the routine where it stands. Its `finally` blocks do not run, and the owner undoes what it set.

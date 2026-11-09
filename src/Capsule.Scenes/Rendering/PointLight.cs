@@ -13,7 +13,8 @@ namespace Capsule.Rendering;
 /// Two lights add, and a light brightens the sprites it overlaps. <see cref="Renderer.ZIndex"/> has
 /// no effect on a light. Drawing under a <see cref="ScreenEntity"/> throws, because the screen
 /// layer is never lit. A cone or any other shape is a <see cref="Rendering.Sprite"/> from a sheet,
-/// turned by the entity.
+/// turned by the entity. A flat shape whose outline changes as it plays is a <see cref="ColorPolygon"/>
+/// drawn with <see cref="BlendMode.Additive"/>, which lights a lit frame as an additive sprite does.
 /// </remarks>
 /// <example>
 /// <code>

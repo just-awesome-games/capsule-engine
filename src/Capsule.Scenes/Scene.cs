@@ -55,9 +55,6 @@ public partial class Scene
     // The current stepping tick, or null if not stepping.
     internal long? SteppingTick { get; private set; }
 
-    // The length in seconds of the step that last ran, or zero before the first.
-    internal float StepSeconds { get; private set; }
-
     internal ScenePhysics Physics { get; } = new();
 
     internal SceneVisibility Visibility { get; }
@@ -191,6 +188,21 @@ public partial class Scene
     /// </code>
     /// </example>
     public bool IsFrozen => _freezeTicks > 0 || _frozenThisStep;
+
+    /// <summary>
+    /// The length in seconds of the step running now, or of the last one, for motion outside a step callback such as a
+    /// routine's. Zero before the first step.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// while (!_body.IsOnFloor)
+    /// {
+    ///     await Wait.Ticks(1);
+    ///     _body.Move(new Vector2(0f, FallSpeed * Scene.StepSeconds));
+    /// }
+    /// </code>
+    /// </example>
+    public float StepSeconds { get; private set; }
 
     /// <summary>
     /// The key of the document this scene was composed from, or null for a scene built in code. A restart composes the

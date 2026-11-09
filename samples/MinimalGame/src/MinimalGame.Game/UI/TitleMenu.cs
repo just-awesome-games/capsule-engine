@@ -59,6 +59,9 @@ public sealed class TitleMenu : ScreenEntity
 
     protected override void OnStep(in StepContext context) => _tips.Step();
 
+    /// <inheritdoc/>
+    protected override void OnRemovedFromScene() => _tips.Stop();
+
     // Shows each tip in turn, back to the first after the last.
     private async Routine TurnTips()
     {

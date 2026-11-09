@@ -4,6 +4,7 @@ using Capsule.Generated;
 using Capsule.Input;
 using Capsule.Particles;
 using Capsule.Physics;
+using Capsule.Rendering;
 using Capsule.Scenes;
 using MinimalGame.Game;
 using MinimalGame.Game.Entities;
@@ -121,6 +122,32 @@ public sealed class AreaTests
         Assert.Equal(gust.Velocity, player.Wind);
         RoomFixture.StandAt(hall, gust.Position + new Vector2(gust.Size.X + 8f, 4f));
         Assert.Equal(Vector2.Zero, player.Wind);
+    }
+
+    // The hall's searchlight passes over the spot under its lamp twice a sweep, and is a line at each end of
+    // its swing.
+    [Fact]
+    public void TheHallsSearchlight_TurnsRedWhileItsConeHoldsThePlayer_AndWarmOnceItHasPassed()
+    {
+        Run run = new();
+        run.StartGame(static run => new MinimalGameInstance(run));
+        using SimulationHost hall = new(CapsuleScenes.Registry.Create(CapsuleAssets.Scenes.Halls.HallScene), run: run);
+        Player player = hall.Scene.FindSingle<Player>();
+        Searchlight searchlight = hall.Scene.FindSingle<Searchlight>();
+        Assert.True(searchlight.TryGet(out ColorPolygon? light));
+        Vector2 under = new(searchlight.Position.X - 4f, player.Position.Y);
+        int sightings = 0;
+        ColorRgba last = light.Color;
+
+        for (int step = 0; step < Searchlight.SweepTicks; step++)
+        {
+            RoomFixture.StandAt(hall, under);
+            sightings += light.Color == Searchlight.Seen && last != Searchlight.Seen ? 1 : 0;
+            last = light.Color;
+        }
+
+        Assert.Equal(2, sightings);
+        Assert.Equal(Searchlight.Warm, light.Color);
     }
 
     // The spark is the one entity under the hazard that trails particles.

@@ -13,6 +13,11 @@ internal enum SpriteFlags : uint
     // The whole texture, its coordinates zero to one, drawn where it stands: no interpolation, no layer
     // offset and no snap. Size is drawn units per texel, not the drawn extent.
     Whole = 4,
+
+    // One triangle of a polygon, its three corners at both ends of the step in place of the quad: the first
+    // from PreviousPosition to Position, the second from (PreviousRotation, Rotation) to Origin, the third
+    // from Size to the float bits of (Region, Extent). It reads the white texel at its centre.
+    Triangle = 8,
 }
 
 // One drawn quad as the sprite vertex stage reads it from the frame's storage buffer: everything a

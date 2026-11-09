@@ -289,7 +289,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
             return;
         }
 
-        if (_view.Sprites.Length == 0 && _view.Lines.Length == 0)
+        if (_view.Sprites.Length == 0 && _view.Polygons.Length == 0 && _view.Lines.Length == 0)
         {
             return;
         }

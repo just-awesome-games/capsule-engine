@@ -349,6 +349,7 @@ internal sealed partial class FrameRenderer : IDisposable
         Vector2 parallax = ScrollLayout.Parallax(topLeft, span, view.Camera.ScrollCenter);
         DrawLights(view.Lights, view.PlacementRuns, parallax, ref pass);
         DrawAdditiveSprites(view.Sprites, view.PlacementRuns, parallax, ref pass);
+        DrawAdditivePolygons(view.Polygons, view.PolygonPoints, view.PlacementRuns, parallax, ref pass);
     }
 
     // A light is always stored under a run of the world's own, never a canvas run.
@@ -409,6 +410,36 @@ internal sealed partial class FrameRenderer : IDisposable
                     Flash = Scaled(sprites[index].Flash, MapScale),
                 };
                 DrawSprite(in halved, ref pass);
+            }
+        }
+
+        pass.LayerCorner = frameCorner;
+    }
+
+    // The additive polygons into the map as the additive sprites go. The map's sum is order-free, and they
+    // need not interleave with the sprites.
+    private void DrawAdditivePolygons(ReadOnlySpan<StoredPolygon> polygons, ReadOnlySpan<Vector2> points, ReadOnlySpan<PlacementRun> layers, Vector2 parallax, ref Pass pass)
+    {
+        Vector2 frameCorner = pass.FrameCorner;
+        int next = 0;
+        bool canvas = false;
+        for (int index = 0; index < polygons.Length; index++)
+        {
+            while (next < layers.Length && layers[next].FirstPolygon <= index)
+            {
+                pass.LayerCorner = ScrollLayout.Corner(frameCorner, parallax, layers[next].ScrollFactor);
+                canvas = layers[next].Canvas;
+                next++;
+            }
+
+            if (!canvas && polygons[index].Blend == BlendMode.Additive)
+            {
+                StoredPolygon halved = polygons[index] with
+                {
+                    Color = Scaled(polygons[index].Color, MapScale),
+                    Flash = Scaled(polygons[index].Flash, MapScale),
+                };
+                DrawPolygon(in halved, points, in pass);
             }
         }
 
@@ -540,7 +571,7 @@ internal sealed partial class FrameRenderer : IDisposable
         // Drawn through the narrowed world viewport. Presentation bars stay black.
         _sprites.AddWhole(_white, topLeft, Vector2.Zero, span, rotation: 0f, view.ClearColor);
 
-        DrawIntents(view.Sprites, view.Lines, view.PlacementRuns, parallax, view.MaterialRuns, view.ClipRuns, view.ClipLevels, ref pass);
+        DrawIntents(view.Sprites, view.Polygons, view.PolygonPoints, view.Lines, view.PlacementRuns, parallax, view.MaterialRuns, view.ClipRuns, view.ClipLevels, ref pass);
 
         // The world's colour times twice the light map, which is drawn at half scale (an ambient of
         // white is stored as 128). Its 8 bits span a light of zero to two, and a light on a white ambient
@@ -563,8 +594,9 @@ internal sealed partial class FrameRenderer : IDisposable
     {
         TextureSampling sampling = view.Sampling;
         ReadOnlySpan<SpriteIntent> sprites = view.ScreenSprites;
+        ReadOnlySpan<StoredPolygon> polygons = view.ScreenPolygons;
         ReadOnlySpan<LineIntent> lines = view.ScreenLines;
-        if ((sprites.IsEmpty && lines.IsEmpty) || surfaceWidth <= 0 || surfaceHeight <= 0 || !(placement.Scale > 0f))
+        if ((sprites.IsEmpty && polygons.IsEmpty && lines.IsEmpty) || surfaceWidth <= 0 || surfaceHeight <= 0 || !(placement.Scale > 0f))
         {
             return;
         }
@@ -588,16 +620,19 @@ internal sealed partial class FrameRenderer : IDisposable
             Surface = surface,
         };
 
-        DrawIntents(sprites, lines, default, default, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, ref pass);
+        DrawIntents(sprites, polygons, view.PolygonPoints, lines, default, default, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, ref pass);
     }
 
-    // Draws the sprites, then the lines, each placement run as it opens, each material run with its
-    // material, and each clip run cut to its rect. The runs are in list order, and one cursor walks each
-    // kind. A placement or clip run opens at both a sprite and a line index, and the lines walk them again
-    // from the start. Lines draw with Capsule's own shader. The quads after it draw with no material or
-    // clip.
+    // Draws the sprites with the polygons among them, then the lines, each placement run as it opens, each
+    // material run with its material, and each clip run cut to its rect. A polygon draws before the sprite
+    // stored after it. The runs are in list order, and one cursor walks each kind. A run opens at a sprite, a
+    // polygon and a line index, and applies to the intent stored after it: a sprite or polygon whose cursors
+    // have both reached the run's. The lines walk the placement and clip runs again from the start. Lines draw
+    // with Capsule's own shader. The quads after it draw with no material or clip.
     private void DrawIntents(
         ReadOnlySpan<SpriteIntent> sprites,
+        ReadOnlySpan<StoredPolygon> polygons,
+        ReadOnlySpan<Vector2> points,
         ReadOnlySpan<LineIntent> lines,
         ReadOnlySpan<PlacementRun> layers,
         Vector2 parallax,
@@ -610,25 +645,43 @@ internal sealed partial class FrameRenderer : IDisposable
         int nextMaterial = 0;
         int nextClip = 0;
         bool hidden = false;
-        for (int index = 0; index < sprites.Length; index++)
+        int index = 0;
+        int polygon = 0;
+        while (index < sprites.Length || polygon < polygons.Length)
         {
-            while (next < layers.Length && layers[next].FirstSprite <= index)
+            while (next < layers.Length && layers[next].FirstSprite <= index && layers[next].FirstPolygon <= polygon)
             {
                 Place(in layers[next], parallax, ref pass);
                 next++;
             }
 
-            while (nextMaterial < materials.Length && materials[nextMaterial].FirstSprite <= index)
+            while (nextMaterial < materials.Length && materials[nextMaterial].FirstSprite <= index && materials[nextMaterial].FirstPolygon <= polygon)
             {
                 _sprites.SetMaterial(materials[nextMaterial].Material);
                 pass.Reading = materials[nextMaterial].Material is { Shader.ReadsScreen: true } && BeginRead(in pass);
                 nextMaterial++;
             }
 
-            while (nextClip < clips.Length && clips[nextClip].FirstSprite <= index)
+            while (nextClip < clips.Length && clips[nextClip].FirstSprite <= index && clips[nextClip].FirstPolygon <= polygon)
             {
                 hidden = ApplyClip(clips[nextClip], clipLevels, in pass);
                 nextClip++;
+            }
+
+            if (polygon < polygons.Length && polygons[polygon].Before <= index)
+            {
+                if (!hidden)
+                {
+                    if (pass.Reading)
+                    {
+                        _sprites.Widen(polygons[polygon].Bounds, pass.FrameCorner - pass.LayerCorner);
+                    }
+
+                    DrawPolygon(in polygons[polygon], points, in pass);
+                }
+
+                polygon++;
+                continue;
             }
 
             if (!hidden)
@@ -640,6 +693,8 @@ internal sealed partial class FrameRenderer : IDisposable
 
                 DrawSprite(in sprites[index], ref pass);
             }
+
+            index++;
         }
 
         _sprites.SetMaterial(null);
@@ -648,15 +703,15 @@ internal sealed partial class FrameRenderer : IDisposable
         next = 0;
         nextClip = 0;
         hidden = false;
-        for (int index = 0; index < lines.Length; index++)
+        for (int line = 0; line < lines.Length; line++)
         {
-            while (next < layers.Length && layers[next].FirstLine <= index)
+            while (next < layers.Length && layers[next].FirstLine <= line)
             {
                 Place(in layers[next], parallax, ref pass);
                 next++;
             }
 
-            while (nextClip < clips.Length && clips[nextClip].FirstLine <= index)
+            while (nextClip < clips.Length && clips[nextClip].FirstLine <= line)
             {
                 hidden = ApplyClip(clips[nextClip], clipLevels, in pass);
                 nextClip++;
@@ -664,7 +719,7 @@ internal sealed partial class FrameRenderer : IDisposable
 
             if (!hidden)
             {
-                DrawLine(in lines[index], in pass);
+                DrawLine(in lines[line], in pass);
             }
         }
 
@@ -758,6 +813,22 @@ internal sealed partial class FrameRenderer : IDisposable
             new Vector2(length, thickness),
             MathF.Atan2(delta.Y, delta.X),
             line.Color);
+    }
+
+    // A polygon's fan of triangles from its first point, on the white texel. The vertex stage snaps every
+    // triangle by that point, and the fan moves as one shape.
+    private void DrawPolygon(in StoredPolygon polygon, ReadOnlySpan<Vector2> points, in Pass pass)
+    {
+        ReadOnlySpan<Vector2> previous = points.Slice(polygon.FirstPoint, polygon.Count);
+        ReadOnlySpan<Vector2> current = points.Slice(polygon.FirstPoint + polygon.Count, polygon.Count);
+        uint tint = SpriteDrawList.Tint(polygon.Color, polygon.Blend);
+        uint flash = SpriteDrawList.Flash(polygon.Flash, polygon.Color.A);
+
+        _sprites.SetPlacement(pass.LayerCorner, pass.FrameCorner, pass.Snap ? pass.Scale : 0f);
+        for (int corner = 1; corner < current.Length - 1; corner++)
+        {
+            _sprites.AddTriangle(_white, previous[0], current[0], previous[corner], current[corner], previous[corner + 1], current[corner + 1], tint, flash);
+        }
     }
 
     // What one pass of intents is drawn with. LayerCorner is the camera corner the current scrolled

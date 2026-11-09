@@ -39,8 +39,8 @@ float4 Fragment(SpritePixel pixel)
 | `pixel.Tint` | The sprite's premultiplied tint. |
 | `pixel.UV` | The texture coordinate, which on an atlas page is the page's. |
 | `pixel.TextureSize` | The sprite's texture size in texels, which for a packed sprite is its atlas page's. |
-| `pixel.Position` | How far this pixel is from the quad's top-left corner, in the sprite's units. |
-| `pixel.Size` | The quad's size, in the sprite's units. |
+| `pixel.Position` | How far this pixel is from the quad's top-left corner, in the sprite's units. On a polygon, how far it is from the polygon's first point. |
+| `pixel.Size` | The quad's size, in the sprite's units. Zero on a polygon. |
 | `Sample(texture, uv)` | Reads a texture parameter, named as declared. An `r8` texture's value is in `.r`. A texture passed to a function of the shader's own cannot be sampled there. |
 | `SampleSprite(uv)` | Reads the sprite's texture at another point. |
 | `TextureSize(texture)` | A texture parameter's size in texels. |

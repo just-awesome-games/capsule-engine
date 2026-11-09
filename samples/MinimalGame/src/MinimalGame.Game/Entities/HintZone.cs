@@ -68,6 +68,9 @@ public sealed class HintZone : Entity
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context) => _typing.Step();
 
+    /// <inheritdoc/>
+    protected override void OnRemovedFromScene() => _typing.Stop();
+
     protected override void OnDebugDraw() => DebugDraw.Rect(Channel, new Rect(Position, Size));
 
     protected override void OnDebugPanel(DebugPanel panel)

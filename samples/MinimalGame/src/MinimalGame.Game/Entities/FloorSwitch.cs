@@ -11,8 +11,13 @@ public sealed class FloorSwitch : Entity
     // Steps the camera takes to ease between the player and the lift.
     private const int PanTicks = 45;
 
+    // How far the plate sinks under the player, in world units, and how fast, in units a second.
+    private const float PressDepth = 2f;
+    private const float PressSpeed = 16f;
+
     private readonly ColorRect _plate;
     private readonly Sequence _showLift = new();
+    private Player? _watcher;
 
     /// <summary>The lift this plate starts. room.scene.json names it by its entry id.</summary>
     [Authorable]
@@ -32,6 +37,17 @@ public sealed class FloorSwitch : Entity
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context) => _showLift.Step();
 
+    // A plate that leaves mid-show hands the player back control.
+    /// <inheritdoc/>
+    protected override void OnRemovedFromScene()
+    {
+        if (_showLift.IsRunning)
+        {
+            _showLift.Stop();
+            _watcher!.HasControl = true;
+        }
+    }
+
     /// <inheritdoc/>
     protected override void OnDebugPanel(DebugPanel panel) => panel.Field("Lift", Lift);
 
@@ -43,13 +59,21 @@ public sealed class FloorSwitch : Entity
         }
 
         _plate.Color = ColorRgba.FromHex("#5aa85a");
-        _showLift.Start(ShowLift(Scene.FindSingle<Player>()));
+        _watcher = Scene.FindSingle<Player>();
+        _showLift.Start(ShowLift(_watcher));
     }
 
-    // The player stands still while the camera visits the lift, watches it rise, and comes back.
+    // The plate sinks under the player, who stands still while the camera visits the lift, watches it rise, and comes
+    // back.
     private async Routine ShowLift(Player player)
     {
         player.HasControl = false;
+        while (_plate.Offset.Y < PressDepth)
+        {
+            await Wait.Ticks(1);
+            _plate.Offset = new Vector2(0f, MathF.Min(_plate.Offset.Y + (PressSpeed * Scene.StepSeconds), PressDepth));
+        }
+
         Scene.Camera.Follow(Lift);
         await Wait.Ticks(PanTicks);
         Lift.Running = true;

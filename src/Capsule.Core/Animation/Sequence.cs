@@ -9,8 +9,8 @@ namespace Capsule.Animation;
 /// </summary>
 /// <remarks>
 /// A sequence holds whenever its owner does, through a pause or a freeze. A routine that pauses the scene
-/// belongs to the scene or to an entity whose step mode keeps it stepping. An owner that leaves the
-/// scene stops stepping it.
+/// belongs to the scene or to an entity whose step mode keeps it stepping. An entity that leaves the
+/// scene calls <see cref="Stop"/>, which hands the routine's calls back to their pools.
 /// <para>
 /// <see cref="Stop"/> abandons the routine where it stands, and its <see langword="finally"/> blocks do not run. An
 /// owner undoes what the routine set where it stops it. When the routine throws, the sequence stops and the exception
