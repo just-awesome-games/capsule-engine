@@ -62,15 +62,8 @@ public sealed class FrameCaptureTests : IDisposable
 
         BoundCaptureScene? scene = null;
 
-        HeadlessRunResult result = CapsuleEngine.Configure(
-                "Capture Game",
-                new SceneRegistry(
-                    new EntityRegistry([]),
-                    [SceneRegistration.Plain(typeof(BoundCaptureScene), _ => scene = new BoundCaptureScene())]))
-            .WithFixedStep(10)
+        HeadlessRunResult result = QuietEngine.Configure([SceneRegistration.Plain(typeof(BoundCaptureScene), _ => scene = new BoundCaptureScene())])
             .WithGame(CallbackGame.Starting(static run => run.Input.Bind(Shoot, Key.Space)))
-            .WithoutCrashLog()
-            .WithoutLogging()
             .RunHeadless<BoundCaptureScene>(driver);
 
         Assert.Equal(DrivenSteps, result.Steps);

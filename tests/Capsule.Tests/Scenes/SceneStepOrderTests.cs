@@ -2,7 +2,6 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Capsule.Animation;
-using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Scenes;
@@ -256,8 +255,8 @@ public sealed class SceneStepOrderTests
         float before = scene.StepSeconds;
         beats.Start(Read(scene));
 
-        simulation.Step(new StepContext(1.0 / 30.0, new InputState(new ActionBindings()), 0));
-        simulation.Step(new StepContext(1.0 / 60.0, new InputState(new ActionBindings()), 1));
+        simulation.Step(SceneFixtures.Step(0, seconds: 1.0 / 30.0));
+        simulation.Step(SceneFixtures.Step(1, seconds: 1.0 / 60.0));
 
         Assert.Equal(0f, before);
         Assert.Equal([(float)(1.0 / 30.0), (float)(1.0 / 60.0)], read);

@@ -95,7 +95,7 @@ public struct Tween
     /// whatever the tween was running. <see cref="Value"/> is 0 until the first <see cref="Step"/>
     /// and <see cref="Passes"/> begins again at 0.
     /// </summary>
-    /// <param name="ticks">Fixed steps one pass of the run takes. At least one.</param>
+    /// <param name="ticks">Fixed steps one pass of the run takes. At least one, and for a <see cref="TweenLoop.PingPong"/> at most half of <see cref="int.MaxValue"/>.</param>
     /// <param name="ease">The curve to read the run through. Linear by default.</param>
     /// <param name="loop">What to do with the tick after the last. Finish by default.</param>
     public void Start(int ticks, Ease ease = Ease.Linear, TweenLoop loop = TweenLoop.Once)
@@ -106,6 +106,15 @@ public struct Tween
         if (loop is < TweenLoop.Once or > TweenLoop.PingPong)
         {
             throw new ArgumentOutOfRangeException(nameof(loop), loop, "No such loop mode.");
+        }
+
+        // A ping-pong's period of two durations is counted in an int.
+        if (loop == TweenLoop.PingPong && ticks > int.MaxValue / 2)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(ticks),
+                ticks,
+                $"A ping-pong swings out and back, and its two passes must fit {int.MaxValue} ticks. Pass at most {int.MaxValue / 2}.");
         }
 
         Duration = ticks;

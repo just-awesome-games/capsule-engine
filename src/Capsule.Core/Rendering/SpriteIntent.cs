@@ -93,7 +93,8 @@ public readonly record struct SpriteIntent(
             swept = Rect.Sweep(PreviousPosition, Position, new Vector2(radius, radius));
         }
 
-        // At this point IsEmpty can only mean a non-finite corner or extent.
+        // At this point IsEmpty means a non-finite position, corner or extent, or a position so far out
+        // that the extent rounds away.
         return !swept.IsEmpty;
     }
 }

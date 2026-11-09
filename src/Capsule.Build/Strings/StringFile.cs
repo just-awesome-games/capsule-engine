@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Capsule.Assets;
+using Capsule.Build.Configuration;
 
 namespace Capsule.Build.Strings;
 
@@ -33,7 +34,7 @@ internal static class StringFile
         }
         catch (JsonException ex)
         {
-            throw new FormatException($"is not valid JSON at line {ex.LineNumber + 1}, byte {ex.BytePositionInLine + 1}. Correct the JSON there.", ex);
+            throw StrictJson.Malformed(ex);
         }
 
         return new StringDocument(language, [.. entries]);

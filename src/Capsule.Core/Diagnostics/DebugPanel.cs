@@ -125,8 +125,8 @@ public sealed class DebugPanel
         _rows.Add(new DebugPanelRow(DebugPanelRowKind.Field, label, value ?? Null, null, Subject: subject));
     }
 
-    // Every overload calls this instead of the public string overload, because [Conditional] removes the
-    // call site and the row would be lost wherever this assembly is built for shipping.
+    // Every Field overload calls this instead of the public string overload, because [Conditional] removes
+    // the call site and the row would be lost wherever this assembly is built for shipping.
     private void Write(string label, string value)
     {
         ArgumentNullException.ThrowIfNull(label);

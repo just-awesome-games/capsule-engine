@@ -26,6 +26,8 @@ public sealed class AudioMixer
     // tick count. This relative tolerance keeps such a duration from spilling into one more tick.
     private const double TickTolerance = 1e-6;
 
+    private const long LongestSpanTicks = long.MaxValue / 2;
+
     private const int MaxGeneration = 0xFFFFFF;
 
     private readonly List<AudioCommand> _commands = [];
@@ -937,9 +939,7 @@ public sealed class AudioMixer
     private static float PanOf(in Slot slot) => IsPositional(in slot) ? slot.SpatialPan : slot.Pan;
 
     // Recomputes the voice's distance gain and pan, and raises each that differs from the attenuation
-    // and effective pan the host last heard.
-    // Spatializes the voice again and raises the gain or pan that differs from what the host was last
-    // told, which the caller read before anything changed.
+    // and effective pan the host was last told, which the caller read before anything changed.
     private void RaiseSpatial(ref Slot slot, int index, float toldAttenuation, float toldPan)
     {
         Spatialize(ref slot);
@@ -1048,7 +1048,8 @@ public sealed class AudioMixer
 
         double exact = seconds / stepSeconds;
 
-        return (long)Math.Ceiling(exact - (exact * TickTolerance));
+        // A span this long outlasts any run. The cap keeps the current tick plus it inside a long.
+        return exact >= LongestSpanTicks ? LongestSpanTicks : (long)Math.Ceiling(exact - (exact * TickTolerance));
     }
 
     // Zero is legal for any clip. A clip of no duration plays from its start and ends immediately.

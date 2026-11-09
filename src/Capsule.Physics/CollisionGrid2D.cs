@@ -134,7 +134,8 @@ internal sealed class CollisionGrid2D
         return _edges.AsSpan(_edgeStarts[profile], _edgeCounts[profile]);
     }
 
-    // The solid polygon of an edge cell in cell space. Only a cell without the OneWay bit has one.
+    // The solid polygon of an edge cell in cell space. A one-way cell has none, and neither has a solid
+    // full-cell box, which is a box cell and not an edge cell.
     internal Shape2D PolygonAt(int x, int y) => _polygons[Profile(x, y)];
 
     // The world position of a cell's top-left corner, the origin of its cell space.

@@ -38,6 +38,9 @@ public partial class Scene
     private bool _started;
 
     private bool _stopped;
+
+    // Set as OnStart is entered. A start that fails before it releases entities without OnStop.
+    private bool _startHookRan;
     private TextureSampling? _sampling;
 
     // Steps a freeze still holds after the current one. BeginStep settles it with Paused into this
@@ -439,7 +442,8 @@ public partial class Scene
     }
 
     /// <summary>
-    /// Runs once before the scene releases its entities, when it is replaced or its host ends.
+    /// Runs once before the scene releases its entities, when it is replaced or its host ends. A start
+    /// that failed before <see cref="OnStart"/> ran releases the entities without it.
     /// </summary>
     protected virtual void OnStop()
     {
@@ -507,14 +511,18 @@ public partial class Scene
     {
     }
 
-    internal void Start(IScenePayload? entryPayload)
+    internal void RequireUnstarted()
     {
         if (_started)
         {
             throw new InvalidOperationException(
                 $"A {GetType().Name} has already started. Build a new scene for a second simulation.");
         }
+    }
 
+    internal void Start(IScenePayload? entryPayload)
+    {
+        RequireUnstarted();
         _started = true;
 
         // The game default fills in behind the scene's own setting.
@@ -538,6 +546,7 @@ public partial class Scene
         // Install the camera after starts so it finds entities that have started.
         Install(_camera);
 
+        _startHookRan = true;
         OnStart();
 
         // The frame drawn before the first step shows the subject where every start hook left it.
@@ -557,13 +566,16 @@ public partial class Scene
         _stopped = true;
         List<Exception>? failures = null;
 
-        try
+        if (_startHookRan)
         {
-            OnStop();
-        }
-        catch (Exception exception)
-        {
-            (failures ??= []).Add(exception);
+            try
+            {
+                OnStop();
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
         }
 
         // Release the camera before the entities it framed.

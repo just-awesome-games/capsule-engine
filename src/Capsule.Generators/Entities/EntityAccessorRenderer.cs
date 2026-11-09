@@ -57,7 +57,7 @@ internal static class EntityAccessorRenderer
     private static bool Sets(PropertyModel property) => !property.Direct && (!property.Held || property is { Field: true, Readable: false });
 
     // A property holding an object whose getter generated code cannot call. A field's setter accessor reads it too.
-    private static bool Gets(PropertyModel property) => property is { Kind: PropertyKind.Object, Array: false, Readable: false, Field: false };
+    private static bool Gets(PropertyModel property) => property is { Kind: PropertyKind.Object, Array: false, Readable: false, Gettable: true, Field: false };
 
     // The setter, the getter or both that one member needs.
     private static string Accessor(PropertyModel property, string indent, string access)

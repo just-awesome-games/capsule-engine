@@ -2,15 +2,18 @@ using System.Numerics;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using static Capsule.Tests.Scenes.EntityHierarchyFixtures;
 
 namespace Capsule.Tests.Scenes;
 
 public sealed class EntityTests
 {
+    private const SceneFixtures.Logs Lifecycle = SceneFixtures.Logs.Join | SceneFixtures.Logs.Start | SceneFixtures.Logs.Leave;
+
     [Fact]
     public void Teleport_ResetsBothEndsOfInterpolation()
     {
-        TestEntity entity = new(new Vector2(4, 6));
+        Node entity = new(new Vector2(4, 6));
         entity.Position = new Vector2(8, 10);
 
         entity.Teleport(new Vector2(40, 50));
@@ -22,13 +25,13 @@ public sealed class EntityTests
     [Fact]
     public void APositionThatIsNotFinite_IsRefusedAndLeavesTheEntityWhereItWas()
     {
-        TestEntity entity = new(new Vector2(4, 6));
+        Node entity = new(new Vector2(4, 6));
 
         ArgumentOutOfRangeException nan = Assert.Throws<ArgumentOutOfRangeException>(() => entity.Position = new Vector2(float.NaN, 0f));
         Assert.Contains("normalizing a zero vector", nan.Message, StringComparison.Ordinal);
         Assert.Throws<ArgumentOutOfRangeException>(() => entity.Position = new Vector2(0f, float.PositiveInfinity));
         Assert.Throws<ArgumentOutOfRangeException>(() => entity.Teleport(new Vector2(float.NaN, 0f)));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new TestEntity(new Vector2(float.NaN, 0f)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Node(new Vector2(float.NaN, 0f)));
 
         Assert.Equal(new Vector2(4, 6), entity.Position);
         Assert.Equal(new Vector2(4, 6), entity.PreviousTransform.Position);
@@ -37,7 +40,7 @@ public sealed class EntityTests
     [Fact]
     public void Components_AreQueriedByAssignableType()
     {
-        TestEntity entity = new(Vector2.Zero);
+        Node entity = new(Vector2.Zero);
         DerivedComponent component = new();
         entity.Add(component);
 
@@ -52,10 +55,10 @@ public sealed class EntityTests
     [Fact]
     public void TryGetInParent_PrefersSelfThenTheNearestAncestor()
     {
-        TestEntity root = new(Vector2.Zero);
-        TestEntity middle = new(Vector2.Zero) { Parent = root };
-        TestEntity leaf = new(Vector2.Zero) { Parent = middle };
-        TestEntity sibling = new(Vector2.Zero) { Parent = root };
+        Node root = new(Vector2.Zero);
+        Node middle = new(Vector2.Zero) { Parent = root };
+        Node leaf = new(Vector2.Zero) { Parent = middle };
+        Node sibling = new(Vector2.Zero) { Parent = root };
         DerivedComponent rootComponent = new();
         DerivedComponent middleComponent = new();
         DerivedComponent leafComponent = new();
@@ -80,13 +83,13 @@ public sealed class EntityTests
     {
         MarkedEntity root = new();
         MarkedEntity middle = new() { Parent = root };
-        TestEntity leaf = new(Vector2.Zero) { Parent = middle };
+        Node leaf = new(Vector2.Zero) { Parent = middle };
 
         Assert.Same(middle, leaf.FindInParent<IMarked>());
         Assert.Same(root, root.FindInParent<MarkedEntity>());
 
-        TestEntity plain = new(Vector2.Zero);
-        TestEntity plainLeaf = new(Vector2.Zero) { Parent = plain };
+        Node plain = new(Vector2.Zero);
+        Node plainLeaf = new(Vector2.Zero) { Parent = plain };
         _ = new MarkedEntity { Parent = plain };
         _ = new MarkedEntity { Parent = plainLeaf };
 
@@ -96,8 +99,8 @@ public sealed class EntityTests
     [Fact]
     public void GetInParent_ThrowsWhenNoEntityInTheChainMatches()
     {
-        TestEntity root = new(Vector2.Zero);
-        TestEntity child = new(Vector2.Zero) { Parent = root };
+        Node root = new(Vector2.Zero);
+        Node child = new(Vector2.Zero) { Parent = root };
         root.Add(new DerivedComponent());
 
         Assert.Throws<InvalidOperationException>(() => child.GetInParent<SpriteRenderer>());
@@ -106,8 +109,8 @@ public sealed class EntityTests
     [Fact]
     public void ARemovedComponent_CanBeAttachedToAnotherEntity()
     {
-        TestEntity first = new(Vector2.Zero);
-        TestEntity second = new(Vector2.Zero);
+        Node first = new(Vector2.Zero);
+        Node second = new(Vector2.Zero);
         DerivedComponent component = new();
         first.Add(component);
 
@@ -123,7 +126,7 @@ public sealed class EntityTests
     public void RemovingARenderer_InvalidatesTheScenesDrawOrder()
     {
         Scene scene = new();
-        TestEntity entity = new(Vector2.Zero);
+        Node entity = new(Vector2.Zero);
         SpriteRenderer renderer = new(SceneFixtures.Frame(1, 1));
         entity.Add(renderer);
         scene.Add(entity);
@@ -140,7 +143,7 @@ public sealed class EntityTests
     public void AComponentRemovingItself_DoesNotSkipTheOneShiftedIntoItsSlot()
     {
         List<string> log = [];
-        TestEntity entity = new(Vector2.Zero);
+        Node entity = new(Vector2.Zero);
         SelfRemovingComponent removing = new(log);
         entity.Add(removing);
         entity.Add(new SceneFixtures.RecordingComponent("next", log));
@@ -159,7 +162,7 @@ public sealed class EntityTests
     public void AComponentAttachedInAStartedScene_BringsItsPartsAndTakesThemWhenDetached()
     {
         List<string> log = [];
-        TestEntity entity = new(Vector2.Zero);
+        Node entity = new(Vector2.Zero);
         Scene scene = new();
         scene.Add(entity);
         using SceneSimulation simulation = new(scene);
@@ -184,7 +187,7 @@ public sealed class EntityTests
     public void AComponentDetachingItselfInOnAttached_NeverEntersTheScene()
     {
         List<string> log = [];
-        TestEntity entity = new(Vector2.Zero);
+        Node entity = new(Vector2.Zero);
         Scene scene = new();
         scene.Add(entity);
         using SceneSimulation simulation = new(scene);
@@ -202,9 +205,9 @@ public sealed class EntityTests
     public void AComponentAttachedBeneathARootRemovedThisStep_DoesNotStart()
     {
         List<string> log = [];
-        TestEntity root = new(Vector2.Zero);
-        TestEntity child = new(Vector2.Zero) { Parent = root };
-        LoggingComponent late = new("late", log);
+        Node root = new(Vector2.Zero);
+        Node child = new(Vector2.Zero) { Parent = root };
+        SceneFixtures.RecordingComponent late = new("late", log, Lifecycle);
         bool removing = false;
         SceneFixtures.HookScene scene = new(step: (Scene stepping, in StepContext _) =>
         {
@@ -229,7 +232,7 @@ public sealed class EntityTests
     public void ARendererWhoseOnDetachedThrows_IsStillDroppedFromTheDrawOrder()
     {
         Scene scene = new();
-        TestEntity entity = new(Vector2.Zero);
+        Node entity = new(Vector2.Zero);
         RefusingToLeave renderer = new();
         entity.Add(renderer);
         scene.Add(entity);
@@ -246,7 +249,7 @@ public sealed class EntityTests
     [Fact]
     public void AComponentWhoseOnAttachedThrows_StaysUnattached()
     {
-        TestEntity entity = new(Vector2.Zero);
+        Node entity = new(Vector2.Zero);
         Refusing refusing = new();
 
         Assert.Throws<InvalidOperationException>(() => entity.Add(refusing));
@@ -254,8 +257,6 @@ public sealed class EntityTests
         Assert.Null(refusing.Entity);
         Assert.False(entity.Has<Refusing>());
     }
-
-    private sealed class TestEntity(Vector2 position) : Entity(position);
 
     private interface IMarked;
 
@@ -267,7 +268,7 @@ public sealed class EntityTests
 
     private sealed class Composite(List<string> log) : Component
     {
-        internal LoggingComponent Part { get; } = new("part", log);
+        internal SceneFixtures.RecordingComponent Part { get; } = new("part", log, Lifecycle);
 
         internal Entity? DetachedFrom { get; private set; }
 
@@ -290,15 +291,6 @@ public sealed class EntityTests
         protected internal override void OnStart() => log.Add("composite!");
 
         protected internal override void OnRemovedFromScene() => log.Add("composite-");
-    }
-
-    private sealed class LoggingComponent(string name, List<string> log) : Component
-    {
-        protected internal override void OnAddedToScene() => log.Add($"{name}+");
-
-        protected internal override void OnStart() => log.Add($"{name}!");
-
-        protected internal override void OnRemovedFromScene() => log.Add($"{name}-");
     }
 
     private sealed class SelfDetaching(List<string> log) : Component

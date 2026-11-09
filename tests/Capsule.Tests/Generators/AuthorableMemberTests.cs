@@ -19,16 +19,17 @@ public sealed class AuthorableMemberTests
     [InlineData("[Authorable] public Sides Stops { get; set; } = Sides.Up;", "has type 'Game.Sides', which a scene document cannot carry", "public sealed class Sides { public static readonly Sides Up = new(); }")]
     [InlineData("[Authorable] public Tuning Stops { get; set; } = Tuning.Default;", "has type 'Game.Tuning', which a scene document cannot carry", "public record Tuning { public int Speed { get; set; } public static readonly Tuning Default = new(); }")]
     [InlineData("[Authorable] public Wide Stops { get; set; } = new();", "has type 'Game.Wide', whose [JsonConverter] names 'Game.Wrong'", "[System.Text.Json.Serialization.JsonConverter(typeof(Wrong))] public sealed class Wide; public sealed class Wrong : System.Text.Json.Serialization.JsonConverter<int> { public override int Read(ref System.Text.Json.Utf8JsonReader reader, System.Type type, System.Text.Json.JsonSerializerOptions options) => 0; public override void Write(System.Text.Json.Utf8JsonWriter writer, int value, System.Text.Json.JsonSerializerOptions options) { } }")]
-    [InlineData("[Authorable] public override int Stops => 1;", "has no setter. Add a set or init accessor of any access", "public abstract class Mount(EntitySpawn spawn) : Entity(spawn) { public virtual int Stops => 0; }", "Lift(EntitySpawn spawn) : Mount(spawn)")]
-    [InlineData("[Authorable] public Vector2 Scale { get; set; }", "takes the key 'scale', which the scene document reserves for its own field there. Rename the member", "", "Lift(EntitySpawn spawn) : Entity(spawn)", "Scale")]
-    public void AnAuthorableMemberNoPlacementCanSet_FailsAtTheMemberNamingTheFix(string member, string fix, string declarations, string lift = "Lift(EntitySpawn spawn) : Entity(spawn)", string name = "Stops")
+    [InlineData("[Authorable] public override int Stops => 1;", "has no setter. Add a set or init accessor of any access", "public abstract class Mount(EntitySpawn spawn) : Entity(spawn) { public virtual int Stops => 0; }", "class Lift(EntitySpawn spawn) : Mount(spawn)")]
+    [InlineData("[Authorable] public Vector2 Scale { get; set; }", "takes the key 'scale', which the scene document reserves for its own field there. Rename the member", "", "class Lift(EntitySpawn spawn) : Entity(spawn)", "Scale")]
+    [InlineData("", "has type 'System.Collections.Generic.List<int>', which a scene document cannot carry", "", "record Lift([property: Authorable] System.Collections.Generic.List<int> Stops)")]
+    public void AnAuthorableMemberNoPlacementCanSet_FailsAtTheMemberNamingTheFix(string member, string fix, string declarations, string lift = "class Lift(EntitySpawn spawn) : Entity(spawn)", string name = "Stops")
     {
         string source = $$"""
             {{GeneratorHarness.Preamble}}
 
             {{declarations}}
 
-            public sealed class {{lift}}
+            public sealed {{lift}}
             {
                 {{member}}
             }

@@ -15,6 +15,10 @@ public sealed class CollisionGridTests
         Assert.Throws<ArgumentException>(() => world.AddGrid(16, 1, 1, [7], CollisionFixtures.Profiles(world)));
         Assert.Throws<ArgumentException>(() => world.AddGrid(16, 1, 1, [0], []));
         Assert.Throws<ArgumentOutOfRangeException>(() => world.AddGrid(0, 1, 1, [0], CollisionFixtures.Profiles(world)));
+
+        // 2^31 cells, one more than an array holds. A refused grid takes no slot.
+        Assert.Throws<ArgumentException>(() => world.AddGrid(16, new CellBlocks(65536, 32768), CollisionFixtures.Profiles(world)));
+        Assert.Equal(0, world.ColliderCount);
     }
 
     // The grid reads its owner's cells in place. A written cell collides as written once it is refreshed.

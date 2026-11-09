@@ -119,7 +119,8 @@ public abstract class Component
     /// <remarks>
     /// Search the scene from here. Attaching to an entity that has already started and is in a
     /// scene runs this immediately. Attaching to an entity out of a scene, or one queued to leave,
-    /// waits until that entity is in a scene again.
+    /// waits until that entity is in a scene again. A started component moved to another entity does
+    /// not run it again.
     /// </remarks>
     protected internal virtual void OnStart()
     {

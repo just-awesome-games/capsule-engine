@@ -54,17 +54,9 @@ public sealed class SpriteClip
                 nameof(frameTicks));
         }
 
-        long total = AnimationPlayback.ValidatedTotal(frameTicks);
-        if (total > int.MaxValue)
-        {
-            throw new ArgumentException(
-                $"The frames are held for {total} ticks in all, past the {int.MaxValue} a clip's Duration holds. Shorten the holds or split the clip.",
-                nameof(frameTicks));
-        }
-
+        Duration = AnimationPlayback.ValidatedDuration(frameTicks, "frame", nameof(frameTicks));
         _frames = frames.ToArray();
         _frameTicks = frameTicks.ToArray();
-        Duration = (int)total;
         Loop = loop;
 
         if (frameEvents.IsEmpty)

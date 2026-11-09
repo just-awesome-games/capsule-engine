@@ -5,8 +5,6 @@ namespace Capsule.Tests.Audio;
 
 public sealed class AudioFadeTests
 {
-    private static readonly long OneSecondTicks = (long)Math.Ceiling((double)StepContext.DefaultStepHertz);
-
     [Fact]
     public void AVoiceFade_RaisesOneSetGainPerStepAndLandsExactlyOnTarget()
     {
@@ -18,7 +16,7 @@ public sealed class AudioFadeTests
         mixer.FadeVolume(voice, 0.8f, 0.5f);
         Assert.Equal([(AudioCommandKind.Play, voice)], Raised(mixer));
 
-        long ticks = (long)Math.Ceiling(0.5 * StepContext.DefaultStepHertz);
+        long ticks = Ticks(0.5);
 
         for (long tick = 1; tick < ticks; tick++)
         {
@@ -47,7 +45,7 @@ public sealed class AudioFadeTests
 
         mixer.FadeVolume(Music, 0f, 0.5f);
         mixer.Stop(voice, 0.5f);
-        long ticks = (long)Math.Ceiling(0.5 * StepContext.DefaultStepHertz);
+        long ticks = Ticks(0.5);
 
         for (long tick = 0; tick < ticks; tick++)
         {
@@ -90,7 +88,7 @@ public sealed class AudioFadeTests
 
         Advance(mixer, 1);
         Assert.Empty(mixer.Commands.ToArray());
-        Advance(mixer, OneSecondTicks);
+        Advance(mixer, Ticks(1.0));
         Assert.Empty(mixer.Commands.ToArray());
     }
 
@@ -101,7 +99,7 @@ public sealed class AudioFadeTests
         Voice voice = mixer.Play(new AudioPlayback(Theme) { Loop = true });
 
         mixer.Stop(voice, 0.5f);
-        long ticks = (long)Math.Ceiling(0.5 * StepContext.DefaultStepHertz);
+        long ticks = Ticks(0.5);
 
         Advance(mixer, ticks - 1);
         Assert.True(mixer.IsLive(voice));
@@ -126,7 +124,7 @@ public sealed class AudioFadeTests
         Assert.Equal(voice, raised.Voice);
         Assert.Equal(AudioCommandKind.SetGain, raised.Kind);
 
-        Advance(mixer, OneSecondTicks);
+        Advance(mixer, Ticks(1.0));
         AudioCommand landing = Assert.Single(mixer.Commands.ToArray());
         Assert.Equal(0.5f * 0.5f, landing.Gain);
     }
@@ -147,7 +145,7 @@ public sealed class AudioFadeTests
         Assert.Equal(AudioCommandKind.Play, played.Kind);
         Assert.Equal(0f, played.Gain);
 
-        long ticks = (long)Math.Ceiling(1.0 * StepContext.DefaultStepHertz);
+        long ticks = Ticks(1.0);
 
         for (long tick = 1; tick <= ticks; tick++)
         {
@@ -193,7 +191,7 @@ public sealed class AudioFadeTests
 
         Assert.Equal(0f, mixer.Commands[^1].Gain);
 
-        long ticks = (long)Math.Ceiling(0.5 * StepContext.DefaultStepHertz);
+        long ticks = Ticks(0.5);
         Advance(mixer, ticks);
 
         AudioCommand landing = Assert.Single(mixer.Commands.ToArray());
@@ -247,4 +245,7 @@ public sealed class AudioFadeTests
         Assert.Equal(AudioCommandKind.SetGain, raised.Kind);
         Assert.True(mixer.IsPaused(voice));
     }
+
+    // A fade's length in steps at the run's default rate, rounded up as the mixer lands it.
+    private static long Ticks(double seconds) => (long)Math.Ceiling(seconds * StepContext.DefaultStepHertz);
 }

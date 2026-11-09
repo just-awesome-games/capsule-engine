@@ -13,6 +13,8 @@ public sealed class SceneAuthorableTests
 {
     private const string Hall = "scenes/hall.scene.json";
 
+    private const string Plain = "scenes/plain.scene.json";
+
     private const string Game = """
         #nullable enable
         using Capsule.Rendering;
@@ -87,6 +89,10 @@ public sealed class SceneAuthorableTests
         }
         """;
 
+    // The build reads only each document's key and baseScene. One compilation serves every document a test composes.
+    private static readonly Lazy<SceneRegistry> Registry = new(static () =>
+        GeneratorHarness.Registry(GeneratorHarness.CompileAgainstSources(Game, logic: true, (Hall, null), (Plain, null))));
+
     private const string Authored = """{"floor": 3, "lift": 1, "title": "document", "bounds": [0, -16, 320, 240]}""";
 
     [Fact]
@@ -116,7 +122,7 @@ public sealed class SceneAuthorableTests
     [Theory]
     [InlineData(Hall, """{"lift": 1}""", "the scene document omits 'floor', which its class requires. Add \"floor\" to the document.")]
     [InlineData(Hall, """{"floor": 3, "lift": 1, "music": 2}""", "the scene document sets 'music', which no authorable member takes. Its authorable members are: camera, size, clearColor, ambient, sampling, floor, title, bounds, lift.")]
-    [InlineData("scenes/plain.scene.json", """{"music": 2}""", "the scene document sets 'music', which no authorable member takes. Its authorable members are: camera, size, clearColor, ambient, sampling.")]
+    [InlineData(Plain, """{"music": 2}""", "the scene document sets 'music', which no authorable member takes. Its authorable members are: camera, size, clearColor, ambient, sampling.")]
     public void ADocumentItsClassRefuses_FailsTheLoad(string path, string members, string fix) =>
         GeneratorHarness.AssertLoadRefused(() => Composed(members, path), $"scene document '{path[..^".scene.json".Length]}': ", fix);
 
@@ -140,25 +146,17 @@ public sealed class SceneAuthorableTests
         return GeneratorHarness.Loaded(compiled);
     }
 
-    private static SceneRegistry Registry(Assembly game) =>
-        (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;
-
     private static SceneContent Content(Assembly game, string sceneType, string members) =>
         (SceneContent)typeof(SceneRegistry).GetMethod(nameof(SceneRegistry.Content))!
             .MakeGenericMethod(game.GetType(sceneType)!)
-            .Invoke(Registry(game), BindingFlags.DoNotWrapExceptions, null, [SceneDocument.Parse(Document(members))], null)!;
+            .Invoke(GeneratorHarness.Registry(game), BindingFlags.DoNotWrapExceptions, null, [SceneDocument.Parse(Document(members))], null)!;
 
     // The document's members, written as one object, beside its one entry.
     private static string Document(string members) =>
         "{" + members.Trim()[1..^1] + ", \"entities\": [{\"id\": 1, \"type\": \"lift\", \"x\": 0, \"y\": 0}]}";
 
-    private static Scene Composed(string members, string path = Hall)
-    {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (path, Document(members)));
-        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+    private static Scene Composed(string members, string path = Hall) =>
+        GeneratorHarness.Composed(Registry.Value, Document(members), path[..^".scene.json".Length]);
 
-        return Registry(GeneratorHarness.Loaded(compiled)).Create(new SceneKey(path[..^".scene.json".Length]), SceneDocument.Parse(Document(members)));
-    }
-
-    private static object? Member(Scene scene, string name) => scene.GetType().GetProperty(name)!.GetValue(scene);
+    private static object? Member(Scene scene, string name) => GeneratorHarness.Member(scene, name);
 }

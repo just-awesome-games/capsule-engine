@@ -1116,26 +1116,26 @@ public sealed partial class CollisionWorld2D
         return near.Length;
     }
 
-    // Sweeps a collider's shape from `from` along `translation` against one other collider standing
-    // `offset` from where it is registered, and reports the fraction at which it drives into it, with
-    // the point and the target's normal there. A pair the sweep runs along or away from is no hit.
+    // Sweeps a pusher's shape from `from` along `translation` against one body standing `offset` from
+    // where it is registered, and reports the fraction at which the pusher drives into it, with the point
+    // and the body's normal there. A pair the sweep runs along or away from is no hit.
     internal bool SweepPair(
-        ColliderHandle mover,
+        ColliderHandle pusher,
         Vector2 from,
         Vector2 translation,
-        ColliderHandle target,
+        ColliderHandle body,
         Vector2 offset,
         out float fraction,
         out Vector2 normal,
         out Vector2 point)
     {
-        ref ColliderSlot pusher = ref _slots[RequireShapeSlot(mover)];
-        Shape2D moving = pusher.Local.Translated(from);
-        ref ColliderSlot other = ref _slots[RequireShapeSlot(target)];
+        ref ColliderSlot pushing = ref _slots[RequireShapeSlot(pusher)];
+        Shape2D moving = pushing.Local.Translated(from);
+        ref ColliderSlot pushed = ref _slots[RequireShapeSlot(body)];
 
         return offset == Vector2.Zero
-            ? SweepPair(pusher, moving, translation, other.World, out fraction, out normal, out point)
-            : SweepPair(pusher, moving, translation, other.World.Translated(offset), out fraction, out normal, out point);
+            ? SweepPair(pushing, moving, translation, pushed.World, out fraction, out normal, out point)
+            : SweepPair(pushing, moving, translation, pushed.World.Translated(offset), out fraction, out normal, out point);
     }
 
     // A one-way pusher meets a body as the body would meet it. The body must start clear of the
@@ -1144,13 +1144,13 @@ public sealed partial class CollisionWorld2D
         in ColliderSlot pusher,
         in Shape2D moving,
         Vector2 translation,
-        in Shape2D target,
+        in Shape2D body,
         out float fraction,
         out Vector2 normal,
         out Vector2 point) =>
-        Narrowphase2D.Sweep(moving, translation, target, out fraction, out normal, out point)
+        Narrowphase2D.Sweep(moving, translation, body, out fraction, out normal, out point)
             && Vector2.Dot(translation, normal) < -Along * translation.Length()
-            && (!pusher.OneWay || Narrowphase2D.OneWayBlocks(target, moving, -normal, pusher.SolidSides));
+            && (!pusher.OneWay || Narrowphase2D.OneWayBlocks(body, moving, -normal, pusher.SolidSides));
 
     // Moves a shape as Move does, also passing through `pusher`. A shove sweeps the body it moves this
     // way, because a pusher that outran the body already lies across the body's path.

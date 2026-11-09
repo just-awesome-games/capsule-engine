@@ -64,27 +64,7 @@ public sealed class ValueClip<T>
             (_values[i], _keyTicks[i]) = keys[i];
         }
 
-        long total = 0;
-        for (int i = 0; i < _keyTicks.Length; i++)
-        {
-            if (_keyTicks[i] <= 0)
-            {
-                throw new ArgumentException(
-                    $"Key {i} is held for {_keyTicks[i]} ticks. Hold every key for at least one fixed step.",
-                    nameof(keys));
-            }
-
-            total += _keyTicks[i];
-        }
-
-        if (total > int.MaxValue)
-        {
-            throw new ArgumentException(
-                $"The keys are held for {total} ticks in all, past the {int.MaxValue} a clip's Duration holds. Shorten the holds or split the clip.",
-                nameof(keys));
-        }
-
-        Duration = (int)total;
+        Duration = AnimationPlayback.ValidatedDuration(_keyTicks, "key", nameof(keys));
         Loop = loop;
         _blend = blend;
         _equals = equals;

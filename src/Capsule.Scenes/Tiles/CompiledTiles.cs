@@ -21,11 +21,13 @@ internal static class CompiledTiles
 {
     internal const string Key = "blocks";
 
+    // The dense members the build compiles into Key.
+    internal const string Tiles = "tiles";
+    internal const string Transforms = "transforms";
+
     // The layout's version. A change to the layout raises it, and a document of another version is refused.
     internal const byte Version = 1;
 
-    private const string Tiles = "tiles";
-    private const string Transforms = "transforms";
     private const int BlockBytes = CellBlocks.BlockArea * sizeof(ushort);
 
     // The well-formed dense cells of every entry whose type is one of tileMaps compiled. An entry whose cells are

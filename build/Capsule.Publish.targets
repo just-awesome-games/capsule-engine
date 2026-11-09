@@ -88,6 +88,18 @@
       <IlcArg Include="--substitution:$(IntermediateOutputPath)capsule-engine-resources.xml" />
       <FileWrites Include="$(IntermediateOutputPath)capsule-engine-resources.xml" />
     </ItemGroup>
+    <PropertyGroup>
+      <_CapsuleEngineResourcesRemoved>true</_CapsuleEngineResourcesRemoved>
+    </PropertyGroup>
+  </Target>
+
+  <!-- The removal hooks the compiler's own target. A publish that compiled native code without
+       running it fails here rather than ship the formats and databases it never reads. -->
+  <Target Name="CapsuleRequireUnreadEngineResourcesRemoved"
+          Condition="'$(CapsuleGameShell)' == 'true' and '$(PublishAot)' == 'true' and '$(NativeCompilationDuringPublish)' != 'false'"
+          AfterTargets="Publish">
+    <Error Condition="'$(_CapsuleEngineResourcesRemoved)' != 'true'"
+           Text="The NativeAOT publish kept the engine shader formats and controller databases it never reads: the compiler no longer runs WriteIlcRspFileForCompilation. Hook the target that now writes its response file." />
   </Target>
 
   <!-- The publish directory's assets/ is the asset build's alone and is replaced whole. The SDK deletes

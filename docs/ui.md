@@ -69,5 +69,9 @@ public sealed class TitleScreen : Scene
 }
 ```
 
-`GameInput.MenuFocus` is a `FocusActions` the game declares from its own up, down, left, right and
-confirm actions ([`input.md`](input.md#declare-the-actions)).
+`GameInput.MenuFocus` is a `FocusActions` the game declares in its `GameInput` from its own up, down, left,
+right and confirm actions ([`input.md`](input.md#declare-the-actions)):
+
+```csharp
+public static readonly FocusActions MenuFocus = new(MenuUp, MenuDown, MenuLeft, MenuRight, Confirm);
+```

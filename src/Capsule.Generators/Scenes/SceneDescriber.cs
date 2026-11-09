@@ -24,9 +24,7 @@ internal static class SceneDescriber
         string contentModifier = contentConstructors == 1 ? SymbolShape.Modifier(constructors[0].Parameters[0].RefKind) : string.Empty;
         bool parameterless = concreteScene && SymbolShape.HasPublicParameterlessConstructor(type);
         // [TypeKey] names the document a concrete scene claims, or the baseScene key of an abstract one.
-        string? declared = SymbolShape.Attribute(type, compilation, MetadataNames.TypeKeyAttribute) is { ConstructorArguments.Length: 1 } annotation
-            ? annotation.ConstructorArguments[0].Value as string ?? string.Empty
-            : null;
+        string? declared = SymbolShape.DeclaredTypeKey(type, compilation);
         bool accessible = SymbolShape.IsAccessibleFromGeneratedCode(type);
         (EquatableArray<PropertyModel> properties, EquatableArray<ObjectModel> objects) = PropertySchema.WithObjects(type, compilation);
 
@@ -63,7 +61,7 @@ internal static class SceneDescriber
             new(
                 SymbolShape.QualifiedName(type), type.ToDisplayString(), SymbolShape.NamespaceOf(type), type.Name,
                 documented, declared, fault, registrable, type.IsAbstract, type.IsGenericType, derivable.Count, accessible,
-                DeclaredAt.From(declaration.Identifier.GetLocation()), properties, objects, contentModifier);
+                DeclaredAt.From(declaration.Identifier.GetLocation()), properties, objects, contentModifier, Bases(type));
     }
 
     // The engine's plain Scene, which a document naming no class and no baseScene composes. Its members are the
@@ -80,7 +78,18 @@ internal static class SceneDescriber
         return new SceneModel(
             SymbolShape.QualifiedName(scene), scene.ToDisplayString(), SymbolShape.NamespaceOf(scene), scene.Name,
             Documented: false, Declared: null, SceneFault.None, Registrable: false, Abstract: false, Generic: false,
-            DerivableContentConstructors: 1, AccessibleType: true, DeclaredAt.From(Location.None), properties, objects, string.Empty);
+            DerivableContentConstructors: 1, AccessibleType: true, DeclaredAt.From(Location.None), properties, objects, string.Empty, Bases(scene));
+    }
+
+    private static EquatableArray<string> Bases(INamedTypeSymbol type)
+    {
+        List<string> bases = [];
+        for (INamedTypeSymbol? current = type.BaseType; current is not null; current = current.BaseType)
+        {
+            bases.Add(SymbolShape.QualifiedName(current));
+        }
+
+        return new([.. bases]);
     }
 
     /// <summary>

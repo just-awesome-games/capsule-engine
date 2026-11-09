@@ -7,9 +7,9 @@ namespace Capsule.Runtime.Audio;
 // Decoding ahead off both the game thread and the mix thread keeps a frame and a mix block from paying
 // for a Vorbis packet. A stream that falls behind starves only its own voice, which plays silence.
 //
-// A stream's source is closed here, not by whoever retired it. Nothing is freed under a decode in
-// progress. Closing the source also returns the stream to the pool, and a stream handed out again is
-// one no decode still holds. The pool holds no more streams than a run has sounded at once, and a
+// A retired stream's source is closed by the worker, not by whoever retired it, and nothing is freed
+// under a decode in progress. The worker then returns the stream to the pool, and a stream handed out
+// again is one no decode still holds. The pool holds no more streams than a run has sounded at once, and a
 // replay allocates none of them.
 internal sealed class AudioStreamer : IDisposable
 {

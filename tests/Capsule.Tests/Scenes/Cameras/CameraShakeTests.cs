@@ -1,7 +1,7 @@
 using System.Numerics;
-using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Tests.Allocation;
 
 namespace Capsule.Tests.Scenes;
 
@@ -280,12 +280,12 @@ public sealed class CameraShakeTests
         Assert.Throws<ArgumentOutOfRangeException>(() => simulation.Run.Display.ShakeStrength = strength);
     }
 
-    private static Rect[] Steps(SceneSimulation simulation, Camera camera, int count, double? stepSeconds = null)
+    private static Rect[] Steps(SceneSimulation simulation, Camera camera, int count, double stepSeconds = StepMeasurement.StepSeconds)
     {
         Rect[] regions = new Rect[count];
         for (int step = 0; step < count; step++)
         {
-            simulation.Step(stepSeconds is { } length ? new StepContext(length, new InputState(new ActionBindings()), step) : SceneFixtures.Step(step));
+            simulation.Step(SceneFixtures.Step(step, seconds: stepSeconds));
             regions[step] = camera.VisibleRegion;
         }
 

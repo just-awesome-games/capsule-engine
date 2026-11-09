@@ -100,4 +100,24 @@ public sealed class SpriteAnimatorTickTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => animator.PlayAtFrame(loop ? Walk : Shoot, frameIndex, frameTick));
     }
+
+    // A refused play changes nothing. The clip playing keeps its frame and steps on as before.
+    [Fact]
+    public void ARefusedPlay_LeavesTheClipPlayingWhereItWas()
+    {
+        (SpriteRenderer renderer, SpriteAnimator animator, SimulationHost run) = Animating();
+        animator.Play(Walk);
+        run.Step(5);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => animator.Play(Land, atTick: -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => animator.PlayAtFrame(Land, 0, -1));
+
+        Assert.Same(Walk, animator.Clip);
+        Assert.Equal(2, animator.FrameIndex);
+        Assert.Equal(Frame(2), renderer.Sprite);
+
+        run.Step(2);
+
+        Assert.Equal(0, animator.FrameIndex);
+    }
 }

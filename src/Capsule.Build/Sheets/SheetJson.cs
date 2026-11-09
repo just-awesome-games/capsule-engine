@@ -11,8 +11,8 @@ namespace Capsule.Build.Sheets;
 [Description("A sprite sheet: the texture it cuts from, the sockets and boxes its frames set, the events its clips raise, its frames and the clips played over them. A variant sheet draws another sheet's frames from its own texture, and holds only frames.")]
 internal sealed class SheetJson
 {
-    /// <summary>What a refusal calls a sheet's members and values.</summary>
-    internal const string Members = "member or value";
+    /// <summary>What a refusal calls a sheet's members.</summary>
+    internal const string Members = "member";
 
     /// <summary>Every member a sheet and its parts may hold, as a refusal lists them.</summary>
     internal const string Shape = "A sheet holds \"formatVersion\", \"texture\" and \"frames\", and may hold \"variantOf\", \"sockets\", \"boxes\", \"events\", \"clips\" and \"source\". "

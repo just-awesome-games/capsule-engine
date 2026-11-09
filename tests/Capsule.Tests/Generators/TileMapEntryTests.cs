@@ -1,11 +1,9 @@
-using System.Collections.Immutable;
 using System.Numerics;
 using System.Reflection;
 using Capsule.Assets;
 using Capsule.Physics;
 using Capsule.Scenes;
 using Capsule.Tiles;
-using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
 
@@ -31,14 +29,8 @@ public sealed class TileMapEntryTests
         }
         """;
 
-    private static readonly Lazy<SceneRegistry> Registry = new(static () =>
-    {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(
-            Game, logic: true, ("textures/frost.png", null), ("scenes/rink.scene.json", Document(string.Empty)));
-        Assert.Empty(GeneratorHarness.Errors(diagnostics));
-
-        return (SceneRegistry)GeneratorHarness.Loaded(compiled).GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;
-    });
+    private static readonly Lazy<SceneRegistry> Registry = new(static () => GeneratorHarness.Registry(
+        GeneratorHarness.CompileAgainstSources(Game, logic: true, ("textures/frost.png", null), ("scenes/rink.scene.json", Document(string.Empty)))));
 
     [Fact]
     public void ATileMapEntry_ComposesItsGridAndPalette_AndTheSceneSpansIt()
@@ -92,8 +84,7 @@ public sealed class TileMapEntryTests
         GeneratorHarness.AssertLoadRefused(() => Composed(document), "scene document 'scenes/rink': entities[0] ('tile-map'", defect);
     }
 
-    private static Scene Composed(string document) =>
-        Registry.Value.Create(new SceneKey("scenes/rink"), SceneDocument.Parse(document));
+    private static Scene Composed(string document) => GeneratorHarness.Composed(Registry.Value, document, "scenes/rink");
 
     // One colliding tile-map entry whose palette entry "slick" carries what the test authors, painted mirrored at (0, 0).
     private static string Document(string authored) => $$$"""

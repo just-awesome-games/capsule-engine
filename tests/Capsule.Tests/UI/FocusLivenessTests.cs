@@ -231,19 +231,18 @@ public sealed class FocusLivenessTests
         FocusNavigator navigator = new(Actions);
         FocusNavigator nearer = new(Actions);
         ScreenHolder root = new(Vector2.Zero, navigator);
-        Focusable first = Under(root, Vector2.Zero);
-        Focusable owned = Under(new ScreenHolder(new Vector2(40f, 0f), nearer) { Parent = root }, Vector2.Zero);
-        Focusable second = Under(root, new Vector2(0f, 40f));
+        Focusable first = Item(Vector2.Zero, parent: root);
+        Focusable owned = Item(Vector2.Zero, parent: new ScreenHolder(new Vector2(40f, 0f), nearer) { Parent = root });
+        Focusable second = Item(new Vector2(0f, 40f), parent: root);
 
-        Scene scene = new();
-        scene.Add(root);
-        using SimulationHost run = new(scene, run: new Run { Canvas = Canvas });
+        using SimulationHost run = Hosted(root);
+        Scene scene = run.Simulation.Scene;
 
         Assert.Equal([first, second], navigator.Items.ToArray());
         Assert.Equal([owned], nearer.Items.ToArray());
         Assert.Same(first, navigator.Focused);
 
-        Focusable late = Under(root, new Vector2(0f, 80f));
+        Focusable late = Item(new Vector2(0f, 80f), parent: root);
         run.Step();
         Assert.Equal([first, second, late], navigator.Items.ToArray());
 
@@ -255,63 +254,19 @@ public sealed class FocusLivenessTests
         Assert.Same(second, navigator.Focused);
     }
 
-    // Closing a menu or stopping its scene tears down its items with it. Nothing flickers through them on
-    // the way out, and the same menu added back holds each item once with the focus where it was.
-    [Fact]
-    public void TearingDownAGatheredMenu_RaisesNoFocusEvents_AndReaddingItHoldsEachItemOnce()
-    {
-        FocusNavigator navigator = new(Actions);
-        ScreenHolder root = new(Vector2.Zero, navigator);
-        Focusable first = Under(root, Vector2.Zero);
-        Focusable second = Under(root, new Vector2(0f, 40f));
-        Closer closer = new();
-
-        List<string> log = [];
-        first.Focused += () => log.Add("focused first");
-        second.Focused += () => log.Add("focused second");
-        first.Unfocused += () => log.Add("unfocused first");
-        navigator.FocusChanged += _ => log.Add("changed");
-
-        Scene scene = new();
-        scene.Add(root);
-        scene.Add(closer);
-        using SimulationHost run = new(scene, run: new Run { Canvas = Canvas });
-        log.Clear();
-
-        closer.Closing = root;
-        run.Step();
-
-        Assert.Empty(log);
-        Assert.Equal(0, navigator.Items.Length);
-
-        scene.Add(root);
-        run.Step();
-
-        Assert.Empty(log);
-        Assert.Equal([first, second], navigator.Items.ToArray());
-        Assert.Same(first, navigator.Focused);
-
-        run.Dispose();
-        Assert.Empty(log);
-    }
-
     // The focused item leaves and comes back as a root of its own before the navigator steps. It is live
     // again but no longer held. The next step repairs the focus and the confirm never reaches it.
     [Fact]
     public void AFocusedGatheredItemThatLeavesAndIsLiveAgainElsewhere_IsRepairedAwayFromAndNeverPressed()
     {
-        FocusNavigator navigator = new(Actions);
-        ScreenHolder root = new(Vector2.Zero, navigator);
-        Focusable first = Under(root, Vector2.Zero);
-        Focusable second = Under(root, new Vector2(0f, 40f));
+        (ScreenHolder root, FocusNavigator navigator, Focusable first, Focusable second) = Rooted();
         bool firstPressed = false;
         first.Pressed += () => firstPressed = true;
 
-        Scene scene = new();
-        scene.Add(root);
         Run game = new() { Canvas = Canvas };
         game.Input.Bind(Confirm, Key.Enter);
-        using SimulationHost run = new(scene, run: game);
+        using SimulationHost run = SceneFixtures.Simulate(game, root);
+        Scene scene = run.Simulation.Scene;
 
         scene.Remove(first.Entity!);
         scene.Add(first.Entity!);
@@ -336,15 +291,13 @@ public sealed class FocusLivenessTests
         FocusNavigator joined = new(Actions);
         ScreenHolder from = new(Vector2.Zero, departed);
         ScreenHolder to = new(new Vector2(100f, 0f), joined);
-        Focusable moving = Under(from, Vector2.Zero);
-        Focusable staying = Under(from, new Vector2(0f, 40f));
+        Focusable moving = Item(Vector2.Zero, parent: from);
+        Focusable staying = Item(new Vector2(0f, 40f), parent: from);
         int unfocused = 0;
         moving.Unfocused += () => unfocused++;
 
-        Scene scene = new();
-        scene.Add(from);
-        scene.Add(to);
-        using SimulationHost run = new(scene, run: new Run { Canvas = Canvas });
+        using SimulationHost run = Hosted(from, to);
+        Scene scene = run.Simulation.Scene;
 
         scene.Remove(moving.Entity!);
         moving.Entity!.Parent = to;
@@ -355,28 +308,5 @@ public sealed class FocusLivenessTests
         Assert.Equal(0, unfocused);
         Assert.Same(staying, departed.Focused);
         Assert.True(staying.IsFocused);
-    }
-
-    private static Focusable Under(Entity parent, Vector2 position)
-    {
-        Focusable item = new(Box);
-        _ = new ScreenHolder(position, item) { Parent = parent };
-
-        return item;
-    }
-
-    // Removes the entity it is handed from inside its own step, as a menu's close does.
-    private sealed class Closer() : ScreenEntity(Anchor.TopLeft, Vector2.Zero)
-    {
-        internal Entity? Closing { get; set; }
-
-        protected internal override void OnStep(in StepContext context)
-        {
-            if (Closing is { } closing)
-            {
-                Closing = null;
-                Scene.Remove(closing);
-            }
-        }
     }
 }

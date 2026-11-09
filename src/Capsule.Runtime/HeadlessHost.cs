@@ -135,7 +135,7 @@ internal sealed class HeadlessHost(
 
             EndFrame();
 
-            // The present's wait for the next refresh. A frame that overran it starts at once.
+            // Stands in for a present's wait, one step long. A frame that overran it starts at once.
             while (timestamp() - start < period)
             {
                 Thread.Yield();

@@ -3,6 +3,7 @@ using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 using Capsule.UI;
+using static Capsule.Tests.Rendering.SpriteFixtures;
 
 namespace Capsule.Tests.Rendering;
 
@@ -176,7 +177,4 @@ public sealed class ClipRunTests
         ScreenEntity child = new(Anchor.TopLeft, offset) { Parent = frame, Size = size == default ? new Vector2(4f, 4f) : size, ZIndex = zIndex };
         child.Add(new ColorRect());
     }
-
-    private static SpriteIntent Quad(Vector2 position) =>
-        new(Sprite.White, position, position, PreviousRotation: 0f, Rotation: 0f, new Vector2(4f, 4f), FlipX: false, FlipY: false, ColorRgba.White);
 }

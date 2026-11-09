@@ -34,14 +34,7 @@ public sealed class ParticleAllocationTests
         SceneFixtures.HookScene scene = new(start: s => s.Add(root));
         SimulationHost host = new(scene);
 
-        long bytes = StepMeasurement.Bytes(
-            step =>
-            {
-                host.Step();
-                _ = host.Simulation.View;
-            },
-            warmup: 100,
-            measured: 1000);
+        long bytes = StepMeasurement.Bytes(host, warmup: 100, measured: 1000);
 
         Assert.Equal(0, bytes);
         Assert.True(emitter.Alive > 0);
@@ -71,14 +64,7 @@ public sealed class ParticleAllocationTests
         scene.Add(root);
         SimulationHost host = new(scene);
 
-        long bytes = StepMeasurement.Bytes(
-            step =>
-            {
-                host.Step();
-                _ = host.Simulation.View;
-            },
-            warmup: 100,
-            measured: 1000);
+        long bytes = StepMeasurement.Bytes(host, warmup: 100, measured: 1000);
 
         Assert.Equal(0, bytes);
         Assert.True(splash.Alive > 0);

@@ -278,7 +278,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
         };
 
         // The initial scene started before the device existed. What its start raised is still on
-        // the mixer and the first BeginStep would clear it unheard.
+        // the mixer and the first AudioMixer.BeginStep would clear it unheard.
         audio.Apply(mixer.TakeCommands());
     }
 

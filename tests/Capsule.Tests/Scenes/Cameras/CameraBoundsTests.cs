@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Animation;
+using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
 
@@ -126,6 +127,21 @@ public sealed class CameraBoundsTests
         Assert.Equal(NextScreen, camera.VisibleRegion);
     }
 
+    // A step of no time moves a chase nowhere and lands nothing. The next timed step carries on.
+    [Fact]
+    public void AChase_HoldsStillThroughAStepOfNoTime()
+    {
+        (SceneSimulation simulation, Camera camera) = SceneFixtures.Pinned(BoundsTransition.AtSpeed(120f));
+        simulation.Step(SceneFixtures.Step(0));
+
+        camera.Bounds = NextScreen;
+        simulation.Step(new StepContext(0, new InputState(new ActionBindings()), 1));
+        Assert.Equal(OneScreen, camera.VisibleRegion);
+
+        simulation.Step(SceneFixtures.Step(2));
+        Assert.Equal(2f, camera.VisibleRegion.Left, 1e-3f);
+    }
+
     // A smoothed chase starts 20 units a step toward the next screen and ends slower than the cap. Flipping
     // back and forth mid-way never moves the view faster than the cap, with or without the smoothing.
     [Theory]
@@ -157,7 +173,7 @@ public sealed class CameraBoundsTests
     [Fact]
     public void AnOpeningEdge_KeepsPaceWithAFallingSubject_AndGainsOnItAtTheMaxSpeed()
     {
-        Faller subject = new(new Vector2(160f, 90f));
+        SceneFixtures.Drifter subject = new(new Vector2(160f, 90f), new Vector2(0f, 5f));
         (SceneSimulation simulation, Camera camera) = SceneFixtures.Following(subject, c =>
         {
             c.Deadzone = new Vector2(0f, 32f);
@@ -361,10 +377,5 @@ public sealed class CameraBoundsTests
 
         Assert.Equal(NextScreen, camera.VisibleRegion);
         Assert.Equal(NextScreen, simulation.View.Camera.Resolve(0f, Vector2.Zero));
-    }
-
-    private sealed class Faller(Vector2 position) : Entity(position)
-    {
-        protected internal override void OnStep(in StepContext context) => Position += new Vector2(0f, 5f);
     }
 }

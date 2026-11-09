@@ -13,10 +13,10 @@ internal static class EntityDescriber
         List<IMethodSymbol> constructors = concreteEntity
             ? SymbolShape.Public(SymbolShape.ConstructorsTaking(type, compilation, MetadataNames.EntitySpawn))
             : [];
-        AttributeData? annotation = SymbolShape.Attribute(type, compilation, MetadataNames.TypeKeyAttribute);
+        string? key = SymbolShape.DeclaredTypeKey(type, compilation);
 
         // A [TypeKey] on a class that is no entity keys it as a member object, which the object pass checks.
-        if (annotation is null || !SymbolShape.DerivesFrom(type, compilation, MetadataNames.Entity))
+        if (key is null || !SymbolShape.DerivesFrom(type, compilation, MetadataNames.Entity))
         {
             // A class of the wrong shape that claims nothing is an ordinary class, not a mistake.
             if (constructors.Count == 0)
@@ -33,13 +33,6 @@ internal static class EntityDescriber
             return SpawnChecked(type, declaration, null, discoveredFault, model, constructors);
         }
 
-        // The attribute has a single form. Any other call is the compiler's error to report.
-        if (annotation.ConstructorArguments.Length != 1)
-        {
-            return null;
-        }
-
-        string? key = annotation.ConstructorArguments[0].Value as string;
         if (string.IsNullOrWhiteSpace(key))
         {
             return Model(type, declaration, null, EntityFault.BlankTypeKey);
@@ -51,7 +44,7 @@ internal static class EntityDescriber
             : !SymbolShape.IsAccessibleFromGeneratedCode(type) ? EntityFault.InaccessibleType
             : EntityFault.None;
 
-        return SpawnChecked(type, declaration, key!, fault, model, constructors);
+        return SpawnChecked(type, declaration, key, fault, model, constructors);
     }
 
     // An engine entity a document places by the key its [TypeKey] names. Its members are described as a game class's
@@ -59,8 +52,7 @@ internal static class EntityDescriber
     internal static EntityModel? DescribeEngine(Compilation compilation, string metadataName)
     {
         if (compilation.GetTypeByMetadataName(metadataName) is not { } type
-            || SymbolShape.Attribute(type, compilation, MetadataNames.TypeKeyAttribute) is not { ConstructorArguments.Length: 1 } annotation
-            || annotation.ConstructorArguments[0].Value is not string key)
+            || SymbolShape.DeclaredTypeKey(type, compilation) is not { Length: > 0 } key)
         {
             return null;
         }
@@ -103,8 +95,9 @@ internal static class EntityDescriber
 
     // Whether the constructor's initializer passes an EntitySpawn on: a base(...) or this(...)
     // argument of that type, the spawn itself or one rewritten with { }, or a primary constructor's
-    // base argument list carrying one. A this(...) target is trusted, as is a constructor with no
-    // syntax here. Otherwise at is the constructor that drops the spawn.
+    // base argument list carrying one. The constructor a this(...) passes the spawn to is trusted to
+    // pass it on, as is a constructor with no syntax here. Otherwise at is the constructor that drops
+    // the spawn.
     private static bool PassesSpawnOn(IMethodSymbol constructor, SemanticModel declaring, out Location? at)
     {
         at = null;

@@ -1,7 +1,5 @@
-using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using Capsule.Assets;
 using Capsule.Audio;
@@ -63,6 +61,10 @@ public sealed class AuthorableArrayTests
     private static readonly (string Path, string? Content)[] Declared =
         [("textures/hazard.png", null), ("audio/chime.wav", null), ("scenes/hall.scene.json", null)];
 
+    // The generated registry, compiled against the declared assets.
+    private static readonly Lazy<SceneRegistry> Registry = new(static () =>
+        GeneratorHarness.Registry(GeneratorHarness.CompileAgainstSources(Game, logic: true, Declared)));
+
     [Fact]
     public void EveryElementAndKey_ResolvesAtLoad_HoweverTheKeyIsSpelt()
     {
@@ -106,7 +108,7 @@ public sealed class AuthorableArrayTests
     {
         SceneDocument document = SceneDocument.Parse(Document(
             """{"id": 1, "type": "lift"}, {"type": "gate", "path": [[0, 0], [48, -8]], "weights": [0.5, 2], "lifts": [1]}"""));
-        SceneRegistry registry = Registry();
+        SceneRegistry registry = Registry.Value;
         Entity first = registry.Create(new SceneKey("scenes/room"), document).Entities.ToArray()[1];
         Entity second = registry.Create(new SceneKey("scenes/room"), document).Entities.ToArray()[1];
 
@@ -193,19 +195,7 @@ public sealed class AuthorableArrayTests
         "{\"entities\": [" + entries + "]}";
 
     // Composes the room through the generated registry.
-    private static Scene Composed(string entries) =>
-        Registry().Create(new SceneKey("scenes/room"), SceneDocument.Parse(Document(entries)));
+    private static Scene Composed(string entries) => GeneratorHarness.Composed(Registry.Value, Document(entries));
 
-    // The generated registry, compiled against the declared assets.
-    private static SceneRegistry Registry()
-    {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(Game, logic: true, Declared);
-        Assert.Empty(GeneratorHarness.Errors(diagnostics));
-
-        Assembly game = GeneratorHarness.Loaded(compiled);
-
-        return (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;
-    }
-
-    private static object? Member(Entity entity, string name) => entity.GetType().GetProperty(name)!.GetValue(entity);
+    private static object? Member(Entity entity, string name) => GeneratorHarness.Member(entity, name);
 }

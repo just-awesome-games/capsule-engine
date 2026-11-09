@@ -13,18 +13,26 @@ namespace Capsule.Tests.Build;
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class AssetPipelineTests
 {
+    // Each defective source, authored or imported, is reported once by name, and every source without a
+    // defect still derives and ships.
     [Fact]
-    public void ARunWithADefectInTwoKinds_ReportsBoth()
+    public void ARunWithDefectsInSeveralKinds_ReportsEachAndShipsTheRest()
     {
         using ToolWorkspace workspace = new();
+        workspace.Configure = static build => build.AddImporter(new NoteImporter());
         workspace.Write("Assets/Scenes/broken.scene.json", """{ "entities": [ { "id": 1, "x": 0, "y": 0 } ] }""");
+        workspace.Write("Assets/Scenes/hall.scene.json", ImportTests.Scene);
         workspace.Write("Assets/Audio/hum.wav", "not a wav");
+        workspace.Write("Assets/Notes/broken.note", NoteImporter.Broken);
+        workspace.Write("Assets/Notes/room.note", ImportTests.Scene);
 
-        string errors = workspace.Fail();
+        string[] errors = workspace.Fail().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
-        Assert.Contains("Assets/Scenes/broken.scene.json", errors, StringComparison.Ordinal);
-        Assert.Contains("has no type", errors, StringComparison.Ordinal);
-        Assert.Contains("Assets/Audio/hum.wav", errors, StringComparison.Ordinal);
+        Assert.Equal(3, errors.Length);
+        Assert.Contains(errors, static line => line.StartsWith("Assets/Scenes/broken.scene.json: ", StringComparison.Ordinal) && line.Contains("has no type", StringComparison.Ordinal));
+        Assert.Contains(errors, static line => line.StartsWith("Assets/Audio/hum.wav: ", StringComparison.Ordinal));
+        Assert.Contains($"Assets/Notes/broken.note: {NoteImporter.Broken}", errors);
+        Assert.Equal(["notes/room.scene.json.gz", "scenes/hall.scene.json.gz"], workspace.Shipped);
     }
 
     // An argument the build does not read is a mismatch between the targets and the tool, never one
@@ -38,6 +46,19 @@ public sealed class AssetPipelineTests
         Assert.StartsWith("usage:", workspace.Errors, StringComparison.Ordinal);
     }
 
+    // A defective --shader-format pair is named before the usage line.
+    [Theory]
+    [InlineData("nopair", "--shader-format \"nopair\" is no <name>=<tool> pair.")]
+    [InlineData("Metal=tool", "--shader-format \"Metal=tool\" names the format \"Metal\". A format's name is lowercase letters and digits.")]
+    [InlineData("spirv=tool", "--shader-format \"spirv=tool\" names \"spirv\", which the engine compiles itself.")]
+    public void ADefectiveShaderFormat_IsAUsageErrorNamingThePair(string pair, string defect)
+    {
+        using ToolWorkspace workspace = new();
+
+        Assert.Equal(2, workspace.Run("--shader-tools", "tools", "--shader-format", pair));
+        Assert.StartsWith(defect, workspace.Errors, StringComparison.Ordinal);
+    }
+
     // A project may name its asset root with a trailing separator.
     [Fact]
     public void AnAssetRootEndingInASeparator_NamesEachSourceAsWithoutOne()
@@ -48,20 +69,26 @@ public sealed class AssetPipelineTests
         Assert.StartsWith("Assets/Audio/hum.wav: ", workspace.Fail(), StringComparison.Ordinal);
     }
 
-    // A source deleted since the last run stops shipping, with no clean in between.
+    // A source deleted since the last run stops shipping, with no clean in between, and what an import
+    // wrote from a source since moved is gone, not just left unrequested.
     [Fact]
     public void ASourceRemovedSinceTheLastRun_NoLongerShips()
     {
         using ToolWorkspace workspace = new();
+        workspace.Configure = static build => build.AddImporter(new NoteImporter());
         workspace.Write("Assets/Textures/hero.png", string.Empty);
         workspace.Write("Assets/Textures/gone.png", string.Empty);
+        workspace.Write("Assets/Scenes/old.note", ImportTests.Scene);
         workspace.Succeed();
 
         File.Delete("Assets/Textures/gone.png");
+        File.Move("Assets/Scenes/old.note", "Assets/Scenes/new.note");
         workspace.Succeed();
 
-        Assert.Equal(["textures/hero.png"], workspace.Shipped);
+        Assert.Equal(["scenes/new.scene.json.gz", "textures/hero.png"], workspace.Shipped);
+        Assert.False(File.Exists(ToolWorkspace.Imported + "Scenes/old.scene.json"));
         Assert.DoesNotContain("Gone", workspace.Generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old", workspace.Generated, StringComparison.Ordinal);
     }
 
     // A directory holding a .capsuleignore is development-only. A shipping run leaves out every file
@@ -183,6 +210,25 @@ public sealed class AssetPipelineTests
         }
 
         Assert.Empty(SameAtEitherDegree(workspace));
+    }
+
+    // Every concurrent body runs, and no failure is dropped: one is rethrown as thrown, several together
+    // in index order.
+    [Fact]
+    public void ConcurrentFailures_AreEachRethrown()
+    {
+        Assert.IsType<IOException>(Assert.ThrowsAny<Exception>(() => Concurrently.For(8, 4, i => _ = i == 5 ? throw new IOException("5") : 0)));
+
+        int ran = 0;
+        AggregateException several = Assert.Throws<AggregateException>(() => Concurrently.For(8, 4, i =>
+        {
+            Interlocked.Increment(ref ran);
+            _ = i % 3 == 0 ? throw new IOException(i.ToString(System.Globalization.CultureInfo.InvariantCulture)) : 0;
+        }));
+
+        Assert.Equal(8, ran);
+        Assert.Equal(["0", "3", "6"], several.InnerExceptions.Select(static ex => ex.Message));
+        Assert.True(PipelinePass.IsReportable(several));
     }
 
     // Asserts a cold run at degree 1 reports and leaves exactly what one at degree 8 does, and returns its errors.

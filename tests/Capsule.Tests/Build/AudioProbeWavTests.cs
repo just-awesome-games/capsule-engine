@@ -12,6 +12,9 @@ public sealed class AudioProbeWavTests
     [InlineData(1, 16, 22050, 1764, 0.08)]
     [InlineData(2, 16, 44100, 22050, 0.5)]
     [InlineData(1, 8, 8000, 4000, 0.5)]
+
+    // An odd-sized 'data' chunk that ends the file without its pad byte.
+    [InlineData(1, 8, 8000, 4001, 0.500125)]
     public void AWavsDuration_IsItsDataChunkOverItsFrameSizeAndRate(
         int channels,
         int bits,

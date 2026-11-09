@@ -37,8 +37,6 @@ internal sealed class PanelRows
     internal string ScenePage(List<OverlayRow> rows)
     {
         Scene scene = _scenes.Scene;
-        _panel.Clear();
-        scene.RunDebugPanel(_panel);
         AddRows(rows, PanelSubject.Scene, null);
         rows.Insert(1, new OverlayRow("Camera", _openCamera, scene.Camera.GetType().Name));
 
@@ -70,8 +68,6 @@ internal sealed class PanelRows
     // child's row. The children list under Parent, each with a count of its own.
     internal string EntityPanel(Entity entity, List<OverlayRow> rows)
     {
-        _panel.Clear();
-        entity.RunDebugPanel(_panel);
         AddRows(rows, PanelSubject.Entity, entity);
 
         ReadOnlySpan<Entity> children = entity.Children;
@@ -92,12 +88,9 @@ internal sealed class PanelRows
     // The held scene's camera, titled by its type.
     internal string CameraPanel(List<OverlayRow> rows)
     {
-        Camera camera = _scenes.Scene.Camera;
-        _panel.Clear();
-        camera.RunDebugPanel(_panel);
         AddRows(rows, PanelSubject.Camera, null);
 
-        return camera.GetType().Name;
+        return _scenes.Scene.Camera.GetType().Name;
     }
 
     // Null for a leaf, which leaves its value column empty.
@@ -113,6 +106,7 @@ internal sealed class PanelRows
     // entity in the held scene are focusable.
     private void AddRows(List<OverlayRow> rows, PanelSubject subject, Entity? owner)
     {
+        PanelSubjects.Fill(_panel, _scenes.Scene, subject, owner);
         ReadOnlySpan<DebugPanelRow> panel = _panel.Rows;
         int index = 0;
         while (index < panel.Length)
@@ -139,8 +133,8 @@ internal sealed class PanelRows
         }
     }
 
-    // The section is panel[start..end]. A command or toggle is recorded by its label and how many
-    // same-labelled ones the whole panel wrote before it.
+    // The section is panel[start..end]. A command or toggle is recorded by its label and its occurrence in
+    // the whole panel.
     private void AddSection(List<OverlayRow> rows, ReadOnlySpan<DebugPanelRow> panel, int start, int end, PanelSubject subject, Entity? owner)
     {
         ReadOnlySpan<DebugPanelRow> section = panel[start..end];
@@ -180,17 +174,10 @@ internal sealed class PanelRows
                 continue;
             }
 
-            int occurrence = 0;
-            for (int before = 0; before < index; before++)
-            {
-                if (panel[before].Kind is DebugPanelRowKind.Command or DebugPanelRowKind.Toggle && panel[before].Label == row.Label)
-                {
-                    occurrence++;
-                }
-            }
+            int occurrence = PanelSubjects.Occurrence(panel, index);
 
-            // Runs inside the tick it forces. What it throws is the developer's and is not caught. The act
-            // names the entity by where it stands when the row is chosen.
+            // Runs inside the tick it forces. What it throws propagates, as every tick failure but a failed
+            // scene start does. The act names the entity by where it stands when the row is chosen.
             Action activate = row.Activate!;
             string rowLabel = row.Label;
             string label = row.Kind == DebugPanelRowKind.Command ? row.Label : OverlayRow.Marked(row.On, row.Label);

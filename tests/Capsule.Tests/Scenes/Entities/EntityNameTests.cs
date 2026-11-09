@@ -35,11 +35,17 @@ public sealed class EntityNameTests
         Scene scene = new();
         Probe avatar = new() { Name = "Avatar" };
         Probe renamed = new();
-        Assert.Equal("Avatar", avatar.Name);
         scene.Add(avatar);
         scene.Add(renamed);
         using SimulationHost host = new(scene);
 
+        renamed.Name = "Avatar";
+
+        Assert.Equal("Avatar", avatar.Name);
+        Assert.Equal("Avatar (1)", renamed.Name);
+
+        // Asking again for the name it already asks for keeps its number.
+        avatar.Name = "Avatar";
         renamed.Name = "Avatar";
 
         Assert.Equal("Avatar", avatar.Name);

@@ -7,6 +7,10 @@ namespace Capsule.Animation;
 /// </summary>
 /// <remarks>
 /// This is a mutable value. Copying it copies the ticks left, and the copy steps independently.
+/// <para>
+/// A countdown started after its own <see cref="Step"/> spends its first tick on the next step. To stay
+/// running through n further steps, it starts with n + 1 ticks.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>

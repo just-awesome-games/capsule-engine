@@ -8,15 +8,6 @@ namespace Capsule.Tests.Animation;
 
 public sealed class SpriteAnimatorPlaybackTests
 {
-    /// <summary>Where a <c>Play</c> is made from, which must not change the frames drawn.</summary>
-    public enum PlaySite
-    {
-        EntityStart,
-        EntityStep,
-        ComponentAfterTheAnimator,
-        BeforeJoiningMidStep,
-    }
-
     [Fact]
     public void PlayingDrawsTheFirstFrameBeforeAnyStepRuns()
     {
@@ -39,14 +30,7 @@ public sealed class SpriteAnimatorPlaybackTests
         SpriteRenderer hat = new(Frame(3));
         SpriteRenderer scarf = new(Frame(4));
         SpriteAnimator animator = new(body, hat, scarf);
-        SceneFixtures.Recorder entity = new("layered", []);
-        entity.Add(body);
-        entity.Add(hat);
-        entity.Add(scarf);
-        entity.Add(animator);
-        SceneFixtures.HookScene scene = new();
-        scene.Add(entity);
-        using SimulationHost run = new(scene);
+        using SimulationHost run = Stepped(body, hat, scarf, animator);
 
         Assert.All([hat, scarf], layer => Assert.Equal(Frame(9), layer.Sprite));
 
@@ -134,10 +118,9 @@ public sealed class SpriteAnimatorPlaybackTests
                 return effect;
             },
             capacity: 1);
-        SceneFixtures.HookScene scene = new();
         Animated first = pool.Take();
-        scene.Add(first);
-        SimulationHost run = new(scene);
+        SimulationHost run = SceneFixtures.Simulate(first);
+        Scene scene = run.Simulation.Scene;
 
         Assert.Equal([Frame(3), Frame(4)], DrawnOver(run, 2));
 

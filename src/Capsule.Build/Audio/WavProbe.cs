@@ -28,9 +28,9 @@ internal static class WavProbe
             FloatSamples: wave.Tag == FloatTag);
     }
 
-    // RIFF: a 12-byte header, then 'id' + little-endian size + payload padded to an even length.
-    // Only 'fmt ', 'data' and 'smpl' are read, and every other chunk is skipped. Refuses every shape
-    // Measure refuses, and leaves the stream at its end.
+    // RIFF: a 12-byte header, then 'id' + little-endian size + payload padded to an even length. A
+    // writer may leave the last chunk's pad byte off. Only 'fmt ', 'data' and 'smpl' are read, and every
+    // other chunk is skipped. Refuses every shape Measure refuses, and leaves the stream at its end.
     internal static Layout Locate(FileStream stream)
     {
         Span<byte> riff = stackalloc byte[12];
@@ -56,7 +56,7 @@ internal static class WavProbe
         while (TryRead(stream, chunk))
         {
             uint size = BinaryPrimitives.ReadUInt32LittleEndian(chunk[4..]);
-            long next = stream.Position + size + (size & 1);
+            long end = stream.Position + size;
 
             if (Is(chunk[..4], "fmt "))
             {
@@ -94,12 +94,12 @@ internal static class WavProbe
                 SampleLoop(stream, size, ref loopStart, ref loopEnd);
             }
 
-            if (next > stream.Length)
+            if (end > stream.Length)
             {
                 throw new FormatException("ends inside a RIFF chunk. The file is truncated. Export it again.");
             }
 
-            stream.Seek(next, SeekOrigin.Begin);
+            stream.Seek(Math.Min(end + (size & 1), stream.Length), SeekOrigin.Begin);
         }
 
         if (rate == 0 || channels == 0 || bits == 0 || bits % 8 != 0)
@@ -121,7 +121,13 @@ internal static class WavProbe
             throw new FormatException("carries no 'data' chunk, and its length cannot be measured. Export the file again.");
         }
 
-        return new Layout(tag, channels, bits, rate, dataOffset, dataBytes / (channels * (bits / 8)), loopStart, loopEnd);
+        long frames = dataBytes / (channels * (bits / 8));
+        if (frames == 0)
+        {
+            throw new FormatException("carries a 'data' chunk holding no whole sample frame, and a clip sounds at least one. Export the file again with its audio.");
+        }
+
+        return new Layout(tag, channels, bits, rate, dataOffset, frames, loopStart, loopEnd);
     }
 
     // The format tag an extensible 'fmt ' body's sub-format names, read with the stream past the body's
@@ -182,7 +188,7 @@ internal static class WavProbe
     /// <param name="Bits">8, 16, 24 or 32. 8-bit samples are unsigned.</param>
     /// <param name="Rate">Frames per second, above zero.</param>
     /// <param name="DataOffset">Where the 'data' chunk's samples begin in the file.</param>
-    /// <param name="Frames">Whole frames the 'data' chunk holds. A trailing partial frame is not one.</param>
+    /// <param name="Frames">Whole frames the 'data' chunk holds, at least one. A trailing partial frame is not one.</param>
     /// <param name="LoopStart">The first 'smpl' loop's first sample, or null.</param>
     /// <param name="LoopEnd">The sample one past the first 'smpl' loop's last, or null.</param>
     internal readonly record struct Layout(

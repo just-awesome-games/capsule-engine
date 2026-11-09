@@ -124,12 +124,7 @@ public sealed class RunEndTests
         Registered(scene).WithGame(run => new Timing(run, events));
 
     private static EngineBuilder Registered(Func<Ending> scene) =>
-        CapsuleEngine.Configure(
-                "Ending Game",
-                new SceneRegistry(new EntityRegistry([]), [SceneRegistration.Plain(typeof(Ending), _ => scene())]))
-            .WithFixedStep(Hertz)
-            .WithoutCrashLog()
-            .WithoutLogging();
+        QuietEngine.Configure([SceneRegistration.Plain(typeof(Ending), _ => scene())], Hertz);
 
     private static string Ended(long steps) => Invariant($"end at {steps}, {steps * (1.0 / Hertz)} s");
 

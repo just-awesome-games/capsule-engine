@@ -25,7 +25,7 @@ public sealed class SceneHidingTests
         Entity parent = new Node(Vector2.Zero);
         SceneFixtures.Drifter child = new(Vector2.Zero);
         child.Parent = parent;
-        CountingRenderer renderer = new();
+        SceneFixtures.CountingRenderer renderer = new();
         child.Add(renderer);
 
         switch (hiding)
@@ -133,16 +133,5 @@ public sealed class SceneHidingTests
         child.Parent = null;
 
         Assert.True(child.ShownInTree);
-    }
-
-    private sealed class CountingRenderer : Renderer
-    {
-        internal int Draws { get; private set; }
-
-        protected internal override void Draw(FrameView view)
-        {
-            Draws++;
-            view.Add(new SpriteIntent(SceneFixtures.Frame(1, 1), Vector2.Zero, Vector2.Zero, 0f, 0f, Vector2.One, false, false, ColorRgba.White));
-        }
     }
 }

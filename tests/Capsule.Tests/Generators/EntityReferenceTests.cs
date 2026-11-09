@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Globalization;
-using System.Reflection;
 using Capsule.Scenes;
 using Microsoft.CodeAnalysis;
 
@@ -50,6 +49,8 @@ public sealed class EntityReferenceTests
         {"id": 2, "type": "floor-switch", "x": 0, "y": 0, "lift": 3, "target": 1},
         {"id": 3, "type": "lift", "x": 0, "y": 0}
         """;
+
+    private static readonly Lazy<SceneRegistry> Registry = new(static () => GeneratorHarness.Registry(GeneratorHarness.Compile(Game)));
 
     [Fact]
     public void AForwardAndABackwardReference_ResolveAfterEveryEntryIsConstructed()
@@ -107,17 +108,7 @@ public sealed class EntityReferenceTests
         "{\"entities\": [" + entries + "]}";
 
     // Composes the room through the generated registry.
-    private static Scene Composed(string entries)
-    {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile(Game);
-        Assert.Empty(GeneratorHarness.Errors(diagnostics));
+    private static Scene Composed(string entries) => GeneratorHarness.Composed(Registry.Value, Document(entries));
 
-        Assembly game = GeneratorHarness.Loaded(compiled);
-        SceneRegistry registry = (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!
-            .GetProperty("Registry")!.GetValue(null)!;
-
-        return registry.Create(new SceneKey("scenes/room"), SceneDocument.Parse(Document(entries)));
-    }
-
-    private static object? Member(Entity entity, string name) => entity.GetType().GetProperty(name)!.GetValue(entity);
+    private static object? Member(Entity entity, string name) => GeneratorHarness.Member(entity, name);
 }

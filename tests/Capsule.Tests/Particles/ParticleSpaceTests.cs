@@ -18,8 +18,7 @@ public sealed class ParticleSpaceTests
     {
         Driven entity = new(new Vector2(1f, 0.5f), 0f) { Scale = new Vector2(-1f, 1f) };
         ParticleEmitter emitter = new(Tile, capacity: 1) { Space = ParticleSpace.Local, Lifetime = (5f, 5f) };
-        entity.Add(emitter);
-        SimulationHost host = new(new SceneFixtures.HookScene(start: s => s.Add(entity)));
+        SimulationHost host = ParticleEmitterTests.Host(emitter, entity);
 
         emitter.Emit(1, new Vector2(3f, 2f));
 
@@ -28,8 +27,8 @@ public sealed class ParticleSpaceTests
             host.Step();
 
             SpriteIntent intent = host.Simulation.View.Sprites.ToArray().Single();
-            AssertClose(new Vector2(-3f, 2f), intent.PreviousPosition - entity.PreviousWorld.Position);
-            AssertClose(new Vector2(-3f, 2f), intent.Position - entity.WorldTransform.Position);
+            ParticleEmitterTests.AssertClose(new Vector2(-3f, 2f), intent.PreviousPosition - entity.PreviousWorld.Position, Tolerance);
+            ParticleEmitterTests.AssertClose(new Vector2(-3f, 2f), intent.Position - entity.WorldTransform.Position, Tolerance);
         }
     }
 
@@ -43,8 +42,7 @@ public sealed class ParticleSpaceTests
             Lifetime = (5f, 5f),
             Gravity = new Vector2(0f, 100f),
         };
-        entity.Add(emitter);
-        SimulationHost host = new(new SceneFixtures.HookScene(start: s => s.Add(entity)));
+        SimulationHost host = ParticleEmitterTests.Host(emitter, entity);
 
         emitter.Emit(1);
         host.Step(10);
@@ -67,8 +65,7 @@ public sealed class ParticleSpaceTests
             RadialSpeed = (-30f, -30f),
             Lifetime = (5f, 5f),
         };
-        entity.Add(emitter);
-        SimulationHost host = new(new SceneFixtures.HookScene(start: s => s.Add(entity)));
+        SimulationHost host = ParticleEmitterTests.Host(emitter, entity);
 
         emitter.Emit(1);
         host.Step(3);
@@ -99,8 +96,7 @@ public sealed class ParticleSpaceTests
             Lifetime = (5f, 5f),
             KillZone = zone,
         };
-        entity.Add(emitter);
-        SimulationHost host = new(new SceneFixtures.HookScene(start: s => s.Add(entity)));
+        SimulationHost host = ParticleEmitterTests.Host(emitter, entity);
 
         emitter.Emit(1);
         float reached = 0f;
@@ -136,8 +132,7 @@ public sealed class ParticleSpaceTests
             Rate = 120f,
             Lifetime = (0.5f, 0.5f),
         };
-        entity.Add(emitter);
-        SimulationHost host = new(new SceneFixtures.HookScene(start: s => s.Add(entity)));
+        SimulationHost host = ParticleEmitterTests.Host(emitter, entity);
 
         for (int step = 0; step < 20; step++)
         {
@@ -154,9 +149,6 @@ public sealed class ParticleSpaceTests
 
     private static bool Covers(Rect rect, Vector2 point) =>
         point.X >= rect.Left && point.X <= rect.Right && point.Y >= rect.Top && point.Y <= rect.Bottom;
-
-    private static void AssertClose(Vector2 expected, Vector2 actual) =>
-        Assert.True(Vector2.Distance(expected, actual) <= Tolerance, $"expected {expected}, got {actual}");
 
     // Moves and turns by a fixed amount every step.
     private sealed class Driven(Vector2 velocityPerStep, float turnPerStep) : Entity(Vector2.Zero)

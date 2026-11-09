@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Capsule.Build.Fonts;
@@ -10,18 +11,28 @@ internal static partial class BmFontParser
     /// <summary>The extension a page ships as.</summary>
     private const string PageExtension = ".png";
 
-    /// <summary>Reads <paramref name="text"/>.</summary>
+    // A byte that is no UTF-8 fails the font instead of reading as a replacement character.
+    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+    /// <summary>Reads <paramref name="font"/>, text in UTF-8 or the encoding its byte order mark names.</summary>
     /// <exception cref="FormatException">
     /// The source is the XML or binary flavour, channel-packed, malformed, or cuts a glyph its pages
     /// cannot hold. The message names the line the defect is on.
     /// </exception>
-    internal static BmFontDescription Parse(string text)
+    /// <exception cref="DecoderFallbackException">The text holds a byte that is no UTF-8.</exception>
+    internal static BmFontDescription Parse(byte[] font)
     {
         // The format has three flavours. Only text is read, and the other two are named so they do
-        // not fail later as malformed text.
-        if (text.StartsWith("BMF", StringComparison.Ordinal))
+        // not fail later as malformed text. The binary flavour is named before decoding, which it fails.
+        if (font.AsSpan().StartsWith("BMF"u8))
         {
             throw new FormatException("is a binary BMFont file. Capsule reads the text flavour. Export the font as text.");
+        }
+
+        string text;
+        using (StreamReader reader = new(new MemoryStream(font), StrictUtf8, detectEncodingFromByteOrderMarks: true))
+        {
+            text = reader.ReadToEnd();
         }
 
         if (text.TrimStart().StartsWith('<'))

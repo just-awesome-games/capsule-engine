@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Capsule.Rendering;
-using Capsule.Runtime.Platform;
 
 namespace Capsule.Runtime;
 
@@ -27,7 +26,7 @@ internal sealed class FrameStart(Func<long> timestamp, Action<long> sleep)
     private long _pause = ShortestPause;
 
     internal FrameStart()
-        : this(Stopwatch.GetTimestamp, static ticks => Sdl3.SDL_DelayNS((ulong)(ticks * 1_000_000_000 / Stopwatch.Frequency)))
+        : this(Stopwatch.GetTimestamp, FramePacer.Sleep)
     {
     }
 

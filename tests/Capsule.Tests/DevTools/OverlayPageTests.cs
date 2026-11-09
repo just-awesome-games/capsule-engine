@@ -61,10 +61,25 @@ public sealed class OverlayPageTests
         Assert.Equal(1, rig.Scheduler.Tick);
     }
 
-    // A control the overlay never shows is one a developer never learns.
+    // A control the overlay never shows is one a developer never learns. Each action no root row shows is
+    // listed with the line of the Help page that teaches it and the keys that line shows.
     [Fact]
     public void EveryOverlayAction_IsTaughtByARootRowOrALineOfTheHelpPage()
     {
+        (InputAction Action, string Line, string Keys)[] helpTeaches =
+        [
+            (OverlayActions.MenuUp, "Move the focus", "Up/Down, Point"),
+            (OverlayActions.MenuDown, "Move the focus", "Up/Down, Point"),
+            (OverlayActions.Confirm, "Activate the row", "Enter, Click"),
+            (OverlayActions.Click, "Activate the row", "Enter, Click"),
+            (OverlayActions.Back, "Go back", "Backspace/Left"),
+            (OverlayActions.Sideways, "Scroll sideways", "Shift/Alt+Wheel"),
+            (OverlayActions.Zoom, "Zoom", "Control+Wheel"),
+            (OverlayActions.Pan, "Pan", "Middle-drag, Space+left-drag"),
+            (OverlayActions.Grab, "Pan", "Middle-drag, Space+left-drag"),
+            (OverlayActions.Move, "Move the open entity here", "G"),
+            (OverlayActions.Frame, "Frame the open entity", "F"),
+        ];
         using OverlayRig rig = new(CreateHost(), CreateRegistry(), recordings: "unwritten");
         rig.Open();
         HashSet<InputAction> taught = [];
@@ -78,9 +93,10 @@ public sealed class OverlayPageTests
 
         rig.Press(Key.F1);
         Assert.Equal("Help", rig.Overlay.Title);
-        foreach (HelpLine line in OverlayActions.HelpLines)
+        foreach ((InputAction action, string line, string keys) in helpTeaches)
         {
-            taught.UnionWith(line.Covers);
+            Assert.Contains(rig.Overlay.Rows, row => row.Label == line && row.Value == keys);
+            taught.Add(action);
         }
 
         Assert.Equal([], OverlayActions.Actions.Where(action => !taught.Contains(action)).ToArray());

@@ -6,10 +6,10 @@ internal enum MixCommandKind : byte
     // Start a voice in the slot, replacing whatever the slot held.
     Play,
 
-    // Fade the voice out and end it.
+    // Fade the voice out and end it, or end it at once if it is silent.
     Stop,
 
-    // Fade the voice out and hold it where it is.
+    // Fade the voice out and hold it where it is, or hold it at once if it is silent.
     Pause,
 
     // Fade a held voice back in from where it was held.

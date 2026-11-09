@@ -220,6 +220,22 @@ public partial class Scene
     // Enqueue for addition. A child parented under a held entity joins directly.
     internal void Enqueue(Entity entity)
     {
+        RequireEnqueueable(entity);
+
+        if (_stepping)
+        {
+            _pendingAdds.Add(entity);
+            _pendingAddSet.Add(entity);
+            entity.PendingScene = this;
+            return;
+        }
+
+        Attach(entity);
+    }
+
+    // Every refusal Enqueue makes, for a caller that must refuse before it changes anything.
+    internal void RequireEnqueueable(Entity entity)
+    {
         ThrowIfStopped();
         Drawing.ThrowIfDrawing("added an entity");
 
@@ -234,16 +250,6 @@ public partial class Scene
             throw new InvalidOperationException(
                 $"A {entity.GetType().Name} is already in a scene. Remove it before adding it elsewhere.");
         }
-
-        if (_stepping)
-        {
-            _pendingAdds.Add(entity);
-            _pendingAddSet.Add(entity);
-            entity.PendingScene = this;
-            return;
-        }
-
-        Attach(entity);
     }
 
     private static void DropProcessed(List<Entity> queue, HashSet<Entity> membership, int processed)
@@ -597,6 +603,16 @@ public partial class Scene
 
     private void ClearPendingState()
     {
+        // Adds a failed step left queued never join. Each is free to join elsewhere, and a pooled one is idle again.
+        foreach (Entity entity in _pendingAdds)
+        {
+            entity.PendingScene = null;
+            if (entity.Pool is { } pool && entity.SceneOrNull is null)
+            {
+                pool.Return(entity);
+            }
+        }
+
         _pendingStarts.Clear();
         _pendingAdds.Clear();
         _pendingAddSet.Clear();

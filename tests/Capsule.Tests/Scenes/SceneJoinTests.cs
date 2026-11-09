@@ -149,7 +149,7 @@ public sealed class SceneJoinTests
         log.Clear();
         Scene scene = new();
         scene.Add(reused);
-        reused.Add(new Starting(log));
+        reused.Add(new RecordingComponent("component", log, Logs.Start));
 
         Assert.Empty(log);
 
@@ -209,11 +209,6 @@ public sealed class SceneJoinTests
             : base(spawn) => Add(Source = new AudioSource(Chime));
 
         protected internal override void OnAddedToScene() => Source.Play();
-    }
-
-    private sealed class Starting(List<string> log) : Component
-    {
-        protected internal override void OnStart() => log.Add("component!");
     }
 
     // Leaves the scene from its own join hook, before its children join.

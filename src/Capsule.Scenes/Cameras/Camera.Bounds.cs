@@ -154,8 +154,12 @@ public partial class Camera
         }
         else if (Bounds is { } chased && moves && _carry.IsChase)
         {
-            Rect from = Start(_confine ?? Unbounded, chased, standing, _followMove);
-            _confine = Chase(from, chased, seconds / (_carry.Seconds + seconds), _carry.MaxSpeed * seconds);
+            // A step of no time moves the chase nowhere. A chase of no length would otherwise blend by 0/0.
+            if (seconds > 0f)
+            {
+                Rect from = Start(_confine ?? Unbounded, chased, standing, _followMove);
+                _confine = Chase(from, chased, seconds / (_carry.Seconds + seconds), _carry.MaxSpeed * seconds);
+            }
         }
         else
         {

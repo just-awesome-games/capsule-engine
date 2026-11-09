@@ -4,11 +4,12 @@ using System.Security.Cryptography;
 namespace Capsule.Build.Caching;
 
 /// <summary>
-/// The SHA-256 of each file a derivation reads, hashed at most once per run.
+/// The SHA-256 of each file a derivation reads, one kept per file for the run.
 /// </summary>
 /// <remarks>
 /// A file whose length and write time match the last run's record reuses that record's hash without
-/// being read. Derivations read hashes concurrently. Only <see cref="Found"/> runs alone.
+/// being read. Derivations read hashes concurrently, and two reading one file at once may both hash
+/// it. Only <see cref="Found"/> runs alone.
 /// </remarks>
 internal sealed class ContentHashes
 {

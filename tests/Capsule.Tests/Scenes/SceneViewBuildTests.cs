@@ -11,7 +11,7 @@ public sealed class SceneViewBuildTests
     [Fact]
     public void TheView_BuildsOnlyOnTheFirstReadAfterAStep()
     {
-        Counting counting = new();
+        SceneFixtures.CountingRenderer counting = new();
         SceneFixtures.Drifter drifter = new(Vector2.Zero);
         drifter.Add(counting);
 
@@ -62,7 +62,7 @@ public sealed class SceneViewBuildTests
     [Fact]
     public void ADisposedSimulation_KeepsItsLastBuiltFrame_AndThrowsWhenItBuiltNone()
     {
-        Counting counting = new();
+        SceneFixtures.CountingRenderer counting = new();
         SceneFixtures.Drifter drifter = new(Vector2.Zero);
         drifter.Add(counting);
 
@@ -162,29 +162,12 @@ public sealed class SceneViewBuildTests
         return scene;
     }
 
-    private static Climber Crossing(float y, float speed, ColorRgba color)
+    private static SceneFixtures.Drifter Crossing(float y, float speed, ColorRgba color)
     {
-        Climber climber = new(new Vector2(0f, y), speed);
+        SceneFixtures.Drifter climber = new(new Vector2(0f, y), new Vector2(0f, speed));
         climber.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)) { Color = color });
 
         return climber;
-    }
-
-    private sealed class Climber(Vector2 position, float speed) : Entity(position)
-    {
-        protected internal override void OnStep(in StepContext context) => Position += new Vector2(0f, speed);
-    }
-
-    private sealed class Counting : Renderer
-    {
-        internal int Draws { get; private set; }
-
-        protected internal override void Draw(FrameView view)
-        {
-            Draws++;
-            Entity entity = Entity!;
-            view.Add(new SpriteIntent(SceneFixtures.Frame(1, 1), entity.PreviousTransform.Position, entity.Position, 0f, 0f, Vector2.One, false, false, ColorRgba.White));
-        }
     }
 
     private sealed class Reading : Renderer

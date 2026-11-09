@@ -219,44 +219,37 @@ public sealed class CommandLineTests : IDisposable
         return _captured.ToString();
     }
 
-    // Every registry holds the class-free document HallKey. A documentKey adds a second one. The
-    // recording scenes add what they opened with to opened.
     [Fact]
-    public void LowLatency_StartsOffAndEitherOptInStartsItOn()
+    public void LowLatency_StartsOffAndTheFlagStartsItOn()
     {
         Assert.False(Builder().Display.LowLatency);
-        Assert.True(Builder().WithLowLatency().Display.LowLatency);
         Assert.True(Builder().WithCommandLine(["--low-latency"]).Display.LowLatency);
     }
 
+    // Every registry holds the class-free document HallKey. A documentKey adds a second one. The
+    // recording scenes add what they opened with to opened.
     private static EngineBuilder Builder(string? documentKey = null, List<object>? opened = null) =>
-        CapsuleEngine.Configure(
-                "Command Line Game",
-                new SceneRegistry(
-                    new EntityRegistry([]),
-                    [
-                        SceneRegistration.Plain(typeof(SceneFixtures.Idle), static _ => new SceneFixtures.Idle()),
-                        SceneRegistration.Plain(typeof(Selected), _ => new Selected(opened)),
-                        SceneRegistration.Plain(typeof(Saver), static _ => new Saver()),
-                        SceneRegistration.Plain(typeof(Greeted), _ => new Greeted(opened)),
-                        SceneRegistration.DocumentOnly(HallKey, content => new Hall(content!.Value, opened)),
-                        .. documentKey is null
-                            ? Array.Empty<SceneRegistration>()
-                            : [SceneRegistration.DocumentOnly(documentKey, content => new Hall(content!.Value, opened))],
-                    ]),
-                new InputDriverRegistry(
-                    [
-                        new InputDriverRegistration("Idler", static () => new InputScript().Wait(3).Build()),
-                        new InputDriverRegistration("Presser", static () => new InputScript().Tap(Key.Space).Build()),
-                    ]),
-                new ScenePayloadRegistry(
-                    [
-                        new ScenePayloadRegistration(nameof(Westward), static () => new Westward()),
-                        new ScenePayloadRegistration(nameof(Eastward), static () => new Eastward()),
-                    ]))
-            .WithFixedStep(10)
-            .WithoutCrashLog()
-            .WithoutLogging();
+        QuietEngine.Configure(
+            [
+                SceneRegistration.Plain(typeof(SceneFixtures.Idle), static _ => new SceneFixtures.Idle()),
+                SceneRegistration.Plain(typeof(Selected), _ => new Selected(opened)),
+                SceneRegistration.Plain(typeof(Saver), static _ => new Saver()),
+                SceneRegistration.Plain(typeof(Greeted), _ => new Greeted(opened)),
+                SceneRegistration.DocumentOnly(HallKey, content => new Hall(content!.Value, opened)),
+                .. documentKey is null
+                    ? Array.Empty<SceneRegistration>()
+                    : [SceneRegistration.DocumentOnly(documentKey, content => new Hall(content!.Value, opened))],
+            ],
+            drivers: new InputDriverRegistry(
+                [
+                    new InputDriverRegistration("Idler", static () => new InputScript().Wait(3).Build()),
+                    new InputDriverRegistration("Presser", static () => new InputScript().Tap(Key.Space).Build()),
+                ]),
+            payloads: new ScenePayloadRegistry(
+                [
+                    new ScenePayloadRegistration(nameof(Westward), static () => new Westward()),
+                    new ScenePayloadRegistration(nameof(Eastward), static () => new Eastward()),
+                ]));
 
     private sealed class Saver : Scene
     {

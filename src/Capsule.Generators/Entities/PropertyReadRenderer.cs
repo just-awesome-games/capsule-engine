@@ -30,6 +30,30 @@ internal static class PropertyReadRenderer
         return statements.ToString();
     }
 
+    /// <summary>
+    /// The ancestor whose own method sets the most of <paramref name="authored"/>'s leading members, the nearest of
+    /// equals, and the members left for the class to set itself after calling it.
+    /// </summary>
+    /// <remarks>
+    /// An ancestor qualifies only when its members are exactly the first of <paramref name="authored"/>, in order.
+    /// Hiding or overriding an inherited member breaks that, and the class then sets every member itself.
+    /// </remarks>
+    /// <param name="ancestors">Each ancestor with a method in the same generated class and its authored members, nearest first.</param>
+    internal static (string? Ancestor, IEnumerable<PropertyModel> Own) Inherited(
+        IReadOnlyList<PropertyModel> authored, IEnumerable<(string Name, IReadOnlyList<PropertyModel> Authored)> ancestors)
+    {
+        (string? Name, int Count) chained = (null, 0);
+        foreach ((string name, IReadOnlyList<PropertyModel> inherited) in ancestors)
+        {
+            if (inherited.Count > chained.Count && inherited.Count <= authored.Count && inherited.SequenceEqual(authored.Take(inherited.Count)))
+            {
+                chained = (name, inherited.Count);
+            }
+        }
+
+        return (chained.Name, authored.Skip(chained.Count));
+    }
+
     // An object the member holds without a setter is filled in place. A reference waits for every entry.
     private static string Statement(PropertyModel property, string target, string targetType, string indent)
     {
@@ -72,7 +96,8 @@ internal static class PropertyReadRenderer
 
     // The member's current value on target, which an object read fills when it names no type.
     private static string Current(PropertyModel property, string target) =>
-        property.Readable ? $"{target}.{CodeText.Identifier(property.Name)}"
+        !property.Gettable ? "null"
+        : property.Readable ? $"{target}.{CodeText.Identifier(property.Name)}"
         : property.Field ? $"{EntityAccessorRenderer.SetterReference(property)}({target})"
         : $"{EntityAccessorRenderer.GetterReference(property)}({target})";
 

@@ -60,17 +60,11 @@ public sealed class GameInstanceTests
 
     // sceneStarts runs as each scene starts.
     private static EngineBuilder Builder(List<string> events, Action<Run>? sceneStarts = null) =>
-        CapsuleEngine.Configure(
-                "Lifecycle Game",
-                new SceneRegistry(
-                    new EntityRegistry([]),
-                    [
-                        SceneRegistration.Plain(typeof(First), _ => new First(events, sceneStarts)),
-                        SceneRegistration.Plain(typeof(Second), _ => new Second(events, sceneStarts)),
-                    ]))
-            .WithFixedStep(10)
-            .WithoutCrashLog()
-            .WithoutLogging();
+        QuietEngine.Configure(
+            [
+                SceneRegistration.Plain(typeof(First), _ => new First(events, sceneStarts)),
+                SceneRegistration.Plain(typeof(Second), _ => new Second(events, sceneStarts)),
+            ]);
 
     private sealed class Lifecycle(Run run, List<string> events) : GameInstance(run)
     {

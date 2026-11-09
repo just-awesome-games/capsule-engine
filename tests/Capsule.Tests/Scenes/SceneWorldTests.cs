@@ -62,6 +62,23 @@ public sealed class SceneWorldTests
         Assert.Throws<ObjectDisposedException>(() => simulation.Step(SceneFixtures.Step()));
     }
 
+    // A start that fails before the scene's own start hook releases its entities without a stop hook.
+    [Fact]
+    public void ASceneWhoseStartFailsBeforeItsStartHook_RunsNoStopHook()
+    {
+        List<string> log = [];
+        LifecycleScene scene = new(log);
+        SceneFixtures.Recorder first = new("first", log);
+        scene.Add(first);
+        scene.Add(new SceneFixtures.Starter(_ => throw new InvalidOperationException("This entity refuses to start.")));
+
+        Assert.Throws<InvalidOperationException>(() => new SceneSimulation(scene));
+
+        Assert.DoesNotContain("scene-", log);
+        Assert.Contains("first-", log);
+        Assert.Null(first.SceneOrNull);
+    }
+
     [Fact]
     public void CleanupFailures_DoNotLeaveLaterEntitiesAttached()
     {

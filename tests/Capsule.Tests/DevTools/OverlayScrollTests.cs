@@ -60,6 +60,20 @@ public sealed class OverlayScrollTests
         Assert.Equal(0, rig.Overlay.Focus);
     }
 
+    // The click was aimed at the page Back left. It chooses no row of the page Back returned to.
+    [Fact]
+    public void AClickInTheFrameBackPopsAPage_ChoosesNoRowOfThePageBeneath()
+    {
+        using OverlayRig rig = new(CreateHost());
+        rig.Open();
+        rig.SelectRow("Time Scale");
+
+        rig.Frame(DeviceSnapshot.Of(Key.Backspace).With(MouseButton.Left).WithPointer(RowPoint(1)));
+
+        Assert.Equal("Time Scale", rig.Focused());
+        Assert.Equal(0, rig.Scheduler.Tick);
+    }
+
     // A negative notch is the wheel turned toward the user. A direction press afterwards snaps the
     // window back to show the focus.
     [Fact]

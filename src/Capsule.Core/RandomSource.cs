@@ -146,8 +146,8 @@ public sealed class RandomSource
             return minInclusive;
         }
 
-        // Scaled in double. A float span across the widest bounds the type allows overflows to infinity,
-        // and the scaled result then reads NaN.
+        // Scaled in double, because in float the span across the widest bounds overflows to infinity
+        // and the scaled result reads NaN.
         float value = (float)(minInclusive + (NextFloat() * ((double)maxExclusive - minInclusive)));
 
         // A double result below the bound can still round up to it on the way back to float.
@@ -174,7 +174,7 @@ public sealed class RandomSource
     /// <paramref name="standardDeviation"/>. Always two draws.
     /// </summary>
     /// <param name="mean">The distribution's centre. Must be finite.</param>
-    /// <param name="standardDeviation">The spread, finite and not negative, and 1 when omitted. Zero draws and returns the mean.</param>
+    /// <param name="standardDeviation">The spread, finite and not negative, and 1 when omitted. A deviation of zero still takes both draws and returns the mean.</param>
     /// <returns>
     /// A finite value within six deviations of the mean. A value beyond what a float can hold
     /// saturates at <see cref="float.MaxValue"/>.

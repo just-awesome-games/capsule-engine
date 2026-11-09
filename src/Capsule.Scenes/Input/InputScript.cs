@@ -5,9 +5,9 @@ namespace Capsule.Input;
 
 /// <summary>
 /// Builds an <see cref="IInputDriver"/> from a fixed snapshot sequence, the way a device produces
-/// one. It keeps a held state that <see cref="Down"/>, <see cref="Up"/>,
-/// <see cref="Axis"/> and <see cref="MoveTo"/> edit, and <see cref="Wait"/>, <see cref="Tap"/>
-/// and <see cref="Scroll"/> emit steps of that state.
+/// one. It keeps a held state that <see cref="Down"/>, <see cref="Up"/>, <see cref="Axis"/>,
+/// <see cref="MoveTo"/>, <see cref="WindowFocus"/>, <see cref="PadFamily"/> and <see cref="PadLacking"/>
+/// edit, and <see cref="Wait"/>, <see cref="Tap"/> and <see cref="Scroll"/> emit steps of that state.
 /// </summary>
 /// <remarks>
 /// Every duration counts fixed steps, never seconds.

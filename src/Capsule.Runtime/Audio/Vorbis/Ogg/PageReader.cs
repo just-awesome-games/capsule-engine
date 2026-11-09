@@ -19,16 +19,11 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
         // header is fully consumed synchronously within ReadPageAt and never retained afterward.
         private readonly byte[] _headerScratch = new byte[282];
 
-        // Capsule: GetPackets's known-page re-fetch (offset != PageOffset, past the short
-        // circuit) is keyed by page offset rather than the discovery ring's round-robin. A short
-        // file loops over the same handful of pages, and StreamPageReader's own cache only holds
-        // the single most-recently-touched page. Every loop wrap re-visits pages the round-robin
-        // ring had already recycled for something else in between, and it never caught up. Caching a
-        // few pages by their offset makes a revisit free instead of pooled-but-still-refetched, and
-        // covers the same handful of pages a loop keeps returning to.
-        // Capsule: 16 covers every page loop.ogg (5 data pages) or a similarly short ambient loop
-        // ever needs live at once. A loop region spanning more distinct pages than this falls back
-        // to re-fetching the least-recently-added one every wrap, same as before this cache existed.
+        // Capsule: GetPackets's re-fetch of a known page (offset != PageOffset, past the short
+        // circuit) is cached by page offset, apart from the discovery ring's round-robin, because a
+        // looping clip returns to the same handful of pages every wrap, and StreamPageReader caches
+        // only the page it touched last. A revisit of a cached page reads nothing. A loop over more
+        // distinct pages than the cache holds re-fetches the least recently added one every wrap.
         private const int KnownPageCacheSize = 16;
         private readonly long[] _knownPageOffset = InitOffsets();
         private readonly byte[][] _knownPageBuffer = new byte[KnownPageCacheSize][];

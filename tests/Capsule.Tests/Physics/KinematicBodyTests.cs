@@ -161,9 +161,12 @@ public sealed class KinematicBodyTests
     }
 
     // The flags are state as of the last move, not a standing description of where the body is: a
-    // body that stops pressing into the floor stops reporting one.
-    [Fact]
-    public void ABodyMovingIntoNothingAfterAMoveThatLanded_ClearsEveryFlag()
+    // body that stops pressing into the floor stops reporting one, and a body that leaves its scene
+    // forgets what stopped its last move.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ABodyThatLandedThenMovesIntoNothingOrLeavesItsScene_ClearsEveryFlag(bool leaves)
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
         SceneFixtures.Body body = new(new Vector2(24f, 8f), blocksOn: "solid");
@@ -172,26 +175,14 @@ public sealed class KinematicBodyTests
         body.Mover.Move(new Vector2(0f, 60f));
         Assert.True(body.Mover.IsOnFloor);
 
-        body.Mover.Move(new Vector2(0f, -4f));
-
-        Assert.False(body.Mover.IsOnFloor);
-        Assert.False(body.Mover.IsOnWall);
-        Assert.False(body.Mover.IsOnCeiling);
-        Assert.Equal(Vector2.Zero, body.Mover.FloorNormal);
-        Assert.Equal(Vector2.Zero, body.Mover.WallNormal);
-    }
-
-    [Fact]
-    public void ABodyLeavingItsScene_ForgetsWhatStoppedItsLastMove()
-    {
-        Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
-        SceneFixtures.Body body = new(new Vector2(24f, 8f), blocksOn: "solid");
-        scene.Add(body);
-
-        body.Mover.Move(new Vector2(0f, 60f));
-        Assert.True(body.Mover.IsOnFloor);
-
-        scene.Remove(body);
+        if (leaves)
+        {
+            scene.Remove(body);
+        }
+        else
+        {
+            body.Mover.Move(new Vector2(0f, -4f));
+        }
 
         Assert.False(body.Mover.IsOnFloor);
         Assert.False(body.Mover.IsOnWall);

@@ -19,8 +19,8 @@ namespace Capsule.Rendering;
 /// units under a world root and canvas pixels under a screen root. A frame's
 /// sockets are placed the same way, as child entities bound through <see cref="Socket"/>, and its
 /// boxes as colliders bound through <see cref="Box"/>. Detaching the renderer disables its boxes, and
-/// attaching it to the same entity again re-places them. Attaching it to any other entity throws
-/// <see cref="InvalidOperationException"/>.
+/// attaching it to the same entity again re-places them. Attaching a renderer with bound boxes to any
+/// other entity throws <see cref="InvalidOperationException"/>.
 /// </remarks>
 /// <param name="sprite">The frame to draw.</param>
 public sealed class SpriteRenderer(Sprite sprite) : Renderer

@@ -327,7 +327,7 @@ public class TileMap : Entity
             return null;
         }
 
-        if (members.Has("tiles") || members.Has("transforms"))
+        if (members.Has(CompiledTiles.Tiles) || members.Has(CompiledTiles.Transforms))
         {
             throw new ArgumentException("The map authors both compiled blocks and dense tiles or transforms. Keep tiles and transforms, which the build compiles.", nameof(members));
         }

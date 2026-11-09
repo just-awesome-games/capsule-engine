@@ -15,9 +15,16 @@ public sealed class SceneMembershipTests
         SceneFixtures.HookScene scene = new();
         SceneSimulation first = new(scene);
 
-        Assert.Throws<InvalidOperationException>(() => new SceneSimulation(scene));
+        Run run = new();
+        Assert.Throws<InvalidOperationException>(() => new SceneSimulation(scene, run: run));
         Assert.Equal(1, scene.Starts);
         Assert.Same(scene, first.Scene);
+
+        // The refusal leaves the live scene running under its own run.
+        Assert.Same(first.Run, scene.Run);
+        Assert.False(run.SceneStarted);
+        scene.Add(new SceneFixtures.Recorder("late", []));
+        first.Step(SceneFixtures.Step());
     }
 
     [Fact]

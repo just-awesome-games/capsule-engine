@@ -147,11 +147,9 @@ internal sealed class GpuSampler(nint handle)
 }
 
 // SDL_GPUBuffer. Released once no submitted command buffer still uses it.
-internal sealed class GpuBuffer(nint device, nint handle, GpuBufferUsage usage, int size) : IDisposable
+internal sealed class GpuBuffer(nint device, nint handle, int size) : IDisposable
 {
     internal nint Handle { get; private set; } = handle;
-
-    internal GpuBufferUsage Usage { get; } = usage;
 
     internal int Size { get; } = size;
 

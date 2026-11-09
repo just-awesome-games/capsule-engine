@@ -28,7 +28,8 @@ internal enum AudioCommandKind : byte
 // One instruction from the pure mixer to whatever plays sound. Every field carries a settled value,
 // not a delta. Applying a step's commands in order leaves the device in the state the mixer holds.
 // Fields the Kind does not name are unset. Clip, Bus, Loop and StartSeconds are set on Play only.
-// Gain is linear in [0, 1] with master, bus and voice volume already multiplied together. Pan is in
+// Gain is linear in [0, 1] with the unfocused volume, master, bus and voice volume and the distance
+// attenuation already multiplied together. Pan is in
 // [-1, 1] with -1 hard left.
 internal readonly record struct AudioCommand(
     AudioCommandKind Kind,

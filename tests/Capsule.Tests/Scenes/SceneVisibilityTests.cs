@@ -14,12 +14,7 @@ public sealed class SceneVisibilityTests
         List<string> log = [];
         Watched marker = new(new Vector2(20f, 0f), log);
 
-        static void Pan(Scene scene, in StepContext context) => scene.Camera.Center += new Vector2(8f, 0f);
-
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), lateStep: Pan);
-        scene.Add(marker);
-
-        SimulationHost run = new(scene);
+        SimulationHost run = new(Panning(marker));
 
         run.Step();
         Assert.Empty(log);
@@ -37,13 +32,7 @@ public sealed class SceneVisibilityTests
         List<bool> seen = [];
         Watched marker = new(new Vector2(20f, 0f), []);
 
-        static void Pan(Scene scene, in StepContext context) => scene.Camera.Center += new Vector2(8f, 0f);
-
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span), lateStep: Pan);
-        scene.Add(marker);
-        scene.Add(new SceneFixtures.Watcher(_ => seen.Add(marker.Notifier.IsOnScreen)));
-
-        using SimulationHost run = new(scene);
+        using SimulationHost run = new(Panning(marker, new SceneFixtures.Watcher(_ => seen.Add(marker.Notifier.IsOnScreen))));
         run.Step(3);
 
         // The step that brought the marker on screen reports it to the step after it, never to its own.
@@ -100,10 +89,7 @@ public sealed class SceneVisibilityTests
         List<string> log = [];
         DriftingWatcher marker = new(new Vector2(2f, 0f), log);
 
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
-        scene.Add(marker);
-
-        SimulationHost run = new(scene);
+        SimulationHost run = new(Framing(marker));
 
         run.Step();
         Assert.Equal(["entered"], log);
@@ -124,15 +110,12 @@ public sealed class SceneVisibilityTests
         List<string> log = [];
         Watched marker = new(Vector2.Zero, log);
 
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
-        scene.Add(marker);
-
-        SceneSimulation simulation = new(scene);
+        SceneSimulation simulation = Framing(marker);
         simulation.Step(SceneFixtures.Step());
 
         Assert.Equal(["entered"], log);
 
-        scene.Remove(marker);
+        simulation.Scene.Remove(marker);
 
         Assert.Equal(["entered", "exited"], log);
         Assert.False(marker.Notifier.IsOnScreen);
@@ -144,10 +127,7 @@ public sealed class SceneVisibilityTests
         List<string> log = [];
         Watched marker = new(new Vector2(20f, 0f), log) { Notifier = { Rect = new Rect(new Vector2(-16f, 0f), Vector2.One) } };
 
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
-        scene.Add(marker);
-
-        SceneSimulation simulation = new(scene);
+        SceneSimulation simulation = Framing(marker);
         simulation.Step(SceneFixtures.Step());
 
         // The entity stands well outside the region. The rect, at 4..5, does not.
@@ -161,10 +141,7 @@ public sealed class SceneVisibilityTests
         EntityHierarchyFixtures.Node facingLeft = new(new Vector2(6f, 0f)) { Scale = new Vector2(-1f, 1f) };
         Watched marker = new(Vector2.Zero, log) { Notifier = { Rect = new Rect(new Vector2(2f, 0f), Vector2.One) }, Parent = facingLeft };
 
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
-        scene.Add(facingLeft);
-
-        SceneSimulation simulation = new(scene);
+        SceneSimulation simulation = Framing(facingLeft);
         simulation.Step(SceneFixtures.Step());
 
         // Unmirrored, the rect would sit at 8..9 past the region's edge at 5. Mirrored, it spans 3..4.
@@ -183,15 +160,9 @@ public sealed class SceneVisibilityTests
         Watched first = new(Vector2.Zero, firstLog);
         Watched second = new(Vector2.Zero, secondLog);
         Watched third = new(Vector2.Zero, thirdLog);
-
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
-        scene.Add(first);
-        scene.Add(second);
-        scene.Add(third);
-
         first.Notifier.ScreenEntered += () => second.Remove(second.Notifier);
 
-        SceneSimulation simulation = new(scene);
+        SceneSimulation simulation = Framing(first, second, third);
         simulation.Step(SceneFixtures.Step());
 
         Assert.Equal(["entered"], firstLog);
@@ -206,8 +177,6 @@ public sealed class SceneVisibilityTests
     {
         List<string> log = [];
         Watched watched = new(Vector2.Zero, log);
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, Span));
-        scene.Add(watched);
 
         Exception? rectFailure = null;
         Exception? marginFailure = null;
@@ -217,7 +186,7 @@ public sealed class SceneVisibilityTests
             marginFailure = Record.Exception(() => watched.Notifier.Margin = Vector2.One);
         };
 
-        SceneSimulation simulation = new(scene);
+        SceneSimulation simulation = Framing(watched);
         simulation.Step(SceneFixtures.Step());
 
         Assert.IsType<InvalidOperationException>(rectFailure);
@@ -290,6 +259,16 @@ public sealed class SceneVisibilityTests
         Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Rect = Rect.FromEdges(float.NaN, 0f, 1f, 1f));
         Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Margin = new Vector2(0f, -1f));
     }
+
+    // A simulation of entities under a camera framing Span about the origin.
+    private static SceneSimulation Framing(params Entity[] entities) =>
+        SceneFixtures.Simulation(new SceneFixtures.HookScene(start: SceneFixtures.Opens(Vector2.Zero, Span)), entities);
+
+    // The same, with the camera moving 8 right in each late step.
+    private static SceneSimulation Panning(params Entity[] entities) =>
+        SceneFixtures.Simulation(new SceneFixtures.HookScene(start: SceneFixtures.Opens(Vector2.Zero, Span), lateStep: Pan), entities);
+
+    private static void Pan(Scene scene, in StepContext context) => scene.Camera.Center += new Vector2(8f, 0f);
 
     // Whether the notifier is on screen after a step on an entity at at, scaled, under a camera at the origin.
     private static bool Settles(Vector2 at, VisibleOnScreenNotifier2D notifier, Vector2 view, float scale = 1f)

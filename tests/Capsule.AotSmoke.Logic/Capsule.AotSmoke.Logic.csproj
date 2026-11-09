@@ -4,10 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Capsule.AotSmoke.Logic</RootNamespace>
     <IsPackable>false</IsPackable>
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <CapsuleGameLogic>true</CapsuleGameLogic>
     <CapsuleBuildProject>../Capsule.FixtureBuild/Capsule.FixtureBuild.csproj</CapsuleBuildProject>
-    <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>
   </PropertyGroup>
 
   <!-- Assets/Textures/Packed/.config.json is the only file joining a texture to the smoke atlas.

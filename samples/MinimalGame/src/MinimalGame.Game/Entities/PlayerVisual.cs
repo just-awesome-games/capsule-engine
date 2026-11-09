@@ -60,7 +60,7 @@ internal sealed class PlayerVisual : Entity
         Vector2 velocity = _player.Velocity;
 
         // Recovery runs before this step's impulses, and an impulse is drawn whole.
-        _squash = new Vector2(Player.MoveTowards(_squash.X, 1f, step), Player.MoveTowards(_squash.Y, 1f, step));
+        _squash = new Vector2(DeterministicMath.MoveToward(_squash.X, 1f, step), DeterministicMath.MoveToward(_squash.Y, 1f, step));
 
         // Facing is kept through a standstill. The player stops looking the way it walked.
         if (velocity.X != 0f)

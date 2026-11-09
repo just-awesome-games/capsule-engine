@@ -34,7 +34,7 @@ Three packages ship, and [`PACKAGE.md`](PACKAGE.md) says what each holds. Every 
 ### Game
 
 - [`docs/entities.md`](docs/entities.md): adding and removing, lifecycle, parenting, pausing, pooling, finding entities.
-- [`docs/scenes.md`](docs/scenes.md): scene documents and classes, placing entities, changing scenes.
+- [`docs/scenes.md`](docs/scenes.md): scene documents and classes, tile maps, placing entities, changing scenes.
 - [`docs/input.md`](docs/input.md): actions, axes, the pointer, rumble, the cursor, input drivers, the standard command line.
 - [`docs/rendering.md`](docs/rendering.md): the canvas, the camera, renderers, draw order, parallax, particles, lighting, text, visibility.
 - [`docs/animation.md`](docs/animation.md): sprite animation clips, ticks, events and boxes, tweens, timers and scripted sequences.

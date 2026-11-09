@@ -121,23 +121,19 @@ internal sealed class RunTrace : IDisposable
         _holding.Clear();
         if (Matches(ScenePanel))
         {
-            _panel.Clear();
-            scene.RunDebugPanel(_panel);
-            WritePanel(tick, ScenePanel);
+            WritePanel(tick, ScenePanel, scene, PanelSubject.Scene);
         }
 
         if (Matches(CameraPanel))
         {
-            _panel.Clear();
-            scene.Camera.RunDebugPanel(_panel);
-            WritePanel(tick, CameraPanel);
+            WritePanel(tick, CameraPanel, scene, PanelSubject.Camera);
         }
 
         foreach (Entity entity in scene.Entities)
         {
             if (Matches(entity))
             {
-                WriteEntity(entity, tick);
+                WritePanel(tick, entity.Name, scene, PanelSubject.Entity, entity);
             }
         }
 
@@ -206,17 +202,11 @@ internal sealed class RunTrace : IDisposable
         return any;
     }
 
-    private void WriteEntity(Entity entity, long tick)
-    {
-        _panel.Clear();
-        entity.RunDebugPanel(_panel);
-        WritePanel(tick, entity.Name);
-    }
-
-    // Writes the rows _panel holds under name. A command holds no value and writes no row. A section is numbered
+    // Writes the subject's panel under name. A command holds no value and writes no row. A section is numbered
     // among same-named ones before it, as two colliders are: BoxCollider2D, BoxCollider2D (1).
-    private void WritePanel(long tick, string name)
+    private void WritePanel(long tick, string name, Scene scene, PanelSubject subject, Entity? entity = null)
     {
+        PanelSubjects.Fill(_panel, scene, subject, entity);
         _present.Add(name);
         string section = string.Empty;
         ReadOnlySpan<DebugPanelRow> rows = _panel.Rows;
@@ -226,15 +216,7 @@ internal sealed class RunTrace : IDisposable
             switch (row.Kind)
             {
                 case DebugPanelRowKind.Heading:
-                    int before = 0;
-                    foreach (DebugPanelRow earlier in rows[..index])
-                    {
-                        if (earlier.IsHeading && earlier.Label == row.Label)
-                        {
-                            before++;
-                        }
-                    }
-
+                    int before = PanelSubjects.Occurrence(rows, index);
                     section = before == 0 ? row.Label : string.Create(CultureInfo.InvariantCulture, $"{row.Label} ({before})");
                     break;
 

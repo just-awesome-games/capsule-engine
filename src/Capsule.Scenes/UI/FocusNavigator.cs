@@ -32,9 +32,10 @@ namespace Capsule.UI;
 /// item into view in each <see cref="ScrollContainer"/> above it. A pointer hover or click does not.
 /// </para>
 /// <para>
-/// A focus change applies immediately, and handlers read the new focus. Changing this navigator's
-/// items or its focus from inside one of its own focus events throws
-/// <see cref="InvalidOperationException"/>.
+/// A focus change applies immediately, and handlers read the new focus. Calling <see cref="Add"/>,
+/// <see cref="Remove"/> or <see cref="Focus"/>, or adding a gathered item to a scene, from inside one of
+/// this navigator's own focus events throws <see cref="InvalidOperationException"/>. A gathered item whose
+/// entity leaves its scene there is dropped quietly.
 /// </para>
 /// </remarks>
 public sealed class FocusNavigator : Component
@@ -95,6 +96,10 @@ public sealed class FocusNavigator : Component
     /// The item that has the focus, or null while this navigator holds none. Before the navigator
     /// starts, this names the item that will take the focus at start.
     /// </summary>
+    /// <remarks>
+    /// A focused gathered item that leaves its scene is still named here until this navigator's next step
+    /// moves the focus on. A torn-down menu added back gives that item its focus back.
+    /// </remarks>
     public Focusable? Focused { get; private set; }
 
     /// <summary>
@@ -188,7 +193,8 @@ public sealed class FocusNavigator : Component
 
         foreach (Focusable item in items)
         {
-            Append(item);
+            RequireNew(item);
+            _items.Add(item);
         }
 
         foreach (Focusable item in items)
@@ -219,8 +225,9 @@ public sealed class FocusNavigator : Component
     public void Add(Focusable item)
     {
         RequireNotRaising();
-        Append(item);
+        RequireNew(item);
         RequireNeighboursHeld(item);
+        _items.Add(item);
         Seat(item);
     }
 
@@ -791,7 +798,7 @@ public sealed class FocusNavigator : Component
 
     private Focusable? First() => _items.Count > 0 ? _items[0] : null;
 
-    private void Append(Focusable item)
+    private void RequireNew(Focusable item)
     {
         ArgumentNullException.ThrowIfNull(item);
 
@@ -799,15 +806,14 @@ public sealed class FocusNavigator : Component
         {
             throw new ArgumentException($"{nameof(Focusable)} is already an item of this navigator. List it once.", nameof(item));
         }
-
-        _items.Add(item);
     }
 
     private void RequireNeighboursHeld(Focusable item)
     {
         for (Side side = Side.Up; side <= Side.Right; side++)
         {
-            if (Named(item, side) is { } named && !_items.Contains(named))
+            // An item naming itself blocks that direction, and is held as it is added.
+            if (Named(item, side) is { } named && !ReferenceEquals(named, item) && !_items.Contains(named))
             {
                 throw new ArgumentException(
                     $"{nameof(Focusable)} names a {side} neighbour this navigator does not hold. Add that item first.",

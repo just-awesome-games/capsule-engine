@@ -106,7 +106,7 @@ internal static class FormatSchemas
     private static JsonObject StringTable(string file, string title)
     {
         const string Entry = "#/definitions/entry";
-        JsonObject Keys() => new() { ["pattern"] = "^[^.]+$" };
+        JsonObject KeyNames() => new() { ["pattern"] = "^[^.]+$" };
 
         return new JsonObject
         {
@@ -117,7 +117,7 @@ internal static class FormatSchemas
             ["description"] = "One language's texts, named <tag>.strings.json for its BCP 47 tag. Each key maps to a text, a group of more keys, or a list of texts, and a key path joins the names with '.'.",
             ["type"] = "object",
             ["properties"] = new JsonObject { [SchemaKeyConverter.Key] = new JsonObject { ["description"] = SchemaKeyDescription, ["type"] = "string" } },
-            ["propertyNames"] = Keys(),
+            ["propertyNames"] = KeyNames(),
             ["additionalProperties"] = new JsonObject { ["$ref"] = Entry },
             ["definitions"] = new JsonObject
             {
@@ -133,7 +133,7 @@ internal static class FormatSchemas
                         {
                             ["description"] = "A group of more keys.",
                             ["type"] = "object",
-                            ["propertyNames"] = Keys(),
+                            ["propertyNames"] = KeyNames(),
                             ["additionalProperties"] = new JsonObject { ["$ref"] = Entry },
                         },
                         new JsonObject

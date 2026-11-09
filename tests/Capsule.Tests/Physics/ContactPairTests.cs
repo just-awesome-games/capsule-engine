@@ -19,10 +19,7 @@ public sealed class ContactPairTests
     {
         const int Crowd = 64;
         Scene scene = new();
-        Prober sensor = new(Vector2.Zero, new Vector2(32f, 32f), CrowdLayer);
-        sensor.Collider.Layer = SensorLayer;
-        sensor.Collider.ReportsContacts = true;
-        scene.Add(sensor);
+        Prober sensor = DetectorOf(scene, Vector2.Zero);
 
         Prober[] crowd = new Prober[Crowd];
         for (int index = 0; index < Crowd; index++)
@@ -37,11 +34,7 @@ public sealed class ContactPairTests
         host.Step();
         scene.Collision.ResetDiagnostics();
         // Far enough to leave each fat box, still inside the sensor.
-        foreach (Prober member in crowd)
-        {
-            member.Position += new Vector2(8f, 0f);
-        }
-
+        Shift(crowd, new Vector2(8f, 0f));
         host.Step();
 
         Assert.Equal(Crowd, scene.Collision.PairProxiesVisited);
@@ -56,16 +49,8 @@ public sealed class ContactPairTests
     {
         const int Crowd = 16;
         Scene scene = new();
-        Prober sensor = new(Vector2.Zero, new Vector2(32f, 32f), CrowdLayer);
-        sensor.Collider.Layer = SensorLayer;
-        sensor.Collider.ReportsContacts = true;
-        scene.Add(sensor);
-        for (int index = 0; index < Crowd; index++)
-        {
-            Prober member = new(new Vector2(8f, 8f));
-            member.Collider.Layer = CrowdLayer;
-            scene.Add(member);
-        }
+        Prober sensor = DetectorOf(scene, Vector2.Zero);
+        CrowdAt(scene, new Vector2(8f, 8f), Crowd);
 
         using SimulationHost host = new(scene);
         host.Step();

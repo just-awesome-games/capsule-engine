@@ -40,7 +40,9 @@ public interface IAssetImporter
     /// <summary>Imports one source, writing each output through <paramref name="context"/>.</summary>
     /// <exception cref="FormatException">
     /// The source has a defect. The build reports the message against the source and still builds
-    /// every other source. So does an <see cref="IOException"/>. Any other exception stops the build.
+    /// every other source. So does an <see cref="IOException"/>, an <see cref="UnauthorizedAccessException"/>,
+    /// a <see cref="System.Text.DecoderFallbackException"/> and a <see cref="Capsule.Scenes.SceneDocumentFormatException"/>.
+    /// Any other exception stops the build.
     /// </exception>
     void Import(AssetImportContext context);
 }

@@ -2,7 +2,7 @@ namespace Capsule.Runtime.Input;
 
 // Turns trigger motion into presses: a trigger's raw reading crossing the press threshold from below.
 // One instance per feed, shared by both of its records, and remembering each pad's triggers across
-// frames. Used under the feed's lock. The game thread publishes the threshold, and the watch reads it.
+// frames. The feed records events and sets the threshold on the main thread, between frames.
 internal sealed class TriggerEdges
 {
     // Pads past this many with a trigger held at once reuse the oldest slot.

@@ -29,8 +29,9 @@
   </Target>
 
   <!-- NuGet emits a project reference as a minimum-version dependency, but the packages of one
-       release are a matched set. The Error is the tripwire for NuGet's item going away. Without it
-       the pin would silently revert to the open range. -->
+       release are a matched set. The pin hooks NuGet's private target and item, and each Error is the
+       tripwire for one of them going away. Without them a lost hook would silently revert the pin to the
+       open range. -->
   <Target Name="CapsulePinProjectReferenceDependencies"
           AfterTargets="_GetProjectReferenceVersions"
           Condition="'$(IsPackable)' != 'false' and '@(ProjectReference)' != ''">
@@ -39,6 +40,16 @@
     <ItemGroup>
       <_ProjectReferencesWithVersions ProjectVersion="[$(PackageVersion)]" />
     </ItemGroup>
+    <PropertyGroup>
+      <_CapsuleProjectReferencesPinned>true</_CapsuleProjectReferencesPinned>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="CapsuleRequireProjectReferencePin"
+          BeforeTargets="GenerateNuspec"
+          Condition="'$(IsPackable)' != 'false' and '@(ProjectReference)' != ''">
+    <Error Condition="'$(_CapsuleProjectReferencesPinned)' != 'true'"
+           Text="$(PackageId) could not pin its project-reference dependencies: NuGet no longer runs _GetProjectReferenceVersions. Hook the target that now resolves project-reference versions." />
   </Target>
 
 </Project>

@@ -26,8 +26,9 @@ public static class Easing
     /// NaN read as 0.
     /// </summary>
     /// <remarks>
-    /// Every curve is evaluated through <see cref="DeterministicMath"/>. A curve answers a given
-    /// progress with the same bits on every operating system.
+    /// Every curve is plain arithmetic, a square root, which IEEE 754 rounds correctly, or a
+    /// <see cref="DeterministicMath"/> function. A curve answers a given progress with the same bits on
+    /// every operating system.
     /// </remarks>
     public static float Apply(Ease ease, float t)
     {

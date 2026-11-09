@@ -13,7 +13,7 @@ namespace Capsule.Localization;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public abstract class StringTable
 {
-    // A text is UTF-8 with these control bytes, and no other:
+    // A text is UTF-8 with these control bytes, and no other but the line feed:
     //   0x01 d          a placeholder, d the ASCII digit of its argument index
     //   0x02 d          opens a plural block selecting on argument d, followed by its branches
     //   0x03 c          a branch for the category whose PluralCategory value is the ASCII digit c

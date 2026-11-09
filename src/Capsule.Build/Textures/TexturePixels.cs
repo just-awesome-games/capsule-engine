@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using Capsule.Assets;
 using StbImageSharp;
 
@@ -8,6 +9,22 @@ internal static class TexturePixels
 {
     /// <summary>The bytes a texel of <paramref name="format"/> ships in.</summary>
     internal static int Channels(TextureFormatSetting format) => format == TextureFormatSetting.R8 ? 1 : 4;
+
+    /// <summary>The width and height in texels the PNG at <paramref name="path"/> declares in its header, or null when it starts with no PNG header.</summary>
+    /// <remarks>Only the header is read, and no texel is decoded.</remarks>
+    internal static (int Width, int Height)? Size(string path)
+    {
+        // The signature, then the IHDR chunk's length and type, then its width and height.
+        Span<byte> header = stackalloc byte[24];
+        using FileStream file = File.OpenRead(path);
+        if (file.ReadAtLeast(header, header.Length, throwOnEndOfStream: false) < header.Length
+            || !header.StartsWith(PngWriter.Signature) || !header[12..16].SequenceEqual("IHDR"u8))
+        {
+            return null;
+        }
+
+        return (BinaryPrimitives.ReadInt32BigEndian(header[16..]), BinaryPrimitives.ReadInt32BigEndian(header[20..]));
+    }
 
     /// <summary>A texture's texels in its format: RGBA8 as authored, or an r8 texture's one channel.</summary>
     /// <exception cref="FormatException">The file cannot be decoded, or an r8 source is of a kind with no single channel.</exception>

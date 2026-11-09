@@ -170,7 +170,7 @@ public sealed class Player : Entity
         // The body applies no forces. Velocity is the game's, every step.
         float move = HasControl ? context.Input.Axis(GameInput.Move) : 0f;
         float target = move * SlopedWalkSpeed(move);
-        _velocity.X = IceUnderfoot() is { } ice ? MoveTowards(_velocity.X, target, ice.Friction * delta) : target;
+        _velocity.X = IceUnderfoot() is { } ice ? DeterministicMath.MoveToward(_velocity.X, target, ice.Friction * delta) : target;
 
         _velocity.Y += (GravityOverride ?? _tuning.Gravity) * delta;
 
@@ -276,10 +276,6 @@ public sealed class Player : Entity
 
         return null;
     }
-
-    // Steps current toward target by at most maxStep, landing on it exactly.
-    internal static float MoveTowards(float current, float target, float maxStep) =>
-        MathF.Abs(target - current) <= maxStep ? target : current + (MathF.Sign(target - current) * maxStep);
 
     // A brick struck from below breaks.
     private void BreakBricksOverhead()

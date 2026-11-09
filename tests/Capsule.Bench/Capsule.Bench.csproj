@@ -8,14 +8,11 @@
     <RootNamespace>Capsule.Bench</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsPackable>false</IsPackable>
-    <!-- Nothing here is a reference a consumer compiles against. It carries no API reference. -->
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <CapsuleGameShell>true</CapsuleGameShell>
     <!-- Every method is compiled optimised on first call, as a NativeAOT publish ships it: under
          tiering the first hundred-odd frames run tier-0 code and the warm-up drop would not cover
          them. -->
     <TieredCompilation>false</TieredCompilation>
-    <CapsuleSourceRoot>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../..'))</CapsuleSourceRoot>
   </PropertyGroup>
 
   <Import Project="$(CapsuleSourceRoot)/build/Capsule.Build.targets" />

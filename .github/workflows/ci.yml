@@ -29,7 +29,8 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore
 
-      # Format takes no MSBuild properties, and its workspace must match the Release build above.
+      # Format takes no MSBuild properties, and its workspace must match the Release build above. MSBuild
+      # reads the Configuration environment variable as the property.
       - name: Format
         env:
           Configuration: Release

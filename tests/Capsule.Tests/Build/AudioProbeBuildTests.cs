@@ -46,6 +46,7 @@ public sealed class AudioProbeBuildTests
     [InlineData("40-bit-pcm", ".wav", "40 bits")]
     [InlineData("64-bit-float", ".wav", "64 bits")]
     [InlineData("wav-six-channels", ".wav", "6 channels")]
+    [InlineData("wav-no-frames", ".wav", "no whole sample frame")]
     public void AClipTheProbeRefuses_IsReportedNamingTheDefect(string defect, string extension, string expected)
     {
         using SceneDocumentFixtures.Workspace workspace = new();

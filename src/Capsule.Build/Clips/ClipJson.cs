@@ -10,8 +10,8 @@ namespace Capsule.Build.Clips;
 [Description("A value clip: an ordered run of numbers, each lasting a whole number of fixed steps, stepped or blended linearly, played once or on a loop.")]
 internal sealed class ClipJson
 {
-    /// <summary>What a refusal calls a clip's members and values.</summary>
-    internal const string Members = "member or value";
+    /// <summary>What a refusal calls a clip's members.</summary>
+    internal const string Members = "member";
 
     /// <summary>Every member a clip and its keys may hold, as a refusal lists them.</summary>
     internal const string Shape = "A clip holds \"formatVersion\" and \"keys\", and may hold \"loop\" (true or false) and \"blend\" (\"step\" or \"linear\"). "

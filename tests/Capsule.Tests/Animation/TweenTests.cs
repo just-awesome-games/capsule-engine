@@ -176,6 +176,37 @@ public sealed class TweenTests
         Assert.False(tween.IsRunning);
     }
 
+    // A ping-pong period is twice its duration and is counted in an int. The longest that fits still
+    // reaches its far end and wraps home.
+    [Fact]
+    public void APingPongWhosePeriodPassesTheTickRange_IsRefusedAtStart()
+    {
+        const int Longest = int.MaxValue / 2;
+        Tween tween = default;
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => tween.Start(Longest + 1, Ease.Linear, TweenLoop.PingPong));
+        Assert.False(tween.IsRunning);
+
+        tween.Start(Longest, Ease.Linear, TweenLoop.PingPong);
+        tween.Step();
+
+        Assert.False(tween.JustFinished);
+
+        tween.Seek(Longest - 1);
+        tween.Step();
+
+        Assert.True(tween.JustFinished);
+        Assert.Equal(1, tween.Passes);
+        Assert.Equal(1f, tween.Value);
+
+        tween.Seek((2 * Longest) - 1);
+        tween.Step();
+
+        Assert.True(tween.JustFinished);
+        Assert.Equal(2, tween.Passes);
+        Assert.Equal(0, tween.TicksElapsed);
+    }
+
     // The reflections only say the three directions of a family agree. What they are is pinned here,
     // against the published formulas transcribed below through the platform's own transcendental
     // functions. A test is not simulation code. This is also what holds Capsule's deterministic

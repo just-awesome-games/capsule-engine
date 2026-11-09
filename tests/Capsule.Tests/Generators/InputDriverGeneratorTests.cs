@@ -5,18 +5,11 @@ namespace Capsule.Tests.Generators;
 
 public sealed class InputDriverGeneratorTests
 {
-    private const string Preamble = """
-        using Capsule.Input;
-        using Capsule.Scenes;
-
-        namespace Game;
-        """;
-
     [Fact]
     public void ADriver_IsRegisteredUnderItsClassName()
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation updated) = GeneratorHarness.Compile($$"""
-            {{Preamble}}
+            {{GeneratorHarness.Preamble}}
 
             {{GeneratorHarness.Walkthrough}}
             """);
@@ -34,7 +27,7 @@ public sealed class InputDriverGeneratorTests
     {
         Compilation updated = GeneratorHarness.CompileWithRoles(
             $$"""
-            {{Preamble}}
+            {{GeneratorHarness.Preamble}}
 
             {{GeneratorHarness.Walkthrough}}
             """,

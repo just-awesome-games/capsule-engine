@@ -2,7 +2,8 @@ using Capsule.Input;
 
 namespace Capsule.Runtime.DevTools.Overlay;
 
-// The only place the overlay's devices are named.
+// The only place the overlay's devices are bound. The Help page names its keys from these bindings, and
+// the menu's legend abbreviates them.
 internal static class OverlayActions
 {
     internal static readonly InputAction MenuUp = new("debug-overlay.up");
@@ -71,27 +72,26 @@ internal static class OverlayActions
             .Bind(Scroll, MouseAxis.ScrollY)
             .Bind(ScrollSideways, MouseAxis.ScrollX);
 
-    // The Help page: each input no row shows, by its main keys as a row shows its first. A line with no keys
-    // is a heading. Covers names the actions a line teaches, and every action is taught by a root row or a
-    // line here.
+    // The Help page: each input no row shows. A line with no keys is a heading. Keys are named from the
+    // bindings above, and the mouse's gestures are written out.
     internal static readonly HelpLine[] HelpLines =
     [
         new("Menu"),
-        new("Move the focus", "Up, Down, Point", MenuUp, MenuDown),
+        new("Move the focus", $"{Keys(MenuUp, MenuDown)}, Point"),
         new("Scroll the rows", "Wheel"),
-        new("Activate the row", "Enter, Click", Confirm, Click),
-        new("Go back", "Backspace, Left", Back),
+        new("Activate the row", $"{Keys(Confirm)}, Click"),
+        new("Go back", Keys(Back)),
         new("World"),
         new("Select what is drawn here, again to go deeper", "Click"),
         new("Scroll the view", "Wheel"),
-        new("Scroll sideways", "Shift+Wheel", Sideways),
-        new("Zoom", "Ctrl+Wheel", Zoom),
-        new("Pan", "Middle-drag, Space+left-drag", Pan, Grab),
-        new("Move the open entity here", "G", Move),
-        new("Frame the open entity", "F", Frame),
+        new("Scroll sideways", $"{Keys(Sideways)}+Wheel"),
+        new("Zoom", $"{Keys(Zoom)}+Wheel"),
+        new("Pan", $"Middle-drag, {Keys(Grab)}+left-drag"),
+        new("Move the open entity here", Keys(Move)),
+        new("Frame the open entity", Keys(Frame)),
         new("Hidden"),
-        new("Show the menu", "H", Hide),
-        new("Return to the game's camera", "C", GameCamera),
+        new("Show the menu", Keys(Hide)),
+        new("Return to the game's camera", Keys(GameCamera)),
     ];
 
     internal static string KeyName(InputAction action) => KeyName(Bindings.ButtonsFor(action)[0]);
@@ -109,6 +109,38 @@ internal static class OverlayActions
 
         return qualified[(qualified.IndexOf('.', StringComparison.Ordinal) + 1)..];
     }
+
+    // Every key bound to actions, apart by slashes, with a left and right pair named once, as Shift.
+    private static string Keys(params InputAction[] actions)
+    {
+        List<string> names = [];
+        foreach (InputAction action in actions)
+        {
+            foreach (InputButton button in Bindings.ButtonsFor(action))
+            {
+                if (button.AsKey is null)
+                {
+                    continue;
+                }
+
+                string name = KeyName(button);
+                foreach (string side in (ReadOnlySpan<string>)["Left", "Right"])
+                {
+                    if (name.Length > side.Length && name.StartsWith(side, StringComparison.Ordinal))
+                    {
+                        name = name[side.Length..];
+                    }
+                }
+
+                if (!names.Contains(name))
+                {
+                    names.Add(name);
+                }
+            }
+        }
+
+        return string.Join('/', names);
+    }
 }
 
-internal readonly record struct HelpLine(string Label, string? Keys = null, params InputAction[] Covers);
+internal readonly record struct HelpLine(string Label, string? Keys = null);

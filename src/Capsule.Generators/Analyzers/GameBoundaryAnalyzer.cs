@@ -187,12 +187,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     // assembly. The field or property that keeps it is where holding one becomes visible.
     private static void AnalyzeStoredRandom(SymbolAnalysisContext context)
     {
-        ITypeSymbol stored = context.Symbol switch
-        {
-            IFieldSymbol field => field.Type,
-            IPropertySymbol property => property.Type,
-            _ => throw new InvalidOperationException($"Unexpected symbol kind '{context.Symbol.Kind}'."),
-        };
+        ITypeSymbol stored = context.Symbol is IFieldSymbol field ? field.Type : ((IPropertySymbol)context.Symbol).Type;
 
         if (stored.Name == "Random" && stored.ContainingNamespace.ToDisplayString() == "System")
         {
@@ -209,10 +204,17 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         IsAmbientTime(subject) ? Diagnostics.AmbientTime
         : IsAmbientRandom(subject) ? Diagnostics.AmbientRandom
         : IsExternalIo(subject) || IsExternalState(subject) ? Diagnostics.ExternalIo
-        : subject.Under("System.Reflection") ? Diagnostics.Reflection
+        : IsReflection(subject) ? Diagnostics.Reflection
         : IsConcurrency(subject) ? Diagnostics.Concurrency
         : IsPlatformMath(subject) ? Diagnostics.PlatformMath
         : null;
+
+    // System.Type's methods and System.Activator reach members and types by name from outside the System.Reflection
+    // tree. A property of System.Type describes the type in hand and stays allowed.
+    private static bool IsReflection(in Subject subject) =>
+        subject.Under("System.Reflection")
+        || (subject.IsSystem("Type") && subject.Symbol is IMethodSymbol)
+        || subject.IsSystem("Activator");
 
     // The namespace tree is banned wholesale, keeping an unanticipated sub-namespace closed. Only
     // members proven to have no external effect are carved back out.

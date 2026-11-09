@@ -35,12 +35,13 @@ internal static class SceneRenderer
         IEnumerable<string> registrations = plan.Registered.Items.Select(Registration)
             .Concat(plan.DocumentOnly.Items.Select(Registration));
         List<SceneModel> composing = [.. plan.Applied.Items];
+        Dictionary<string, SceneModel> applied = composing.ToDictionary(static model => model.QualifiedName, StringComparer.Ordinal);
         List<PropertyModel> authored = [.. composing.SelectMany(static model => model.Authored)];
         string members = string.Concat(plan.Registered.Items
                 .Where(static entry => entry.DocumentName is not null && entry.Model.Required)
                 .Select(static entry => EntityAccessorRenderer.Constructor(
                     entry.Model.QualifiedName, entry.Model.ContentModifier + "global::Capsule.Scenes.SceneContent content")))
-            + string.Concat(composing.Select(Applier))
+            + string.Concat(composing.Select(model => Applier(model, applied)))
             + ObjectRenderer.Methods(plan.Objects, authored)
             + EntityAccessorRenderer.Accessors(authored.Concat(ObjectRenderer.Authored(plan.Objects)))
             + string.Concat(plan.Lookups.Items.Select(EntityRenderer.Lookup));
@@ -117,16 +118,27 @@ internal static class SceneRenderer
     private static string Content(string composing) =>
         $"content!.Value with {{ Apply = {ApplierName(composing)}, Entities = content!.Value.Entities.OwnedBy(global::Capsule.Generated.CapsuleEntities.Registrations) }}";
 
-    // Sets each required member, and each optional one the document authors. The base constructor calls it once
-    // every entry is constructed, before the derived body runs.
-    private static string Applier(SceneModel model) => $$"""
+    // Sets each required member, and each optional one the document authors, those a base's applier sets through that
+    // applier. The base constructor calls it once every entry is constructed, before the derived body runs.
+    private static string Applier(SceneModel model, Dictionary<string, SceneModel> applied)
+    {
+        (string? ancestor, IEnumerable<PropertyModel> own) = PropertyReadRenderer.Inherited(
+            [.. model.Authored],
+            model.Bases.Items
+                .Where(applied.ContainsKey)
+                .Select(name => (name, (IReadOnlyList<PropertyModel>)[.. applied[name].Authored])));
+        List<PropertyModel> set = [.. own];
+        string inherited = ancestor is null ? string.Empty : $"{StatementIndent}{ApplierName(ancestor)}(composed, members);\n";
+        string cast = set.Count == 0 ? string.Empty : $"{StatementIndent}{model.QualifiedName} scene = ({model.QualifiedName})composed;\n";
 
-                private static void {{ApplierName(model.QualifiedName)}}(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.AuthoredMembers members)
-                {
-                    {{model.QualifiedName}} scene = ({{model.QualifiedName}})composed;
-        {{PropertyReadRenderer.Assignments(model.Authored, "scene", model.QualifiedName, StatementIndent)}}        }
+        return $$"""
 
-        """;
+                    private static void {{ApplierName(model.QualifiedName)}}(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.AuthoredMembers members)
+                    {
+            {{inherited}}{{cast}}{{PropertyReadRenderer.Assignments(set, "scene", model.QualifiedName, StatementIndent)}}        }
+
+            """;
+    }
 
     // Game.Level's applier is Apply_Game_Level.
     private static string ApplierName(string qualifiedName) => "Apply_" + CodeText.TypeIdentifier(qualifiedName);

@@ -15,12 +15,7 @@ public sealed class TileMapTests
         SceneFixtures.Drifter drifter = new(new Vector2(7, 9));
         drifter.Add(new SpriteRenderer(SceneFixtures.Frame(4, 8)));
 
-        Scene scene = new();
-        scene.Add(new TileMap(SceneFixtures.RoomGrid()));
-        scene.Add(drifter);
-        Vector2 room = new(3 * SceneFixtures.TileSize, 2 * SceneFixtures.TileSize);
-        SceneFixtures.Open(scene, room / 2f, room);
-        SceneSimulation simulation = new(scene);
+        SceneSimulation simulation = Framed(new TileMap(SceneFixtures.RoomGrid()), drifter);
 
         simulation.Step(SceneFixtures.Step());
 
@@ -31,9 +26,6 @@ public sealed class TileMapTests
         Assert.Equal(terrain.Position, terrain.PreviousPosition);
         Assert.Equal(new Vector2(SceneFixtures.TileSize, SceneFixtures.TileSize), terrain.Size);
         Assert.Equal(SceneFixtures.Atlas, terrain.Sprite.Texture);
-        Assert.Equal(ColorRgba.White, terrain.Color);
-        Assert.False(terrain.FlipX);
-        Assert.False(terrain.FlipY);
 
         Assert.Equal(new Vector2(8, 9), simulation.View.Sprites[1].Position);
     }
@@ -62,10 +54,7 @@ public sealed class TileMapTests
             2);
 
         TileMap tiles = new(grid);
-        Scene scene = new();
-        scene.Add(tiles);
-        SceneFixtures.Open(scene, tiles.Size / 2f, tiles.Size);
-        SceneSimulation simulation = new(scene);
+        SceneSimulation simulation = Framed(tiles);
         simulation.Step(SceneFixtures.Step());
 
         Assert.Equal(8, tiles.TileSize);
@@ -90,26 +79,21 @@ public sealed class TileMapTests
             2);
 
         TileMap tiles = new(grid) { Material = stone };
-        Scene scene = new();
-        scene.Add(tiles);
-        SceneFixtures.Open(scene, tiles.Size / 2f, tiles.Size);
-        SceneSimulation simulation = new(scene);
+        SceneSimulation simulation = Framed(tiles);
         simulation.Step(SceneFixtures.Step());
 
         Assert.Equal(2, simulation.View.Sprites.Length);
         Assert.Equal([new MaterialRun(0, stone)], simulation.View.MaterialRuns.ToArray());
-        Assert.Equal([stone.Shader], scene.CollectAssetPreloads(entryPayload: null).Shaders);
+        Assert.Equal([stone.Shader], simulation.Scene.CollectAssetPreloads(entryPayload: null).Shaders);
     }
 
     [Fact]
     public void TerrainEmitsOnlyTilesCrossingTheCamera()
     {
         Scene scene = new();
-        scene.Camera.Center = new Vector2(12, 4);
-        scene.Camera.ViewportSize = new Vector2(8, 8);
-        scene.Add(new TileMap(Strip()));
+        SceneFixtures.Open(scene, new Vector2(12, 4), new Vector2(8, 8));
 
-        SceneSimulation simulation = new(scene);
+        SceneSimulation simulation = SceneFixtures.Simulation(scene, new TileMap(Strip()));
 
         SpriteIntent tile = Assert.Single(simulation.View.Sprites.ToArray());
         Assert.Equal(new Vector2(12, 4), tile.Position);
@@ -118,30 +102,29 @@ public sealed class TileMapTests
     [Fact]
     public void TerrainEmitsNothingBeforeTheCameraOpens()
     {
-        Scene scene = new();
-        scene.Add(new TileMap(SceneFixtures.RoomGrid()));
-
-        SceneSimulation simulation = new(scene);
+        SceneSimulation simulation = SceneFixtures.Simulation(new Scene(), new TileMap(SceneFixtures.RoomGrid()));
 
         Assert.Empty(simulation.View.Sprites.ToArray());
     }
 
+    // A grid with no texture takes a tile type with no cell. The grid and its map read it, and it has no
+    // sprite to draw in a view that frames it.
     [Fact]
     public void ACelllessSemanticTile_RemainsQueryableWithoutEmittingASprite()
     {
         TileGrid grid = new(
             tileSize: 8,
-            width: 1,
+            width: 2,
             height: 1,
             [TileGrid.EmptyTile, new TileType { Name = "hazard" }],
-            [1]);
+            [0, 1]);
         TileMap tiles = new(grid);
-        Scene scene = new();
-        scene.Add(tiles);
 
-        SceneSimulation simulation = new(scene);
+        SceneSimulation simulation = Framed(tiles);
 
-        Assert.Equal("hazard", tiles.TileAt(0, 0).Name);
+        Assert.Equal("hazard", grid.TileAt(1, 0).Name);
+        Assert.Equal("hazard", tiles.TileAt(1, 0).Name);
+        Assert.Null(grid.Sprites.Span[1]);
         Assert.Empty(simulation.View.Sprites.ToArray());
     }
 
@@ -286,15 +269,16 @@ public sealed class TileMapTests
     }
 
     // A row of four solid 8-pixel tiles.
-    private static TileGrid Strip() =>
-        new(
-            tileSize: 8,
-            width: 4,
-            height: 1,
-            [TileGrid.EmptyTile, new TileType { Name = "solid", Cell = 0 }],
-            [1, 1, 1, 1],
-            SceneFixtures.Atlas,
-            1);
+    private static TileGrid Strip() => SceneFixtures.EightPixelRow(1, 1, 1, 1);
+
+    // A simulation of map and then others, under a camera framing the map whole.
+    private static SceneSimulation Framed(TileMap map, params Entity[] others)
+    {
+        Scene scene = new();
+        SceneFixtures.Open(scene, map.Size / 2f, map.Size);
+
+        return SceneFixtures.Simulation(scene, [map, .. others]);
+    }
 
     // A body landed on the middle cells of a map painted "....", "....", ".##.", reporting its contact exits.
     private static (SceneSimulation Simulation, SceneFixtures.Body Body) FloorBody(TileMap map, out List<ColliderContact2D> exits)

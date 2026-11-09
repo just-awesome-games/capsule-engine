@@ -77,13 +77,7 @@ public sealed class EngineBuilderTests
     private static Vector2 CanvasOf(Func<EngineBuilder, EngineBuilder> configure)
     {
         Vector2 seen = Vector2.Zero;
-        EngineBuilder builder = CapsuleEngine.Configure(
-                GameName,
-                new SceneRegistry(
-                    new EntityRegistry([]),
-                    [SceneRegistration.Plain(typeof(Reader), _ => new Reader(canvas => seen = canvas))]))
-            .WithoutCrashLog()
-            .WithoutLogging();
+        EngineBuilder builder = QuietEngine.Configure([SceneRegistration.Plain(typeof(Reader), _ => new Reader(canvas => seen = canvas))]);
 
         configure(builder).RunHeadless<Reader>(new InputScript().Wait(1).Build());
 

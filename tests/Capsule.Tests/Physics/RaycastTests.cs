@@ -172,13 +172,24 @@ public sealed class RaycastTests
         Assert.Equal(boxes, (ColliderHandle[])[ample[0].Target.Collider, ample[1].Target.Collider, ample[2].Target.Collider]);
     }
 
+    // A finite component past about 1.8e19 or below about 3.7e-23 squares out of float range.
     [Fact]
-    public void Raycast_RejectsADirectionOrDistanceThatIsNotAValidRay()
+    public void Raycast_TakesAnyNonZeroFiniteDirectionAndRejectsAnInvalidRay()
     {
         CollisionWorld2D world = new();
+        world.Add(Shape2D.Box(new Vector2(40f, -100f), new Vector2(8f, 200f)), Vector2.Zero, world.Layer("wall"));
+
+        foreach (Vector2 direction in (Vector2[])[new(3e19f, 0f), new(float.MaxValue, float.MaxValue), new(1e-22f, 1e-22f), new(float.Epsilon, 0f)])
+        {
+            Assert.True(world.Raycast(Vector2.Zero, direction, 100f, CollisionFilter.Everything, out RayHit2D hit));
+            Assert.Equal(40f, hit.Point.X, 3);
+            Assert.Equal(direction.Y == 0f ? 0f : 40f, hit.Point.Y, 3);
+        }
 
         Assert.Throws<ArgumentOutOfRangeException>(
             () => world.Raycast(Vector2.Zero, Vector2.Zero, 10f, CollisionFilter.Everything, out _));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => world.Raycast(Vector2.Zero, new Vector2(float.PositiveInfinity, 1f), 10f, CollisionFilter.Everything, out _));
         Assert.Throws<ArgumentOutOfRangeException>(
             () => world.Raycast(Vector2.Zero, Vector2.UnitX, -1f, CollisionFilter.Everything, out _));
         Assert.Throws<ArgumentOutOfRangeException>(

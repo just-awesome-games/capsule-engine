@@ -1,4 +1,5 @@
 using Capsule.Assets;
+using Capsule.Diagnostics;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Tests.Allocation;
@@ -105,6 +106,32 @@ public sealed class ScenePrefetchTests
         Assert.False(created["nested/second"][0].Disposed);
         Assert.Same(created["nested/second"][0], store.Get(Nested));
         Assert.All(created.Values, static assets => Assert.Single(assets));
+    }
+
+    // The scene that preloads the asset decodes it again at its boundary, where the failure throws.
+    [Fact]
+    public void APrefetchDecodeFailure_IsLoggedAndLeavesNothingWarm()
+    {
+        CollectingLogSink log = new();
+        Log.UseSink(log);
+        try
+        {
+            using Capsule.Runtime.Assets.SceneAssetStore<TextureHandle, DisposalProbe> store = new(
+                static _ => throw new InvalidDataException("the file is damaged"), long.MaxValue);
+
+            store.Prefetch([First]);
+            PumpUntil(store, () => log.Entries.Count > 0);
+
+            LogEntry entry = Assert.Single(log.Entries);
+            Assert.Equal(LogLevel.Warning, entry.Level);
+            Assert.Contains("first", entry.Message, StringComparison.Ordinal);
+            Assert.Contains("the file is damaged", entry.Message, StringComparison.Ordinal);
+            Assert.Throws<InvalidDataException>(() => store.ChangeScene([First]));
+        }
+        finally
+        {
+            Log.UseSink(null);
+        }
     }
 
     private static SceneResolver Resolver(List<string> log) => (in SceneTransition target) =>

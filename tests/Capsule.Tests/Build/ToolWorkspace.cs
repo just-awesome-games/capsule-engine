@@ -1,8 +1,12 @@
+using System.Collections.Immutable;
 using System.Reflection;
 using Capsule.Build;
 using Capsule.Build.Shaders;
 using Capsule.Build.Textures;
 using Capsule.Tests.Documents;
+using Capsule.Tests.Generators;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace Capsule.Tests.Build;
 
@@ -18,6 +22,10 @@ internal sealed class ToolWorkspace : IDisposable
 
     /// <summary>The shader tools this test project restored, which every run names as the targets do.</summary>
     internal static readonly ShaderTools ShaderTools = new(Metadata("CapsuleShaderTools"));
+
+    // The engine assemblies generated source names, beside the platform's.
+    private static readonly ImmutableArray<MetadataReference> GameReferences =
+        GeneratorHarness.Referenced(null, typeof(Capsule.Rendering.Sprite).Assembly, typeof(Capsule.Scenes.SceneKey).Assembly, typeof(object).Assembly);
 
     private readonly SceneDocumentFixtures.Workspace _workspace = new();
 
@@ -98,6 +106,26 @@ internal sealed class ToolWorkspace : IDisposable
 
         return Write(name, png.ToArray());
     }
+
+    /// <summary>A workspace holding each file at its path under <c>Assets/</c>, a null text as an empty file.</summary>
+    internal static ToolWorkspace Authored(params IEnumerable<(string Path, string? Text)> files)
+    {
+        ToolWorkspace workspace = new();
+        foreach ((string path, string? text) in files)
+        {
+            workspace.Write("Assets/" + path, text ?? string.Empty);
+        }
+
+        return workspace;
+    }
+
+    /// <summary>Generated <paramref name="sources"/> compiled and loaded as the game runs them. A member hands back what it declares.</summary>
+    internal static Assembly Loaded(params string[] sources) =>
+        GeneratorHarness.Loaded(CSharpCompilation.Create(
+            "GeneratedSpecs",
+            [.. sources.Select(static source => CSharpSyntaxTree.ParseText(source))],
+            GameReferences,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)));
 
     /// <summary>Runs the build over <c>Assets/</c>, with <paramref name="options"/> between the paths and the shader tools and formats the targets always pass.</summary>
     /// <returns>The run's exit code.</returns>

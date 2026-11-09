@@ -95,6 +95,7 @@ internal sealed class OverlayScene : Scene
         _pointer = new Label(Font);
         _title = new Label(Font);
         _status = new Label(Font);
+        // Abbreviated by hand from OverlayActions' bindings. The menu is as wide as its widest line.
         _legend = new Label(Font, $"[{toggleName}] close   [Up/Dn] move   [Enter] select   [Bksp/Left] back");
         _track = new ColorRect(Vector2.Zero) { Color = TrackColor };
         _thumb = new ColorRect(Vector2.Zero) { Color = ThumbColor };

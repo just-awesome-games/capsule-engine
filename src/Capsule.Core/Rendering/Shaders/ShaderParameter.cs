@@ -22,7 +22,7 @@ public enum ShaderParameterKind : byte
     Texture,
 }
 
-/// <summary>One parameter a shader declares, as the build read it from the compiled shader. Named by generated code.</summary>
+/// <summary>One shader parameter, as the build read it from a compiled shader or as a scene first set a global. Named by generated code.</summary>
 /// <param name="Name">The parameter's name in the shader source.</param>
 /// <param name="Kind">The kind of value it takes.</param>
 /// <param name="Global">Whether the shader declares it in its <c>SceneGlobals</c> block, set on the scene and not on a material.</param>

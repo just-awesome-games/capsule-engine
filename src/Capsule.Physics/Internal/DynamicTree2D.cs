@@ -190,7 +190,8 @@ internal sealed class DynamicTree2D
         }
     }
 
-    // The fraction a visitor narrows to holds into the next layer's tree.
+    // Walks each masked layer's tree in turn. A fraction the visitor narrows to in one tree bounds the
+    // walk of the next.
     internal void RayCast<TVisitor>(Vector2 origin, Vector2 direction, float maxFraction, ulong mask, ref TVisitor visitor)
         where TVisitor : struct, IRayVisitor2D, allows ref struct
     {

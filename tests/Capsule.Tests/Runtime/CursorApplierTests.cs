@@ -47,13 +47,9 @@ public sealed class CursorApplierTests
 
         byte[] wanted = [200, 100, 50, 51, 10, 20, 30, 255];
         wanted.CopyTo(page, ((1 * 4) + 2) * 4);
-        using (FileStream png = File.Create(workspace.PathTo("assets/atlases/game.0.png")))
-        {
-            PngWriter.Write(page, 4, 3, 4, png);
-        }
-
-        File.WriteAllText(workspace.PathTo("assets/textures.json"), """{ "textures": { "crosshair": { "page": "atlases/game.0", "x": 1, "y": 1, "width": 3, "height": 2 } } }""");
-        ContentPlatform platform = new(workspace.Root);
+        ContentPlatform platform = TextureMapTests.Content(
+            workspace, "atlases/game.0", page, 4, 3, 4,
+            """{ "textures": { "crosshair": { "page": "atlases/game.0", "x": 1, "y": 1, "width": 3, "height": 2 } } }""");
 
         byte[] texels = TextureStore.ReadRegion(platform, TextureMap.Load(platform), Crosshair.Texture, new TextureRegion(1, 0, 2, 1));
 
@@ -65,13 +61,7 @@ public sealed class CursorApplierTests
     public void AnR8Image_IsReadAsWhiteAtItsValuesOpacity()
     {
         using TempWorkspace workspace = new("cursor-r8");
-        using (FileStream png = File.Create(workspace.PathTo("assets/crosshair.png")))
-        {
-            PngWriter.Write([0, 90, 255, 7], 2, 2, 1, png);
-        }
-
-        File.WriteAllText(workspace.PathTo("assets/textures.json"), """{ "textures": { "crosshair": { "format": "r8" } } }""");
-        ContentPlatform platform = new(workspace.Root);
+        ContentPlatform platform = TextureMapTests.Content(workspace, "crosshair", [0, 90, 255, 7], 2, 2, 1, """{ "textures": { "crosshair": { "format": "r8" } } }""");
 
         byte[] texels = TextureStore.ReadRegion(platform, TextureMap.Load(platform), Crosshair.Texture, new TextureRegion(1, 0, 1, 2));
 

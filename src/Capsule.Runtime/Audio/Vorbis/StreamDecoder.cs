@@ -23,23 +23,18 @@ namespace Capsule.Runtime.Audio.Vorbis
         private float[][] _nextPacketBuf;
         private float[][] _prevPacketBuf;
 
-        // Capsule: replaces null-ing _prevPacketBuf/_nextPacketBuf as the "no valid buffered
-        // decode" signal (first packet since a reset, and a fully drained end of stream). Nulling
-        // them forced DecodeNextPacket's `_nextPacketBuf == null` check to allocate a fresh
-        // `float[_channels][]` pair on the next packet decoded, once per loop wrap for a looping
-        // voice, since ResetDecoder runs on every SeekTo. The pooled pair now persists for the
-        // decoder's life. Only this flag resets.
+        // Capsule: whether _prevPacketBuf holds a decode, false on the first packet since a reset and
+        // at a drained end of stream. The buffer pair is allocated once for the decoder's life, and a
+        // reset, which every SeekTo and so every loop wrap runs, clears this flag instead of the pair.
         private bool _hasPrevPacketBuf;
 
         private int _prevPacketStart;
         private int _prevPacketEnd;
         private int _prevPacketStop;
 
-        // Capsule: an instance method group used as a delegate argument allocates a fresh delegate
-        // object at every call site. It captures `this` and so cannot be cached by the compiler the
-        // way a static method group is. Passing `GetPacketGranules` directly instead of this cached
-        // field is what let SeekTo (called on every loop wrap, via PacketProvider.SeekTo's
-        // GetPacketGranuleCount parameter) allocate on an otherwise fully warm reader.
+        // Capsule: an instance method group passed as a delegate allocates a delegate at every call,
+        // and SeekTo passes this one on every loop wrap. Cached here, a warm reader seeks without
+        // allocating.
         private readonly Ogg.GetPacketGranuleCount _getPacketGranules;
 
         public StreamDecoder(Ogg.PacketProvider packetProvider)
@@ -366,10 +361,9 @@ namespace Capsule.Runtime.Audio.Vorbis
                     {
                         // if we get here, we should have a good packet; decode it and add it to the buffer
                         var mode = _modes[(int)packet.ReadBits(_modeFieldBits)];
-                        // Capsule: confirmed allocated exactly once for the decoder's life, not per
-                        // packet. The ping-pong swap in ReadNextPacket keeps reusing this pair, and
-                        // _hasPrevPacketBuf (not nulling the pair itself) is now what resets on a
-                        // seek or end of stream. A loop wrap does not force this to run again.
+                        // Capsule: allocated once for the decoder's life. The ping-pong swap in
+                        // ReadNextPacket reuses the pair, and a seek or end of stream clears
+                        // _hasPrevPacketBuf instead of the pair.
                         if (_nextPacketBuf == null)
                         {
                             _nextPacketBuf = new float[_channels][];

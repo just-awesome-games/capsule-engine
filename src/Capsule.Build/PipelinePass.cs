@@ -132,10 +132,14 @@ internal sealed class PipelinePass(string outputDirectory, CapsuleBuild configur
     }
 
     /// <summary>Whether <paramref name="exception"/> is a defect of the input or the disk, reported against its source.</summary>
-    /// <remarks>Anything else is a defect of the build itself and stops the process.</remarks>
+    /// <remarks>
+    /// Anything else is a defect of the build itself and stops the process. Several failures from one
+    /// concurrent run are reportable when each is.
+    /// </remarks>
     internal static bool IsReportable(Exception exception) =>
-        exception is FormatException or SceneDocumentFormatException or DecoderFallbackException
-            or IOException or UnauthorizedAccessException;
+        exception is AggregateException several
+            ? several.InnerExceptions.All(IsReportable)
+            : exception is FormatException or SceneDocumentFormatException or DecoderFallbackException or IOException or UnauthorizedAccessException;
 
     /// <summary>Every source of <paramref name="type"/>, in request order.</summary>
     internal IEnumerable<Source> Of(AssetType type) => Keyed.Where(source => source.Type == type);

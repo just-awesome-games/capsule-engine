@@ -172,35 +172,7 @@ namespace Capsule.Generated
 
         private static global::Game.Ice Fill_Game_Ice(global::Game.Ice target, global::Capsule.Scenes.AuthoredMembers members)
         {
-            SetName(target, members.String("name"));
-            if (members.Has("cell"))
-            {
-                SetCell(target, members.IsNull("cell") ? null : members.Int("cell"));
-            }
-            if (members.Has("frames"))
-            {
-                SetFrames(target, members.IsNull("frames") ? null : members.Array<global::Capsule.Tiles.TileFrame>("frames", static element => Object_Capsule_Tiles_TileFrame(null, element.Object("frames"), replaces: true)));
-            }
-            if (members.Has("layer"))
-            {
-                SetLayer(target, members.IsNull("layer") ? null : members.String("layer"));
-            }
-            if (members.Has("shape"))
-            {
-                SetShape(target, members.IsNull("shape") ? null : members.Array<global::System.Numerics.Vector2>("shape", static element => element.Vector2("shape")));
-            }
-            if (members.Has("oneWay"))
-            {
-                SetOneWay(target, members.Bool("oneWay"));
-            }
-            if (members.Has("solidSides"))
-            {
-                SetSolidSides(target, members.Bool("solidSides"));
-            }
-            if (members.Has("surfaceVelocity"))
-            {
-                SetSurfaceVelocity(target, members.Vector2("surfaceVelocity"));
-            }
+            Fill_Capsule_Tiles_TileType(target, members);
             if (members.Has("grip"))
             {
                 SetGrip(target, members.Float("grip"));

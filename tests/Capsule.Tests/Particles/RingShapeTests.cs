@@ -118,11 +118,7 @@ public sealed class RingShapeTests
     private static (ParticleEmitter Emitter, SimulationHost Host) Build(EmitShape shape, float rotation = 0f)
     {
         ParticleEmitter emitter = new(Tile, capacity: 64) { Shape = shape, Lifetime = (5f, 5f) };
-        Root root = new() { Rotation = rotation };
-        root.Add(emitter);
 
-        return (emitter, new SimulationHost(new SceneFixtures.HookScene(start: s => s.Add(root))));
+        return (emitter, ParticleEmitterTests.Host(emitter, new EntityHierarchyFixtures.Node(Vector2.Zero) { Rotation = rotation }));
     }
-
-    private sealed class Root() : Entity(Vector2.Zero);
 }

@@ -35,11 +35,14 @@ public sealed class AssetConfigTests
     }
 
     [Theory]
-    [InlineData("Assets/.config.json", """{ "texture": { "padding": 2 } }""", "has an unknown kind, setting or value at $.texture.padding (line 1, byte 26). A folder's .config.json is keyed by asset kind")]
-    [InlineData("Assets/glow.png.config.json", """{ "sampling": "POINT" }""", "has an unknown kind, setting or value at $.sampling (line 1, byte 22).")]
-    [InlineData("Assets/glow.png.config.json", """{ "atlas": true }""", "has an unknown kind, setting or value at $.atlas (line 1, byte 16). A sidecar holds its asset's settings, as { \"format\": \"r8\" }. A texture's settings are \"atlas\" (an atlas name or false)")]
-    [InlineData("Assets/.config.json", """{ "texture": { "$schema": "texture" } }""", "has an unknown kind, setting or value at $.texture.$schema (line 1, byte 26).")]
-    [InlineData("Assets/.config.json", """{ "texture": { "$schema": null } }""", "has an unknown kind, setting or value at $.texture.$schema (line 1, byte 26).")]
+    [InlineData("Assets/.config.json", """{ "texture": { "padding": 2 } }""", "has an unknown kind or setting at $.texture.padding (line 1, byte 26). A folder's .config.json is keyed by asset kind")]
+    [InlineData("Assets/glow.png.config.json", """{ "sampling": "POINT" }""", "has an invalid value at $.sampling (line 1, byte 22).")]
+    [InlineData("Assets/glow.png.config.json", """{ "atlas": "a/b" }""", "has an invalid value at $.atlas (line 1, byte 17).")]
+    [InlineData("Assets/.config.json", """{ "texture": { "atlas.name": "game" } }""", "has an unknown kind or setting at $.texture['atlas.name']")]
+    [InlineData("Assets/spare.atlas.json", """{ "maxSize": "12" }""", "has an invalid value at $.maxSize (line 1, byte 18). An atlas file holds only the atlas's own settings")]
+    [InlineData("Assets/glow.png.config.json", """{ "atlas": true }""", "has an invalid value at $.atlas (line 1, byte 16). A sidecar holds its asset's settings, as { \"format\": \"r8\" }. A texture's settings are \"atlas\" (an atlas name or false)")]
+    [InlineData("Assets/.config.json", """{ "texture": { "$schema": "texture" } }""", "has an unknown kind or setting at $.texture.$schema (line 1, byte 26).")]
+    [InlineData("Assets/.config.json", """{ "texture": { "$schema": null } }""", "has an unknown kind or setting at $.texture.$schema (line 1, byte 26).")]
     [InlineData("Assets/glow.png.config.json", """{ "$schema": 7 }""", "\"$schema\" is a number. \"$schema\" is the URL of this file's schema")]
     [InlineData("Assets/spare.atlas.json", """{ "$schema": null }""", "\"$schema\" is null. \"$schema\" is the URL of this file's schema, and the build ignores it. Write the URL as a string, or remove \"$schema\".")]
     [InlineData("Assets/.config.json", """{ "texture": """, "is not valid JSON at line 1")]
@@ -49,7 +52,7 @@ public sealed class AssetConfigTests
     [InlineData("Assets/glow.png.config.json", """{ "atlas": "World" }""", "sets \"atlas\" to \"world\", and no \"world.atlas.json\" under Assets/ declares that atlas.")]
     [InlineData("Assets/spare.atlas.json", "{}", "declares the atlas \"spare\", and no texture's \"atlas\" setting names it.")]
     [InlineData("Assets/Other/Game.atlas.json", "{}", "declares the atlas \"game\", which 'Assets/Atlases/game.atlas.json' already declares.")]
-    [InlineData("Assets/spare.atlas.json", """{ "textures": ["**"] }""", "has an unknown kind, setting or value at $.textures (line 1, byte 14). An atlas file holds only the atlas's own settings")]
+    [InlineData("Assets/spare.atlas.json", """{ "textures": ["**"] }""", "has an unknown kind or setting at $.textures (line 1, byte 14). An atlas file holds only the atlas's own settings")]
     [InlineData("Assets/spare.atlas.json", """{ "maxSize": 3000 }""", "sets \"maxSize\" to 3000. An atlas file holds only the atlas's own settings")]
     public void ADefectiveConfig_FailsNamingItsFile(string file, string text, string defect)
     {

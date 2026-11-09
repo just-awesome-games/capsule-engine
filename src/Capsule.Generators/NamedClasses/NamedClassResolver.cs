@@ -2,15 +2,15 @@ using Microsoft.CodeAnalysis;
 
 namespace Capsule.Generators;
 
-// Refuses an inaccessible driver and a second driver claiming a taken name.
-internal static class InputDriverResolver
+// Refuses an inaccessible class and a second class claiming a taken name.
+internal static class NamedClassResolver
 {
     // The first class by qualified name keeps a taken name.
-    internal static InputDriverPlan Resolve(EquatableArray<InputDriverModel> models)
+    internal static NamedClassPlan Resolve(EquatableArray<NamedClassModel> models, NamedRegistry registry)
     {
         List<Diagnostic> diagnostics = [];
-        List<InputDriverModel> sound = [];
-        Dictionary<string, InputDriverModel> claimed = new(StringComparer.Ordinal);
+        List<NamedClassModel> sound = [];
+        Dictionary<string, NamedClassModel> claimed = new(StringComparer.Ordinal);
 
         RegistryPass.ValidateAndOrder(
             diagnostics,
@@ -21,10 +21,10 @@ internal static class InputDriverResolver
             static model => model.Accessible ? null : Diagnostics.InaccessibleRegisteredType,
             model =>
             {
-                if (claimed.TryGetValue(model.TypeName, out InputDriverModel previous))
+                if (claimed.TryGetValue(model.TypeName, out NamedClassModel previous))
                 {
                     diagnostics.Add(Diagnostic.Create(
-                        Diagnostics.DuplicateInputDriverName,
+                        registry.Duplicate,
                         model.At.Location(),
                         previous.DisplayName,
                         model.DisplayName,
@@ -37,6 +37,6 @@ internal static class InputDriverResolver
                 sound.Add(model);
             });
 
-        return new InputDriverPlan(new([.. sound]), new([.. diagnostics]));
+        return new NamedClassPlan(new([.. sound]), new([.. diagnostics]));
     }
 }

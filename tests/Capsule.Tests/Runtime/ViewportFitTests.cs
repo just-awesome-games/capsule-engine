@@ -4,6 +4,8 @@ using Capsule.Runtime.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 
+using static Capsule.Tests.Runtime.FrameLayoutFixtures;
+
 namespace Capsule.Tests.Runtime;
 
 // A 320 by 180 canvas over a 160 by 90 camera: two surface pixels per world unit on both axes.
@@ -15,8 +17,9 @@ public sealed class ViewportFitTests
 
     // The grown axis is quantised down to whole surface pixels. The placed span never exceeds the
     // one the fit resolved, and the world sits on the surface at exactly the declared scale, with
-    // bars where the span fell short of the canvas. The windows are 8:7, 16:9, 16:10, a dragged
-    // 1300 by 1000, one smaller than the surface, and an ultrawide.
+    // bars where the span fell short of the canvas. Letterbox grows nothing and keeps the declared
+    // span on the canvas in every window. The windows are 8:7, 16:9, 16:10, a dragged 1300 by 1000,
+    // one smaller than the surface, and an ultrawide.
     [Theory]
     [InlineData(ViewportFit.Expand, 1280, 1120, 320, 280, 0, 0, 320, 280)]
     [InlineData(ViewportFit.Expand, 1280, 720, 320, 180, 0, 0, 320, 180)]
@@ -30,7 +33,13 @@ public sealed class ViewportFitTests
     [InlineData(ViewportFit.FixedHeight, 1300, 1000, 320, 180, 43, 0, 234, 180)]
     [InlineData(ViewportFit.FixedHeight, 300, 170, 320, 180, 1, 0, 317, 180)]
     [InlineData(ViewportFit.FixedHeight, 2560, 1080, 426, 180, 0, 0, 426, 180)]
-    public void AGrowingFit_SpansWholeSurfacePixelsAtExactlyTheDeclaredScale(
+    [InlineData(ViewportFit.Letterbox, 1280, 1120, 320, 180, 0, 0, 320, 180)]
+    [InlineData(ViewportFit.Letterbox, 1280, 720, 320, 180, 0, 0, 320, 180)]
+    [InlineData(ViewportFit.Letterbox, 1280, 800, 320, 180, 0, 0, 320, 180)]
+    [InlineData(ViewportFit.Letterbox, 1300, 1000, 320, 180, 0, 0, 320, 180)]
+    [InlineData(ViewportFit.Letterbox, 300, 170, 320, 180, 0, 0, 320, 180)]
+    [InlineData(ViewportFit.Letterbox, 2560, 1080, 320, 180, 0, 0, 320, 180)]
+    public void EveryFit_SpansWholeSurfacePixelsAtExactlyTheDeclaredScale(
         ViewportFit fit,
         int windowWidth,
         int windowHeight,
@@ -41,7 +50,7 @@ public sealed class ViewportFitTests
         int worldWidth,
         int worldHeight)
     {
-        ScreenLayout layout = Layout((320, 180), View(fit), windowWidth, windowHeight);
+        ScreenLayout layout = Layout((320, 180), View(Canvas, Size, fit), windowWidth, windowHeight);
 
         Assert.Equal((surfaceWidth, surfaceHeight), layout.Surface);
         Assert.Equal(new Letterbox(worldX, worldY, worldWidth, worldHeight, PixelsPerUnit), layout.World);
@@ -49,11 +58,11 @@ public sealed class ViewportFitTests
         Assert.Equal(worldHeight, layout.Span.Y * PixelsPerUnit);
         // Never past what the fit resolved, taken exactly: the float ResolveSpan itself can spell
         // an aspect like 365:180 a hair short of the integer count.
-        (double exactX, double exactY) = ExactSpan(View(fit).Camera, windowWidth, windowHeight);
+        (double exactX, double exactY) = ExactSpan(View(Canvas, Size, fit).Camera, windowWidth, windowHeight);
         Assert.True(layout.Span.X <= exactX && layout.Span.Y <= exactY);
 
         // The camera is placed on that same span. The drawn rect and the surface agree.
-        Rect world = View(fit).Camera.Place(1f, layout.Span);
+        Rect world = View(Canvas, Size, fit).Camera.Place(1f, layout.Span);
         Assert.Equal(layout.Span.X, world.Right - world.Left);
         Assert.Equal(layout.Span.Y, world.Bottom - world.Top);
     }
@@ -141,23 +150,6 @@ public sealed class ViewportFitTests
         using SimulationHost host = new(scene);
 
         Assert.Equal(1, host.Simulation.View.Sprites.Length);
-    }
-
-    [Theory]
-    [InlineData(1280, 1120)]
-    [InlineData(1280, 720)]
-    [InlineData(1280, 800)]
-    [InlineData(1300, 1000)]
-    [InlineData(300, 170)]
-    [InlineData(2560, 1080)]
-    public void Letterbox_KeepsTheDeclaredSpanOnTheCanvasWithBars(int windowWidth, int windowHeight)
-    {
-        ScreenLayout layout = Layout((320, 180), View(ViewportFit.Letterbox), windowWidth, windowHeight);
-
-        Assert.Equal((320, 180), layout.Surface);
-        Assert.Equal(Size, layout.Span);
-        Assert.Equal(Letterbox.Fit(Size.X, Size.Y, 320, 180), layout.World);
-        Assert.Equal(PixelsPerUnit, layout.World.Scale);
     }
 
     // On a surface 181 pixels tall the camera's half-span is 45.25 units, a quarter pixel. A
@@ -342,14 +334,4 @@ public sealed class ViewportFitTests
 
     private static Vector2 Surface(Vector2 topLeft, Vector2 position) =>
         PixelGrid.SnapOffset(topLeft, position, PixelsPerUnit) * PixelsPerUnit;
-
-    private static FrameView View(ViewportFit fit) => new()
-    {
-        Canvas = Canvas,
-        Sampling = TextureSampling.Point,
-        Camera = new CameraView(Vector2.Zero, Vector2.Zero, Size, fit),
-    };
-
-    private static ScreenLayout Layout((int Width, int Height)? resolution, FrameView view, int outputWidth, int outputHeight) =>
-        FrameLayout.Layout(resolution, view.Camera, view.Canvas, outputWidth, outputHeight);
 }

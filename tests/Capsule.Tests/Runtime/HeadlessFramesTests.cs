@@ -18,12 +18,12 @@ public sealed class HeadlessFramesTests
     {
         using TempWorkspace workspace = new("capsule-headless-frames-");
         string path = workspace.PathTo("frames.csv");
-        Clock clock = new();
+        ManualClock clock = Clock();
 
         Builder(path, clock).RunHeadless<SceneFixtures.Idle>(new Overrunning(clock));
 
         string[] lines = File.ReadAllLines(path);
-        int header = Array.IndexOf(lines, Header);
+        int header = Array.IndexOf(lines, FrameDiagnosticsTests.Header);
         int[] steps = [.. Rows(lines).Select(static row => int.Parse(row[5], CultureInfo.InvariantCulture))];
 
         Assert.Equal(["builderEntered", "hostConstructed", "firstUpdate", "firstDraw"], lines[1..header].Select(static line => line[2..].Split(',')[0]));
@@ -38,7 +38,7 @@ public sealed class HeadlessFramesTests
     {
         using TempWorkspace workspace = new("capsule-headless-frames-");
         string path = workspace.PathTo("frames.csv");
-        Clock clock = new();
+        ManualClock clock = Clock();
 
         Builder(path, clock).WithCommandLine(["--uncapped"]).RunHeadless<SceneFixtures.Idle>(new Free());
 
@@ -50,26 +50,19 @@ public sealed class HeadlessFramesTests
         Assert.InRange(clock.Reads, 1, 1_000);
     }
 
-    private const string Header = "tick,intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes,processBytes,heapBytes";
-
     // A 100 Hz step and a bound of three steps a frame, timing frames to path on clock.
-    private static EngineBuilder Builder(string path, Clock clock)
+    private static EngineBuilder Builder(string path, ManualClock clock)
     {
-        EngineBuilder builder = CapsuleEngine.Configure(
-                "Paced Game",
-                new SceneRegistry(new EntityRegistry([]), [SceneRegistration.Plain(typeof(SceneFixtures.Idle), _ => new SceneFixtures.Idle())]))
-            .WithFixedStep(100)
+        EngineBuilder builder = QuietEngine.Configure([SceneRegistration.Plain(typeof(SceneFixtures.Idle), _ => new SceneFixtures.Idle())], hertz: 100)
             .WithMaxStepsPerFrame(3)
-            .WithFrameDiagnostics(path)
-            .WithoutCrashLog()
-            .WithoutLogging();
+            .WithFrameDiagnostics(path);
         builder.Timestamp = clock.Read;
 
         return builder;
     }
 
     private static IEnumerable<string[]> Rows(string[] lines) =>
-        lines.SkipWhile(static line => line != Header).Skip(1).Select(static row => row.Split(','));
+        lines.SkipWhile(static line => line != FrameDiagnosticsTests.Header).Skip(1).Select(static row => row.Split(','));
 
     // Twelve steps that cost nothing.
     private sealed class Free : IInputDriver
@@ -83,7 +76,7 @@ public sealed class HeadlessFramesTests
     }
 
     // Each step costs two and a half times the 10 ms step, and the run ends after twelve.
-    private sealed class Overrunning(Clock clock) : IInputDriver
+    private sealed class Overrunning(ManualClock clock) : IInputDriver
     {
         public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
         {
@@ -94,21 +87,7 @@ public sealed class HeadlessFramesTests
         }
     }
 
-    // Moves a microsecond on every read, which lets a frame's wait for its period end, and further
-    // when a step spends time.
-    private sealed class Clock
-    {
-        private long _timestamp = Stopwatch.GetTimestamp();
-
-        internal int Reads { get; private set; }
-
-        internal long Read()
-        {
-            Reads++;
-
-            return _timestamp += Stopwatch.Frequency / 1_000_000;
-        }
-
-        internal void Advance(double seconds) => _timestamp += (long)(seconds * Stopwatch.Frequency);
-    }
+    // Starts at the real time the boot trace began on, and moves a microsecond on every read, which lets
+    // a frame's wait for its period end, and further when a step spends time.
+    private static ManualClock Clock() => new(Stopwatch.GetTimestamp(), Stopwatch.Frequency / 1_000_000);
 }

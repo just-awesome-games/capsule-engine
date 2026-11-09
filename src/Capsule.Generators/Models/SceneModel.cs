@@ -8,6 +8,7 @@ internal enum SceneFault
     AmbiguousConstructors,
     NotAbstract,
     AmbiguousBaseConstructors,
+    GenericBase,
 }
 
 /// <summary>
@@ -31,6 +32,7 @@ internal enum SceneFault
 /// <param name="Properties">What a document's top-level keys may name, as <see cref="PropertySchema.Of"/> finds it.</param>
 /// <param name="Objects">Every class a member's JSON object fills or constructs, as <see cref="PropertySchema.WithObjects"/> finds it.</param>
 /// <param name="ContentModifier">How the content constructor takes its content: empty, <c>in </c> or <c>ref readonly </c>.</param>
+/// <param name="Bases">Every class the scene derives from, fully qualified, nearest first.</param>
 internal readonly record struct SceneModel(
     string QualifiedName,
     string DisplayName,
@@ -47,7 +49,8 @@ internal readonly record struct SceneModel(
     DeclaredAt At,
     EquatableArray<PropertyModel> Properties,
     EquatableArray<ObjectModel> Objects,
-    string ContentModifier) : IClaimingClass
+    string ContentModifier,
+    EquatableArray<string> Bases) : IClaimingClass
 {
     /// <summary>Every member a document's top-level keys set, the engine's own Scene members included.</summary>
     internal IEnumerable<PropertyModel> Authored => PropertyModel.AuthoredIn(Properties);
@@ -75,6 +78,7 @@ internal readonly record struct SceneModel(
     /// <summary>Why a document's baseScene cannot name this class, or <see cref="SceneFault.None"/> when it can.</summary>
     internal SceneFault BaseFault =>
         !Abstract ? SceneFault.NotAbstract
+        : Generic ? SceneFault.GenericBase
         : !AccessibleType ? SceneFault.InaccessibleType
         : DerivableContentConstructors != 1 ? SceneFault.AmbiguousBaseConstructors
         : SceneFault.None;

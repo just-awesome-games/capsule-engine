@@ -27,6 +27,7 @@ internal static class GeneratorHarness
 
     internal const string Preamble = """
         using System.Numerics;
+        using Capsule.Input;
         using Capsule.Scenes;
 
         namespace Game;
@@ -163,6 +164,27 @@ internal static class GeneratorHarness
 
         return Assembly.Load(image.ToArray());
     }
+
+    /// <summary>The scene registry generated for a game that compiled clean, loaded as the game runs it.</summary>
+    /// <remarks>A test class builds it once, in a <see cref="Lazy{T}"/>, and composes every document through it.</remarks>
+    internal static SceneRegistry Registry((ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) compiled)
+    {
+        Assert.Empty(Errors(compiled.Diagnostics));
+
+        return Registry(Loaded(compiled.Updated));
+    }
+
+    /// <summary>The scene registry a loaded game generated.</summary>
+    internal static SceneRegistry Registry(Assembly game) =>
+        (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;
+
+    /// <summary>Composes the scene <paramref name="key"/> names from the document <paramref name="json"/>.</summary>
+    internal static Scene Composed(SceneRegistry registry, string json, string key = "scenes/room") =>
+        registry.Create(new SceneKey(key), SceneDocument.Parse(json));
+
+    /// <summary>The value of a public instance property, read off the owner's runtime type.</summary>
+    internal static object? Member(object owner, string name) =>
+        owner.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public)!.GetValue(owner);
 
     // Each '<key>.scene.json' document, its path under Assets/, as the build hands it to the
     // generator: a key member marked with the build's own attribute, carrying what its parser read. Every

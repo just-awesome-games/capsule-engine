@@ -1,13 +1,8 @@
-using System.Collections.Immutable;
 using System.Numerics;
 using System.Reflection;
 using Capsule.Animation;
 using Capsule.Assets;
 using Capsule.Rendering;
-using Capsule.Scenes;
-using Capsule.Tests.Generators;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace Capsule.Tests.Build;
 
@@ -56,7 +51,7 @@ public sealed class SheetToolTests
     public void AFrame_IsASpriteCarryingItsRegionPivotAndTexture()
     {
         string generated = Emitted(("actors/player", Player));
-        Assembly game = Loaded(generated);
+        Assembly game = ToolWorkspace.Loaded(generated);
         TextureHandle texture = new("actors/player", ".png");
 
         Assert.Contains("public static global::Capsule.Rendering.Sprite Idle0 => Frames_Cut[0];", generated, StringComparison.Ordinal);
@@ -78,7 +73,7 @@ public sealed class SheetToolTests
                 { "name": "both", "x": 0, "y": 0, "width": 8, "height": 8, "flipX": true, "flipY": true } ] }
             """;
         string generated = Emitted(("mirrored", mirrored));
-        Assembly game = Loaded(generated);
+        Assembly game = ToolWorkspace.Loaded(generated);
         TextureRegion region = new(0, 0, 8, 8);
         Sprite right = Member<Sprite>(game, "MirroredSheet+Frames", "Right");
 
@@ -95,7 +90,7 @@ public sealed class SheetToolTests
     public void AClip_IsOneSpriteClipOfItsFramesTicksAndLoop()
     {
         string generated = Emitted(("actors/player", Player));
-        Assembly game = Loaded(generated);
+        Assembly game = ToolWorkspace.Loaded(generated);
         Sprite idle = Member<Sprite>(game, "Actors+PlayerSheet+Frames", "Idle0");
         Sprite walk = Member<Sprite>(game, "Actors+PlayerSheet+Frames", "Walk0");
         SpriteClip looped = Member<SpriteClip>(game, "Actors+PlayerSheet+Clips", "Idle");
@@ -132,7 +127,7 @@ public sealed class SheetToolTests
     public void SocketsBoxesAndEvents_CompileIntoNameConstantsAndTheMarksAndEntriesThatSetThem()
     {
         string generated = Emitted(("armed", Armed));
-        Assembly game = Loaded(generated);
+        Assembly game = ToolWorkspace.Loaded(generated);
         Sprite first = Member<Sprite>(game, "ArmedSheet+Frames", "Walk0");
         Sprite second = Member<Sprite>(game, "ArmedSheet+Frames", "Walk1");
         SpriteClip walk = Member<SpriteClip>(game, "ArmedSheet+Clips", "Walk");
@@ -176,6 +171,19 @@ public sealed class SheetToolTests
         Assert.Contains("does not ship", refused, StringComparison.Ordinal);
     }
 
+    // The texture is 32x32. A frame ending at 32 lies inside it, and one ending at 33 does not.
+    [Fact]
+    public void AFrameReachingPastItsTexture_FailsTheBuildNamingTheTextureSize()
+    {
+        Emitted(("prop", Prop.Replace("\"x\": 1, \"y\": 2, \"width\": 3, \"height\": 4", "\"x\": 0, \"y\": 30, \"width\": 32, \"height\": 2", StringComparison.Ordinal)));
+        string refused = Refused(("prop", Prop.Replace("\"x\": 1, \"y\": 2, \"width\": 3, \"height\": 4", "\"x\": 0, \"y\": 30, \"width\": 32, \"height\": 3", StringComparison.Ordinal)));
+
+        Assert.Contains(
+            "Assets/Sprites/prop.sheet.json: has frame \"a\" at (0, 30) 32x3, which reaches past the edge of its texture \"p.png\", 32x32.",
+            refused,
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ASheetNamedAfterItsOwnClasses_IsDeclared() =>
         Assert.Contains("public static class FramesSheet", Emitted(("frames", Prop)), StringComparison.Ordinal);
@@ -197,7 +205,7 @@ public sealed class SheetToolTests
                   "clips": [ { "name": "c", "loop": null, "frames": [ { "frame": "a", "ticks": 1, "events": null } ] } ] }
                 """));
 
-        Assembly game = Loaded(generated);
+        Assembly game = ToolWorkspace.Loaded(generated);
 
         Assert.Equal(Vector2.Zero, Member<Sprite>(game, "PropSheet+Frames", "A").Pivot);
         Assert.Null(Member<Sprite>(game, "PropSheet+Frames", "A").Marks);
@@ -214,17 +222,6 @@ public sealed class SheetToolTests
                   "frames": [ { "name": "\u0069dle\u002D0", "x": 0, "y": 0, "width": 1, "height": 1 } ] }
                 """)),
             StringComparison.Ordinal);
-
-    private static readonly ImmutableArray<MetadataReference> References =
-        GeneratorHarness.Referenced(null, typeof(Sprite).Assembly, typeof(SceneKey).Assembly, typeof(object).Assembly);
-
-    // The generated members as the game runs them.
-    internal static Assembly Loaded(string generated) =>
-        GeneratorHarness.Loaded(CSharpCompilation.Create(
-            "SheetSpecs",
-            [CSharpSyntaxTree.ParseText(generated)],
-            References,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)));
 
     // The value of a sheet member, named by its classes under CapsuleAssets.Sprites, such as "PropSheet+Frames".
     internal static T Member<T>(Assembly game, string classes, string name)
@@ -249,16 +246,12 @@ public sealed class SheetToolTests
         return workspace.Fail();
     }
 
-    // Every sheet here cuts from one of these two textures, which a build copies and never decodes.
+    // Every sheet here cuts from one of these two 32x32 textures.
     private static ToolWorkspace Authored((string Key, string Json)[] sheets)
     {
-        ToolWorkspace workspace = new();
-        workspace.Write("Assets/p.png", string.Empty);
-        workspace.Write("Assets/actors/player.png", string.Empty);
-        foreach ((string key, string json) in sheets)
-        {
-            workspace.Write($"Assets/Sprites/{key}.sheet.json", json);
-        }
+        ToolWorkspace workspace = ToolWorkspace.Authored(sheets.Select(static sheet => ($"Sprites/{sheet.Key}.sheet.json", (string?)sheet.Json)));
+        workspace.WritePng("Assets/p.png", 32, 32);
+        workspace.WritePng("Assets/actors/player.png", 32, 32);
 
         return workspace;
     }

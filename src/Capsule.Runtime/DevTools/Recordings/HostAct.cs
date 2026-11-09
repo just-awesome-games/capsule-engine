@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Diagnostics;
 using Capsule.Scenes;
 
 namespace Capsule.Runtime.DevTools.Recordings;
@@ -18,6 +19,61 @@ internal enum PanelSubject : byte
     Scene = 0,
     Camera = 1,
     Entity = 2,
+}
+
+// How the overlay, a replay and a trace build a subject's panel and number its repeated labels.
+internal static class PanelSubjects
+{
+    // Refills panel with the rows of the scene, of its camera, or of entity.
+    internal static void Fill(DebugPanel panel, Scene scene, PanelSubject subject, Entity? entity)
+    {
+        panel.Clear();
+        switch (subject)
+        {
+            case PanelSubject.Scene:
+                scene.RunDebugPanel(panel);
+                break;
+            case PanelSubject.Camera:
+                scene.Camera.RunDebugPanel(panel);
+                break;
+            default:
+                entity!.RunDebugPanel(panel);
+                break;
+        }
+    }
+
+    // How many rows before index share its label and its kind, a command and a toggle counting as one
+    // kind. A command is recorded by it, and a trace numbers a repeated section by it.
+    internal static int Occurrence(ReadOnlySpan<DebugPanelRow> rows, int index)
+    {
+        DebugPanelRow row = rows[index];
+        int occurrence = 0;
+        for (int before = 0; before < index; before++)
+        {
+            if (rows[before].Label == row.Label && (IsAct(rows[before]) ? IsAct(row) : rows[before].Kind == row.Kind))
+            {
+                occurrence++;
+            }
+        }
+
+        return occurrence;
+    }
+
+    // The command or toggle Occurrence numbers occurrence among those labelled label, or null.
+    internal static Action? Find(ReadOnlySpan<DebugPanelRow> rows, string label, int occurrence)
+    {
+        for (int index = 0; index < rows.Length; index++)
+        {
+            if (IsAct(rows[index]) && rows[index].Label == label && Occurrence(rows, index) == occurrence)
+            {
+                return rows[index].Activate;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsAct(in DebugPanelRow row) => row.Kind is DebugPanelRowKind.Command or DebugPanelRowKind.Toggle;
 }
 
 // An overlay act a recording holds and a replay repeats at the same tick. Name is a Load's registration

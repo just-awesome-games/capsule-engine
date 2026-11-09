@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Assets;
 using Capsule.Rendering;
+using static Capsule.Tests.Rendering.SpriteFixtures;
 
 namespace Capsule.Tests.Rendering;
 
@@ -233,18 +234,6 @@ public sealed class RenderIntentTests
         new(
             new Sprite(Atlas, new TextureRegion(0, 0, 8, 8), pivot),
             previous,
-            position,
-            PreviousRotation: 0f,
-            Rotation: 0f,
-            new Vector2(8, 8),
-            FlipX: false,
-            FlipY: false,
-            ColorRgba.White);
-
-    private static SpriteIntent Centred(Vector2 position) =>
-        new(
-            new Sprite(Atlas, new TextureRegion(0, 0, 8, 8), new Vector2(4, 4)),
-            position,
             position,
             PreviousRotation: 0f,
             Rotation: 0f,

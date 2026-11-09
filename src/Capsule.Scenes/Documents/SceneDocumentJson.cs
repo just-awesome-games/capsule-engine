@@ -296,7 +296,7 @@ internal sealed class SceneEntryJson
     [SchemaLength(2, 2)]
     public float[]? ScrollFactor { get; set; }
 
-    // Read key by key into the entity class's authorable members when it spawns.
+    // The entry's undeclared keys, which only the writer fills. ReadMembers collects them on a read.
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Members { get; set; }
 }

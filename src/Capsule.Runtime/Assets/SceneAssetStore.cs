@@ -1,3 +1,5 @@
+using Capsule.Diagnostics;
+
 namespace Capsule.Runtime.Assets;
 
 // A decoded asset waiting for the game thread to create it on the device.
@@ -246,8 +248,10 @@ internal sealed class SceneAssetStore<THandle, TAsset> : IDisposable
                 _uploading = (handle, Result(decode));
                 return true;
             }
-            catch
+            catch (Exception failure)
             {
+                // A scene that preloads it decodes it again at its boundary, where the failure throws.
+                Log.Warning($"prefetching {handle} failed: {failure.Message}");
             }
         }
 

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Rendering;
+using static Capsule.Tests.Rendering.SpriteFixtures;
 
 namespace Capsule.Tests.Rendering;
 
@@ -115,18 +116,6 @@ public sealed class ScreenLayerTests
     }
 
     private static FrameView Canvas(float width, float height) => new() { Canvas = new Vector2(width, height) };
-
-    private static SpriteIntent Quad(Vector2 position) =>
-        new(
-            Sprite.White,
-            position,
-            position,
-            PreviousRotation: 0f,
-            Rotation: 0f,
-            new Vector2(4f, 4f),
-            FlipX: false,
-            FlipY: false,
-            ColorRgba.White);
 
     private static TextIntent Text() =>
         new(FontFixtures.Font(), "AB\nA", Vector2.Zero, Vector2.Zero, Vector2.One, ColorRgba.White);

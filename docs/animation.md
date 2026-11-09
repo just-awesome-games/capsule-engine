@@ -8,8 +8,9 @@ Animation is simulation state counted in fixed steps. A clip, a tween and a time
 frame rate, and a headless test can assert on them. Capsule plays frames and values and eases numbers.
 Which clip a state shows and what a value drives are the game's.
 
-A duration typed `int` counts fixed steps, 60 a second unless the shell calls `EngineBuilder.WithFixedStep`,
-and a duration typed `float` counts seconds. `Countdown.Start(30)` is half a second at the default rate.
+A duration typed `int` counts fixed steps and one typed `float` counts seconds
+([determinism contract](architecture.md#determinism-contract)). `Countdown.Start(30)` is half a second at
+the default rate.
 
 | Need | Piece |
 | --- | --- |
@@ -33,8 +34,8 @@ and a duration typed `float` counts seconds. `Countdown.Start(30)` is half a sec
 
 A sheet names one texture, the frames it cuts from it, and the clips played over those frames. The build
 compiles `Sprites/door.sheet.json` into `CapsuleAssets.Sprites.DoorSheet`, with `Frames.Shut` a `Sprite`,
-`Clips.Opening` a `SpriteClip` and `Events.Opened` an event's name. A misspelt frame is a build error, and
-no sheet ships.
+`Clips.Opening` a `SpriteClip`, `Events.Opened` an event's name, and `Sockets` and `Boxes` classes of
+names. A misspelt frame or socket is a build error, and no sheet ships.
 
 ```json
 {

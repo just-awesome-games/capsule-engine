@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Globalization;
-using System.Reflection;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Microsoft.CodeAnalysis;
@@ -162,6 +161,8 @@ public sealed class AuthorableTests
         }
         """;
 
+    private static readonly Lazy<SceneRegistry> Registry = new(static () => GeneratorHarness.Registry(GeneratorHarness.Compile(Game)));
+
     [Fact]
     public void TheConstructorBody_SeesEveryAuthoredValue()
     {
@@ -269,17 +270,8 @@ public sealed class AuthorableTests
         "{\"entities\": [" + entry + "]}";
 
     // Composes the room through the generated registry.
-    private static Entity Composed(string entry)
-    {
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.Compile(Game);
-        Assert.Empty(GeneratorHarness.Errors(diagnostics));
-
-        Assembly game = GeneratorHarness.Loaded(compiled);
-        SceneRegistry registry = (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!
-            .GetProperty("Registry")!.GetValue(null)!;
-
-        return Assert.Single(registry.Create(new SceneKey("scenes/room"), SceneDocument.Parse(Document(entry))).Entities.ToArray());
-    }
+    private static Entity Composed(string entry) =>
+        Assert.Single(GeneratorHarness.Composed(Registry.Value, Document(entry)).Entities.ToArray());
 
     private static string? Seen(Entity lift) => Text(lift.GetType().GetProperty("Seen")!.GetValue(lift));
 

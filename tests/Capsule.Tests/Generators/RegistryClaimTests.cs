@@ -6,14 +6,6 @@ namespace Capsule.Tests.Generators;
 /// <summary>What each registry the generator emits claims, passes over or refuses, rule by rule across every kind it registers.</summary>
 public sealed class RegistryClaimTests
 {
-    private const string Preamble = """
-        using System.Numerics;
-        using Capsule.Input;
-        using Capsule.Scenes;
-
-        namespace Game;
-        """;
-
     // A shape the registry can never use is passed over in silence or registered under no name. One it
     // could use but for a defect the author can fix fails the build with that defect's diagnostic.
     [Theory]
@@ -22,6 +14,7 @@ public sealed class RegistryClaimTests
     [InlineData("entity", "public abstract class Player : Entity { protected Player(EntitySpawn spawn) : base(spawn) { } }", null)]
     [InlineData("entity", "public sealed class Player { public Player(EntitySpawn spawn) { } }", null)]
     [InlineData("entity", "[TypeKey(\"player\")] public abstract class Player : Entity { protected Player(EntitySpawn spawn) : base(spawn) { } }", "CAP001")]
+    [InlineData("entity", "[TypeKey(\"player\")] public sealed class Player<T>(EntitySpawn spawn) : Entity(spawn);", "CAP001", "non-generic")]
     [InlineData("entity", "[TypeKey(\"player\")] public sealed class Player : Entity { public Player() : base(Vector2.Zero) { } }", "CAP002")]
     [InlineData("entity", "[TypeKey(\"  \")] public sealed class Player(EntitySpawn spawn) : Entity(spawn);", "CAP004")]
     [InlineData("entity", "public static class Entities { private sealed class Player(EntitySpawn spawn) : Entity(spawn); }", "CAP008")]
@@ -33,21 +26,24 @@ public sealed class RegistryClaimTests
     [InlineData("scene", "[TypeKey(\"menu\")] public sealed class Room : Scene;", "CAP007")]
     [InlineData("scene", "public static class Scenes { private sealed class Room(SceneContent content) : Scene(content); }", "CAP008")]
     [InlineData("scene", "public sealed class Room : Scene { public Room() { } public Room(SceneContent content) : base(content) { } }", "CAP009")]
+    [InlineData("scene", "[TypeKey(\"  \")] public sealed class Room(SceneContent content) : Scene(content);", "CAP004")]
     [InlineData("payload", "public record Arrival(string Entrance) : IScenePayload;", null)]
     [InlineData("payload", "public abstract class Arrival : IScenePayload;", null)]
     [InlineData("payload", "public sealed class Arrival<T> : IScenePayload;", null)]
     [InlineData("driver", "public sealed class Seeded(int seed) : IInputDriver { public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot) { snapshot = DeviceSnapshot.Empty; return tick < seed; } }", null)]
-    public void AShapeTheRegistryCannotUse_IsPassedOverOrFailsTheBuild(string kind, string declaration, string? id)
+    public void AShapeTheRegistryCannotUse_IsPassedOverOrFailsTheBuild(string kind, string declaration, string? id, string fix = "")
     {
         (ImmutableArray<Diagnostic> diagnostics, Compilation updated) = GeneratorHarness.Compile($$"""
-            {{Preamble}}
+            {{GeneratorHarness.Preamble}}
 
             {{declaration}}
             """);
 
         if (id is not null)
         {
-            Assert.Equal(id, Assert.Single(GeneratorHarness.Errors(diagnostics)).Id);
+            Diagnostic refused = Assert.Single(GeneratorHarness.Errors(diagnostics));
+            Assert.Equal(id, refused.Id);
+            Assert.Contains(fix, refused.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
             return;
         }
 
@@ -73,7 +69,9 @@ public sealed class RegistryClaimTests
     [InlineData("base scene")]
     [InlineData("driver")]
     [InlineData("payload")]
+    [InlineData("member objects under an intermediate class")]
     [InlineData("entity across logic assemblies")]
+    [InlineData("one class name across logic assemblies")]
     [InlineData("scene across logic assemblies")]
     public void TwoDeclarationsClaimingOneKey_FailTheBuildNamingBoth(string kind)
     {
@@ -107,6 +105,21 @@ public sealed class RegistryClaimTests
                 "Game.Early", "public sealed class Checkpoint : IScenePayload;",
                 "Game.Late", "public sealed class Checkpoint : IScenePayload;"),
                 "CAP042", "Checkpoint", "Game.Early.Checkpoint", "Game.Late.Checkpoint"),
+            // Every class the pair derives from claims for both. The pair is still one error.
+            "member objects under an intermediate class" => (GeneratorHarness.Compile($$"""
+                {{GeneratorHarness.Preamble}}
+
+                public abstract class Movement { [Authorable] public float Speed { get; set; } }
+                public abstract class Ground : Movement;
+                [TypeKey("walk")] public sealed class Walk : Ground;
+                [TypeKey("walk")] public sealed class Stroll : Ground;
+                public sealed class Mover(EntitySpawn spawn) : Entity(spawn) { [Authorable] public Movement? Movement { get; set; } }
+                """).Diagnostics,
+                "CAP003", "walk", "Game.Walk", "Game.Stroll"),
+            "one class name across logic assemblies" => (Shells(
+                "namespace Game; public sealed class Door(Capsule.Scenes.EntitySpawn spawn) : Capsule.Scenes.Entity(spawn);",
+                "namespace Game; public sealed class Door(Capsule.Scenes.EntitySpawn spawn) : Capsule.Scenes.Entity(spawn);"),
+                "CAP003", "door", "Game.Door, Game.First", "Game.Door, Game.Second"),
             "entity across logic assemblies" => (Shells(
                 "namespace First; public sealed class Chest(Capsule.Scenes.EntitySpawn spawn) : Capsule.Scenes.Entity(spawn);",
                 "namespace Second; [Capsule.Scenes.TypeKey(\"chest\")] public sealed class IronChest(Capsule.Scenes.EntitySpawn spawn) : Capsule.Scenes.Entity(spawn);"),

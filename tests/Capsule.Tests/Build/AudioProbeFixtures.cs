@@ -56,6 +56,9 @@ internal static class AudioProbeFixtures
             case "wav-six-channels":
                 return Wav(6, 16, 22050, 8);
 
+            case "wav-no-frames":
+                return Wav(1, 16, 22050, 0);
+
             default:
                 return [];
         }

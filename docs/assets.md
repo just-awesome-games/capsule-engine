@@ -30,10 +30,10 @@ type. A lamp's texture, sheet and sound can share a name and sit together in `La
 sources can sit beside what it exports, because the build reads only the extensions above and those an importer claims.
 
 A key is a file's path below `Assets/`, forward slashes and no extension, with every folder and the file
-name normalized to the kebab form of the identifier it names. `Props/Crate.png` and `props/crate.png` are
-one texture with one key `props/crate`, one member `CapsuleAssets.Props.CrateTexture`, and one shipped
-path `assets/props/crate.png`. `Stage1`, `stage1` and `stage-1` are one segment, `stage-1`. The runtime
-sees keys only. A document names an asset by key and extension, as `"props/crate.png"`, in any spelling of
+name normalized to the kebab form of the identifier it names. `Props/Lamp.png` and `props/lamp.png` are
+one texture with one key `props/lamp`, one member `CapsuleAssets.Props.LampTexture`, and one shipped
+path `assets/props/lamp.png`. `Stage1`, `stage1` and `stage-1` are one segment, `stage-1`. The runtime
+sees keys only. A document names an asset by key and extension, as `"props/lamp.png"`, in any spelling of
 the key. Two files of one type keying the same, such as `click.wav` and `click.ogg`, fail the build.
 
 What ships beside the executable is the same tree under `assets/`: a texture, an `.ogg` or a float `.wav`
@@ -52,12 +52,10 @@ A texture's atlas, format and sampling are set in config files ([`configuring-as
 
 ## Sprite sheets
 
-A sheet names one texture, the frames it cuts from it, any clips played over those frames, and any
-sockets, boxes and events they set. The build compiles it into game code.
-`Sprites/lamp.sheet.json` declares `CapsuleAssets.Sprites.LampSheet`, with `Frames.Lit0` a `Sprite`,
-`Clips.Flicker` a `SpriteClip`, and `Sockets`, `Boxes` and `Events` classes of names. A misspelt frame or
-socket is a build error. The sheet format, its units and playing its clips are [`animation.md`](animation.md).
-An importer converting another editor's sheets converts to those units.
+A `*.sheet.json` cuts frames from one texture and compiles into game code, `Sprites/lamp.sheet.json` as
+`CapsuleAssets.Sprites.LampSheet`. Its format, its units and playing its clips are
+[`animation.md`](animation.md#sprite-sheets). An importer converting another editor's sheets converts to
+those units.
 
 ## Audio
 
@@ -78,8 +76,9 @@ not ship. A page is an ordinary texture that no atlas packs. Drawing text is [`r
 ## Shaders
 
 A shader is an `.fx`, a fragment function the build wraps in the engine's sprite shader and compiles
-([`shaders.md`](shaders.md)). It ships compiled once per GPU format, as `.spirv.shader`,
-`.dxil.shader` and `.msl.shader`, and its member carries the parameters the build read from it. Shaders
+([`shaders.md`](shaders.md)). It compiles once per GPU format, as `.spirv.shader`,
+`.dxil.shader` and `.msl.shader`, a publish ships the formats its
+[runtime identifier](build-and-publish.md#publishing) reads, and its member carries the parameters the build read from it. Shaders
 compile on any desktop operating system with nothing to install.
 
 ## Loading and residency
@@ -113,5 +112,5 @@ that at info, and stays cached for the rest of the scene.
 
 The outgoing scene's resources are released at transition or exit, except those the incoming preload also
 uses. A packed texture is resident as its atlas page. A headless run collects the same way and loads no
-media. `Scene.CollectPreloads` lets a test read what a scene preloads, with or without a payload, and
-`Run.PrefetchScene` starts a scene's preload before it is requested, with the payload the request will carry.
+media. `Scene.CollectPreloads` lets a test read what a scene preloads, with or without a payload. A prefetch and a
+payload's part in a preload are [`scenes.md`](scenes.md#changing-scenes).

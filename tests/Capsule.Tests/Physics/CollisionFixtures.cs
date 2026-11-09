@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Physics;
 using Capsule.Scenes;
+using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Physics;
 
@@ -130,6 +131,37 @@ internal static class CollisionFixtures
 
     internal static Aabb2D Box(float x, float y, float width, float height) =>
         Aabb2D.FromCorner(new Vector2(x, y), new Vector2(width, height));
+
+    /// <summary>Interns layers until <paramref name="world"/> holds <see cref="CollisionWorld2D.MaxLayers"/>.</summary>
+    internal static void Saturate(CollisionWorld2D world)
+    {
+        for (int index = world.LayerCount; index < CollisionWorld2D.MaxLayers; index++)
+        {
+            world.Layer($"filler-{index}");
+        }
+    }
+
+    /// <summary>Moves <paramref name="mover"/> down by <paramref name="drop"/> and asserts it landed.</summary>
+    internal static void Land(KinematicBody2D mover, float drop = 40f)
+    {
+        mover.Move(new Vector2(0f, drop));
+        Assert.True(mover.IsOnFloor);
+    }
+
+    /// <summary>
+    /// Adds a grounded 8x8 body blocked by "solid", set up further by <paramref name="setUp"/>, and lands
+    /// it from where it starts.
+    /// </summary>
+    internal static SceneFixtures.Body Grounded(Scene scene, Vector2 position, float drop = 40f, Action<KinematicBody2D>? setUp = null)
+    {
+        SceneFixtures.Body body = new(position, blocksOn: Solid);
+        body.Mover.Mode = BodyMode.Grounded;
+        setUp?.Invoke(body.Mover);
+        scene.Add(body);
+        Land(body.Mover, drop);
+
+        return body;
+    }
 
     /// <summary>
     /// A 3x3 grid whose only collidable cell is the middle one, a one-way tile. That cell spans

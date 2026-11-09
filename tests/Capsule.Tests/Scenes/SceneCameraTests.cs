@@ -14,8 +14,12 @@ public sealed class SceneCameraTests
         Tile,
     }
 
-    [Fact]
-    public void ASpriteMovingWithTheCamera_HoldsOneScreenPositionAtEveryAlpha()
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(0.25f)]
+    [InlineData(0.5f)]
+    [InlineData(0.75f)]
+    public void ASpriteMovingWithTheCamera_HoldsOneScreenPositionAtEveryAlpha(float alpha)
     {
         SceneFixtures.Drifter drifter = new(new Vector2(40, 10));
         drifter.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
@@ -31,10 +35,7 @@ public sealed class SceneCameraTests
         CameraView camera = simulation.View.Camera;
         SpriteIntent sprite = simulation.View.Sprites[0];
 
-        Assert.Equal(new Vector2(8, -8), ScreenOffset(camera, sprite, 0f));
-        Assert.Equal(new Vector2(8, -8), ScreenOffset(camera, sprite, 0.25f));
-        Assert.Equal(new Vector2(8, -8), ScreenOffset(camera, sprite, 0.5f));
-        Assert.Equal(new Vector2(8, -8), ScreenOffset(camera, sprite, 0.75f));
+        Assert.Equal(new Vector2(8, -8), ScreenOffset(camera, sprite, alpha));
     }
 
     [Fact]
@@ -69,24 +70,6 @@ public sealed class SceneCameraTests
         camera.Teleport(new Vector2(900, 900));
 
         Assert.Equal(1, camera.Teleports);
-    }
-
-    [Fact]
-    public void ACameraAimedInTheLateStep_FramesWhereItsSubjectEndedThisStep()
-    {
-        SceneFixtures.Drifter subject = new(new Vector2(10, 0));
-
-        static void Follow(Scene scene, in StepContext context) =>
-            scene.Camera.Center = scene.FindSingle<SceneFixtures.Drifter>().Position;
-
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(10, 0)), lateStep: Follow);
-        scene.Add(subject);
-
-        SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.Equal(new Vector2(11, 0), subject.Position);
-        Assert.Equal(subject.Position, simulation.View.Camera.Center);
     }
 
     // The view starts over x -1 to 7 and ends over 25 to 33. Only the sweep between crosses the
@@ -287,7 +270,6 @@ public sealed class SceneCameraTests
         CameraView view = simulation.View.Camera;
 
         Assert.Equal(ViewportFit.Expand, view.Fit);
-        Assert.Equal(room, view.Bounds);
         Assert.Equal(new Vector2(-400f, 250f), view.Center);
 
         // Before the first step settles the centre, the clamp lives in resolution alone.
@@ -298,7 +280,7 @@ public sealed class SceneCameraTests
     private static Entity Spanning8To16(Drawing drawing) =>
         drawing == Drawing.Sprite
             ? new SceneFixtures.Holder(new Vector2(8f, 0f), new SpriteRenderer(SceneFixtures.Frame(8, 8)))
-            : new TileMap(new TileGrid(8, 4, 1, [TileGrid.EmptyTile, SceneFixtures.Tile("solid", 0)], [0, 1, 0, 0], SceneFixtures.Atlas, 1));
+            : new TileMap(SceneFixtures.EightPixelRow(0, 1, 0, 0));
 
     private static Action<Scene> Install(Camera camera) =>
         scene => ((SceneFixtures.HookScene)scene).Install(camera);

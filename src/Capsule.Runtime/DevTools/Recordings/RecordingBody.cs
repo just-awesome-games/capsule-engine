@@ -200,8 +200,8 @@ internal sealed class RecordingBody(RecordingReader reader)
             }
         }
 
-        uint pad = (mask & RecordingFormat.PadBit) != 0 ? previous.PadBits ^ (uint)reader.ReadVarint() : previous.PadBits;
-        uint mouse = (mask & RecordingFormat.MouseBit) != 0 ? previous.MouseBits ^ (uint)reader.ReadVarint() : previous.MouseBits;
+        uint pad = (mask & RecordingFormat.PadBit) != 0 ? previous.PadBits ^ reader.ReadBits() : previous.PadBits;
+        uint mouse = (mask & RecordingFormat.MouseBit) != 0 ? previous.MouseBits ^ reader.ReadBits() : previous.MouseBits;
         Vector2 pointer = (mask & RecordingFormat.PointerBit) != 0 ? reader.ReadVector() : previous.Pointer;
         Vector2 scroll = (mask & RecordingFormat.ScrollBit) != 0 ? reader.ReadVector() : previous.Scroll;
         bool focused = (mask & RecordingFormat.FocusBit) != 0 ? !previous.HasWindowFocus : previous.HasWindowFocus;
@@ -218,7 +218,7 @@ internal sealed class RecordingBody(RecordingReader reader)
             axes[slot] = (mask & (1 << (RecordingFormat.AxisBit + slot))) != 0 ? reader.ReadSingle() : previous.AxisAt(slot);
         }
 
-        uint lacking = (mask & RecordingFormat.LackingBit) != 0 ? (uint)reader.ReadVarint() : previous.PadLackingBits;
+        uint lacking = (mask & RecordingFormat.LackingBit) != 0 ? reader.ReadBits() : previous.PadLackingBits;
 
         return DeviceSnapshot.FromParts(keys, pad, mouse, pointer, scroll, axes, focused, family, lacking);
     }

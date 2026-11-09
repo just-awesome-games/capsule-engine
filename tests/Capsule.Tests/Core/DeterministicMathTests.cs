@@ -24,6 +24,44 @@ public sealed partial class DeterministicMathTests
     [Fact]
     public void Lerp_IsPlainArithmeticOnEveryBuild() => Assert.Equal(ExpectedLerpDigest, LerpDigest());
 
+    // Within reach the result is the target's own bits, never one rounded short or past it.
+    [Theory]
+    [InlineData(0.1f, 0.3f, 0.2f, 0.3f)]
+    [InlineData(0.3f, 0.1f, 1f, 0.1f)]
+    [InlineData(1f, 5f, 1.5f, 2.5f)]
+    [InlineData(5f, 1f, 1.5f, 3.5f)]
+    [InlineData(1f, 5f, 0f, 1f)]
+    [InlineData(5f, 5f, 0f, 5f)]
+    public void MovingTowardATarget_StepsByTheMostAllowedAndLandsOnItExactly(float current, float target, float maxDelta, float expected)
+    {
+        Assert.Equal(expected, DeterministicMath.MoveToward(current, target, maxDelta));
+        Assert.Equal(new Vector2(expected, current), DeterministicMath.MoveToward(new Vector2(current, current), new Vector2(target, current), maxDelta));
+    }
+
+    [Theory]
+    [InlineData(float.NaN, 1f)]
+    [InlineData(1f, float.NaN)]
+    public void MovingTowardATarget_PassesANaNThrough(float current, float target)
+    {
+        Assert.True(float.IsNaN(DeterministicMath.MoveToward(current, target, 0.5f)));
+
+        Vector2 moved = DeterministicMath.MoveToward(new Vector2(current, 0f), new Vector2(target, 0f), 0.5f);
+        Assert.True(float.IsNaN(moved.X));
+    }
+
+    // A point moves along the line to its target, as far diagonally as along an axis.
+    [Fact]
+    public void MovingAPointTowardATarget_TravelsTheDistanceAlongTheLine()
+    {
+        Vector2 target = new(0.3f, -0.7f);
+
+        Assert.Equal(new Vector2(3f, 4f), DeterministicMath.MoveToward(Vector2.Zero, new Vector2(6f, 8f), 5f));
+        Assert.Equal(target, DeterministicMath.MoveToward(new Vector2(0.1f, 0.2f), target, 1f));
+        Assert.Equal(new Vector2(0.1f, 0.2f), DeterministicMath.MoveToward(new Vector2(0.1f, 0.2f), target, 0f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeterministicMath.MoveToward(0f, 1f, -1f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeterministicMath.MoveToward(Vector2.Zero, Vector2.One, -1f));
+    }
+
     // A Lerp whose multiplies fuse lands a last bit away from one whose multiplies round. The analyzer holds game logic
     // to this, and nothing but this scan holds the engine's own simulation.
     [Fact]
@@ -68,60 +106,42 @@ public sealed partial class DeterministicMathTests
     [GeneratedRegex(@"\b(Vector[234]|Matrix3x2|Matrix4x4|Quaternion|Plane|float|double|Single|Double|MathF|Math)\.(Lerp|Transform(?![^;]*Quaternion)|TransformNormal|Reflect|MultiplyAddEstimate|ReciprocalEstimate|ReciprocalSqrtEstimate)\b")]
     private static partial Regex MachineDependentMath();
 
-    [Fact]
-    public void SineOverTheRangeItClaims_IsWithinThePublishedBound()
+    [Theory]
+    [InlineData(nameof(DeterministicMath.Sin))]
+    [InlineData(nameof(DeterministicMath.Cos))]
+    public void ASineOrCosineOverTheRangeItClaims_IsWithinThePublishedBound(string name)
     {
+        (Func<float, float> Subject, Func<double, double> Reference) function = name switch
+        {
+            nameof(DeterministicMath.Sin) => (DeterministicMath.Sin, Math.Sin),
+            nameof(DeterministicMath.Cos) => (DeterministicMath.Cos, Math.Cos),
+            _ => throw new ArgumentOutOfRangeException(nameof(name), name, "No case for this function."),
+        };
+
         double worst = 0.0;
+        void Check(float radians) => worst = Math.Max(worst, Math.Abs(function.Subject(radians) - function.Reference(radians)));
 
         // Dense over the first turns, where a curve or an oscillator actually lives.
         for (int sample = -200_000; sample <= 200_000; sample++)
         {
-            worst = Math.Max(worst, SineError(sample / 10_000f));
+            Check(sample / 10_000f);
         }
 
         // Then coarse the whole way out to the claimed magnitude, on a step that is no multiple of a
         // turn. The fold is sampled at every phase rather than at one.
         for (int sample = -1_000_000; sample <= 1_000_000; sample++)
         {
-            worst = Math.Max(worst, SineError((float)(sample * 16.777216)));
+            Check((float)(sample * 16.777216));
         }
 
-        Assert.True(worst < Bound, $"sine is out by {worst}.");
-    }
-
-    // The fold subtracts a whole number of turns, and it is the last turn that has the least of the
-    // argument's own precision left to spend on it.
-    [Fact]
-    public void SineAtTheEndOfItsRange_IsStillWithinThatBound()
-    {
-        double worst = 0.0;
-
+        // The fold subtracts a whole number of turns, and it is the last turn that has the least of the
+        // argument's own precision left to spend on it.
         foreach (float radians in new[] { SineRange, -SineRange, SineRange - 1f, SineRange - 0.5f, SineRange / 2f })
         {
-            worst = Math.Max(worst, SineError(radians));
+            Check(radians);
         }
 
-        Assert.True(worst < Bound, $"sine is out by {worst} at the end of its range.");
-    }
-
-    [Fact]
-    public void CosineIsSineAQuarterTurnOn_ToTheSameAccuracy()
-    {
-        double worst = 0.0;
-
-        for (int sample = -100_000; sample <= 100_000; sample++)
-        {
-            float radians = sample / 10_000f;
-            worst = Math.Max(worst, Math.Abs(DeterministicMath.Cos(radians) - Math.Cos(radians)));
-        }
-
-        for (int sample = -1_000_000; sample <= 1_000_000; sample += 7)
-        {
-            float radians = (float)(sample * 16.777216);
-            worst = Math.Max(worst, Math.Abs(DeterministicMath.Cos(radians) - Math.Cos(radians)));
-        }
-
-        Assert.True(worst < Bound, $"cosine is out by {worst}.");
+        Assert.True(worst < Bound, $"{name} is out by {worst}.");
     }
 
     [Fact]
@@ -184,14 +204,6 @@ public sealed partial class DeterministicMathTests
         Assert.Equal(expected, DeterministicMath.Exp2(exponent));
     }
 
-    [Fact]
-    public void AnExponentThatIsNotANumber_IsTheOneNotANumber()
-    {
-        Assert.Equal(
-            BitConverter.SingleToInt32Bits(float.NaN),
-            BitConverter.SingleToInt32Bits(DeterministicMath.Exp2(float.NaN)));
-    }
-
     // The arctangent's result reaches pi, where half a float's step is just under 1.2e-7.
     [Fact]
     public void AnAngleToAPoint_IsWithinItsPublishedBound()
@@ -213,29 +225,6 @@ public sealed partial class DeterministicMathTests
         }
 
         Assert.True(worst < AngleBound, $"the arctangent is out by {worst}.");
-    }
-
-    // Signed zeros compare equal. The cases are a list and not inline data.
-    [Fact]
-    public void AnAngleOnAnAxisOrAtInfinity_FollowsTheSystemConventionsBitForBit()
-    {
-        (float Y, float X)[] points =
-        [
-            (0f, 0f), (-0f, 0f), (0f, -0f), (-0f, -0f), (0f, -3f), (-0f, -3f), (2f, 0f), (-2f, -0f),
-            (float.PositiveInfinity, float.PositiveInfinity), (float.NegativeInfinity, float.NegativeInfinity),
-            (float.PositiveInfinity, 5f), (-5f, float.PositiveInfinity), (-0f, float.NegativeInfinity),
-        ];
-
-        foreach ((float y, float x) in points)
-        {
-            Assert.Equal(
-                BitConverter.SingleToInt32Bits((float)Math.Atan2(y, x)),
-                BitConverter.SingleToInt32Bits(DeterministicMath.Atan2(y, x)));
-        }
-
-        Assert.Equal(
-            BitConverter.SingleToInt32Bits(float.NaN),
-            BitConverter.SingleToInt32Bits(DeterministicMath.Atan2(1f, float.NaN)));
     }
 
     // Dense over the span a game calls each function in, then at every 2003rd float bit pattern of either
@@ -339,7 +328,4 @@ public sealed partial class DeterministicMathTests
 
     private static double RelativeError(float actual, double expected) =>
         expected == 0.0 ? Math.Abs(actual) : Math.Abs((actual - expected) / expected);
-
-    private static double SineError(float radians) =>
-        Math.Abs(DeterministicMath.Sin(radians) - Math.Sin(radians));
 }

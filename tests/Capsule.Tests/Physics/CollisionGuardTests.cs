@@ -207,9 +207,11 @@ public sealed class CollisionGuardTests
         // Both positions are finite. The displacement between them is not.
         Assert.Throws<ArgumentOutOfRangeException>(() => world.SetPosition(far, new Vector2(2e38f, 0f)));
 
-        // The mover refuses the same journey by its endpoint, before it steps an axis of it.
+        // The mover and a sweep refuse the same journey by its endpoint, before they step any of it.
         Assert.Throws<ArgumentOutOfRangeException>(
             () => world.Move(wide, new Vector2(2e38f, 0f), new Vector2(2e38f, 0f), CollisionFilter.Everything, default));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => world.ShapeCast(wide, new Vector2(2e38f, 0f), new Vector2(2e38f, 0f), CollisionFilter.Everything, out _));
 
         // Nothing moved, and the collider on the other side of the world is still found.
         Assert.Equal(new Vector2(-2e38f, 0f), world.PositionOf(far));

@@ -24,8 +24,6 @@ internal static class PanelFixtures
         "[Entities]",
     ];
 
-    internal static readonly int FirstEntity = Head.Length;
-
     // One row as drawn, value column and all.
     internal static string Drawn(OverlayRig rig, int row) => rig.Overlay.Scene.ShownRows()[row];
 

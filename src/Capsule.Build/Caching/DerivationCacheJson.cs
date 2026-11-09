@@ -38,7 +38,7 @@ internal sealed class DerivationJson
     public JsonElement? Facts { get; set; }
 }
 
-/// <summary>A file as a run found it. An output records no hash.</summary>
+/// <summary>A file as a run found or wrote it. A cache entry's output records no hash, and an import's facts record each output's.</summary>
 internal sealed class FileRecordJson
 {
     public long Length { get; set; }

@@ -10,7 +10,7 @@ using Capsule.Tiles;
 
 namespace Capsule.Tests.Scenes;
 
-internal static class SceneFixtures
+internal static partial class SceneFixtures
 {
     internal const int TileSize = 16;
 
@@ -44,6 +44,10 @@ internal static class SceneFixtures
 
     /// <summary>One palette entry: <paramref name="name"/> drawing <paramref name="cell"/>.</summary>
     internal static TileType Tile(string name, int cell, string? layer = null) => new() { Name = name, Cell = cell, Layer = layer };
+
+    /// <summary>A row of 8-pixel tiles, each 1 a solid one and each 0 an empty one.</summary>
+    internal static TileGrid EightPixelRow(params int[] cells) =>
+        new(8, cells.Length, 1, [TileGrid.EmptyTile, Tile("solid", 0)], cells, Atlas, 1);
 
     internal static TileGrid RoomGrid() =>
         new(TileSize, 3, 2, [TileGrid.EmptyTile, new TileType { Name = "solid", Cell = 0 }], [0, 1, 0, 0, 0, 0], Atlas, 1);
@@ -149,8 +153,8 @@ internal static class SceneFixtures
         return scene;
     }
 
-    internal static StepContext Step(long tick = 0, Vector2 output = default) =>
-        new(StepMeasurement.StepSeconds, new InputState(new ActionBindings()), tick, output);
+    internal static StepContext Step(long tick = 0, Vector2 output = default, double seconds = StepMeasurement.StepSeconds) =>
+        new(seconds, new InputState(new ActionBindings()), tick, output);
 
     /// <summary>A host running a fresh scene of <paramref name="entities"/> on a default run.</summary>
     internal static SimulationHost Simulate(params ReadOnlySpan<Entity> entities) => Simulate(null, entities);
@@ -292,14 +296,20 @@ internal static class SceneFixtures
         }
     }
 
-    internal sealed class Drifter(Vector2 position) : Entity(position)
+    /// <summary>Moves by <paramref name="velocity"/> in each step, one unit right unless given another.</summary>
+    internal sealed class Drifter(Vector2 position, Vector2 velocity) : Entity(position)
     {
         internal Drifter()
             : this(Vector2.Zero)
         {
         }
 
-        protected internal override void OnStep(in StepContext context) => Position += Vector2.UnitX;
+        internal Drifter(Vector2 position)
+            : this(position, Vector2.UnitX)
+        {
+        }
+
+        protected internal override void OnStep(in StepContext context) => Position += velocity;
     }
 
     /// <summary>A world entity holding <paramref name="held"/>.</summary>
@@ -331,32 +341,17 @@ internal static class SceneFixtures
         internal EntitySpawn Spawn { get; } = spawn;
     }
 
-    /// <param name="logsStart">Also log <c>name!</c> as time begins. Off by default, which keeps a log
-    /// cleared before the scene starts a record of the steps alone.</param>
-    internal sealed class Recorder(string name, List<string> log, bool logsStart = false) : Entity(Vector2.Zero)
+    /// <summary>A renderer counting its draws, each a 1x1 frame at its entity.</summary>
+    internal sealed class CountingRenderer : Renderer
     {
-        protected internal override void OnStart()
+        internal int Draws { get; private set; }
+
+        protected internal override void Draw(FrameView view)
         {
-            if (logsStart)
-            {
-                log.Add($"{name}!");
-            }
+            Draws++;
+            Entity entity = Entity!;
+            view.Add(new SpriteIntent(Frame(1, 1), entity.PreviousTransform.Position, entity.Position, 0f, 0f, Vector2.One, false, false, ColorRgba.White));
         }
-
-        protected internal override void OnStep(in StepContext context) => log.Add(name);
-
-        protected internal override void OnLateStep(in StepContext context) => log.Add($"{name}.late");
-
-        protected internal override void OnAddedToScene() => log.Add($"{name}+");
-
-        protected internal override void OnRemovedFromScene() => log.Add($"{name}-");
-    }
-
-    internal sealed class RecordingComponent(string name, List<string> log) : Component
-    {
-        protected internal override void OnStep(in StepContext context) => log.Add(name);
-
-        protected internal override void OnLateStep(in StepContext context) => log.Add($"{name}.late");
     }
 
     internal sealed class StripeRenderer(ColorRgba color) : Renderer
@@ -375,14 +370,5 @@ internal static class SceneFixtures
                 FlipY: false,
                 color));
         }
-    }
-
-    internal sealed class Twin(string name, List<string> log) : Entity(Vector2.Zero)
-    {
-        public override bool Equals(object? obj) => obj is Twin;
-
-        public override int GetHashCode() => 0;
-
-        protected internal override void OnRemovedFromScene() => log.Add($"{name}-");
     }
 }

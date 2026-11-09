@@ -16,9 +16,10 @@ namespace Capsule.Build.Strings;
 /// plural inside a branch, <c>select</c>, <c>selectordinal</c> and <c>offset:</c> are refused.
 /// </para>
 /// <para>
-/// Braces are always structural. An apostrophe quotes one character as ICU does: <c>'{'</c> and
-/// <c>'}'</c> are literal braces anywhere, and <c>'#'</c> a literal <c>#</c> in a branch. Every other
-/// apostrophe is text, and <c>'#'</c> outside a branch is text too.
+/// Braces are always structural. An apostrophe quotes exactly one character: <c>'{'</c> and <c>'}'</c>
+/// are literal braces anywhere, and <c>'#'</c> a literal <c>#</c> in a branch. Every other apostrophe is
+/// text, <c>''</c> and <c>'#'</c> outside a branch included. ICU's longer quoted runs and its doubled
+/// apostrophe are not read.
 /// </para>
 /// <para>
 /// The build resolves all of it before the text ships, in the encoding <c>StringTable</c> reads, and the

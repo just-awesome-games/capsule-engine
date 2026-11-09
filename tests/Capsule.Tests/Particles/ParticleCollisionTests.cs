@@ -55,7 +55,7 @@ public sealed class ParticleCollisionTests
 
         host.Step();
 
-        AssertClose(new Vector2(45f, -60f) * Dt, Move(host));
+        ParticleEmitterTests.AssertClose(new Vector2(45f, -60f) * Dt, Move(host), 1e-3f);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class ParticleCollisionTests
             host.Step();
             SpriteIntent intent = Assert.Single(Drawn(host));
             Assert.InRange(intent.Position.Y, 32f - (2f * CollisionTolerance.ContactSkin), 32f);
-            AssertClose(Vector2.Zero, intent.Position - intent.PreviousPosition);
+            ParticleEmitterTests.AssertClose(Vector2.Zero, intent.Position - intent.PreviousPosition, 1e-3f);
         }
     }
 
@@ -145,7 +145,4 @@ public sealed class ParticleCollisionTests
 
         return intent.Position - intent.PreviousPosition;
     }
-
-    private static void AssertClose(Vector2 expected, Vector2 actual) =>
-        Assert.True(Vector2.Distance(expected, actual) <= 1e-3f, $"expected {expected}, got {actual}");
 }

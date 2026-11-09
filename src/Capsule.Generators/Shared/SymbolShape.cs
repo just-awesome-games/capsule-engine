@@ -76,6 +76,12 @@ internal static class SymbolShape
         return true;
     }
 
+    /// <summary>The key a class's <c>[TypeKey]</c> names, empty for a null argument, or null when the class carries none.</summary>
+    internal static string? DeclaredTypeKey(INamedTypeSymbol type, Compilation compilation) =>
+        Attribute(type, compilation, MetadataNames.TypeKeyAttribute) is { ConstructorArguments.Length: 1 } annotation
+            ? annotation.ConstructorArguments[0].Value as string ?? string.Empty
+            : null;
+
     internal static AttributeData? Attribute(INamedTypeSymbol type, Compilation compilation, string attributeTypeName) =>
         compilation.GetTypeByMetadataName(attributeTypeName) is { } marker
             ? type.GetAttributes().FirstOrDefault(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, marker))

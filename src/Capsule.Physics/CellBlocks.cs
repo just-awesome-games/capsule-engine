@@ -4,9 +4,10 @@ using System.Runtime.InteropServices;
 
 namespace Capsule.Physics;
 
-// A grid's cells, each a value and a variant, kept in square blocks of BlockSize cells a side. A block
-// exists only while a cell in it holds a nonzero value or variant, and every cell outside a block holds
-// value 0 with variant 0. A block holds its variants only once one of them is nonzero.
+// A grid's cells, each a value and a variant, kept in square blocks of BlockSize cells a side. Every cell
+// outside a block holds value 0 with variant 0. A write that empties a block drops it, and a written
+// block holds its variants once one of them is nonzero. A loaded block keeps what its file gave it,
+// empty cells and zero variants included.
 // A copy made by Share reads its source's blocks until it writes one, and the source is never written.
 internal sealed class CellBlocks
 {

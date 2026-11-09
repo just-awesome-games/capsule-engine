@@ -11,10 +11,11 @@ namespace Capsule.Build;
 /// </remarks>
 internal sealed class OutputFiles(string root)
 {
-    // Each claimed path below the root, and every owner that claimed it in the order claimed. A claim
-    // refuses nothing. The run fails every owner of a path claimed twice and deletes the file there. A
-    // failed derivation keeps no cache entry, and reuse checks each output's length and write time. A
-    // file one owner clobbered is never vouched for by another.
+    // Each claimed path below the root, and every owner that claimed it in the order claimed. Every
+    // claim is recorded, and only the first owner writes the file. The run fails every owner of a path
+    // claimed twice and deletes the file there. A failed derivation keeps no cache entry, and reuse
+    // checks each output's length and write time. A file one owner clobbered is never vouched for by
+    // another.
     private readonly Dictionary<string, List<string>> _claimed = new(Keys.PathComparer);
 
     // Each file under the root before the run claimed any, by its path below the root. Reusing a

@@ -1,13 +1,11 @@
 using System.Numerics;
-using Capsule.Assets;
 using Capsule.Rendering;
+using static Capsule.Tests.Rendering.SpriteFixtures;
 
 namespace Capsule.Tests.Rendering;
 
 public sealed class SpriteRotationTests
 {
-    private static readonly TextureHandle Atlas = new("atlas", ".png");
-
     // A pair straddling the wrap turns the short way across it, not the long way round through
     // zero: from just short of pi to just past -pi is a small clockwise turn.
     [Fact]
@@ -112,16 +110,4 @@ public sealed class SpriteRotationTests
         Assert.Empty(view.Sprites.ToArray());
         Assert.Equal(new RenderMetrics(Submitted: 2, Visible: 0), view.Metrics);
     }
-
-    private static SpriteIntent Centred(Vector2 position) =>
-        new(
-            new Sprite(Atlas, new TextureRegion(0, 0, 8, 8), new Vector2(4, 4)),
-            position,
-            position,
-            PreviousRotation: 0f,
-            Rotation: 0f,
-            new Vector2(8, 8),
-            FlipX: false,
-            FlipY: false,
-            ColorRgba.White);
 }

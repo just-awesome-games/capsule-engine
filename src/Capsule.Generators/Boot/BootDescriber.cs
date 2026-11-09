@@ -78,6 +78,6 @@ internal static class BootDescriber
         && arguments[0].Value is int kind and ((int)RegistryClaimKind.Entity or (int)RegistryClaimKind.SceneDocument)
         && arguments[1].Value is string key
         && arguments[2].Value is INamedTypeSymbol declaringType
-            ? new RegistryClaimModel((RegistryClaimKind)kind, key, declaringType.ToDisplayString())
+            ? new RegistryClaimModel((RegistryClaimKind)kind, key, declaringType.ToDisplayString(), declaringType.ContainingAssembly?.Name ?? string.Empty)
             : null;
 }

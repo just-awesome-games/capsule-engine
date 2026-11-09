@@ -7,6 +7,8 @@ namespace Capsule.Tests.Scenes;
 
 public sealed class SceneStartTests
 {
+    private const Logs StartAndStep = Logs.Start | Logs.Step;
+
     [Fact]
     public void AStartRunsExactlyOnce_BeforeTheFirstFrame()
     {
@@ -77,7 +79,7 @@ public sealed class SceneStartTests
 
         using SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(), host);
 
-        host.Add(new Tracker("late", log));
+        host.Add(new RecordingComponent("late", log, StartAndStep));
 
         Assert.Equal(["late!"], log);
     }
@@ -92,7 +94,7 @@ public sealed class SceneStartTests
     {
         List<string> log = [];
         SceneFixtures.Drifter host = new();
-        Tracker late = new("late", log);
+        RecordingComponent late = new("late", log, StartAndStep);
 
         void Queue(Scene scene)
         {
@@ -160,13 +162,15 @@ public sealed class SceneStartTests
         Assert.Null(doomed.SceneOrNull);
     }
 
+    // An entity leaving from its own start starts none of its components, and does not start twice.
+    // Added again, its components start before it steps.
     [Fact]
-    public void AnEntityLeavingTheSceneFromItsOwnStart_StartsNoneOfItsComponents()
+    public void AnEntityLeavingTheSceneFromItsOwnStart_StartsNoneOfItsComponents_UntilAddedBack()
     {
         List<string> log = [];
         SceneFixtures.Starter? host = null;
         host = new SceneFixtures.Starter(scene => scene.Remove(host!));
-        host.Add(new Tracker("component", log));
+        host.Add(new RecordingComponent("component", log, StartAndStep));
 
         SceneFixtures.HookScene scene = new();
         scene.Add(host);
@@ -175,23 +179,6 @@ public sealed class SceneStartTests
 
         Assert.Empty(log);
         Assert.Empty(simulation.Scene.Entities.ToArray());
-    }
-
-    // An entity that left from its own start does not start twice. Added again, its components start.
-    [Fact]
-    public void AComponentOnAnEntityAddedBackToTheScene_StartsBeforeItSteps()
-    {
-        List<string> log = [];
-        SceneFixtures.Starter? host = null;
-        host = new SceneFixtures.Starter(scene => scene.Remove(host!));
-        host.Add(new Tracker("component", log));
-
-        SceneFixtures.HookScene scene = new();
-        scene.Add(host);
-
-        using SceneSimulation simulation = new(scene);
-
-        Assert.Empty(log);
 
         scene.Add(host);
         simulation.Step(SceneFixtures.Step());
@@ -235,10 +222,10 @@ public sealed class SceneStartTests
     {
         List<string> log = [];
         SceneFixtures.Drifter host = new();
-        Tracker first = new("first", log);
+        RecordingComponent first = new("first", log, StartAndStep);
         host.Add(first);
         host.Add(new SiblingRemover(first, log));
-        host.Add(new Tracker("third", log));
+        host.Add(new RecordingComponent("third", log, StartAndStep));
 
         using SceneSimulation simulation = Simulation(new SceneFixtures.HookScene(), host);
 
@@ -260,13 +247,6 @@ public sealed class SceneStartTests
     {
         protected internal override void OnStart() =>
             throw new InvalidOperationException("This entity refuses to start.");
-    }
-
-    private sealed class Tracker(string name, List<string> log) : Component
-    {
-        protected internal override void OnStart() => log.Add($"{name}!");
-
-        protected internal override void OnStep(in StepContext context) => log.Add(name);
     }
 
     private sealed class SiblingRemover(Component sibling, List<string> log) : Component

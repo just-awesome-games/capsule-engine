@@ -1,10 +1,6 @@
-using System.Collections.Immutable;
 using System.Reflection;
 using Capsule.Assets;
 using Capsule.Rendering;
-using Capsule.Tests.Generators;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace Capsule.Tests.Build;
 
@@ -24,9 +20,6 @@ public sealed class FontBuildTests
     private const string CharB = "char id=66 x=4 y=0 width=4 height=6 xoffset=0 yoffset=2 xadvance=6 page=0 chnl=15";
 
     private const string Kerning = "kerning first=65 second=66 amount=-2";
-
-    private static readonly ImmutableArray<MetadataReference> References =
-        GeneratorHarness.Referenced(null, typeof(BitmapFont).Assembly, typeof(object).Assembly);
 
     [Fact]
     public void AFont_CompilesIntoAMemberCarryingItsMetricsGlyphsAndKerning()
@@ -90,14 +83,14 @@ public sealed class FontBuildTests
     [Fact]
     public void AFontAnywhere_NamesItsPagesAsTheTexturesBesideIt()
     {
-        using ToolWorkspace workspace = Authored(
+        using ToolWorkspace workspace = ToolWorkspace.Authored(
             ("Fonts/ui/menu.fnt", Source(Info, Common, Page, CharA)),
             ("Fonts/ui/menu.png", null),
             ("Menus/body.fnt", Source(Info, Common, "page id=0 file=\"BODY.png\"", CharA)),
             ("Menus/Body.png", null));
         workspace.Succeed();
 
-        Assembly game = Loaded(workspace.Generated);
+        Assembly game = ToolWorkspace.Loaded(workspace.Generated);
         Assert.Equal(15, Font(game, "Fonts", "Ui", "MenuFont").LineHeight);
         Assert.Equal([new TextureHandle("menus/body", ".png")], Font(game, "Menus", "BodyFont").Pages.ToArray());
         Assert.Equal(["fonts/ui/menu.png", "menus/body.png"], workspace.Shipped);
@@ -109,7 +102,7 @@ public sealed class FontBuildTests
     [Fact]
     public void AnInheritedAtlas_SkipsAFontsPageAndItsOwnConfigSettingOneFails()
     {
-        using ToolWorkspace workspace = Authored(("Fonts/menu.fnt", Source(Info, Common, Page, CharA)));
+        using ToolWorkspace workspace = ToolWorkspace.Authored(("Fonts/menu.fnt", Source(Info, Common, Page, CharA)));
         workspace.WritePng("Assets/Fonts/menu.png", 32, 32);
         workspace.WritePng("Assets/hero.png", 4, 4);
         workspace.Write("Assets/.config.json", """{ "texture": { "atlas": "game" } }""");
@@ -139,16 +132,25 @@ public sealed class FontBuildTests
     [Fact]
     public void AFontThatIsNoUtf8_FailsTheBuild()
     {
-        using ToolWorkspace workspace = Authored(("Fonts/menu.png", null));
+        using ToolWorkspace workspace = ToolWorkspace.Authored(("Fonts/menu.png", null));
         workspace.Write("Assets/Fonts/menu.fnt", [.. System.Text.Encoding.UTF8.GetBytes(Source(Info, Common, Page, CharA)), 0xFF]);
 
         Assert.Contains("Assets/Fonts/menu.fnt: ", workspace.Fail(), StringComparison.Ordinal);
     }
 
+    // The binary flavour holds bytes that are no UTF-8, and is named before the text is decoded.
+    [Fact]
+    public void ABinaryFont_FailsTheBuildAskingForText()
+    {
+        using ToolWorkspace workspace = ToolWorkspace.Authored(("Fonts/menu.png", null));
+        workspace.Write("Assets/Fonts/menu.fnt", [(byte)'B', (byte)'M', (byte)'F', 3, 1, 0xFF, 0, 0, 0, 0x80]);
+
+        Assert.Contains("Assets/Fonts/menu.fnt: is a binary BMFont file. Capsule reads the text flavour. Export the font as text.", workspace.Fail(), StringComparison.Ordinal);
+    }
+
     [Theory]
 
-    // The three flavours the format has. Only the text one is read.
-    [InlineData("BMF", "binary")]
+    // The XML flavour. Only the text one is read.
     [InlineData("<?xml version=\"1.0\"?>\n<font/>", "XML")]
 
     // The page a glyph is cut from, and the rectangle it is cut at.
@@ -215,40 +217,20 @@ public sealed class FontBuildTests
                 _ => line,
             })]);
 
-    // Each file under Assets/. A null body is a page, which the build copies and never decodes.
-    private static ToolWorkspace Authored(params (string Path, string? Content)[] files)
-    {
-        ToolWorkspace workspace = new();
-        foreach ((string path, string? content) in files)
-        {
-            workspace.Write("Assets/" + path, content ?? string.Empty);
-        }
-
-        return workspace;
-    }
-
     private static Assembly Compiled(params (string Path, string? Content)[] files)
     {
-        using ToolWorkspace workspace = Authored(files);
+        using ToolWorkspace workspace = ToolWorkspace.Authored(files);
         workspace.Succeed();
 
-        return Loaded(workspace.Generated);
+        return ToolWorkspace.Loaded(workspace.Generated);
     }
 
     private static string Refused(params (string Path, string? Content)[] files)
     {
-        using ToolWorkspace workspace = Authored(files);
+        using ToolWorkspace workspace = ToolWorkspace.Authored(files);
 
         return workspace.Fail();
     }
-
-    // The generated registry as the game runs it. A member hands back what it declares.
-    private static Assembly Loaded(string generated) =>
-        GeneratorHarness.Loaded(CSharpCompilation.Create(
-            "FontSpecs",
-            [CSharpSyntaxTree.ParseText(generated)],
-            References,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)));
 
     // CapsuleAssets.<path>, as the game names it.
     private static BitmapFont Font(Assembly game, params string[] path)

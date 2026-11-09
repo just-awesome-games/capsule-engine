@@ -1,4 +1,5 @@
 using Capsule.Build.Caching;
+using Capsule.Build.Textures;
 
 namespace Capsule.Build.Sheets;
 
@@ -38,6 +39,12 @@ internal static class SheetStep
             }
 
             Sheet shipped = document with { TextureExtension = texture.Extension };
+            if (OutsideTexture(shipped, texture) is { } outside)
+            {
+                pass.Fail(sheet.Path, outside);
+                continue;
+            }
+
             if (document.VariantOf is not { } baseKey)
             {
                 pass.Declare(sheet, shipped, SheetMembers.Write);
@@ -63,6 +70,28 @@ internal static class SheetStep
                     $"is a variant of \"{baseKey}{AssetType.Sheets.Extensions[0]}\", which this game does not ship. Name a sheet authored under Assets/.");
             }
         }
+    }
+
+    // The frame that reaches past the texture's edge, or null when every frame lies inside it. Checked on
+    // every run, since the texture is not the sheet's. A texture with no PNG header is its own defect,
+    // and no sheet is refused for it.
+    private static string? OutsideTexture(Sheet sheet, Source texture)
+    {
+        if (TexturePixels.Size(texture.Path) is not { } size)
+        {
+            return null;
+        }
+
+        foreach (SheetFrame frame in sheet.Frames)
+        {
+            if (!frame.IsEmpty && ((long)frame.X + frame.Width > size.Width || (long)frame.Y + frame.Height > size.Height))
+            {
+                return $"has frame \"{frame.Name}\" at ({frame.X}, {frame.Y}) {frame.Width}x{frame.Height}, which reaches past the edge of its texture \"{sheet.TextureKey}{sheet.TextureExtension}\", {size.Width}x{size.Height}. "
+                    + "A region lies inside its texture. Move or shrink the frame, or cut it from a larger texture.";
+            }
+        }
+
+        return null;
     }
 
     // Why the variant cannot draw its base's frames, or null when it can.

@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Numerics;
 using Capsule.Physics;
 using Capsule.Scenes;
@@ -41,10 +40,7 @@ public sealed class CollisionMaskTests
         Assert.True(world.Raycast(Vector2.Zero, Vector2.UnitX, 200f, climbable, out _));
 
         CollisionWorld2D full = new();
-        for (int index = 1; index < CollisionWorld2D.MaxLayers; index++)
-        {
-            full.Layer(index.ToString(CultureInfo.InvariantCulture));
-        }
+        CollisionFixtures.Saturate(full);
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(
             () => full.Raycast(Vector2.Zero, Vector2.UnitX, 200f, climbable, out _));
@@ -81,10 +77,7 @@ public sealed class CollisionMaskTests
     {
         CollisionMask climbable = new(CollisionFixtures.Climb);
         CollisionWorld2D full = new();
-        for (int index = 1; index < CollisionWorld2D.MaxLayers; index++)
-        {
-            full.Layer(index.ToString(CultureInfo.InvariantCulture));
-        }
+        CollisionFixtures.Saturate(full);
 
         Contact2D[] contacts = new Contact2D[4];
         Assert.ThrowsAny<ArgumentException>(() => full.Raycast(Vector2.Zero, Vector2.Zero, 10f, climbable, out _));

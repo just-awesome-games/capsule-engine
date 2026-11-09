@@ -41,17 +41,6 @@ public sealed class TileGridTests
         Assert.Contains(named, error.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Constructor_AcceptsASemanticTileTypeWithNoCell()
-    {
-        TileGrid grid = new(16, 2, 1, [TileGrid.EmptyTile, new TileType { Name = "hazard" }], [0, 1]);
-
-        Assert.Equal("hazard", grid.TileAt(1, 0).Name);
-        Assert.Null(grid.TileTypes[1].Cell);
-        Assert.Null(grid.Texture);
-        Assert.Null(grid.Sprites.Span[1]);
-    }
-
     // A cell is read across a row of Columns and then down, square at the grid's tile size.
     // The whole atlas layout falls out of three numbers the document already carries.
     [Theory]

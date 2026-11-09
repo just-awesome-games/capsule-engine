@@ -205,14 +205,19 @@ public sealed class GameBoundaryLogicTests
         Assert.Empty(await Analyze(source, logic: true));
     }
 
-    // Reflection is refused on its own terms, not as I/O, and the report names what to write instead.
-    [Fact]
-    public async Task Logic_RejectsReflectionAndNamesTheFix()
+    // Reflection is refused on its own terms, not as I/O, and the report names what to write instead. System.Type's
+    // methods and System.Activator reflect from outside System.Reflection.
+    [Theory]
+    [InlineData("scene.GetType().Name")]
+    [InlineData("scene.GetType().GetMethod(\"Step\")")]
+    [InlineData("System.Type.GetType(\"Game.Hall\")")]
+    [InlineData("System.Activator.CreateInstance(scene.GetType())")]
+    public async Task Logic_RejectsReflectionAndNamesTheFix(string call)
     {
-        const string source = """
+        string source = $$"""
             public static class Logic
             {
-                public static string Name(object scene) => scene.GetType().Name;
+                public static object? Reflect(object scene) => {{call}};
             }
             """;
 
@@ -225,7 +230,8 @@ public sealed class GameBoundaryLogicTests
 
     // Each source compiles clean against the engine and draws no report: state the logic owns, in-memory
     // I/O and threading helpers that neither schedule nor block, the engine's log where the console is
-    // forbidden, an explicit time provider, and the platform functions without a DeterministicMath twin.
+    // forbidden, an explicit time provider, the platform functions without a DeterministicMath twin, and a
+    // System.Type property read off a type in hand.
     [Theory]
     [InlineData("""
         public sealed class Logic
@@ -301,6 +307,12 @@ public sealed class GameBoundaryLogicTests
             }
 
             private static async Routine Inner() => await Wait.Until(static () => true);
+        }
+        """)]
+    [InlineData("""
+        public static class Logic
+        {
+            public static bool Nested(object scene) => scene.GetType() is { IsNested: true };
         }
         """)]
     public async Task Logic_AcceptsWhatTouchesNothingOutsideTheSimulation(string source)

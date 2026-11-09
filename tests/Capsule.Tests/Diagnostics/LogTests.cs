@@ -89,6 +89,19 @@ public sealed class LogTests : IDisposable
         Assert.Single(replacement.Entries);
     }
 
+    // Without the drop, a sink that logs recurses until the stack overflows and ends the process.
+    [Fact]
+    public void ALineASinkLogsFromInsideItsOwnWrite_IsDropped()
+    {
+        EchoingLogSink sink = new();
+        Log.UseSink(sink);
+
+        Log.Info("once");
+        Log.Info("twice");
+
+        Assert.Equal(["once", "twice"], sink.Lines);
+    }
+
     // WithLogSink documents the shape for people reading their game's output. The tick, the
     // level and the message are a contract. The columns they are padded into are not.
     [Theory]
@@ -146,6 +159,17 @@ public sealed class LogTests : IDisposable
             {
                 Log.Info("stepped");
             }
+        }
+    }
+
+    private sealed class EchoingLogSink : ILogSink
+    {
+        internal List<string> Lines { get; } = [];
+
+        public void Write(LogLevel level, string message)
+        {
+            Lines.Add(message);
+            Log.Warning("echo of " + message);
         }
     }
 

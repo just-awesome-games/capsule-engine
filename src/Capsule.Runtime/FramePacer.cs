@@ -15,9 +15,12 @@ internal sealed class FramePacer(Func<long> timestamp, Action<long> sleep)
     private long _due;
 
     internal FramePacer()
-        : this(Stopwatch.GetTimestamp, static ticks => Sdl3.SDL_DelayNS((ulong)(ticks * 1_000_000_000 / Stopwatch.Frequency)))
+        : this(Stopwatch.GetTimestamp, Sleep)
     {
     }
+
+    // Sleeps for ticks on the operating system's high-resolution timer.
+    internal static void Sleep(long ticks) => Sdl3.SDL_DelayNS((ulong)(ticks * 1_000_000_000 / Stopwatch.Frequency));
 
     // The seconds between frames the display asks for on this frame, 0 for no wait. Unfocused, the
     // lower cap applies. Minimized, the window presents nothing and wakes at most once a step, which

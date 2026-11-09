@@ -152,7 +152,7 @@ public sealed class SheetRefusalTests
     [InlineData("""
         { "$schema": "sheet.schema.json", "formatVersion": 1, "texture": "p.png",
           "frames": [ { "$schema": "sheet.schema.json", "name": "a", "x": 0, "y": 0, "width": 1, "height": 1 } ] }
-        """, "has an unknown member or value at $.frames[0].$schema (line 2, byte 27). A sheet holds")]
+        """, "has an unknown member at $.frames[0].$schema (line 2, byte 27). A sheet holds")]
     public void ASheetTheBuildCannotRead_FailsTheBuildNamingTheDefect(string json, string defect)
     {
         string refused = SheetToolTests.Refused(("prop", json));

@@ -17,7 +17,8 @@ dotnet run --project samples/MinimalGame/src/MinimalGame.Shell -- --replay sampl
 dotnet test samples/MinimalGame/MinimalGame.slnx
 ```
 
-Against the NuGet packages:
+Against the NuGet packages, which `-p:CapsuleSourcePath=` selects
+([Consuming Capsule](../../docs/build-and-publish.md#consuming-capsule)):
 
 ```sh
 dotnet pack --configuration Release --output artifacts/packages
@@ -38,7 +39,7 @@ The gate is `sh hooks/pre-commit` from the sample root.
 - Change rooms: walk into the dark doorway at the room's far right, past the belt that pushes back.
 
 Jump and shoot can be rebound under Options on the title menu, where the list scrolls with the wheel or its bar.
-Delete, the north pad button or a right-click on a binding's row puts its default back.
+Delete, Backspace, the north pad button or a right-click on a binding's row puts its default back.
 Options also sets the music, effects, screen shake and rumble levels, where 0 turns each off, and switches the
 language between English and German, fullscreen, the window's size, vertical sync, a frame cap that includes the
 display's own refresh rate and low latency, and the game opens as they were left. It starts in the system's language, and

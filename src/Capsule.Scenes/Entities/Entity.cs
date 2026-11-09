@@ -79,9 +79,9 @@ public partial class Entity
     /// Joining a scene numbers the name when the scene has held it before: the first <c>Avatar</c> stays
     /// <c>Avatar</c>, and later ones are <c>Avatar (1)</c>, <c>Avatar (2)</c> and on. A number is never
     /// reused in that scene, and an entity keeps its name while others come and go. A pooled entity taken
-    /// again joins as a new one with a new number. Setting the name while in a scene numbers it the same
-    /// way at once. A number in parentheses ending a name is the scene's to give, and setting a name that
-    /// ends in one throws. <c>Scene</c> and <c>Camera</c> name the scene's own panel and its camera's in the
+    /// again joins as a new one with a new number. Setting another name while in a scene numbers it the
+    /// same way at once, and setting the name it already asks for changes nothing. A number in parentheses
+    /// ending a name is the scene's to give, and setting a name that ends in one throws. <c>Scene</c> and <c>Camera</c> name the scene's own panel and its camera's in the
     /// debug overlay and a trace, and an entity asking for either is numbered from <c>(1)</c>.
     /// </remarks>
     [AllowNull]
@@ -100,8 +100,16 @@ public partial class Entity
                     nameof(value));
             }
 
+            string previous = RequestedName;
             _requestedName = value;
-            NameNumber = Joined && SceneOrNull is { } scene ? scene.NextNameNumber(RequestedName) : 0;
+            if (!Joined || SceneOrNull is not { } scene)
+            {
+                NameNumber = 0;
+            }
+            else if (!string.Equals(RequestedName, previous, StringComparison.Ordinal))
+            {
+                NameNumber = scene.NextNameNumber(RequestedName);
+            }
         }
     }
 
@@ -240,7 +248,8 @@ public partial class Entity
     /// The new ancestry makes a cycle, or holds a scroll factor, turn or scale a component in this subtree refuses.
     /// For an entity in or joining a scene, the parent is outside that scene or being removed, or the entity cannot
     /// keep its world transform under it. The write is also refused during a draw, once this entity is being
-    /// removed, and while an ancestor waits to join a scene.
+    /// removed, while an ancestor waits to join a scene, and under a parent a scene holds while this entity is
+    /// idle in its pool.
     /// </exception>
     public Entity? Parent
     {
@@ -278,6 +287,7 @@ public partial class Entity
             {
                 RequireParentable(value);
                 value.SceneOrNull?.Drawing.ThrowIfDrawing("parented an entity");
+                value.SceneOrNull?.RequireEnqueueable(this);
             }
 
             Link(value);
@@ -460,7 +470,8 @@ public partial class Entity
     internal ReadOnlySpan<Component> Components => CollectionsMarshal.AsSpan(_components);
 
     // Walks the component list. A hook may detach components, and the walk still visits each one after
-    // the one it last visited. One attached once that one and every later one are gone can wait a walk.
+    // the one it last visited. A component attached once that one and every later one have gone may be
+    // skipped until the next walk.
     private ComponentWalk LiveComponents => new(_components);
 
     /// <summary>Attaches <paramref name="component"/>, which no entity may already own, and returns it.</summary>
@@ -539,16 +550,7 @@ public partial class Entity
                     component.OnDetachingFrom(this);
                 }
 
-                _components.RemoveAt(IndexOf(_components, component));
-                if (component.Steps)
-                {
-                    _steppers--;
-                }
-
-                component.Entity = null;
-
-                // A hook may have read the draw order while the renderer was attached.
-                NoteRendererChange(component);
+                Unlist(component);
             }
 
             throw;
@@ -587,15 +589,8 @@ public partial class Entity
                 $"This entity does not hold the {component.GetType().Name} being removed.");
         }
 
-        _components.RemoveAt(IndexOf(_components, component));
-        if (component.Steps)
-        {
-            _steppers--;
-        }
-
-        // Clear the owner before hooks run. Hooks cannot then observe the component still attached.
-        component.Entity = null;
-        NoteRendererChange(component);
+        // Before the hooks run, which then cannot observe the component still attached.
+        Unlist(component);
 
         // Every hook runs and the engine's own release always follows. A throwing hook then leaves no
         // detached component registered or drawn. Failures propagate once detachment finishes.
@@ -620,6 +615,20 @@ public partial class Entity
 
         component.OnDetachingFrom(this);
         Scenes.Scene.ThrowCleanupFailures(failures);
+    }
+
+    // Takes the component out of this entity's list and clears its owner. A hook may have read the draw order
+    // while a renderer was attached, and the order learns it has gone.
+    private void Unlist(Component component)
+    {
+        _components.RemoveAt(IndexOf(_components, component));
+        if (component.Steps)
+        {
+            _steppers--;
+        }
+
+        component.Entity = null;
+        NoteRendererChange(component);
     }
 
     // A renderer joining or leaving an entity a scene already holds changes that scene's draw order.

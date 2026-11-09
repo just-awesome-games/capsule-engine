@@ -136,7 +136,7 @@ public sealed class SlopeTests
             scene.Add(new Block([new(48f, 64f), new(80f, 32f), new(96f, 32f), new(128f, 64f), new(128f, 80f), new(48f, 80f)]));
         }
 
-        SceneFixtures.Body body = Grounded(scene, new Vector2(8f, 40f));
+        SceneFixtures.Body body = CollisionFixtures.Grounded(scene, new Vector2(8f, 40f));
 
         for (int step = 0; step < 70; step++)
         {
@@ -163,7 +163,7 @@ public sealed class SlopeTests
     {
         Scene scene = new Scene(SceneFixtures.Content(SceneFixtures.Room(), SceneFixtures.Registry())).Started();
         scene.Add(new Wedge(run));
-        SceneFixtures.Body body = Grounded(scene, new Vector2(124f, 20f));
+        SceneFixtures.Body body = CollisionFixtures.Grounded(scene, new Vector2(124f, 20f));
         body.Mover.KeepsHorizontalSpeedOnSlopes = keepsHorizontalSpeed;
         Vector2 start = body.Position;
 
@@ -264,7 +264,7 @@ public sealed class SlopeTests
         Scene scene = new Scene().Started();
         scene.Add(new Block(Mirrored(way, new(0f, 64f), new(160f, 64f), new(160f, 80f), new(0f, 80f))));
         scene.Add(new Block(Mirrored(way, new(48f, 64f), new(80f, 48f), new(80f, 64f))));
-        SceneFixtures.Body body = Grounded(scene, new Vector2(way > 0f ? 16f : 136f, 55f));
+        SceneFixtures.Body body = CollisionFixtures.Grounded(scene, new Vector2(way > 0f ? 16f : 136f, 55f));
 
         body.Mover.Move(new Vector2(way * 40f, 0.5f));
 
@@ -308,18 +308,6 @@ public sealed class SlopeTests
         }
 
         return points;
-    }
-
-    // Lands a grounded 8x8 body from where it starts.
-    private static SceneFixtures.Body Grounded(Scene scene, Vector2 position)
-    {
-        SceneFixtures.Body body = new(position, blocksOn: "solid");
-        body.Mover.Mode = BodyMode.Grounded;
-        scene.Add(body);
-        body.Mover.Move(new Vector2(0f, 40f));
-        Assert.True(body.Mover.IsOnFloor);
-
-        return body;
     }
 
     // A 256-wide wedge on "solid" that rises to the right one unit for every `run`.

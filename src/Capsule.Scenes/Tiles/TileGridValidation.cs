@@ -118,7 +118,7 @@ internal static class TileGridValidation
                 ? "an empty palette"
                 : $"\"{tileTypes[0].Name}\" with cell {tileTypes[0].Cell?.ToString() ?? "none"} and layer {tileTypes[0].Layer ?? "none"}";
             throw Malformed(
-                $"tileTypes[0] is {actual}. Make it a plain TileType named \"{TileGrid.EmptyTileName}\" with no cell, no frames, no layer and no properties.",
+                $"tileTypes[0] is {actual}. Make it a plain TileType named \"{TileGrid.EmptyTileName}\" with no cell, frames, layer, shape, oneWay, solidSides or surfaceVelocity.",
                 "tileTypes");
         }
 

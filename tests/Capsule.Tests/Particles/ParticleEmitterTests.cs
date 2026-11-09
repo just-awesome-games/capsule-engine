@@ -66,14 +66,10 @@ public sealed class ParticleEmitterTests
     [Fact]
     public void SubTickSpawn_PlacesOriginsAcrossTheTicksDisplacement()
     {
-        // Zero speed: Position and PreviousPosition both land exactly on the origin. The fraction
-        // is read straight off the drawn position.
-        Mover stillMover = new(Vector2.Zero);
+        // The entity drifts one unit on X a step. At zero speed, Position and PreviousPosition both
+        // land exactly on the origin, and the fraction is read straight off the drawn position.
         ParticleEmitter stillEmitter = new(Tile, capacity: 8) { Rate = 240f, Lifetime = new FloatRange(2f, 2f) };
-        stillMover.Add(stillEmitter);
-
-        SceneFixtures.HookScene stillScene = new(start: s => s.Add(stillMover));
-        SimulationHost stillHost = new(stillScene);
+        SimulationHost stillHost = Host(stillEmitter, new SceneFixtures.Drifter());
         stillHost.Step();
 
         float[] fractions = [.. stillHost.Simulation.View.Sprites.ToArray().Select(static intent => intent.Position.X)];
@@ -82,17 +78,13 @@ public sealed class ParticleEmitterTests
 
         // A drawn speed: whatever fraction a spawn lands at, Position - PreviousPosition is exactly
         // Velocity * dt, by the same placement the still case used.
-        Mover movingMover = new(Vector2.Zero);
         ParticleEmitter movingEmitter = new(Tile, capacity: 8)
         {
             Rate = 240f,
             Speed = new FloatRange(50f, 50f),
             Lifetime = new FloatRange(2f, 2f),
         };
-        movingMover.Add(movingEmitter);
-
-        SceneFixtures.HookScene movingScene = new(start: s => s.Add(movingMover));
-        SimulationHost movingHost = new(movingScene);
+        SimulationHost movingHost = Host(movingEmitter, new SceneFixtures.Drifter());
         movingHost.Step();
 
         float dt = 1f / 60f;
@@ -300,20 +292,20 @@ public sealed class ParticleEmitterTests
     internal static (EntityHierarchyFixtures.Node Root, ParticleEmitter Emitter, SimulationHost Host) Build(ParticleEmitter emitter)
     {
         EntityHierarchyFixtures.Node root = new(Vector2.Zero);
+
+        return (root, emitter, Host(emitter, root));
+    }
+
+    // The emitter on `root`, in a scene of its own that adds the root as it starts.
+    internal static SimulationHost Host(ParticleEmitter emitter, Entity root)
+    {
         root.Add(emitter);
 
-        SceneFixtures.HookScene scene = new(start: s => s.Add(root));
-        SimulationHost host = new(scene);
-
-        return (root, emitter, host);
+        return new SimulationHost(new SceneFixtures.HookScene(start: s => s.Add(root)));
     }
 
-    // Moves one world unit on X every tick. A spawn's sub-tick fraction is directly readable off
-    // its origin.
-    private sealed class Mover(Vector2 position) : Entity(position)
-    {
-        protected internal override void OnStep(in StepContext context) => Position += new Vector2(1f, 0f);
-    }
+    internal static void AssertClose(Vector2 expected, Vector2 actual, float tolerance) =>
+        Assert.True(Vector2.Distance(expected, actual) <= tolerance, $"expected {expected}, got {actual}");
 
     // Emits into a pool it does not own, then leaves the scene the same step, as Bolt does onto its
     // SparkBurst.

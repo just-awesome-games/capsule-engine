@@ -87,8 +87,8 @@ Run.Audio.Play(new AudioPlayback(CapsuleAssets.Audio.ChimeSound)
 
 The listener is the scene camera's `Listener` while that entity is in the scene, and otherwise the centre
 of the camera's `VisibleRegion`. A voice falls silent at the range's `MaxDistance` while keeping its time.
-A positional voice ignores its own `Pan` and pans by its horizontal offset from the listener, halfway at
-half a view width and hard at a full one. Heard from the view's centre, a sound at the view's edge is half
+A positional voice ignores its own `Pan` and pans by its horizontal offset from the listener, as
+`AudioPlayback.Position` documents. Heard from the view's centre, a sound at the view's edge is half
 a view width away, and a `MaxDistance` a little past that distance fades it out as it leaves the screen.
 Voices whose ranges overlap off screen add up.
 

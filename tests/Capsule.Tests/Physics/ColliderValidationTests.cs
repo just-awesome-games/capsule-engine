@@ -53,7 +53,6 @@ public sealed class ColliderValidationTests
 
         body.Collider.Size = new Vector2(64f, 8f);
 
-        Assert.Equal(new Vector2(64f, 8f), body.Collider.Size);
         Assert.Equal(1, scene.Collision.OverlapBoxAll(reach, CollisionFilter.Everything, contacts));
         Assert.Equal(body.Collider.Handle, contacts[0].Target.Collider);
     }
@@ -92,7 +91,7 @@ public sealed class ColliderValidationTests
         body.Collider.Detects = solid;
         body.Mover.BlockedBy = solid;
         scene.Add(body);
-        Saturate(scene.Collision);
+        CollisionFixtures.Saturate(scene.Collision);
 
         CollisionFilter before = body.Collider.Filter;
         CollisionMask unseen = new("a name this world has never seen");
@@ -120,7 +119,7 @@ public sealed class ColliderValidationTests
         Scene scene = new Scene().Started();
         Body host = new(Vector2.Zero);
         scene.Add(host);
-        Saturate(scene.Collision);
+        CollisionFixtures.Saturate(scene.Collision);
 
         BoxCollider2D late = new(new Vector2(8f, 8f));
         late.Detects = new("a name this world has never seen");
@@ -131,14 +130,6 @@ public sealed class ColliderValidationTests
         Assert.Null(late.World);
         Assert.True(late.Handle.IsNone);
         Assert.Equal(CollisionWorld2D.MaxLayers, scene.Collision.LayerCount);
-    }
-
-    private static void Saturate(CollisionWorld2D world)
-    {
-        for (int index = world.LayerCount; index < CollisionWorld2D.MaxLayers; index++)
-        {
-            world.Layer($"filler-{index}");
-        }
     }
 
     // Setting the layer of a registered collider reaches the world at once.

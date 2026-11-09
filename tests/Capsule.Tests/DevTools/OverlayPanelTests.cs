@@ -26,7 +26,7 @@ public sealed class OverlayPanelTests
         Assert.Equal(2, rig.Overlay.Depth);
 
         rig.Press(Key.Down);
-        Assert.Equal(FirstEntity, rig.Overlay.Focus);
+        Assert.Equal("Lone", rig.Focused());
         rig.Press(Key.Enter);
 
         Assert.Equal("Lone", rig.Overlay.Title);
@@ -36,7 +36,7 @@ public sealed class OverlayPanelTests
             rig.Rows());
 
         rig.Press(Key.Down);
-        Assert.Equal(10, rig.Overlay.Focus);
+        Assert.Equal("  Remove", rig.Focused());
 
         rig.Press(Key.Backspace);
         rig.Press(Key.Up);

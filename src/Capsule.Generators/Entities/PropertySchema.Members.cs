@@ -125,6 +125,7 @@ internal static partial class PropertySchema
             member is IFieldSymbol,
             direct,
             readable,
+            member is not IPropertySymbol { GetMethod: null },
             held && fills,
             kind,
             member.ContainingType.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),

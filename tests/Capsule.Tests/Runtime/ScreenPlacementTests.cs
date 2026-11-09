@@ -2,6 +2,8 @@ using System.Numerics;
 using Capsule.Rendering;
 using Capsule.Runtime;
 
+using static Capsule.Tests.Runtime.FrameLayoutFixtures;
+
 namespace Capsule.Tests.Runtime;
 
 // Where the screen layer lands in the window, and the inverse of that placement, which is what turns a
@@ -252,17 +254,4 @@ public sealed class ScreenPlacementTests
             origin.Y + ((world.Y + world.Height) * prescale * scale),
             origin + (drawn.OnSurface.Origin * prescale * scale));
     }
-
-    private static FrameView View(Vector2 canvas, Vector2? cameraSize = null, ViewportFit fit = ViewportFit.Letterbox)
-    {
-        return new FrameView
-        {
-            Canvas = canvas,
-            Sampling = TextureSampling.Point,
-            Camera = new CameraView(Vector2.Zero, Vector2.Zero, cameraSize ?? canvas, fit),
-        };
-    }
-
-    private static ScreenLayout Layout((int Width, int Height)? resolution, FrameView view, int outputWidth, int outputHeight) =>
-        FrameLayout.Layout(resolution, view.Camera, view.Canvas, outputWidth, outputHeight);
 }

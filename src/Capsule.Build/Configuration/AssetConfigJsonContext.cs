@@ -19,8 +19,8 @@ namespace Capsule.Build.Configuration;
 [JsonSerializable(typeof(TextureSamplingSetting))]
 internal sealed partial class AssetConfigJsonContext : JsonSerializerContext
 {
-    /// <summary>What a refusal calls a config or atlas file's members and values.</summary>
-    internal const string Members = "kind, setting or value";
+    /// <summary>What a refusal calls a config or atlas file's members.</summary>
+    internal const string Members = "kind or setting";
 
     /// <summary>What a refusal of a null in a config or atlas file says to write instead.</summary>
     /// <remarks>A present null would read as an omitted setting and silently inherit.</remarks>

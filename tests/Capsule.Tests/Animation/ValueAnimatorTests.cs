@@ -7,13 +7,6 @@ namespace Capsule.Tests.Animation;
 
 public sealed class ValueAnimatorTests
 {
-    /// <summary>Where a <c>Play</c> inside a step is made from, which must not change the values set.</summary>
-    public enum PlaySite
-    {
-        EntityStep,
-        ComponentAfterTheAnimator,
-    }
-
     // A one-tick first key is the case a step that advanced too early would erase entirely. The setter
     // hears the first value at once, and the play tick shows it. Afterwards it hears each key entered.
     [Fact]
@@ -170,9 +163,7 @@ public sealed class ValueAnimatorTests
         List<float> set = [];
         ValueAnimator<float> animator = new(value => set.Add(entity.Scene.Paused ? -value : value));
         entity.Add(animator);
-        SceneFixtures.HookScene scene = new();
-        scene.Add(entity);
-        SimulationHost run = new(scene);
+        SimulationHost run = SceneFixtures.Simulate(entity);
         animator.Play(new ValueClip<float>([(1f, 1), (2f, 1)]));
         run.Step(2);
 
@@ -224,30 +215,15 @@ public sealed class ValueAnimatorTests
         Assert.Equal([1f, 2f], set);
     }
 
-    // Stepped through a scene, not by calling the component: the animator's promise is that values
-    // advance on the fixed step, in the order a scene steps its components.
     private static (ValueAnimator<float> Animator, List<float> Set, SimulationHost Run) Animating()
     {
         List<float> set = [];
         ValueAnimator<float> animator = new(set.Add);
-        SceneFixtures.Recorder entity = new("animated", []);
-        entity.Add(animator);
-        SceneFixtures.HookScene scene = new();
-        scene.Add(entity);
 
-        return (animator, set, new SimulationHost(scene));
+        return (animator, set, Stepped(animator));
     }
 
     // The value the animator holds after each of the run's next steps.
-    private static float[] ValuesOver(SimulationHost run, ValueAnimator<float> animator, int steps)
-    {
-        float[] values = new float[steps];
-        for (int step = 0; step < steps; step++)
-        {
-            run.Step();
-            values[step] = animator.Value;
-        }
-
-        return values;
-    }
+    private static float[] ValuesOver(SimulationHost run, ValueAnimator<float> animator, int steps) =>
+        AfterEachStep(run, steps, () => animator.Value);
 }

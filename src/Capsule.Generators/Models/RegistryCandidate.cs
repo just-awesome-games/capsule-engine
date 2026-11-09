@@ -9,8 +9,8 @@ namespace Capsule.Generators;
 internal readonly record struct RegistryCandidate(
     EntityModel? Entity,
     SceneModel? Scene,
-    InputDriverModel? Driver,
-    ScenePayloadModel? Payload)
+    NamedClassModel? Driver,
+    NamedClassModel? Payload)
 {
     internal bool IsEmpty => Entity is null && Scene is null && Driver is null && Payload is null;
 }

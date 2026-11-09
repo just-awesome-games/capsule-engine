@@ -82,13 +82,14 @@ internal sealed class LowerCaseEnumConverter<T> : JsonConverter<T>
 {
     public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
         reader.TokenType == JsonTokenType.String && reader.GetString() is { } spelled
-            && Enum.TryParse(spelled, ignoreCase: true, out T value) && spelled == Spell(value)
+            && Enum.TryParse(spelled, ignoreCase: true, out T value) && Enum.IsDefined(value) && spelled == Spell(value)
                 ? value
                 : throw new JsonException();
 
     public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options) => writer.WriteStringValue(Spell(value));
 
-    // A number parses to a member too, and then differs from the member's own spelling.
+    // A number parses too. An undefined one spells as its own digits and is refused as undefined. A
+    // defined one spells as its member's name and differs from the number.
     private static string Spell(T value) => value.ToString().ToLowerInvariant();
 }
 

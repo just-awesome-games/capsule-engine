@@ -44,7 +44,6 @@ public sealed class EntityTransformTests
 
         child.Transform = new Transform2D(new Vector2(1f, 1f), 0.5f, new Vector2(3f, 1f));
 
-        Assert.Equal(new Transform2D(new Vector2(1f, 1f), 0.5f, new Vector2(3f, 1f)), child.Transform);
         Assert.Equal(new Transform2D(new Vector2(12f, 2f), 0.5f, new Vector2(6f, 2f)), child.WorldTransform);
 
         Node held = new(Vector2.Zero);

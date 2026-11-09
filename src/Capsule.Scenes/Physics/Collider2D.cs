@@ -8,7 +8,7 @@ namespace Capsule.Physics;
 /// <summary>
 /// Gives its entity a shape in the scene's <see cref="Scene.Collision"/> world. The collider
 /// registers when its entity joins a scene, unregisters when it leaves, and follows the entity's
-/// <see cref="Scenes.Entity.WorldPosition"/> every step.
+/// <see cref="Scenes.Entity.WorldPosition"/> as each write moves it.
 /// </summary>
 /// <remarks>
 /// Position is what a collider follows. A <see cref="BoxCollider2D"/> also follows an axis-aligned
@@ -136,9 +136,6 @@ public abstract partial class Collider2D : Component, ISettleListEntry
 
     /// <summary>The shape in the collider's own space. <see cref="Offset"/> and the entity's position place it.</summary>
     public Shape2D Shape => _shape;
-
-    // The shape at its offset under the world scale. The world translates this by the entity's position.
-    internal Shape2D Local => _local;
 
     // The shape at its current place in the world.
     private protected Shape2D WorldShape =>

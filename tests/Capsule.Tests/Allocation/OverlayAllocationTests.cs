@@ -13,6 +13,10 @@ namespace Capsule.Tests.Allocation;
 [Collection(StageAllocationCollection.Name)]
 public sealed class OverlayAllocationTests
 {
+    // Every measured stretch of held frames: the frames that take the first-use costs, then those counted.
+    private const int WarmupFrames = 60;
+    private const int MeasuredFrames = 300;
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -61,7 +65,7 @@ public sealed class OverlayAllocationTests
         rig.Open();
         rig.PlaceWorld();
 
-        Assert.Equal(0, StepMeasurement.Bytes(frame => Gesture(rig, frame), warmup: 60, measured: 300));
+        Assert.Equal(0, StepMeasurement.Bytes(frame => Gesture(rig, frame), warmup: WarmupFrames, measured: MeasuredFrames));
         Assert.True(rig.Overlay.FreeCamera.Detached);
         Assert.NotEmpty(rig.Overlay.Scene.Readout()[2]);
     }
@@ -85,8 +89,8 @@ public sealed class OverlayAllocationTests
                 rig.Frame(intervalMs: 0.4, updateMs: 0.1);
                 _ = rig.Host.View;
             },
-            warmup: 60,
-            measured: 300);
+            warmup: WarmupFrames,
+            measured: MeasuredFrames);
 
         Assert.Equal(0, bytes);
         Assert.True(rig.Overlay.FreeCamera.Flying);
@@ -101,7 +105,7 @@ public sealed class OverlayAllocationTests
     }
 
     private static void AssertIdleStretchAllocatesNothing(OverlayRig rig) =>
-        Assert.Equal(0, StepMeasurement.Bytes(_ => rig.Frame(), warmup: 60, measured: 300));
+        Assert.Equal(0, StepMeasurement.Bytes(_ => rig.Frame(), warmup: WarmupFrames, measured: MeasuredFrames));
 
     private sealed class Highlighted : Scene
     {

@@ -135,6 +135,13 @@ internal static class SceneResolver
 
     private static string? Normalized(List<Diagnostic> diagnostics, SceneModel model, string declared)
     {
+        if (string.IsNullOrWhiteSpace(declared))
+        {
+            diagnostics.Add(Diagnostic.Create(Diagnostics.BlankTypeKey, model.At.Location(), model.DisplayName));
+
+            return null;
+        }
+
         if (AssetPaths.NormalizeKey(declared, out string? rejected) is { } key)
         {
             return key;

@@ -25,7 +25,7 @@ internal static class RecordingFormat
     internal const byte End = 0xFF;
 
     // A Step record's mask bits. An axis bit is its slot's, from AxisBit up, and LackingBit follows the
-    // axes. A recording made before LackingBit existed never sets it and replays a full pad.
+    // axes. A recording that never sets LackingBit replays a full pad.
     internal const int KeysBit = 1 << 0;
     internal const int PadBit = 1 << 1;
     internal const int MouseBit = 1 << 2;
@@ -162,6 +162,14 @@ internal sealed class RecordingReader(byte[] bytes, int start, string source)
         ulong value = ReadVarint();
 
         return value <= (ulong)limit ? (int)value : throw Defect($"holds a count of {value} at byte {Position}, above the {limit} it allows");
+    }
+
+    // A set of 32 bits, written as a varint.
+    internal uint ReadBits()
+    {
+        ulong value = ReadVarint();
+
+        return value <= uint.MaxValue ? (uint)value : throw Defect($"holds a 32-bit set of {value} at byte {Position}");
     }
 
     internal uint ReadUInt32() => BinaryPrimitives.ReadUInt32LittleEndian(Take(sizeof(uint)));

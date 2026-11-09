@@ -254,35 +254,15 @@ internal sealed class Replay
     // Builds the subject's panel as the overlay does and finds the command or toggle it ran.
     private Action? Command(Scene scene, in HostAct act)
     {
-        _panel.Clear();
-        switch (act.Subject)
+        Entity? entity = act.Subject == PanelSubject.Entity ? EntityPath.Find(scene, act.Path!) : null;
+        if (act.Subject == PanelSubject.Entity && entity is null)
         {
-            case PanelSubject.Scene:
-                scene.RunDebugPanel(_panel);
-                break;
-            case PanelSubject.Camera:
-                scene.Camera.RunDebugPanel(_panel);
-                break;
-            default:
-                if (EntityPath.Find(scene, act.Path!) is not { } entity)
-                {
-                    return null;
-                }
-
-                entity.RunDebugPanel(_panel);
-                break;
+            return null;
         }
 
-        int seen = 0;
-        foreach (DebugPanelRow row in _panel.Rows)
-        {
-            if (row.Kind is DebugPanelRowKind.Command or DebugPanelRowKind.Toggle && row.Label == act.Name && seen++ == act.Occurrence)
-            {
-                return row.Activate;
-            }
-        }
+        PanelSubjects.Fill(_panel, scene, act.Subject, entity);
 
-        return null;
+        return PanelSubjects.Find(_panel.Rows, act.Name!, act.Occurrence);
     }
 
     private void Diverge(long tick)

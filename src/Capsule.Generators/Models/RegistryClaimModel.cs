@@ -15,4 +15,9 @@ internal enum RegistryClaimKind
 
 /// <summary>One key a referenced logic assembly claims, as its registry claim attribute records it.</summary>
 /// <param name="DeclaringType">The claiming class, as a message names it.</param>
-internal readonly record struct RegistryClaimModel(RegistryClaimKind Kind, string Key, string DeclaringType);
+/// <param name="DeclaringAssembly">The assembly declaring that class.</param>
+internal readonly record struct RegistryClaimModel(RegistryClaimKind Kind, string Key, string DeclaringType, string DeclaringAssembly)
+{
+    /// <summary>The claiming class with its assembly, as <c>Game.Door, Game.Logic</c>.</summary>
+    internal string AssemblyQualified => DeclaringType + ", " + DeclaringAssembly;
+}

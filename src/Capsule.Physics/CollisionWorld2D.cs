@@ -464,6 +464,14 @@ public sealed partial class CollisionWorld2D
 
         RequireLookedUp(cells, lookup.Length / stride, stride);
 
+        // The grid keeps one state per cell in a single array.
+        if ((long)cells.Width * cells.Height > Array.MaxLength)
+        {
+            throw new ArgumentException(
+                $"cells is {cells.Width} by {cells.Height}, more than the {Array.MaxLength} cells one grid holds. Split it into smaller grids.",
+                nameof(cells));
+        }
+
         int slotIndex = AllocateSlot();
         ref ColliderSlot slot = ref _slots[slotIndex];
         slot.ProxyId = DynamicTree2D.NullNode;
@@ -994,13 +1002,24 @@ public sealed partial class CollisionWorld2D
         Guard.Finite(distance, nameof(distance));
         ArgumentOutOfRangeException.ThrowIfNegative(distance);
 
-        float length = direction.Length();
-        if (!float.IsFinite(length) || length <= 0f)
+        // Above this square the larger component's square, and so the length, keeps full precision. NaN
+        // fails the range.
+        float squared = direction.LengthSquared();
+        if (squared is >= 1e-30f and <= float.MaxValue)
+        {
+            return direction / MathF.Sqrt(squared);
+        }
+
+        float larger = MathF.Max(MathF.Abs(direction.X), MathF.Abs(direction.Y));
+        if (!float.IsFinite(direction.X) || !float.IsFinite(direction.Y) || larger == 0f)
         {
             throw new ArgumentOutOfRangeException(nameof(direction), direction, "Direction is zero or not finite. Pass a non-zero finite direction.");
         }
 
-        return direction / length;
+        // A component this large or small squares out of range. Dividing by the larger one first
+        // keeps the length near 1.
+        Vector2 scaled = new(direction.X / larger, direction.Y / larger);
+        return scaled / scaled.Length();
     }
 
     // The checks each query shares between its filter and mask overloads. A mask overload passes
@@ -1019,6 +1038,7 @@ public sealed partial class CollisionWorld2D
         Shape2D.RequireBuilt(shape, nameof(shape));
         Guard.Finite(origin, nameof(origin));
         Guard.Finite(translation, nameof(translation));
+        Guard.Finite(origin + translation, nameof(translation));
         RequireOwn(filter, nameof(filter));
         RequireIgnorable(ignore);
     }

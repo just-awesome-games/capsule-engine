@@ -54,7 +54,7 @@ internal static class FlacEncoder
     }
 
     /// <summary>Encodes interleaved little-endian samples laid out as a WAVE 'data' chunk holds them.</summary>
-    /// <param name="pcm">Whole frames. 8-bit samples are unsigned, every wider one signed.</param>
+    /// <param name="pcm">Whole frames, at least one, since a stream of none declares its length unknown. 8-bit samples are unsigned, every wider one signed.</param>
     /// <param name="channels">1 or 2.</param>
     /// <param name="bits">8, 16, 24 or 32.</param>
     /// <param name="rate">Frames per second, from 1 to 2^20 - 1.</param>
@@ -62,6 +62,7 @@ internal static class FlacEncoder
     internal static void Encode(ReadOnlySpan<byte> pcm, int channels, int bits, uint rate, Stream output)
     {
         int width = bits / 8;
+        ArgumentOutOfRangeException.ThrowIfLessThan(pcm.Length, channels * width, nameof(pcm));
         long total = pcm.Length / (channels * width);
         if (rate >= 1 << 20)
         {
@@ -91,12 +92,13 @@ internal static class FlacEncoder
         header[4] = 0x80;
         header[7] = FlacFormat.StreamInfoBytes;
 
-        // A stream shorter than one block declares its one block's length, within the format's floor of 16.
+        // A stream shorter than one block declares its length as the block size, raised to 16, the format's
+        // floor. Its one block is the last, which the format lets run shorter.
         int blockSize = (int)Math.Clamp(total, 16, BlockSize);
         BitWriter info = new(new byte[FlacFormat.StreamInfoBytes]);
         info.Write((ulong)blockSize, 16);
         info.Write((ulong)blockSize, 16);
-        info.Write(total == 0 ? 0 : (ulong)minFrame, 24);
+        info.Write((ulong)minFrame, 24);
         info.Write((ulong)maxFrame, 24);
         info.Write(rate, 20);
         info.Write((ulong)(channels - 1), 3);

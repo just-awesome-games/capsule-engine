@@ -71,15 +71,7 @@ public sealed class ReparentAllocationTests
     }
 
     // The bytes of every step after the warm-up, each with the frame built after it.
-    private static long Measure(SimulationHost host, int steps) =>
-        StepMeasurement.Bytes(
-            step =>
-            {
-                host.Step();
-                _ = host.Simulation.View;
-            },
-            WarmupSteps,
-            steps - WarmupSteps);
+    private static long Measure(SimulationHost host, int steps) => StepMeasurement.Bytes(host, WarmupSteps, steps - WarmupSteps);
 
     private sealed class Shot : Entity
     {

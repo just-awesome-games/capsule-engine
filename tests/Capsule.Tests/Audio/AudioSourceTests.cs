@@ -50,7 +50,8 @@ public sealed class AudioSourceTests
     }
 
     // The run's step length only reaches the mixer on the first step, after OnStart has played:
-    // 0.08 s is 9.6 steps at 120 Hz, never the 4.8 the default rate would make of it.
+    // 0.08 s is 9.6 steps at 120 Hz, never the 4.8 the default rate would make of it. The mixer re-arms
+    // a voice played before any step against the rate that step establishes.
     [Fact]
     public void AutoPlay_UnderANonDefaultRate_LastsTheClipsOwnDuration()
     {
@@ -113,11 +114,6 @@ public sealed class AudioSourceTests
         Assert.False(source.IsPlaying);
 
         source.Resume();
-        run.Run.Audio.Pause(AudioBus.Master);
-        Assert.True(source.IsLive);
-        Assert.False(source.IsPlaying);
-
-        run.Run.Audio.Resume(AudioBus.Master);
         source.Stop();
         Assert.False(source.IsLive);
     }

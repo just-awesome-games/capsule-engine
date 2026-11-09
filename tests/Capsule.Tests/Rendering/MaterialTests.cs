@@ -3,6 +3,7 @@ using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
+using static Capsule.Tests.Rendering.SpriteFixtures;
 
 namespace Capsule.Tests.Rendering;
 
@@ -161,8 +162,6 @@ public sealed class MaterialTests
             [new MaterialRun(0, stone), new MaterialRun(1, moss), new MaterialRun(2, stone), new MaterialRun(3, null)],
             simulation.View.MaterialRuns.ToArray());
     }
-
-    private static SpriteIntent Quad(Vector2 at) => new(SceneFixtures.Frame(1, 1), at, at, 0f, 0f, Vector2.One, false, false, ColorRgba.White);
 
     private static void Store(FrameView view, Material? material, RenderSpace space)
     {

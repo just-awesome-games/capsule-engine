@@ -28,32 +28,41 @@ internal static class SpriteAnimatorFixtures
     internal static readonly SpriteClip Shoot = new([Frame(20), Frame(21)], [4, 1]);
 
     // The frame the player would have seen after each of the run's first ticks.
-    internal static Sprite[] DrawnOver(SimulationHost run, int ticks)
+    internal static Sprite[] DrawnOver(SimulationHost run, int ticks) =>
+        AfterEachStep(run, ticks, () => run.Simulation.View.Sprites[0].Sprite);
+
+    // What read returns after each of the run's next steps.
+    internal static T[] AfterEachStep<T>(SimulationHost run, int steps, Func<T> read)
     {
-        Sprite[] drawn = new Sprite[ticks];
-        for (int tick = 0; tick < ticks; tick++)
+        T[] seen = new T[steps];
+        for (int step = 0; step < steps; step++)
         {
             run.Step();
-            drawn[tick] = run.Simulation.View.Sprites[0].Sprite;
+            seen[step] = read();
         }
 
-        return drawn;
+        return seen;
     }
 
-    // Stepped through a scene, not by calling the component: the animator's whole promise is that
-    // frames advance on the fixed step, in the order a scene steps its components.
     internal static (SpriteRenderer Renderer, SpriteAnimator Animator, SimulationHost Run) Animating()
     {
         SpriteRenderer renderer = new(Frame(9));
         SpriteAnimator animator = new(renderer);
+
+        return (renderer, animator, Stepped(renderer, animator));
+    }
+
+    // Stepped through a scene, not by calling the component: an animator's whole promise is that it
+    // advances on the fixed step, in the order a scene steps its components.
+    internal static SimulationHost Stepped(params Component[] components)
+    {
         SceneFixtures.Recorder entity = new("animated", []);
-        entity.Add(renderer);
-        entity.Add(animator);
+        foreach (Component component in components)
+        {
+            entity.Add(component);
+        }
 
-        SceneFixtures.HookScene scene = new();
-        scene.Add(entity);
-
-        return (renderer, animator, new SimulationHost(scene));
+        return SceneFixtures.Simulate(entity);
     }
 
     internal static Sprite Frame(int index) => SceneFixtures.Frame(index);

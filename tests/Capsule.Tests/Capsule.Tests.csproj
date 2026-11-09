@@ -8,8 +8,6 @@
     <NoWarn>$(NoWarn);xUnit1051</NoWarn>
     <RootNamespace>Capsule.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
-    <!-- Nothing here is a reference a consumer compiles against. It carries no API reference. -->
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <!-- What Capsule's build defines for a development game build. The specs emit through the
          [Conditional] development calls the way a game does. -->
     <DefineConstants>$(DefineConstants);CAPSULE_DEVELOPMENT</DefineConstants>

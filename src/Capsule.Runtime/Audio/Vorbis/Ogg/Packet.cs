@@ -160,9 +160,8 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             set => SetFlag(PacketFlags.IsEndOfStream, value);
         }
 
-        // Capsule: a bitwise test instead of Enum.HasFlag. HasFlag boxes its argument on every
-        // call. This getter runs on every packet, several times per packet (IsResync, IsShort,
-        // IsEndOfStream checks), measured at 144 B per packet on loop.ogg from that boxing alone.
+        // Capsule: a bitwise test, since Enum.HasFlag boxes its argument and this runs several times
+        // on every packet.
         bool GetFlag(PacketFlags flag) => (_packetFlags & flag) == flag;
 
         void SetFlag(PacketFlags flag, bool value)

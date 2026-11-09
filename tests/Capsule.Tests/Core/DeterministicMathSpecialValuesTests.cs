@@ -15,6 +15,7 @@ public sealed class DeterministicMathSpecialValuesTests
         AssertFollows(DeterministicMath.Tan, Math.Tan, edges);
         AssertFollows(DeterministicMath.Atan, Math.Atan, edges);
         AssertFollows(DeterministicMath.Exp, Math.Exp, edges);
+        AssertFollows(DeterministicMath.Exp2, static exponent => Math.Pow(2.0, exponent), edges);
         AssertFollows(DeterministicMath.Asin, Math.Asin, bounded);
         AssertFollows(DeterministicMath.Acos, Math.Acos, bounded);
         AssertFollows(DeterministicMath.Log2, Math.Log2, bounded);
@@ -45,6 +46,25 @@ public sealed class DeterministicMathSpecialValuesTests
             Assert.True(
                 Bits(Expected(Math.Pow(value, power))) == Bits(DeterministicMath.Pow(value, power)),
                 $"Pow({value}, {power}) returned {DeterministicMath.Pow(value, power)}.");
+        }
+    }
+
+    // The cases are a list and not inline data.
+    [Fact]
+    public void AnAngleOnAnAxisOrAtInfinity_FollowsTheSystemConventionsBitForBit()
+    {
+        (float Y, float X)[] points =
+        [
+            (0f, 0f), (-0f, 0f), (0f, -0f), (-0f, -0f), (0f, -3f), (-0f, -3f), (2f, 0f), (-2f, -0f),
+            (float.PositiveInfinity, float.PositiveInfinity), (float.NegativeInfinity, float.NegativeInfinity),
+            (float.PositiveInfinity, 5f), (-5f, float.PositiveInfinity), (-0f, float.NegativeInfinity), (1f, float.NaN),
+        ];
+
+        foreach ((float y, float x) in points)
+        {
+            Assert.True(
+                Bits(Expected(Math.Atan2(y, x))) == Bits(DeterministicMath.Atan2(y, x)),
+                $"Atan2({y}, {x}) returned {DeterministicMath.Atan2(y, x)}.");
         }
     }
 

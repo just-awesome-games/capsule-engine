@@ -293,7 +293,6 @@ internal sealed partial class FrameRenderer : IDisposable
         }
     }
 
-    // Apart from Submit, whose every call would otherwise allocate the lambda's closure.
     private static bool WriteCapture(GpuReadback readback, string path)
     {
         using (readback)

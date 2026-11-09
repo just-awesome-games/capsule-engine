@@ -374,10 +374,10 @@ public sealed partial class KinematicBody2D : Component
     /// A floor with a <see cref="Collider2D.SurfaceVelocity"/> or <see cref="TileType.SurfaceVelocity"/>
     /// carries the body by that velocity on every step, whether or not the body moves itself. The carry runs
     /// in the floor's own step, as a moving floor's does, and only the first such floor in tree order to
-    /// carry the body moves it that step. A <see cref="BodyMode.Grounded"/> body walks its floor as its own move does. The carry never
-    /// changes the caller's velocity, and a floor on a held entity carries nothing. After each carry the
-    /// body rides the carrying floor it then stands on, or nothing, and <see cref="IsOnFloor"/>,
-    /// <see cref="MoveContacts"/> and their peers keep what the last move set.
+    /// carry the body moves it that step. A <see cref="BodyMode.Grounded"/> body walks its floor as its own
+    /// move does. The carry never changes the caller's velocity, and a floor on a held entity carries
+    /// nothing. After each carry the body rides the carrying floor it then stands on, or nothing, and
+    /// <see cref="IsOnFloor"/>, <see cref="MoveContacts"/> and their peers keep what the last move set.
     /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>

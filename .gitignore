@@ -1,3 +1,6 @@
+## A developer's own clone wiring
+Directory.Build.local.props
+
 ## Build output
 [Bb]in/
 [Oo]bj/

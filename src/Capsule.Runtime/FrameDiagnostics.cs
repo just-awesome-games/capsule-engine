@@ -52,6 +52,10 @@ internal sealed class FrameDiagnostics : IDisposable
     private int _steps;
     private long _tick;
 
+    // Whether seconds can bound a capture. NaN passes every comparison-based guard and an infinite budget
+    // never binds.
+    internal static bool IsExitAfter(double seconds) => double.IsFinite(seconds) && seconds > 0d;
+
     // builderEntered is the timestamp taken when the builder was created, the trace's first stage.
     internal FrameDiagnostics(string path, long builderEntered, double? exitAfterSeconds, Func<long> timestamp)
     {
@@ -75,8 +79,8 @@ internal sealed class FrameDiagnostics : IDisposable
     }
 
     // A boot stage, in the order boot passes through them and the trace writes them. The first is the
-    // builder's entry, passed in, and the last is the first submitted frame, taken here. BeginUpdate
-    // takes FirstUpdate.
+    // builder's entry, passed in. BeginUpdate takes FirstUpdate, and EndDraw takes FirstDraw as the first
+    // frame's recording ends, before it is submitted.
     internal enum Stage
     {
         BuilderEntered,

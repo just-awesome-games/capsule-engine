@@ -18,8 +18,10 @@ registry of packages and asks for no manifest.
 ## What a package receives
 
 Referencing `JAG.Capsule` gives a project the API, the staged API reference and the
-[development-build axis](build-and-publish.md#development-builds), as in a game. The asset pipeline, the
-generator and Capsule's build defaults run only in a project that declares a game role.
+[development-build axis](build-and-publish.md#development-builds), as in a game. The generator and
+Capsule's build defaults run only in a project that declares a game role. The asset pipeline runs by default
+only there, and a role-free project opts in with
+[`CapsuleBuildAssets`](build-and-publish.md#authoring-sources-and-output).
 
 ## Naming
 

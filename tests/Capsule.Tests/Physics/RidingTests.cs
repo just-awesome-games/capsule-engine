@@ -26,7 +26,7 @@ public sealed class RidingTests
         Rider rider = new(new Vector2(12f, 20f), Platform);
         scene.Add(platform);
         scene.Add(rider);
-        Land(rider);
+        CollisionFixtures.Land(rider.Mover);
 
         Vector2 motion = new(x, y);
         for (int step = 0; step < 20; step++)
@@ -58,8 +58,8 @@ public sealed class RidingTests
         scene.Add(upper);
         scene.Add(lower);
         scene.Add(platform);
-        Land(lower);
-        Land(upper);
+        CollisionFixtures.Land(lower.Mover);
+        CollisionFixtures.Land(upper.Mover);
 
         for (int step = 0; step < 20; step++)
         {
@@ -91,8 +91,8 @@ public sealed class RidingTests
         scene.Add(bystander);
         scene.Add(rider);
         scene.Add(shoved);
-        Land(bystander);
-        Land(rider);
+        CollisionFixtures.Land(bystander.Mover);
+        CollisionFixtures.Land(rider.Mover);
         Vector2 landed = bystander.Position;
 
         platform.Position += new Vector2(3f, 0f);
@@ -113,7 +113,7 @@ public sealed class RidingTests
         Rider rider = new(new Vector2(12f, 20f), Platform);
         scene.Add(platform);
         scene.Add(rider);
-        Land(rider);
+        CollisionFixtures.Land(rider.Mover);
 
         rider.Mover.MovedBy = new();
         platform.Position += new Vector2(2f, 0f);
@@ -135,7 +135,7 @@ public sealed class RidingTests
         Rider rider = new(new Vector2(30f, 20f), Platform);
         scene.Add(platform);
         scene.Add(rider);
-        Land(rider);
+        CollisionFixtures.Land(rider.Mover);
 
         for (int step = 0; step < 10; step++)
         {
@@ -287,12 +287,6 @@ public sealed class RidingTests
     }
 
     private static readonly Vector2 Gravity = new(0f, 1f);
-
-    private static void Land(Rider rider)
-    {
-        rider.Mover.Move(new Vector2(0f, 40f));
-        Assert.True(rider.Mover.IsOnFloor);
-    }
 
     private static void AssertOnTop(Entity upper, Entity lower)
     {

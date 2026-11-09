@@ -43,7 +43,8 @@ public partial class Scene
     /// The payload is the one the scene opened with, else the last one a
     /// <see cref="CollectPreloads(IScenePayload)"/> call gave it, else none. The read runs the
     /// <c>CollectAssets</c> hooks and loads no asset. It builds the shared pools those hooks declare,
-    /// entities included, and counts as no pool's forwarding.
+    /// entities included. It is not the scene's preload: the scene collects again as it starts, and no pool
+    /// counts as preloaded by this read.
     /// </remarks>
     /// <example>
     /// <code>

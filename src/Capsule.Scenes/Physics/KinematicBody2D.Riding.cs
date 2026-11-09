@@ -89,10 +89,16 @@ public sealed partial class KinematicBody2D
     // carries. The floor's normal steers the next walk. A body standing on no carrying floor leaves its ride.
     private void Refind(CollisionWorld2D world, Entity entity)
     {
-        MoveSweep probe = new(world, world.ShapeOf(_collider.Handle), Swept(entity), Filter, _collider.Handle, false, _found, _stopped);
-        probe.Pass(-Up * CollisionTolerance.ContactSkin);
+        int written = ProbeFloor(world, entity, out int found);
+        if (found > _found.Length)
+        {
+            Collider2D.Grow(ref _found, found);
+            Collider2D.Grow(ref _stopped, found);
+            written = ProbeFloor(world, entity, out _);
+        }
+
         bool floored = false;
-        for (int index = 0; index < probe.Written; index++)
+        for (int index = 0; index < written; index++)
         {
             if (!_stopped[index] || !IsFloor(_found[index].Normal))
             {
@@ -114,6 +120,17 @@ public sealed partial class KinematicBody2D
         }
 
         Unride();
+    }
+
+    // Probes down the contact skin into _found and returns how many contacts it wrote, with how many it met
+    // in all. The written ones are the first it met when the two differ.
+    private int ProbeFloor(CollisionWorld2D world, Entity entity, out int found)
+    {
+        MoveSweep probe = new(world, world.ShapeOf(_collider.Handle), Swept(entity), Filter, _collider.Handle, false, _found, _stopped);
+        probe.Pass(-Up * CollisionTolerance.ContactSkin);
+        found = probe.Found;
+
+        return probe.Written;
     }
 
     // Shoves the body by what is left of the pusher's move after meeting it, or leaves a rider where

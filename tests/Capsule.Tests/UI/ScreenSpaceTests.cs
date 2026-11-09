@@ -38,16 +38,24 @@ public sealed class ScreenSpaceTests
         Assert.Equal(new Vector2(4f, 5f), Assert.Single(view.Sprites.ToArray()).Position);
     }
 
+    // Every renderer a screen entity holds draws on the screen list with no flag of its own, and a
+    // primitive's bounds are where it draws.
     [Fact]
-    public void AScreenEntity_DrawsOnTheScreenListFromItsAnchor()
+    public void EveryRendererAScreenEntityHolds_DrawsOnTheScreenListFromItsAnchor()
     {
-        using SimulationHost run = Run(new ScreenHolder(Anchor.BottomRight, new Vector2(-10f, -20f), Square()));
+        ColorRect rect = new(new Vector2(4f, 4f)) { Offset = new Vector2(-10f, 0f) };
+        ScreenHolder holder = new(Anchor.BottomRight, new Vector2(-10f, -20f), Square());
+        holder.Add(rect);
+
+        using SimulationHost run = Run(holder);
         run.Step();
 
         FrameView view = run.Simulation.View;
 
+        // The canvas's far corner, then the entity's own (-10, -20), then the rect's offset.
         Assert.Empty(view.Sprites.ToArray());
-        Assert.Equal(new Vector2(90f, 30f), Assert.Single(view.ScreenSprites.ToArray()).Position);
+        Assert.Equal([new Vector2(90f, 30f), new Vector2(80f, 30f)], view.ScreenSprites.ToArray().Select(static drawn => drawn.Position));
+        Assert.Equal(Rect.FromEdges(80f, 30f, 84f, 34f), rect.Bounds);
     }
 
     [Theory]
@@ -157,19 +165,6 @@ public sealed class ScreenSpaceTests
 
         Assert.Equal(new Vector2(2f, 0f), drawn.Position);
         Assert.Equal(new Vector2(1f, 0f), drawn.PreviousPosition);
-    }
-
-    [Fact]
-    public void EveryRendererAScreenEntityHolds_FollowsItWithNoFlagOfItsOwn()
-    {
-        ScreenHolder holder = new(Anchor.TopLeft, new Vector2(1f, 2f), Square());
-        holder.Add(new ColorRect(new Vector2(4f, 4f)) { Offset = new Vector2(10f, 0f) });
-
-        using SimulationHost run = Run(holder);
-        run.Step();
-
-        Assert.Empty(run.Simulation.View.Sprites.ToArray());
-        Assert.Equal(2, run.Simulation.View.ScreenSprites.Length);
     }
 
     [Fact]

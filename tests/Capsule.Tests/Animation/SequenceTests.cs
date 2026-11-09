@@ -307,7 +307,12 @@ public sealed class SequenceTests
         Func<bool> everyOther = () => ++checks % 2 == 0;
         Sequence sequence = new();
         sequence.Start(Run());
-        sequence.Step();
+
+        // One whole cycle first. The first condition wait of a process builds the delegate every later one shares.
+        for (int i = 0; i < 4; i++)
+        {
+            sequence.Step();
+        }
 
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 1000; i++)

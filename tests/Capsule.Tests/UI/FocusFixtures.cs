@@ -53,13 +53,29 @@ internal static class FocusFixtures
             Item(new Vector2(0f, 40f)),
             Item(new Vector2(40f, 40f)));
 
-    internal static Focusable Item(Vector2 position, Vector2? size = null)
+    internal static Focusable Item(Vector2 position, Vector2? size = null, Entity? parent = null)
     {
         Focusable item = new(size ?? Box);
-        _ = new ScreenHolder(position, item);
+        _ = new ScreenHolder(position, item) { Parent = parent };
 
         return item;
     }
+
+    // The column's two items under a root holding their navigator, which gathers them or lists them.
+    internal static (ScreenHolder Root, FocusNavigator Navigator, Focusable First, Focusable Second) Rooted(bool listed = false)
+    {
+        Focusable first = new(Box);
+        Focusable second = new(Box);
+        FocusNavigator navigator = listed ? new(Actions, first, second) : new(Actions);
+        ScreenHolder root = new(Vector2.Zero, navigator);
+        _ = new ScreenHolder(Vector2.Zero, first) { Parent = root };
+        _ = new ScreenHolder(new Vector2(0f, 40f), second) { Parent = root };
+
+        return (root, navigator, first, second);
+    }
+
+    /// <summary>A host running a fresh scene of <paramref name="roots"/> on a run with the focus canvas.</summary>
+    internal static SimulationHost Hosted(params ReadOnlySpan<Entity> roots) => SceneFixtures.Simulate(new Run { Canvas = Canvas }, roots);
 
     internal static Focusable WorldItem(Vector2 position)
     {

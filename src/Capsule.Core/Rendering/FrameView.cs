@@ -141,10 +141,10 @@ public sealed class FrameView
         }
     }
 
-    // Clips the screen intent stored from here on until the next BeginClip or ClearClip. A clip is the
+    // Clips the screen intent stored after EndClip until the next BeginClip or ClearClip. A clip is the
     // intersection of its levels, one per nested ClipRect, each a rect in canvas pixels that moves from
     // previous to current across the step. BeginClip starts one, AddClipLevel adds a level, and EndClip
-    // closes it. An unchanged clip between two renderers is never set again. Each change opens a clip run
+    // puts it in force. An unchanged clip between two renderers is never set again. Each change opens a clip run
     // on the list screen intent next lands on, and narrows the screen space's cull bounds to the canvas and
     // the clip's reach. World intent is never clipped.
     internal void BeginClip()
@@ -215,7 +215,7 @@ public sealed class FrameView
     }
 
     // Whether this frame runs the lighting pass: a non-white ambient or a light added. Rewritten from
-    // false by every Clear, and a frame whose last light left runs none. An additive sprite alone does
+    // false by every Clear. An additive sprite alone does
     // not open the pass. It is a light only in a frame that lights, and a scene that set up no
     // lighting keeps its unlit look and pays nothing.
     internal bool LitWorld { get; private set; }
@@ -770,7 +770,8 @@ public sealed class FrameView
         Flash = _flashing ? _flash : sprite.Flash,
     };
 
-    // Drops the ordered intent and resets Metrics, retaining capacity.
+    // Drops the ordered intent, resets Metrics and returns the space, style, material, scroll factor,
+    // ambient and clip to their defaults, retaining capacity.
     internal void Clear()
     {
         WorldList.Clear();

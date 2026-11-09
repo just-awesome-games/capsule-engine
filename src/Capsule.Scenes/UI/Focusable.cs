@@ -23,10 +23,12 @@ public sealed class Focusable(Vector2 size) : Component
 {
     /// <summary>
     /// The extent the hit box covers, in the entity's units: world units on a world entity and canvas pixels
-    /// on a screen entity. A non-positive axis is never under the pointer, but the directional actions still
-    /// reach the item.
+    /// on a screen entity.
     /// </summary>
-    /// <remarks>A zero axis on a <see cref="ScreenEntity"/> takes the entity's rect extent on that axis.</remarks>
+    /// <remarks>
+    /// A zero axis on a <see cref="ScreenEntity"/> takes the entity's rect extent on that axis. An axis still
+    /// non-positive after that is never under the pointer, but the directional actions still reach the item.
+    /// </remarks>
     public Vector2 Size { get; set; } = size;
 
     /// <summary>

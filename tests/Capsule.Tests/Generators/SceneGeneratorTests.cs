@@ -123,8 +123,7 @@ public sealed class SceneGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
         Assembly assembly = GeneratorHarness.Loaded(compiled);
-        Type registryHolder = assembly.GetType("Capsule.Generated.CapsuleScenes")!;
-        SceneRegistry registry = (SceneRegistry)registryHolder.GetProperty("Registry")!.GetValue(null)!;
+        SceneRegistry registry = GeneratorHarness.Registry(assembly);
 
         SceneDocument document = SceneDocument.Parse(
             """{"entities": [{"type": "tile-map", "tileSize": 16, "width": 1, "height": 1, "tileTypes": [{"name": "empty"}], "tiles": [0]}]}""");
@@ -175,17 +174,19 @@ public sealed class SceneGeneratorTests
         Assert.Contains("Game.Room01", error.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
-    // A concrete class cannot take the sealed subclass the generator emits. A key no class claims is another defect.
+    // A concrete class cannot take the sealed subclass the generator emits, nor can an open generic one, which that
+    // subclass cannot name. A key no class claims is another defect.
     [Theory]
-    [InlineData("playable-room", "CAP028", "Game.PlayableRoom")]
-    [InlineData("missing-room", "CAP030", "missing-room")]
-    public void ABaseSceneNamingNoAbstractScene_FailsTheBuild(string baseScene, string id, string named)
+    [InlineData("playable-room", "sealed class PlayableRoom", "CAP028", "Game.PlayableRoom")]
+    [InlineData("playable-room", "abstract class PlayableRoom<T>", "CAP028", "Game.PlayableRoom<T>")]
+    [InlineData("missing-room", "sealed class PlayableRoom", "CAP030", "missing-room")]
+    public void ABaseSceneNamingNoAbstractScene_FailsTheBuild(string baseScene, string declared, string id, string named)
     {
         ImmutableArray<Diagnostic> diagnostics = GeneratorHarness.CompileAgainstSources(
             $$"""
             {{GeneratorHarness.Preamble}}
 
-            public sealed class PlayableRoom(SceneContent content) : Scene(content);
+            public {{declared}}(SceneContent content) : Scene(content);
             """,
             logic: true,
             ("scenes/halls/hall.scene.json", $$"""{"baseScene": "{{baseScene}}", "entities": []}""")).Diagnostics;
@@ -218,8 +219,7 @@ public sealed class SceneGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
         Assembly assembly = GeneratorHarness.Loaded(compiled);
-        Type registryHolder = assembly.GetType("Capsule.Generated.CapsuleScenes")!;
-        SceneRegistry registry = (SceneRegistry)registryHolder.GetProperty("Registry")!.GetValue(null)!;
+        SceneRegistry registry = GeneratorHarness.Registry(assembly);
 
         SceneDocument document = SceneDocument.Parse(
             """{"entities": [{"type": "tile-map", "tileSize": 16, "width": 1, "height": 1, "tileTypes": [{"name": "empty"}], "tiles": [0]}]}""");
@@ -227,6 +227,24 @@ public sealed class SceneGeneratorTests
 
         Assert.True(assembly.GetType("Game.PlayableRoom")!.IsInstanceOfType(composed));
         Assert.IsType<TileMap>(composed.Entities[0]);
+    }
+
+    // Generated methods are named for their class, and Game.Level and Game_Level must not share a name.
+    [Fact]
+    public void TwoClassesWhoseNamesDifferOnlyByDotAndUnderscore_EachGetTheirOwnApplier()
+    {
+        Compilation compiled = GeneratorHarness.Compile("""
+            using Capsule.Scenes;
+
+            namespace Game
+            {
+                public sealed class Level(SceneContent content) : Scene(content) { [Authorable] public int Floor { get; set; } }
+            }
+
+            public sealed class Game_Level(SceneContent content) : Scene(content) { [Authorable] public int Depth { get; set; } }
+            """).Updated;
+
+        Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
     }
 
     [Fact]

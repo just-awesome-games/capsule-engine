@@ -19,10 +19,10 @@ public sealed class SpriteSocketTests
     private static readonly SpriteMarks High = new([new(Muzzle, new Vector2(8f, 3f))]);
     private static readonly SpriteMarks Low = new([new(Muzzle, new Vector2(8f, 5f))]);
 
-    private static readonly Sprite FrameMid = Frame(0, Mid);
-    private static readonly Sprite FrameHigh = Frame(1, High);
-    private static readonly Sprite FrameLow = Frame(2, Low);
-    private static readonly Sprite FrameBare = Frame(3, null);
+    private static readonly Sprite FrameMid = SceneFixtures.Frame(0, Mid);
+    private static readonly Sprite FrameHigh = SceneFixtures.Frame(1, High);
+    private static readonly Sprite FrameLow = SceneFixtures.Frame(2, Low);
+    private static readonly Sprite FrameBare = SceneFixtures.Frame(3, null);
 
     [Fact]
     public void ABoundSocket_IsOneChildOfTheRenderersEntityNamedForIt()
@@ -178,6 +178,4 @@ public sealed class SpriteSocketTests
 
         return (root, renderer, animator, new SimulationHost(scene));
     }
-
-    private static Sprite Frame(int index, SpriteMarks? marks) => SceneFixtures.Frame(index, marks);
 }

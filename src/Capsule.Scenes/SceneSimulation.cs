@@ -52,6 +52,8 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     {
         ArgumentNullException.ThrowIfNull(scene);
 
+        // Refused before any write. A live scene and its run are left as they were.
+        scene.RequireUnstarted();
         Scene = scene;
         Run = run ?? new Run();
         scene.Run = Run;

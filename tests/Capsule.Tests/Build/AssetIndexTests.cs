@@ -1,11 +1,7 @@
-using System.Collections.Immutable;
 using System.Reflection;
 using Capsule.Assets;
 using Capsule.Audio;
 using Capsule.Scenes;
-using Capsule.Tests.Generators;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using static Capsule.Tests.Build.AudioProbeFixtures;
 
 namespace Capsule.Tests.Build;
@@ -17,12 +13,9 @@ namespace Capsule.Tests.Build;
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class AssetIndexTests
 {
-    private static readonly ImmutableArray<MetadataReference> References =
-        GeneratorHarness.Referenced(null, typeof(TextureHandle).Assembly, typeof(SceneKey).Assembly, typeof(object).Assembly);
-
     // Every member's value is found by the key a document names it by, a sound's measured duration and loop
     // region included. A key that only prefixes one, sorts between two, names another type's asset or runs
-    // past the stack finds none.
+    // past the stack finds none. The source ends its lines in a line feed on every machine.
     [Fact]
     public void EveryDeclaredAsset_IsFoundAsItsMemberDeclaresIt()
     {
@@ -37,7 +30,8 @@ public sealed class AssetIndexTests
 
         workspace.Succeed();
 
-        Assembly game = Loaded(workspace.Generated);
+        Assert.DoesNotContain('\r', workspace.Generated);
+        Assembly game = ToolWorkspace.Loaded(workspace.Generated);
         Type index = game.GetType("Capsule.Generated.CapsuleAssetIndex")!;
         object[] declared = [.. Members(game.GetType("Capsule.Generated.CapsuleAssets")!)];
         TextureHandle[] textures = [.. declared.OfType<TextureHandle>()];
@@ -65,12 +59,4 @@ public sealed class AssetIndexTests
 
     private static object? Find(Type index, string method, string key) =>
         index.GetMethod(method, BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, [key]);
-
-    // The generated index as the game runs it, beside the members it indexes.
-    private static Assembly Loaded(string generated) =>
-        GeneratorHarness.Loaded(CSharpCompilation.Create(
-            "IndexSpecs",
-            [CSharpSyntaxTree.ParseText(generated)],
-            References,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)));
 }

@@ -24,9 +24,9 @@ internal static class BootRenderer
     {
         string createScenes = RegistryProviderRenderer.SceneRegistryBody(plan.Providers.Items.Select(static provider => provider.QualifiedName), Statement);
         string addDrivers = string.Concat(plan.Providers.Items.Select(static provider => $"{Statement}{provider.QualifiedName}.AddDrivers(drivers);\n"))
-            + string.Concat(plan.Drivers.Items.Select(static driver => $"{Statement}drivers.Add({InputDriverRenderer.Registration(driver)});\n"));
+            + string.Concat(plan.Drivers.Items.Select(static driver => $"{Statement}drivers.Add({NamedClassRenderer.Registration(driver, NamedRegistry.InputDrivers)});\n"));
         string addPayloads = string.Concat(plan.Providers.Items.Select(static provider => $"{Statement}{provider.QualifiedName}.AddPayloads(payloads);\n"))
-            + string.Concat(plan.Payloads.Items.Select(static payload => $"{Statement}payloads.Add({ScenePayloadRenderer.Registration(payload)});\n"));
+            + string.Concat(plan.Payloads.Items.Select(static payload => $"{Statement}payloads.Add({NamedClassRenderer.Registration(payload, NamedRegistry.ScenePayloads)});\n"));
         string strings = plan.PassesStrings ? ", global::Capsule.Generated.CapsuleStrings.Table" : "";
 
         return GeneratedFile.Write([], $$"""

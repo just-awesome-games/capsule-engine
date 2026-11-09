@@ -108,6 +108,14 @@ public sealed class FocusNeighbourTests
         outsider.Down = stranger;
 
         Assert.Throws<ArgumentException>(() => menu.Navigator.Add(outsider));
+        Assert.DoesNotContain(outsider, menu.Navigator.Items.ToArray());
+
+        // The refusal held nothing back, and the add succeeds once the neighbour is held. Naming itself
+        // needs nothing held.
+        outsider.Up = outsider;
+        menu.Navigator.Add(stranger);
+        menu.Navigator.Add(outsider);
+        Assert.Contains(outsider, menu.Navigator.Items.ToArray());
     }
 
     // A neighbour named after the add is never checked. A direction whose chain reaches an item

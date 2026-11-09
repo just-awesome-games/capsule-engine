@@ -38,12 +38,7 @@ public sealed class ValueAnimator<T> : Component
     private readonly Action<T> _setter;
 
     private AnimationPlayback _playback;
-    private bool _pendingStart;
-    private long? _startedOnTick;
-    private float _speed = 1f;
-
-    // The fraction of a tick Speed has advanced and no step has spent yet.
-    private float _carry;
+    private AnimationClock _clock = new();
 
     // The value class of the value last set, which a stepping clip's keys are compared by.
     private int _valueId;
@@ -92,20 +87,8 @@ public sealed class ValueAnimator<T> : Component
     /// </remarks>
     public float Speed
     {
-        get => _speed;
-
-        set
-        {
-            if (!float.IsFinite(value) || value < 0f)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(value),
-                    value,
-                    "Speed is finite and not negative. Play a reversed clip to run an animation backwards.");
-            }
-
-            _speed = value;
-        }
+        get => _clock.Speed;
+        set => _clock.Speed = value;
     }
 
     /// <summary>
@@ -134,9 +117,7 @@ public sealed class ValueAnimator<T> : Component
 
         Clip = clip;
         _playback.Restart();
-        _pendingStart = true;
-        _startedOnTick = Entity?.SceneOrNull?.SteppingTick;
-        _carry = 0f;
+        _clock.Start(Entity?.SceneOrNull?.SteppingTick);
         _rewound = false;
         Write(clip.Values[0], clip.ValueId(0));
     }
@@ -148,11 +129,7 @@ public sealed class ValueAnimator<T> : Component
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()
     {
-        if (_pendingStart && _startedOnTick is null)
-        {
-            _startedOnTick = Entity!.SceneOrNull!.SteppingTick;
-        }
-
+        _clock.Join(Entity!.SceneOrNull!.SteppingTick);
         if (_rewound && Clip is { } clip)
         {
             _rewound = false;
@@ -163,21 +140,19 @@ public sealed class ValueAnimator<T> : Component
     /// <summary>
     /// Rewinds to <see cref="Clip"/>'s first key, keeps the clip and clears <see cref="Paused"/>, without
     /// running the setter: it hears the first key as the entity joins a scene again. A reused entity replays
-    /// the clip as a new one would.
+    /// that clip from its first key.
     /// </summary>
     /// <inheritdoc/>
     protected internal override void OnRemovedFromScene()
     {
         Paused = false;
-        _carry = 0f;
         if (Clip is null)
         {
             return;
         }
 
         _playback.Restart();
-        _pendingStart = true;
-        _startedOnTick = null;
+        _clock.Start(null);
         _rewound = true;
     }
 
@@ -189,37 +164,12 @@ public sealed class ValueAnimator<T> : Component
             return;
         }
 
-        // A played value is set for the whole pause. A paused step spends the step Play holds back.
-        if (Paused)
-        {
-            _pendingStart = false;
-            return;
-        }
-
-        // The tick Play ran in spends no step on its key. A component stepped after this one plays
-        // during an earlier tick than this step's. A Play outside a step belongs to the next tick.
-        if (_pendingStart)
-        {
-            _pendingStart = false;
-            if (_startedOnTick is not { } startedOn || startedOn == context.Tick)
-            {
-                return;
-            }
-        }
-
-        float advance = _carry + _speed;
-        float whole = MathF.Floor(advance);
-        _carry = advance - whole;
-        if (whole < 1f || _playback.IsFinished)
+        if (!_clock.TryAdvance(context.Tick, Paused, out float ticks) || ticks < 1f || _playback.IsFinished)
         {
             return;
         }
 
-        // Whole passes of a loop land where they began. Skipping them bounds the work to one pass
-        // whatever the speed.
-        long steps = whole == 1f ? 1
-            : clip.Loop ? (long)((double)whole % clip.Duration)
-            : (long)Math.Min(whole, clip.Duration);
+        long steps = ticks > 1f ? AnimationClock.Steps(ticks, clip.Duration, clip.Loop, out _) : 1;
         for (long step = 0; step < steps && !_playback.IsFinished; step++)
         {
             _playback.Step(clip.KeyTicks, clip.Loop);

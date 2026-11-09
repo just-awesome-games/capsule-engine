@@ -230,6 +230,10 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     /// This shape with every point multiplied by <paramref name="scale"/> about the origin of its own
     /// space. The radius scales too, and a rounded shape needs the same factor on both axes.
     /// </summary>
+    /// <remarks>
+    /// The points of a polygon past four are kept once per distinct scaled polygon for the life of the
+    /// process. Scale a changing polygon once per scale it takes, not every step.
+    /// </remarks>
     /// <exception cref="ArgumentException">The shape is the default value, the scale is non-uniform on a rounded shape, or the result is a shape construction would refuse.</exception>
     public Shape2D Scaled(Vector2 scale)
     {

@@ -14,13 +14,12 @@ public sealed class FocusDepartureTests
     [Fact]
     public void AFocusedGatheredItemLeavingItsScene_IsUnfocusedAtOnce_AndRaisesNothing()
     {
-        (ScreenHolder root, _, Focusable first, _) = Menu(listed: false);
+        (ScreenHolder root, _, Focusable first, _) = Rooted();
         int unfocused = 0;
         first.Unfocused += () => unfocused++;
 
-        Scene scene = new();
-        scene.Add(root);
-        using SimulationHost run = new(scene, run: new Run { Canvas = Canvas });
+        using SimulationHost run = Hosted(root);
+        Scene scene = run.Simulation.Scene;
         Assert.True(first.IsFocused);
 
         scene.Remove(root);
@@ -30,7 +29,7 @@ public sealed class FocusDepartureTests
 
         FocusNavigator next = new(Actions);
         ScreenHolder nextRoot = new(new Vector2(100f, 0f), next);
-        Focusable leading = Under(nextRoot, Vector2.Zero);
+        Focusable leading = Item(Vector2.Zero, parent: nextRoot);
         first.Entity!.Parent = nextRoot;
         scene.Add(nextRoot);
         run.Step();
@@ -40,55 +39,75 @@ public sealed class FocusDepartureTests
         Assert.Equal(0, unfocused);
     }
 
-    // The same menu added back after a teardown gives its remembered focus back to the item it left with,
-    // raising nothing, whether it gathers its items or lists them. Its next steps keep the focus there.
+    // Closing a menu from inside a step or stopping its scene tears down its items with it, raising
+    // nothing, whether the navigator gathers its items or lists them. The same menu added back holds each
+    // item once and gives its remembered focus back to the item it left with, raising nothing, and its
+    // next steps keep the focus there.
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void AMenuAddedBackAfterATeardown_RestoresItsFocusedItemQuietly(bool listed)
+    public void TearingDownAMenu_RaisesNoFocusEvents_AndAddingItBackRestoresItsFocusQuietly(bool listed)
     {
-        (ScreenHolder root, FocusNavigator navigator, Focusable first, Focusable second) = Menu(listed);
-
-        Scene scene = new();
-        scene.Add(root);
-        using SimulationHost run = new(scene, run: new Run { Canvas = Canvas });
+        (ScreenHolder root, FocusNavigator navigator, Focusable first, Focusable second) = Rooted(listed);
+        Closer closer = new();
+        using SimulationHost run = Hosted(root, closer);
         navigator.Focus(second);
-        int raised = 0;
-        first.Focused += () => raised++;
-        second.Focused += () => raised++;
-        second.Unfocused += () => raised++;
-        navigator.FocusChanged += _ => raised++;
 
-        scene.Remove(root);
+        List<string> log = [];
+        first.Focused += () => log.Add("focused first");
+        first.Unfocused += () => log.Add("unfocused first");
+        second.Focused += () => log.Add("focused second");
+        second.Unfocused += () => log.Add("unfocused second");
+        navigator.FocusChanged += _ => log.Add("changed");
+
+        closer.Closing = root;
         run.Step();
-        scene.Add(root);
+
+        Assert.Empty(log);
+        Assert.Same(second, navigator.Focused);
+        Assert.Equal(listed ? 2 : 0, navigator.Items.Length);
+
+        run.Simulation.Scene.Add(root);
         run.Step();
         run.Step();
 
+        Assert.Empty(log);
+        Assert.Equal([first, second], navigator.Items.ToArray());
         Assert.Same(second, navigator.Focused);
         Assert.True(second.IsFocused);
         Assert.False(first.IsFocused);
-        Assert.Equal(0, raised);
+
+        run.Dispose();
+        Assert.Empty(log);
     }
 
-    // A column of two items, gathered by its navigator or listed to it.
-    private static (ScreenHolder Root, FocusNavigator Navigator, Focusable First, Focusable Second) Menu(bool listed)
+    // A focus handler may close another gathered item's entity. The item drops out quietly where an Add,
+    // Remove or Focus from the same handler would throw.
+    [Fact]
+    public void AGatheredItemLeavingFromAFocusHandler_DropsOutQuietly()
     {
-        Focusable first = new(Box);
-        Focusable second = new(Box);
-        FocusNavigator navigator = listed ? new(Actions, first, second) : new(Actions);
-        ScreenHolder root = new(Vector2.Zero, navigator);
-        _ = new ScreenHolder(Vector2.Zero, first) { Parent = root };
-        _ = new ScreenHolder(new Vector2(0f, 40f), second) { Parent = root };
+        (ScreenHolder root, FocusNavigator navigator, Focusable first, Focusable second) = Rooted();
+        using SimulationHost run = Hosted(root);
+        navigator.FocusChanged += _ => run.Simulation.Scene.Remove(first.Entity!);
 
-        return (root, navigator, first, second);
+        navigator.Focus(second);
+
+        Assert.Same(second, navigator.Focused);
+        Assert.DoesNotContain(first, navigator.Items.ToArray());
     }
 
-    private static Focusable Under(Entity parent, Vector2 position)
+    // Removes the entity it is handed from inside its own step, as a menu's close does.
+    private sealed class Closer() : ScreenEntity(Anchor.TopLeft, Vector2.Zero)
     {
-        Focusable item = new(Box);
-        _ = new ScreenHolder(position, item) { Parent = parent };
+        internal Entity? Closing { get; set; }
 
-        return item;
+        protected internal override void OnStep(in StepContext context)
+        {
+            if (Closing is { } closing)
+            {
+                Closing = null;
+                Scene.Remove(closing);
+            }
+        }
     }
 }

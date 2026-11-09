@@ -101,9 +101,8 @@ public sealed class SpriteAnimatorEventTests
     public void AnEntityRemovedAndAddedAgain_ReportsFrameZeroOnItsFirstStep()
     {
         Animated entity = new();
-        SceneFixtures.HookScene scene = new();
-        scene.Add(entity);
-        SimulationHost run = new(scene);
+        SimulationHost run = SceneFixtures.Simulate(entity);
+        Scene scene = run.Simulation.Scene;
         entity.Animator.Play(Strike);
         run.Step(4);
         Assert.False(entity.Animator.Reached("x"));
@@ -187,17 +186,8 @@ public sealed class SpriteAnimatorEventTests
     private static bool[] Read(SpriteAnimator animator) =>
         [animator.Reached("a"), animator.Reached("b"), animator.Reached("c")];
 
-    private static int[] Frames(SpriteAnimator animator, SimulationHost run, int steps)
-    {
-        int[] frames = new int[steps];
-        for (int step = 0; step < steps; step++)
-        {
-            run.Step();
-            frames[step] = animator.FrameIndex;
-        }
-
-        return frames;
-    }
+    private static int[] Frames(SpriteAnimator animator, SimulationHost run, int steps) =>
+        AfterEachStep(run, steps, () => animator.FrameIndex);
 
     private sealed class Listener : Entity
     {

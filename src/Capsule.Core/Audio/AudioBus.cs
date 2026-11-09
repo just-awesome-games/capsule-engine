@@ -8,7 +8,8 @@ namespace Capsule.Audio;
 /// it, at volume 1 and unpaused. Names are compared ordinally. The default value is
 /// <see cref="Master"/>, and the mixer treats an empty name as <see cref="Master"/> too. A bus's
 /// volume and pause state belong to the run. Both stand across a scene transition until something
-/// sets them again.
+/// sets them again. A registered bus is never removed. Declare each bus once, as a
+/// <c>static readonly</c> field. A name built per play grows the mixer's table without bound.
 /// </remarks>
 public readonly record struct AudioBus(string Name)
 {

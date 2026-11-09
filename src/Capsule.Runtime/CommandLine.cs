@@ -162,7 +162,7 @@ internal sealed class CommandLine
 
                 case "--exit-after" when development:
                     string after = Value(args, ref index, gameName, development, "--exit-after needs a number of seconds.");
-                    parsed.ExitAfterSeconds = double.TryParse(after, NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) && double.IsFinite(seconds) && seconds > 0d
+                    parsed.ExitAfterSeconds = double.TryParse(after, NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) && FrameDiagnostics.IsExitAfter(seconds)
                         ? seconds
                         : throw Refuse(gameName, development, $"--exit-after takes a finite number of seconds above zero, not '{after}'.");
                     break;

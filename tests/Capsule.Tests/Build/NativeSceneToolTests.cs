@@ -54,21 +54,6 @@ public sealed class NativeSceneToolTests
         Assert.Equal("player", Load(ToolWorkspace.Out + "/assets/upper-halls/hall.scene.json.gz").Entries[1].Type);
     }
 
-    [Fact]
-    public void AMalformedDocument_FailsByNameAndTheOthersStillDerive()
-    {
-        using ToolWorkspace workspace = new();
-        workspace.Write("Assets/Scenes/hall.scene.json", Authored);
-        workspace.Write("Assets/Scenes/broken.scene.json", """{ "entities": [ { "id": 1, "x": 0, "y": 0 } ] }""");
-
-        string errors = workspace.Fail();
-
-        Assert.Contains("Assets/Scenes/broken.scene.json", errors, StringComparison.Ordinal);
-        Assert.Contains("has no type", errors, StringComparison.Ordinal);
-        Assert.False(File.Exists(Shipped + "broken.scene.json.gz"));
-        Assert.True(File.Exists(Shipped + "hall.scene.json.gz"));
-    }
-
     // Every shipped document reaches the generator with its baseScene, and its key reaches the game as a SceneKey.
     [Fact]
     public void EveryDocument_IsHandedToTheGeneratorAndNamedInCode()

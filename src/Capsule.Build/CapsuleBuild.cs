@@ -140,8 +140,14 @@ public sealed class CapsuleBuild
         options = options[(shipping ? 1 : 0)..];
         string? tileMaps = options is ["--tile-maps", string assembly, ..] ? Path.GetFullPath(assembly) : null;
         options = options[(tileMaps is null ? 0 : 2)..];
-        if (options is not ["--shader-tools", string shaderTools, .. var formats] || ShaderFormats(formats) is not { } further)
+        string? defect = null;
+        if (options is not ["--shader-tools", string shaderTools, .. var formats] || ShaderFormats(formats, out defect) is not { } further)
         {
+            if (defect is not null)
+            {
+                error.WriteLine(defect);
+            }
+
             error.WriteLine(Usage);
 
             return 2;
@@ -161,16 +167,23 @@ public sealed class CapsuleBuild
     }
 
     // The further formats a platform module names, each as a --shader-format name=tool pair, or null
-    // for anything else. A name is lowercase letters and digits, and none of the engine's own.
-    private static List<ShaderFormatTool>? ShaderFormats(ReadOnlySpan<string> options)
+    // for anything else, with the defective pair's defect when one is. A name is lowercase letters and
+    // digits, and none of the engine's own.
+    private static List<ShaderFormatTool>? ShaderFormats(ReadOnlySpan<string> options, out string? defect)
     {
+        defect = null;
         List<ShaderFormatTool> formats = [];
         for (; options is ["--shader-format", string pair, ..]; options = options[2..])
         {
             int split = pair.IndexOf('=', StringComparison.Ordinal);
             string format = split > 0 ? pair[..split] : string.Empty;
-            if (split <= 0 || split == pair.Length - 1 || !format.All(static c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c))
-                || ShaderCompiler.Formats.Contains(format) || formats.Exists(known => known.Format == format))
+            string named = $"--shader-format \"{pair}\"";
+            defect = split <= 0 || split == pair.Length - 1 ? $"{named} is no <name>=<tool> pair. Pass the format's name, '=', and the path of its tool."
+                : !format.All(static c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c)) ? $"{named} names the format \"{format}\". A format's name is lowercase letters and digits. Pass it so spelled."
+                : ShaderCompiler.Formats.Contains(format) ? $"{named} names \"{format}\", which the engine compiles itself. Remove the pair, or name another format."
+                : formats.Exists(known => known.Format == format) ? $"{named} names \"{format}\" a second time. Pass each format once."
+                : null;
+            if (defect is not null)
             {
                 return null;
             }

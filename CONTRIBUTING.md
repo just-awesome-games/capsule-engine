@@ -1,6 +1,6 @@
 # Contributing to Capsule
 
-Capsule is developed for JAG Studios' games in public. A change is accepted when it improves an existing engine capability or its documentation. A new subsystem, hook or option needs a consuming game's use case. Open an issue for one first. The rules a change is held to are in [`AGENTS.md`](AGENTS.md).
+Capsule is developed for JAG Studios' games in public. A change is accepted when it improves an existing engine capability or its documentation. A new subsystem, hook or option is admitted by a consuming game's need or by what any developer expects of a 2D engine. Open an issue for one first. The rules a change is held to are in [`AGENTS.md`](AGENTS.md).
 
 ## Setup
 

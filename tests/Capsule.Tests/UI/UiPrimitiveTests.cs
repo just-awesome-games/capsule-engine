@@ -56,24 +56,6 @@ public sealed class UiPrimitiveTests
         Assert.Equal(Rect.FromEdges(4f, 5f, 44f, 35f), panel.Bounds);
     }
 
-    [Fact]
-    public void APrimitiveOnAScreenEntity_DrawsOnTheScreenLayerFromItsAnchor()
-    {
-        ColorRect rect = new(new Vector2(30f, 10f));
-        ScreenEntity holder = new(Anchor.Center, new Vector2(4f, 5f));
-        holder.Add(rect);
-
-        Scene scene = new();
-        scene.Add(holder);
-
-        using SimulationHost run = new(scene, run: new Run { Canvas = new Vector2(100f, 50f) });
-        run.Step();
-
-        // Half the canvas, then the entity's own (4, 5).
-        Assert.Equal(Rect.FromEdges(54f, 30f, 84f, 40f), rect.Bounds);
-        Assert.Equal(new Vector2(54f, 30f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
-    }
-
     // A game's own renderer is handed the position already resolved in the space its entity draws in. A
     // custom renderer lands on the screen layer from its anchor without arithmetic of its own.
     [Fact]

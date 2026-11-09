@@ -46,15 +46,10 @@ public sealed class SpriteAnimator : Component
     private readonly SpriteRenderer[] _layers;
 
     private AnimationPlayback _playback;
+    private AnimationClock _clock = new();
 
     // The clip a chained play hands on to when Clip finishes. Any other play clears it.
     private SpriteClip? _then;
-    private bool _pendingStart;
-    private long? _startedOnTick;
-    private float _speed = 1f;
-
-    // The fraction of a tick Speed has advanced and no step has spent yet.
-    private float _carry;
 
     // What the animator's most recent step reported, each name once. Reached reads only this set.
     private string[] _readable = new string[InitialEvents];
@@ -171,20 +166,8 @@ public sealed class SpriteAnimator : Component
     /// </remarks>
     public float Speed
     {
-        get => _speed;
-
-        set
-        {
-            if (!float.IsFinite(value) || value < 0f)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(value),
-                    value,
-                    "Speed is finite and not negative. Play a reversed clip to run an animation backwards.");
-            }
-
-            _speed = value;
-        }
+        get => _clock.Speed;
+        set => _clock.Speed = value;
     }
 
     /// <inheritdoc/>
@@ -328,8 +311,8 @@ public sealed class SpriteAnimator : Component
     {
         ArgumentNullException.ThrowIfNull(clip);
 
-        Clip = clip;
         _playback.Seek(clip.FrameTicks, clip.Loop, atTick);
+        Clip = clip;
         Reposition(clip);
     }
 
@@ -385,9 +368,7 @@ public sealed class SpriteAnimator : Component
     private void Reposition(SpriteClip clip)
     {
         _then = null;
-        _pendingStart = true;
-        _startedOnTick = Entity?.SceneOrNull?.SteppingTick;
-        _carry = 0f;
+        _clock.Start(Entity?.SceneOrNull?.SteppingTick);
 
         if (_playback.TicksElapsed == 0 && !_playback.IsFinished)
         {
@@ -399,20 +380,13 @@ public sealed class SpriteAnimator : Component
 
     /// <summary>Counts a clip played or rewound out of a scene from the tick the entity joins this one.</summary>
     /// <inheritdoc/>
-    protected internal override void OnAddedToScene()
-    {
-        if (_pendingStart && _startedOnTick is null)
-        {
-            _startedOnTick = Entity!.SceneOrNull!.SteppingTick;
-        }
-    }
+    protected internal override void OnAddedToScene() => _clock.Join(Entity!.SceneOrNull!.SteppingTick);
 
-    /// <summary>Rewinds to <see cref="Clip"/>'s first frame, keeps the clip and any clip chained after it, and clears <see cref="Paused"/>. A reused entity replays it as a new one would.</summary>
+    /// <summary>Rewinds to <see cref="Clip"/>'s first frame, keeps the clip and any clip chained after it, and clears <see cref="Paused"/>. A reused entity replays that clip from its first frame.</summary>
     /// <inheritdoc/>
     protected internal override void OnRemovedFromScene()
     {
         Paused = false;
-        _carry = 0f;
         Array.Clear(_readable, 0, _readableCount);
         _readableCount = 0;
         Array.Clear(_pending, 0, _pendingCount);
@@ -423,8 +397,7 @@ public sealed class SpriteAnimator : Component
         }
 
         _playback.Restart();
-        _pendingStart = true;
-        _startedOnTick = null;
+        _clock.Start(null);
         Report(clip.EventsAt(0), ref _pending, ref _pendingCount);
         Write(clip.Frames[0]);
     }
@@ -443,30 +416,13 @@ public sealed class SpriteAnimator : Component
             return;
         }
 
-        // A played frame is on screen for the whole pause. A paused step spends the step Play holds back.
-        if (Paused)
+        if (!_clock.TryAdvance(context.Tick, Paused, out float ticks))
         {
-            _pendingStart = false;
             return;
         }
 
-        // The tick Play ran in spends no step on its frame. A component stepped after this one plays
-        // during an earlier tick than this step's. A Play outside a step belongs to the next tick.
-        if (_pendingStart)
-        {
-            _pendingStart = false;
-            if (_startedOnTick is not { } startedOn || startedOn == context.Tick)
-            {
-                return;
-            }
-        }
-
-        float advance = _carry + _speed;
-        float whole = MathF.Floor(advance);
-        _carry = advance - whole;
-
         int drawn = _playback.FrameIndex;
-        Advance(clip, whole);
+        Advance(clip, ticks);
 
         // Only a new frame is written. Writing re-reads the frame's sockets and boxes.
         if (_playback.FrameIndex != drawn)
@@ -479,7 +435,7 @@ public sealed class SpriteAnimator : Component
             _then = null;
             Clip = then;
             _playback.Restart();
-            _carry = 0f;
+            _clock.DropCarry();
             Report(then.EventsAt(0), ref _readable, ref _readableCount);
             Write(then.Frames[0]);
         }
@@ -500,34 +456,24 @@ public sealed class SpriteAnimator : Component
     }
 
     // Steps the cursor a tick at a time, reporting each frame it enters. Whole passes of a loop are
-    // reported once and skipped, which bounds the work to one pass whatever the speed.
+    // reported once and skipped.
     private void Advance(SpriteClip clip, float ticks)
     {
-        if (ticks < 1f)
-        {
-            return;
-        }
-
-        ReadOnlySpan<int> frameTicks = clip.FrameTicks;
-        long steps = 1;
+        // A step at a speed of one spends one tick and reads nothing of the clip's length.
+        long steps = (long)ticks;
         if (ticks > 1f)
         {
-            int total = clip.Duration;
-            if (clip.Loop && ticks >= total)
+            steps = AnimationClock.Steps(ticks, clip.Duration, clip.Loop, out bool lapped);
+            if (lapped)
             {
-                for (int frame = 0; frame < frameTicks.Length; frame++)
+                for (int frame = 0; frame < clip.Frames.Length; frame++)
                 {
                     Report(clip.EventsAt(frame), ref _readable, ref _readableCount);
                 }
-
-                steps = (long)((double)ticks % total);
-            }
-            else
-            {
-                steps = ticks >= total ? total : (long)ticks;
             }
         }
 
+        ReadOnlySpan<int> frameTicks = clip.FrameTicks;
         for (long step = 0; step < steps && !_playback.IsFinished; step++)
         {
             _playback.Step(frameTicks, clip.Loop);

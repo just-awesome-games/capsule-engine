@@ -118,20 +118,14 @@ public sealed class InputDriverPlaybackTests
     }
 
     private static EngineBuilder Builder() =>
-        CapsuleEngine.Configure(
-                "Driven Game",
-                new SceneRegistry(
-                    new EntityRegistry([]),
-                    [
-                        SceneRegistration.Plain(typeof(Menu), static _ => new Menu()),
-                        SceneRegistration.Plain(typeof(Room), static _ => new Room()),
-                        SceneRegistration.Plain(typeof(SceneFixtures.Idle), static _ => new SceneFixtures.Idle()),
-                        SceneRegistration.Plain(typeof(Patrol), static _ => new Patrol()),
-                    ]))
-            .WithFixedStep(10)
-            .WithGame(CallbackGame.Starting(static run => run.Input.Bind(Jump, Key.Space)))
-            .WithoutCrashLog()
-            .WithoutLogging();
+        QuietEngine.Configure(
+            [
+                SceneRegistration.Plain(typeof(Menu), static _ => new Menu()),
+                SceneRegistration.Plain(typeof(Room), static _ => new Room()),
+                SceneRegistration.Plain(typeof(SceneFixtures.Idle), static _ => new SceneFixtures.Idle()),
+                SceneRegistration.Plain(typeof(Patrol), static _ => new Patrol()),
+            ])
+            .WithGame(CallbackGame.Starting(static run => run.Input.Bind(Jump, Key.Space)));
 
     // The whole run's press pattern, which is what "the same step sequence" means for a driver.
     private static List<bool> Play(int framesPerStep)

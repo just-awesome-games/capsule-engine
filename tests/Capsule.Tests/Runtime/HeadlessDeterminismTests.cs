@@ -26,15 +26,8 @@ public sealed class HeadlessDeterminismTests
     {
         Wandering scene = new();
 
-        HeadlessRunResult result = CapsuleEngine.Configure(
-                "Deterministic Game",
-                new SceneRegistry(
-                    new EntityRegistry([]),
-                    [SceneRegistration.Plain(typeof(Wandering), _ => scene)]))
-            .WithFixedStep(10)
+        HeadlessRunResult result = QuietEngine.Configure([SceneRegistration.Plain(typeof(Wandering), _ => scene)])
             .WithGame(CallbackGame.Starting(static run => run.Input.Bind(Nudge, Key.Space)))
-            .WithoutCrashLog()
-            .WithoutLogging()
             .RunHeadless<Wandering>(new InputScript().Wait(3).Tap(Key.Space).Wait(4).Build());
 
         return (result.Steps, [.. scene.Entities.ToArray().Select(static entity => entity.Position)]);

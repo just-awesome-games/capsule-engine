@@ -37,15 +37,9 @@ public sealed class MenuNavigationTests
     {
         Menu? played = null;
 
-        HeadlessRunResult result = CapsuleEngine.Configure(
-                "Menu Game",
-                new SceneRegistry(
-                    new EntityRegistry([]),
-                    [SceneRegistration.Plain(typeof(Menu), _ => played = new Menu())]))
+        HeadlessRunResult result = QuietEngine.Configure([SceneRegistration.Plain(typeof(Menu), _ => played = new Menu())])
             .WithRenderResolution((int)Canvas.X, (int)Canvas.Y)
             .WithGame(CallbackGame.Starting(Bind))
-            .WithoutCrashLog()
-            .WithoutLogging()
             .RunHeadless<Menu>(ByPointer());
 
         Assert.True(result.ExitRequested);

@@ -40,7 +40,7 @@ internal sealed class VoiceMixer
     // meets a new bus.
     private float[][] _buses = [];
 
-    // Blocks in which a playing stream found its ring empty before its end.
+    // Each block in which a playing stream found its ring empty before its end, counted once per stream.
     private long _starved;
 
     internal VoiceMixer(AudioRing<MixCommand> commands, AudioRing<VoiceEnded> ended)

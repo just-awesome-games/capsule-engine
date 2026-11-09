@@ -40,6 +40,20 @@ internal static class StepMeasurement
         return GC.GetAllocatedBytesForCurrentThread() - before;
     }
 
+    /// <summary>
+    /// The bytes of <paramref name="measured"/> steps of <paramref name="host"/> after <paramref name="warmup"/>,
+    /// each with the frame built after it as a presenting host reads it.
+    /// </summary>
+    internal static long Bytes(SimulationHost host, int warmup = WarmupSteps, int measured = MeasuredSteps) =>
+        Bytes(
+            step =>
+            {
+                host.Step();
+                _ = host.Simulation.View;
+            },
+            warmup,
+            measured);
+
     internal static StepSample[] Measure(
         SceneSimulation simulation,
         int warmupSteps = WarmupSteps,

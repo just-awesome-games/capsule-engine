@@ -1,4 +1,5 @@
 using Capsule.Assets;
+using Capsule.Runtime;
 using Capsule.Runtime.Assets;
 
 namespace Capsule.Tests.Runtime;
@@ -95,8 +96,10 @@ public sealed class TextureResidencyTests
         Assert.True(staged!.Disposed);
     }
 
-    [Fact]
-    public void AFailureInAnotherStore_RollsBackAllStagedAssets()
+    [Theory]
+    [InlineData("sounds")]
+    [InlineData("shaders")]
+    public void AFailureInAnotherStore_RollsBackAllStagedAssets(string failing)
     {
         DisposalProbe? staged = null;
         using SceneAssetStore<TextureHandle, DisposalProbe> textures = SyncStore.Over<TextureHandle, DisposalProbe>(handle =>
@@ -114,8 +117,16 @@ public sealed class TextureResidencyTests
         DisposalProbe hero = textures.Get(Hero);
         DisposalProbe sound = sounds.Get("current");
 
-        Assert.Throws<InvalidDataException>(() =>
-            textures.ChangeScene([Tiles], () => sounds.ChangeScene(["broken"])));
+        Assert.Throws<InvalidDataException>(() => WindowHost.ExchangeAssets(
+            loadRest => textures.ChangeScene([Tiles], loadRest),
+            () =>
+            {
+                if (failing == "shaders")
+                {
+                    throw new InvalidDataException("shader load failed");
+                }
+            },
+            () => sounds.ChangeScene([failing == "sounds" ? "broken" : "next"])));
 
         Assert.Same(hero, textures.Get(Hero));
         Assert.Same(sound, sounds.Get("current"));
@@ -123,7 +134,8 @@ public sealed class TextureResidencyTests
         Assert.False(sound.Disposed);
         Assert.True(staged!.Disposed);
 
-        textures.ChangeScene([Tiles], () => sounds.ChangeScene(["next"]));
+        WindowHost.ExchangeAssets(
+            loadRest => textures.ChangeScene([Tiles], loadRest), static () => { }, () => sounds.ChangeScene(["next"]));
 
         Assert.True(hero.Disposed);
         Assert.True(sound.Disposed);

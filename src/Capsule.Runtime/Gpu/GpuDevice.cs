@@ -191,7 +191,7 @@ internal sealed unsafe class GpuDevice : IDisposable
         nint buffer = Sdl3.SDL_CreateGPUBuffer(_device, &create);
 
         return buffer != 0
-            ? new GpuBuffer(_device, buffer, usage, size)
+            ? new GpuBuffer(_device, buffer, size)
             : throw new InvalidOperationException($"A buffer of {size} bytes could not be created: {Sdl3.Error()}");
     }
 
@@ -323,7 +323,6 @@ internal sealed unsafe class GpuDevice : IDisposable
         EndFrame();
     }
 
-    // Submits and blocks until the GPU has run the command buffer.
     // Submits as Submit does, and WaitForFrame then returns once the GPU has run this frame.
     internal void SubmitWatched(nint commands)
     {

@@ -46,7 +46,7 @@ public struct AnimationPlayback
     {
         ArgumentOutOfRangeException.ThrowIfNegative(tick);
 
-        long total = ValidatedTotal(frameTicks);
+        long total = ValidatedTotal(frameTicks, "frame", nameof(frameTicks));
         long remaining = loop ? tick % total : tick;
         for (int i = 0; i < frameTicks.Length; i++)
         {
@@ -156,25 +156,39 @@ public struct AnimationPlayback
         IsFinished = true;
     }
 
-    // Widened because per-frame int durations can sum past int range.
-    internal static long ValidatedTotal(ReadOnlySpan<int> frameTicks)
+    // A clip's Duration: the sum of its holds, which an int must hold. Entry names what each hold belongs to.
+    internal static int ValidatedDuration(ReadOnlySpan<int> holds, string entry, string paramName)
     {
-        if (frameTicks.IsEmpty)
+        long total = ValidatedTotal(holds, entry, paramName);
+        if (total > int.MaxValue)
         {
-            throw new ArgumentException("Run is empty. Pass at least one frame duration.", nameof(frameTicks));
+            throw new ArgumentException(
+                $"The {entry}s are held for {total} ticks in all, past the {int.MaxValue} a clip's Duration holds. Shorten the holds or split the clip.",
+                paramName);
+        }
+
+        return (int)total;
+    }
+
+    // Widened because per-entry int durations can sum past int range.
+    private static long ValidatedTotal(ReadOnlySpan<int> holds, string entry, string paramName)
+    {
+        if (holds.IsEmpty)
+        {
+            throw new ArgumentException($"Run is empty. Pass at least one {entry} duration.", paramName);
         }
 
         long total = 0;
-        for (int i = 0; i < frameTicks.Length; i++)
+        for (int i = 0; i < holds.Length; i++)
         {
-            if (frameTicks[i] <= 0)
+            if (holds[i] <= 0)
             {
                 throw new ArgumentException(
-                    $"Frame {i} is held for {frameTicks[i]} ticks. Hold every frame for at least one fixed step.",
-                    nameof(frameTicks));
+                    $"The {entry} at {i} is held for {holds[i]} ticks. Hold every {entry} for at least one fixed step.",
+                    paramName);
             }
 
-            total += frameTicks[i];
+            total += holds[i];
         }
 
         return total;

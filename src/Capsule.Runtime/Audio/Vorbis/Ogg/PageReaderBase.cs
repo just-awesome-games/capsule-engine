@@ -11,9 +11,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
     {
         private readonly Crc _crc = new Crc();
         private readonly HashSet<int> _ignoredSerials = new HashSet<int>();
-        private readonly byte[] _headerBuf = new byte[305]; // 27 - 4 + 27 + 255 (found sync at end of first buffer, and found page has full segment count)
-        private byte[] _overflowBuf;
-        private int _overflowBufIndex;
+        private readonly byte[] _headerBuf = new byte[282]; // 27 + 255: a header and the longest segment table
 
         private Stream _stream;
 
@@ -114,7 +112,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
         private bool VerifyPage(byte[] headerBuf, int index, int cnt, out byte[] pageBuf, out int pageLength, out int bytesRead)
         {
             var segCnt = headerBuf[index + 26];
-            if (cnt - index < index + 27 + segCnt)
+            if (cnt - index < 27 + segCnt)
             {
                 pageBuf = null;
                 pageLength = 0;
@@ -168,88 +166,6 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             return false;
         }
 
-        private void EnqueueData(byte[] buf, int count)
-        {
-            if (_overflowBuf != null)
-            {
-                var newBuf = new byte[_overflowBuf.Length - _overflowBufIndex + count];
-                Buffer.BlockCopy(_overflowBuf, _overflowBufIndex, newBuf, 0, newBuf.Length - count);
-                var index = buf.Length - count;
-                Buffer.BlockCopy(buf, index, newBuf, newBuf.Length - count, count);
-                _overflowBufIndex = 0;
-            }
-            else
-            {
-                _overflowBuf = buf;
-                _overflowBufIndex = buf.Length - count;
-            }
-        }
-
-        private void ClearEnqueuedData(int count)
-        {
-            if (_overflowBuf != null && (_overflowBufIndex += count) >= _overflowBuf.Length)
-            {
-                _overflowBuf = null;
-            }
-        }
-
-        private int FillHeader(byte[] buf, int index, int count, int maxTries = 10)
-        {
-            var copyCount = 0;
-            if (_overflowBuf != null)
-            {
-                copyCount = Math.Min(_overflowBuf.Length - _overflowBufIndex, count);
-                Buffer.BlockCopy(_overflowBuf, _overflowBufIndex, buf, index, copyCount);
-                index += copyCount;
-                count -= copyCount;
-                if ((_overflowBufIndex += copyCount) == _overflowBuf.Length)
-                {
-                    _overflowBuf = null;
-                }
-            }
-            if (count > 0)
-            {
-                copyCount += EnsureRead(buf, index, count, maxTries);
-            }
-            return copyCount;
-        }
-
-        private bool VerifyHeader(byte[] buffer, int index, ref int cnt, bool isFromReadNextPage)
-        {
-            if (buffer[index] == 0x4f && buffer[index + 1] == 0x67 && buffer[index + 2] == 0x67 && buffer[index + 3] == 0x53)
-            {
-                if (cnt < 27)
-                {
-                    if (isFromReadNextPage)
-                    {
-                        cnt += FillHeader(buffer, 27 - cnt + index, 27 - cnt);
-                    }
-                    else
-                    {
-                        cnt += EnsureRead(buffer, 27 - cnt + index, 27 - cnt);
-                    }
-                }
-
-                if (cnt >= 27)
-                {
-                    var segCnt = buffer[index + 26];
-                    if (isFromReadNextPage)
-                    {
-                        cnt += FillHeader(buffer, index + 27, segCnt);
-                    }
-                    else
-                    {
-                        cnt += EnsureRead(buffer, index + 27, segCnt);
-                    }
-                    if (cnt == index + 27 + segCnt)
-                    {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
-
         // Network streams don't always return the requested size immediately. This
         // method fills the buffer if it is possible.
         // Note that it will loop until getting a certain count of zero reads (default: 10).
@@ -277,7 +193,24 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
         // <returns><see langword="true"/> if successful, otherwise <see langword="false"/>.</returns>
         protected bool VerifyHeader(byte[] buffer, int index, ref int cnt)
         {
-            return VerifyHeader(buffer, index, ref cnt, false);
+            if (buffer[index] == 0x4f && buffer[index + 1] == 0x67 && buffer[index + 2] == 0x67 && buffer[index + 3] == 0x53)
+            {
+                if (cnt < 27)
+                {
+                    cnt += EnsureRead(buffer, 27 - cnt + index, 27 - cnt);
+                }
+
+                if (cnt >= 27)
+                {
+                    var segCnt = buffer[index + 26];
+                    cnt += EnsureRead(buffer, index + 27, segCnt);
+                    if (cnt == index + 27 + segCnt)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         // <summary>
@@ -299,70 +232,50 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
 
         abstract protected void SetEndOfStreams();
 
+        // Capsule: a page that fails to verify is searched for again from the byte after the one it began at,
+        // by seeking, which every stream Capsule opens allows. A page is read only from its first byte.
+        // Its offset and the next search's start are then exact however much damage came before it.
         public bool ReadNextPage()
         {
             var isResync = false;
 
-            var ofs = 0;
-            int cnt;
             PrepareStreamForNextPage();
-            while ((cnt = FillHeader(_headerBuf, ofs, 27 - ofs)) > 0)
+            while (true)
             {
-                cnt += ofs;
-                for (var i = 0; i < cnt - 4; i++)
+                var start = StreamPosition;
+                var cnt = EnsureRead(_headerBuf, 0, 27);
+                if (cnt == 0)
                 {
-                    if (VerifyHeader(_headerBuf, i, ref cnt, true))
+                    SetEndOfStreams();
+                    return false;
+                }
+
+                if (VerifyHeader(_headerBuf, 0, ref cnt) && VerifyPage(_headerBuf, 0, cnt, out var pageBuf, out var pageLength, out _))
+                {
+                    // we need to let our inheritors have a chance to save state for next time
+                    SaveNextPageSearch();
+
+                    // pass it to our inheritor
+                    if (AddPage(pageBuf, pageLength, isResync))
                     {
-                        if (VerifyPage(_headerBuf, i, cnt, out var pageBuf, out var pageLength, out var bytesRead))
-                        {
-                            // one way or the other, we have to clear out the page's bytes from the queue (if queued)
-                            ClearEnqueuedData(bytesRead);
-
-                            // also, we need to let our inheritors have a chance to save state for next time
-                            SaveNextPageSearch();
-
-                            // pass it to our inheritor
-                            if (AddPage(pageBuf, pageLength, isResync))
-                            {
-                                return true;
-                            }
-
-                            // otherwise, the whole page is useless...
-
-                            // set up to load the next page, then loop
-                            ofs = 0;
-                            cnt = 0;
-                            break;
-                        }
-                        else if (pageBuf != null)
-                        {
-                            // Capsule: pageBuf here is a ring-rented buffer (see RentPageBuffer).
-                            // A bad-CRC page's tail bytes go into _overflowBuf and can outlive more
-                            // page attempts than the ring's depth. A later rental could then
-                            // overwrite them mid-resync. This path only runs on a corrupted stream
-                            // (a good page never fails VerifyPage). It copies out here instead of
-                            // extending the ring's lifetime guarantee to cover that case.
-                            EnqueueData(pageBuf.AsSpan(pageLength - bytesRead, bytesRead).ToArray(), bytesRead);
-                        }
+                        return true;
                     }
-                    isResync = true;
+
+                    // otherwise, the whole page is useless, and the next one follows it
+                    continue;
                 }
 
-                if (cnt >= 3)
-                {
-                    _headerBuf[0] = _headerBuf[cnt - 3];
-                    _headerBuf[1] = _headerBuf[cnt - 2];
-                    _headerBuf[2] = _headerBuf[cnt - 1];
-                    ofs = 3;
-                }
+                isResync = true;
+                SeekStream(start + NextCapture(_headerBuf, cnt));
             }
+        }
 
-            if (cnt == 0)
-            {
-                SetEndOfStreams();
-            }
-
-            return false;
+        // Capsule: where the next capture pattern can begin among the count bytes read from a failed
+        // start: at the first "OggS" past its first byte, else at the last three, which may begin one.
+        private static int NextCapture(byte[] buffer, int count)
+        {
+            var found = buffer.AsSpan(1, Math.Max(0, count - 1)).IndexOf("OggS"u8);
+            return found >= 0 ? found + 1 : Math.Max(1, count - 3);
         }
 
         abstract public bool ReadPageAt(long offset);

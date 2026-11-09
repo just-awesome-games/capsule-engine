@@ -14,9 +14,7 @@ through three seams and reads nothing back.
 | Up, Down, D-pad up or down | Menu | Moves the focus. Held, it repeats. |
 | Enter, pad south | Menu | Activates the focused row. |
 | Backspace, Left, pad east, D-pad left | Menu | Returns to the previous page. |
-| Right, D-pad right | Menu | Steps the game once. Held, it repeats. |
-| `S`, `D`, `T`, `L`, `F1` | Root page | Opens Scene, Debug Draw, Time Scale, Load Scene or Help. |
-| `R`, `C`, `P`, `W`, `H`, `E` | Any page | Restart, Game Camera, Frame Pane, Save Recording, Hide or Exit. |
+| A row's key | Menu | Runs the row, as [Overlay actions](#overlay-actions) lists them. |
 | `H`, `C` | Hidden | Shows the menu again, or returns the view to the game's camera. |
 | Pointer, left click | Row | Pointing focuses the row and a click activates it. |
 | Wheel | Menu | Scrolls the rows, with or without a modifier. |
@@ -37,7 +35,7 @@ tenth of the view's visible span.
 | Row | Key | Action |
 |---|---|---|
 | Scene | `S` | Opens the scene page. It lists the scene's panel, a Camera row that opens the camera's panel, and the entities as a tree, each by its `Name`, which the scene numbers in the order entities join: `Avatar`, then `Avatar (1)`. An entity row opens that entity's panel, which lists its parent and then its children, each of which opens its own. |
-| Step | Right | Runs one fixed step and holds again. |
+| Step | Right, D-pad right | Runs one fixed step and holds again. Held, it repeats. |
 | Debug Draw | `D` | Lists the channels that have emitted and switches each on or off. |
 | Time Scale | `T` | Sets `Run.TimeScale` from 0.25x to 4x. |
 | Restart | `R` | Restarts the scene. |
@@ -48,6 +46,8 @@ tenth of the view's visible span.
 | Hide | `H` | Withdraws the menu and keeps the run held. |
 | Help | `F1` | Lists each control no row shows by its main keys. |
 | Exit | `E` | Ends the run. |
+
+A row that opens a page answers its key on the root page, and every other row answers on any page.
 
 ## Holding the run
 
@@ -76,12 +76,16 @@ and stepping asks the driver for the step's snapshot.
 
 Every windowed development run records itself from boot: its seed, opening scene, restored saves, each
 step's input, and each host act at its tick. `EngineBuilder.WithoutRecording` turns it off, and a
-headless run never records. Recordings live in `Recordings/` in the game's per-user local folder, beside
-`crash.log`, or under the directory `--recordings` names. Save Recording writes there, and the engine
-never deletes those files. A normal exit and a crash each save the run to `Recordings/Recent/`, which
-keeps the newest 20. A recording's file is named for the scene the run was in when it was saved, by its
-key, and the local time. A crash's recording path is logged, and a crash while the first scene starts saves
-the boot state alone.
+headless run never records.
+
+| Saved by | Where | Kept |
+| --- | --- | --- |
+| Save Recording | `Recordings/` | Always. The engine never deletes them. |
+| A normal exit or a crash | `Recordings/Recent/` | The newest 20. |
+
+`Recordings/` sits in the game's per-user local folder, beside `crash.log`, unless `--recordings` names
+another directory. A file is named for the key of the scene the run was in when it was saved, and the local
+time. A crash logs its recording's path, and a crash while the first scene starts saves the boot state alone.
 
 `--replay <file>` replays a recording in the window at the run's pace, with its sound, then holds at its
 last tick with the overlay open, and the status line says `Replay matched` or `Replay diverged by tick
@@ -89,8 +93,8 @@ last tick with the overlay open, and the status line says `Replay matched` or `R
 A run that ended by exiting holds before its exiting step. Closing the overlay, or taking a step from the
 hold, hands the run to the devices from that tick, and recording carries on with the replayed run in it.
 A replay never handed over saves nothing at exit. With `--headless` it plays to its end as fast as it can
-and exits 0 when it matched and 1 when it diverged. In a test, `EngineBuilder.RunHeadless(Recording)`
-replays one and reports `DivergedAt`.
+and exits 0 when it matched and 1 when it diverged. A test replays one as [`testing.md`](testing.md#choosing-the-boundary)
+shows.
 
 A recording holds a checksum of the run's state once a simulated second. A replay diverges at the first
 checkpoint that disagrees, at a host act whose target is gone, or where its exit disagrees with the
@@ -112,26 +116,29 @@ named ticks of the run a recording or a driver plays, with no overlay opened:
 The ticks are one tick, a range such as `100..160`, an open range such as `600..` that runs to the end, or a
 comma list of them. A tick is the one the overlay's tick line shows, the state after that many steps, and tick 0
 is the opening scene before its first step. A log line stamped 120 was written by the step whose result tick
-121 shows. The names are a comma list, and each matches an entity's `Name`, such as `Avatar (1)`, or its type name, which matches every entity of that
-type. `Scene` and `Camera` trace the scene's own panel and its camera's, and `*` matches all of them.
+121 shows. The names are a comma list, and each matches an entity's `Name`, such as `Avatar (1)`, or its
+type name, which matches every entity of that type. `Scene` and `Camera` trace the scene's own panel and
+its camera's, and `*` matches all of them.
 
 Each CSV row is `tick,entity,section,field,value`: one field or toggle the entity's panel shows, under the
 section heading it sits in. The entity is its `Name`, and a repeated section or field is numbered as a name
 is. A field naming another entity holds that entity's name. A command writes no row.
 
-A stretch is a run of consecutive ticks in one scene. It opens with a row naming the scene by its key, as
-`--scene` takes it, `tick,,,Scene,<key>`, and its first tick writes every row. Each tick after it writes a row only where a
-value changed. A field's rows in a stretch are its history, and its value at a tick is its last row
-at or before that tick. A field gone from a panel writes an empty value. An entity gone from the trace
-writes one row with an empty section and field, which ends all of its fields. An overlay act a recording
-holds writes a row at the tick its result shows, `tick,<subject>,,Act,<act>`, such as a move under the moved
-entity's name.
+A stretch is a run of consecutive ticks in one scene:
+
+- It opens with `tick,,,Scene,<key>`, naming the scene by its key as `--scene` takes it.
+- Its first tick writes every row, and each tick after writes a row only where a value changed. A field's
+  value at a tick is its last row at or before that tick.
+- A field gone from a panel writes an empty value. An entity gone from the trace writes one row with an
+  empty section and field, which ends all of its fields.
+- An overlay act a recording holds writes `tick,<subject>,,Act,<act>` at the tick its result shows, such as
+  a move under the moved entity's name.
 
 The run plays to its end and exits as one without a trace does, unless it passes the trace's
-[ceiling](#ceilings). The log warns of a name that matched
-nothing and of a tick past the run's end, the start of an open range included. A run that exits ends on the tick before its exiting step, where
-a windowed replay holds. A trace of a recording shows the run the current build plays from its input. After
-a divergence, that is no longer the run that was recorded.
+[ceiling](#ceilings). A run that exits ends on the tick before its exiting step, where a windowed replay
+holds. The log warns of a name that matched nothing and of a tick past the run's end, the start of an open
+range included. A trace of a recording shows the run the current build plays from its input, which after a
+divergence is no longer the run that was recorded.
 
 ## Capturing frames
 

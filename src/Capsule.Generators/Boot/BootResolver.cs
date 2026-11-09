@@ -7,7 +7,7 @@ namespace Capsule.Generators;
 internal static class BootResolver
 {
     // The drivers and payloads are the ones the shell declares itself.
-    internal static BootPlan Resolve(BootModel model, InputDriverPlan drivers, ScenePayloadPlan payloads)
+    internal static BootPlan Resolve(BootModel model, NamedClassPlan drivers, NamedClassPlan payloads)
     {
         if (!model.RuntimePresent)
         {
@@ -48,8 +48,9 @@ internal static class BootResolver
                     continue;
                 }
 
-                // Every logic assembly claims the engine's tile map for the same class, which is no conflict.
-                if (previous.DeclaringType == claim.DeclaringType)
+                // Every logic assembly claims the engine's tile map for the same class, which is no conflict. Two
+                // assemblies may each declare a class of one name, which is.
+                if (previous.AssemblyQualified == claim.AssemblyQualified)
                 {
                     continue;
                 }
@@ -57,8 +58,8 @@ internal static class BootResolver
                 diagnostics.Add(Diagnostic.Create(
                     claim.Kind == RegistryClaimKind.Entity ? Diagnostics.DuplicateTypeKey : Diagnostics.DuplicateSceneDocumentName,
                     Location.None,
-                    previous.DeclaringType,
-                    claim.DeclaringType,
+                    previous.AssemblyQualified,
+                    claim.AssemblyQualified,
                     claim.Key));
             }
         }

@@ -462,33 +462,27 @@ public sealed partial class EngineBuilder
     /// <remarks>
     /// The file holds a boot trace in milliseconds from process start, then one row per frame from the
     /// first drawn one: the tick its state shows, numbered as <c>--trace</c> numbers them, the interval
-    /// from its start to the next frame's, the update, the view's build and the submission in
+    /// from its start to the next frame's, the update, the view's build and the frame's recording in
     /// milliseconds, the fixed steps run, the gen-0 collections so far, the bytes the frame's thread
     /// allocated over the interval, the bytes every thread allocated over it to within each thread's
     /// allocation quantum, and the managed heap's size once the frame's work is done. A frame that draws
-    /// nothing, minimized or exiting, times no view or submission. Its directory is created and an
+    /// nothing, minimized or exiting, times no view or recording. Its directory is created and an
     /// existing file is overwritten. A headless run paces its frames to the fixed step's rate and submits
     /// nothing, and its trace has no device or media stages. Under <c>--uncapped</c> its frames run back
     /// to back, one step each, and the interval times the step and the view's build alone.
     /// </remarks>
     /// <param name="path">The CSV to write.</param>
     /// <param name="exitAfterSeconds">
-    /// Real seconds after the first submitted frame at which the run exits itself, for an unattended
+    /// Real seconds after the first drawn frame at which the run exits itself, for an unattended
     /// capture. Null runs until the game exits.
     /// </param>
     public EngineBuilder WithFrameDiagnostics(string path, double? exitAfterSeconds = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        if (exitAfterSeconds is { } seconds)
+        if (exitAfterSeconds is { } seconds && !FrameDiagnostics.IsExitAfter(seconds))
         {
-            // NaN passes every comparison-based guard and an infinite budget never binds.
-            if (!double.IsFinite(seconds))
-            {
-                throw new ArgumentOutOfRangeException(nameof(exitAfterSeconds), seconds, "A capture duration must be a finite number of seconds.");
-            }
-
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(seconds, nameof(exitAfterSeconds));
+            throw new ArgumentOutOfRangeException(nameof(exitAfterSeconds), seconds, "A capture duration must be a finite number of seconds above zero.");
         }
 
         _frameDiagnosticsPath = path;

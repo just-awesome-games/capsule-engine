@@ -10,7 +10,7 @@ namespace Capsule.Tests.Physics;
 // runs at 60 units a second, one unit a step.
 public sealed class SurfaceVelocityTests
 {
-    private const string Belt = "belt";
+    private const string Belt = CollisionFixtures.Platform;
 
     private static readonly Vector2 Speed = new(60f, 0f);
 
@@ -25,7 +25,7 @@ public sealed class SurfaceVelocityTests
             scene.Add(new Conveyor(new Vector2(0f, 32f), Speed));
         }
 
-        Walker walker = new(new Vector2(8f, 16f), Belt) { Walks = true };
+        Rider walker = new(new Vector2(8f, 16f), Belt) { Falls = true };
         Run(scene, walker, 10);
 
         Assert.Equal(18f, walker.Position.X, CollisionFixtures.Tolerance);
@@ -40,7 +40,7 @@ public sealed class SurfaceVelocityTests
         Scene scene = new();
         Conveyor conveyor = new(new Vector2(0f, 32f), Vector2.Zero);
         scene.Add(conveyor);
-        Walker walker = new(new Vector2(8f, 16f), Belt) { Walks = true };
+        Rider walker = new(new Vector2(8f, 16f), Belt) { Falls = true };
         SceneSimulation simulation = Start(scene, walker);
         Advance(simulation, 0, 5);
         Assert.Equal(8f, walker.Position.X);
@@ -62,7 +62,7 @@ public sealed class SurfaceVelocityTests
         Scene scene = new();
         scene.Add(new Conveyor(new Vector2(0f, 32f), Speed));
         scene.Add(new Conveyor(new Vector2(96f, 32f), Speed));
-        Walker walker = new(new Vector2(80f, 16f), Belt);
+        Rider walker = new(new Vector2(80f, 16f), Belt);
         SceneSimulation simulation = Start(scene, walker);
         Advance(simulation, 0, 15);
         Assert.Equal(95f, walker.Position.X, CollisionFixtures.Tolerance);
@@ -78,7 +78,7 @@ public sealed class SurfaceVelocityTests
     {
         Scene first = new();
         first.Add(new Conveyor(new Vector2(0f, 32f), Speed));
-        Walker walker = new(new Vector2(8f, 16f), Belt);
+        Rider walker = new(new Vector2(8f, 16f), Belt);
         Advance(Start(first, walker), 0, 1);
         first.Remove(walker);
 
@@ -91,6 +91,33 @@ public sealed class SurfaceVelocityTests
         Assert.Equal(before + 1f, walker.Position.X, CollisionFixtures.Tolerance);
     }
 
+    // Contacts list in the order their colliders registered. Sixteen floors registered before the belt and
+    // moved under a floating body that landed on the belt alone fill the room its moves have needed. A
+    // floating carry sweeps past them without growing it. The belt after them still carries the body.
+    [Fact]
+    public void ABeltAmongMoreFloorsThanTheBodysMovesHaveMet_KeepsCarrying()
+    {
+        Scene scene = new();
+        Slab[] slabs = new Slab[16];
+        for (int index = 0; index < slabs.Length; index++)
+        {
+            slabs[index] = scene.Add(new Slab(new Vector2(500f, 32f), CollisionFixtures.Solid, new Vector2(96f, 16f)));
+        }
+
+        scene.Add(new Conveyor(new Vector2(0f, 32f), Speed));
+        Rider walker = new(new Vector2(8f, 16f), Belt);
+        SceneSimulation simulation = Start(scene, walker);
+        walker.Mover.Mode = BodyMode.Floating;
+        foreach (Slab slab in slabs)
+        {
+            slab.Position = new Vector2(0f, 32f);
+        }
+
+        Advance(simulation, 0, 10);
+
+        Assert.Equal(18f, walker.Position.X, CollisionFixtures.Tolerance);
+    }
+
     [Fact]
     public void AMirroredBeltCell_CarriesTheOtherWay()
     {
@@ -101,7 +128,7 @@ public sealed class SurfaceVelocityTests
             map.SetTile(x, 2, "belt", TileTransform.FlipX);
         }
 
-        Walker walker = new(new Vector2(40f, 16f), Belt);
+        Rider walker = new(new Vector2(40f, 16f), Belt);
         Run(scene, walker, 10);
 
         Assert.Equal(30f, walker.Position.X, CollisionFixtures.Tolerance);
@@ -111,7 +138,7 @@ public sealed class SurfaceVelocityTests
     [Fact]
     public void AWall_StopsTheCarry()
     {
-        Walker walker = new(new Vector2(30f, 16f), Belt);
+        Rider walker = new(new Vector2(30f, 16f), Belt);
         Run(SceneFixtures.Terrain(Grid("......", "...#..", ">>>>>>")), walker, 20);
 
         Assert.Equal(40f, walker.Position.X, CollisionFixtures.Tolerance);
@@ -120,7 +147,7 @@ public sealed class SurfaceVelocityTests
     [Fact]
     public void ABodyNotMovedByTheBeltsLayer_IsNotCarried()
     {
-        Walker walker = new(new Vector2(8f, 16f)) { Walks = true };
+        Rider walker = new(new Vector2(8f, 16f)) { Falls = true };
         Run(SceneFixtures.Terrain(Grid("......", "......", ">>>>>>")), walker, 10);
 
         Assert.Equal(8f, walker.Position.X);
@@ -131,7 +158,7 @@ public sealed class SurfaceVelocityTests
     [Fact]
     public void ABodyLeavingABelt_KeepsNoneOfItsVelocity()
     {
-        Walker walker = new(new Vector2(36f, 16f), Belt);
+        Rider walker = new(new Vector2(36f, 16f), Belt);
         SceneSimulation simulation = Start(SceneFixtures.Terrain(Grid("......", "......", ">>>###")), walker);
         Advance(simulation, 0, 20);
         float left = walker.Position.X;
@@ -147,11 +174,11 @@ public sealed class SurfaceVelocityTests
     [Fact]
     public void ACarryAlongASlope_WalksTheBodyDownIt()
     {
-        Walker walker = new(new Vector2(4f, 0f), Belt);
+        Rider walker = new(new Vector2(4f, 0f), Belt);
         Run(SceneFixtures.Terrain(Grid("......", "\\.....", "#\\....", "##\\...", "###\\..", "######")), walker, 30);
 
         Assert.Equal(34f, walker.Position.X, CollisionFixtures.Tolerance);
-        Assert.Equal(walker.Position.X + 16f - Walker.Edge, walker.Position.Y, CollisionFixtures.Tolerance);
+        Assert.Equal(walker.Position.X + 16f - Rider.Edge, walker.Position.Y, CollisionFixtures.Tolerance);
     }
 
     // A body resting on its center sinks half its width into the slope. Carried off its foot onto the flat
@@ -159,22 +186,22 @@ public sealed class SurfaceVelocityTests
     [Fact]
     public void ABodyRestingOnItsCenter_CarriedOffASlope_StandsOnTheFlatGround()
     {
-        Walker walker = new(new Vector2(4f, 0f), Belt) { RestsOnCenter = true };
+        Rider walker = new(new Vector2(4f, 0f), Belt) { Mover = { RestsOnCenter = true } };
         Run(SceneFixtures.Terrain(Grid("......", "\\.....", "#\\....", "##\\...", "###\\..", "######")), walker, 80);
 
         Assert.InRange(walker.Position.X, 64f, 65f + CollisionFixtures.Tolerance);
-        Assert.Equal(80f - Walker.Edge, walker.Position.Y, 0.01f);
+        Assert.Equal(80f - Rider.Edge, walker.Position.Y, 0.01f);
     }
 
-    private static void Run(Scene scene, Walker walker, int steps) => Advance(Start(scene, walker), 0, steps);
+    private static void Run(Scene scene, Rider walker, int steps) => Advance(Start(scene, walker), 0, steps);
 
-    // Adds the body and lands it once.
-    private static SceneSimulation Start(Scene scene, Walker walker)
+    // Grounds the body, adds it and lands it once.
+    private static SceneSimulation Start(Scene scene, Rider walker)
     {
         SceneSimulation simulation = new(scene);
+        walker.Mover.Mode = BodyMode.Grounded;
         scene.Add(walker);
-        walker.Mover.Move(new Vector2(0f, 64f));
-        Assert.True(walker.Mover.IsOnFloor);
+        CollisionFixtures.Land(walker.Mover, 64f);
 
         return simulation;
     }
@@ -232,43 +259,6 @@ public sealed class SurfaceVelocityTests
         {
             Surface = new BoxCollider2D(new Vector2(96f, 16f)) { Layer = Belt, SurfaceVelocity = velocity };
             Add(Surface);
-        }
-    }
-
-    /// <summary>An 8x8 grounded body on solid ground and belts, falling a unit a step while it walks.</summary>
-    private sealed class Walker : Entity
-    {
-        internal const float Edge = 8f;
-
-        internal KinematicBody2D Mover { get; }
-
-        internal bool Walks { get; init; }
-
-        internal Walker(Vector2 position, params string[] movedBy)
-            : base(position)
-        {
-            BoxCollider2D collider = new(new Vector2(Edge, Edge));
-            Add(collider);
-            Mover = new KinematicBody2D(collider)
-            {
-                Mode = BodyMode.Grounded,
-                BlockedBy = new(CollisionFixtures.Solid, Belt),
-                MovedBy = new(movedBy),
-            };
-            Add(Mover);
-        }
-
-        internal bool RestsOnCenter
-        {
-            init => Mover.RestsOnCenter = value;
-        }
-
-        protected internal override void OnStep(in StepContext context)
-        {
-            if (Walks)
-            {
-                Mover.Move(new Vector2(0f, 1f));
-            }
         }
     }
 }

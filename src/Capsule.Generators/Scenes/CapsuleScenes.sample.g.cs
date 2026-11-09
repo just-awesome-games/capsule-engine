@@ -77,32 +77,8 @@ namespace Capsule.Generated
 
         private static void Apply_Game_PlayableScene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.AuthoredMembers members)
         {
+            Apply_Capsule_Scenes_Scene(composed, members);
             global::Game.PlayableScene scene = (global::Game.PlayableScene)composed;
-            if (members.Has("camera"))
-            {
-                SetCamera(scene, Object_Capsule_Scenes_Camera(scene.Camera, members.Object("camera"), replaces: true));
-            }
-            if (members.Has("size"))
-            {
-                SetSize(scene, members.Vector2("size"));
-            }
-            if (members.Has("clearColor"))
-            {
-                SetClearColor(scene, members.Color("clearColor"));
-            }
-            if (members.Has("ambient"))
-            {
-                SetAmbient(scene, members.Color("ambient"));
-            }
-            if (members.Has("sampling"))
-            {
-                SetSampling(scene, members.Name("sampling") switch
-                {
-                    "linear" => global::Capsule.Rendering.TextureSampling.Linear,
-                    "point" => global::Capsule.Rendering.TextureSampling.Point,
-                    _ => throw members.NotAName("sampling", "linear, point"),
-                });
-            }
             if (members.Has("floor"))
             {
                 SetFloor(scene, members.Int("floor"));
@@ -132,10 +108,7 @@ namespace Capsule.Generated
 
         private static global::Game.GameCamera Fill_Game_GameCamera(global::Game.GameCamera target, global::Capsule.Scenes.AuthoredMembers members)
         {
-            if (members.Has("scrollCenter"))
-            {
-                target.ScrollCenter = members.IsNull("scrollCenter") ? null : members.Vector2("scrollCenter");
-            }
+            Fill_Capsule_Scenes_Camera(target, members);
             return target;
         }
 

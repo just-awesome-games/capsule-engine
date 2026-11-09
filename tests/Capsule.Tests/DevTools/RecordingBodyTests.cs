@@ -33,4 +33,25 @@ public sealed class RecordingBodyTests
             Assert.Equal(step, read.Snapshot);
         });
     }
+
+    // A set of pad buttons, mouse buttons or lacking pad inputs is 32 bits. A wider one is damage, never
+    // a set cut to its low bits.
+    [Theory]
+    [InlineData(RecordingFormat.PadBit)]
+    [InlineData(RecordingFormat.MouseBit)]
+    [InlineData(RecordingFormat.LackingBit)]
+    public void AButtonSetWiderThan32Bits_IsRefusedAsDamage(int field)
+    {
+        ChunkedBuffer writer = new(32);
+        writer.WriteByte(RecordingFormat.Step);
+        writer.WriteVarint((ulong)field);
+        writer.WriteVarint((1UL << 32) | 1);
+        using MemoryStream bytes = new();
+        writer.CopyTo(bytes);
+        RecordingBody body = new(new RecordingReader(bytes.ToArray(), 0, "test"));
+
+        InvalidDataException refused = Assert.Throws<InvalidDataException>(() => body.Next(out _));
+
+        Assert.Contains("4294967297", refused.Message, StringComparison.Ordinal);
+    }
 }

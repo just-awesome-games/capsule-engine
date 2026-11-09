@@ -18,14 +18,14 @@ internal static class HullStore2D
     // The index of these corners, storing them the first time they are seen.
     internal static int Add(ReadOnlySpan<Vector2> corners)
     {
-        Vector2[] hull = corners.ToArray();
-
         lock (Gate)
         {
-            if (Indices.TryGetValue(hull, out int index))
+            if (Indices.GetAlternateLookup<ReadOnlySpan<Vector2>>().TryGetValue(corners, out int index))
             {
                 return index;
             }
+
+            Vector2[] hull = corners.ToArray();
 
             if (Next == Hulls.Length)
             {
@@ -41,21 +41,28 @@ internal static class HullStore2D
         }
     }
 
-    private sealed class OutlineComparer : IEqualityComparer<Vector2[]>
+    // Looks an outline up by span. A repeat outline is found without a copy.
+    private sealed class OutlineComparer : IEqualityComparer<Vector2[]>, IAlternateEqualityComparer<ReadOnlySpan<Vector2>, Vector2[]>
     {
         internal static readonly OutlineComparer Instance = new();
 
         public bool Equals(Vector2[]? x, Vector2[]? y) => x.AsSpan().SequenceEqual(y);
 
-        public int GetHashCode(Vector2[] obj)
+        public bool Equals(ReadOnlySpan<Vector2> alternate, Vector2[] other) => alternate.SequenceEqual(other);
+
+        public int GetHashCode(Vector2[] obj) => GetHashCode((ReadOnlySpan<Vector2>)obj);
+
+        public int GetHashCode(ReadOnlySpan<Vector2> alternate)
         {
             HashCode hash = default;
-            foreach (Vector2 corner in obj)
+            foreach (Vector2 corner in alternate)
             {
                 hash.Add(corner);
             }
 
             return hash.ToHashCode();
         }
+
+        public Vector2[] Create(ReadOnlySpan<Vector2> alternate) => alternate.ToArray();
     }
 }

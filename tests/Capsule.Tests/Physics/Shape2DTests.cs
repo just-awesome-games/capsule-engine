@@ -154,7 +154,7 @@ public sealed class Shape2DTests
         Assert.Equal(hexagon.Bounds.Translated(new Vector2(5f, 3f)), moved.Bounds);
     }
 
-    // The store never frees an outline. Building the same polygon again must not grow it.
+    // The store never frees an outline. Building the same polygon again must not grow it, nor copy it.
     [Fact]
     public void HullStore_KeepsEachDistinctOutlineOnce()
     {
@@ -164,6 +164,11 @@ public sealed class Shape2DTests
 
         Assert.Equal(stored, HullStore2D.Add([.. outline]));
         Assert.NotEqual(stored, HullStore2D.Add(outline.AsSpan(1)));
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        int again = HullStore2D.Add(outline);
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(stored, again);
     }
 
     [Fact]

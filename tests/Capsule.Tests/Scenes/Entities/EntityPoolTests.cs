@@ -61,6 +61,27 @@ public sealed class EntityPoolTests
         Assert.Same(taken, pool.Take());
     }
 
+    // A step that throws leaves its adds queued. Stopping the scene returns a queued pooled entity too.
+    [Fact]
+    public void SceneStop_ReturnsAPooledEntityQueuedByAStepThatThrew()
+    {
+        EntityPool<Drifter> pool = new(() => new Drifter(), capacity: 1);
+        Drifter taken = pool.Take();
+
+        void Hook(Scene scene, in StepContext context)
+        {
+            scene.Add(taken);
+            throw new InvalidOperationException("This step fails.");
+        }
+
+        using (SceneSimulation simulation = new(new SceneFixtures.HookScene(step: Hook)))
+        {
+            Assert.Throws<InvalidOperationException>(() => simulation.Step(SceneFixtures.Step()));
+        }
+
+        Assert.Same(taken, pool.Take());
+    }
+
     [Fact]
     public void TakeOnAnEmptyPool_BuildsOneMore_TryTakeBuildsNothing()
     {
@@ -85,6 +106,13 @@ public sealed class EntityPoolTests
 
         Assert.Throws<InvalidOperationException>(() => scene.Add(built!));
         Assert.Throws<InvalidOperationException>(() => new EntityPool<Drifter>(() => built!, capacity: 1));
+
+        // Parenting it under a held entity would add it too, and the refusal leaves both unlinked.
+        Drifter holder = new();
+        scene.Add(holder);
+        Assert.Throws<InvalidOperationException>(() => built!.Parent = holder);
+        Assert.Null(built!.Parent);
+        Assert.True(holder.Children.IsEmpty);
     }
 
     [Fact]

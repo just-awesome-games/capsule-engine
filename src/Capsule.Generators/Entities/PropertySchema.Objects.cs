@@ -27,9 +27,7 @@ internal static partial class PropertySchema
             type.ToDisplayString(),
             SymbolShape.NamespaceOf(type),
             type.Name,
-            SymbolShape.Attribute(type, compilation, MetadataNames.TypeKeyAttribute) is { ConstructorArguments.Length: 1 } annotation
-                ? annotation.ConstructorArguments[0].Value as string ?? string.Empty
-                : null,
+            SymbolShape.DeclaredTypeKey(type, compilation),
             DeclaredAt.From(type.Locations.FirstOrDefault() ?? Location.None),
             Construction(type, compilation),
             Of(type, compilation, objects),

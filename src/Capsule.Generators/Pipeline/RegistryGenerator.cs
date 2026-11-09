@@ -41,8 +41,6 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .Where(static candidate => !candidate.IsEmpty);
         IncrementalValueProvider<EquatableArray<EntityModel>> entities = Collected(candidates, static candidate => candidate.Entity);
         IncrementalValueProvider<EquatableArray<SceneModel>> scenes = Collected(candidates, static candidate => candidate.Scene);
-        IncrementalValueProvider<EquatableArray<InputDriverModel>> drivers = Collected(candidates, static candidate => candidate.Driver);
-        IncrementalValueProvider<EquatableArray<ScenePayloadModel>> payloads = Collected(candidates, static candidate => candidate.Payload);
 
         // The engine's own Scene, whose members every document's top-level keys may set, and its tile map, which
         // every document may place.
@@ -62,6 +60,10 @@ public sealed class RegistryGenerator : IIncrementalGenerator
                 MetadataNames.AuthorableAttribute,
                 static (node, _) => node is PropertyDeclarationSyntax or VariableDeclaratorSyntax,
                 static (marked, _) => AuthorableCheck.Describe(marked))
+            .Where(static fault => fault is not null)
+            .Select(static (fault, _) => fault!.Value);
+        IncrementalValuesProvider<AuthorableFault> recordAuthorableFaults = context.SyntaxProvider
+            .CreateSyntaxProvider(static (node, _) => AuthorableCheck.MayMarkRecordProperty(node), AuthorableCheck.DescribeRecordParameter)
             .Where(static fault => fault is not null)
             .Select(static (fault, _) => fault!.Value);
         IncrementalValueProvider<EquatableArray<string>> writableAuthorableFields = Collected(context.SyntaxProvider
@@ -93,12 +95,8 @@ public sealed class RegistryGenerator : IIncrementalGenerator
             .Combine(engineScene).Combine(shared)
             .Select(static (input, _) => SceneResolver.Resolve(new SceneInputs(input.Left.Left, input.Left.Right, input.Right)))
             .WithTrackingName("ScenePlan");
-        IncrementalValueProvider<InputDriverPlan> driverPlan = drivers
-            .Select(static (models, _) => InputDriverResolver.Resolve(models))
-            .WithTrackingName("InputDriverPlan");
-        IncrementalValueProvider<ScenePayloadPlan> payloadPlan = payloads
-            .Select(static (models, _) => ScenePayloadResolver.Resolve(models))
-            .WithTrackingName("ScenePayloadPlan");
+        IncrementalValueProvider<NamedClassPlan> driverPlan = Planned(candidates, static candidate => candidate.Driver, NamedRegistry.InputDrivers);
+        IncrementalValueProvider<NamedClassPlan> payloadPlan = Planned(candidates, static candidate => candidate.Payload, NamedRegistry.ScenePayloads);
         IncrementalValueProvider<BootPlan> bootPlan = boot
             .Combine(driverPlan).Combine(payloadPlan)
             .Select(static (input, _) => BootResolver.Resolve(input.Left.Left, input.Left.Right, input.Right))
@@ -106,12 +104,13 @@ public sealed class RegistryGenerator : IIncrementalGenerator
 
         // Every file and every check, one per row.
         context.RegisterSourceOutput(authorableFaults, AuthorableCheck.Report);
+        context.RegisterSourceOutput(recordAuthorableFaults, AuthorableCheck.Report);
         context.RegisterSourceOutput(writableAuthorableFields, AuthorableSuppressionRenderer.Emit);
         context.RegisterSourceOutput(entityPlan, EntityRenderer.Emit);
         context.RegisterSourceOutput(scenePlan.Combine(providerName), SceneRenderer.Emit);
         context.RegisterSourceOutput(scenePlan.Combine(documents), DocumentClaimCheck.Run);
-        context.RegisterSourceOutput(driverPlan.Combine(isLogicAssembly), InputDriverRenderer.Emit);
-        context.RegisterSourceOutput(payloadPlan.Combine(isLogicAssembly), ScenePayloadRenderer.Emit);
+        context.RegisterSourceOutput(driverPlan.Combine(isLogicAssembly), static (production, input) => NamedClassRenderer.Emit(production, input, NamedRegistry.InputDrivers));
+        context.RegisterSourceOutput(payloadPlan.Combine(isLogicAssembly), static (production, input) => NamedClassRenderer.Emit(production, input, NamedRegistry.ScenePayloads));
         context.RegisterSourceOutput(providerName, RegistryProviderRenderer.Emit);
         context.RegisterSourceOutput(bootPlan, BootRenderer.Emit);
         context.RegisterSourceOutput(project, GlobalUsingsRenderer.Emit);
@@ -138,8 +137,8 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         return new RegistryCandidate(
             EntityDescriber.Describe(type, declaration, context.SemanticModel),
             SceneDescriber.Describe(type, declaration, compilation),
-            InputDriverDescriber.Describe(type, declaration, compilation),
-            ScenePayloadDescriber.Describe(type, declaration, compilation));
+            NamedClassDescriber.Describe(type, declaration, compilation, NamedRegistry.InputDrivers),
+            NamedClassDescriber.Describe(type, declaration, compilation, NamedRegistry.ScenePayloads));
     }
 
     // Keys are measured against the declared root namespace, or the assembly name when the project
@@ -167,6 +166,13 @@ public sealed class RegistryGenerator : IIncrementalGenerator
 
     private static IncrementalValueProvider<EquatableArray<TModel>> Collected<TModel>(IncrementalValuesProvider<TModel> models) =>
         models.Collect().Select(static (items, _) => new EquatableArray<TModel>(items));
+
+    // One named registry's plan, from its models out of the candidates.
+    private static IncrementalValueProvider<NamedClassPlan> Planned(
+        IncrementalValuesProvider<RegistryCandidate> candidates, Func<RegistryCandidate, NamedClassModel?> domain, NamedRegistry registry) =>
+        Collected(candidates, domain)
+            .Select((models, _) => NamedClassResolver.Resolve(models, registry))
+            .WithTrackingName(registry.Plan);
 
     // One domain's models out of the candidates.
     private static IncrementalValueProvider<EquatableArray<TModel>> Collected<TModel>(

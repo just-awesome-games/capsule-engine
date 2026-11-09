@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.CodeAnalysis;
 
@@ -15,7 +16,8 @@ internal static class ObjectRenderer
 
     /// <summary>
     /// Every class the models reach, once, with the keys of the subclasses each can construct. Two subclasses of one
-    /// class claiming one key are refused, naming both, and the first by declaration keeps it.
+    /// class claiming one key are refused once, naming both, though every class they share claims for both, and the
+    /// first by declaration keeps it.
     /// </summary>
     internal static EquatableArray<KeyedObject> Keyed(IEnumerable<ObjectModel> reached, string rootNamespace, List<Diagnostic> diagnostics)
     {
@@ -26,12 +28,15 @@ internal static class ObjectRenderer
         }
 
         List<KeyedObject> keyed = [];
+        HashSet<string> reported = new(StringComparer.Ordinal);
         foreach (ObjectModel model in objects.Values.OrderBy(static model => model.QualifiedName, StringComparer.Ordinal))
         {
+            List<Diagnostic> found = [];
             Dictionary<string, ObjectModel> claimed = RegistryPass.Keyed(
-                diagnostics,
+                found,
                 model.Subclasses.Items.Select(name => objects[name]).Where(static subclass => subclass.Construction != ObjectConstruction.None),
                 rootNamespace);
+            diagnostics.AddRange(found.Where(diagnostic => reported.Add(diagnostic.Id + diagnostic.Location + diagnostic.GetMessage(CultureInfo.InvariantCulture))));
 
             keyed.Add(new KeyedObject(model, new([.. claimed.OrderBy(static entry => entry.Key, StringComparer.Ordinal).Select(static entry => (entry.Key, entry.Value.QualifiedName))])));
         }
@@ -68,7 +73,7 @@ internal static class ObjectRenderer
 
         foreach (KeyedObject entry in objects.Items)
         {
-            methods.Append(Fill(entry.Model));
+            methods.Append(Fill(entry.Model, objects));
         }
 
         foreach (KeyedObject entry in objects.Items.Where(static entry => entry.Model.Construction == ObjectConstruction.Accessor))
@@ -123,14 +128,26 @@ internal static class ObjectRenderer
             """;
     }
 
-    private static string Fill(ObjectModel model) => $$"""
+    // A subclass fills what its base's Fill sets through that Fill, then sets its own members.
+    private static string Fill(ObjectModel model, EquatableArray<KeyedObject> objects)
+    {
+        (string? ancestor, IEnumerable<PropertyModel> own) = PropertyReadRenderer.Inherited(
+            [.. model.Authored],
+            objects.Items
+                .Where(entry => entry.Model.Subclasses.Items.Contains(model.QualifiedName, StringComparer.Ordinal))
+                .OrderBy(static entry => entry.Model.Subclasses.Items.Length)
+                .Select(static entry => (entry.Model.QualifiedName, (IReadOnlyList<PropertyModel>)[.. entry.Model.Authored])));
+        string inherited = ancestor is null ? string.Empty : $"{StatementIndent}{Fill(ancestor)}(target, members);\n";
 
-                private static {{model.QualifiedName}} {{Fill(model.QualifiedName)}}({{model.QualifiedName}} target, {{Members}} members)
-                {
-        {{PropertyReadRenderer.Assignments(model.Authored, "target", model.QualifiedName, StatementIndent)}}            return target;
-                }
+        return $$"""
 
-        """;
+                    private static {{model.QualifiedName}} {{Fill(model.QualifiedName)}}({{model.QualifiedName}} target, {{Members}} members)
+                    {
+            {{inherited}}{{PropertyReadRenderer.Assignments(own, "target", model.QualifiedName, StatementIndent)}}            return target;
+                    }
+
+            """;
+    }
 
     private static string Fill(string qualifiedName) => "Fill_" + CodeText.TypeIdentifier(qualifiedName);
 

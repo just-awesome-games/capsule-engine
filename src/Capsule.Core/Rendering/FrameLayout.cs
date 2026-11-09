@@ -226,8 +226,8 @@ internal static class FrameLayout
     // from the canvas over the camera's declared span on the fit's binding axis. The fit changes how
     // much world is on the surface and not how large a world unit is. Under Letterbox the resolved
     // rect is that declared span, and the surface matches the canvas. The surface never
-    // shrinks below the canvas and never exceeds the window on an axis, since the present would
-    // only scale the extra pixels back down after paying to draw them.
+    // shrinks below the canvas, and exceeds the window on an axis only where the canvas does, since
+    // the present would only scale the extra pixels back down after paying to draw them.
     internal static (int Width, int Height) SurfaceSize(
         (int Width, int Height) canvas,
         in CameraView camera,

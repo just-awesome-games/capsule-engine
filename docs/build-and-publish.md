@@ -103,6 +103,9 @@ projects also state their role, which the build and the generators read:
 </Project>
 ```
 
+The pinned version is a Capsule release on NuGet.org, each tagged `v<version>` in the engine repository
+([`RELEASING.md`](../RELEASING.md)).
+
 The build project's `Program.cs` runs the asset build:
 
 ```csharp
@@ -213,24 +216,28 @@ not ship, whatever an earlier publish left there.
 On Windows the native link needs the MSVC Build Tools with the C++ workload, and a Build Tools-only install
 also needs `C:\Program Files (x86)\Microsoft Visual Studio\Installer` on `PATH`.
 
-A game that needs more speed can raise its processor floor with `-p:IlcInstructionSet=avx`, which ran the
-engine's steps 6% and frame builds 14% faster in its bench. A processor without AVX then ends the game at launch, and a
-windowed build shows no message. Leave it off unless your players' hardware allows it. `x86-64-v3` runs no faster
+A game that needs more speed can raise its processor floor with `-p:IlcInstructionSet=avx`. A processor
+without AVX then ends the game at launch, and a windowed build shows no message. Leave it off unless your players' hardware allows it. `x86-64-v3` runs no faster
 and changes what `System.Numerics` blends return.
 
 A shell's publish carries a `licenses/` folder: Capsule's license, its third-party notices for what Capsule carries and a
 game redistributes, and, when the runtime ships with the game, the .NET runtime's license and notices.
 
-A publish holds no `.pdb`, and a NativeAOT executable names its `.pdb` by file name alone, with no build-machine path. A NativeAOT publish defaults `OptimizationPreference` to `Speed`. A
-shipping one also defaults `StackTraceSupport` to `false` and `UseSystemResourceKeys` to `true`. A project can set each back. Its symbols go to
-`CapsuleSymbolsDirectory`. A crash log's frames then read `MyGame!<BaseAddress>+0x296cd`, and only that
-build's symbols decode them. Archive the executable and the symbols directory of every build you
-distribute, together. A crash log's header names its build: the game's and Capsule's versions, each
-suffixed with the commit it was built from, the system, and the executable's file name and SHA-256. Find the
-archived executable with that hash, or rebuild the same sources with the same SDK and native toolchain, which
-reproduces it on Windows. Copy it into its symbols directory and run
-`llvm-symbolizer --relative-address --obj=<symbols>/MyGame.exe 0x296cd`. The MSVC Build Tools ship
-`llvm-symbolizer` under `VC/Tools/MSVC/<version>/bin/Hostx64/x64`.
+A NativeAOT publish defaults `OptimizationPreference` to `Speed`. A shipping one also defaults
+`StackTraceSupport` to `false` and `UseSystemResourceKeys` to `true`. A project can set each back.
+
+A publish holds no `.pdb`. Its symbols go to `CapsuleSymbolsDirectory`, and a NativeAOT executable names its
+`.pdb` by file name alone, with no build-machine path. A crash log's frames then read
+`MyGame!<BaseAddress>+0x296cd`, and only that build's symbols decode them:
+
+1. Archive the executable and the symbols directory of every build you distribute, together.
+2. Read the crash log's header, which names its build: the game's and Capsule's versions, each suffixed with
+   the commit it was built from, the system, and the executable's file name and SHA-256.
+3. Find the archived executable with that hash, or rebuild the same sources with the same SDK and native
+   toolchain, which reproduces it on Windows.
+4. Copy it into its symbols directory and run
+   `llvm-symbolizer --relative-address --obj=<symbols>/MyGame.exe 0x296cd`. The MSVC Build Tools ship
+   `llvm-symbolizer` under `VC/Tools/MSVC/<version>/bin/Hostx64/x64`.
 
 ## Build properties
 

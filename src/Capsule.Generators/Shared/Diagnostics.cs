@@ -22,7 +22,7 @@ internal static class Diagnostics
     internal static readonly DiagnosticDescriptor NotAConcreteEntity = Rule(
         "CAP001", ScenesCategory, ScenesPage,
         "An entity with a [TypeKey] must be concrete",
-        "'{0}' is marked [TypeKey] but is an entity class no document can construct. Make it a non-abstract class, or drop the attribute");
+        "'{0}' is marked [TypeKey] but is an entity class no document can construct. Make it a non-abstract, non-generic class, or drop the attribute");
 
     internal static readonly DiagnosticDescriptor MissingSpawnConstructor = Rule(
         "CAP002", ScenesCategory, ScenesPage,
@@ -122,12 +122,12 @@ internal static class Diagnostics
     internal static readonly DiagnosticDescriptor InvalidBaseScene = Rule(
         "CAP028", ScenesCategory, ScenesPage,
         "A baseScene must be an abstract Scene a derived type can construct",
-        "'{0}' claims baseScene key '{1}', but is not an abstract Capsule.Scenes.Scene with one constructor taking Capsule.Scenes.SceneContent that a derived type can call");
+        "'{0}' claims baseScene key '{1}', but is not a non-generic abstract Capsule.Scenes.Scene with one constructor taking Capsule.Scenes.SceneContent that a derived type can call. Make it one, or name another class");
 
     internal static readonly DiagnosticDescriptor UnclaimedSceneKey = Rule(
         "CAP030", ScenesCategory, ScenesPage,
         "A baseScene key must name a declared class",
-        "Scene document '{0}' names {1} '{2}', which no class claims");
+        "Scene document '{0}' names {1} '{2}', which no class claims. Correct the key, or give the class it means that key");
 
     internal static readonly DiagnosticDescriptor DuplicateAuthorableKey = Rule(
         "CAP033", ScenesCategory, ScenesPage,

@@ -303,8 +303,8 @@ public partial class Camera
     /// <summary>
     /// Fills this camera's panel in the debug overlay, as <see cref="Component.OnDebugPanel"/> describes.
     /// The engine writes <see cref="Center"/>, <see cref="Zoom"/>, <see cref="ViewportSize"/>,
-    /// <see cref="Fit"/>, <see cref="Offset"/>, <see cref="Bounds"/>, <see cref="VisibleRegion"/> and
-    /// <see cref="Subject"/> before this call.
+    /// <see cref="Fit"/>, <see cref="Offset"/>, <see cref="Bounds"/>, <see cref="VisibleRegion"/>,
+    /// <see cref="Subject"/> and <see cref="Listener"/> before this call.
     /// </summary>
     /// <remarks>The overlay opens the panel from the Camera row of its scene page.</remarks>
     /// <example>

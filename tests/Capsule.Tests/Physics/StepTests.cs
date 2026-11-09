@@ -227,13 +227,14 @@ public sealed class StepTests
         Block rising = new([new(32f, 64f), new(64f, 48f), new(64f, 64f)], "platform");
         scene.Add(rising);
         scene.Add(new Block(new Vector2(64f, 45f), new Vector2(96f, 19f)));
-        SceneFixtures.Body body = new(new Vector2(4f, 32f), blocksOn: "solid");
-        body.Mover.Mode = BodyMode.Grounded;
-        body.Mover.StepHeight = 4f;
-        body.Mover.MovedBy = new("platform");
-        scene.Add(body);
-        body.Mover.Move(new Vector2(0f, 40f));
-        Assert.True(body.Mover.IsOnFloor);
+        SceneFixtures.Body body = CollisionFixtures.Grounded(
+            scene,
+            new Vector2(4f, 32f),
+            setUp: mover =>
+            {
+                mover.StepHeight = 4f;
+                mover.MovedBy = new("platform");
+            });
 
         body.Mover.Move(new Vector2(60f, Gravity));
 
@@ -246,17 +247,8 @@ public sealed class StepTests
     }
 
     // Lands a grounded 8x8 body standing on the ground at `x`.
-    private static SceneFixtures.Body Grounded(Scene scene, float x, float stepHeight)
-    {
-        SceneFixtures.Body body = new(new Vector2(x, GroundTop - Edge - 1f), blocksOn: "solid");
-        body.Mover.Mode = BodyMode.Grounded;
-        body.Mover.StepHeight = stepHeight;
-        scene.Add(body);
-        body.Mover.Move(new Vector2(0f, 40f));
-        Assert.True(body.Mover.IsOnFloor);
-
-        return body;
-    }
+    private static SceneFixtures.Body Grounded(Scene scene, float x, float stepHeight) =>
+        CollisionFixtures.Grounded(scene, new Vector2(x, GroundTop - Edge - 1f), setUp: mover => mover.StepHeight = stepHeight);
 
     // Ground on the fourth row of 16 tiles, with a tile at x = 48 that is solid in its bottom `lip`.
     private static Scene LipGrid(float lip)

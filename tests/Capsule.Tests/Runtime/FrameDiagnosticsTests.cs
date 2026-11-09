@@ -8,7 +8,7 @@ namespace Capsule.Tests.Runtime;
 // Nothing here needs a window or a device.
 public sealed class FrameDiagnosticsTests
 {
-    private const string Header = "tick,intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes,processBytes,heapBytes";
+    internal const string Header = "tick,intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes,processBytes,heapBytes";
 
     private static readonly string[] BootStages =
         ["builderEntered", "hostConstructed", "deviceReady", "sceneAssetsLoaded", "firstUpdate", "firstDraw"];
@@ -186,7 +186,7 @@ public sealed class FrameDiagnosticsTests
             _clock = clock;
             _diagnostics = clock is null
                 ? new FrameDiagnostics(_path, Stopwatch.GetTimestamp(), exitAfterSeconds, Stopwatch.GetTimestamp)
-                : new FrameDiagnostics(_path, clock.Timestamp, exitAfterSeconds, clock.GetTimestamp);
+                : new FrameDiagnostics(_path, clock.Timestamp, exitAfterSeconds, clock.Read);
 
             // The host marks each of these before it submits a frame. The rest are taken here.
             _diagnostics.Mark(FrameDiagnostics.Stage.HostConstructed);
@@ -245,15 +245,5 @@ public sealed class FrameDiagnosticsTests
             Close();
             _workspace.Dispose();
         }
-    }
-
-    private sealed class ManualClock
-    {
-        internal long Timestamp { get; private set; }
-
-        internal long GetTimestamp() => Timestamp;
-
-        internal void Advance(double seconds) =>
-            Timestamp += (long)(seconds * Stopwatch.Frequency);
     }
 }

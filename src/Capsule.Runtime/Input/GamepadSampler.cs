@@ -9,7 +9,7 @@ namespace Capsule.Runtime.Input;
 // connected pad is opened, and PadRoster keeps the active one: a button or trigger going down on
 // another pad makes that pad active and counts as its press. One instance per windowed host, which
 // holds SDL's gamepad subsystem open for its lifetime. An unfocused window folds none of it but the
-// active pad's family and the buttons it has, which every sample carries and which outlast the pad's
+// active pad's family and the buttons it lacks, which every sample carries and which outlast the pad's
 // disconnection.
 internal sealed class GamepadSampler : IDisposable
 {
@@ -88,7 +88,8 @@ internal sealed class GamepadSampler : IDisposable
         return low > short.MaxValue ? int.MaxValue : low;
     }
 
-    // sampled with the buttons and triggers pressed names down, in InputEvents' press bits.
+    // Returns sampled with every button and trigger that pressed names held down. pressed holds
+    // InputEvents' press bits.
     internal static DeviceSnapshot WithPresses(DeviceSnapshot sampled, uint pressed)
     {
         if (pressed == 0)

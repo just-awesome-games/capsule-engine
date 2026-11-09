@@ -317,7 +317,7 @@ internal sealed class DebugOverlay : IDisposable
         return game;
     }
 
-    // Runs after the game's scheduler. A host with no renderer passes the frame's cost.
+    // Runs after the game's scheduler. lastFrameMs is the last frame's draw cost, which the frame pane shows.
     internal void Update(FrameRenderer? renderer = null, double lastFrameMs = 0)
     {
         long gameEnd = _timestamp();
@@ -347,7 +347,6 @@ internal sealed class DebugOverlay : IDisposable
             // Font pixels to world units, which keeps labels glyph-sized at any zoom.
             float pixelsPerUnit = renderer.WorldPixelsPerUnit;
             _draws.TextScale = pixelsPerUnit > 0f ? scale / pixelsPerUnit : 1f;
-            _lastFrameMs = renderer.LastFrameMs;
         }
 
         SampleFrame(gameEnd);
@@ -577,7 +576,9 @@ internal sealed class DebugOverlay : IDisposable
 
         _cursor.Scroll(_overMenu ? _input.Axis(OverlayActions.Scroll) : 0f);
 
-        if (_cursor.Point(Scene.RowAt(_input.Pointer), _input.PointerMoved, _input.WasPressed(OverlayActions.Click)))
+        // A page rebuilt this frame is not on screen yet, and the pointer is over the last page's rows.
+        int pointed = _pageShown ? Scene.RowAt(_input.Pointer) : -1;
+        if (_cursor.Point(pointed, _input.PointerMoved, _input.WasPressed(OverlayActions.Click)))
         {
             Activate(_rows[_cursor.Focus]);
         }

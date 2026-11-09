@@ -36,13 +36,18 @@ public interface ILogSink
 /// <remarks>
 /// It is write-only telemetry. Installing a sink does not change the state a run reaches. Logging
 /// is silent until a sink is installed, which the runtime does at boot. A sink that throws is
-/// detached, and its line and everything after it are lost.
+/// detached, and its line and everything after it are lost. A line a sink logs from inside its own
+/// <see cref="ILogSink.Write"/> is dropped.
 /// </remarks>
 public static class Log
 {
     // Private, because a reader would let a game call a sink directly and bypass the containment below,
     // and a presence query would let a game branch on how the host was configured.
     private static ILogSink? Sink { get; set; }
+
+    // Set while a sink writes on this thread. A sink that logs cannot then recurse into itself.
+    [ThreadStatic]
+    private static bool Writing;
 
     // Installs sink, replacing whatever was there. Null silences logging.
     internal static void UseSink(ILogSink? sink) => Sink = sink;
@@ -64,13 +69,15 @@ public static class Log
     public static void Error(string? message) => Write(LogLevel.Error, message);
 
     /// <summary>Writes one line at <paramref name="level"/>. A null message writes as an empty one.</summary>
+    /// <remarks>It is never compiled out, at <see cref="LogLevel.Debug"/> too.</remarks>
     public static void Write(LogLevel level, string? message)
     {
-        if (Sink is not { } sink)
+        if (Writing || Sink is not { } sink)
         {
             return;
         }
 
+        Writing = true;
         try
         {
             sink.Write(level, message ?? string.Empty);
@@ -83,6 +90,10 @@ public static class Log
             {
                 Sink = null;
             }
+        }
+        finally
+        {
+            Writing = false;
         }
     }
 }

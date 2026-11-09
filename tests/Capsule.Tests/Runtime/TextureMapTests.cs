@@ -97,16 +97,25 @@ public sealed class TextureMapTests
     public void ARegionPastAPackedTexturesOwnSize_IsRefused()
     {
         using TempWorkspace workspace = new("capsule-region-");
-        using (FileStream png = File.Create(workspace.PathTo("assets/atlases/game.0.png")))
-        {
-            PngWriter.Write(new byte[8 * 4 * 4], 8, 4, 4, png);
-        }
-
-        File.WriteAllText(workspace.PathTo("assets/textures.json"), """{ "textures": { "hero": { "page": "atlases/game.0", "x": 1, "y": 1, "width": 2, "height": 2 } } }""");
-        ContentPlatform platform = new(workspace.Root);
+        ContentPlatform platform = Content(
+            workspace, "atlases/game.0", new byte[8 * 4 * 4], 8, 4, 4,
+            """{ "textures": { "hero": { "page": "atlases/game.0", "x": 1, "y": 1, "width": 2, "height": 2 } } }""");
         TextureMap map = TextureMap.Load(platform);
 
         Assert.Throws<ArgumentOutOfRangeException>(() => TextureStore.ReadRegion(platform, map, new TextureHandle("hero", ".png"), new TextureRegion(1, 0, 2, 1)));
+    }
+
+    /// <summary>A content root holding one PNG of <paramref name="texels"/> at <c>assets/</c><paramref name="png"/> and <paramref name="map"/> as its <c>textures.json</c>.</summary>
+    internal static ContentPlatform Content(TempWorkspace workspace, string png, byte[] texels, int width, int height, int channels, string map)
+    {
+        using (FileStream file = File.Create(workspace.PathTo($"assets/{png}.png")))
+        {
+            PngWriter.Write(texels, width, height, channels, file);
+        }
+
+        File.WriteAllText(workspace.PathTo("assets/textures.json"), map);
+
+        return new ContentPlatform(workspace.Root);
     }
 
     private static TextureMap Parse(string json)

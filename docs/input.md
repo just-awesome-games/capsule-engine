@@ -93,7 +93,7 @@ sees it:
 ```csharp
 if (context.Input.WasAnyPressed(out InputButton pressed))
 {
-    Run.Input.Replace(GameInput.Jump, shown, pressed);
+    Run.Input.Replace(GameInput.Pause, shown, pressed);
 }
 ```
 
@@ -154,8 +154,8 @@ reads the `Scene` it is handed. The sample's
 level. A driver reads the scene and survives tuning changes, while a recording replays one exact run
 ([`debugging.md`](debugging.md#record-and-replay)).
 
-Put drivers in a directory carrying a `.capsuleignore`. They are then part of every ordinary build and
-of no publish ([`build-and-publish.md`](build-and-publish.md#development-only-directories)).
+Put drivers in a [development-only directory](build-and-publish.md#development-only-directories), which no
+publish carries.
 
 ## The standard command line
 

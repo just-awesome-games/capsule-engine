@@ -183,8 +183,7 @@ public sealed class CapsuleBootGeneratorTests
         using GeneratorHarness.ShellContext loaded = GeneratorHarness.LoadedShell(ShellSource, logic, ("scenes/wall.scene.json", document));
         SceneRegistry boot = (SceneRegistry)loaded.Shell.GetType("Capsule.Generated.CapsuleBoot")!
             .GetProperty("Scenes", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
-        SceneRegistry scenes = (SceneRegistry)loaded.LoadFromAssemblyName(new AssemblyName("GameSpecs")).GetType("Capsule.Generated.CapsuleScenes")!
-            .GetProperty("Registry")!.GetValue(null)!;
+        SceneRegistry scenes = GeneratorHarness.Registry(loaded.LoadFromAssemblyName(new AssemblyName("GameSpecs")));
 
         (string?, string?, object?, string?) Composed(SceneRegistry registry)
         {

@@ -1,9 +1,7 @@
-using System.Collections.Immutable;
 using System.Reflection;
 using Capsule.Localization;
 using Capsule.Scenes;
 using Capsule.Tests.Build;
-using Microsoft.CodeAnalysis;
 
 namespace Capsule.Tests.Generators;
 
@@ -39,8 +37,8 @@ public sealed class AuthorableTextKeyTests
             "scene document 'scenes/room': entities[0] ('sign') ",
             "sets 'caption' to the string \"hints.fly\", but no TextKey keys as \"hints.fly\".");
 
-    // Composes the room through the registry generated against the build's CapsuleStrings.
-    private static Scene Composed(string caption)
+    // The registry generated against the build's CapsuleStrings.
+    private static readonly Lazy<SceneRegistry> Registry = new(static () =>
     {
         string strings;
         using (ToolWorkspace workspace = new())
@@ -50,13 +48,9 @@ public sealed class AuthorableTextKeyTests
             strings = File.ReadAllText(Path.Combine(ToolWorkspace.Out, "CapsuleStrings.g.cs"));
         }
 
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(strings + Game, logic: true);
-        Assert.Empty(GeneratorHarness.Errors(diagnostics));
-        SceneRegistry registry = (SceneRegistry)GeneratorHarness.Loaded(compiled)
-            .GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;
+        return GeneratorHarness.Registry(GeneratorHarness.CompileAgainstSources(strings + Game, logic: true));
+    });
 
-        return registry.Create(
-            new SceneKey("scenes/room"),
-            SceneDocument.Parse($$"""{"entities": [{"type": "sign", "x": 0, "y": 0, "caption": "{{caption}}"}]}"""));
-    }
+    private static Scene Composed(string caption) =>
+        GeneratorHarness.Composed(Registry.Value, $$"""{"entities": [{"type": "sign", "x": 0, "y": 0, "caption": "{{caption}}"}]}""");
 }

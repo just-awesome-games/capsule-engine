@@ -382,31 +382,18 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     public static bool operator !=(DeviceSnapshot left, DeviceSnapshot right) => !left.Equals(right);
 
     // A None value is the empty set. Bit 0 is unused in all three masks.
-    private static UInt128 Bit(Key key)
+    private static UInt128 Bit(Key key) => key == Key.None ? UInt128.Zero : UInt128.One << Index((int)key, Capacity, nameof(key));
+
+    private static uint PadBit(PadButton button) => button == PadButton.None ? 0u : 1u << Index((int)button, PadCapacity, nameof(button));
+
+    private static uint MouseBit(MouseButton button) => button == MouseButton.None ? 0u : 1u << Index((int)button, MouseCapacity, nameof(button));
+
+    private static int Index(int value, int capacity, string parameterName)
     {
-        int index = (int)key;
-        ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(key));
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Capacity, nameof(key));
+        ArgumentOutOfRangeException.ThrowIfNegative(value, parameterName);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(value, capacity, parameterName);
 
-        return key == Key.None ? UInt128.Zero : UInt128.One << index;
-    }
-
-    private static uint PadBit(PadButton button)
-    {
-        int index = (int)button;
-        ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(button));
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, PadCapacity, nameof(button));
-
-        return button == PadButton.None ? 0u : 1u << index;
-    }
-
-    private static uint MouseBit(MouseButton button)
-    {
-        int index = (int)button;
-        ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(button));
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, MouseCapacity, nameof(button));
-
-        return button == MouseButton.None ? 0u : 1u << index;
+        return value;
     }
 
     private static float Minimum(PadAxis axis) => axis is PadAxis.LeftTrigger or PadAxis.RightTrigger ? 0f : -1f;

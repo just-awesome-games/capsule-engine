@@ -334,16 +334,14 @@ public sealed class CenterRestTests
     }
 
     // Lands a grounded 8x8 body with RestsOnCenter, blocked by solid and wall, from where it starts.
-    private static SceneFixtures.Body Rest(Scene scene, Vector2 position, bool restsOnCenter = true)
-    {
-        SceneFixtures.Body body = new(position);
-        body.Mover.BlockedBy = new("solid", "wall");
-        body.Mover.Mode = BodyMode.Grounded;
-        body.Mover.RestsOnCenter = restsOnCenter;
-        scene.Add(body);
-        body.Mover.Move(new Vector2(0f, 80f));
-        Assert.True(body.Mover.IsOnFloor);
-
-        return body;
-    }
+    private static SceneFixtures.Body Rest(Scene scene, Vector2 position, bool restsOnCenter = true) =>
+        CollisionFixtures.Grounded(
+            scene,
+            position,
+            drop: 80f,
+            setUp: mover =>
+            {
+                mover.BlockedBy = new("solid", "wall");
+                mover.RestsOnCenter = restsOnCenter;
+            });
 }

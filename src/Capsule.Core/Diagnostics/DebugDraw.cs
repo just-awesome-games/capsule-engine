@@ -9,8 +9,8 @@ namespace Capsule.Diagnostics;
 /// </summary>
 /// <remarks>
 /// It is write-only, like <see cref="Log"/>. Showing the draws does not change the state a run
-/// reaches. Every method is compiled out of an assembly that does not define
-/// <c>CAPSULE_DEVELOPMENT</c>.
+/// reaches. Every method but <see cref="SetColor"/> is compiled out of an assembly that does not
+/// define <c>CAPSULE_DEVELOPMENT</c>.
 /// <para>
 /// Positions are world units at the settled step. A draw stays for <c>steps</c> fixed steps counted
 /// by the scheduler's tick, and a <c>steps</c> below one counts as one. Draws are dropped until the

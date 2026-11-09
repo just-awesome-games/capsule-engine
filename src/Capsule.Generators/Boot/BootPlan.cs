@@ -12,7 +12,7 @@ namespace Capsule.Generators;
 internal readonly record struct BootPlan(
     bool Generates,
     EquatableArray<RegistryProviderModel> Providers,
-    EquatableArray<InputDriverModel> Drivers,
-    EquatableArray<ScenePayloadModel> Payloads,
+    EquatableArray<NamedClassModel> Drivers,
+    EquatableArray<NamedClassModel> Payloads,
     EquatableArray<Diagnostic> Diagnostics,
     bool PassesStrings);

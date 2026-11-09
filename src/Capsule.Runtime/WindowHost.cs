@@ -163,7 +163,7 @@ internal sealed unsafe class WindowHost
                 renderer.ScreenLayer,
                 DebugOverlay.ScaleFor(renderer.WindowSize.Height),
                 renderer.WorldPlacement);
-            _updateOverlay = renderer => overlay.Update(renderer);
+            _updateOverlay = renderer => overlay.Update(renderer, renderer.LastFrameMs);
             _drawOverlay = overlay.Draw;
             _overlayHeld = () => overlay.IsOpen || overlay.IsHidden;
             // Built here so the sound device is reachable from the overlay only through this block, and
@@ -657,7 +657,7 @@ internal sealed unsafe class WindowHost
 
         _diagnostics?.BeginDraw();
 
-        // alpha is in [0, 1) because the scheduler drains the accumulator below one step.
+        // alpha is the accumulator's remainder below one step, in [0, 1), and 1 while the run is held.
         _renderer.Draw(view, _scheduler.InterpolationAlpha, capturePath);
 
         // The diagnostics cover the game frame's recording, a capture's download included. The
@@ -694,8 +694,8 @@ internal sealed unsafe class WindowHost
         // After the motors rest, which writes to the open pads.
         Release(ref failure, () => _pad?.Dispose());
 
-        // The scheduler and the scenes outlive this host. The scenes release their assets after it
-        // closes, and the stores they would release into are disposed below.
+        // The scheduler and the scenes outlive this host, and nothing they do after it closes reaches
+        // it. The stores disposed below release every asset the scenes held.
         _scheduler.StepCompleted = null;
         _scenes.BoundaryReached = null;
         _scenes.PrepareAssets = null;
@@ -735,13 +735,21 @@ internal sealed unsafe class WindowHost
         }
     }
 
-    // What a scene boundary loads. The stores are exchanged together, and a failure leaves the run
-    // on its current scene.
-    private void PrepareAssets(AssetCollection preloads)
-    {
-        _textures.ChangeScene(preloads, () => _sounds?.ChangeScene(preloads));
-        _shaders.Load(preloads.Shaders);
-    }
+    // What a scene boundary loads. A failure leaves the run on its current scene with its assets.
+    private void PrepareAssets(AssetCollection preloads) => ExchangeAssets(
+        loadRest => _textures.ChangeScene(preloads, loadRest),
+        () => _shaders.Load(preloads.Shaders),
+        () => _sounds?.ChangeScene(preloads));
+
+    // Every store finishes loading before any releases an outgoing asset. The texture store releases
+    // once the loads it wraps return. Shaders are kept for the run and release nothing. The sound store
+    // releases as its own exchange ends, and it loads last.
+    internal static void ExchangeAssets(Action<Action> textures, Action shaders, Action sounds) =>
+        textures(() =>
+        {
+            shaders();
+            sounds();
+        });
 
     // Gameplay starts on an empty young generation whatever the machine's GC budget is.
     private static void CollectAtBoundary()

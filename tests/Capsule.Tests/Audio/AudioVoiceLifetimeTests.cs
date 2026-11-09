@@ -41,6 +41,22 @@ public sealed class AudioVoiceLifetimeTests
         Assert.False(mixer.IsPlaying(voice));
     }
 
+    // Both spans run past the last tick a long can count, from a tick past zero.
+    [Fact]
+    public void AOneShotOrFadeTooSlowToEnd_RunsOnRatherThanEndingAtOnce()
+    {
+        AudioMixer mixer = new();
+        Advance(mixer, 10);
+        Voice slow = mixer.Play(new AudioPlayback(Step) { Pitch = 1e-30f });
+        Voice fading = mixer.Play(new AudioPlayback(Step) { Loop = true });
+        mixer.Stop(fading, 1e30f);
+
+        Advance(mixer, 11);
+
+        Assert.True(mixer.IsPlaying(slow));
+        Assert.True(mixer.IsFading(fading));
+    }
+
     [Fact]
     public void ALoop_NeverExpires()
     {
@@ -234,24 +250,5 @@ public sealed class AudioVoiceLifetimeTests
 
         Assert.False(mixer.IsLive(voice));
         Assert.False(mixer.IsLive(Voice.None));
-    }
-
-    // 0.08 s is 9.6 steps at 120 Hz. The rate reaches the mixer on the first step, after the voice
-    // has already been armed against the default one.
-    [Fact]
-    public void PlayedBeforeAnyStep_AVoiceExpiresAgainstTheRateTheFirstStepEstablishes()
-    {
-        AudioMixer mixer = new();
-        Voice voice = mixer.Play(Step);
-
-        for (long tick = 0; tick < 10; tick++)
-        {
-            Advance(mixer, tick, 120);
-            Assert.True(mixer.IsPlaying(voice));
-        }
-
-        Advance(mixer, 10, 120);
-
-        Assert.False(mixer.IsPlaying(voice));
     }
 }

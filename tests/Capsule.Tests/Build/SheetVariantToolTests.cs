@@ -25,7 +25,7 @@ public sealed class SheetVariantToolTests
     [Fact]
     public void AVariant_CompilesIntoItsFramesAndAVariantOfEveryBaseFrame()
     {
-        Assembly game = SheetToolTests.Loaded(SheetToolTests.Emitted(("actors/player", SheetToolTests.Player), ("actors/player-hat", Hat)));
+        Assembly game = ToolWorkspace.Loaded(SheetToolTests.Emitted(("actors/player", SheetToolTests.Player), ("actors/player-hat", Hat)));
         SpriteVariant variant = SheetToolTests.Member<SpriteVariant>(game, "Actors+PlayerHatSheet", "Variant");
         Sprite hat = SheetToolTests.Member<Sprite>(game, "Actors+PlayerHatSheet+Frames", "Idle0");
 
@@ -54,7 +54,7 @@ public sealed class SheetVariantToolTests
                 { "name": "left", "x": 0, "y": 0, "width": 2, "height": 2 },
                 { "name": "right", "x": 0, "y": 0, "width": 2, "height": 2, "flipX": true } ] }
             """;
-        Assembly game = SheetToolTests.Loaded(SheetToolTests.Emitted(("mirrored", mirrored), ("mirrored-hat", hat)));
+        Assembly game = ToolWorkspace.Loaded(SheetToolTests.Emitted(("mirrored", mirrored), ("mirrored-hat", hat)));
         SpriteVariant variant = SheetToolTests.Member<SpriteVariant>(game, "MirroredHatSheet", "Variant");
 
         Assert.True(variant.TryGet(SheetToolTests.Member<Sprite>(game, "MirroredSheet+Frames", "Left"), out Sprite? left));
@@ -71,7 +71,7 @@ public sealed class SheetVariantToolTests
             { "formatVersion": 1, "texture": "p.png", "variantOf": "Sprites/actors/player.sheet.json",
               "frames": [ { "name": "idle-0" }, { "name": "walk-0" } ] }
             """;
-        Assembly game = SheetToolTests.Loaded(SheetToolTests.Emitted(("actors/player", SheetToolTests.Player), ("actors/player-bare", bare)));
+        Assembly game = ToolWorkspace.Loaded(SheetToolTests.Emitted(("actors/player", SheetToolTests.Player), ("actors/player-bare", bare)));
         SpriteVariant variant = SheetToolTests.Member<SpriteVariant>(game, "Actors+PlayerBareSheet", "Variant");
 
         Assert.Null(game.GetType("Capsule.Generated.CapsuleAssets+Sprites+Actors+PlayerBareSheet+Frames"));

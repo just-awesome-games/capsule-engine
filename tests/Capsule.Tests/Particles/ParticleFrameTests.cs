@@ -39,7 +39,7 @@ public sealed class ParticleFrameTests
     {
         SpriteClip clip = new([SceneFixtures.Frame(0), SceneFixtures.Frame(1), SceneFixtures.Frame(2)], [1, 1, 1]);
         ParticleEmitter emitter = new(clip, capacity: 16) { FrameMode = FrameMode.RandomAtSpawn };
-        SimulationHost host = Host(emitter, new EntityHierarchyFixtures.Node(Vector2.Zero));
+        SimulationHost host = ParticleEmitterTests.Host(emitter, new EntityHierarchyFixtures.Node(Vector2.Zero));
 
         emitter.Emit(16);
         host.Step();
@@ -57,7 +57,7 @@ public sealed class ParticleFrameTests
         SpriteClip clip = new([SceneFixtures.Frame(0), SceneFixtures.Frame(1), SceneFixtures.Frame(2)], [1, 1, 1]);
         ParticleEmitter emitter = new(clip, capacity: 8) { FrameMode = FrameMode.InOrderAtSpawn };
         EntityHierarchyFixtures.Node entity = new(Vector2.Zero);
-        SimulationHost host = Host(emitter, entity);
+        SimulationHost host = ParticleEmitterTests.Host(emitter, entity);
 
         emitter.Emit(5);
         host.Step();
@@ -91,7 +91,7 @@ public sealed class ParticleFrameTests
             Lifetime = (1f, 1f),
             FlipX = flipX,
         };
-        SimulationHost host = Host(emitter, entity);
+        SimulationHost host = ParticleEmitterTests.Host(emitter, entity);
         float side = mirrored ? -1f : 1f;
 
         emitter.Emit(1);
@@ -132,11 +132,4 @@ public sealed class ParticleFrameTests
     }
 
     private static int Cell(in SpriteIntent intent) => intent.Sprite.Region.X / 8;
-
-    private static SimulationHost Host(ParticleEmitter emitter, Entity entity)
-    {
-        entity.Add(emitter);
-
-        return new SimulationHost(new SceneFixtures.HookScene(start: s => s.Add(entity)));
-    }
 }

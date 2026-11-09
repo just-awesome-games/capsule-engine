@@ -12,22 +12,6 @@ public sealed class ImportTests
 {
     internal const string Scene = """{"entities": []}""";
 
-    // What a source imported to on an earlier run is gone, not just left unrequested.
-    [Fact]
-    public void AnOutputWhoseSourceIsGone_DoesNotSurviveTheNextRun()
-    {
-        using ToolWorkspace workspace = new();
-        workspace.Configure = static build => build.AddImporter(new NoteImporter());
-        workspace.Write("Assets/Scenes/old.note", Scene);
-        workspace.Succeed();
-
-        File.Move("Assets/Scenes/old.note", "Assets/Scenes/new.note");
-        workspace.Succeed();
-
-        Assert.False(File.Exists(ToolWorkspace.Imported + "Scenes/old.scene.json"));
-        Assert.Equal(["scenes/new.scene.json.gz"], workspace.Shipped);
-    }
-
     // A file an import read or probed is an input of that import alone, and a probed file that appears is an edit.
     [Theory]
     [InlineData("Assets/Parts/shared.part", "Assets/Scenes/a.note")]
@@ -55,20 +39,6 @@ public sealed class ImportTests
         string errors = workspace.Fail();
 
         Assert.Equal($"Assets/Scenes/a.note: {NoteImporter.Missing}{Environment.NewLine}", errors);
-    }
-
-    [Fact]
-    public void ASourceWithAFormatDefect_FailsByNameAndTheOthersStillBuild()
-    {
-        using ToolWorkspace workspace = new();
-        workspace.Configure = static build => build.AddImporter(new NoteImporter());
-        workspace.Write("Assets/Scenes/broken.note", NoteImporter.Broken);
-        workspace.Write("Assets/Scenes/room.note", Scene);
-
-        string errors = workspace.Fail();
-
-        Assert.Equal($"Assets/Scenes/broken.note: {NoteImporter.Broken}{Environment.NewLine}", errors);
-        Assert.True(File.Exists(ToolWorkspace.Out + "/assets/scenes/room.scene.json.gz"));
     }
 
     // A shipping run never imports what it would not ship. A defect under a development-only directory

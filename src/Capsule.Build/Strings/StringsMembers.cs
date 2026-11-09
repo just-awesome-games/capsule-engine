@@ -29,7 +29,8 @@ internal static class StringsMembers
 
     private const string Span = "global::System.ReadOnlySpan";
 
-    // The members CapsuleStrings declares itself, which no root key may become.
+    // The members CapsuleStrings declares itself, which no root key may become. Its references to the
+    // table class are qualified. A root key may then become that class's name.
     private static readonly string[] Reserved = ["Languages", "Table"];
 
     /// <summary>The C# text, or null when a key becomes a name C# would refuse, each refusal reported.</summary>
@@ -81,11 +82,11 @@ internal static class StringsMembers
                 public static class CapsuleStrings
                 {
                     /// <summary>The languages this game ships, as BCP 47 tags: the source language first, then the rest in ordinal order.</summary>
-                    public static global::System.ReadOnlySpan<string> Languages => CapsuleStringTable.Tags;
+                    public static global::System.ReadOnlySpan<string> Languages => global::Capsule.Generated.CapsuleStringTable.Tags;
 
                     /// <summary>Every language's texts, which the engine reads. Generated code.</summary>
                     [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
-                    public static global::Capsule.Localization.StringTable Table { get; } = new CapsuleStringTable();
+                    public static global::Capsule.Localization.StringTable Table { get; } = new global::Capsule.Generated.CapsuleStringTable();
 
             """);
         root.AppendMembers(code, "        ", keys);

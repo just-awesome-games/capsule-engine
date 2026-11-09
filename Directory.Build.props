@@ -21,7 +21,7 @@
     <!-- Engine projects keep the configuration a consumer's graph builds them in, across their own
          references. build/Capsule.SourceConsumer.targets sets the same for the consumer's projects. -->
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
-    <!-- Release packing overrides this constant; it must equal the sample's CapsuleVersion. -->
+    <!-- The release lane's -p:Version overrides this. Every other pack must equal the sample's default CapsuleVersion. -->
     <VersionPrefix>0.0.0</VersionPrefix>
     <Authors>JAG Studios</Authors>
     <PackageTags>capsule-engine;game-engine;2d;sdl3;deterministic</PackageTags>

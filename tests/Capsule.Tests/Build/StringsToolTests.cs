@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Numerics;
 using System.Reflection;
 using System.Text;
@@ -7,11 +6,8 @@ using Capsule.Localization;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Allocation;
-using Capsule.Tests.Generators;
 using Capsule.Tests.Rendering;
 using Capsule.Tests.Scenes;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace Capsule.Tests.Build;
 
@@ -22,9 +18,6 @@ namespace Capsule.Tests.Build;
 [Collection(SceneWorkspaceCollection.Name)]
 public sealed class StringsToolTests
 {
-    private static readonly ImmutableArray<MetadataReference> References =
-        GeneratorHarness.Referenced(null, typeof(StringTable).Assembly, typeof(object).Assembly);
-
     // Each row: the files authored, the fallback the build project sets or null, and what the refusal holds.
     public static TheoryData<string[], string?, string> Refusals => new()
     {
@@ -148,6 +141,18 @@ public sealed class StringsToolTests
         Assert.Equal(["\u00011 hat \u00010"], Texts(pair.Table, 1));
     }
 
+    // CapsuleStrings names its table class in full. A root key may take that class's name.
+    [Fact]
+    public void ARootKeyNamedForTheTableClass_IsAText()
+    {
+        using ToolWorkspace workspace = Authored("en", """{ "capsule-string-table": "T" }""");
+
+        workspace.Succeed();
+
+        TextKey text = (TextKey)Loaded(workspace).GetType("Capsule.Generated.CapsuleStrings")!.GetProperty("CapsuleStringTable")!.GetValue(null)!;
+        Assert.Equal("capsule-string-table", text.ToString());
+    }
+
     // A scene document's key path finds its text by the UTF-8 order the build sorts the paths in, which here
     // differs from the key order. A path that only prefixes another, or names a group, finds none.
     [Fact]
@@ -217,25 +222,10 @@ public sealed class StringsToolTests
         [.. Enumerable.Range(0, table.KeyCount).Select(key => Encoding.UTF8.GetString(table.Template(language, key)))];
 
     // Each pair is a file's path under Assets/ without .strings.json, then its JSON.
-    private static ToolWorkspace Authored(params string[] files)
-    {
-        ToolWorkspace workspace = new();
-        for (int i = 0; i < files.Length; i += 2)
-        {
-            workspace.Write($"Assets/{files[i]}.strings.json", files[i + 1]);
-        }
-
-        return workspace;
-    }
+    private static ToolWorkspace Authored(params string[] files) =>
+        ToolWorkspace.Authored(files.Chunk(2).Select(static pair => (pair[0] + StringFile.Extension, (string?)pair[1])));
 
     // The generated table as the game runs it, beside the attribute CapsuleAssets declares for its members.
     private static Assembly Loaded(ToolWorkspace workspace) =>
-        GeneratorHarness.Loaded(CSharpCompilation.Create(
-            "StringSpecs",
-            [
-                CSharpSyntaxTree.ParseText(workspace.Generated),
-                CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(ToolWorkspace.Out, "CapsuleStrings.g.cs"))),
-            ],
-            References,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)));
+        ToolWorkspace.Loaded(workspace.Generated, File.ReadAllText(Path.Combine(ToolWorkspace.Out, StringsMembers.FileName)));
 }

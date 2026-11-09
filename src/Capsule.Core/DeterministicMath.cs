@@ -16,8 +16,8 @@ namespace Capsule;
 /// function's double result rounded to float, and every NaN one returns is <see cref="float.NaN"/>.
 /// </para>
 /// <para>
-/// <c>Lerp</c> is the arithmetic it states, each operation rounded as IEEE 754 specifies, and a NaN
-/// passes through it as that arithmetic carries one.
+/// <c>Lerp</c> and <c>MoveToward</c> are plain arithmetic, each operation rounded as IEEE 754 specifies,
+/// and a NaN passes through them as that arithmetic carries one.
 /// </para>
 /// </remarks>
 public static class DeterministicMath
@@ -123,6 +123,51 @@ public static class DeterministicMath
     /// <param name="amount">The fraction of the way. Outside 0 to 1 it extrapolates.</param>
     public static Vector2 Lerp(Vector2 from, Vector2 to, float amount) =>
         new(Lerp(from.X, to.X, amount), Lerp(from.Y, to.Y, amount));
+
+    /// <summary>
+    /// <paramref name="current"/> moved toward <paramref name="target"/> by <paramref name="maxDelta"/>, or
+    /// exactly <paramref name="target"/> once it is within that reach. It never passes the target.
+    /// </summary>
+    /// <param name="current">The value to move from.</param>
+    /// <param name="target">The value to move toward.</param>
+    /// <param name="maxDelta">The most the value moves. Not negative, and zero holds it.</param>
+    public static float MoveToward(float current, float target, float maxDelta)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxDelta);
+
+        float gap = target - current;
+        if (MathF.Abs(gap) <= maxDelta)
+        {
+            return target;
+        }
+
+        // A NaN gap has no direction, and passes through where its sign alone would step.
+        return float.IsNaN(gap) ? gap : current + MathF.CopySign(maxDelta, gap);
+    }
+
+    /// <summary>
+    /// <paramref name="current"/> moved along the line to <paramref name="target"/> by a distance of
+    /// <paramref name="maxDelta"/>, or exactly <paramref name="target"/> once it is within that reach.
+    /// </summary>
+    /// <param name="current">The point to move from.</param>
+    /// <param name="target">The point to move toward.</param>
+    /// <param name="maxDelta">The most distance the point moves. Not negative, and zero holds it.</param>
+    public static Vector2 MoveToward(Vector2 current, Vector2 target, float maxDelta)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxDelta);
+
+        // No float gap squares past double range, and IEEE 754 rounds the square root correctly.
+        double gapX = (double)target.X - current.X;
+        double gapY = (double)target.Y - current.Y;
+        double distance = Math.Sqrt((gapX * gapX) + (gapY * gapY));
+        if (distance <= maxDelta)
+        {
+            return target;
+        }
+
+        double scale = maxDelta / distance;
+        return new Vector2((float)(current.X + (gapX * scale)), (float)(current.Y + (gapY * scale)));
+    }
 
     /// <summary>The sine of <paramref name="radians"/>, within 6e-8 of the true sine in absolute terms.</summary>
     /// <param name="radians">The angle in radians. Accurate to a magnitude of 2^24.</param>

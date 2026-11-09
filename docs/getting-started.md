@@ -8,13 +8,16 @@ entity you can move with the keyboard.
 Clone the engine and run the sample as the [README](../README.md#quick-start) shows. Its controls are in
 the [sample's README](../samples/MinimalGame/README.md#controls).
 [`samples/MinimalGame/`](../samples/MinimalGame/) is a complete game in the shape described below. The
-fastest start for a game of your own is a copy of it.
+fastest start for a game of your own is a copy of it. A copy deletes what ties the sample to the engine
+tree, `Directory.Build.targets`, `NuGet.package-mode.config` and the engine-only group and import in
+`Directory.Build.props`, and sets `CapsuleVersion` there to a release
+([Consuming Capsule](build-and-publish.md#consuming-capsule)).
 
 ## Three projects
 
 | Project | Role | What it holds |
 | --- | --- | --- |
-| `src/MyGame.Game` | `<CapsuleGameLogic>true</CapsuleGameLogic>` | Scenes, entities, components, the `Assets/` authoring tree. It cannot reach a device, a file or a clock. |
+| `src/MyGame.Game` | `<CapsuleGameLogic>true</CapsuleGameLogic>` | Scenes, entities, components, the `Assets/` authoring tree. It cannot reach a device, a file or a clock ([logic boundary](architecture.md#logic-boundary)). |
 | `src/MyGame.Shell` | `<CapsuleGameShell>true</CapsuleGameShell>` | The executable. One file, the entry point below. |
 | `src/MyGame.Build` | no role | The asset build's host, a console app referencing `JAG.Capsule.Build`. One file that runs `CapsuleBuild` ([`packages.md`](packages.md#the-build-project)). |
 | `tests/MyGame.Tests` | no role | Headless tests of the logic project ([`testing.md`](testing.md)). |

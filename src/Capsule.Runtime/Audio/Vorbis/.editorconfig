@@ -1,2 +1,5 @@
+# A fork of NVorbis 0.10.4, kept in the original's style so it reads against its source, with each change
+# marked by a "Capsule:" comment. Marked as generated code, it is exempt from the analyzers that hold the
+# rest of the assembly to the repository's style.
 [*.cs]
 generated_code = true

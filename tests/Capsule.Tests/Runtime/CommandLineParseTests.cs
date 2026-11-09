@@ -61,8 +61,9 @@ public sealed class CommandLineParseTests
         Assert.Contains("the recording supplies", refused.Message, StringComparison.Ordinal);
     }
 
-    // A shipping build declares no development flag. A player cannot drive, probe, reroute, reseed or
-    // force the language of the game from its command line. The portable-saves lever and help stay.
+    // A shipping build declares no development flag and its usage lists none. A player cannot drive,
+    // probe, reroute, reseed or force the language of the game from its command line. The
+    // portable-saves lever and help stay.
     [Theory]
     [InlineData("--scene", "Selected")]
     [InlineData("--payload", "Westward")]
@@ -79,7 +80,7 @@ public sealed class CommandLineParseTests
     [InlineData("--trace", "trace.csv", "1", "Avatar")]
     [InlineData("--capture", "frames", "1")]
     [InlineData("--force")]
-    public void AShippingBuild_RefusesADevelopmentFlagAsUnknown(params string[] args)
+    public void AShippingBuild_RefusesADevelopmentFlagAsUnknown_AndListsItNowhere(params string[] args)
     {
         CommandLineException refused = Assert.Throws<CommandLineException>(
             () => CommandLine.Parse(args, "Game", development: false));
@@ -87,6 +88,7 @@ public sealed class CommandLineParseTests
         Assert.Contains("unknown option", refused.Message, StringComparison.Ordinal);
         Assert.False(refused.HelpRequested);
         Assert.Equal(2, refused.ExitCode);
+        Assert.DoesNotContain(args[0], CommandLine.UsageFor("Game", development: false), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -104,15 +106,5 @@ public sealed class CommandLineParseTests
         Assert.Contains("--gpu-driver <name>", usage, StringComparison.Ordinal);
         Assert.Contains("--low-latency", usage, StringComparison.Ordinal);
         Assert.Contains("--help", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--driver", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--headless", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--scene", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--payload", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--frames", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--uncapped", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--fast-forward", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--exit-after", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--seed", usage, StringComparison.Ordinal);
-        Assert.DoesNotContain("--language", usage, StringComparison.Ordinal);
     }
 }

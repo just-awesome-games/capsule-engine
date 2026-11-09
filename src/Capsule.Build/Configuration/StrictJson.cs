@@ -8,14 +8,15 @@ namespace Capsule.Build.Configuration;
 internal static class StrictJson
 {
     /// <summary>Reads the file at <paramref name="path"/> as one <typeparamref name="T"/>.</summary>
-    /// <param name="members">What a refusal calls the format's members and values, as <c>kind, setting or value</c>.</param>
+    /// <param name="members">What a refusal calls the format's members, as <c>kind or setting</c>.</param>
     /// <param name="nullFix">
     /// What a refusal of a present null tells the author to write instead, or null when the format reads
     /// a null as the member left out.
     /// </param>
     /// <param name="shape">What the file holds and every member it may set, which a refusal of its shape ends in.</param>
     /// <exception cref="FormatException">
-    /// The JSON is malformed, holds a refused null, or has a member or value the format does not declare.
+    /// The JSON is malformed, holds a refused null, has a member the format does not declare, or has a value
+    /// its member does not take.
     /// </exception>
     internal static T Read<T>(string path, JsonTypeInfo<T> type, string members, string? nullFix, string shape)
     {
@@ -27,7 +28,7 @@ internal static class StrictJson
         }
         catch (JsonException ex)
         {
-            throw new FormatException($"is not valid JSON at line {ex.LineNumber + 1}, byte {ex.BytePositionInLine + 1}. Correct the JSON there.", ex);
+            throw Malformed(ex);
         }
 
         using (document)
@@ -48,9 +49,81 @@ internal static class StrictJson
             }
             catch (JsonException ex)
             {
-                throw new FormatException($"has an unknown {members} at {ex.Path} (line {ex.LineNumber + 1}, byte {ex.BytePositionInLine + 1}). {shape}", ex);
+                string where = $"{ex.Path} (line {ex.LineNumber + 1}, byte {ex.BytePositionInLine + 1})";
+                throw new FormatException(IsUndeclared(type, ex.Path) ? $"has an unknown {members} at {where}. {shape}" : $"has an invalid value at {where}. {shape}", ex);
             }
         }
+    }
+
+    /// <summary>The refusal of JSON the reader could not get through, at the line and byte <paramref name="ex"/> stopped at.</summary>
+    internal static FormatException Malformed(JsonException ex) =>
+        new($"is not valid JSON at line {ex.LineNumber + 1}, byte {ex.BytePositionInLine + 1}. Correct the JSON there.", ex);
+
+    // Whether the last member on path is one its object's type does not declare. A path through a member
+    // the type declares fails at that member's value instead.
+    private static bool IsUndeclared(JsonTypeInfo root, string? path)
+    {
+        if (path is null || !path.StartsWith('$'))
+        {
+            return false;
+        }
+
+        JsonTypeInfo? info = root;
+        int at = 1;
+        while (at < path.Length && info is not null)
+        {
+            string? name;
+            if (path[at] == '.')
+            {
+                int end = path.IndexOfAny(['.', '['], at + 1);
+                end = end < 0 ? path.Length : end;
+                name = path[(at + 1)..end];
+                at = end;
+            }
+            else if (path.AsSpan(at).StartsWith("['", StringComparison.Ordinal))
+            {
+                int end = path.IndexOf("']", at, StringComparison.Ordinal);
+                if (end < 0)
+                {
+                    return false;
+                }
+
+                name = path[(at + 2)..end];
+                at = end + 2;
+            }
+            else
+            {
+                int end = path.IndexOf(']', at);
+                if (end < 0)
+                {
+                    return false;
+                }
+
+                name = null;
+                at = end + 1;
+            }
+
+            if (name is null || info.Kind == JsonTypeInfoKind.Dictionary)
+            {
+                info = info.ElementType is { } element ? info.Options.GetTypeInfo(element) : null;
+            }
+            else if (info.Kind == JsonTypeInfoKind.Object)
+            {
+                JsonPropertyInfo? property = info.Properties.FirstOrDefault(declared => declared.Name == name);
+                if (property is null)
+                {
+                    return at == path.Length;
+                }
+
+                info = info.Options.GetTypeInfo(property.PropertyType);
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        return false;
     }
 
     // The path of the first null in element, or null when it holds none.
