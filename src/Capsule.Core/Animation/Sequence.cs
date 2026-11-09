@@ -1,18 +1,20 @@
+using System.Diagnostics;
+using System.Runtime.ExceptionServices;
+
 namespace Capsule.Animation;
 
 /// <summary>
-/// Runs scripted beats written as an iterator of <see cref="Wait"/> values. Its owner holds it, steps it
-/// each step, and the beats run in that step's order.
+/// Runs a <see cref="Routine"/>: scripted beats written as an <see langword="async"/> method that awaits
+/// <see cref="Wait"/> values. Its owner steps it each step, and the routine runs in that step's order.
 /// </summary>
 /// <remarks>
-/// A sequence holds whenever its owner does, through a pause or a freeze. Beats that pause the scene
-/// belong to the scene or to an entity whose step mode keeps it stepping. An owner that leaves the
-/// scene stops stepping it, and one that must release something calls <see cref="Stop"/>. Starting
-/// allocates the iterator. Behaviour a pooled entity restarts on every spawn steps
-/// <see cref="Countdown"/> values instead.
+/// A sequence holds whenever its owner does, through a pause or a freeze. A routine that pauses the scene
+/// belongs to the scene or to an entity whose step mode keeps it stepping. An owner that leaves the
+/// scene stops stepping it.
 /// <para>
-/// When the beats, their conditions or the <c>finally</c> blocks a stop runs throw, the sequence stops
-/// and the exception propagates from the call that ran them.
+/// <see cref="Stop"/> abandons the routine where it stands, and its <see langword="finally"/> blocks do not run. An
+/// owner undoes what the routine set where it stops it. When the routine throws, the sequence stops and the exception
+/// propagates from the call that ran it. A condition that throws on a step abandons it the same way.
 /// </para>
 /// </remarks>
 /// <example>
@@ -21,146 +23,167 @@ namespace Capsule.Animation;
 ///
 /// protected override void OnStep(in StepContext context) => _showDoor.Step();
 ///
-/// private IEnumerable&lt;Wait&gt; ShowDoor(Entity followed)
+/// private async Routine ShowDoor(Entity followed)
 /// {
 ///     Scene.Camera.Follow(_door);
-///     yield return Wait.Ticks(40);
+///     await Wait.Ticks(40);
 ///     _door.Opening = true;
-///     yield return Wait.Until(() =&gt; _door.IsOpen);
+///     await Wait.Until(_door, static door =&gt; door.IsOpen);
 ///     Scene.Camera.Follow(followed);
 /// }
 /// </code>
 /// </example>
 public sealed class Sequence
 {
-    private IEnumerator<Wait>? _beats;
-    private int _ticksLeft;
-    private Func<bool>? _until;
+    private RoutineCall? _root;
 
-    // Set while the beats run, which may not start, stop or step the sequence running them.
-    private bool _inBeats;
+    // The innermost call, parked on a wait. Null while the routine runs.
+    private RoutineCall? _parked;
 
-    /// <summary>Whether beats remain to run. False before the first start and once the iterator returns or is stopped.</summary>
-    public bool IsRunning => _beats is not null;
+    // Set while the routine runs, which may not start, stop or step the sequence running it.
+    private bool _inRoutine;
 
-    /// <summary>
-    /// Stops any running beats, then runs <paramref name="beats"/> up to their first wait before returning.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">Called from this sequence's own beats.</exception>
-    public void Start(IEnumerable<Wait> beats)
-    {
-        ArgumentNullException.ThrowIfNull(beats);
-        Stop();
-        _beats = beats.GetEnumerator();
-        RunBeats();
-    }
+    /// <summary>Whether a routine is running. False before the first start and once the routine returns or is stopped.</summary>
+    public bool IsRunning => _root is not null;
 
     /// <summary>
-    /// Spends one tick of the current wait, or checks its condition, and runs the beats on to their next
-    /// wait once it is over. On a sequence that is not running it does nothing.
+    /// Stops any running routine, then runs <paramref name="routine"/> up to its first wait before returning.
     /// </summary>
-    /// <exception cref="InvalidOperationException">Called from this sequence's own beats.</exception>
-    public void Step()
+    /// <exception cref="InvalidOperationException">
+    /// Called from this sequence's own routine, or given a routine that has already run or is running.
+    /// </exception>
+    public void Start(Routine routine)
     {
-        ThrowIfInBeats();
-        if (_beats is null)
+        ThrowIfInRoutine();
+        RoutineCall? call = routine.Claim();
+        Abandon();
+        if (call is null)
         {
             return;
         }
 
-        if (_until is { } condition ? Check(condition) : --_ticksLeft <= 0)
+        _root = call;
+        Run(call);
+    }
+
+    /// <summary>
+    /// Spends one tick of the current wait, or checks its condition, and runs the routine on to its next
+    /// wait once it is over. On a sequence that is not running it does nothing.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Called from this sequence's own routine.</exception>
+    public void Step()
+    {
+        ThrowIfInRoutine();
+        if (_parked is not { } parked)
         {
-            RunBeats();
+            return;
+        }
+
+        if (parked.Wait.HasCondition ? Check(parked.Wait) : --parked.TicksLeft <= 0)
+        {
+            parked.Wait = default;
+            Run(parked);
         }
     }
 
-    /// <summary>Ends the beats where they stand and runs the <c>finally</c> blocks they are inside.</summary>
-    /// <exception cref="InvalidOperationException">Called from this sequence's own beats.</exception>
+    /// <summary>Abandons the routine where it stands. Its <see langword="finally"/> blocks do not run.</summary>
+    /// <exception cref="InvalidOperationException">Called from this sequence's own routine.</exception>
     public void Stop()
     {
-        ThrowIfInBeats();
-        _inBeats = true;
-        try
-        {
-            End();
-        }
-        finally
-        {
-            _inBeats = false;
-        }
+        ThrowIfInRoutine();
+        Abandon();
     }
 
-    private void RunBeats()
+    // Resumes calls from this loop alone: a finished call returns to its caller, and an awaited call starts here. No
+    // call is resumed or released while its own MoveNext is on the stack.
+    private void Run(RoutineCall call)
     {
-        _inBeats = true;
+        _parked = null;
+        _inRoutine = true;
         try
         {
-            while (_beats!.MoveNext())
+            while (true)
             {
-                Wait wait = _beats.Current;
-                if (wait.Condition is { } condition)
+                call.Status = RoutineCallStatus.Running;
+                call.MoveNext();
+                if (call.Status == RoutineCallStatus.Waiting)
                 {
-                    if (!condition())
-                    {
-                        _until = condition;
-                        return;
-                    }
-                }
-                else if (wait.TickCount > 0)
-                {
-                    _until = null;
-                    _ticksLeft = wait.TickCount;
+                    _parked = call;
+
                     return;
                 }
-            }
 
-            End();
-        }
-        catch
-        {
-            End();
-            throw;
+                if (call.Status == RoutineCallStatus.AwaitingCallee)
+                {
+                    call = call.Callee!;
+
+                    continue;
+                }
+
+                Debug.Assert(call.Status == RoutineCallStatus.Finished, "A call's MoveNext returns parked or finished.");
+                if (call.Caller is { } caller)
+                {
+                    call = caller;
+
+                    continue;
+                }
+
+                _root = null;
+                Exception? error = call.Error;
+                call.Release();
+                if (error is not null)
+                {
+                    ExceptionDispatchInfo.Throw(error);
+                }
+
+                return;
+            }
         }
         finally
         {
-            _inBeats = false;
+            _inRoutine = false;
         }
     }
 
-    private bool Check(Func<bool> condition)
+    private bool Check(Wait wait)
     {
-        _inBeats = true;
+        _inRoutine = true;
         try
         {
-            return condition();
+            return wait.IsMet();
         }
         catch
         {
-            End();
+            Abandon();
+
             throw;
         }
         finally
         {
-            _inBeats = false;
+            _inRoutine = false;
         }
     }
 
-    // Disposing runs the finally blocks the beats stand in, which count as the beats' own code.
-    private void End()
+    // Releases the parked call and every call awaiting it, innermost first.
+    private void Abandon()
     {
-        IEnumerator<Wait>? beats = _beats;
-        _beats = null;
-        _until = null;
-        _ticksLeft = 0;
-        beats?.Dispose();
+        RoutineCall? call = _parked ?? _root;
+        _root = null;
+        _parked = null;
+        while (call is not null)
+        {
+            RoutineCall? caller = call.Caller;
+            call.Release();
+            call = caller;
+        }
     }
 
-    private void ThrowIfInBeats()
+    private void ThrowIfInRoutine()
     {
-        if (_inBeats)
+        if (_inRoutine)
         {
             throw new InvalidOperationException(
-                "A sequence cannot start, stop or step itself from its own beats. Return from the iterator, or use yield break, to end it.");
+                "A sequence cannot start, stop or step itself from its own routine. Return from the routine to end it.");
         }
     }
 }

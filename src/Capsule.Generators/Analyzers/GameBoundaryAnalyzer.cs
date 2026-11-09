@@ -11,7 +11,7 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
     private const string LogFix = "Write through Capsule.Diagnostics.Log";
     private const string SaveFix = "Persist through Run.Saves. Ship read-only data as assets";
     private const string ShellFix = "Leave sockets, processes, devices and the environment to the shell";
-    private const string WaitFix = "Wait with a Countdown, or a Sequence of Wait values, that its owner steps";
+    private const string WaitFix = "Wait with a Countdown its owner steps, or await Wait values in an async Routine a Sequence steps";
     private const string StepFix = "Do the work inside the step";
     private const string PlainMathFix = "Write it as plain arithmetic, which every machine rounds the same";
 
@@ -134,8 +134,38 @@ public sealed class GameBoundaryAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static void AnalyzeAwait(OperationAnalysisContext context) =>
-        context.ReportDiagnostic(Diagnostic.Create(Diagnostics.Concurrency, context.Operation.Syntax.GetLocation(), "await", WaitFix));
+    // A routine's awaits of waits and other routines resume only inside its sequence's step. They schedule nothing.
+    private static void AnalyzeAwait(OperationAnalysisContext context)
+    {
+        IAwaitOperation operation = (IAwaitOperation)context.Operation;
+        ITypeSymbol? awaited = operation.Operation.Type;
+        if ((IsAnimationType(awaited, "Wait") || IsAnimationType(awaited, "Routine"))
+            && IsAnimationType(EnclosingReturnType(operation, context.ContainingSymbol), "Routine"))
+        {
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(Diagnostics.Concurrency, operation.Syntax.GetLocation(), "await", WaitFix));
+    }
+
+    private static bool IsAnimationType(ITypeSymbol? type, string name) =>
+        type?.Name == name && type.ContainingNamespace?.ToDisplayString() == "Capsule.Animation";
+
+    private static ITypeSymbol? EnclosingReturnType(IOperation operation, ISymbol containing)
+    {
+        for (IOperation? parent = operation.Parent; parent is not null; parent = parent.Parent)
+        {
+            switch (parent)
+            {
+                case IAnonymousFunctionOperation lambda:
+                    return lambda.Symbol.ReturnType;
+                case ILocalFunctionOperation local:
+                    return local.Symbol.ReturnType;
+            }
+        }
+
+        return (containing as IMethodSymbol)?.ReturnType;
+    }
 
     private static void AnalyzeLock(OperationAnalysisContext context) =>
         context.ReportDiagnostic(Diagnostic.Create(Diagnostics.Concurrency, context.Operation.Syntax.GetLocation(), "lock", StepFix));

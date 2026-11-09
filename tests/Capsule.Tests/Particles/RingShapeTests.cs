@@ -56,6 +56,55 @@ public sealed class RingShapeTests
         }
     }
 
+    // An arc's direction is in the entity's own space. Turning the entity turns it too.
+    [Theory]
+    [InlineData(1f, 0f, 0f)]
+    [InlineData(1f, 0f, MathF.PI)]
+    [InlineData(0f, -1f, 0f)]
+    public void RateSpawnsOnAnArc_LandOnItsRimWithinItsWidth_AboutItsDirection(float x, float y, float rotation)
+    {
+        (ParticleEmitter emitter, SimulationHost host) = Build(EmitShape.Arc(Radius, new Vector2(x, y), 90f), rotation);
+        emitter.Rate = 600f;
+
+        host.Step(3);
+
+        Vector2 centre = Turn(new Vector2(x, y), rotation);
+        foreach (SpriteIntent intent in host.Simulation.View.Sprites.ToArray())
+        {
+            Assert.Equal(Radius, intent.Position.Length(), Tolerance);
+            float off = MathF.Acos(Math.Clamp(Vector2.Dot(Vector2.Normalize(intent.Position), centre), -1f, 1f));
+            Assert.True(off <= (MathF.PI / 4f) + Tolerance, $"{intent.Position} is outside the arc about {centre}");
+        }
+    }
+
+    [Fact]
+    public void ABurstOnAnArc_SpreadsEvenlyAcrossIt()
+    {
+        (ParticleEmitter emitter, SimulationHost host) = Build(EmitShape.Arc(Radius, Vector2.UnitX, 120f));
+        host.Step();
+
+        emitter.Emit(4);
+        host.Step();
+
+        float[] degrees = [.. host.Simulation.View.Sprites.ToArray().Select(static intent => float.RadiansToDegrees(MathF.Atan2(intent.Position.Y, intent.Position.X)))];
+        Assert.Equal([-45f, -15f, 15f, 45f], degrees, (expected, actual) => MathF.Abs(expected - actual) <= 1e-3f);
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(361f)]
+    [InlineData(float.NaN)]
+    public void AnArc_SpansMoreThanNothingAndAtMostTheWholeRim(float degrees)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => EmitShape.Arc(Radius, Vector2.UnitX, degrees));
+    }
+
+    [Fact]
+    public void AnArc_NeedsADirection()
+    {
+        Assert.Throws<ArgumentException>(() => EmitShape.Arc(Radius, Vector2.Zero, 90f));
+    }
+
     private static void AssertOnDirection(Vector2 point, int directions)
     {
         float turns = MathF.Atan2(point.Y, point.X) / MathF.Tau * directions;
@@ -66,10 +115,10 @@ public sealed class RingShapeTests
     private static Vector2 Turn(Vector2 point, float radians) =>
         Vector2.Transform(point, Matrix3x2.CreateRotation(radians));
 
-    private static (ParticleEmitter Emitter, SimulationHost Host) Build(EmitShape shape)
+    private static (ParticleEmitter Emitter, SimulationHost Host) Build(EmitShape shape, float rotation = 0f)
     {
         ParticleEmitter emitter = new(Tile, capacity: 64) { Shape = shape, Lifetime = (5f, 5f) };
-        Root root = new();
+        Root root = new() { Rotation = rotation };
         root.Add(emitter);
 
         return (emitter, new SimulationHost(new SceneFixtures.HookScene(start: s => s.Add(root))));

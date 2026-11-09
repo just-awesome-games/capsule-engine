@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using Capsule.Animation;
 
 namespace Capsule.Tests.Animation;
@@ -6,12 +9,22 @@ public sealed class SequenceTests
 {
     private readonly List<string> _log = [];
 
+    private bool _open;
+
+    private int _checks;
+
+    // An unoptimized build emits each async state machine as a class the call allocates.
+    private static bool Optimized =>
+        typeof(SequenceTests).Assembly.GetCustomAttribute<DebuggableAttribute>() is not { IsJITOptimizerDisabled: true };
+
     [Fact]
-    public void StartRunsToTheFirstWait_AndATickWaitResumesOnItsNthStep()
+    public void CallingARoutineRunsNothing_UntilStartRunsItToItsFirstWait()
     {
         Sequence sequence = new();
-        sequence.Start(Beats());
+        Routine routine = Run();
+        Assert.Empty(_log);
 
+        sequence.Start(routine);
         Assert.Equal(["a"], _log);
         sequence.Step();
         sequence.Step();
@@ -20,159 +33,270 @@ public sealed class SequenceTests
         Assert.Equal(["a", "b"], _log);
         Assert.False(sequence.IsRunning);
 
-        IEnumerable<Wait> Beats()
+        async Routine Run()
         {
             _log.Add("a");
-            yield return Wait.Ticks(3);
-            yield return Wait.Ticks(0);
-            yield return default;
+            await Wait.Ticks(3);
+            await Wait.Ticks(0);
+            await default(Wait);
+            await default(Routine);
             _log.Add("b");
         }
     }
 
-    // A condition already true at its yield costs no step. No beat can miss an edge raised before it waits.
-    [Fact]
-    public void AnUntilWait_IsCheckedAtItsYieldAndThenOnEachStep()
+    // A condition already true at its await costs no step. No beat can miss an edge raised before it waits.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnUntilWait_IsCheckedAtItsAwaitAndThenOnEachStep(bool passesState)
     {
-        bool open = true;
+        _open = true;
         Sequence sequence = new();
-        sequence.Start(Beats());
+        sequence.Start(Run());
 
         Assert.Equal(["a", "b"], _log);
         sequence.Step();
         Assert.Equal(["a", "b"], _log);
-        open = true;
+        _open = true;
         sequence.Step();
         Assert.Equal(["a", "b", "c"], _log);
 
-        IEnumerable<Wait> Beats()
+        async Routine Run()
         {
             _log.Add("a");
-            yield return Wait.Until(() => open);
+            await Opened();
             _log.Add("b");
-            open = false;
-            yield return Wait.Until(() => open);
+            _open = false;
+            await Opened();
             _log.Add("c");
+        }
+
+        Wait Opened() => passesState ? Wait.Until(this, static test => test._open) : Wait.Until(() => _open);
+    }
+
+    // Back-to-back calls of one method share a pooled box. A released box must never resume.
+    [Fact]
+    public void AwaitedRoutines_RunInlineInOrder_ThroughNestingAndBackToBackCalls()
+    {
+        Sequence sequence = new();
+        sequence.Start(Outer());
+        while (sequence.IsRunning)
+        {
+            sequence.Step();
+        }
+
+        Assert.Equal(["x>", "x.", "x<", "y>", "y.", "y<", "z", "end"], _log);
+
+        async Routine Outer()
+        {
+            await Middle("x");
+            await Middle("y");
+            await Inner("z", 0);
+            _log.Add("end");
+        }
+
+        async Routine Middle(string name)
+        {
+            _log.Add($"{name}>");
+            await Inner($"{name}.", 2);
+            _log.Add($"{name}<");
+        }
+
+        async Routine Inner(string name, int ticks)
+        {
+            await Wait.Ticks(ticks);
+            _log.Add(name);
         }
     }
 
-    [Fact]
-    public void StopAndARestart_RunTheFinallyBlocksTheBeatsStandIn()
+    // A pooled call outlives its routine. A state it held would keep a despawned owner and its scene alive.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void APooledCall_LetsGoOfTheStateItWaitedOn(bool stops)
     {
         Sequence sequence = new();
-        sequence.Start(Beats("first"));
-        sequence.Start(Beats("second"));
-        sequence.Stop();
+        WeakReference state = StartWaitingOnState(sequence);
+        if (stops)
+        {
+            sequence.Stop();
+        }
+        else
+        {
+            sequence.Step();
+        }
 
-        Assert.Equal(["first released", "second released"], _log);
+        Assert.False(sequence.IsRunning);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        Assert.False(state.IsAlive);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference StartWaitingOnState(Sequence sequence)
+    {
+        StrongBox<bool> gate = new();
+        sequence.Start(Run(gate));
+        gate.Value = true;
+
+        return new WeakReference(gate);
+
+        static async Routine Run(StrongBox<bool> gate) => await Wait.Until(gate, static gate => gate.Value);
+    }
+
+    [Fact]
+    public void StopAndARestart_AbandonTheRoutineWithoutRunningItsFinallyBlocks()
+    {
+        Sequence sequence = new();
+        sequence.Start(Outer("first"));
+        sequence.Start(Outer("second"));
+        sequence.Stop();
+        sequence.Step();
+
+        Assert.Empty(_log);
         Assert.False(sequence.IsRunning);
 
-        IEnumerable<Wait> Beats(string name)
+        async Routine Outer(string name)
         {
             try
             {
-                yield return Wait.Ticks(10);
+                await Inner();
             }
             finally
             {
                 _log.Add($"{name} released");
             }
         }
+
+        async Routine Inner()
+        {
+            await Wait.Ticks(10);
+            _log.Add("resumed");
+        }
+    }
+
+    [Theory]
+    [InlineData("start twice")]
+    [InlineData("await a started run")]
+    [InlineData("start a finished run")]
+    public void ARoutine_RunsOnce(string misuse)
+    {
+        Sequence sequence = new();
+        Sequence other = new();
+        Routine held = Held();
+        sequence.Start(held);
+
+        switch (misuse)
+        {
+            case "start twice":
+                Assert.Throws<InvalidOperationException>(() => other.Start(held));
+                Assert.True(sequence.IsRunning);
+                break;
+            case "await a started run":
+                Assert.Throws<InvalidOperationException>(() => other.Start(Awaiting(held)));
+                break;
+            default:
+                sequence.Stop();
+                Assert.Throws<InvalidOperationException>(() => other.Start(held));
+                break;
+        }
+
+        async Routine Held() => await Wait.Ticks(5);
+
+        async Routine Awaiting(Routine routine) => await routine;
+    }
+
+    [Fact]
+    public void AwaitingAnythingButWaitsAndRoutines_ThrowsFromTheRoutine()
+    {
+        Sequence sequence = new();
+
+        Assert.Throws<InvalidOperationException>(() => sequence.Start(Run()));
+        Assert.False(sequence.IsRunning);
+
+        async Routine Run() => await Task.Yield();
     }
 
     public static TheoryData<string, string> Reentries => new()
     {
         { "Start", "beat" }, { "Stop", "beat" }, { "Step", "beat" },
         { "Start", "condition" }, { "Stop", "condition" }, { "Step", "condition" },
-        { "Start", "finally" }, { "Stop", "finally" }, { "Step", "finally" },
     };
 
     [Theory]
     [MemberData(nameof(Reentries))]
-    public void CallingASequenceFromItsOwnBeats_Throws(string call, string place)
+    public void CallingASequenceFromItsOwnRoutine_Throws(string call, string place)
     {
         Sequence sequence = new();
         Action reenter = call switch
         {
-            "Start" => () => sequence.Start([]),
+            "Start" => () => sequence.Start(default),
             "Stop" => sequence.Stop,
             _ => sequence.Step,
         };
 
-        if (place == "finally")
-        {
-            sequence.Start(Holding());
-            Assert.Throws<InvalidOperationException>(sequence.Stop);
-        }
-        else
-        {
-            Assert.Throws<InvalidOperationException>(() => sequence.Start(place == "beat" ? Calling() : Waiting()));
-        }
-
+        Assert.Throws<InvalidOperationException>(() => sequence.Start(place == "beat" ? Calling() : Waiting()));
         Assert.False(sequence.IsRunning);
 
-        IEnumerable<Wait> Calling()
+        async Routine Calling()
+        {
+            await Wait.Ticks(0);
+            reenter();
+        }
+
+        async Routine Waiting() => await Wait.Until(() =>
         {
             reenter();
-            yield break;
-        }
-
-        IEnumerable<Wait> Waiting()
-        {
-            yield return Wait.Until(() =>
-            {
-                reenter();
-                return true;
-            });
-        }
-
-        IEnumerable<Wait> Holding()
-        {
-            try
-            {
-                yield return Wait.Ticks(1);
-            }
-            finally
-            {
-                reenter();
-            }
-        }
+            return true;
+        });
     }
 
+    // An exception the routine throws unwinds it as any async method does. A step's condition check abandons it.
     [Theory]
-    [InlineData("beat")]
-    [InlineData("condition at its yield")]
-    [InlineData("condition on a step")]
-    public void AnExceptionFromTheBeats_PropagatesAndLeavesTheSequenceStopped(string place)
+    [InlineData("beat", true)]
+    [InlineData("awaited routine", true)]
+    [InlineData("condition at its await", true)]
+    [InlineData("condition on a step", false)]
+    public void AnExceptionFromTheRoutine_PropagatesAndLeavesTheSequenceStopped(string place, bool unwinds)
     {
-        bool failing = place == "condition at its yield";
+        bool failing = place == "condition at its await";
         Sequence sequence = new();
 
         Assert.Throws<InvalidOperationException>(() =>
         {
-            sequence.Start(Beats());
+            sequence.Start(Outer());
             failing = true;
             sequence.Step();
         });
         Assert.False(sequence.IsRunning);
-        Assert.Equal(["released"], _log);
+        Assert.Equal(unwinds ? ["released"] : [], _log);
 
-        IEnumerable<Wait> Beats()
+        async Routine Outer()
         {
             try
             {
-                if (place == "beat")
+                if (place == "awaited routine")
                 {
-                    yield return Wait.Ticks(1);
+                    await Throwing();
+                }
+                else if (place == "beat")
+                {
+                    await Wait.Ticks(1);
                     throw new InvalidOperationException("broken");
                 }
 
-                yield return Wait.Until(() => failing ? throw new InvalidOperationException("broken") : false);
+                await Wait.Until(() => failing ? throw new InvalidOperationException("broken") : false);
             }
             finally
             {
                 _log.Add("released");
             }
+        }
+
+        async Routine Throwing()
+        {
+            await Wait.Ticks(1);
+            throw new InvalidOperationException("broken");
         }
     }
 
@@ -180,8 +304,9 @@ public sealed class SequenceTests
     public void Stepping_AllocatesNothing()
     {
         int checks = 0;
+        Func<bool> everyOther = () => ++checks % 2 == 0;
         Sequence sequence = new();
-        sequence.Start(Beats());
+        sequence.Start(Run());
         sequence.Step();
 
         long before = GC.GetAllocatedBytesForCurrentThread();
@@ -193,14 +318,53 @@ public sealed class SequenceTests
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
         Assert.True(checks > 300);
 
-        IEnumerable<Wait> Beats()
+        async Routine Run()
         {
-            Func<bool> everyOther = () => ++checks % 2 == 0;
             while (true)
             {
-                yield return Wait.Ticks(2);
-                yield return Wait.Until(everyOther);
+                await Wait.Ticks(2);
+                await Wait.Until(everyOther);
             }
+        }
+    }
+
+    [Fact]
+    public void StartingNestedRoutinesAgain_AllocatesNothing_InAnOptimizedBuild()
+    {
+        Assert.SkipUnless(Optimized, "An unoptimized build allocates each async state machine, by the compiler's design.");
+        Sequence sequence = new();
+        RunAndStop();
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++)
+        {
+            RunAndStop();
+        }
+
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+
+        void RunAndStop()
+        {
+            sequence.Start(Outer());
+            for (int step = 0; step < 6; step++)
+            {
+                sequence.Step();
+            }
+
+            sequence.Start(Outer());
+            sequence.Stop();
+        }
+
+        async Routine Outer()
+        {
+            await Inner();
+            await Inner();
+        }
+
+        async Routine Inner()
+        {
+            await Wait.Ticks(2);
+            await Wait.Until(this, static test => ++test._checks % 2 == 0);
         }
     }
 }

@@ -127,6 +127,10 @@ Run.Cursor.Visible = false;
 Run.Cursor.Image = new Sprite(CapsuleAssets.Textures.CrosshairTexture, new TextureRegion(0, 0, 9, 9), new Vector2(4f, 4f));
 ```
 
+Every scene starts with the cursor at the run's default. A scene's change never follows the player
+into the next one, however they leave. `MakeDefault()` sets that default from the cursor as it stands,
+once in the game object's start and again when an option changes it.
+
 ## Play a run with no one at the keyboard
 
 An `InputScript` is a fixed sequence of edits and waits, counted in fixed steps. A driver class wraps

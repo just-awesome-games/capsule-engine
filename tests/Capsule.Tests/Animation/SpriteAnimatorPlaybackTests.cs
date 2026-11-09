@@ -191,6 +191,43 @@ public sealed class SpriteAnimatorPlaybackTests
             DrawnOver(run, 5));
     }
 
+    // Each clip's frames hold for their own ticks across the swap.
+    [Fact]
+    public void AChainedClip_PlaysFromItsFirstFrame_OnTheStepTheFirstFinishes()
+    {
+        (_, SpriteAnimator animator, SimulationHost run) = Animating();
+
+        animator.Play(Land, then: Walk);
+
+        Assert.Equal([Frame(3), Frame(4), Frame(0), Frame(0), Frame(1)], DrawnOver(run, 5));
+        Assert.Same(Walk, animator.Clip);
+    }
+
+    // Playing the clip already playing changes nothing else, but still drops its follow-up.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnotherPlay_ReplacesTheChainedClip(bool sameClip)
+    {
+        (_, SpriteAnimator animator, SimulationHost run) = Animating();
+        SpriteClip next = sameClip ? Land : Shoot;
+
+        animator.Play(Land, then: Walk);
+        animator.Play(next);
+        run.Step(10);
+
+        Assert.Same(next, animator.Clip);
+        Assert.True(animator.IsFinished);
+    }
+
+    [Fact]
+    public void ChainingAfterALoopingClip_Throws()
+    {
+        SpriteAnimator animator = new(new SpriteRenderer(Frame(9)));
+
+        Assert.Throws<ArgumentException>(() => animator.Play(Walk, then: Land));
+    }
+
     // Plays Blink on an entity out of the scene and adds it, on its own first step.
     private sealed class Spawner(Animated spawned) : Entity(System.Numerics.Vector2.Zero)
     {

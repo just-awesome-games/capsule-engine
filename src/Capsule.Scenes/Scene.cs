@@ -187,7 +187,7 @@ public partial class Scene
     /// <example>
     /// <code>
     /// Scene.Freeze(30);
-    /// yield return Wait.Until(() =&gt; !Scene.IsFrozen);
+    /// await Wait.Until(() =&gt; !Scene.IsFrozen);
     /// </code>
     /// </example>
     public bool IsFrozen => _freezeTicks > 0 || _frozenThisStep;

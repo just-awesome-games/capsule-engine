@@ -49,7 +49,8 @@ The compiler refuses, in a logic assembly: a reference to `Capsule.Runtime` (`CA
 (`CAP104`), randomness outside the seeded `RandomSource`, `System.Random` included (`CAP105`), a save
 document property declared `init` instead of `set` (`CAP106`), math whose result differs between
 machines (`CAP107`), reflection (`CAP109`), and a dead method on an entity, component
-or scene named like a lifecycle hook Capsule never calls, such as `Update` (`CAP110`).
+or scene named like a lifecycle hook Capsule never calls, such as `Update` (`CAP110`). The one await `CAP103`
+allows is a `Routine` awaiting a `Wait` or another routine, which resumes only when its sequence steps.
 
 ## Argument validation
 

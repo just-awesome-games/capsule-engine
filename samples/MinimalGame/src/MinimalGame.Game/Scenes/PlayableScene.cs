@@ -48,6 +48,9 @@ public abstract class PlayableScene : Scene
 
         // Crossfades from whatever was playing, or fades in alone under --scene scenes/room.
         Run.Game.Music.Play(Track);
+
+        // The menus and the next room start with the system arrow again.
+        Run.Cursor.Image = Crosshair;
     }
 
     // The scene steps through its own pause and owns the key that opens and closes it. Losing window
@@ -70,10 +73,6 @@ public abstract class PlayableScene : Scene
                 _pauseMenu.Open();
             }
         }
-
-        // The pause menu is pointed at with the system arrow. Set every step because the next room
-        // starts before this one stops, and clearing it on stop would take the next room's crosshair.
-        Run.Cursor.Image = Paused ? null : Crosshair;
     }
 
     // Health is spent by a contact handler, and the death test runs where contacts have settled. The

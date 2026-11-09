@@ -111,7 +111,7 @@ public sealed class HintZone : Entity
 
     // Types the shown line, holds it, and turns to the next, back to the first after the last. A hint of one
     // line types once and stays.
-    private IEnumerable<Wait> Type()
+    private async Routine Type()
     {
         while (true)
         {
@@ -119,15 +119,15 @@ public sealed class HintZone : Entity
             for (int shown = _hint.LineStart(_hint.FirstLine) + 1; shown <= end; shown++)
             {
                 _hint.VisibleCharacters = shown;
-                yield return Wait.Ticks(CharacterTicks);
+                await Wait.Ticks(CharacterTicks);
             }
 
             if (_hint.LineCount <= 1)
             {
-                yield break;
+                return;
             }
 
-            yield return Wait.Ticks(HoldTicks);
+            await Wait.Ticks(HoldTicks);
             _hint.FirstLine = (_hint.FirstLine + 1) % _hint.LineCount;
         }
     }

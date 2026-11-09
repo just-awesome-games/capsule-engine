@@ -46,6 +46,9 @@ public sealed class SpriteAnimator : Component
     private readonly SpriteRenderer[] _layers;
 
     private AnimationPlayback _playback;
+
+    // The clip a chained play hands on to when Clip finishes. Any other play clears it.
+    private SpriteClip? _then;
     private bool _pendingStart;
     private long? _startedOnTick;
     private float _speed = 1f;
@@ -189,16 +192,17 @@ public sealed class SpriteAnimator : Component
     {
         ArgumentNullException.ThrowIfNull(assets);
 
-        if (Clip is not { } clip)
-        {
-            return;
-        }
+        AddTextures(assets, Clip);
+        AddTextures(assets, _then);
 
-        foreach (Sprite frame in clip.Frames)
+        static void AddTextures(AssetCollection assets, SpriteClip? clip)
         {
-            if (frame.Texture != default)
+            foreach (Sprite frame in clip is null ? [] : clip.Frames)
             {
-                assets.Add(frame.Texture);
+                if (frame.Texture != default)
+                {
+                    assets.Add(frame.Texture);
+                }
             }
         }
     }
@@ -247,8 +251,8 @@ public sealed class SpriteAnimator : Component
     /// animator in no scene, it counts from the tick its entity joins one, as a pooled entity played
     /// and then added mid-step needs.
     /// <para>
-    /// Playing the clip already playing does nothing unless <paramref name="restart"/> is true. A
-    /// finished non-looping clip still counts as playing.
+    /// Playing the clip already playing leaves it where it is unless <paramref name="restart"/> is true,
+    /// and drops any clip chained after it. A finished non-looping clip still counts as playing.
     /// </para>
     /// </remarks>
     /// <param name="clip">The clip to play.</param>
@@ -259,12 +263,48 @@ public sealed class SpriteAnimator : Component
 
         if (ReferenceEquals(Clip, clip) && !restart)
         {
+            _then = null;
+
             return;
         }
 
         Clip = clip;
         _playback.Restart();
         Reposition(clip);
+    }
+
+    /// <summary>
+    /// Plays <paramref name="clip"/> as <see cref="Play(SpriteClip, bool)"/> does, then plays <paramref name="then"/>
+    /// from its first frame on the step <paramref name="clip"/> finishes.
+    /// </summary>
+    /// <remarks>
+    /// The last frame of <paramref name="clip"/> draws for its own ticks, and the first frame of
+    /// <paramref name="then"/> holds for its own ticks from the step that swaps them. Any other play replaces the
+    /// follow-up. A paused animator swaps once it is unpaused. <see cref="RemovesEntityWhenFinished"/> waits for
+    /// <paramref name="then"/> to finish.
+    /// </remarks>
+    /// <example>
+    /// A door that opens, then idles open:
+    /// <code>
+    /// _animator.Play(CapsuleAssets.Sprites.DoorSheet.Clips.Opening, then: CapsuleAssets.Sprites.DoorSheet.Clips.Open);
+    /// </code>
+    /// </example>
+    /// <param name="clip">The clip to play first. Must not loop.</param>
+    /// <param name="then">The clip to play when <paramref name="clip"/> finishes.</param>
+    /// <param name="restart">Whether to restart <paramref name="clip"/> when it is already playing.</param>
+    public void Play(SpriteClip clip, SpriteClip then, bool restart = false)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ArgumentNullException.ThrowIfNull(then);
+        if (clip.Loop)
+        {
+            throw new ArgumentException(
+                "A looping clip never finishes, and nothing would play after it. Pass a clip that does not loop.",
+                nameof(clip));
+        }
+
+        Play(clip, restart);
+        _then = then;
     }
 
     /// <summary>
@@ -344,6 +384,7 @@ public sealed class SpriteAnimator : Component
 
     private void Reposition(SpriteClip clip)
     {
+        _then = null;
         _pendingStart = true;
         _startedOnTick = Entity?.SceneOrNull?.SteppingTick;
         _carry = 0f;
@@ -366,7 +407,7 @@ public sealed class SpriteAnimator : Component
         }
     }
 
-    /// <summary>Rewinds to <see cref="Clip"/>'s first frame, keeps the clip and clears <see cref="Paused"/>. A reused entity replays it as a new one would.</summary>
+    /// <summary>Rewinds to <see cref="Clip"/>'s first frame, keeps the clip and any clip chained after it, and clears <see cref="Paused"/>. A reused entity replays it as a new one would.</summary>
     /// <inheritdoc/>
     protected internal override void OnRemovedFromScene()
     {
@@ -431,6 +472,16 @@ public sealed class SpriteAnimator : Component
         if (_playback.FrameIndex != drawn)
         {
             Write(clip.Frames[_playback.FrameIndex]);
+        }
+
+        if (_playback.IsFinished && _then is { } then)
+        {
+            _then = null;
+            Clip = then;
+            _playback.Restart();
+            _carry = 0f;
+            Report(then.EventsAt(0), ref _readable, ref _readableCount);
+            Write(then.Frames[0]);
         }
 
         if (RemovesEntityWhenFinished && _playback.IsFinished)

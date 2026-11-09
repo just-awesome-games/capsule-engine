@@ -60,12 +60,12 @@ public sealed class TitleMenu : ScreenEntity
     protected override void OnStep(in StepContext context) => _tips.Step();
 
     // Shows each tip in turn, back to the first after the last.
-    private IEnumerable<Wait> TurnTips()
+    private async Routine TurnTips()
     {
         for (int tip = 0; ; tip = (tip + 1) % CapsuleStrings.Tips.Count)
         {
             _tip.SetText(CapsuleStrings.Tips[tip]);
-            yield return Wait.Ticks(TipTicks);
+            await Wait.Ticks(TipTicks);
         }
     }
 

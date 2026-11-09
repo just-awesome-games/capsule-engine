@@ -15,6 +15,7 @@ and a duration typed `float` counts seconds. `Countdown.Start(30)` is half a sec
 | --- | --- |
 | Frames cut from a texture, and the clips played over them | A `*.sheet.json` sprite sheet |
 | A clip playing on a sprite | `SpriteAnimator` on a `SpriteRenderer` |
+| One clip, then another when it ends | `SpriteAnimator.Play(clip, then: next)` |
 | A point or a collider the drawn frame places | `SpriteRenderer.Socket` and `SpriteRenderer.Box` |
 | Another drawing of a sheet's frames, such as a hat | A `"variantOf"` sheet's `Variant`, set on `SpriteRenderer.Variant` |
 | Layers showing the frame an animator plays | `new SpriteAnimator(avatar, hat)` |
@@ -26,7 +27,7 @@ and a duration typed `float` counts seconds. `Countdown.Start(30)` is half a sec
 | An ease applied to a progress of your own | `Easing.Apply` |
 | A value or a colour over a normalised time | `Curve`, `Gradient` |
 | A delay or a cooldown with no value to read | `Countdown` |
-| Scripted beats that wait between them | `Sequence`, yielding `Wait` values |
+| Scripted beats that wait between them | A `Sequence` stepping a `Routine` |
 
 ## Sprite sheets
 
@@ -45,7 +46,8 @@ no sheet ships.
     { "name": "open", "x": 16, "y": 0, "width": 16, "height": 32, "pivot": [8, 32] }
   ],
   "clips": [
-    { "name": "opening", "frames": [ { "frame": "shut", "ticks": 6 }, { "frame": "open", "ticks": 1, "events": ["opened"] } ] }
+    { "name": "opening", "frames": [ { "frame": "shut", "ticks": 6 }, { "frame": "open", "ticks": 1, "events": ["opened"] } ] },
+    { "name": "open", "loop": true, "frames": [ { "frame": "open", "ticks": 1 } ] }
   ]
 }
 ```
@@ -77,7 +79,12 @@ _animator.Play(CapsuleAssets.Sprites.DoorSheet.Clips.Opening);
 ```
 
 A step reads `_animator.Reached(CapsuleAssets.Sprites.DoorSheet.Events.Opened)` to play its sound on the
-frame the door opens.
+frame the door opens. A play can name the clip that follows, and the animator swaps to it on the step the first
+finishes:
+
+```csharp
+_animator.Play(CapsuleAssets.Sprites.DoorSheet.Clips.Opening, then: CapsuleAssets.Sprites.DoorSheet.Clips.Open);
+```
 
 ## Variants and layers
 
@@ -128,17 +135,27 @@ _slide.Step();
 Position = DeterministicMath.Lerp(_hiddenAt, _shownAt, _slide.Value);
 ```
 
-A `Sequence` runs an iterator's beats, waiting between them, and its owner steps it the same way:
+A `Sequence` runs a routine, and its owner steps it the same way. A routine is an `async` method that returns
+`Routine` and awaits `Wait` values:
 
 ```csharp
 _showDoor.Start(ShowDoor(avatar));
 
-private IEnumerable<Wait> ShowDoor(Entity followed)
+private async Routine ShowDoor(Entity followed)
 {
     Scene.Camera.Follow(_door);
-    yield return Wait.Ticks(40);
+    await Wait.Ticks(40);
     _door.Opening = true;
-    yield return Wait.Until(() => _door.IsOpen);
+    await Wait.Until(_door, static door => door.IsOpen);
     Scene.Camera.Follow(followed);
 }
 ```
+
+A routine can await another: `await Walk(north);` runs `Walk` to its end before the next line. It awaits nothing
+else. A `Task` would resume outside the step, and `CAP103` refuses it.
+
+An optimized build pools routine calls and allocates nothing. A pooled entity can start its behaviour as a routine
+on every spawn. A debug build allocates on each call. A `Wait.Until` given its state and a `static` lambda, as above,
+allocates nothing. A lambda that captures anything allocates each time its `await` runs.
+
+`Stop` abandons the routine where it stands. Its `finally` blocks do not run, and the owner undoes what it set.

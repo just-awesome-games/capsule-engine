@@ -246,7 +246,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// for (int shown = label.LineStart(label.FirstLine) + 1; shown &lt;= end; shown++)
     /// {
     ///     label.VisibleCharacters = shown;
-    ///     yield return Wait.Ticks(2);
+    ///     await Wait.Ticks(2);
     /// }
     ///
     /// label.FirstLine += label.MaxLines.Value;

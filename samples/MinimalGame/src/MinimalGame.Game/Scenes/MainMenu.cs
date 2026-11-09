@@ -17,9 +17,6 @@ public sealed class MainMenu : Scene
         // A track already playing is left alone. A trip through Options does not restart it.
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.TitleSound);
 
-        // A room's crosshair does not follow the player out.
-        Run.Cursor.Image = null;
-
         // Start opens the room, which loads behind the menu.
         Run.PrefetchScene(CapsuleAssets.Scenes.RoomScene);
     }

@@ -8,11 +8,27 @@ namespace Capsule.Input;
 /// </summary>
 /// <remarks>
 /// The host applies the cursor each frame, after that frame's steps, and it moves at display rate. Nothing about it feeds
-/// back into the simulation. State set once holds across scene transitions. The debug overlay
-/// shows the system arrow, unconfined, while it is open. A headless run shows nothing.
+/// back into the simulation. Each scene starts with the cursor at its default, which <see cref="MakeDefault"/> sets for
+/// the run. A scene's own change ends with the scene. The debug overlay shows the system arrow, unconfined, while it is
+/// open. A headless run shows nothing.
 /// </remarks>
+/// <example>
+/// A game that hides the cursor in play sets that once, and a menu scene shows it from its start:
+/// <code>
+/// // The game object's start, before the first scene.
+/// Run.Cursor.Visible = false;
+/// Run.Cursor.MakeDefault();
+///
+/// // The menu scene's OnStart. The next scene starts hidden again.
+/// Run.Cursor.Visible = true;
+/// </code>
+/// </example>
 public sealed class Cursor
 {
+    private bool _defaultVisible = true;
+    private bool _defaultConfined;
+    private Sprite? _defaultImage;
+
     /// <summary>Whether the cursor shows over the window, true by default.</summary>
     /// <remarks>
     /// The host hides the cursor while the gamepad is <see cref="InputState.ActiveDevice"/>, whatever
@@ -57,6 +73,26 @@ public sealed class Cursor
 
     internal Cursor()
     {
+    }
+
+    /// <summary>Makes the cursor as it stands the one every later scene starts with.</summary>
+    /// <remarks>
+    /// Until it is called, a scene starts with the cursor shown, unconfined, as the system arrow. Call it again
+    /// whenever a run-wide setting changes the cursor, such as a larger image chosen in the options.
+    /// </remarks>
+    public void MakeDefault()
+    {
+        _defaultVisible = Visible;
+        _defaultConfined = Confined;
+        _defaultImage = Image;
+    }
+
+    // A scene starting puts the cursor back to the default before its start hook runs.
+    internal void Revert()
+    {
+        Visible = _defaultVisible;
+        Confined = _defaultConfined;
+        Image = _defaultImage;
     }
 
     private static void RequireHotspot(in Sprite sprite, string parameterName)

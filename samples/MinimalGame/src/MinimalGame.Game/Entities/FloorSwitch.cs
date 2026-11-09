@@ -47,15 +47,15 @@ public sealed class FloorSwitch : Entity
     }
 
     // The player stands still while the camera visits the lift, watches it rise, and comes back.
-    private IEnumerable<Wait> ShowLift(Player player)
+    private async Routine ShowLift(Player player)
     {
         player.HasControl = false;
         Scene.Camera.Follow(Lift);
-        yield return Wait.Ticks(PanTicks);
+        await Wait.Ticks(PanTicks);
         Lift.Running = true;
-        yield return Wait.Until(() => Lift.HasRisen);
+        await Wait.Until(() => Lift.HasRisen);
         Scene.Camera.Follow(player);
-        yield return Wait.Ticks(PanTicks);
+        await Wait.Ticks(PanTicks);
         player.HasControl = true;
     }
 }

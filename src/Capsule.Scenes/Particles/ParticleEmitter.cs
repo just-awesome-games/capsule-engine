@@ -440,7 +440,7 @@ public sealed class ParticleEmitter : Renderer
     /// <remarks>
     /// Before the emitter has started, or while it is out of a scene, the spawn waits and is placed when it
     /// starts or joins a scene.
-    /// <para>On a ring <see cref="Shape"/> the particles spread evenly round the rim from one drawn start.</para>
+    /// <para>On a ring <see cref="Shape"/> the particles spread evenly round the rim from one drawn start, and on an arc evenly across it.</para>
     /// </remarks>
     /// <param name="count">How many to spawn. Zero or fewer spawns nothing.</param>
     public void Emit(int count) => Emit(count, Offset);
@@ -455,7 +455,7 @@ public sealed class ParticleEmitter : Renderer
     /// transform the entity starts or joins with. Waiting calls spawn in call order, each at its own point,
     /// up to <see cref="Capacity"/> calls. A call past that adds its count to the last waiting call and
     /// spawns at that call's point.
-    /// <para>On a ring <see cref="Shape"/> the particles spread evenly round the rim from one drawn start.</para>
+    /// <para>On a ring <see cref="Shape"/> the particles spread evenly round the rim from one drawn start, and on an arc evenly across it.</para>
     /// </remarks>
     /// <param name="count">How many to spawn. Zero or fewer spawns nothing.</param>
     /// <param name="at">Where the shape is centred, instead of <see cref="Offset"/>.</param>
@@ -865,7 +865,7 @@ public sealed class ParticleEmitter : Renderer
         }
 
         EmitShape shape = Shape;
-        float ringStart = shape.IsRing ? shape.BurstStart(_random) : 0f;
+        float spreadStart = shape.SpreadsBursts ? shape.BurstStart(_random) : 0f;
 
         Transform2D current = RenderTransform;
         Vector2 flip = Flip;
@@ -875,7 +875,7 @@ public sealed class ParticleEmitter : Renderer
 
         for (int index = 0; index < count; index++)
         {
-            Vector2 sample = shape.IsRing ? shape.BurstPoint(ringStart, index, count) : shape.Sample(_random);
+            Vector2 sample = shape.SpreadsBursts ? shape.BurstPoint(spreadStart, index, count) : shape.Sample(_random);
             SpawnOne(sample, centre, centre, Vector2.Zero, 0.5f, _lastDeltaSeconds, launch);
         }
     }

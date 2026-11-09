@@ -118,10 +118,10 @@ public sealed class ScenePauseTests
         long tick = 0;
         long? resumedOn = null;
 
-        IEnumerable<Wait> Hold(Scene s)
+        async Routine Hold(Scene s)
         {
             s.Freeze(2);
-            yield return Wait.Until(() => !s.IsFrozen);
+            await Wait.Until(() => !s.IsFrozen);
             resumedOn = tick;
         }
 

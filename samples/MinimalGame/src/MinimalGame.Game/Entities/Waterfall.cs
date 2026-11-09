@@ -25,12 +25,11 @@ public sealed class Waterfall : Entity
         area.ContactExited += OnPlayerExited;
         Add(area);
 
-        // Spray thrown up where a drop lands, wandering as it fades.
+        // Spray thrown out of a crown where a drop lands, wandering as it fades.
         ParticleEmitter spray = new(Sprite.White, capacity: 96)
         {
-            Direction = -Vector2.UnitY,
-            Spread = 150f,
-            Speed = (30f, 60f),
+            Shape = EmitShape.Arc(2f, -Vector2.UnitY, 150f),
+            RadialSpeed = (30f, 60f),
             Damping = 2.5f,
             Noise = new ParticleNoise(strength: 20f, size: 20f),
             Lifetime = (0.5f, 0.9f),

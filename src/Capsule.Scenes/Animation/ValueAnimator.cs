@@ -29,7 +29,7 @@ namespace Capsule.Animation;
 /// ValueAnimator&lt;float&gt; glow = new(row => material.Set("Row", row));
 /// Add(glow);
 /// glow.Play(CapsuleAssets.Clips.PulseClip);
-/// yield return Wait.Until(() => glow.IsFinished);
+/// await Wait.Until(() => glow.IsFinished);
 /// </code>
 /// </example>
 /// <typeparam name="T">The type of value the clips it plays hold.</typeparam>

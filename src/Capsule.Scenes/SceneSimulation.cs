@@ -60,8 +60,10 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Run.Input.Started = true;
         Run.SceneStarted = true;
 
-        // A transition builds a new simulation as well. The last scene's camera is not this one's.
+        // A transition builds a new simulation as well. The last scene's camera is not this one's, and
+        // neither is its cursor. The outgoing scene stops only after this one starts.
         Run.Audio.ForgetListener();
+        Run.Cursor.Revert();
         try
         {
             scene.Start(entryPayload);

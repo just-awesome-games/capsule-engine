@@ -81,7 +81,7 @@ public partial class Camera
     /// A door that closes behind once the next room has scrolled into view:
     /// <code>
     /// Scene.Camera.SetBounds(nextRoom, BoundsTransition.AtSpeed(120f));
-    /// yield return Wait.Until(() => !Scene.Camera.IsTransitioning);
+    /// await Wait.Until(() => !Scene.Camera.IsTransitioning);
     /// _door.Closing = true;
     /// </code>
     /// </example>

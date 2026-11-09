@@ -283,6 +283,26 @@ public sealed class GameBoundaryLogicTests
             public static float Angle(float x) => DeterministicMath.Sin(x) + MathF.Cbrt(x) + MathF.Sqrt(x);
         }
         """)]
+    [InlineData("""
+        using System;
+        using Capsule.Animation;
+
+        public static class Logic
+        {
+            public static async Routine Outer()
+            {
+                await Wait.Ticks(1);
+                await Inner();
+                Func<Routine> later = async () => await Wait.Ticks(1);
+                await later();
+                await Local();
+
+                async Routine Local() => await default(Routine);
+            }
+
+            private static async Routine Inner() => await Wait.Until(static () => true);
+        }
+        """)]
     public async Task Logic_AcceptsWhatTouchesNothingOutsideTheSimulation(string source)
     {
         MetadataReference core = MetadataReference.CreateFromFile(typeof(Log).Assembly.Location);
@@ -296,6 +316,30 @@ public sealed class GameBoundaryLogicTests
 
         Assert.Empty(GeneratorHarness.Errors(compilation.GetDiagnostics()));
         Assert.Empty(diagnostics);
+    }
+
+    // A routine's awaits of waits and other routines resume inside its sequence's step. Every other await schedules work.
+    [Theory]
+    [InlineData("async Task Run() => await Wait.Ticks(1);")]
+    [InlineData("async Routine Run() => await Task.Yield();")]
+    [InlineData("async Routine Run() { Func<Task> later = async () => await Wait.Ticks(1); await Wait.Ticks(1); }")]
+    public async Task Logic_RejectsAnyAwaitButARoutinesOfWaitsAndRoutines(string member)
+    {
+        string source = $$"""
+            using System;
+            using System.Threading.Tasks;
+            using Capsule.Animation;
+
+            public static class Logic
+            {
+                public static {{member}}
+            }
+            """;
+        MetadataReference core = MetadataReference.CreateFromFile(typeof(Log).Assembly.Location);
+
+        ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true, extraReferences: [core]);
+
+        Assert.Single(diagnostics, diagnostic => diagnostic.Id == "CAP103");
     }
 
     // CAP102 and CAP103 name what replaces the refused call, chosen by what the call does.
