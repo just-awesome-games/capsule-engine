@@ -40,8 +40,8 @@ public readonly record struct AudioPlayback(AudioClip Clip)
 
     /// <summary>The fixed world point this voice sounds from while <see cref="Range"/> is positional. The origin by default.</summary>
     /// <remarks>
-    /// Pan follows the point's horizontal offset from the listener in view widths: a point at the
-    /// view's edge pans halfway, and one a full view width off centre pans hard.
+    /// Pan follows the point's horizontal offset from the listener in view widths: a point half a
+    /// view width away pans halfway, and one a full view width away pans hard.
     /// </remarks>
     public Vector2 Position { get; init; }
 

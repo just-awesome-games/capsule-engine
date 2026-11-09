@@ -4,7 +4,8 @@ namespace MinimalGame.Game.Cameras;
 
 /// <summary>
 /// The follow camera: it owns the span the room is framed at and the feel of the follow, confines the
-/// view to the room, and follows the player. A scene installs it and touches it no further.
+/// view to the room, and follows the player and hears from where they stand. A scene installs it and
+/// touches it no further.
 /// </summary>
 public sealed class GameCamera : Camera
 {
@@ -36,6 +37,10 @@ public sealed class GameCamera : Camera
             Bounds = new Rect(Vector2.Zero, Scene.Size);
         }
 
-        Follow(Scene.FindSingle<Player>());
+        // The lamp's hum stays on its side of the player while the view stops at a room's edge or turns to
+        // show the lift.
+        Player player = Scene.FindSingle<Player>();
+        Follow(player);
+        Listener = player;
     }
 }

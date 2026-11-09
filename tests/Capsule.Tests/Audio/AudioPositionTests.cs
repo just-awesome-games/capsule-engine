@@ -68,6 +68,31 @@ public sealed class AudioPositionTests
         Assert.Equal(1f, GainOf(run.Run.Audio, voice), 6);
     }
 
+    // A paused listener is still heard from where it stands. Only leaving the scene hands hearing back
+    // to the view's centre.
+    [Fact]
+    public void TheCamerasListener_IsHeardFromWhileInItsScene_HeldOrNot()
+    {
+        using SimulationHost run = Simulate(new Vector2(100f, 0f), Positional(new AudioRange(200f)), out Voice voice);
+        SceneFixtures.Drifter listener = run.Scene.Add(new SceneFixtures.Drifter(new Vector2(40f, 0f)));
+        run.Scene.Camera.Listener = listener;
+        run.Step();
+        float offset = 100f - listener.WorldPosition.X;
+        Assert.Equal(1f - (offset / 200f), GainOf(run.Run.Audio, voice), 6);
+        Assert.Equal(offset / SceneFixtures.Viewport.X, PanOf(run.Run.Audio, voice), 6);
+
+        run.Scene.Paused = true;
+        listener.Position = new Vector2(100f, 0f);
+        run.Step();
+        Assert.Equal(1f, GainOf(run.Run.Audio, voice), 6);
+        Assert.Equal(0f, PanOf(run.Run.Audio, voice), 6);
+
+        run.Scene.Remove(listener);
+        run.Step();
+        Assert.Equal(0.5f, GainOf(run.Run.Audio, voice), 6);
+        Assert.Equal(100f / SceneFixtures.Viewport.X, PanOf(run.Run.Audio, voice), 6);
+    }
+
     [Fact]
     public void ASourcesVoice_FollowsItsEntityAcrossSteps()
     {

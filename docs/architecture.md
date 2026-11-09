@@ -69,8 +69,8 @@ the same state transitions and render intents.
   and then its components, contacts settle, every entity's late step runs in the same order, the scene's late step runs
   and the camera settles the visible region the frame will use, deferred structural changes are applied and
   newly attached objects started, the visible-screen notifiers settle once against that region, the mixer
-  hears every positional voice from that region's centre, and the frame is rewritten. An entity held by a
-  pause or a freeze is skipped by every pass but the drain and the frame.
+  hears every positional voice from the camera's listener or that region's centre, and the frame is
+  rewritten. An entity held by a pause or a freeze is skipped by every pass but the drain and the frame.
 - Entities update in tree order: each root in insertion order, then its subtree depth-first with children in
   parenting order. Rendering is ordered by `ZIndex` summed up the ancestry, stable over the same order.
   Collision queries and contact delivery order as their public methods document.

@@ -145,6 +145,32 @@ public partial class Camera
     /// </remarks>
     public Rect VisibleRegion { get; private set; }
 
+    /// <summary>
+    /// The entity positional sound is heard from, or null, the default, to hear it from the centre of
+    /// <see cref="VisibleRegion"/>.
+    /// </summary>
+    /// <remarks>
+    /// Each step hears from the entity's <see cref="Entity.WorldPosition"/> once the step has settled,
+    /// whether or not the entity is paused or frozen. A step that finds it outside this camera's scene
+    /// hears from the view's centre. Pan counts in widths of <see cref="VisibleRegion"/> wherever the
+    /// listener stands.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// protected override void OnStart()
+    /// {
+    ///     Avatar avatar = Scene.FindSingle&lt;Avatar&gt;();
+    ///     Follow(avatar);
+    ///     Listener = avatar;
+    /// }
+    /// </code>
+    /// </example>
+    public Entity? Listener { get; set; }
+
+    // Where this step hears positional sound from.
+    internal Vector2 ListenerPosition =>
+        Listener is { } listener && ReferenceEquals(listener.SceneOrNull, _scene) ? listener.WorldPosition : VisibleRegion.Center;
+
     /// <summary>The scene this camera frames.</summary>
     /// <exception cref="InvalidOperationException">This camera frames no scene.</exception>
     public Scene Scene => _scene ?? throw new InvalidOperationException(
@@ -314,6 +340,7 @@ public partial class Camera
         panel.Field("Bounds", Bounds is { } bounds ? DebugPanel.Format(bounds) : null);
         panel.Field("VisibleRegion", VisibleRegion);
         panel.Field("Subject", Subject);
+        panel.Field("Listener", Listener);
 
         if (_started)
         {

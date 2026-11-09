@@ -221,7 +221,7 @@ public sealed class OverlayPanelTests
 
         Assert.Equal("TrackingCamera", rig.Overlay.Title);
         Assert.Equal(
-            ["[Camera]", "Center", "Zoom", "ViewportSize", "Fit", "Offset", "Bounds", "VisibleRegion", "Subject", "Lead"],
+            ["[Camera]", "Center", "Zoom", "ViewportSize", "Fit", "Offset", "Bounds", "VisibleRegion", "Subject", "Listener", "Lead"],
             rig.Rows());
         Assert.EndsWith("(0, 0) to (64, 32)", Drawn(rig, 6), StringComparison.Ordinal);
         Assert.Equal(0, rig.Scheduler.Tick);

@@ -15,6 +15,7 @@ headphone processing.
 | A group of voices mixed and paused together | `AudioBus`, under `AudioBus.Master` |
 | A sound that belongs to an entity | `AudioSource` |
 | A sound heard louder the nearer it is | `AudioRange`, on an `AudioSource` or an `AudioPlayback` |
+| Hearing positional sound from an entity | `Camera.Listener` |
 | Music, and any sound that outlives a scene | `Run.Audio`, the run's `AudioMixer` |
 | A level or a voice that changes over time | `FadeVolume`, `CrossFade`, and `Stop` with seconds |
 | Sound heard sooner after its step, or no gaps on a slow machine | `EngineBuilder.WithAudioLatency` |
@@ -84,11 +85,19 @@ Run.Audio.Play(new AudioPlayback(CapsuleAssets.Audio.ChimeSound)
 });
 ```
 
-The listener is the centre of the scene camera's `VisibleRegion`, and a voice falls silent at the range's
-`MaxDistance` while keeping its time. A positional voice ignores its own `Pan` and pans by its horizontal
-offset from the listener, halfway at the view's edge and hard at a full view width. A sound at the view's
-edge is already half a view width from the listener. A `MaxDistance` a little past that distance fades a
-sound out as it leaves the screen, and voices whose ranges overlap off screen add up.
+The listener is the scene camera's `Listener` while that entity is in the scene, and otherwise the centre
+of the camera's `VisibleRegion`. A voice falls silent at the range's `MaxDistance` while keeping its time.
+A positional voice ignores its own `Pan` and pans by its horizontal offset from the listener, halfway at
+half a view width and hard at a full one. Heard from the view's centre, a sound at the view's edge is half
+a view width away, and a `MaxDistance` a little past that distance fades it out as it leaves the screen.
+Voices whose ranges overlap off screen add up.
+
+Heard from the entity the player steers, a sound keeps its side of that entity while the view leads it or
+stops at its bounds:
+
+```csharp
+Scene.Camera.Listener = avatar;
+```
 
 ## Music
 

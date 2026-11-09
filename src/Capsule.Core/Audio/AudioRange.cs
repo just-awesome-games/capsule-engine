@@ -6,9 +6,10 @@ namespace Capsule.Audio;
 /// How far a voice is heard from its position in the world, and how its gain falls off on the way.
 /// </summary>
 /// <remarks>
-/// The listener is the centre of the scene camera's <c>VisibleRegion</c>. A voice at distance d
-/// plays at <c>1 - Falloff(d / MaxDistance)</c> of its gain, and is silent at
-/// <see cref="MaxDistance"/> and beyond while keeping its time.
+/// The listener is the scene camera's <c>Listener</c> while that entity is in the camera's scene, and the
+/// centre of its <c>VisibleRegion</c> otherwise. A voice at distance d plays at
+/// <c>1 - Falloff(d / MaxDistance)</c> of its gain, and is silent at <see cref="MaxDistance"/> and beyond
+/// while keeping its time.
 /// </remarks>
 /// <example>
 /// <code>

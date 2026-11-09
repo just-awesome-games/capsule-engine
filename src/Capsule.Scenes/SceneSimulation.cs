@@ -203,9 +203,9 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene.EndStep();
 
         // Heard once entities have moved, the camera has settled and late joiners have started. A
-        // positional voice is then heard from this step's camera.
-        Rect view = Scene.Camera.VisibleRegion;
-        Run.Audio.Settle(view.Center, view.Size.X);
+        // positional voice is then heard from where this step left the camera's listener.
+        Camera camera = Scene.Camera;
+        Run.Audio.Settle(camera.ListenerPosition, camera.VisibleRegion.Size.X);
 
         EmitDebugDraws();
     }
