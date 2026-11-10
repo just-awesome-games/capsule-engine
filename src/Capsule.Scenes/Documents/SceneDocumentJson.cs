@@ -107,6 +107,7 @@ internal sealed class SceneDocumentJson
             entries[i] = new SceneEntryJson
             {
                 Id = entry.Id,
+                Name = spawn.Name,
                 Type = entry.Type,
                 X = spawn.Position.X == 0f ? null : spawn.Position.X,
                 Y = spawn.Position.Y == 0f ? null : spawn.Position.Y,
@@ -151,6 +152,7 @@ internal sealed class SceneDocumentJson
             SceneEntryJson entry = entries[i] ?? throw new SceneDocumentFormatException($"entities[{i}] is null. Write an object with a type.");
             EntitySpawn spawn = new(new Vector2(entry.X ?? 0f, entry.Y ?? 0f))
             {
+                Name = entry.Name,
                 Rotation = float.DegreesToRadians(entry.Rotation ?? 0f),
                 Scale = Pair(entry.Scale, i, SceneDocumentKeys.Entry.Scale) ?? Vector2.One,
                 ZIndex = entry.ZIndex,
@@ -258,6 +260,11 @@ internal sealed class SceneEntryJson
     [Description("The entry's id, which an entity reference names: positive and unique in the document. Absent on an entry nothing references.")]
     [Range(1, int.MaxValue)]
     public int? Id { get; set; }
+
+    [JsonPropertyName(SceneDocumentKeys.Entry.Name)]
+    [Description("The entity's name, which a scene finds it by. It is not blank and does not end in a number in parentheses, which the scene gives. Absent keeps the name the entity's class sets, or its type name.")]
+    [SchemaLength(1)]
+    public string? Name { get; set; }
 
     [JsonPropertyName(SceneDocumentKeys.Entry.Type)]
     [Description("The type key of the entity class the entry places, \"tile-map\" for the engine's tile map.")]

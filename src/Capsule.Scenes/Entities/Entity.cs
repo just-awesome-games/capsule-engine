@@ -55,8 +55,8 @@ public partial class Entity
     private bool _started;
     private Vector2 _scrollFactor = Vector2.One;
 
-    // The name the game asked for, null for the type name. Only diagnostics read Name, and a numbered one
-    // is spelled on each read.
+    // The name the game or its scene document asked for, null for the type name. Name spells a numbered one
+    // on each read, and a find by name compares this one without allocating.
     private string? _requestedName;
 
     // Facts a subclass fixes at construction, packed into one byte. Every entity carries them.
@@ -72,17 +72,23 @@ public partial class Entity
     internal int NameNumber { get; set; }
 
     /// <summary>
-    /// The entity's name in its scene, which the debug overlay, a trace and the game's logs show: the name
-    /// set here, or the type name while none is set.
+    /// The entity's name in its scene: the name set here or by its scene document entry, or the type name
+    /// while none is set.
     /// </summary>
     /// <remarks>
+    /// The debug overlay, a trace and the game's logs show the name, and
+    /// <see cref="Scene.FindFirst{T}(string)"/> finds an entity by it without its number.
+    /// <para>
     /// Joining a scene numbers the name when the scene has held it before: the first <c>Avatar</c> stays
     /// <c>Avatar</c>, and later ones are <c>Avatar (1)</c>, <c>Avatar (2)</c> and on. A number is never
-    /// reused in that scene, and an entity keeps its name while others come and go. A pooled entity taken
-    /// again joins as a new one with a new number. Setting another name while in a scene numbers it the
-    /// same way at once, and setting the name it already asks for changes nothing. A number in parentheses
-    /// ending a name is the scene's to give, and setting a name that ends in one throws. <c>Scene</c> and <c>Camera</c> name the scene's own panel and its camera's in the
-    /// debug overlay and a trace, and an entity asking for either is numbered from <c>(1)</c>.
+    /// reused in that scene, and an entity keeps its name while others come and go. The number records that
+    /// the scene held the name before. A lone <c>Avatar (1)</c> can be the only entity of that name. A
+    /// pooled entity taken again joins as a new one with a new number. Setting another name while in a scene
+    /// numbers it the same way at once, and setting the name it already asks for changes nothing. A number
+    /// in parentheses ending a name is the scene's to give, and setting a name that ends in one throws.
+    /// <c>Scene</c> and <c>Camera</c> name the scene's own panel and its camera's in the debug overlay and a
+    /// trace, and an entity asking for either is numbered from <c>(1)</c>.
+    /// </para>
     /// </remarks>
     [AllowNull]
     public string Name
@@ -237,7 +243,7 @@ public partial class Entity
 
     /// <summary>
     /// Places the entity from a document placement or a spawn built in code. The position,
-    /// <see cref="Rotation"/>, <see cref="ZIndex"/>, <see cref="ScrollFactor"/> and every
+    /// <see cref="Rotation"/>, <see cref="Name"/>, <see cref="ZIndex"/>, <see cref="ScrollFactor"/> and every
     /// <see cref="AuthorableAttribute"/> value except an entity reference land before the subclass
     /// constructor body runs, and writes in that body override them.
     /// </summary>
@@ -253,6 +259,11 @@ public partial class Entity
         : this(spawn.Position)
     {
         Rotation = spawn.Rotation;
+
+        if (spawn.Name is { } name)
+        {
+            Name = name;
+        }
 
         if (spawn.ZIndex is { } band)
         {
@@ -1040,7 +1051,7 @@ public partial class Entity
     }
 
     // Whether name ends as the scene numbers one: a space, then digits in parentheses.
-    private static bool EndsInNumber(string name)
+    internal static bool EndsInNumber(string name)
     {
         ReadOnlySpan<char> text = name;
         int open = text.LastIndexOf(" (", StringComparison.Ordinal);

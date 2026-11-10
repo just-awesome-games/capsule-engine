@@ -25,6 +25,11 @@
             "type": "integer",
             "minimum": 1
           },
+          "name": {
+            "description": "The entity's name, which a scene finds it by. It is not blank and does not end in a number in parentheses, which the scene gives. Absent keeps the name the entity's class sets, or its type name.",
+            "type": "string",
+            "minLength": 1
+          },
           "type": {
             "description": "The type key of the entity class the entry places, \"tile-map\" for the engine's tile map.",
             "type": "string",

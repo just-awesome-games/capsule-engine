@@ -346,6 +346,37 @@ public partial class Scene
         return null;
     }
 
+    /// <summary>
+    /// The first entity in <see cref="Entities"/> assignable to <typeparamref name="T"/> whose
+    /// <see cref="Entity.Name"/>, without the number the scene gave it, is <paramref name="name"/>, or null
+    /// when there is none.
+    /// </summary>
+    /// <remarks>
+    /// The comparison is ordinal. An entity with no name set answers to its type name. A numbered entity
+    /// answers to the name it asked for: a lone <c>north (1)</c> is found as <c>north</c>, and
+    /// <c>north (1)</c> finds nothing. It scans the whole scene. Call it at start or on an event, not every step.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// TileMap north = FindFirst&lt;TileMap&gt;("north")!;
+    /// </code>
+    /// </example>
+    public T? FindFirst<T>(string name)
+        where T : class
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        foreach (T found in FindAll<T>())
+        {
+            if (string.Equals(((Entity)(object)found).RequestedName, name, StringComparison.Ordinal))
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>Every entity in <see cref="Entities"/> assignable to <typeparamref name="T"/>, in step order.</summary>
     /// <remarks>
     /// It walks the scene as it stands. An add or remove during a step lands when the step ends. Outside

@@ -39,6 +39,18 @@ public sealed class SceneDocumentRoundTripTests
         Assert.Equal(turned.Entries[0], SceneDocument.Parse(turned.ToJson()).Entries[0]);
     }
 
+    // The name sits after the id and reads as the spawn's.
+    [Fact]
+    public void ANamedEntry_RoundTrips()
+    {
+        const string Json = """{"entities":[{"id":1,"name":"north","type":"tile-map"},{"name":"east","type":"coin"}]}""";
+
+        SceneDocument document = SceneDocument.Parse(Json);
+
+        Assert.Equal(new SceneDocumentEntry("tile-map", new EntitySpawn(Vector2.Zero) { Name = "north" }) { Id = 1 }, document.Entries[0]);
+        Assert.Equal(Json, document.ToJson());
+    }
+
     // Entry fields are recognised only inside the entities array, never in the scene's own members.
     [Fact]
     public void SceneMembers_ShapedLikeAnEntry_RoundTrip()

@@ -68,11 +68,11 @@ public static class RoomFixture
         return room.Scene.Camera.Bounds;
     }
 
-    // The room also paints a backdrop from the terrain's palette, and only the terrain has a collider.
+    // The room also paints a backdrop from the terrain's palette. The scene document names both maps.
     public static TileMap TerrainOf(SimulationHost room)
     {
         ArgumentNullException.ThrowIfNull(room);
 
-        return room.Scene.FindFirst<TileMap>(static map => map.Has<TileMapCollider2D>())!;
+        return room.Scene.FindFirst<TileMap>("terrain")!;
     }
 }

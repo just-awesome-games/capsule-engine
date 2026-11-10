@@ -97,7 +97,9 @@ lives. An effect that never moves is better off as one long-lived `ParticleEmitt
 
 `FindSingle`, `FindFirst` and `FindAll` walk `Scene.Entities` in step order and match every entity
 assignable to the type asked for, an interface included. `FindAll` returns a walk for `foreach`, not a
-collection, and allocates nothing. A count is a loop over it.
+collection, and allocates nothing. A count is a loop over it. `FindFirst<T>(name)` matches the name an entity
+asked for, set in code or by its scene document's `name`, and ignores the number its scene gave it. An entity
+with no name set answers to its type name.
 
 ```csharp
 protected override void OnStart()

@@ -113,6 +113,16 @@ public sealed class SceneDocument
                 throw Malformed(parsed, string.Create(CultureInfo.InvariantCulture, $"{Describe(entry, i)} has id {id}, which an earlier entry has. Give every entry a unique id."));
             }
 
+            if (entry.Spawn.Name is { } name && string.IsNullOrWhiteSpace(name))
+            {
+                throw Malformed(parsed, $"{Describe(entry, i)} has a blank name. Write a name, or omit it.");
+            }
+
+            if (entry.Spawn.Name is { } numbered && Entity.EndsInNumber(numbered))
+            {
+                throw Malformed(parsed, $"{Describe(entry, i)} is named '{numbered}', which ends in a number in parentheses. The scene numbers a name itself. Write the name without it.");
+            }
+
             // NaN and the infinities have no JSON number. A document holding one could not be written out.
             EntitySpawn spawn = entry.Spawn;
             Vector2 factor = spawn.ScrollFactor ?? Vector2.One;

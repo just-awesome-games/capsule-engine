@@ -29,6 +29,8 @@ public sealed class SceneDocumentParseTests
     [InlineData(""",{"id": 0, "type": "coin", "x": 8, "y": 0}""", "has id 0. Make it positive")]
     [InlineData(", null", "entities[1] is null")]
     [InlineData(""",{"x": 8, "y": 0}""", "entities[1] has no type")]
+    [InlineData(""",{"type": "coin", "x": 8, "y": 0, "name": " "}""", "has a blank name. Write a name, or omit it.")]
+    [InlineData(""",{"type": "coin", "x": 8, "y": 0, "name": "north (2)"}""", "is named 'north (2)', which ends in a number in parentheses")]
     [InlineData(""",{"type": "coin", "x": 8, "y": 0, "rotation": 1e39}""", "not finite")]
     [InlineData(""",{"type": "coin", "x": 8, "y": 0, "scrollFactor": [0.5, 1, 2]}""", "entities[1] has a scrollFactor of 3 components")]
     [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "scale": [2]}""", "scale of 1 components")]

@@ -104,6 +104,27 @@ public sealed class SceneCompositionTests
         Assert.Equal(Vector2.Zero, scene.Entities[2].ScrollFactor);
     }
 
+    // An authored name lands before the body runs, and a body that sets its own wins.
+    [Fact]
+    public void ADocumentsName_IsTheConstructorsToKeepOrOverride()
+    {
+        SceneDocument document = new(
+            [
+                new SceneDocumentEntry("placed", new EntitySpawn(Vector2.Zero) { Name = "north" }),
+                new SceneDocumentEntry("renamed", new EntitySpawn(Vector2.Zero) { Name = "north" }),
+            ]);
+        Scene scene = SceneFixtures.RoomScene(
+            document,
+            SceneFixtures.Registry(
+                ("placed", spawn => new SceneFixtures.Placed(spawn)),
+                ("renamed", spawn => new Renamed(spawn))));
+
+        Renamed renamed = Assert.IsType<Renamed>(scene.Entities[1]);
+
+        Assert.Equal("north", scene.Entities[0].Name);
+        Assert.Equal(("north", "south"), (renamed.NameInBody, renamed.Name));
+    }
+
     // The scroll factor is applied before the body runs. A body that then attaches a collider is refused
     // as it would be for any scrolled entity, and the placement fails at construction.
     [Fact]
@@ -125,6 +146,18 @@ public sealed class SceneCompositionTests
     {
         public Upright(EntitySpawn spawn)
             : base(spawn) => Rotation = 0f;
+    }
+
+    private sealed class Renamed : Entity
+    {
+        internal string NameInBody { get; }
+
+        public Renamed(EntitySpawn spawn)
+            : base(spawn)
+        {
+            NameInBody = Name;
+            Name = "south";
+        }
     }
 
     private sealed class ScreenFixed : Entity

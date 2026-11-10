@@ -91,6 +91,27 @@ public sealed class EntityNameTests
         Assert.Equal(refused ? "Probe" : name, probe.Name);
     }
 
+    // The number is history, not a second holder: the lone Avatar (1) answers to Avatar, and the
+    // number itself names nothing.
+    [Fact]
+    public void FindFirstByName_FindsANumberedHolderByItsName_AndNullForNoMatch()
+    {
+        Scene scene = new();
+        Probe first = new() { Name = "Avatar" };
+        Probe second = new() { Name = "Avatar" };
+        scene.Add(first);
+        scene.Add(second);
+        using SimulationHost host = new(scene);
+
+        scene.Remove(first);
+        host.Step();
+
+        Assert.Equal("Avatar (1)", second.Name);
+        Assert.Same(second, scene.FindFirst<Probe>("Avatar"));
+        Assert.Null(scene.FindFirst<Probe>("Avatar (1)"));
+        Assert.Null(scene.FindFirst<Shot>("Avatar"));
+    }
+
     // Scene and Camera name the scene's own panel and its camera's, which an entity never shares.
     [Fact]
     public void AnEntityAskingForSceneOrCamera_IsNumberedFromOne()

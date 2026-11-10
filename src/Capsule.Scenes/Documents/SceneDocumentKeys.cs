@@ -47,6 +47,9 @@ public static class SceneDocumentKeys
         /// <summary>The positive id an entity reference names the entry by.</summary>
         public const string Id = "id";
 
+        /// <summary>The entity's <see cref="Entity.Name"/>.</summary>
+        public const string Name = "name";
+
         /// <summary>The placed x coordinate.</summary>
         public const string X = "x";
 
@@ -66,7 +69,7 @@ public static class SceneDocumentKeys
         public const string ScrollFactor = "scrollFactor";
 
         // Every key an entry reserves.
-        internal static string[] Keys { get; } = [Type, Id, X, Y, Rotation, Scale, ZIndex, ScrollFactor];
+        internal static string[] Keys { get; } = [Type, Id, Name, X, Y, Rotation, Scale, ZIndex, ScrollFactor];
 
         /// <summary>Whether an entry reserves <paramref name="key"/>, compared ordinally.</summary>
         public static bool Contains(string key) => Keys.AsSpan().Contains(key);

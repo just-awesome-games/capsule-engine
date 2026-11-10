@@ -97,11 +97,12 @@ other key sets the member of that name its class marks `[Authorable]`:
 | Object | Reserved keys | Every other key sets a member of |
 | --- | --- | --- |
 | The document | `$schema`, `baseScene`, `entities` | the composing scene: the class claiming the document, the `baseScene` it names, or `Scene`, whose own are `size`, `clearColor`, `ambient`, `sampling` and `camera` |
-| An entry | `type`, `id`, `x`, `y`, `rotation` (degrees), `scale`, `zIndex`, `scrollFactor` | the entity class its `type` names |
+| An entry | `type`, `id`, `name`, `x`, `y`, `rotation` (degrees), `scale`, `zIndex`, `scrollFactor` | the entity class its `type` names |
 | A member's object | `type` | the object the member holds, or else a new one of the member's class or of the subclass its `type` names |
 
 An entry's spawn keys reach the entity's constructor as an `EntitySpawn`. An `id` is needed only on an entry
-another names, and ids are unique. `AuthorableAttribute` documents how a key is named and when a value lands. The
+another names, and ids are unique. A `name` sets the entity's `Name`, which `Scene.FindFirst<T>(name)` finds it
+by, and an entity with none answers to its type name. `AuthorableAttribute` documents how a key is named and when a value lands. The
 format's JSON Schema documents every reserved field
 ([Editor completion](configuring-assets.md#editor-completion)). An invalid document throws
 `SceneDocumentFormatException`, naming the defect.

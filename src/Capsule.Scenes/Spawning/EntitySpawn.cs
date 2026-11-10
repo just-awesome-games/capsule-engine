@@ -34,6 +34,9 @@ public readonly record struct EntitySpawn(Vector2 Position)
     /// </summary>
     public Vector2 Scale { get; init; } = Vector2.One;
 
+    /// <summary>The <see cref="Entity.Name"/>, or null to keep the entity's own.</summary>
+    public string? Name { get; init; }
+
     /// <summary>The draw band, or null to keep the entity's own.</summary>
     public int? ZIndex { get; init; }
 
