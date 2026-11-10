@@ -221,7 +221,7 @@ internal sealed class SceneDrawing
     }
 
     // The walk runs in tree order. Each entity's band is its parent's already-summed band plus its own
-    // ZIndex.
+    // ZIndex, or its own ZIndex alone where that is absolute.
     private void RebuildRenderers(ReadOnlySpan<Entity> entities)
     {
         _renderers.Clear();
@@ -233,7 +233,7 @@ internal sealed class SceneDrawing
         bool banded = false;
         foreach (Entity entity in entities)
         {
-            long band = entity.DrawBand = (entity.Parent?.DrawBand ?? 0) + entity.ZIndex;
+            long band = entity.SumDrawBand();
 
             // A root only moves out of the scene, which rebuilds the order. The key can hold it.
             Entity? root = ySort && entity.Space == RenderSpace.World ? entity.Root : null;
@@ -272,7 +272,7 @@ internal sealed class SceneDrawing
         foreach (Entity entity in CollectionsMarshal.AsSpan(_appended))
         {
             entity.DrawPosition = _nextPosition;
-            long band = entity.DrawBand = (entity.Parent?.DrawBand ?? 0) + entity.ZIndex;
+            long band = entity.SumDrawBand();
             foreach (Component component in entity.Components)
             {
                 if (component is Renderer renderer)

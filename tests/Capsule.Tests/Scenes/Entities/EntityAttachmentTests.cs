@@ -202,6 +202,7 @@ public sealed class EntityAttachmentTests
                 ("Transform", "(1, 1) r 0.5 s (1, 1)"),
                 ("World Transform", "(12, 2) r 0.5 s (2, 2)"),
                 ("ZIndex", "0"),
+                ("ZIndexIsAbsolute", null),
                 ("ScrollFactor", "(1, 1)"),
                 ("Visible", null),
                 ("Tint", "#ffffffff"),

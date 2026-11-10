@@ -111,6 +111,13 @@ Within a layer, what draws later has the higher sum of the entity's `ZIndex` up 
 renderer's own `ZIndex`. Ties break by file order in a document and then by attachment order. A top-down
 scene sets `Scene.YSort` to order world renderers in one band by their root entity's Y.
 
+A child that must keep one band whatever its parent's sets `ZIndexIsAbsolute`. The sum stops there, and
+the child's own descendants sum from it:
+
+```csharp
+Entity glow = new(lantern) { ZIndex = 40, ZIndexIsAbsolute = true };
+```
+
 A screen root that sets `SortsWithWorld` leaves the screen layer and draws at its band among the
 world's renderers, still laid out and clipped in canvas pixels, and the camera never moves it. A panel
 the actors walk in front of takes a band between the background's and theirs.

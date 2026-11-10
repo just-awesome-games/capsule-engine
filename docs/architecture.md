@@ -72,7 +72,7 @@ the same state transitions and render intents.
   hears every positional voice from the camera's listener or that region's centre, and the frame is
   rewritten. An entity held by a pause or a freeze is skipped by every pass but the drain and the frame.
 - Entities update in tree order: each root in insertion order, then its subtree depth-first with children in
-  parenting order. Rendering is ordered by `ZIndex` summed up the ancestry, stable over the same order.
+  parenting order. Rendering is ordered by `ZIndex` summed up the ancestry as far as an absolute one, stable over the same order.
   Collision queries and contact delivery order as their public methods document.
 - A handler sees the new state. Reconfiguring the object whose handler is running throws, across colliders,
   focus navigators and screen notifiers.

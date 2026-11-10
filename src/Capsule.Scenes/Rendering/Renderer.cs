@@ -10,8 +10,8 @@ namespace Capsule.Rendering;
 /// A component that draws. A scene walks its renderers by draw key, lowest first.
 /// </summary>
 /// <remarks>
-/// A renderer's key is its entity's <see cref="Entity.ZIndex"/> summed up the ancestry plus this
-/// renderer's <see cref="ZIndex"/>. Equal keys keep entity order, and attachment order within an
+/// A renderer's key is its entity's <see cref="Entity.ZIndex"/> summed up the ancestry, as far as an
+/// entity whose <see cref="Entity.ZIndexIsAbsolute"/> is set, plus this renderer's <see cref="ZIndex"/>. Equal keys keep entity order, and attachment order within an
 /// entity, which draws a later renderer over an earlier one. A renderer is placed by its entity's
 /// <see cref="RenderTransform"/> and carries no turn or size of its own.
 /// </remarks>

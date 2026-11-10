@@ -39,9 +39,6 @@ public sealed class Hazard : Entity
         }
 
         Vector2 heading = orbit.Tangent;
-
-        // A root draws at its own band alone. The spark takes the hazard's.
-        _spark.ZIndex = ZIndex;
         _spark.Parent = null;
         _spark.Fly(heading);
     }
@@ -97,6 +94,8 @@ public sealed class Hazard : Entity
         /// <summary>World units from the centre: where <see cref="Orbit"/> carries <see cref="Spark"/>.</summary>
         private const float OrbitRadius = 20f;
 
+        private const int OverPlayer = 5;
+
         private static readonly Sprite SparkFrame = new(CapsuleAssets.Textures.HazardTexture, new TextureRegion(6, 10, 4, 4), new Vector2(2f, 2f));
 
         // The trail's colour: a warm orange fading to nothing.
@@ -107,8 +106,11 @@ public sealed class Hazard : Entity
         internal Spark(Entity parent)
             : base(parent, new Vector2(0f, -OrbitRadius))
         {
-            // The trail draws under the spark because it is added before the frame. At the room's shared
-            // ZIndex it draws over the tiles.
+            // Over the player, in orbit and loose alike, whatever band its hazard is placed in.
+            ZIndex = OverPlayer;
+            ZIndexIsAbsolute = true;
+
+            // The trail draws under the spark because it is added before the frame.
             Add(new ParticleEmitter(SparkFrame, capacity: 48)
             {
                 // Emits as the spark moves, half a particle per unit. Emitting is on by default.

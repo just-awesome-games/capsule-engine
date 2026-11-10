@@ -194,13 +194,14 @@ public sealed class SceneDrawOrderPatchTests
                     removed.Add(target);
                     break;
                 case 3 when target is not null:
-                    new Node(Vector2.Zero) { Parent = target }.Add(new Logged(_log) { ZIndex = random.Next(-2, 3) });
+                    new Node(Vector2.Zero) { Parent = target, ZIndexIsAbsolute = random.Next(2) == 0 }.Add(new Logged(_log) { ZIndex = random.Next(-2, 3) });
                     break;
                 case 4 when target is not null && Held(scene, random) is { } parent && !IsUnder(parent, target):
                     target.Parent = parent;
                     break;
                 case 5 when target is not null:
                     target.ZIndex = random.Next(-2, 3);
+                    target.ZIndexIsAbsolute = random.Next(2) == 0;
                     break;
                 case 6 when target is not null && target.TryGet(out Logged? renderer):
                     renderer.ZIndex = random.Next(-2, 3);
@@ -224,7 +225,7 @@ public sealed class SceneDrawOrderPatchTests
         root.ZIndex = random.Next(-2, 3);
         if (random.Next(3) == 0)
         {
-            new Node(Vector2.Zero) { Parent = root, ZIndex = random.Next(-2, 3) }.Add(new Logged(_log));
+            new Node(Vector2.Zero) { Parent = root, ZIndex = random.Next(-2, 3), ZIndexIsAbsolute = random.Next(2) == 0 }.Add(new Logged(_log));
         }
 
         root.Add(new Mover());
@@ -272,7 +273,7 @@ public sealed class SceneDrawOrderPatchTests
     private static long Band(Entity entity)
     {
         long band = 0;
-        for (Entity? at = entity; at is not null; at = at.Parent)
+        for (Entity? at = entity; at is not null; at = at.ZIndexIsAbsolute ? null : at.Parent)
         {
             band += at.ZIndex;
         }

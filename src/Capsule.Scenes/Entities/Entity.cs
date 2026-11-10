@@ -119,7 +119,8 @@ public partial class Entity
     /// <see cref="Rendering.Renderer.ZIndex"/>.
     /// </summary>
     /// <remarks>
-    /// Higher sums draw later. Equal sums use tree order, then attachment order.
+    /// Higher sums draw later. Equal sums use tree order, then attachment order. The sum stops at an
+    /// entity whose <see cref="ZIndexIsAbsolute"/> is set.
     /// </remarks>
     /// <exception cref="InvalidOperationException">It is changed inside a <see cref="Rendering.Renderer.Draw"/>.</exception>
     public int ZIndex
@@ -139,6 +140,38 @@ public partial class Entity
         }
     }
 
+    /// <summary>
+    /// Whether <see cref="ZIndex"/> is this entity's whole band, with no ancestor's added to it.
+    /// </summary>
+    /// <remarks>
+    /// A child that sets it keeps one band while its parent changes its own. Its descendants sum from
+    /// it, and each renderer's <see cref="Rendering.Renderer.ZIndex"/> still adds. The band is absolute within the entity's layer, which is its root's. A root's band is its
+    /// own already, and the flag changes nothing until the entity takes a parent. Among equal bands it
+    /// keeps its place in tree order, under its parent.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// Entity glow = new(lantern) { ZIndex = 40, ZIndexIsAbsolute = true };
+    /// </code>
+    /// </example>
+    /// <exception cref="InvalidOperationException">It is changed inside a <see cref="Rendering.Renderer.Draw"/>.</exception>
+    public bool ZIndexIsAbsolute
+    {
+        get;
+
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            SceneOrNull?.Drawing.ThrowIfDrawing("set an entity's ZIndexIsAbsolute");
+            field = value;
+            SceneOrNull?.Drawing.Changed(this);
+        }
+    }
+
     /// <summary>The scene holding this entity, or null before addition or after removal.</summary>
     public Scene? SceneOrNull { get; internal set; }
 
@@ -148,8 +181,11 @@ public partial class Entity
     // This entity's index in its scene's step-order list, kept by the scene while it holds the entity.
     internal int SceneSlot { get; set; }
 
-    // The entity's draw band: ancestry ZIndex summed before children read it.
-    internal long DrawBand { get; set; }
+    // The entity's draw band: ZIndex summed up the ancestry as far as an absolute one, before children read it.
+    internal long DrawBand { get; private set; }
+
+    // Sums the band from the parent's, which the order's walk has already summed.
+    internal long SumDrawBand() => DrawBand = (ZIndexIsAbsolute ? 0 : Parent?.DrawBand ?? 0) + ZIndex;
 
     // Where this entity's first renderer sits in tree order in its scene's draw order, with the rest after it
     // in attachment order. The entity's keys are found by it as the entity leaves.
@@ -1033,6 +1069,11 @@ public partial class Entity
         }
 
         panel.Field("ZIndex", ZIndex);
+        if (_parent is not null)
+        {
+            panel.Toggle("ZIndexIsAbsolute", ZIndexIsAbsolute, value => ZIndexIsAbsolute = value);
+        }
+
         panel.Field("ScrollFactor", ScrollFactor);
         panel.Toggle("Visible", Visible, value => Visible = value);
         panel.Field("Tint", Tint);

@@ -136,6 +136,39 @@ public sealed class EntityTransformTests
         Assert.Equal([1, 2, 0], Order(host.Simulation));
     }
 
+    [Fact]
+    public void AnAbsoluteZIndex_StopsTheSumAndItsDescendantsSumFromIt()
+    {
+        Node parent = new(Vector2.Zero) { ZIndex = 5 };
+        parent.Add(Tag(2));
+        Entity child = new(parent) { ZIndex = 4, ZIndexIsAbsolute = true };
+        child.Add(Tag(1));
+        Entity grandchild = new(child) { ZIndex = 2 };
+        grandchild.Add(Tag(3));
+
+        SceneFixtures.HookScene scene = new();
+        scene.Add(parent);
+
+        using SimulationHost host = new(scene);
+        host.Step();
+        Assert.Equal([1, 2, 3], Order(host.Simulation));
+
+        // The parent's band moves it alone.
+        parent.ZIndex = 20;
+        host.Step();
+        Assert.Equal([1, 3, 2], Order(host.Simulation));
+
+        child.ZIndexIsAbsolute = false;
+        host.Step();
+        Assert.Equal([2, 1, 3], Order(host.Simulation));
+
+        // A root's band is its own either way.
+        child.ZIndexIsAbsolute = true;
+        child.Parent = null;
+        host.Step();
+        Assert.Equal([1, 3, 2], Order(host.Simulation));
+    }
+
     private static Vector2 Turned(Vector2 origin, Vector2 local, float radians) =>
         new(
             origin.X + (local.X * DeterministicMath.Cos(radians)) - (local.Y * DeterministicMath.Sin(radians)),

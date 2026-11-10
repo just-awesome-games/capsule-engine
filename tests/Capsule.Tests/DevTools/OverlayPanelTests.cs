@@ -85,7 +85,7 @@ public sealed class OverlayPanelTests
 
         Assert.Equal("Spark (1)", rig.Overlay.Title);
         Assert.Equal(
-            ["[Entity]", "Parent", "Transform", "World Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [x] Visible", "  Remove"],
+            ["[Entity]", "Parent", "Transform", "World Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [ ] ZIndexIsAbsolute", "  [x] Visible", "  Remove"],
             rig.Rows());
         Assert.Equal("Parent           Walker", Drawn(rig, 1));
         Assert.Equal("World Transform  (14, 0) r 0 s (1, 1)", Drawn(rig, 3));
@@ -124,7 +124,7 @@ public sealed class OverlayPanelTests
 
         rig.OpenEntityPanel("Spark");
         Assert.Equal(
-            ["[Entity]", "Parent", "Children", "  Entity", "  Entity (1)", "Transform", "World Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [x] Visible", "  Remove"],
+            ["[Entity]", "Parent", "Children", "  Entity", "  Entity (1)", "Transform", "World Transform", "ZIndex", "ScrollFactor", "Tint", "Flash", "StepMode", "  (Commands)", "  [ ] ZIndexIsAbsolute", "  [x] Visible", "  Remove"],
             rig.Rows());
 
         rig.Press(Key.Enter);
