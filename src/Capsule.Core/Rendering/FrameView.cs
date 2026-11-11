@@ -344,6 +344,10 @@ public sealed class FrameView
         _styled = _tinted || _flashing;
     }
 
+    // How many times the frame has been cleared to be rewritten. A host that draws one build on several
+    // display frames knows by it that the intent has not changed since it last read it.
+    internal int Builds { get; private set; }
+
     // How many sprites, polygons, lines and lights the frame has kept, and how many it was offered.
     internal int Stores => _stores;
 
@@ -918,6 +922,7 @@ public sealed class FrameView
     // ambient and clip to their defaults, retaining capacity.
     internal void Clear()
     {
+        Builds++;
         WorldList.Clear();
         ScreenList.Clear();
         ReadsScreen = false;

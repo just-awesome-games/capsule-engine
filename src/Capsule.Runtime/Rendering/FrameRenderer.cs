@@ -26,7 +26,10 @@ internal sealed partial class FrameRenderer : IDisposable
     private const int RecentSlices = 8;
 
     private readonly GpuDevice _device;
-    private readonly SpriteDrawList _sprites;
+    // The draw list every walk records onto. The overlay swaps in its own, which leaves the game frame's
+    // recording to be reused.
+    private SpriteDrawList _sprites;
+    private SpriteDrawList _overlaySprites;
     private readonly ShaderStore _shaders;
     private readonly TextureStore _textures;
 
@@ -87,6 +90,13 @@ internal sealed partial class FrameRenderer : IDisposable
     // The frame's command buffer from Draw to Submit.
     private GpuCommandBuffer? _commands;
 
+    // The view and build the draw list last recorded, and the output it was laid out for: the extent, whether
+    // the swapchain showed a texture and whether a capture drew. A frame that draws the same build on the same
+    // output reuses the recording.
+    private FrameView? _recordedView;
+    private int _recordedBuild;
+    private (int Width, int Height, bool Shown, bool Captured) _recordedOutput;
+
     // A capture of Draw's frame, written once its command buffer completes.
     private (GpuReadback Readback, string Path)? _capture;
 
@@ -122,6 +132,7 @@ internal sealed partial class FrameRenderer : IDisposable
     {
         _device = device;
         _sprites = new SpriteDrawList(device, shaders, samplers);
+        _overlaySprites = new SpriteDrawList(device, shaders, samplers);
         _shaders = shaders;
         _textures = textures;
         shaders.MaterialTexture = MaterialTexture;
@@ -175,15 +186,49 @@ internal sealed partial class FrameRenderer : IDisposable
 
         // The scheduler leaves a whole step in the accumulator when a game exits mid-catch-up.
         alpha = Math.Clamp(alpha, 0f, 1f);
-        _sprites.Reset(alpha);
-
-        // A store may load or release between frames, and no slice outlives the frame that fetched it.
-        _recentSlices.AsSpan().Clear();
-        _recentCount = 0;
 
         GpuCommandBuffer commands = _device.AcquireCommandBuffer();
         _commands = commands;
         _window = commands.AcquireSwapchainTexture();
+
+        // A frame that draws the build the last one recorded, on the same output, reuses the recording. The
+        // passes a frame draws follow from its output. A reuse that does not hold records the frame again.
+        (int width, int height) = _window is { } shown ? (shown.Width, shown.Height) : WindowSize;
+        (int, int, bool, bool) output = (width, height, _window is not null, capturePath is not null);
+        bool reuse = ReferenceEquals(view, _recordedView) && view.Builds == _recordedBuild && output == _recordedOutput;
+        if (!Record(view, alpha, capturePath, reuse))
+        {
+            Record(view, alpha, capturePath, reuse: false);
+            _sprites.CompareCheck();
+        }
+
+        _recordedView = view;
+        _recordedBuild = view.Builds;
+        _recordedOutput = output;
+
+        GpuCopyPass copy = commands.BeginCopyPass();
+        _textures.Pump(copy);
+        _sprites.Upload(copy);
+        copy.End();
+        _sprites.Execute(commands);
+
+        if (capturePath is not null)
+        {
+            Capture(commands, capturePath);
+        }
+
+        LastFrameMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+    }
+
+    // Walks the frame onto the draw list, as a recording or as a reuse of the last one, and returns whether the
+    // walk holds.
+    private bool Record(FrameView view, float alpha, string? capturePath, bool reuse)
+    {
+        _sprites.Reset(alpha, reuse);
+
+        // A store may load or release between frames, and no slice outlives the walk that fetched it.
+        _recentSlices.AsSpan().Clear();
+        _recentCount = 0;
 
         // The window pass is laid out at the swapchain texture's extent, which can trail the window's
         // through a resize. A frame the swapchain shows nothing of still draws the canvas and a
@@ -255,18 +300,7 @@ internal sealed partial class FrameRenderer : IDisposable
             _placement = layout.Layer;
         }
 
-        GpuCopyPass copy = commands.BeginCopyPass();
-        _textures.Pump(copy);
-        _sprites.Upload(copy);
-        copy.End();
-        _sprites.Execute(commands);
-
-        if (capturePath is not null)
-        {
-            Capture(commands, capturePath);
-        }
-
-        LastFrameMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        return _sprites.Finish();
     }
 
     // Submits the frame Draw recorded, with the overlay that joined it, which presents the swapchain
@@ -656,7 +690,6 @@ internal sealed partial class FrameRenderer : IDisposable
         int next = 0;
         int nextMaterial = 0;
         int nextClip = 0;
-        bool hidden = false;
         int index = 0;
         int polygon = 0;
         while (index < sprites.Length || polygon < polygons.Length)
@@ -676,21 +709,18 @@ internal sealed partial class FrameRenderer : IDisposable
 
             while (nextClip < clips.Length && clips[nextClip].FirstSprite <= index && clips[nextClip].FirstPolygon <= polygon)
             {
-                hidden = ApplyClip(clips[nextClip], clipLevels, in pass);
+                ApplyClip(clips[nextClip], clipLevels, in pass);
                 nextClip++;
             }
 
             if (polygon < polygons.Length && polygons[polygon].Before <= index)
             {
-                if (!hidden)
+                if (pass.Reading)
                 {
-                    if (pass.Reading)
-                    {
-                        _sprites.Widen(polygons[polygon].Bounds, pass.FrameCorner - pass.LayerCorner);
-                    }
-
-                    DrawPolygon(in polygons[polygon], points, in pass);
+                    _sprites.Widen(polygons[polygon].Bounds, pass.FrameCorner - pass.LayerCorner);
                 }
+
+                DrawPolygon(in polygons[polygon], points, in pass);
 
                 polygon++;
                 continue;
@@ -719,11 +749,7 @@ internal sealed partial class FrameRenderer : IDisposable
                 end = Math.Min(end, polygons[polygon].Before);
             }
 
-            if (hidden)
-            {
-                index = end;
-            }
-            else if (pass.Reading)
+            if (pass.Reading)
             {
                 for (; index < end; index++)
                 {
@@ -747,7 +773,6 @@ internal sealed partial class FrameRenderer : IDisposable
         Place(new PlacementRun(0, 0, Vector2.One), parallax, ref pass);
         next = 0;
         nextClip = 0;
-        hidden = false;
         for (int line = 0; line < lines.Length; line++)
         {
             while (next < layers.Length && layers[next].FirstLine <= line)
@@ -758,14 +783,11 @@ internal sealed partial class FrameRenderer : IDisposable
 
             while (nextClip < clips.Length && clips[nextClip].FirstLine <= line)
             {
-                hidden = ApplyClip(clips[nextClip], clipLevels, in pass);
+                ApplyClip(clips[nextClip], clipLevels, in pass);
                 nextClip++;
             }
 
-            if (!hidden)
-            {
-                DrawLine(in lines[line], in pass);
-            }
+            DrawLine(in lines[line], in pass);
         }
 
         _sprites.ClearClip();
@@ -817,25 +839,25 @@ internal sealed partial class FrameRenderer : IDisposable
     }
 
     // Cuts the quads drawn next to the run's clip, each level moved by alpha between its two ends, intersected, and
-    // placed on the surface. Returns true when nothing of the surface is left to draw on.
-    private bool ApplyClip(in ClipRun run, ReadOnlySpan<ClipRegion> clipLevels, in Pass pass)
+    // placed on the surface. A clip that leaves nothing of the surface still takes its quads, and draws none of
+    // them, which keeps what a frame stores the same at any fraction of a step.
+    private void ApplyClip(in ClipRun run, ReadOnlySpan<ClipRegion> clipLevels, in Pass pass)
     {
         if (run.Levels == 0)
         {
             _sprites.ClearClip();
-
-            return false;
+            return;
         }
 
         Rect shown = ClipScissor.Shown(clipLevels.Slice(run.FirstLevel, run.Levels), pass.Alpha);
-        if (!ClipScissor.TryMap(in shown, in pass.Placement, pass.SurfaceWidth, pass.SurfaceHeight, out int x, out int y, out int width, out int height))
+        if (ClipScissor.TryMap(in shown, in pass.Placement, pass.SurfaceWidth, pass.SurfaceHeight, out int x, out int y, out int width, out int height))
         {
-            return true;
+            _sprites.SetClip(x, y, width, height);
         }
-
-        _sprites.SetClip(x, y, width, height);
-
-        return false;
+        else
+        {
+            _sprites.SetClip(0, 0, 0, 0);
+        }
     }
 
     // The white texel stretched to the segment's length and thickness and turned along it, from the
@@ -1102,5 +1124,6 @@ internal sealed partial class FrameRenderer : IDisposable
         _offscreen?.Dispose();
         _screen?.Dispose();
         _sprites.Dispose();
+        _overlaySprites.Dispose();
     }
 }

@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Capsule.Runtime.Assets;
 using Capsule.Runtime.Gpu;
@@ -9,11 +10,22 @@ namespace Capsule.Runtime.Rendering;
 
 // A frame's quads, recorded as one sprite instance each in submission order, and the draws that cover
 // them. Consecutive quads on one texture under the same state are one draw. Once recorded, the frame
-// reaches the device as one upload and then its passes, each draw binding only the state that changed.
+// reaches the device as its uploads and then its passes, each draw binding only the state that changed.
 // The sprite vertex stage interpolates, snaps and places each instance. Every array grows to the
 // largest frame and is kept, and a frame at steady state allocates nothing.
+//
+// An instance stored from render intent depends on that intent and the page its texture is on, and never
+// on the frame's fraction of a step. Those instances are kept, and a frame that draws the same intent again
+// reuses them. A reuse walks the frame as a recording does and sets every draw's state anew, but writes and
+// uploads none of the kept instances. Each run of them it adds must match the run the recording logged in
+// the same place, or the reuse has diverged and the frame records again. The quads placed from the frame's
+// own corners, such as the world's clear and every line, are written every frame into a buffer of their own.
 internal sealed class SpriteDrawList : IDisposable
 {
+    // Whether each reuse that matched its recording records the frame too and throws where any kept instance
+    // differs. A windowed run with it on checks every frame it reuses.
+    private static readonly bool ChecksReuse = AppContext.TryGetSwitch("Capsule.CheckReuse", out bool on) && on;
+
     private readonly GpuDevice _device;
     private readonly ShaderStore _shaders;
     private readonly TextureSamplers _samplers;
@@ -31,6 +43,29 @@ internal sealed class SpriteDrawList : IDisposable
     private GpuBuffer? _buffer;
     private float _alpha;
 
+    // The quads the frame writes every time, which draws read from their own buffer.
+    private SpriteInstance[] _frameInstances = new SpriteInstance[64];
+    private int _frameCount;
+    private GpuBuffer? _frameBuffer;
+
+    // The runs of kept instances the last recording added, one per texture and page offset, and whether
+    // there is a recording to reuse.
+    private Segment[] _segments = new Segment[64];
+    private int _segmentCount;
+    private bool _recorded;
+
+    // While a reuse walks: whether it has left its log, the logged run it is inside and how much of it the
+    // walk has added so far. A reuse that diverged writes nothing for the rest of its walk.
+    private bool _reusing;
+    private bool _diverged;
+    private int _segment;
+    private int _consumed;
+
+    // Under the check switch, the kept instances of a matched reuse and how many there are, which the recording
+    // made after it is compared with. Below zero, no check is pending.
+    private SpriteInstance[] _checked = [];
+    private int _checkedCount = -1;
+
     // What the next quad draws under. A change closes the open draw.
     private State _state;
     private bool _open;
@@ -42,14 +77,73 @@ internal sealed class SpriteDrawList : IDisposable
         _samplers = samplers;
     }
 
-    // Forgets the last recording. alpha is the fraction of a step every instance interpolates by.
-    internal void Reset(float alpha)
+    // Begins a walk. A recording forgets the last one. A reuse, where there is a recording to reuse, keeps its
+    // kept instances and checks the walk against its log. alpha is the fraction of a step every instance
+    // interpolates by.
+    internal void Reset(float alpha, bool reuse)
     {
         _alpha = alpha;
         _count = 0;
+        _frameCount = 0;
         _drawCount = 0;
         _passCount = 0;
         _open = false;
+        _reusing = reuse && _recorded;
+        _diverged = false;
+        _segment = 0;
+        _consumed = 0;
+        if (!_reusing)
+        {
+            _segmentCount = 0;
+            _recorded = false;
+        }
+    }
+
+    // Ends the walk, and returns whether it holds. A recording always does, and can be reused from here. A
+    // reuse holds where it added every logged run and no more. One that does not leaves the frame to record
+    // again. So does one the check switch compares with a recording, which CompareCheck then does.
+    internal bool Finish()
+    {
+        if (!_reusing)
+        {
+            _recorded = true;
+            return true;
+        }
+
+        _diverged |= _segment != _segmentCount || _consumed != 0;
+        if (_diverged || !Development.IsSupported || !ChecksReuse)
+        {
+            return !_diverged;
+        }
+
+        if (_checked.Length < _count)
+        {
+            _checked = new SpriteInstance[_instances.Length];
+        }
+
+        _instances.AsSpan(0, _count).CopyTo(_checked);
+        _checkedCount = _count;
+
+        return false;
+    }
+
+    // Throws where the recording just made differs from the reuse Finish copied aside, if it copied one.
+    internal void CompareCheck()
+    {
+        if (_checkedCount < 0)
+        {
+            return;
+        }
+
+        int reused = _checkedCount;
+        _checkedCount = -1;
+        ReadOnlySpan<SpriteInstance> before = _checked.AsSpan(0, reused);
+        ReadOnlySpan<SpriteInstance> after = _instances.AsSpan(0, _count);
+        if (!MemoryMarshal.AsBytes(before).SequenceEqual(MemoryMarshal.AsBytes(after)))
+        {
+            throw new InvalidOperationException(
+                $"A reused frame kept {reused} instances that a recording of the same intent writes differently, as {_count}. An instance stored from intent read something that changes between frames.");
+        }
     }
 
     // Draws what follows into target after clearing it to clear, a straight-alpha colour, unless that is
@@ -157,7 +251,7 @@ internal sealed class SpriteDrawList : IDisposable
         _state.Material = material;
     }
 
-    // Cuts the quads drawn next to a rect of the target, in its pixels.
+    // Cuts the quads drawn next to a rect of the target, in its pixels. An empty rect draws none of them.
     internal void SetClip(int x, int y, int width, int height)
     {
         Area clip = new(x, y, width, height);
@@ -184,8 +278,13 @@ internal sealed class SpriteDrawList : IDisposable
     // A sprite whose region sits at offsetX, offsetY on texture, the page it is resident on.
     internal void Add(SampledTexture texture, in SpriteIntent sprite, int offsetX, int offsetY)
     {
+        if (!Reserve(texture, offsetX, offsetY, 1))
+        {
+            return;
+        }
+
         TextureRegion region = sprite.Sprite.Region;
-        ref SpriteInstance instance = ref Open(texture);
+        ref SpriteInstance instance = ref _instances[_count - 1];
         instance.PreviousPosition = sprite.PreviousPosition;
         instance.Position = sprite.Position;
         instance.PreviousRotation = sprite.PreviousRotation;
@@ -203,7 +302,12 @@ internal sealed class SpriteDrawList : IDisposable
     // mostly share a colour, and its packing is worked out where it changes.
     internal void AddRange(SampledTexture texture, ReadOnlySpan<SpriteIntent> sprites, int offsetX, int offsetY)
     {
-        Span<SpriteInstance> instances = Open(texture, sprites.Length);
+        if (!Reserve(texture, offsetX, offsetY, sprites.Length))
+        {
+            return;
+        }
+
+        Span<SpriteInstance> instances = _instances.AsSpan(_count - sprites.Length, sprites.Length);
         ColorRgba color = default;
         BlendMode blend = BlendMode.Alpha;
         uint tint = 0;
@@ -241,7 +345,7 @@ internal sealed class SpriteDrawList : IDisposable
     // drawn units per texel, and rotation is radians clockwise about origin. It blends as alpha.
     internal void AddWhole(SampledTexture texture, Vector2 position, Vector2 origin, Vector2 scale, float rotation, ColorRgba color)
     {
-        ref SpriteInstance instance = ref Open(texture);
+        ref SpriteInstance instance = ref OpenFrame(texture);
         instance.PreviousPosition = position;
         instance.Position = position;
         instance.PreviousRotation = rotation;
@@ -259,7 +363,12 @@ internal sealed class SpriteDrawList : IDisposable
     // Every triangle of one polygon starts at its first point, which the vertex stage snaps for them all.
     internal void AddTriangle(SampledTexture texture, Vector2 previousA, Vector2 a, Vector2 previousB, Vector2 b, Vector2 previousC, Vector2 c, uint tint, uint flash)
     {
-        ref SpriteInstance instance = ref Open(texture);
+        if (!Reserve(texture, 0, 0, 1))
+        {
+            return;
+        }
+
+        ref SpriteInstance instance = ref _instances[_count - 1];
         instance.PreviousPosition = previousA;
         instance.Position = a;
         instance.PreviousRotation = previousB.X;
@@ -273,18 +382,32 @@ internal sealed class SpriteDrawList : IDisposable
         instance.Flags = SpriteFlags.Triangle;
     }
 
-    // Uploads every recorded instance in the frame's copy pass. The upload cycles the buffer, and draws
-    // recorded before it keep reading the instances they were recorded with.
+    // Uploads the frame's own quads in the frame's copy pass, and the kept instances unless the frame reuses
+    // them. Each upload cycles its buffer, and draws recorded before it keep reading the instances they were
+    // recorded with.
     internal void Upload(GpuCopyPass copy)
     {
-        int bytes = _count * Unsafe.SizeOf<SpriteInstance>();
-        if (_buffer is null || _buffer.Size < bytes)
+        if (!_reusing && _count > 0)
         {
-            _buffer?.Dispose();
-            _buffer = _device.CreateBuffer(GpuBufferUsage.GraphicsStorageRead, _instances.Length * Unsafe.SizeOf<SpriteInstance>());
+            Upload(copy, ref _buffer, _instances, _count);
         }
 
-        copy.UploadToBuffer(_buffer, 0, MemoryMarshal.AsBytes(_instances.AsSpan(0, _count)), cycle: true);
+        if (_frameCount > 0)
+        {
+            Upload(copy, ref _frameBuffer, _frameInstances, _frameCount);
+        }
+    }
+
+    private void Upload(GpuCopyPass copy, ref GpuBuffer? buffer, SpriteInstance[] instances, int count)
+    {
+        int bytes = count * Unsafe.SizeOf<SpriteInstance>();
+        if (buffer is null || buffer.Size < bytes)
+        {
+            buffer?.Dispose();
+            buffer = _device.CreateBuffer(GpuBufferUsage.GraphicsStorageRead, instances.Length * Unsafe.SizeOf<SpriteInstance>());
+        }
+
+        copy.UploadToBuffer(buffer, 0, MemoryMarshal.AsBytes(instances.AsSpan(0, count)), cycle: true);
     }
 
     // Records each pass into commands.
@@ -305,7 +428,6 @@ internal sealed class SpriteDrawList : IDisposable
             GpuRenderPass pass = commands.BeginRenderPass(recorded.Clear is { } clear
                 ? new GpuColorTarget(target, GpuLoadOp.Clear, Premultiplied(clear))
                 : new GpuColorTarget(target, GpuLoadOp.Load));
-            pass.BindVertexStorageBuffer(0, _buffer!);
             int last = p + 1 < _passCount ? _passes[p + 1].FirstDraw : _drawCount;
             Execute(commands, pass, in recorded, _draws.AsSpan(recorded.FirstDraw, last - recorded.FirstDraw));
             pass.End();
@@ -326,7 +448,11 @@ internal sealed class SpriteDrawList : IDisposable
         ? 0u
         : Bytes(ColorRgba.Multiply(flash.R, tintAlpha), ColorRgba.Multiply(flash.G, tintAlpha), ColorRgba.Multiply(flash.B, tintAlpha), flash.A);
 
-    public void Dispose() => _buffer?.Dispose();
+    public void Dispose()
+    {
+        _buffer?.Dispose();
+        _frameBuffer?.Dispose();
+    }
 
     // The product a then b, summed in a fixed order, which keeps a transform the same to the bit
     // wherever it is computed.
@@ -363,8 +489,21 @@ internal sealed class SpriteDrawList : IDisposable
         Material? material = null;
         GpuSampler? materialSampler = null;
         GpuTextureSamplerBinding sprite = default;
+        GpuBuffer? bound = null;
         foreach (ref readonly Draw draw in draws)
         {
+            if (draw.State.Clip is { } cut && (cut.Width <= 0 || cut.Height <= 0))
+            {
+                continue;
+            }
+
+            GpuBuffer instances = (draw.Frame ? _frameBuffer : _buffer)!;
+            if (!ReferenceEquals(instances, bound))
+            {
+                pass.BindVertexStorageBuffer(0, instances);
+                bound = instances;
+            }
+
             ref readonly State state = ref draw.State;
             if (state.Viewport != viewport)
             {
@@ -470,42 +609,88 @@ internal sealed class SpriteDrawList : IDisposable
         }
     }
 
-    // The instance the next quad writes, in the open draw if it shares texture, or in a new one.
-    private ref SpriteInstance Open(SampledTexture texture)
+    // Adds count kept instances on texture, whose regions sit at offsetX, offsetY on it, to the open draw if it
+    // shares texture and buffer, or to a new one, and returns whether the caller writes them as the last count.
+    // A recording logs the run and grows the instances. A reuse writes nothing, and checks the run against the log.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool Reserve(SampledTexture texture, int offsetX, int offsetY, int count)
     {
-        if (!_open || !ReferenceEquals(_draws[_drawCount - 1].Texture, texture))
+        Join(texture, frame: false, _count).Count += count;
+        _count += count;
+        if (_reusing)
         {
-            Grow(ref _draws, _drawCount);
-            _draws[_drawCount++] = new Draw(_state, texture, _count);
-            _open = true;
+            if (!_diverged)
+            {
+                Match(texture, offsetX, offsetY, count);
+            }
+
+            return false;
         }
 
-        Grow(ref _instances, _count);
-        _draws[_drawCount - 1].Count++;
+        if (_count > _instances.Length)
+        {
+            Array.Resize(ref _instances, Math.Max(_instances.Length * 2, _count));
+        }
 
-        return ref _instances[_count++];
+        if (_segmentCount > 0 && _segments[_segmentCount - 1].Continues(texture, offsetX, offsetY))
+        {
+            _segments[_segmentCount - 1].Count += count;
+        }
+        else
+        {
+            Grow(ref _segments, _segmentCount);
+            _segments[_segmentCount++] = new Segment(texture, offsetX, offsetY, count);
+        }
+
+        return true;
     }
 
-    // The instances the next count quads write, in the open draw if it shares texture, or in a new one.
-    private Span<SpriteInstance> Open(SampledTexture texture, int count)
+    // Checks a reuse's run against the log. Runs are logged back to back. A walk whose runs match every
+    // texture and offset in order has also landed on the same instances.
+    private void Match(SampledTexture texture, int offsetX, int offsetY, int count)
     {
-        if (!_open || !ReferenceEquals(_draws[_drawCount - 1].Texture, texture))
+        if (_segment == _segmentCount)
+        {
+            _diverged = true;
+            return;
+        }
+
+        ref readonly Segment logged = ref _segments[_segment];
+        if (!logged.Continues(texture, offsetX, offsetY) || _consumed + count > logged.Count)
+        {
+            _diverged = true;
+            return;
+        }
+
+        _consumed += count;
+        if (_consumed == logged.Count)
+        {
+            _segment++;
+            _consumed = 0;
+        }
+    }
+
+    // The instance the next frame quad writes, in the open draw if it shares texture and buffer, or in a new one.
+    private ref SpriteInstance OpenFrame(SampledTexture texture)
+    {
+        Join(texture, frame: true, _frameCount).Count++;
+        Grow(ref _frameInstances, _frameCount);
+
+        return ref _frameInstances[_frameCount++];
+    }
+
+    // The open draw where it shares texture and buffer, or a new one whose instances start at first.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref Draw Join(SampledTexture texture, bool frame, int first)
+    {
+        if (!_open || !ReferenceEquals(_draws[_drawCount - 1].Texture, texture) || _draws[_drawCount - 1].Frame != frame)
         {
             Grow(ref _draws, _drawCount);
-            _draws[_drawCount++] = new Draw(_state, texture, _count);
+            _draws[_drawCount++] = new Draw(_state, texture, first, frame);
             _open = true;
         }
 
-        if (_count + count > _instances.Length)
-        {
-            Array.Resize(ref _instances, Math.Max(_instances.Length * 2, _count + count));
-        }
-
-        _draws[_drawCount - 1].Count += count;
-        Span<SpriteInstance> instances = _instances.AsSpan(_count, count);
-        _count += count;
-
-        return instances;
+        return ref _draws[_drawCount - 1];
     }
 
     private readonly record struct Area(int X, int Y, int Width, int Height);
@@ -524,13 +709,22 @@ internal sealed class SpriteDrawList : IDisposable
         internal float ReadScale;
     }
 
-    // Count instances from First, drawn with Texture under State.
-    private struct Draw(State state, SampledTexture texture, int first)
+    // Count instances from First, drawn with Texture under State, from the frame's own buffer where Frame
+    // is set and the kept one otherwise.
+    private struct Draw(State state, SampledTexture texture, int first, bool frame)
     {
         internal readonly State State = state;
         internal readonly SampledTexture Texture = texture;
         internal readonly int First = first;
+        internal readonly bool Frame = frame;
         internal int Count;
+    }
+
+    // Count kept instances added back to back on Texture, their regions at OffsetX, OffsetY on it.
+    private record struct Segment(SampledTexture Texture, int OffsetX, int OffsetY, int Count)
+    {
+        internal readonly bool Continues(SampledTexture texture, int offsetX, int offsetY) =>
+            ReferenceEquals(Texture, texture) && OffsetX == offsetX && OffsetY == offsetY;
     }
 
     // The pass runs from FirstDraw to the next pass's. One that opens on a read of the picture copies Copied into Screen.

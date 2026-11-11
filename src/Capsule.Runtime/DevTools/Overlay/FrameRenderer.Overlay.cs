@@ -6,8 +6,8 @@ namespace Capsule.Runtime.Rendering;
 
 internal sealed partial class FrameRenderer
 {
-    // Draws a host-owned frame over the game frame Draw recorded, in the same command buffer, with an
-    // upload of its own. Its world list comes first, placed where the last game frame's world landed so it annotates that frame's
+    // Draws a host-owned frame over the game frame Draw recorded, in the same command buffer, with a draw
+    // list and an upload of its own. Its world list comes first, placed where the last game frame's world landed so it annotates that frame's
     // sprites, then its screen layer at an integer scale of the window's pixels, into the swapchain texture
     // after any capture's download. The host's own camera is not used here, and the world list is culled
     // against nothing and drawn at the settled step.
@@ -20,20 +20,28 @@ internal sealed partial class FrameRenderer
 
         int width = window.Width;
         int height = window.Height;
-        _sprites.Reset(1f);
-        _sprites.BeginPass(window, null);
-
-        if (_world is { } world && (!view.Sprites.IsEmpty || !view.Polygons.IsEmpty || !view.Lines.IsEmpty))
+        (_sprites, _overlaySprites) = (_overlaySprites, _sprites);
+        try
         {
-            DrawOverlayWorld(view, in world, width, height);
+            _sprites.Reset(1f, reuse: false);
+            _sprites.BeginPass(window, null);
+
+            if (_world is { } world && (!view.Sprites.IsEmpty || !view.Polygons.IsEmpty || !view.Lines.IsEmpty))
+            {
+                DrawOverlayWorld(view, in world, width, height);
+            }
+
+            DrawScreen(view, alpha: 1f, null, new ScreenPlacement(Vector2.Zero, scale), width, height, surfaceFactor: 1);
+
+            GpuCopyPass copy = commands.BeginCopyPass();
+            _sprites.Upload(copy);
+            copy.End();
+            _sprites.Execute(commands);
         }
-
-        DrawScreen(view, alpha: 1f, null, new ScreenPlacement(Vector2.Zero, scale), width, height, surfaceFactor: 1);
-
-        GpuCopyPass copy = commands.BeginCopyPass();
-        _sprites.Upload(copy);
-        copy.End();
-        _sprites.Execute(commands);
+        finally
+        {
+            (_sprites, _overlaySprites) = (_overlaySprites, _sprites);
+        }
     }
 
     // The world's region of the window is the fit inside the surface carried through the
