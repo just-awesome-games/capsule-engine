@@ -38,8 +38,8 @@ public abstract class Renderer : Component
             }
 
             Entity?.SceneOrNull?.Drawing.ThrowIfDrawing("set a renderer's ZIndex");
+            Entity?.SceneOrNull?.Drawing.Changing(Entity, band: false);
             field = value;
-            Entity?.SceneOrNull?.Drawing.Changed(Entity);
         }
     }
 

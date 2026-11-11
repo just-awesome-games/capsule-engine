@@ -23,12 +23,15 @@ public partial class Scene
     // name the scene's own panel and its camera's, and an entity asking for either starts at (1).
     private readonly Dictionary<string, int> _nameNumbers = new(StringComparer.Ordinal) { ["Scene"] = 1, ["Camera"] = 1 };
 
+    // How many entities left while they waited to start, their entries still in the wait. One of them
+    // that joins again takes a new place in the tree, which its old entry does not follow.
+    private int _leftWaiting;
+
+    // An entity joined after one left the wait, and the wait may no longer stand in tree order.
+    private bool _waitUnsorted;
+
     private int _attaching;
     private bool _starting;
-
-    // Set while the drain attaches its queued adds. A child landing mid-list then joins the end, and the
-    // order rebuilds once after the batch.
-    private bool _batchingAdds;
 
     // Whether a step is running, from BeginStep until EndStep finishes. A structural change waits for the drain.
     internal bool Stepping => _stepping;
@@ -173,7 +176,6 @@ public partial class Scene
         while (_pendingAdds.Count > 0 || _pendingRemoves.Count > 0 || _pendingStarts.Count > 0)
         {
             int processed = 0;
-            _batchingAdds = true;
             try
             {
                 while (processed < _pendingAdds.Count)
@@ -187,10 +189,9 @@ public partial class Scene
             }
             finally
             {
-                _batchingAdds = false;
                 DropProcessed(_pendingAdds, _pendingAddSet, processed);
 
-                // Before the removals and the starts, which run parent-first by slot.
+                // Before the removals and the starts, which run in tree order.
                 if (_tree.Stale)
                 {
                     RebuildOrder();
@@ -311,25 +312,17 @@ public partial class Scene
 
     private void Place(Entity entity)
     {
-        bool atEnd = _tree.Insert(entity, _batchingAdds);
+        _tree.Insert(entity);
         entity.SceneOrNull = this;
         entity.PendingScene = null;
-
-        if (atEnd)
-        {
-            Drawing.Appended(entity);
-        }
-        else
-        {
-            Drawing.Invalidate();
-        }
+        Drawing.Arrived(entity);
     }
 
     // Joins every entity composed before the scene started, in tree order. A hook that adds attaches
     // that entity at once, and one that removes a composed entity before its turn leaves it unjoined.
     private void JoinComposed()
     {
-        _tree.Compact();
+        _tree.Settle();
         _attaching++;
         try
         {
@@ -343,11 +336,12 @@ public partial class Scene
                     continue;
                 }
 
-                int version = _tree.Version;
+                int moves = _tree.Moves;
                 JoinTree(composed);
 
-                // A hook that moved entities may have shifted ones still waiting to an earlier slot.
-                index = version == _tree.Version ? index + 1 : 0;
+                // An entity a hook adds joins past the last slot, and one it removes leaves a hole. Only a
+                // read of the order or a rebuild moves the ones still waiting, perhaps to an earlier slot.
+                index = moves == _tree.Moves ? index + 1 : 0;
             }
         }
         finally
@@ -394,6 +388,8 @@ public partial class Scene
         entity.OnAddedToScene();
 
         _pendingStarts.Add(entity);
+        entity.WaitsToStart = true;
+        _waitUnsorted |= _leftWaiting > 0;
 
         // A hook may add or remove a child. The index advances only while its slot still holds the one just visited.
         // A hook that removed this entity, or an ancestor, ends the walk. The children left with it.
@@ -430,16 +426,6 @@ public partial class Scene
         }
     }
 
-    // A join hook inside the drain's add batch reads a list that mid-list joins left stale. No walk
-    // runs then, and the read rebuilds it into the order an eager insert would have kept.
-    private void SettleOrder()
-    {
-        if (_batchingAdds && _tree.Stale)
-        {
-            RebuildOrder();
-        }
-    }
-
     private void RebuildOrder()
     {
         _tree.Rebuild();
@@ -458,27 +444,77 @@ public partial class Scene
 
         try
         {
-            int processed = 0;
-            int sortedVersion = -1;
+            // Starts run in tree order, lowest label first, and a start may add entities that belong
+            // before ones still waiting. The wait is two runs in label order: the batch as it stood, from
+            // `first` up to `batch`, and the entities that joined since, from `second` up to `placed`.
+            // The next start is the lower head, and what lies before each head has started.
+            int first = 0;
+            int batch = 0;
+            int second = 0;
+            int placed = 0;
+            int reorders = _tree.Reorders - 1;
             try
             {
-                while (processed < _pendingStarts.Count)
+                while (true)
                 {
-                    // Joins, rebuilds and hooks move entities that wait, and starts run parent-first. A slot
-                    // moves only with the version. A batch with no moves sorts once.
-                    if (sortedVersion != _tree.Version)
+                    Span<Entity> waiting = CollectionsMarshal.AsSpan(_pendingStarts);
+                    if (reorders != _tree.Reorders || _waitUnsorted)
                     {
-                        sortedVersion = _tree.Version;
-                        if (_pendingStarts.Count - processed > 1)
+                        // A rebuild relabels every entity, and one that left the wait and joined again took
+                        // a new label. The starts of the second run change places with the batch still
+                        // waiting, and whatever waits and is still held sorts as one batch again.
+                        reorders = _tree.Reorders;
+                        waiting[first..batch].Reverse();
+                        waiting[batch..second].Reverse();
+                        waiting[first..second].Reverse();
+                        first += second - batch;
+
+                        int kept = first;
+                        for (int index = first; index < waiting.Length; index++)
                         {
-                            CollectionsMarshal.AsSpan(_pendingStarts)[processed..].Sort(static (left, right) => left.SceneSlot.CompareTo(right.SceneSlot));
+                            if (ReferenceEquals(waiting[index].SceneOrNull, this))
+                            {
+                                waiting[kept++] = waiting[index];
+                            }
                         }
+
+                        _pendingStarts.RemoveRange(kept, waiting.Length - kept);
+                        _leftWaiting = 0;
+                        _waitUnsorted = false;
+                        waiting = CollectionsMarshal.AsSpan(_pendingStarts);
+                        waiting[first..].Sort(static (left, right) => left.Order.CompareTo(right.Order));
+                        batch = second = placed = waiting.Length;
                     }
 
-                    Entity pending = _pendingStarts[processed];
-                    processed++;
+                    for (; placed < waiting.Length; placed++)
+                    {
+                        Entity arrival = waiting[placed];
+                        int slot = placed;
+                        while (slot > second && waiting[slot - 1].Order > arrival.Order)
+                        {
+                            slot--;
+                        }
+
+                        waiting[slot..placed].CopyTo(waiting[(slot + 1)..]);
+                        waiting[slot] = arrival;
+                    }
+
+                    Entity pending;
+                    if (first < batch && (second == waiting.Length || waiting[first].Order < waiting[second].Order))
+                    {
+                        pending = waiting[first++];
+                    }
+                    else if (second < waiting.Length)
+                    {
+                        pending = waiting[second++];
+                    }
+                    else
+                    {
+                        break;
+                    }
 
                     // Skip entities that attached and detached or were removed before their turn.
+                    pending.WaitsToStart = false;
                     if (Contains(pending))
                     {
                         pending.RunStart();
@@ -487,7 +523,7 @@ public partial class Scene
 
                 // A join never interpolates, wherever the batch's start hooks left each entity. The
                 // whole batch has started first, which covers a start that moved a peer.
-                for (int index = 0; index < processed; index++)
+                for (int index = 0; index < _pendingStarts.Count; index++)
                 {
                     if (Contains(_pendingStarts[index]))
                     {
@@ -497,7 +533,9 @@ public partial class Scene
             }
             finally
             {
-                _pendingStarts.RemoveRange(0, processed);
+                // What a failed start left waiting stays for the next batch.
+                _pendingStarts.RemoveRange(batch, second - batch);
+                _pendingStarts.RemoveRange(0, first);
             }
         }
         finally
@@ -544,6 +582,12 @@ public partial class Scene
         Entity entity = _tree.Vacate(index);
 
         Drawing.Left(entity);
+        if (entity.WaitsToStart)
+        {
+            entity.WaitsToStart = false;
+            _leftWaiting++;
+        }
+
         bool joined = entity.Joined;
         entity.Leaving = true;
         entity.SceneOrNull = null;
@@ -573,6 +617,7 @@ public partial class Scene
     private void ReleaseEntities(ref List<Exception>? failures)
     {
         // A removal hook may read the scene and compact it. Each pass re-checks the slot.
+        _tree.Settle();
         List<Entity> slots = _tree.Slots;
         for (int index = slots.Count - 1; index >= 0; index--)
         {
@@ -591,7 +636,7 @@ public partial class Scene
             }
         }
 
-        _tree.Compact();
+        _tree.Settle();
     }
 
     private void Release(List<Exception>? failures)
@@ -613,6 +658,13 @@ public partial class Scene
             }
         }
 
+        foreach (Entity waiting in _pendingStarts)
+        {
+            waiting.WaitsToStart = false;
+        }
+
+        _leftWaiting = 0;
+        _waitUnsorted = false;
         _pendingStarts.Clear();
         _pendingAdds.Clear();
         _pendingAddSet.Clear();

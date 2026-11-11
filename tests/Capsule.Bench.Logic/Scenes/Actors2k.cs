@@ -12,7 +12,7 @@ public sealed class Actors2k : Scene
         Camera = new ParkedCamera();
 
         Vector2 extent = World.ViewportSize - new Vector2(12f, 24f);
-        for (int index = 0; index < 2_000; index++)
+        for (int index = 0; index < Workloads.Scaled(2_000); index++)
         {
             Vector2 position = new((index * 7) % extent.X, (index * 13) % extent.Y);
             Vector2 velocity = new(((index % 6) - 2.5f) * 0.4f, ((index % 5) - 2) * 0.5f);

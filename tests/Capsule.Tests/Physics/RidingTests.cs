@@ -245,16 +245,48 @@ public sealed class RidingTests
         Assert.Equal(32f, body.Position.X, CollisionFixtures.Tolerance);
     }
 
-    // A shove judges each body as it reaches it in handle order. The crush of the first makes the
-    // second, on another layer, moved by the pusher, and the same move shoves it.
-    [Fact]
-    public void AShove_PushesABodyThatAnEarlierCrushMadeMovedByThePusher()
+    // A shove judges each body as it reaches it in handle order, as it then stands. The crush of the
+    // first makes the second moved by the pusher, and the same move shoves it: where it stood on another
+    // layer, where the crush also put it on the first's layer, and where the crush brought it into the path.
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void AShove_PushesABodyThatAnEarlierCrushMadeMovedByThePusher(bool ontoTheFirstsLayer, bool intoThePath)
     {
         Scene scene = SceneFixtures.Terrain("#....", "#....", "#....").Started();
         Slab pusher = new(new Vector2(40f, 20f), Platform, new Vector2(8f, 16f));
         Rider pinned = new(new Vector2(16f, 24f), Platform) { Collider = { Layer = Crate } };
-        Rider later = new(new Vector2(30f, 24f));
-        pinned.Mover.Crushed += _ => later.Mover.MovedBy = new(Platform);
+        Rider later = new(new Vector2(30f, intoThePath ? -200f : 24f));
+        pinned.Mover.Crushed += _ =>
+        {
+            if (ontoTheFirstsLayer)
+            {
+                later.Collider.Layer = Crate;
+            }
+
+            later.Position = new Vector2(30f, 24f);
+            later.Mover.MovedBy = new(Platform);
+        };
+        scene.Add(pusher);
+        scene.Add(pinned);
+        scene.Add(later);
+
+        pusher.Position = new Vector2(22f, 20f);
+
+        Assert.True(later.Position.X < 30f, $"the later body stayed at {later.Position.X}");
+    }
+
+    // The crush of the first body puts the pusher on another layer, which moves the second, and the same
+    // move shoves it.
+    [Fact]
+    public void AShove_PushesABodyMovedByTheLayerAnEarlierCrushPutThePusherOn()
+    {
+        Scene scene = SceneFixtures.Terrain("#....", "#....", "#....").Started();
+        Slab pusher = new(new Vector2(40f, 20f), Platform, new Vector2(8f, 16f));
+        Rider pinned = new(new Vector2(16f, 24f), Platform) { Collider = { Layer = Crate } };
+        Rider later = new(new Vector2(30f, 24f), "gate");
+        pinned.Mover.Crushed += _ => pusher.Collider.Layer = "gate";
         scene.Add(pusher);
         scene.Add(pinned);
         scene.Add(later);

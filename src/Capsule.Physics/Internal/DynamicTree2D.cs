@@ -157,6 +157,15 @@ internal sealed class DynamicTree2D
     // Whether any of the mask's layers has a proxy.
     internal bool Holds(ulong mask) => (mask & _rooted) != 0;
 
+    // Whether any proxy on the mask's layers has fat bounds that meet the box.
+    internal bool Overlaps(in Aabb2D box, ulong mask)
+    {
+        AnyVisitor visitor = default;
+        Query(box, mask, ref visitor);
+
+        return visitor.Found;
+    }
+
     // The layers' trees are walked in bit order, and each in the order a single tree is.
     internal void Query<TVisitor>(in Aabb2D box, ulong mask, ref TVisitor visitor)
         where TVisitor : struct, ITreeVisitor2D, allows ref struct
@@ -483,5 +492,18 @@ internal sealed class DynamicTree2D
         internal int Height;
 
         internal readonly bool IsLeaf => Child1 == NullNode;
+    }
+
+    // Ends a query at the first proxy it meets.
+    private struct AnyVisitor : ITreeVisitor2D
+    {
+        internal bool Found;
+
+        public bool Visit(int proxyId)
+        {
+            Found = true;
+
+            return false;
+        }
     }
 }

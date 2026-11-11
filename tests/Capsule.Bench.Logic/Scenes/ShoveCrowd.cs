@@ -8,7 +8,7 @@ namespace Capsule.Bench.Logic.Scenes;
 [Workload(WorkloadKind.Paced)]
 public sealed class ShoveCrowd : Scene
 {
-    private const int Crates = 600;
+    private static readonly int Crates = Workloads.Scaled(600);
 
     public ShoveCrowd()
     {

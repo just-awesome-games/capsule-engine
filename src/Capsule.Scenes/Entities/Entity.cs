@@ -141,8 +141,8 @@ public partial class Entity
             }
 
             SceneOrNull?.Drawing.ThrowIfDrawing("set an entity's ZIndex");
+            SceneOrNull?.Drawing.Changing(this, band: true);
             field = value;
-            SceneOrNull?.Drawing.Changed(this);
         }
     }
 
@@ -173,8 +173,8 @@ public partial class Entity
             }
 
             SceneOrNull?.Drawing.ThrowIfDrawing("set an entity's ZIndexIsAbsolute");
+            SceneOrNull?.Drawing.Changing(this, band: true);
             field = value;
-            SceneOrNull?.Drawing.Changed(this);
         }
     }
 
@@ -193,9 +193,29 @@ public partial class Entity
     // Sums the band from the parent's, which the order's walk has already summed.
     internal long SumDrawBand() => DrawBand = (ZIndexIsAbsolute ? 0 : Parent?.DrawBand ?? 0) + ZIndex;
 
-    // Where this entity's first renderer sits in tree order in its scene's draw order, with the rest after it
-    // in attachment order. The entity's keys are found by it as the entity leaves.
-    internal long DrawPosition { get; set; }
+    // Sums the band up the ancestry, trusting no ancestor's sum.
+    internal long SumDrawBandFromAncestors()
+    {
+        long band = 0;
+        for (Entity? above = this; above is not null; above = above.ZIndexIsAbsolute ? null : above.Parent)
+        {
+            band += above.ZIndex;
+        }
+
+        return DrawBand = band;
+    }
+
+    // This entity's place in its scene's tree order: higher than every entity before it and lower than
+    // every one after. It stands until the scene spreads its labels again.
+    internal long Order { get; set; }
+
+    // The entities before and after this one in its scene's tree order.
+    internal Entity? OrderPrev { get; set; }
+
+    internal Entity? OrderNext { get; set; }
+
+    // Whether the entity joined its scene since the draw order was last read, and holds no key in it yet.
+    internal bool AwaitsDrawOrder { get; set; }
 
     /// <summary>
     /// A marker or pivot at <paramref name="parent"/>'s origin. It has a place in the world and no
@@ -457,6 +477,13 @@ public partial class Entity
     internal int ChildSlot => _childSlot;
 
     // Scratch for the scene's root compaction, clear outside it.
+    // Whether the scene holding this entity keeps an entry for it among the entities waiting to start.
+    internal bool WaitsToStart
+    {
+        get => (_traits & Traits.WaitsToStart) != 0;
+        set => _traits = value ? _traits | Traits.WaitsToStart : _traits & ~Traits.WaitsToStart;
+    }
+
     internal bool Marked
     {
         get => (_traits & Traits.Marked) != 0;
@@ -568,6 +595,8 @@ public partial class Entity
             }
         }
 
+        // Before the hooks, since one may remove this entity and the draw order must know what it now holds.
+        NoteRendererChange(component);
         component.Entity = this;
         component.AttachStamp = _components.Count == 0 ? 1 : _components[^1].AttachStamp + 1;
         _components.Add(component);
@@ -575,9 +604,6 @@ public partial class Entity
         {
             _steppers++;
         }
-
-        // Before the hooks, since one may remove this entity and the draw order must know what it now holds.
-        NoteRendererChange(component);
 
         bool registered = false;
         try
@@ -668,6 +694,7 @@ public partial class Entity
     // while a renderer was attached, and the order learns it has gone.
     private void Unlist(Component component)
     {
+        NoteRendererChange(component);
         _components.RemoveAt(IndexOf(_components, component));
         if (component.Steps)
         {
@@ -675,15 +702,14 @@ public partial class Entity
         }
 
         component.Entity = null;
-        NoteRendererChange(component);
     }
 
-    // A renderer joining or leaving an entity a scene already holds changes that scene's draw order.
+    // A renderer about to join or leave an entity a scene already holds changes that scene's draw order.
     private void NoteRendererChange(Component component)
     {
         if (component is Renderer)
         {
-            SceneOrNull?.Drawing.Changed(this);
+            SceneOrNull?.Drawing.Changing(this, band: false);
         }
     }
 
@@ -1328,6 +1354,7 @@ public partial class Entity
         Joined = 16,
         ClipFresh = 32,
         WorldOrder = 64,
+        WaitsToStart = 128,
     }
 
     private struct ComponentWalk(List<Component> components)

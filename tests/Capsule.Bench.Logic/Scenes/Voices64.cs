@@ -11,7 +11,7 @@ public sealed class Voices64 : Scene
     {
         Camera = new ParkedCamera();
 
-        for (int index = 0; index < 64; index++)
+        for (int index = 0; index < Workloads.Scaled(64); index++)
         {
             Add(new Hummer(new Vector2(20f + ((index % 16) * 40f), 40f + ((index / 16) * 80f)), index));
         }

@@ -12,7 +12,7 @@ public sealed class Animators10k : Scene
         Camera = new ParkedCamera();
 
         Vector2 extent = World.ViewportSize - new Vector2(16f, 24f);
-        for (int index = 0; index < 10_000; index++)
+        for (int index = 0; index < Workloads.Scaled(10_000); index++)
         {
             Add(new Dancer(new Vector2(8f + ((index * 7) % extent.X), 24f + ((index * 13) % extent.Y)), index));
         }

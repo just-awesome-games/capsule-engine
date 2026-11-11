@@ -63,6 +63,65 @@ public sealed class SceneYSortTests
         Assert.Equal([5, 1, 2, 3, 4, 6], Order(run.Simulation.View.Sprites));
     }
 
+    // The arrival lands between two roots by its Y while a held root moves past both, and a root that
+    // leaves and returns is read where it then stands.
+    [Fact]
+    public void RootsJoiningAndLeavingAYSortedScene_DrawByTheirYWithoutARebuild()
+    {
+        Node low = Root(10f, 1);
+        Node leaving = Root(20f, 2);
+        Node high = Root(30f, 3);
+        SceneFixtures.HookScene scene = new() { YSort = true };
+        scene.Add(low);
+        scene.Add(leaving);
+        scene.Add(high);
+
+        using SimulationHost run = new(scene);
+        run.Step();
+        Assert.Equal([1, 2, 3], Order(run.Simulation.View.Sprites));
+        int rebuilds = scene.Drawing.Rebuilds;
+
+        scene.Remove(leaving);
+        Node arrival = Root(15f, 4);
+        scene.Add(arrival);
+        low.Position = new Vector2(0f, 40f);
+        run.Step();
+        Assert.Equal([4, 3, 1], Order(run.Simulation.View.Sprites));
+
+        scene.Remove(arrival);
+        scene.Add(arrival);
+        arrival.Position = new Vector2(0f, 35f);
+        run.Step();
+        Assert.Equal([3, 4, 1], Order(run.Simulation.View.Sprites));
+        Assert.Equal(rebuilds, scene.Drawing.Rebuilds);
+    }
+
+    // The root's keys stay in the order until it is next read, and its renderer no longer names it.
+    [Fact]
+    public void ARendererDetachedFromARootThatLeftAYSortedScene_IsGoneWhenTheTreeSpreadsItsLabels()
+    {
+        Node first = Root(10f, 1);
+        Node gone = Root(20f, 2);
+        Node last = Root(30f, 3);
+        SceneFixtures.HookScene scene = new() { YSort = true };
+        scene.Add(first);
+        scene.Add(last);
+        scene.Add(gone);
+        using SimulationHost run = new(scene);
+        run.Step();
+        Assert.Equal([1, 2, 3], Order(run.Simulation.View.Sprites));
+
+        scene.Remove(gone);
+        gone.Remove(gone.Get<SpriteRenderer>());
+        for (int index = 0; index < 70_000; index++)
+        {
+            _ = new Node(Vector2.Zero) { Parent = first };
+        }
+
+        run.Step();
+        Assert.Equal([1, 3], Order(run.Simulation.View.Sprites));
+    }
+
     private static Node Root(float y, int tag)
     {
         Node root = new(new Vector2(0f, y));

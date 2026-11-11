@@ -4,7 +4,7 @@ namespace Capsule.Bench.Logic.Entities;
 /// <remarks>About two thousand colliders join and leave the scene each second.</remarks>
 public sealed class Gun : Entity
 {
-    private const int PerStep = 34;
+    private static readonly int PerStep = Workloads.Scaled(34);
 
     private readonly EntityPool<Bullet> _pool = new(() => new Bullet(), 64 * PerStep);
     private readonly float _speed;

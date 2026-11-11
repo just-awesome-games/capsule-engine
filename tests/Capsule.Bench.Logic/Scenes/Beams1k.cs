@@ -22,14 +22,14 @@ public sealed class Beams1k : Scene
         Vector2 room = World.ViewportSize;
         Camera = new ParkedCamera();
 
-        for (int index = 0; index < 1_000; index++)
+        for (int index = 0; index < Workloads.Scaled(1_000); index++)
         {
             Add(new Beam(new Vector2((index % 40) * 16f, (index / 40) * 14f), index * 7));
         }
 
         // An actor turns back a body's width short of the room's far edges.
         Vector2 bounds = room - new Vector2(8f, 8f);
-        for (int index = 0; index < 1_000; index++)
+        for (int index = 0; index < Workloads.Scaled(1_000); index++)
         {
             Vector2 position = new((index * 37) % bounds.X, (index * 53) % bounds.Y);
             Vector2 velocity = new(((index % 6) - 2.5f) * 0.6f, ((index % 5) - 2) * 0.75f);

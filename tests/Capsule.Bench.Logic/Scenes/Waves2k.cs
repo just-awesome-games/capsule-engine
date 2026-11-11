@@ -17,7 +17,7 @@ public sealed class Waves2k : Scene
     {
         Camera = new ParkedCamera();
 
-        for (int index = 0; index < 2_000; index++)
+        for (int index = 0; index < Workloads.Scaled(2_000); index++)
         {
             Add(new Stem(new Vector2(6f + ((index % 50) * 12.8f), 12f + ((index / 50) * 9f)), Period));
         }

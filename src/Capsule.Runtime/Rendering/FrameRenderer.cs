@@ -22,6 +22,9 @@ internal sealed partial class FrameRenderer : IDisposable
     // The light map's scale: a light of one is stored as half of full. The map holds zero to two.
     private const float MapScale = 0.5f;
 
+    // How many handles a frame keeps the slices of.
+    private const int RecentSlices = 8;
+
     private readonly GpuDevice _device;
     private readonly SpriteDrawList _sprites;
     private readonly ShaderStore _shaders;
@@ -35,6 +38,12 @@ internal sealed partial class FrameRenderer : IDisposable
 
     // Every engine-owned texture. The draw path resolves a handle through a single table.
     private readonly Dictionary<TextureHandle, SampledTexture> _engineTextures;
+
+    // The slices of the handles this frame last changed to, the newest written over the oldest. Sprites
+    // that alternate among a few handles look each up once a frame instead of once a change.
+    private readonly TextureHandle[] _recentHandles = new TextureHandle[RecentSlices];
+    private readonly TextureSlice[] _recentSlices = new TextureSlice[RecentSlices];
+    private int _recentCount;
 
     // The declared canvas, or null when the world rasterises straight into the window pass at
     // whatever size the window is.
@@ -167,6 +176,10 @@ internal sealed partial class FrameRenderer : IDisposable
         // The scheduler leaves a whole step in the accumulator when a game exits mid-catch-up.
         alpha = Math.Clamp(alpha, 0f, 1f);
         _sprites.Reset(alpha);
+
+        // A store may load or release between frames, and no slice outlives the frame that fetched it.
+        _recentSlices.AsSpan().Clear();
+        _recentCount = 0;
 
         GpuCommandBuffer commands = _device.AcquireCommandBuffer();
         _commands = commands;
@@ -894,9 +907,7 @@ internal sealed partial class FrameRenderer : IDisposable
         if (pass.Slice.Texture is null || sprite.Sprite.Texture != pass.Resolved)
         {
             pass.Resolved = sprite.Sprite.Texture;
-            pass.Slice = pass.Resolved.IsEngineOwned
-                ? new TextureSlice(EngineTexture(pass.Resolved), 0, 0)
-                : _textures.Get(pass.Resolved);
+            pass.Slice = Slice(in pass.Resolved);
         }
 
         // A snapped quad puts both edges on the grid, or abutting tiles leave a gap at a fractional
@@ -904,6 +915,27 @@ internal sealed partial class FrameRenderer : IDisposable
         // turn by its pivot alone.
         _sprites.SetPlacement(pass.LayerCorner, pass.FrameCorner, pass.Snap ? pass.Scale : 0f);
         _sprites.Add(pass.Slice.Texture, in sprite, pass.Slice.OffsetX, pass.Slice.OffsetY);
+    }
+
+    private TextureSlice Slice(in TextureHandle handle)
+    {
+        int held = Math.Min(_recentCount, RecentSlices);
+        for (int index = 0; index < held; index++)
+        {
+            if (_recentHandles[index] == handle)
+            {
+                return _recentSlices[index];
+            }
+        }
+
+        TextureSlice slice = handle.IsEngineOwned
+            ? new TextureSlice(EngineTexture(handle), 0, 0)
+            : _textures.Get(handle);
+        int slot = _recentCount++ % RecentSlices;
+        _recentHandles[slot] = handle;
+        _recentSlices[slot] = slice;
+
+        return slice;
     }
 
     // A texture a material reads, whole or on its atlas page, or the transparent texel for the default

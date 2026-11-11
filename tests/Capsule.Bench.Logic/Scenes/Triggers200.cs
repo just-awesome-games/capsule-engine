@@ -26,7 +26,7 @@ public sealed class Triggers200 : Scene
         Vector2 extent = stacked ? new Vector2(192f, 192f) : room;
         Camera = new ParkedCamera(extent / 2f);
 
-        for (int index = 0; index < 200; index++)
+        for (int index = 0; index < Workloads.Scaled(200); index++)
         {
             Vector2 zone = stacked ? extent / 2f : new Vector2((index % 20) * 64f, (index / 20) * 72f);
             Add(new Zone(zone, new Vector2(96f, 96f)));
@@ -34,7 +34,7 @@ public sealed class Triggers200 : Scene
 
         // An actor turns back a body's width short of the area's far edges.
         Vector2 bounds = extent - new Vector2(8f, 8f);
-        for (int index = 0; index < 1_000; index++)
+        for (int index = 0; index < Workloads.Scaled(1_000); index++)
         {
             Vector2 position = new((index * 37) % bounds.X, (index * 53) % bounds.Y);
             Vector2 velocity = new(((index % 6) - 2.5f) * 0.6f, ((index % 5) - 2) * 0.75f);

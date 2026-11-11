@@ -837,9 +837,9 @@ public sealed partial class KinematicBody2D : Component
             return;
         }
 
-        scene.Physics.CountBodyLayer(_layerIndex, -1);
+        scene.Physics.CountBody(MovedByFilter, _layerIndex, -1);
         _layerIndex = layerIndex;
-        scene.Physics.CountBodyLayer(_layerIndex, 1);
+        scene.Physics.CountBody(MovedByFilter, _layerIndex, 1);
     }
 
     private void Displace(Entity entity, Vector2 translation)
@@ -935,11 +935,10 @@ public sealed partial class KinematicBody2D : Component
         _blockedByFilter = Collider2D.ResolveFilter(_scene.Physics.World, _blockedBy);
         MovedByFilter = Collider2D.ResolveFilter(_scene.Physics.World, _movedBy);
         Filter = _blockedByFilter | MovedByFilter;
-        _scene.Physics.CountMovedBy(MovedByFilter, 1);
 
         // Interned by name, as the collider may join the scene after this body.
         _layerIndex = _scene.Physics.World.Layer(_collider.Layer).Index;
-        _scene.Physics.CountBodyLayer(_layerIndex, 1);
+        _scene.Physics.CountBody(MovedByFilter, _layerIndex, 1);
         _collider.Body = this;
     }
 
@@ -949,8 +948,7 @@ public sealed partial class KinematicBody2D : Component
         // Classifying no contacts clears the flags and normals and ends the ride.
         _moveContactCount = 0;
         Classify();
-        _scene?.Physics.CountMovedBy(MovedByFilter, -1);
-        _scene?.Physics.CountBodyLayer(_layerIndex, -1);
+        _scene?.Physics.CountBody(MovedByFilter, _layerIndex, -1);
         _scene = null;
 
         // A new scene's host may count its ticks from zero again.

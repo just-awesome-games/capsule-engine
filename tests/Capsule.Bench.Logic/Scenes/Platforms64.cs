@@ -30,7 +30,7 @@ public sealed class Platforms64 : Scene
         Camera = new ParkedCamera(stacked ? home : room / 2f);
 
         // Up-and-down and side-to-side swings alternate, each at its own phase.
-        for (int index = 0; index < 64; index++)
+        for (int index = 0; index < Workloads.Scaled(64); index++)
         {
             Vector2 start = stacked ? home : new Vector2(64f + ((index % 8) * 150f), 60f + ((index / 8) * 84f));
             Shuttle shuttle = new(start, index % 2 == 0, index * 17);

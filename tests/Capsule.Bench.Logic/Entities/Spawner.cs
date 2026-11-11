@@ -6,7 +6,7 @@ namespace Capsule.Bench.Logic.Entities;
 /// </summary>
 public sealed class Spawner : Entity
 {
-    private const int PerStep = 34;
+    private static readonly int PerStep = Workloads.Scaled(34);
 
     private const int LifeSteps = 30;
 

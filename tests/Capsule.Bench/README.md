@@ -16,6 +16,8 @@ artifacts/bench/publish/Capsule.Bench suite --label <text> [--lane simulation|re
 
 `dotnet run -c Release --project tests/Capsule.Bench --` takes every command below JIT-compiled with `TieredCompilation=false`, for iterating and profiling. Its absolute numbers differ from the publish's.
 
+`--scale <n>` on a workload run by hand multiplies the populations of the workloads that read `Workloads.Scaled`, 1 when absent. The same row at 1, 4 and 16 is its scaling curve, and a row whose cost grows faster than its scale has found something. The suite takes no scale, and a record always holds scale 1.
+
 `--lane` runs one lane, and the record's `lane` names it (`all` without the option). The windowed lane paces to vertical sync unless `--uncapped` is given, and then `intervalMs` is the host's true frame cost. The suite refuses `--uncapped` with a headless lane. Each workload runs in a child process on the engine's own command line, and `-- --scene Crowd1k [--uncapped]` runs one by hand. A record goes to `results/<UTC timestamp>.json` and is committed. Frame CSVs go under `artifacts/bench/` as `<row>.csv` and are not. The captures of `Still`'s rows go there as `<row>-<label>.png` and are not either, except a capture a later change is measured against, which is kept under `results/captures/<label>/`.
 
 ## Reading a record
@@ -49,6 +51,12 @@ dotnet-trace report artifacts/bench/traces/Crowd1k.nettrace topN -n 30 [--inclus
 ```
 
 `dotnet-trace` creates no directory and needs the shell's absolute path. `topN` ranks by exclusive time, and `--inclusive` by time with the method anywhere on the stack. A small inlined method shows up as its caller's time. The sampler's own pauses show up as `Thread.PollGC` time and count toward every method above it on the stack, such as a long `Array.Copy` of references. A method whose inclusive time is mostly `PollGC` needs a before-and-after `StepTimer` run before it counts as a cost. To find what allocates, collect with `--profile gc-verbose` and read the `GC/AllocationTick` stacks in PerfView. `--format Speedscope` writes a flame graph for speedscope.app. Traces stay under `artifacts/bench/`.
+
+The `Startup` driver times a load. It prints `bootMs`, from the start of the process to the first step's request, the bytes allocated by then, each of the first eight steps, and the managed heap held after them, then ends the run. `bootMs` holds the runtime's own start, and a workload is read against a lighter one from the same build:
+
+```text
+artifacts/bench/publish/Capsule.Bench --scene StartSpawns --headless --driver Startup [--scale <n>]
+```
 
 ## Allocation in a NativeAOT build
 

@@ -9,12 +9,12 @@ public sealed class SceneDrawOrderPatchTests
 {
     private readonly List<Logged> _log = [];
 
-    // A rebuild numbers the renderers from zero, which would hand the arrival the place of the one that left.
     [Fact]
     public void ARootArrivingAndOneLeaving_PatchTheOrderWithoutARebuild()
     {
         Node[] held = [Holding(2), Holding(0), Holding(1)];
         using SimulationHost run = Started(out Scene scene, held);
+        int rebuilds = scene.Drawing.Rebuilds;
 
         scene.Remove(held[1]);
         Node arrival = Holding(1);
@@ -22,7 +22,76 @@ public sealed class SceneDrawOrderPatchTests
         run.Step();
 
         Assert.Equal([held[2].Get<Logged>(), arrival.Get<Logged>(), held[0].Get<Logged>()], Drawn(scene));
-        Assert.Equal(3, arrival.DrawPosition);
+        Assert.Equal(rebuilds, scene.Drawing.Rebuilds);
+    }
+
+    // The child lands in the middle of the tree and of its band, and no entity held moves for it.
+    [Fact]
+    public void AChildArrivingUnderAnEarlierRoot_PatchesTheOrderWithoutARebuild()
+    {
+        Node[] held = [Holding(1), Holding(1), Holding(0)];
+        using SimulationHost run = Started(out Scene scene, held);
+        int rebuilds = scene.Drawing.Rebuilds;
+
+        Node child = Holding(1);
+        child.Parent = held[0];
+        run.Step();
+
+        Assert.Equal([held[2].Get<Logged>(), held[0].Get<Logged>(), child.Get<Logged>(), held[1].Get<Logged>()], Drawn(scene));
+        Assert.Equal(rebuilds, scene.Drawing.Rebuilds);
+    }
+
+    // It never held a key, and leaving takes none out.
+    [Fact]
+    public void AnArrivalLeavingBeforeTheOrderIsRead_PatchesTheOrderWithoutARebuild()
+    {
+        Node kept = Holding(0);
+        using SimulationHost run = Started(out Scene scene, kept);
+        int rebuilds = scene.Drawing.Rebuilds;
+
+        Node brief = Holding(0);
+        scene.Add(brief);
+        scene.Remove(brief);
+        scene.Add(brief);
+        scene.Remove(brief);
+        Node arrival = Holding(0);
+        scene.Add(arrival);
+
+        Assert.Equal([kept.Get<Logged>(), arrival.Get<Logged>()], Drawn(scene));
+        Assert.Equal(rebuilds, scene.Drawing.Rebuilds);
+    }
+
+    // Each change takes the entity out of the order as it stood and reads it again as an arrival.
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void AnEntityWithNoChildChangingItsBandOrItsRenderers_PatchesTheOrderWithoutARebuild(int change)
+    {
+        Node[] held = [Holding(1), Holding(1), Holding(1)];
+        using SimulationHost run = Started(out Scene scene, held);
+        int rebuilds = scene.Drawing.Rebuilds;
+
+        Logged renderer = held[0].Get<Logged>();
+        switch (change)
+        {
+            case 0:
+                held[0].ZIndex = 1;
+                break;
+            case 1:
+                renderer.ZIndex = 2;
+                break;
+            case 2:
+                held[0].Add(new Logged(_log) { ZIndex = 5 });
+                break;
+            default:
+                held[0].Remove(renderer);
+                break;
+        }
+
+        Assert.Equal(Expected(scene), Drawn(scene));
+        Assert.Equal(rebuilds, scene.Drawing.Rebuilds);
     }
 
     [Fact]
@@ -30,24 +99,27 @@ public sealed class SceneDrawOrderPatchTests
     {
         Node first = Holding(1);
         using SimulationHost run = Started(out Scene scene, first);
+        int rebuilds = scene.Drawing.Rebuilds;
 
         Settling arrival = new(new Logged(_log));
         scene.Add(arrival);
         run.Step();
 
         Assert.Equal([arrival.Late, first.Get<Logged>()], Drawn(scene));
-        Assert.Equal(1, arrival.DrawPosition);
+        Assert.Equal(rebuilds, scene.Drawing.Rebuilds);
     }
 
-    // A rebuild numbers the wave from zero, past the one that left. What it leaves behind still patches.
+    // The wave lands below a held band and where a renderer left, and what it leaves behind still patches.
     [Fact]
-    public void AWaveTooLargeToInsert_RebuildsAndStillPatchesAfter()
+    public void AWaveArrivingBelowAHeldBand_MergesWithoutARebuild()
     {
+        Node kept = Holding(2);
         Node first = Holding(1);
-        using SimulationHost run = Started(out Scene scene, first);
+        using SimulationHost run = Started(out Scene scene, kept, first);
+        int rebuilds = scene.Drawing.Rebuilds;
 
         scene.Remove(first);
-        Node[] wave = [.. Enumerable.Range(0, 1_000).Select(_ => Holding(0))];
+        Node[] wave = [.. Enumerable.Range(0, 1_000).Select(index => Holding(1 - (index % 2)))];
         foreach (Node node in wave)
         {
             scene.Add(node);
@@ -55,11 +127,10 @@ public sealed class SceneDrawOrderPatchTests
 
         run.Step();
         Assert.Equal(Expected(scene), Drawn(scene));
-        Assert.Equal(0, wave[0].DrawPosition);
-
         scene.Remove(wave[500]);
         run.Step();
         Assert.Equal(Expected(scene), Drawn(scene));
+        Assert.Equal(rebuilds, scene.Drawing.Rebuilds);
     }
 
     [Fact]

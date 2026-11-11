@@ -41,6 +41,55 @@ public sealed class EntityStartOrderTests
         Assert.Equal(["parent!", "child!"], log.Where(static entry => entry.EndsWith('!')));
     }
 
+    // Each rejoin gives the entity a new place in the tree, and its place in the wait follows it: one
+    // sent to the end, one brought before the rest under the entity starting, and two sent to the end.
+    [Theory]
+    [InlineData(0, "c!", "d!", "b!")]
+    [InlineData(1, "d!", "b!", "c!")]
+    [InlineData(2, "d!", "b!", "c!")]
+    public void EntitiesRemovedAndAddedBackByAnEarlierStart_StartWhereTheyThenStand(int rejoins, params string[] expected)
+    {
+        List<string> log = [];
+        SceneFixtures.HookScene scene = new();
+        using SceneSimulation simulation = new(scene);
+        simulation.Step(SceneFixtures.Step());
+
+        Node root = new(Vector2.Zero);
+        Recorder b = new("b", log, logsStart: true);
+        Recorder c = new("c", log, logsStart: true);
+        Recorder d = new("d", log, logsStart: true);
+        Starter? first = null;
+        first = new Starter(() =>
+        {
+            switch (rejoins)
+            {
+                case 0:
+                    scene.Remove(b);
+                    scene.Add(b);
+                    break;
+                case 1:
+                    scene.Remove(d);
+                    d.Parent = first;
+                    break;
+                default:
+                    scene.Remove(b);
+                    scene.Add(b);
+                    scene.Remove(c);
+                    scene.Add(c);
+                    break;
+            }
+        })
+        {
+            Parent = root,
+        };
+        b.Parent = root;
+        c.Parent = root;
+        d.Parent = root;
+        scene.Add(root);
+
+        Assert.Equal(expected, log.Where(static entry => entry.EndsWith('!')));
+    }
+
     [Fact]
     public void AReparentOfQueuedEntities_StartsThemInTreeOrder_NotQueueOrder()
     {
@@ -120,5 +169,10 @@ public sealed class EntityStartOrderTests
         }
 
         protected internal override void OnStart() => log.Add("parent!");
+    }
+
+    private sealed class Starter(Action start) : Entity(Vector2.Zero)
+    {
+        protected internal override void OnStart() => start();
     }
 }

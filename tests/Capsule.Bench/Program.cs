@@ -46,6 +46,11 @@ internal static class Program
             args = [.. args[..soak], .. args[(soak + 2)..]];
         }
 
+        if (TakeOption(ref args, "--scale") is { } scale)
+        {
+            Workloads.Scale = double.Parse(scale, CultureInfo.InvariantCulture);
+        }
+
         // A lane's row is its scene's class name or the variant it names. The engine runs the class, and
         // the scene reads the row from Workloads.Running as it composes. The surface is a boot option,
         // the Rendering lane's of the row. None, or a row this assembly does not know, boots the default.

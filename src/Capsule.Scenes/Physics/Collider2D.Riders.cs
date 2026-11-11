@@ -118,17 +118,21 @@ public abstract partial class Collider2D
             .Expanded(CollisionTolerance.ContactSkin);
         Aabb2D reach = new(path.Min, path.Max + new Vector2(0f, _scene.Physics.DeepestSink));
 
-        _near ??= new ColliderHandle[8];
-        int count = world.CollidersNear(reach, _scene.Physics.BodyLayers, _handle, _near);
-        if (count > _near.Length)
-        {
-            Grow(ref _near, count);
-            count = world.CollidersNear(reach, _scene.Physics.BodyLayers, _handle, _near);
-        }
+        int changes = _scene.Physics.BodyChanges;
+        int layer = _layerIndex;
+        int count = GatherNear(world, reach, _scene.Physics.LayersMovedBy(layer));
 
+        // The slot of the last body judged. A gather made again passes over the ones up to it.
+        int judged = -1;
         for (int index = 0; index < count && _world is not null; index++)
         {
-            ColliderHandle near = _near[index];
+            ColliderHandle near = _near![index];
+            if (near.Index <= judged)
+            {
+                continue;
+            }
+
+            judged = near.Index;
             if (!world.Contains(near)
                 || world.UserDataOf(near) is not Collider2D { Body: { } body }
                 || !body.IsMovedBy(_layerIndex)
@@ -149,7 +153,32 @@ public abstract partial class Collider2D
 
             // The sweep reports the body's normal. The pusher's surface faces the other way.
             body.Shove(this, motion * (1f - fraction), -normal, point);
+
+            // A handler the shove raised may have changed which bodies this collider moves, or the layer
+            // it is on. The bodies past this one are gathered again as they now stand.
+            if (_scene is { } scene && (scene.Physics.BodyChanges != changes || _layerIndex != layer))
+            {
+                changes = scene.Physics.BodyChanges;
+                layer = _layerIndex;
+                count = GatherNear(world, reach, scene.Physics.LayersMovedBy(layer));
+                index = -1;
+            }
         }
+    }
+
+    // Fills _near with the colliders on `layers` whose boxes meet `reach`, in slot order, and returns
+    // how many there are.
+    private int GatherNear(CollisionWorld2D world, in Aabb2D reach, ulong layers)
+    {
+        _near ??= new ColliderHandle[8];
+        int count = world.CollidersNear(reach, layers, _handle, _near);
+        if (count > _near.Length)
+        {
+            Grow(ref _near, count);
+            count = world.CollidersNear(reach, layers, _handle, _near);
+        }
+
+        return count;
     }
 
     // Whether an entity is this collider's own or one of its ancestors, which move with it already.

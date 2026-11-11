@@ -11,6 +11,12 @@ public static class Workloads
     /// <summary>The row the shell runs, which a scene declaring a variant row reads as it composes, or null when the command line names none.</summary>
     public static string? Running { get; set; }
 
+    /// <summary>What a scaled workload multiplies its counts by, 1 unless <c>--scale</c> names another: the same shape at several sizes is a scaling curve.</summary>
+    public static double Scale { get; set; } = 1d;
+
+    /// <summary>A count at the running scale.</summary>
+    public static int Scaled(int count) => (int)(count * Scale);
+
     private static Type[] Build()
     {
         List<Type> classes = [];

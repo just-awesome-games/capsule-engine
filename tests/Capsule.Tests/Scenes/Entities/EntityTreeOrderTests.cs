@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Rendering;
 using Capsule.Scenes;
 using static Capsule.Tests.Scenes.EntityHierarchyFixtures;
 using Recorder = Capsule.Tests.Scenes.SceneFixtures.Recorder;
@@ -63,8 +64,8 @@ public sealed class EntityTreeOrderTests
         Assert.Equal(expected, scene.Entities.ToArray());
     }
 
-    // Children joining held parents in one drain land mid-list. The drain places them as eager inserts
-    // would, and starts them parent-first in tree order.
+    // Children joining held parents in one drain land in the middle of the tree. The drain places each
+    // where it belongs, and starts them parent-first in tree order.
     [Fact]
     public void ChildrenJoiningHeldParentsInOneStep_LandInTreeOrderAndStartInIt()
     {
@@ -130,6 +131,51 @@ public sealed class EntityTreeOrderTests
         simulation.Step(SceneFixtures.Step(tick: 1));
 
         Assert.Equal<Entity>([parent, first, second, other, watcher], second.Seen);
+    }
+
+    // Children join one after another ahead of the same root until no label is left between two of them.
+    // The tree spreads its labels again, and each key the draw order holds follows its entity.
+    [Fact]
+    public void ChildrenJoiningUntilTheLabelsBetweenTwoRootsRunOut_KeepTreeOrderAndPatchTheDrawOrder()
+    {
+        List<Entity> drawn = [];
+        Scene scene = new();
+        Node first = new(Vector2.Zero);
+        Node last = new(Vector2.Zero);
+        first.Add(new Logging(drawn));
+        last.Add(new Logging(drawn));
+        scene.Add(first);
+        scene.Add(last);
+        using SimulationHost run = new(scene);
+        run.Step();
+        FrameView view = new();
+        scene.Drawing.DrawFrame(view);
+        int rebuilds = scene.Drawing.Rebuilds;
+
+        List<Entity> expected = [first];
+        for (int index = 0; index < 70_000; index++)
+        {
+            Node child = new(Vector2.Zero) { Parent = first };
+            child.Add(new Logging(drawn));
+            expected.Add(child);
+            if (index % 10_000 == 0)
+            {
+                scene.Drawing.DrawFrame(view);
+            }
+        }
+
+        expected.Add(last);
+        drawn.Clear();
+        scene.Drawing.DrawFrame(view);
+
+        Assert.Equal(expected, scene.Entities.ToArray());
+        Assert.Equal(expected, drawn);
+        Assert.Equal(rebuilds, scene.Drawing.Rebuilds);
+    }
+
+    private sealed class Logging(List<Entity> drawn) : Renderer
+    {
+        protected internal override void Draw(FrameView view) => drawn.Add(Entity!);
     }
 
     private sealed class Observer() : Entity(Vector2.Zero)

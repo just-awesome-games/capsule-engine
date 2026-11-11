@@ -205,9 +205,9 @@ public sealed partial class KinematicBody2D
             return;
         }
 
-        _scene!.Physics.CountMovedBy(MovedByFilter, -1);
+        _scene!.Physics.CountBody(MovedByFilter, _layerIndex, -1);
         MovedByFilter = effective;
-        _scene.Physics.CountMovedBy(effective, 1);
+        _scene.Physics.CountBody(effective, _layerIndex, 1);
         Unride();
     }
 

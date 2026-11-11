@@ -11,7 +11,7 @@ public sealed class Hierarchy : Scene
     {
         Camera = new ParkedCamera();
 
-        for (int index = 0; index < 2_000; index++)
+        for (int index = 0; index < Workloads.Scaled(2_000); index++)
         {
             Add(new Gimbal(new Vector2(6f + ((index % 50) * 12.8f), 6f + ((index / 50) * 9f)), index));
         }

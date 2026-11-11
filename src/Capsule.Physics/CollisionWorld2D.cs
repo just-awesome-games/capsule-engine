@@ -531,7 +531,8 @@ public sealed partial class CollisionWorld2D
     }
 
     // The nearest hit on the segment from one point to another, for a caller that has validated the filter: a
-    // particle's move in one step. Most such moves stay inside one empty cell and skip the walk.
+    // particle's move in one step. Most such moves stay inside one empty cell, clear of every collider's
+    // box, and skip the walk.
     internal bool SegmentCast(Vector2 from, Vector2 to, CollisionFilter filter, out RayHit2D hit)
     {
         hit = default;
@@ -541,11 +542,11 @@ public sealed partial class CollisionWorld2D
         return distance > 0f && MayMeet(from, to, filter) && RaycastWalk(from, move / distance, distance, filter, default, out hit);
     }
 
-    // Whether a segment could meet anything: a collider on the filter's layers, or a grid cell other than one
-    // empty cell holding the whole segment.
+    // Whether a segment could meet anything: a collider on the filter's layers whose box it reaches, or a
+    // grid cell other than one empty cell holding the whole segment.
     private bool MayMeet(Vector2 from, Vector2 to, CollisionFilter filter)
     {
-        if (_tree.Holds(filter.Bits))
+        if (_tree.Holds(filter.Bits) && _tree.Overlaps(new Aabb2D(Vector2.Min(from, to), Vector2.Max(from, to)), filter.Bits))
         {
             return true;
         }

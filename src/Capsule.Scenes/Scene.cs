@@ -286,11 +286,7 @@ public partial class Scene
     /// </summary>
     public ReadOnlySpan<Entity> Entities
     {
-        get
-        {
-            SettleOrder();
-            return _tree.Held;
-        }
+        get => _tree.Held;
     }
 
     /// <summary>
@@ -394,8 +390,7 @@ public partial class Scene
     public EntityWalk<T> FindAll<T>()
         where T : class
     {
-        SettleOrder();
-        _tree.Compact();
+        _tree.Settle();
         return new(this);
     }
 

@@ -11,7 +11,7 @@ public sealed class Chains200 : Scene
     {
         Camera = new ParkedCamera();
 
-        for (int index = 0; index < 200; index++)
+        for (int index = 0; index < Workloads.Scaled(200); index++)
         {
             Add(new Chain(new Vector2(16f + ((index % 20) * 30f), 8f + ((index / 20) * 34f)), index * 7));
         }

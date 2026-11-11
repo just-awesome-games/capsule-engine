@@ -12,7 +12,7 @@ public sealed class FrameBoxes1k : Scene
         Camera = new ParkedCamera();
 
         Vector2 extent = World.ViewportSize - new Vector2(48f, 24f);
-        for (int index = 0; index < 1_000; index++)
+        for (int index = 0; index < Workloads.Scaled(1_000); index++)
         {
             Add(new Striker(new Vector2(24f + ((index * 7) % extent.X), 24f + ((index * 13) % extent.Y)), index));
         }
