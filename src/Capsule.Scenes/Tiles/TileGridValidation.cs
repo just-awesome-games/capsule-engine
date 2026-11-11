@@ -81,7 +81,7 @@ internal static class TileGridValidation
     }
 
     // Each authored transform as the TileTransform it stands for. A byte cast alone would wrap an out-of-range value.
-    internal static byte[] Turned(int[] authored)
+    internal static byte[] Turned(ReadOnlySpan<int> authored)
     {
         byte[] facings = new byte[authored.Length];
         for (int i = 0; i < facings.Length; i++)

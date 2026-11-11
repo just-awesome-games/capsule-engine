@@ -92,8 +92,9 @@ public sealed class ShaderBuildTests
         """;
 
     // Every format binds as SDL's GPU API reads it: each texture with a sampler at its own slot of the
-    // fragment's resources, the sprite's at 0, then the material's uniforms in buffer 0 and the scene
-    // globals in buffer 1. The DXIL is signed, without which Direct3D 12 refuses it.
+    // fragment's resources, the sprite's at 0, then the material's uniforms in buffer 0, the scene
+    // globals in buffer 1 and the regions of its textures in buffer 3. The DXIL is signed, without which
+    // Direct3D 12 refuses it.
     [Fact]
     public void EveryFormat_BindsInSdlsLayout()
     {
@@ -106,7 +107,7 @@ public sealed class ShaderBuildTests
             static format => ShaderContainer.Read(File.ReadAllBytes($"{ToolWorkspace.Out}/assets/shaders/grained.{format}.shader"), format));
         foreach (ShaderContainer shader in shaders.Values)
         {
-            Assert.Equal((ShaderStage.Fragment, 2, 2), (shader.Stage, shader.Samplers, shader.UniformBuffers));
+            Assert.Equal((ShaderStage.Fragment, 2, 4), (shader.Stage, shader.Samplers, shader.UniformBuffers));
             Assert.Equal(
                 [new("Amount", ShaderParameterKind.Float, false, 0), new("WorldAdd", ShaderParameterKind.Vector3, true, 0), new ShaderBinding("Grain", ShaderParameterKind.Texture, false, 1)],
                 shader.Parameters);
@@ -115,14 +116,14 @@ public sealed class ShaderBuildTests
         string reflection = Tool("spirv-cross", Write("grained.spv", shaders[ShaderCompiler.Spirv].Code), "--reflect");
         using JsonDocument spirv = JsonDocument.Parse(reflection);
         Assert.Equal(
-            ["CapsuleSampler_Grain 2:1", "CapsuleSampler_SpriteTexture 2:0", "Grain 2:1", "SpriteTexture 2:0", "type.$Globals 3:0", "type.SceneGlobals 3:1"],
+            ["CapsuleSampler_Grain 2:1", "CapsuleSampler_SpriteTexture 2:0", "Grain 2:1", "SpriteTexture 2:0", "type.$Globals 3:0", "type.CapsuleTextureRegions 3:3", "type.SceneGlobals 3:1"],
             ((string[])["separate_images", "separate_samplers", "ubos"])
                 .SelectMany(kind => spirv.RootElement.GetProperty(kind).EnumerateArray())
                 .Select(static resource => $"{resource.GetProperty("name").GetString()} {resource.GetProperty("set").GetInt32()}:{resource.GetProperty("binding").GetInt32()}")
                 .Order(StringComparer.Ordinal));
 
         string dxil = Tool("dxc", "-dumpbin", Write("grained.dxil", shaders[ShaderCompiler.Dxil].Code));
-        foreach (string register in (string[])["cb0,space3", "cb1,space3", "s0,space2", "s1,space2", "t0,space2", "t1,space2"])
+        foreach (string register in (string[])["cb0,space3", "cb1,space3", "cb3,space3", "s0,space2", "s1,space2", "t0,space2", "t1,space2"])
         {
             Assert.Contains(register, dxil, StringComparison.Ordinal);
         }
@@ -130,14 +131,15 @@ public sealed class ShaderBuildTests
         Assert.True(ShaderCompiler.Signed(shaders[ShaderCompiler.Dxil].Code));
 
         string msl = Encoding.UTF8.GetString(shaders[ShaderCompiler.Msl].Code);
-        foreach (string binding in (string[])["Grain [[texture(1)]]", "CapsuleSampler_Grain [[sampler(1)]]", "[[buffer(0)]]", "[[buffer(1)]]"])
+        foreach (string binding in (string[])["Grain [[texture(1)]]", "CapsuleSampler_Grain [[sampler(1)]]", "[[buffer(0)]]", "[[buffer(1)]]", "[[buffer(3)]]"])
         {
             Assert.Contains(binding, msl, StringComparison.Ordinal);
         }
     }
 
     // A fragment that reads the picture says so in its key, which is how a frame knows to copy, and takes a sampler
-    // and the third uniform buffer past its own in every format. One that doesn't read takes neither.
+    // and the third uniform buffer past its own in every format. One that doesn't read takes neither. Either
+    // takes the fourth buffer, which places its texture.
     [Fact]
     public void ReadingTheScreen_IsDeclared_AndBindsAfterTheFragmentsOwnTextures()
     {
@@ -152,8 +154,8 @@ public sealed class ShaderBuildTests
         {
             ShaderContainer reads = Shipped("reads", format);
             ShaderContainer keeps = Shipped("keeps", format);
-            Assert.Equal((3, 3), (reads.Samplers, reads.UniformBuffers));
-            Assert.Equal((2, 0), (keeps.Samplers, keeps.UniformBuffers));
+            Assert.Equal((3, 4), (reads.Samplers, reads.UniformBuffers));
+            Assert.Equal((2, 4), (keeps.Samplers, keeps.UniformBuffers));
         }
 
         string metal = Encoding.UTF8.GetString(Shipped("reads", ShaderCompiler.Msl).Code);
@@ -278,11 +280,12 @@ public sealed class ShaderBuildTests
         return name;
     }
 
-    // Every format the engine compiles reads a texel by index, asks a texture its size and rounds, and a
-    // fragment doing so builds.
+    // Every format the engine compiles reads one texel by its place, asks a texture and the sprite's their
+    // sizes and rounds, and a fragment doing so builds.
     [Theory]
-    [InlineData("Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Grain.Load(int3(2, 3, 0)) * pixel.Texel; }")]
-    [InlineData("Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { uint w, h; Grain.GetDimensions(w, h); return Sample(Grain, pixel.UV) * w; }")]
+    [InlineData("Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Texel(Grain, float2(2.0, 3.0)) * pixel.Texel; }")]
+    [InlineData("float4 Fragment(SpritePixel pixel) { return Texel(SpriteTexture, pixel.UV * TextureSize(SpriteTexture)); }")]
+    [InlineData("float4 Fragment(SpritePixel pixel) { return SampleSprite(pixel.UV + (1.0 / TextureSize(SpriteTexture))); }")]
     [InlineData("float4 Fragment(SpritePixel pixel) { return pixel.Texel * round(pixel.UV.x * 4.0); }")]
     public void AReadEveryFormatHas_Builds(string source)
     {
@@ -294,12 +297,20 @@ public sealed class ShaderBuildTests
     }
 
     // A fragment that does not compile fails at the game's file and line. The host binds the engine's
-    // names, and a game parameter carrying their prefix fails rather than being bound as one.
+    // names, and a game parameter carrying their prefix fails rather than being bound as one. A read that
+    // would take a whole atlas page for a texture packed into one fails too.
     [Theory]
+    [InlineData("Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Grain.Load(int3(2, 3, 0)) * pixel.Texel; }", ": reads a texture with Load, which reads past the texture's own texels when an atlas holds it. Read a texel with Texel(texture, xy) and a size with TextureSize(texture)")]
+    [InlineData("Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { uint w, h; Grain.GetDimensions(w, h); return Sample(Grain, pixel.UV) * w; }", ": reads a texture with GetDimensions, which")]
+    [InlineData("Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Grain[uint2(2, 3)] * pixel.Texel; }", ": indexes the texture 'Grain', which")]
+    [InlineData("Texture2D<float4> Grain;\nfloat4 Fragment(SpritePixel pixel) { return Grain[uint2(2, 3)] * pixel.Texel; }", ": indexes the texture 'Grain', which")]
+    [InlineData("Texture2D Mask, Grain;\nfloat4 Fragment(SpritePixel pixel) { return (Grain)[uint2(2, 3)] * Sample(Mask, pixel.UV); }", ": indexes the texture 'Grain', which")]
+    [InlineData("float4 Fragment(SpritePixel pixel) { return SpriteTexture[uint2(2, 3)]; }", ": indexes the texture 'SpriteTexture', which")]
+    [InlineData("Texture2D Grain;\nfloat2 Extent(Texture2D source) { return TextureSize(source); }\nfloat4 Fragment(SpritePixel pixel) { return Sample(Grain, pixel.UV / Extent(Grain)); }", "(2,42): error : sizes a texture that is not a texture parameter. Call TextureSize(texture) with the parameter itself, not a function argument holding it.")]
     [InlineData("float4 Fragment(SpritePixel pixel)\n{\n    return pixel.Texel * Glow;\n}\n", "(3,26): error : use of undeclared identifier 'Glow'")]
     [InlineData("float2 CapsuleTextureSize1;\nTexture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Sample(Grain, pixel.UV / CapsuleTextureSize1) * pixel.Texel; }", ": declares parameter 'CapsuleTextureSize1', a name the engine reserves. Rename it without the Capsule prefix.")]
     [InlineData("Texture2D CapsuleGrain;\nTexture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Sample(Grain, pixel.UV + Sample(CapsuleGrain, pixel.UV).rg) * pixel.Texel; }", ": declares texture 'CapsuleGrain', a name the engine reserves. Rename it without the Capsule prefix.")]
-    [InlineData("Texture2D Grain;\nfloat4 Through(Texture2D source, float2 uv) { return Sample(source, uv); }\nfloat4 Fragment(SpritePixel pixel) { return Through(Grain, pixel.UV) * pixel.Texel; }", "(2,54): error : samples a texture that is not a texture parameter. Call Sample(texture, uv) with the parameter itself, not a function argument holding it.")]
+    [InlineData("Texture2D Grain;\nfloat4 Through(Texture2D source, float2 uv) { return Sample(source, uv); }\nfloat4 Fragment(SpritePixel pixel) { return Through(Grain, pixel.UV) * pixel.Texel; }", "(2,54): error : samples a texture that is not a texture parameter. Call Sample(texture, uv) or Texel(texture, xy) with the parameter itself, not a function argument holding it.")]
     public void AShaderTheBuildCannotShip_FailsAtTheGamesFileNamingTheFix(string source, string failure)
     {
         using ToolWorkspace workspace = new();

@@ -174,6 +174,82 @@ public sealed class AuthorableArrayTests
         }
     }
 
+    // A memory of objects is one read of the document too. An entity is one scene's, and no class the memory can
+    // hold may name one, however deep: the class, a subclass a type key names, or an object either holds. A
+    // subclass no document can construct is none of those. Every scene holds the same objects, and no member of
+    // one may be set once it is built.
+    [Theory]
+    [InlineData("[Authorable] public float Weight { get; init; }", null)]
+    [InlineData("[Authorable] public Capsule.Assets.TextureHandle Icon { get; init; }", null)]
+    [InlineData("[Authorable] public float Weight { get; private set; }", "'Game.Stop.Weight' can be set once its object is built")]
+    [InlineData("[Authorable] private float _weight;", "'Game.Stop._weight' can be set once its object is built")]
+    [InlineData("[Authorable] public Rail? Next { get; set; }", "'Game.Stop.Next' names an entity of one scene")]
+    [InlineData("[Authorable] public Sign? Sign { get; init; }", "'Game.Sign.Owner' names an entity of one scene")]
+    [InlineData("public sealed class Near : Stop { [Authorable] public Rail? Next { get; set; } }", "'Game.Stop.Near.Next' names an entity of one scene")]
+    [InlineData("public sealed class Far : Stop { public Far(int stops) { } [Authorable] public Rail? Next { get; set; } }", null)]
+    public void AMemoryOfObjects_IsRefusedWhereAnElementNamesAnEntityOrCanBeSetLater(string member, string? refusal)
+    {
+        string source = $$"""
+            {{GeneratorHarness.Preamble}}
+
+            public class Stop
+            {
+                {{member}}
+            }
+
+            public sealed class Sign
+            {
+                [Authorable]
+                public Rail? Owner { get; set; }
+            }
+
+            public sealed class Rail(EntitySpawn spawn) : Entity(spawn)
+            {
+                [Authorable]
+                public System.ReadOnlyMemory<Stop> Stops { get; private set; }
+            }
+            """;
+
+        IEnumerable<Diagnostic> errors = GeneratorHarness.Errors(GeneratorHarness.Compile(source).Diagnostics);
+
+        if (refusal is null)
+        {
+            Assert.Empty(errors);
+        }
+        else
+        {
+            Diagnostic refused = Assert.Single(errors);
+            Assert.Equal("CAP041", refused.Id);
+            Assert.StartsWith(refusal, refused.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        }
+    }
+
+    // A memory of objects is built anew like an array of them, and a member with no setter holds none to fill.
+    [Fact]
+    public void AMemoryOfObjectsWithNoSetter_IsRefused()
+    {
+        string source = $$"""
+            {{GeneratorHarness.Preamble}}
+
+            public sealed class Stop
+            {
+                [Authorable]
+                public float Weight { get; set; }
+            }
+
+            public sealed class Rail(EntitySpawn spawn) : Entity(spawn)
+            {
+                [Authorable]
+                public System.ReadOnlyMemory<Stop> Stops { get; }
+            }
+            """;
+
+        Diagnostic refused = Assert.Single(GeneratorHarness.Errors(GeneratorHarness.Compile(source).Diagnostics));
+
+        Assert.Equal("CAP041", refused.Id);
+        Assert.Contains("has no setter", refused.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
     // A document the build never saw gets the same checks when the scene loads.
     [Theory]
     [InlineData("\"path\": [[0, 0], \"x\"], \"lifts\": [1]", "sets 'path' element 1 to the string \"x\", but the member takes Vector2.")]

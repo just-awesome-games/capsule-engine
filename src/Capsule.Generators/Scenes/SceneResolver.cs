@@ -74,6 +74,7 @@ internal static class SceneResolver
             appliedModels.SelectMany(static model => model.Objects.Items),
             inputs.Shared.RootNamespace,
             diagnostics);
+        ObjectRenderer.RefuseSceneReadsInShared(appliedModels.SelectMany(static model => model.Authored), objects, diagnostics);
         EquatableArray<AssetLookup> lookups = EntityResolver.Lookups(
             appliedModels.SelectMany(static model => model.Authored).Concat(ObjectRenderer.Authored(objects)),
             inputs.Shared);

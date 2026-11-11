@@ -18,7 +18,8 @@ namespace Capsule.Tiles;
 /// work. The map collides only through a <see cref="TileMapCollider2D"/> added to it.
 /// <para>
 /// The map shares its grid's cells, and an edit copies only the block of 16 by 16 tiles it changes. The
-/// <see cref="TileGrid"/> is never written.
+/// <see cref="TileGrid"/> is never written, and every scene composed from one document holds the grid its first
+/// composition built.
 /// </para>
 /// <para>
 /// A scene document places one by the type key <c>tile-map</c>. The map is built from its authorable
@@ -70,10 +71,11 @@ public class TileMap : Entity
     /// <remarks>
     /// Each entry composes a <see cref="TileType"/>, or the subclass its <c>type</c> names. <see cref="TileAt(int, int)"/>
     /// and <c>TileContact2D.Type</c> return that instance, read as <c>map.TileAt(x, y).Name</c> or matched as
-    /// <c>map.TileAt(x, y) is Ice ice</c>.
+    /// <c>map.TileAt(x, y) is Ice ice</c>. The palette is read once per document, and every scene composed from
+    /// that document holds the same instances.
     /// </remarks>
     [Authorable(Required = true)]
-    protected TileType[] TileTypes { get; set; } = [];
+    protected ReadOnlyMemory<TileType> TileTypes { get; set; }
 
     /// <summary>
     /// Every tile's palette index, <see cref="Width"/> * <see cref="Height"/> of them, row by row from the top-left.
@@ -125,9 +127,13 @@ public class TileMap : Entity
         }
 
         Anchored = true;
-        Build(CompiledCells(spawn.Members) is { } cells
+
+        // The document's first composition builds the grid, and every later one holds that grid. Each one reads
+        // the key of the compiled blocks, which only the first decodes.
+        bool compiled = spawn.Members.Has(CompiledTiles.Key);
+        Build(spawn.Members.Whole<TileGrid>() ?? spawn.Members.KeepWhole(compiled && CompiledCells(spawn.Members) is { } cells
             ? new TileGrid(TileSize, Width, Height, TileTypes, cells, Texture, Columns)
-            : new TileGrid(TileSize, Width, Height, TileTypes, Tiles, Texture, Columns, Transforms));
+            : new TileGrid(TileSize, Width, Height, TileTypes, Tiles, Texture, Columns, Transforms)));
         if (Collider)
         {
             Add(new TileMapCollider2D());
@@ -318,15 +324,9 @@ public class TileMap : Entity
         Add(_tiles);
     }
 
-    // The cells a compiled document's blocks hold, decoded once and shared by every map composed from it, or null
-    // for dense tiles.
+    // The cells a compiled document's blocks hold, or null for a size no grid takes.
     private CellBlocks? CompiledCells(AuthoredMembers members)
     {
-        if (!members.Has(CompiledTiles.Key))
-        {
-            return null;
-        }
-
         if (members.Has(CompiledTiles.Tiles) || members.Has(CompiledTiles.Transforms))
         {
             throw new ArgumentException("The map authors both compiled blocks and dense tiles or transforms. Keep tiles and transforms, which the build compiles.", nameof(members));

@@ -91,6 +91,25 @@ public sealed class AtlasToolTests
             File.ReadAllText(Map));
     }
 
+    // Members of one page holding the same texels share one cell, and each is still found by its own handle.
+    [Fact]
+    public void MembersHoldingTheSameTexels_ShareOneCell()
+    {
+        using ToolWorkspace workspace = new();
+        workspace.WritePng("Assets/hero.png", 4, 3);
+        workspace.WritePng("Assets/twin.png", 4, 3);
+        workspace.WritePng("Assets/other.png", 4, 3, seed: 7);
+        workspace.Write("Assets/.config.json", Game);
+        workspace.Write("Assets/game.atlas.json", "{}");
+
+        workspace.Succeed();
+
+        using System.Text.Json.JsonDocument map = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Map));
+        string[] cells = [.. ((string[])["hero", "twin", "other"]).Select(key => map.RootElement.GetProperty("textures").GetProperty(key).GetRawText())];
+        Assert.Equal(cells[0], cells[1]);
+        Assert.NotEqual(cells[0], cells[2]);
+    }
+
     // The runtime finds a packed texture by its handle, which the map spells in lower case. An
     // extension the author capitalized is lowered everywhere the build writes it.
     [Fact]

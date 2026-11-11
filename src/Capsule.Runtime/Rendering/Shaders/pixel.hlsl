@@ -1,6 +1,7 @@
 // Capsule's sprite pixel stage, which every sprite shader shares. The build writes a sampling header
-// above it for the fragment it wraps, declaring the sprite's texture and the fragment's own, and puts
-// the game's Fragment, or the engine's own in sprite.fx, at the marked line.
+// above it for the fragment it wraps, declaring the sprite's texture and the fragment's own with the
+// Sample and TextureSize that read them, and puts the game's Fragment, or the engine's own in sprite.fx,
+// at the marked line.
 //
 // A single-channel texture samples as (v, 0, 0, 1). The sprite's texel takes the premultiplied coverage
 // form (v, v, v, v), which draws white at opacity v under the tint.
@@ -12,14 +13,6 @@
 // The inputs are in location order: tint, flash, texture coordinate, coverage, quad. Coverage and the
 // quad come from the vertex stage. A pixel stage reads no uniform of the engine's unless its fragment
 // calls SampleScreen, whose uniforms the renderer pushes with the copy it makes.
-
-float2 TextureSize(Texture2D source)
-{
-    uint width;
-    uint height;
-    source.GetDimensions(width, height);
-    return float2(width, height);
-}
 
 float4 SampleSprite(float2 uv)
 {

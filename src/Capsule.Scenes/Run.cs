@@ -363,7 +363,8 @@ public sealed class Run
     /// </summary>
     /// <remarks>
     /// Call it on intent, such as a highlighted menu item, not from a proximity sweep. The scene's
-    /// constructor runs twice. At most one scene is prefetched, and a later call replaces an earlier one
+    /// constructor runs twice. A step that opens a scene starts no prefetch, and one asked for in it
+    /// starts after the next step. At most one scene is prefetched, and a later call replaces an earlier one
     /// unless it names the same scene and an equal payload. A request opening the scene with another payload
     /// preloads what that payload declares, and the prefetched media it does not declare is released.
     /// </remarks>

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using Capsule.Assets;
 using Capsule.Build.Caching;
 using Capsule.Build.Textures;
@@ -103,18 +104,36 @@ internal static class AtlasStep
             .OrderBy(static group => group.Key.Format)
             .ThenBy(static group => group.Key.Sampling))
         {
+            // Members holding the same texels share one cell, packed as the first of them by key.
+            Dictionary<(int, int, string), string> cells = [];
+            Dictionary<string, string> cellOf = new(StringComparer.Ordinal);
+            List<string> distinct = [];
+            foreach (string key in group)
+            {
+                Texels image = images[key];
+                (int, int, string) texels = (image.Width, image.Height, Convert.ToHexString(SHA256.HashData(image.Data)));
+                if (!cells.TryGetValue(texels, out string? cell))
+                {
+                    cells.Add(texels, cell = key);
+                    distinct.Add(key);
+                }
+
+                cellOf.Add(key, cell);
+            }
+
             (Placement[] placements, (int Width, int Height)[] extents) = AtlasPacker.Pack(
-                [.. group.Select(key => (key, images[key].Width + (2 * Extrude), images[key].Height + (2 * Extrude)))],
+                [.. distinct.Select(key => (key, images[key].Width + (2 * Extrude), images[key].Height + (2 * Extrude)))],
                 maxSize);
             int channels = TexturePixels.Channels(group.Key.Format);
             byte[][] pages = [.. extents.Select(extent => new byte[extent.Width * extent.Height * channels])];
+            Dictionary<string, TextureEntryJson> placed = new(StringComparer.Ordinal);
 
             foreach (Placement placement in placements)
             {
                 int x = placement.X + Extrude;
                 int y = placement.Y + Extrude;
                 TexturePixels.Blit(pages[placement.Page], extents[placement.Page].Width, images[placement.Key], x, y, Extrude);
-                packed.Add(placement.Key, new TextureEntryJson
+                placed.Add(placement.Key, new TextureEntryJson
                 {
                     Page = PageName(atlas, first + placement.Page),
                     X = x,
@@ -122,6 +141,11 @@ internal static class AtlasStep
                     Width = images[placement.Key].Width,
                     Height = images[placement.Key].Height,
                 });
+            }
+
+            foreach (string key in group)
+            {
+                packed.Add(key, placed[cellOf[key]]);
             }
 
             for (int page = 0; page < pages.Length; page++)

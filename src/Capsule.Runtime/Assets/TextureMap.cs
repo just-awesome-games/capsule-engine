@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Text.Json;
 using Capsule.Assets;
 using Capsule.Rendering;
@@ -5,7 +6,12 @@ using Capsule.Rendering;
 namespace Capsule.Runtime.Assets;
 
 // Where a packed texture's texels are: the page that holds it, the texel its (0, 0) landed on and its size.
-internal readonly record struct AtlasSlot(TextureHandle Page, int X, int Y, int Width, int Height);
+internal readonly record struct AtlasSlot(TextureHandle Page, int X, int Y, int Width, int Height)
+{
+    // Where the texture's (0, 0) sits on a page of this size and how far it spans, as fractions of the page.
+    internal Vector4 RegionOn(int pageWidth, int pageHeight) =>
+        new((float)X / pageWidth, (float)Y / pageHeight, (float)Width / pageWidth, (float)Height / pageHeight);
+}
 
 // A texture file's non-default settings. The default is four channels sampled as the scene says.
 internal readonly record struct TextureFacts(bool SingleChannel, TextureSampling? Sampling);

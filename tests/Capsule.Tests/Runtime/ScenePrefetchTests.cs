@@ -39,6 +39,23 @@ public sealed class ScenePrefetchTests
         Assert.Equal(device ? ["shared,nested/second"] : [], warmed);
     }
 
+    // The step that opens a scene builds no second one. A prefetch asked for in it waits for the next step,
+    // whose scene asks for none.
+    [Fact]
+    public void APrefetchAskedForInTheStepThatOpensAScene_BuildsItsSceneAStepLater()
+    {
+        List<string> log = [];
+        using SceneHost host = new(ToScene<Gate>(), Resolver(log), new Run());
+
+        host.Step(Step(0));
+
+        Assert.Equal(["resolve Gate", "resolve Scene"], log);
+
+        host.Step(Step(1));
+
+        Assert.Equal(["resolve Gate", "resolve Scene", "resolve Arena", "arena built"], log);
+    }
+
     [Fact]
     public void ARepeatedPrefetch_DoesNothing()
     {
@@ -137,7 +154,10 @@ public sealed class ScenePrefetchTests
     private static SceneResolver Resolver(List<string> log) => (in SceneTransition target) =>
     {
         log.Add("resolve " + target.SceneType!.Name);
-        return target.SceneType == typeof(Lobby) ? new Lobby(log) : new Arena(log);
+        return target.SceneType == typeof(Gate) ? new Gate()
+            : target.SceneType == typeof(Scene) ? new Scene()
+            : target.SceneType == typeof(Lobby) ? new Lobby(log)
+            : new Arena(log);
     };
 
     private static void PumpUntil(Capsule.Runtime.Assets.SceneAssetStore<TextureHandle, DisposalProbe> store, Func<bool> done)
@@ -149,6 +169,16 @@ public sealed class ScenePrefetchTests
         }
 
         Assert.True(done(), "the prefetch decodes never landed");
+    }
+
+    // Opens a plain scene in the step it prefetches the arena.
+    private sealed class Gate : Scene
+    {
+        protected override void OnStep(in StepContext context)
+        {
+            Run.PrefetchScene<Arena>();
+            Run.RequestScene<Scene>();
+        }
     }
 
     private sealed class Lobby(List<string> log) : Scene

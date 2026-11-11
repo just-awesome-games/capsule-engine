@@ -48,6 +48,63 @@ internal static class ObjectRenderer
     internal static IEnumerable<PropertyModel> Authored(EquatableArray<KeyedObject> objects) =>
         objects.Items.SelectMany(static entry => entry.Model.Authored);
 
+    /// <summary>
+    /// Refuses each entity reference a shared object would read, which names an entry of one scene, and each member
+    /// code can set once the object is built, which every scene composed from the document would see change. The
+    /// class a <c>ReadOnlyMemory</c> member holds, every subclass a type key can name and every object either holds
+    /// are all read once per document.
+    /// </summary>
+    /// <param name="members">The members the generated class reads directly.</param>
+    internal static void RefuseSceneReadsInShared(IEnumerable<PropertyModel> members, EquatableArray<KeyedObject> objects, List<Diagnostic> diagnostics)
+    {
+        Dictionary<string, ObjectModel> byName = objects.Items.ToDictionary(static entry => entry.Model.QualifiedName, static entry => entry.Model, StringComparer.Ordinal);
+        HashSet<DeclaredAt> reported = [];
+        foreach (PropertyModel shared in members.Concat(Authored(objects)).Where(static property => property is { Shared: true, Kind: PropertyKind.Object, Settable: true }))
+        {
+            // An element of an array or a memory is always constructed, as its class or a subclass a type key names.
+            // An object a member holds may be any subclass, which the document fills in place.
+            HashSet<(string, bool)> walked = [];
+            Stack<(string Name, bool Constructed)> reached = new([(shared.Type, true)]);
+            while (reached.Count > 0)
+            {
+                (string name, bool constructed) = reached.Pop();
+                if (!walked.Add((name, constructed)) || !byName.TryGetValue(name, out ObjectModel root))
+                {
+                    continue;
+                }
+
+                IEnumerable<PropertyModel> reads = root.Subclasses.Items.Select(subclass => byName[subclass]).Prepend(root)
+                    .Where(model => !constructed || model.Construction != ObjectConstruction.None)
+                    .SelectMany(static model => model.Authored);
+                foreach (PropertyModel read in reads)
+                {
+                    if (read.Kind == PropertyKind.Object)
+                    {
+                        reached.Push((read.Type, read.Array));
+                    }
+
+                    if (read.Kind == PropertyKind.Reference && reported.Add(read.At))
+                    {
+                        diagnostics.Add(Diagnostic.Create(
+                            Diagnostics.InvalidAuthorableMember,
+                            read.At.Location(),
+                            $"{read.Declaring.Replace("global::", string.Empty)}.{read.Name}",
+                            $"names an entity of one scene, and '{shared.Declaring.Replace("global::", string.Empty)}.{shared.Name}' reads its elements once for every scene composed from a document. Drop [Authorable] and find the entity in code, or declare '{shared.Name}' as an array"));
+                    }
+                    else if (read is { Mutable: true, Kind: not PropertyKind.Reference } && reported.Add(read.At))
+                    {
+                        string setter = read.Field ? "Declare it as a property with { get; init; }" : "Declare it { get; init; }";
+                        diagnostics.Add(Diagnostic.Create(
+                            Diagnostics.InvalidAuthorableMember,
+                            read.At.Location(),
+                            $"{read.Declaring.Replace("global::", string.Empty)}.{read.Name}",
+                            $"can be set once its object is built, and '{shared.Declaring.Replace("global::", string.Empty)}.{shared.Name}' shares that object with every scene composed from a document. {setter}, or declare '{shared.Name}' as an array"));
+                    }
+                }
+            }
+        }
+    }
+
     // Game.Movement's builder is Object_Game_Movement.
     internal static string Builder(string qualifiedName) => "Object_" + CodeText.TypeIdentifier(qualifiedName);
 

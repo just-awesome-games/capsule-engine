@@ -63,6 +63,7 @@ internal static class EntityResolver
 
         List<EntityModel> placed = [.. registered.Where(static entry => !entry.Model.CodeOnly).Select(static entry => entry.Model)];
         EquatableArray<KeyedObject> objects = ObjectRenderer.Keyed(placed.SelectMany(static model => model.Objects.Items), inputs.Shared.RootNamespace, diagnostics);
+        ObjectRenderer.RefuseSceneReadsInShared(placed.SelectMany(static model => model.Authored), objects, diagnostics);
         IEnumerable<PropertyModel> authored = placed.SelectMany(static model => model.Authored).Concat(ObjectRenderer.Authored(objects));
 
         return new EntityPlan(

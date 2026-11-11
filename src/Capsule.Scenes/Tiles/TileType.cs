@@ -9,7 +9,10 @@ namespace Capsule.Tiles;
 /// </summary>
 /// <remarks>
 /// One instance is shared by every cell painted with it, and every map built from the same grid shares it
-/// too. State that belongs to one cell lives on an entity. A tile type with no cell and no frames draws
+/// too. A scene document's palette is read once, and every scene composed from that document holds the same
+/// instances. A tile type therefore keeps no state that changes while a scene runs: a subclass declares each
+/// authorable member with an <c>init</c> accessor, which the build checks, and state that belongs to one cell
+/// lives on an entity. A tile type with no cell and no frames draws
 /// nothing, and one does not collide until it names a layer.
 /// </remarks>
 public class TileType

@@ -7,8 +7,9 @@ namespace Capsule.Build.Shaders;
 /// The stages are HLSL files beside the runtime's compiled sprite shaders: <c>vertex.hlsl</c>, and
 /// <c>pixel.hlsl</c> with a marked line the fragment takes. A sampling header goes above the pixel stage.
 /// The reflected one reads every texture through one sampler, which names the textures a fragment reads,
-/// and the bound one pairs each texture with a sampler of its own, as SDL's GPU API binds them. The
-/// engine's own shader is the pixel stage around <see cref="DefaultFragment"/>.
+/// and the bound one pairs each texture with a sampler of its own, as SDL's GPU API binds them, and with
+/// the region of it the texture fills, since a texture may be one member of an atlas page. The engine's
+/// own shader is the pixel stage around <see cref="DefaultFragment"/>.
 /// </remarks>
 internal static class ShaderTemplate
 {
@@ -57,6 +58,21 @@ internal static class ShaderTemplate
     /// </summary>
     internal const string PairedSampler = "CapsuleSampler_";
 
+    /// <summary>
+    /// The uniforms that place each of a fragment's textures on the texture bound for it, the fragment's
+    /// fourth uniform buffer. Each texture has two <c>float4</c> in slot order.
+    /// </summary>
+    internal const string RegionsBlock = "CapsuleTextureRegions";
+
+    /// <summary>
+    /// The prefix of where a texture's (0, 0) sits and how far it spans on the texture bound for it, both
+    /// as fractions of that texture, completed by the texture's name.
+    /// </summary>
+    internal const string Region = "CapsuleRegion_";
+
+    /// <summary>The prefix of a texture's own size in texels, completed by the texture's name.</summary>
+    internal const string Texels = "CapsuleTexels_";
+
     /// <summary>What a compiler error inside the vertex stage is reported against.</summary>
     internal const string VertexFile = "vertex.hlsl";
 
@@ -91,11 +107,42 @@ internal static class ShaderTemplate
             return source.Sample(CapsuleSampler, uv);
         }
 
+        float2 TextureSize(Texture2D source)
+        {
+            uint width;
+            uint height;
+            source.GetDimensions(width, height);
+            return float2(width, height);
+        }
+
+        float4 Texel(Texture2D source, float2 texel)
+        {
+            return Sample(source, (floor(texel) + 0.5) / TextureSize(source));
+        }
+
         """ + ScreenDeclarations;
 
-    // Sample reads through the sampler named for the texture, and only a texture parameter has one.
+    // Sample reads through the sampler and the region named for the texture, and only a texture parameter
+    // has them. A coordinate past the texture's edge reads the edge, whether the texture is bound whole
+    // or as a member of a page. The sprite's texture and the picture are always bound whole. Texel reads
+    // at a texel's centre, which every sampling returns unmixed.
     private const string BoundSampling = """
-        #define Sample(source, uv) ((source).Sample(CapsuleSampler_##source, (uv)))
+        static const float4 CapsuleRegion_SpriteTexture = float4(0.0, 0.0, 1.0, 1.0);
+        static const float4 CapsuleRegion_CapsuleScreen = float4(0.0, 0.0, 1.0, 1.0);
+
+        float4 CapsuleWhole(Texture2D source)
+        {
+            uint width;
+            uint height;
+            source.GetDimensions(width, height);
+            return float4(width, height, 0.0, 0.0);
+        }
+
+        #define CapsuleTexels_SpriteTexture CapsuleWhole(SpriteTexture)
+        #define CapsuleTexels_CapsuleScreen CapsuleWhole(CapsuleScreen)
+        #define Sample(source, uv) ((source).Sample(CapsuleSampler_##source, CapsuleRegion_##source.xy + (saturate(uv) * CapsuleRegion_##source.zw)))
+        #define TextureSize(source) (CapsuleTexels_##source.xy)
+        #define Texel(source, texel) Sample(source, (floor(texel) + 0.5) / TextureSize(source))
 
         """;
 
@@ -109,7 +156,7 @@ internal static class ShaderTemplate
 
     /// <summary>
     /// The pixel-stage source for <paramref name="fragment"/> in SDL's binding layout, declaring a sampler
-    /// for the sprite's texture and for each of <paramref name="textures"/>. Line directives report as
+    /// for the sprite's texture and for each of <paramref name="textures"/>, and each one's region. Line directives report as
     /// <see cref="Compose(string, string)"/>'s do.
     /// </summary>
     /// <param name="fragment">The game's fragment.</param>
@@ -117,9 +164,13 @@ internal static class ShaderTemplate
     /// <param name="textures">The fragment's texture parameters beyond the sprite's.</param>
     internal static string ComposeBound(string fragment, string fragmentPath, IEnumerable<string> textures)
     {
-        string samplers = string.Concat(textures.Prepend(SpriteTexture).Append(ScreenTexture).Select(static texture => $"SamplerState {PairedSampler}{texture};\n"));
+        string[] own = [.. textures];
+        string samplers = string.Concat(own.Prepend(SpriteTexture).Append(ScreenTexture).Select(static texture => $"SamplerState {PairedSampler}{texture};\n"));
+        string regions = own.Length == 0
+            ? string.Empty
+            : $"cbuffer {RegionsBlock} {{ {string.Concat(own.Select(static texture => $"float4 {Region}{texture}; float4 {Texels}{texture}; "))}}};\n";
 
-        return Compose($"Texture2D {SpriteTexture};\nTexture2D {ScreenTexture};\n{samplers}static float CapsuleSpriteCoverage;\n{ScreenDeclarations}\n{BoundSampling}", fragment, fragmentPath);
+        return Compose($"Texture2D {SpriteTexture};\nTexture2D {ScreenTexture};\n{samplers}static float CapsuleSpriteCoverage;\n{ScreenDeclarations}{regions}\n{BoundSampling}", fragment, fragmentPath);
     }
 
     // The sampling header reports as the pixel stage's first line, since no file holds it.

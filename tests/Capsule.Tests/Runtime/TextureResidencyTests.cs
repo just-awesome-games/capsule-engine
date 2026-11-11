@@ -143,6 +143,33 @@ public sealed class TextureResidencyTests
         Assert.False(sounds.Get("next").Disposed);
     }
 
+    // A decode begun ahead of a change is the one the change takes. One the change does not want is
+    // discarded and never loaded.
+    [Fact]
+    public void ADecodeBegunAheadOfAChange_IsTakenByItOrDiscarded()
+    {
+        int decodes = 0;
+        List<string> discarded = [];
+        using SceneAssetStore<string, DisposalProbe> store = new(
+            name =>
+            {
+                Interlocked.Increment(ref decodes);
+                return new Begun(name, discarded);
+            },
+            long.MaxValue);
+
+        // A decode still waiting for its turn is cancelled unseen. Both have started before the change.
+        store.Begin(["wanted", "dropped"]);
+        Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref decodes) == 2, TimeSpan.FromSeconds(10)));
+        store.ChangeScene(["wanted"]);
+
+        Assert.True(store.TryGet("wanted", out DisposalProbe? wanted));
+        Assert.Equal("wanted", wanted.Name);
+        Assert.False(store.TryGet("dropped", out _));
+        Assert.True(SpinWait.SpinUntil(() => { lock (discarded) { return discarded.Count == 1; } }, TimeSpan.FromSeconds(10)));
+        Assert.Equal((2, "dropped"), (decodes, discarded[0]));
+    }
+
     [Fact]
     public void Dispose_ReleasesEveryAssetOwnedByTheScene()
     {
@@ -156,5 +183,21 @@ public sealed class TextureResidencyTests
 
         Assert.True(preload.Disposed);
         Assert.True(lazy.Disposed);
+    }
+
+    // A decoded asset that records being discarded.
+    private sealed class Begun(string name, List<string> discarded) : IPendingAsset<DisposalProbe>
+    {
+        public bool Advance(ref long budget) => true;
+
+        public DisposalProbe Finish() => new(name);
+
+        public void Discard()
+        {
+            lock (discarded)
+            {
+                discarded.Add(name);
+            }
+        }
     }
 }

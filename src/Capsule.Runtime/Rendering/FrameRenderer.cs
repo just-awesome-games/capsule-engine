@@ -115,7 +115,7 @@ internal sealed partial class FrameRenderer : IDisposable
         _sprites = new SpriteDrawList(device, shaders, samplers);
         _shaders = shaders;
         _textures = textures;
-        shaders.WholeTexture = WholeTexture;
+        shaders.MaterialTexture = MaterialTexture;
         _white = textures.Create(new DecodedTexture([255, 255, 255, 255], 1, 1));
         _unset = textures.Create(new DecodedTexture([0, 0, 0, 0], 1, 1));
         _engineTextures = new Dictionary<TextureHandle, SampledTexture>
@@ -906,12 +906,12 @@ internal sealed partial class FrameRenderer : IDisposable
         _sprites.Add(pass.Slice.Texture, in sprite, pass.Slice.OffsetX, pass.Slice.OffsetY);
     }
 
-    // A texture a material binds, whole and never through an atlas page, or the transparent texel for
-    // the default handle of one it never set.
-    private SampledTexture WholeTexture(TextureHandle handle) =>
-        handle.Name is null ? _unset
-        : handle.IsEngineOwned ? EngineTexture(handle)
-        : _textures.GetWhole(handle);
+    // A texture a material reads, whole or on its atlas page, or the transparent texel for the default
+    // handle of one it never set.
+    private MaterialTexture MaterialTexture(TextureHandle handle) =>
+        handle.Name is null ? Assets.MaterialTexture.Whole(_unset)
+        : handle.IsEngineOwned ? Assets.MaterialTexture.Whole(EngineTexture(handle))
+        : _textures.GetForMaterial(handle);
 
     private SampledTexture EngineTexture(in TextureHandle handle) =>
         _engineTextures.TryGetValue(handle, out SampledTexture? texture)

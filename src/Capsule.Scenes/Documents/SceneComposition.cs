@@ -22,7 +22,7 @@ internal static class SceneComposition
         for (int i = 0; i < entries.Length; i++)
         {
             SceneDocumentEntry entry = entries[i];
-            AuthoredMembers authored = new(entry, i, placed, assets);
+            AuthoredMembers authored = new(entry, i, placed, assets, content.Document.Shared);
             Entity entity;
             try
             {

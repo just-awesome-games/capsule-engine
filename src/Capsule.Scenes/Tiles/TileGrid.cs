@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Capsule.Animation;
 using Capsule.Assets;
@@ -18,10 +17,6 @@ public sealed class TileGrid
     /// <summary>The name of the palette entry at index 0, meaning "no tile here". Reserved, and not available to a game's own tile types.</summary>
     public const string EmptyTileName = "empty";
 
-    // The cells built from each authored tiles array, once per array. Every scene composed from one document
-    // reads the same authored arrays, and so shares the same cells.
-    private static readonly ConditionalWeakTable<int[], AuthoredCells> Authored = new();
-
     /// <summary>The plain palette entry every unpainted cell points at, named <see cref="EmptyTileName"/>.</summary>
     public static TileType EmptyTile { get; } = new() { Name = EmptyTileName };
 
@@ -30,8 +25,7 @@ public sealed class TileGrid
     // Each palette entry's index by its name, built the first time a map sets a tile by name.
     private Dictionary<string, int>? _indexByName;
 
-    // The palette index and TileTransform of every painted cell, never written. A grid built from a scene
-    // document shares them with every other grid built from it.
+    // The palette index and TileTransform of every painted cell, never written.
     private readonly CellBlocks _cells;
 
     // One sprite per palette entry, cut once so drawing a cell is a table lookup instead of arithmetic
@@ -97,34 +91,33 @@ public sealed class TileGrid
             columns,
             cells: null,
             transforms,
-            authored: null,
-            shared: false)
+            authored: null)
     {
     }
 
-    // A grid over a scene document's tiles and transforms, which it shares and never writes. Each authored
-    // transform is a TileTransform value, checked here.
+    // A grid over a scene document's palette, tiles and transforms, which it shares and never writes. Each
+    // authored transform is a TileTransform value, checked here.
     internal TileGrid(
         int tileSize,
         int width,
         int height,
-        TileType[] tileTypes,
+        ReadOnlyMemory<TileType> tileTypes,
         ReadOnlyMemory<int> tiles,
         TextureHandle? texture,
         int columns,
         ReadOnlyMemory<int>? transforms)
-        : this(tileSize, width, height, [.. tileTypes], Whole(tiles), texture, columns, cells: null, transforms: null, authored: transforms is { } dense ? Whole(dense) : null, shared: true)
+        : this(tileSize, width, height, Whole(tileTypes), Whole(tiles), texture, columns, cells: null, transforms: null, authored: transforms)
     {
     }
 
-    // A grid over a compiled scene document's cells, which it shares and never writes.
-    internal TileGrid(int tileSize, int width, int height, TileType[] tileTypes, CellBlocks cells, TextureHandle? texture, int columns)
-        : this(tileSize, width, height, [.. tileTypes], tiles: null, texture, columns, cells, transforms: null, authored: null, shared: true)
+    // A grid over a compiled scene document's palette and cells, which it shares and never writes.
+    internal TileGrid(int tileSize, int width, int height, ReadOnlyMemory<TileType> tileTypes, CellBlocks cells, TextureHandle? texture, int columns)
+        : this(tileSize, width, height, Whole(tileTypes), tiles: null, texture, columns, cells, transforms: null, authored: null)
     {
     }
 
     // The grid takes compiled cells or dense tiles. Dense transforms are listed, authored or neither, and are read
-    // only once the rest of the grid is valid. Shared dense cells are built once per authored tiles array.
+    // only once the rest of the grid is valid.
     private TileGrid(
         int tileSize,
         int width,
@@ -135,8 +128,7 @@ public sealed class TileGrid
         int columns,
         CellBlocks? cells,
         IReadOnlyList<TileTransform>? transforms,
-        int[]? authored,
-        bool shared)
+        ReadOnlyMemory<int>? authored)
     {
         TileSize = tileSize;
         Width = width;
@@ -152,9 +144,10 @@ public sealed class TileGrid
         }
         else
         {
-            _cells = shared
-                ? Shared(tiles!, authored, width, height)
-                : Build(tiles!, transforms is null ? null : [.. transforms.Select(static transform => (byte)transform)], width, height);
+            byte[]? facings = authored is { } dense
+                ? TileGridValidation.Turned(dense.Span)
+                : transforms is null ? null : [.. transforms.Select(static transform => (byte)transform)];
+            _cells = Build(tiles!, facings, width, height);
         }
 
         _sprites = CutCells();
@@ -228,21 +221,9 @@ public sealed class TileGrid
         return CellBlocks.FromDense(width, height, tiles, facings);
     }
 
-    private static CellBlocks BuildAuthored(int[] tiles, int[]? authored, int width, int height) =>
-        Build(tiles, authored is null ? null : TileGridValidation.Turned(authored), width, height);
-
-    // The cells of authored tiles and transforms, built once per tiles array. Tiles authored once come with the
-    // same transforms every time, and other transforms build cells of their own.
-    private static CellBlocks Shared(int[] tiles, int[]? authored, int width, int height)
-    {
-        AuthoredCells built = Authored.GetValue(tiles, _ => new AuthoredCells(authored, BuildAuthored(tiles, authored, width, height)));
-
-        return ReferenceEquals(built.Transforms, authored) ? built.Cells : BuildAuthored(tiles, authored, width, height);
-    }
-
     // The array a memory spans, or a copy when it spans part of one.
-    private static int[] Whole(ReadOnlyMemory<int> memory) =>
-        MemoryMarshal.TryGetArray(memory, out ArraySegment<int> segment) && segment.Offset == 0 && segment.Count == segment.Array!.Length
+    private static T[] Whole<T>(ReadOnlyMemory<T> memory) =>
+        MemoryMarshal.TryGetArray(memory, out ArraySegment<T> segment) && segment.Offset == 0 && segment.Count == segment.Array!.Length
             ? segment.Array
             : memory.ToArray();
 
@@ -307,9 +288,6 @@ public sealed class TileGrid
         texture,
         new TextureRegion(cell % Columns * TileSize, cell / Columns * TileSize, TileSize, TileSize),
         new Vector2(TileSize / 2f, TileSize / 2f));
-
-    // The cells built from one authored tiles array, and the transforms array they were built with.
-    private sealed record AuthoredCells(int[]? Transforms, CellBlocks Cells);
 
     // One animated palette entry and the looping clip its frames make.
     internal readonly record struct Animation(int Palette, SpriteClip Clip);

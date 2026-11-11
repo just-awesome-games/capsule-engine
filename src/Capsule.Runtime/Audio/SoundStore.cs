@@ -27,6 +27,9 @@ internal sealed class SoundStore : IDisposable
     // dropped here instead of loaded. Declaring one is not an error and reserves nothing.
     internal void ChangeScene(AssetCollection preloads) => _resident.ChangeScene(ResidentOf(preloads));
 
+    // Starts decoding the clips the coming ChangeScene waits on.
+    internal void Begin(AssetCollection preloads) => _resident.Begin(ResidentOf(preloads));
+
     internal void Prefetch(AssetCollection preloads) => _resident.Prefetch(ResidentOf(preloads));
 
     internal void Pump() => _resident.Pump();

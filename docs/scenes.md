@@ -124,7 +124,7 @@ format's JSON Schema documents every reserved field
 | a type with `[JsonConverter]` | its converter's form, checked at load |
 | a class declaring `[Authorable]` members | an object of them, `{ "speed": 30 }`, filling the instance the member holds or else a new one. Its `type` key names a subclass to construct in its place. |
 | `T[]` of any of these | `[a, b, c]`, a new array for each scene |
-| `ReadOnlyMemory<T>` of a built-in type, an enum or a definition | `[a, b, c]`, read once per document and shared by every scene composed from it |
+| `ReadOnlyMemory<T>` of a built-in type, an enum, a definition or a class declaring `[Authorable]` members | `[a, b, c]`, read once per document and shared by every scene composed from it and by every member of it that authors the same array. Each object is one instance they all hold. Its class and subclasses take no entity reference, and declare each authorable member `{ get; init; }`. |
 | a nullable of any of these | also `null` |
 
 ### Validating every document
@@ -140,7 +140,9 @@ public void EveryScenePlacementIsValid() => CapsuleScenes.Registry.ComposeAll();
 
 `tile-map` places the engine's `TileMap`, whose members are its grid and each of whose `tileTypes` is a
 `TileType` object. A document may carry any number, interleaved with game entities, all anchored at the world
-origin and drawn by their `zIndex` bands. A scene that authors no `size` spans its largest map.
+origin and drawn by their `zIndex` bands. A scene that authors no `size` spans its largest map. A map's
+`tileTypes` are read and its grid built once per document, and every scene composed from it holds the same
+`TileType` instances. Maps of one document that author the same `tileTypes` hold one read of them.
 
 A map's `tiles` and `transforms` are authored dense, one per cell. The build ships the cells of every entry whose
 class is or derives from `TileMap` packed into blocks of 16 by 16, holding only the blocks with a painted cell, and

@@ -15,6 +15,9 @@ internal sealed class AuthoredObject
     // What a read made of each key's value, which every later composition of the document reuses.
     private readonly object?[] _reads;
 
+    // What the object's class built from every member together, which every later composition reuses.
+    private object? _whole;
+
     private AuthoredObject(string[] keys, ReadOnlyMemory<byte>[] values)
     {
         _keys = keys;
@@ -87,6 +90,12 @@ internal sealed class AuthoredObject
     // then holds one instance.
     internal object Keep(string key, object read) =>
         Interlocked.CompareExchange(ref _reads[Array.IndexOf(_keys, key)], read, null) ?? read;
+
+    // What a composition kept of the whole object, or null when none has.
+    internal object? Whole => _whole;
+
+    // Keeps built for the whole object unless a racing composition kept one first, and returns the one kept.
+    internal object KeepWhole(object built) => Interlocked.CompareExchange(ref _whole, built, null) ?? built;
 
     // The members as a new JSON object, each key once.
     internal JsonElement ToElement()

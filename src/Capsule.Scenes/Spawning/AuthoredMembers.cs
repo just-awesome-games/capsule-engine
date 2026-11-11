@@ -24,9 +24,10 @@ namespace Capsule.Scenes;
 /// value of its own, whose reads take the array's key. Once the owner is composed, a key no read asked for
 /// at any level fails the same way.
 /// <para>
-/// A scene document keeps what <see cref="Shared{T}"/> reads and the keys of each object <see cref="Object(string)"/>
-/// visits outside an array. Every later composition of the same document reuses them instead of reading its JSON
-/// again. A repeated key reads its last value.
+/// A scene document keeps what <see cref="Shared{T}"/> reads, with the assets its elements named, and the keys of
+/// each object <see cref="Object(string)"/> visits outside an array. Every later composition of the same document
+/// reuses them instead of reading its JSON again, and so does every other member of the document that authors the
+/// same array. A repeated key reads its last value.
 /// </para>
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
@@ -53,14 +54,14 @@ public readonly struct AuthoredMembers
     private readonly List<string>? _asked;
 
     // An entry's members. References resolve against placed once every entry is constructed.
-    internal AuthoredMembers(SceneDocumentEntry entry, int index, Dictionary<int, Entity>? placed = null, AssetCollection? assets = null)
-        : this(new Owner(string.Create(CultureInfo.InvariantCulture, $"entities[{index}] ('{entry.Type}')"), "the entry", placed, assets), entry.Authored, string.Empty)
+    internal AuthoredMembers(SceneDocumentEntry entry, int index, Dictionary<int, Entity>? placed = null, AssetCollection? assets = null, SharedReads? shared = null)
+        : this(new Owner(string.Create(CultureInfo.InvariantCulture, $"entities[{index}] ('{entry.Type}')"), "the entry", placed, assets, shared), entry.Authored, string.Empty)
     {
     }
 
     // The scene document's own members, read once every entry is constructed.
     internal AuthoredMembers(SceneDocument scene, Dictionary<int, Entity> placed, AssetCollection assets)
-        : this(new Owner("the scene document", "the document", placed, assets), scene.Authored, string.Empty)
+        : this(new Owner("the scene document", "the document", placed, assets, scene.Shared), scene.Authored, string.Empty)
     {
     }
 
@@ -281,30 +282,40 @@ public readonly struct AuthoredMembers
     }
 
     /// <summary>
-    /// Reads an array of plain values, written <c>[a, b, c]</c>, once per scene document. Every scene composed from
-    /// the document receives the same elements.
+    /// Reads an array, written <c>[a, b, c]</c>, once per scene document. Every scene composed from the document
+    /// receives the same elements, and an object among them is one instance they all hold.
     /// </summary>
     /// <remarks>
-    /// <paramref name="element"/> must read only what the element authors. A read that resolves an asset or an
-    /// entity reference goes through <see cref="Array{T}"/>.
+    /// Members of one document that author the same array, byte for byte, and read it through the same
+    /// <paramref name="element"/> receive the same elements too. An asset an element names joins the preload of
+    /// every scene composed from the document. A key no read asked for at any level of an element fails this read.
+    /// <paramref name="element"/> must read no entity reference, which goes through <see cref="Array{T}"/>.
     /// </remarks>
     /// <param name="key">The member's key.</param>
     /// <param name="element">Reads one element from the value it is handed, by the same key.</param>
     public ReadOnlyMemory<T> Shared<T>(string key, Func<AuthoredMembers, T> element)
     {
         ArgumentNullException.ThrowIfNull(element);
-        _ = Authored(key);
-        if (_index >= 0)
+        ReadOnlyMemory<byte> array = Authored(key);
+        if (_index >= 0 || _owner is not { } owner)
         {
             return Array(key, element);
         }
 
-        if (_members!.Kept(key) is not T[] read)
+        if (_members!.Kept(key) is not SharedRead<T> read)
         {
-            read = (T[])_members.Keep(key, Array(key, element));
+            if (owner.Shared?.Kept(array, element) is not SharedRead<T> same)
+            {
+                same = ReadShared(owner, key, element);
+                same = (SharedRead<T>?)owner.Shared?.Keep(array, element, same) ?? same;
+            }
+
+            read = (SharedRead<T>)_members.Keep(key, same);
         }
 
-        return read;
+        (owner.Sharing ?? owner.Assets)?.Add(read.Assets);
+
+        return read.Elements;
     }
 
     /// <summary>
@@ -444,6 +455,9 @@ public readonly struct AuthoredMembers
 
     private string OwnerName => _owner?.Name ?? "the spawn";
 
+    // Whether these are an owner's own members, not a nested object's or an array element's.
+    private bool IsOwn => _members is not null && _index < 0 && _path.Length == 0;
+
     // What build made of key's value, kept with the document so every composition of it shares one, or null when
     // the members author no key. Only an entry's own members, not an array element, keep a read.
     internal T? Built<T>(string key, Func<ReadOnlyMemory<byte>, T> build)
@@ -457,9 +471,45 @@ public readonly struct AuthoredMembers
         return _members!.Kept(key) as T ?? (T)_members.Keep(key, build(value));
     }
 
+    // What the owner's class built from all of its members and kept with the document, or null when no composition
+    // has. Only an owner's own members keep one.
+    internal T? Whole<T>()
+        where T : class => IsOwn ? _members!.Whole as T : null;
+
+    // Keeps built with the document unless a racing composition kept one first, and returns the one every
+    // composition of the document then shares. Members with nothing authored keep nothing.
+    internal T KeepWhole<T>(T built)
+        where T : class => IsOwn ? (T)_members!.KeepWhole(built) : built;
+
     // An entity constructor's refusal of what the entry authors, as the failure naming the entry.
     internal SceneDocumentFormatException Refused(Exception defect) =>
         new($"{OwnerName} cannot be built: {defect.Message}", defect);
+
+    // Reads key's array for every scene and every member that shares it. The elements' assets are gathered apart
+    // from this scene's, and their levels are checked here, since no later read visits them again.
+    private SharedRead<T> ReadShared<T>(Owner owner, string key, Func<AuthoredMembers, T> element)
+    {
+        AssetCollection? outer = owner.Sharing;
+        AssetCollection named = new();
+        int levels = owner.Levels.Count;
+        owner.Sharing = named;
+        try
+        {
+            T[] elements = Array(key, element);
+            for (int level = levels; level < owner.Levels.Count; level++)
+            {
+                owner.Levels[level].RefuseUnread();
+            }
+
+            owner.Levels.RemoveRange(levels, owner.Levels.Count - levels);
+
+            return new SharedRead<T>(elements, named);
+        }
+        finally
+        {
+            owner.Sharing = outer;
+        }
+    }
 
     // The owner and what it sets: a key, or one element of the array a key holds.
     private string Sets(string key) =>
@@ -538,7 +588,7 @@ public readonly struct AuthoredMembers
         T asset = keyed is not null && find(keyed) is { } found
             ? found
             : throw new SceneDocumentFormatException($"{Sets(key)} to the string \"{authored}\", but no {typeof(T).Name} keys as \"{keyed ?? authored}\". {fix}");
-        if (_owner?.Assets is { } assets)
+        if ((_owner?.Sharing ?? _owner?.Assets) is { } assets)
         {
             join?.Invoke(assets, asset);
         }
@@ -557,10 +607,17 @@ public readonly struct AuthoredMembers
         _ => "null",
     };
 
+    // What one shared read made of a key's array: the elements, and every asset they named.
+    private sealed record SharedRead<T>(T[] Elements, AssetCollection Assets);
+
     // What every level of one owner's values shares: how a message names the owner and where a missing key goes,
-    // what references resolve against, the preload, and every level and deferred reference read so far.
-    private sealed class Owner(string name, string holder, Dictionary<int, Entity>? placed, AssetCollection? assets)
+    // what references resolve against, the preload, the document's shared reads, and every level and deferred
+    // reference read so far.
+    private sealed class Owner(string name, string holder, Dictionary<int, Entity>? placed, AssetCollection? assets, SharedReads? shared)
     {
+        // The document's shared reads, or null for members no document holds.
+        internal SharedReads? Shared => shared;
+
         internal string Name => name;
 
         internal string Holder => holder;
@@ -568,6 +625,9 @@ public readonly struct AuthoredMembers
         internal Dictionary<int, Entity>? Placed => placed;
 
         internal AssetCollection? Assets => assets;
+
+        // Where an asset joins in place of Assets while a shared read runs, and null outside one.
+        internal AssetCollection? Sharing { get; set; }
 
         internal List<AuthoredMembers> Levels { get; } = [];
 

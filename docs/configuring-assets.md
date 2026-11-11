@@ -60,8 +60,9 @@ Assets/Atlases/game.atlas.json   {}
 Assets/.config.json              { "texture": { "atlas": "game" } }
 ```
 
-Adding, splitting or removing an atlas changes no C# and no document. The runtime serves a packed
-handle from its page.
+Adding, splitting or removing an atlas changes no C#, no shader and no document. The runtime serves a
+packed handle from its page, to a sprite and to a material's texture parameter alike. Members of one
+atlas holding the same texels, format and sampling share one place on a page.
 
 Linear sampling, scaling and tiling at a packed region's edge read no neighbour. A page holds one format
 and one sampling, and members differing in either pack onto separate pages. Pages ship under

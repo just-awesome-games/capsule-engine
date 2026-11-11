@@ -11,8 +11,9 @@ namespace Capsule.Runtime.Rendering;
 // surfaces: Capsule's own sprite shader, and every game shader, loaded with its pipelines at the scene
 // boundary that first holds it. A draw waits on no driver's compile, except that a shader no boundary
 // collected loads on its first draw and logs it. Each is kept for the run.
-// Binding a material pushes its values and the scene's globals through offsets resolved at load. A
-// frame at steady state looks nothing up by name and allocates nothing.
+// Binding a material pushes its values, the scene's globals and where each of its textures sits on the
+// texture bound for it, through offsets resolved at load. A frame at steady state looks nothing up by
+// name and allocates nothing.
 internal sealed class ShaderStore : IDisposable
 {
     // Premultiplied alpha: source + destination x (1 - source alpha).
@@ -50,9 +51,16 @@ internal sealed class ShaderStore : IDisposable
     // The material's texture bindings, slot 1 onwards, written in place for each bind.
     private readonly GpuTextureSamplerBinding[] _textures = new GpuTextureSamplerBinding[15];
 
-    // Resolves a texture a material binds whole, or the default handle of one it never set. The frame
+    // The fragment's uniform buffer of texture regions, after the material's, the scene globals' and
+    // the picture's.
+    private const int RegionsSlot = 3;
+
+    // A texture's region and its size in texels, each padded to four floats.
+    private const int RegionBytes = 8 * sizeof(float);
+
+    // Resolves a texture a material reads, or the default handle of one it never set. The frame
     // renderer sets it, since it owns the engine's textures and the scene's.
-    internal Func<TextureHandle, SampledTexture>? WholeTexture { get; set; }
+    internal Func<TextureHandle, MaterialTexture>? MaterialTexture { get; set; }
 
     internal ShaderGlobals Globals { get; set; } = new();
 
@@ -104,14 +112,15 @@ internal sealed class ShaderStore : IDisposable
         {
             if (parameters[i].Kind == ShaderParameterKind.Texture)
             {
-                WholeTexture!(material.TryGetTexture(i, out TextureHandle texture) ? texture : default);
+                MaterialTexture!(material.TryGetTexture(i, out TextureHandle texture) ? texture : default);
             }
         }
     }
 
     // Pushes material's values and the scene's globals, and binds its textures from slot 1, each through
-    // its own sampling's sampler or else through sampler, and after them screen, if the shader reads the
-    // picture, or the transparent texel where nothing was copied. Capsule's own shader reads none.
+    // its own sampling's sampler or else through sampler, with the region each fills of what is bound for
+    // it. After them comes screen, if the shader reads the picture, or the transparent texel where nothing
+    // was copied. Capsule's own shader reads none.
     internal void BindMaterial(GpuCommandBuffer commands, GpuRenderPass pass, Material? material, GpuSampler sampler, SampledTexture? screen)
     {
         if (material is null)
@@ -127,8 +136,11 @@ internal sealed class ShaderStore : IDisposable
             ShaderParameter parameter = parameters[i];
             if (parameter.Kind == ShaderParameterKind.Texture)
             {
-                SampledTexture bound = WholeTexture!(material.TryGetTexture(i, out TextureHandle texture) ? texture : default);
-                _textures[binding.Locations[i] - 1] = new GpuTextureSamplerBinding(bound.Texture, bound.Sampler ?? sampler);
+                MaterialTexture read = MaterialTexture!(material.TryGetTexture(i, out TextureHandle texture) ? texture : default);
+                int slot = binding.Locations[i] - 1;
+                _textures[slot] = new GpuTextureSamplerBinding(read.Texture.Texture, read.Texture.Sampler ?? sampler);
+                Write(binding.Regions, slot * RegionBytes, ShaderParameterKind.Vector4, read.Region);
+                Write(binding.Regions, (slot * RegionBytes) + (RegionBytes / 2), ShaderParameterKind.Vector2, new System.Numerics.Vector4(read.Texels, 0f, 0f));
                 textures++;
             }
             else if (!parameter.Global)
@@ -156,9 +168,14 @@ internal sealed class ShaderStore : IDisposable
             commands.PushFragmentUniformData(1, binding.SceneGlobals);
         }
 
+        if (binding.Regions.Length > 0)
+        {
+            commands.PushFragmentUniformData(RegionsSlot, binding.Regions);
+        }
+
         if (material.Shader.ReadsScreen)
         {
-            _textures[textures++] = new GpuTextureSamplerBinding((screen ?? WholeTexture!(default)).Texture, sampler);
+            _textures[textures++] = new GpuTextureSamplerBinding((screen ?? MaterialTexture!(default).Texture).Texture, sampler);
         }
 
         pass.BindFragmentSamplers(1, _textures.AsSpan(0, textures));
@@ -273,7 +290,7 @@ internal sealed class ShaderStore : IDisposable
 
     // One loaded shader, its pipelines, and where each of its parameters sits: a byte offset into its
     // uniform buffer, or a sampler slot. Several materials share one binding, and each bind writes every
-    // value into the two buffers it pushes. The scene globals it reads are resolved to indices into a
+    // value into the buffers it pushes. The scene globals it reads are resolved to indices into a
     // scene's values once, and again when the scene or its set of names changes.
     private sealed class Binding : IDisposable
     {
@@ -293,6 +310,9 @@ internal sealed class ShaderStore : IDisposable
 
         internal byte[] SceneGlobals { get; }
 
+        // Each texture's region and size, in sampler slot order.
+        internal byte[] Regions { get; }
+
         internal Binding(GpuShader shader, Shader? source, ShaderContainer container)
         {
             Shader = shader;
@@ -303,6 +323,7 @@ internal sealed class ShaderStore : IDisposable
             Locations = new int[table.Length];
             int material = 0;
             int globals = 0;
+            int textures = 0;
             for (int i = 0; i < table.Length; i++)
             {
                 string name = table[i].Name;
@@ -314,7 +335,11 @@ internal sealed class ShaderStore : IDisposable
                 }
 
                 Locations[i] = shipped.Location;
-                if (shipped.Kind != ShaderParameterKind.Texture)
+                if (shipped.Kind == ShaderParameterKind.Texture)
+                {
+                    textures = Math.Max(textures, shipped.Location);
+                }
+                else
                 {
                     int end = shipped.Location + (Floats(shipped.Kind) * sizeof(float));
                     material = shipped.Global ? material : Math.Max(material, end);
@@ -324,6 +349,7 @@ internal sealed class ShaderStore : IDisposable
 
             Material = new byte[(material + 15) & ~15];
             SceneGlobals = new byte[(globals + 15) & ~15];
+            Regions = new byte[textures * RegionBytes];
         }
 
         public void Dispose()

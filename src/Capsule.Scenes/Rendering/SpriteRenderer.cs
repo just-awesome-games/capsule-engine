@@ -83,7 +83,16 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         {
             if (value is not null)
             {
-                (_extras ??= new()).Look = new VariantLook(value);
+                Extras extras = _extras ??= new();
+                if (extras.Look is { } look)
+                {
+                    look.Variant = value;
+                }
+                else
+                {
+                    extras.Look = new VariantLook(value);
+                }
+
                 Resolve();
             }
             else if (_extras is { } extras)
@@ -587,7 +596,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     // The variant set and what it resolves the held frame to, null where that is nothing.
     private sealed class VariantLook(SpriteVariant variant)
     {
-        internal readonly SpriteVariant Variant = variant;
+        internal SpriteVariant Variant = variant;
         internal Sprite? Drawn;
     }
 

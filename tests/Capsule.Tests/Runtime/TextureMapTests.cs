@@ -31,7 +31,7 @@ public sealed class TextureMapTests
     private static readonly TextureHandle Page0 = new("atlases/game.0", ".png");
 
     // A packed handle resolves to its page, and a file's settings are read from the page or the
-    // unpacked texture that carries them.
+    // unpacked texture that carries them. A material reads it as the part of the page it fills.
     [Fact]
     public void AMappedHandle_ResolvesToItsPageAndAFileToItsSettings()
     {
@@ -39,6 +39,7 @@ public sealed class TextureMapTests
 
         Assert.True(map.TryGet(Tiles, out AtlasSlot tiles));
         Assert.Equal(new AtlasSlot(Page0, 40, 1, 16, 16), tiles);
+        Assert.Equal(new System.Numerics.Vector4(0.625f, 0.03125f, 0.25f, 0.5f), tiles.RegionOn(64, 32));
         Assert.False(map.TryGet(Loose, out _));
         Assert.Equal(new TextureFacts(true, null), map.Facts(new TextureHandle("glow", ".png")));
         Assert.Equal(new TextureFacts(false, TextureSampling.Point), map.Facts(new TextureHandle("atlases/game.1", ".png")));

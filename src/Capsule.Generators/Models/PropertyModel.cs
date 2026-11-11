@@ -38,6 +38,7 @@ internal enum PropertyKind
 /// <param name="Readable">Whether generated code reads it in plain C#, where otherwise an accessor reads it.</param>
 /// <param name="Gettable">Whether it can be read at all. An object read into a set-only property fills no held instance.</param>
 /// <param name="Held">Whether it has no setter and a document fills the object it holds in place.</param>
+/// <param name="Mutable">Whether code can set it once its object is built: a property with a <c>set</c> accessor, or a field that is not <c>readonly</c>.</param>
 /// <param name="Declaring">
 /// The fully qualified type declaring the member, which its accessor takes. A generic type is written with
 /// its own type parameters.
@@ -64,6 +65,7 @@ internal readonly record struct PropertyModel(
     bool Readable,
     bool Gettable,
     bool Held,
+    bool Mutable,
     PropertyKind Kind,
     string Declaring,
     string TypeParameters,

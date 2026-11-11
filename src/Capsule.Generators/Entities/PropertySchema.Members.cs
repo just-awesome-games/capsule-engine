@@ -80,16 +80,16 @@ internal static partial class PropertySchema
         bool many = array is not null || memory is not null;
         (PropertyKind kind, string? converter, EquatableArray<(string, string)> names, string? unsupported) =
             Classify(type, !many && nullable && type.IsValueType, compilation, (many ? declared : type).ToDisplayString());
-        if (memory is not null && unsupported is null && kind is not (PropertyKind.BuiltIn or PropertyKind.Named or PropertyKind.Flags))
+        if (memory is not null && unsupported is null && kind is not (PropertyKind.BuiltIn or PropertyKind.Named or PropertyKind.Flags or PropertyKind.Object))
         {
-            unsupported = $"has type '{declared.ToDisplayString()}'. Every scene composed from one document shares a ReadOnlyMemory member's elements, which must be a built-in type, an enum or a definition. Declare '{type.ToDisplayString()}[]'";
+            unsupported = $"has type '{declared.ToDisplayString()}'. Every scene composed from one document shares a ReadOnlyMemory member's elements, which must be a built-in type, an enum, a definition or a class of authorable members. Declare '{type.ToDisplayString()}[]'";
         }
 
         unsupported = elementRefusal ?? unsupported;
         bool reference = kind == PropertyKind.Reference;
 
-        // An object member without a setter is filled in place. An array of objects is always built anew.
-        bool fills = kind == PropertyKind.Object && array is null;
+        // An object member without a setter is filled in place. An array or a memory of objects is always built anew.
+        bool fills = kind == PropertyKind.Object && !many;
         bool marked = mark?.NamedArguments.Any(static named => named is { Key: "Required", Value.Value: true }) ?? false;
         string key = CamelCase(member is IFieldSymbol && member.Name.StartsWith("_", StringComparison.Ordinal) ? member.Name.Substring(1) : member.Name);
         string reserved = role switch
@@ -127,6 +127,7 @@ internal static partial class PropertySchema
             readable,
             member is not IPropertySymbol { GetMethod: null },
             held && fills,
+            member is IPropertySymbol { SetMethod.IsInitOnly: false } or IFieldSymbol { IsReadOnly: false },
             kind,
             member.ContainingType.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             string.Join(", ", owners.SelectMany(static owner => owner.OriginalDefinition.TypeParameters).Select(static parameter => parameter.Name)),

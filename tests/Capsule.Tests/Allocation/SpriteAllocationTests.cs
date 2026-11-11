@@ -63,4 +63,18 @@ public sealed class SpriteAllocationTests
 
         Assert.Equal(0, bytes);
     }
+
+    // A renderer that changes its look as it plays swaps one variant for another, each built ahead.
+    [Fact]
+    public void ARendererSwappingBetweenVariants_AllocatesNothingAfterTheFirst()
+    {
+        Sprite held = SceneFixtures.Frame(0);
+        SpriteVariant[] looks = [new([held], [SceneFixtures.Frame(1)]), new([held], [SceneFixtures.Frame(2)])];
+        SpriteRenderer renderer = new(held);
+
+        long bytes = StepMeasurement.Bytes(swap => renderer.Variant = looks[swap % 2], warmup: 1, measured: 8);
+
+        Assert.Equal(0, bytes);
+        Assert.Same(looks[0], renderer.Variant);
+    }
 }

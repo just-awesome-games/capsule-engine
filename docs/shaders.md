@@ -41,13 +41,16 @@ float4 Fragment(SpritePixel pixel)
 | `pixel.TextureSize` | The sprite's texture size in texels, which for a packed sprite is its atlas page's. |
 | `pixel.Position` | How far this pixel is from the quad's top-left corner, in the sprite's units. On a polygon, how far it is from the polygon's first point. |
 | `pixel.Size` | The quad's size, in the sprite's units. Zero on a polygon. |
-| `Sample(texture, uv)` | Reads a texture parameter, named as declared. An `r8` texture's value is in `.r`. A texture passed to a function of the shader's own cannot be sampled there. |
+| `Sample(texture, uv)` | Reads a texture parameter, named as declared, with (0, 0) and (1, 1) its own corners whether or not an atlas packed it. A coordinate past an edge reads the edge. An `r8` texture's value is in `.r`. A texture passed to a function of the shader's own cannot be sampled there. |
 | `SampleSprite(uv)` | Reads the sprite's texture at another point. |
-| `TextureSize(texture)` | A texture parameter's size in texels. |
+| `Texel(texture, xy)` | Reads the one texel at a whole coordinate of a texture parameter, counted from its own top-left corner. No sampling mixes it with a neighbour, and a coordinate past an edge reads the edge. |
+| `TextureSize(texture)` | A texture parameter's own size in texels, named as declared. |
 | `SampleScreen(offset)` | Reads the picture already drawn at this pixel, moved by `offset` in the sprite's units. |
 
 A parameter is a `float`, `float2`, `float3`, `float4` or `Texture2D` declared at file scope. Names
-starting with `Capsule` are the engine's.
+starting with `Capsule` are the engine's. A fragment reads a texture only through `Sample`, `Texel` and
+`TextureSize`, and the build refuses `Load`, `GetDimensions` and indexing, which would read an atlas
+page in place of a texture packed onto it.
 
 ## Drawing with it
 

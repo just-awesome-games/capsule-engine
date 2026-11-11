@@ -7,8 +7,8 @@ namespace Capsule.Rendering;
 /// <remarks>
 /// Neighbouring renderers draw in one batch when they hold the same instance and the same texture.
 /// Share one material across the renderers that look alike. A parameter never set reads zero,
-/// whatever the shader source initializes it to, and a texture never set samples transparent black. A texture set here is bound whole and must not be
-/// packed into an atlas. <c>Set</c> throws when the shader declares no parameter of that name, or
+/// whatever the shader source initializes it to, and a texture never set samples transparent black. A texture
+/// packed into an atlas reads as its own file would. <c>Set</c> throws when the shader declares no parameter of that name, or
 /// declares it as another kind, and the message lists what it declares. It also throws for a
 /// parameter the shader declares in its <c>SceneGlobals</c> block, which the scene sets for every
 /// material.
@@ -63,9 +63,8 @@ public sealed class Material
     /// texture's own sampling or else the frame's, clamped at its edges.
     /// </summary>
     /// <remarks>
-    /// The texture is bound whole, and drawing throws when the build packed it into an atlas. Set
-    /// <c>"atlas": false</c> in its config.
-    /// An r8 texture's value is in <c>.r</c>.
+    /// A texture the build packed into an atlas reads as its own file would: the shader sees its size and
+    /// its edges, never its page's. An r8 texture's value is in <c>.r</c>.
     /// </remarks>
     public void Set(string name, TextureHandle value)
     {

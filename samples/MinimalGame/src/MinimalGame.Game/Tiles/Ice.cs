@@ -11,5 +11,5 @@ public sealed class Ice : TileType
     /// The default stops a full-speed walk in half a second. Higher grips sooner, and lower slides longer.
     /// </remarks>
     [Authorable]
-    public float Friction { get; private set; } = 160f;
+    public float Friction { get; init; } = 160f;
 }

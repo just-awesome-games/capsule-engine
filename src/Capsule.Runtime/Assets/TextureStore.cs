@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
@@ -9,6 +10,15 @@ namespace Capsule.Runtime.Assets;
 // A resolved handle: the texture to sample and where the handle's texel (0, 0) is on it. Offsets are
 // zero for a texture served from its own file, and the page's offset for one the build packed.
 internal readonly record struct TextureSlice(SampledTexture Texture, int OffsetX, int OffsetY);
+
+// A texture a material reads, on the texture bound for it: where its (0, 0) sits and how far it spans, both
+// as fractions of that texture, and its own size in texels.
+internal readonly record struct MaterialTexture(SampledTexture Texture, Vector4 Region, Vector2 Texels)
+{
+    // A texture bound as itself.
+    internal static MaterialTexture Whole(SampledTexture texture) =>
+        new(texture, new Vector4(0f, 0f, 1f, 1f), new Vector2(texture.Texture.Width, texture.Texture.Height));
+}
 
 // A texture on the device and the sampler its own sampling asks for, or null to sample as the draw
 // does.
@@ -109,17 +119,18 @@ internal sealed class TextureStore : IDisposable
             ? new TextureSlice(Get(slot.Page, handle), slot.X, slot.Y)
             : new TextureSlice(Get(handle, handle), 0, 0);
 
-    // The handle's own file, for a material that binds it whole. A packed handle has no file of its
-    // own, and its page would bind every other member with it.
-    internal SampledTexture GetWhole(in TextureHandle handle)
+    // The handle as a material reads it: its own file whole, or its page and where it sits there. Loads
+    // on first use when the scene did not preload the handle.
+    internal MaterialTexture GetForMaterial(in TextureHandle handle)
     {
-        if (_map.TryGet(handle, out _))
+        if (!_map.TryGet(handle, out AtlasSlot slot))
         {
-            throw new InvalidOperationException(
-                $"Texture '{handle.Name}' is packed into an atlas, and a material binds its textures whole. Set \"atlas\": false in the {handle.Name[(handle.Name.LastIndexOf('/') + 1)..]}.png.config.json beside it.");
+            return MaterialTexture.Whole(Get(handle, handle));
         }
 
-        return Get(handle, handle);
+        SampledTexture page = Get(slot.Page, handle);
+
+        return new MaterialTexture(page, slot.RegionOn(page.Texture.Width, page.Texture.Height), new Vector2(slot.Width, slot.Height));
     }
 
     // The handle's texels inside region as straight RGBA, row by row, decoded from its file or its

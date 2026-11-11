@@ -29,7 +29,8 @@ internal static partial class ShaderCompiler
     internal static readonly string[] Formats = [Spirv, Dxil, Msl];
 
     // SDL's descriptor sets: a stage's textures, samplers and storage in one, its uniform buffers in
-    // the next. The material's uniform buffer is binding 0 and the scene globals' binding 1.
+    // the next. The material's uniform buffer is binding 0, the scene globals' binding 1, the picture's
+    // binding 2 and the texture regions' binding 3.
     private const int FragmentResources = 2;
     private const int FragmentUniforms = 3;
     private const int VertexResources = 0;
@@ -56,6 +57,11 @@ internal static partial class ShaderCompiler
         List<ShaderDiagnostic> diagnostics = [];
         try
         {
+            if (DirectRead(fragment) is { } direct)
+            {
+                return Failed(direct, diagnostics);
+            }
+
             // The reflected compile reports the game's errors and reads the parameter table the bound
             // compile pairs samplers from.
             Write(basePath + ".fx", ShaderTemplate.Compose(fragment, fragmentPath));
@@ -70,6 +76,7 @@ internal static partial class ShaderCompiler
                 [LooseParameters] = (FragmentUniforms, 0),
                 [ShaderTemplate.SceneGlobalsBlock] = (FragmentUniforms, 1),
                 [ShaderTemplate.ScreenBlock] = (FragmentUniforms, 2),
+                [ShaderTemplate.RegionsBlock] = (FragmentUniforms, 3),
                 [ShaderTemplate.ScreenTexture] = (FragmentResources, reflected.Textures.Count + 1),
                 [ShaderTemplate.PairedSampler + ShaderTemplate.ScreenTexture] = (FragmentResources, reflected.Textures.Count + 1),
             };
@@ -93,7 +100,7 @@ internal static partial class ShaderCompiler
                 Samplers: reflected.Textures.Count + (reflected.ReadsScreen ? 2 : 1),
                 StorageTextures: 0,
                 StorageBuffers: 0,
-                UniformBuffers: reflected.ReadsScreen ? 3 : reflected.HasGlobalsBuffer ? 2 : reflected.HasMaterialBuffer ? 1 : 0,
+                UniformBuffers: reflected.Textures.Count > 0 ? 4 : reflected.ReadsScreen ? 3 : reflected.HasGlobalsBuffer ? 2 : reflected.HasMaterialBuffer ? 1 : 0,
                 [.. table],
                 []);
 
@@ -241,11 +248,44 @@ internal static partial class ShaderCompiler
         return null;
     }
 
-    // An undeclared paired sampler means Sample was handed something other than a texture parameter.
+    // An undeclared paired sampler means Sample was handed something other than a texture parameter, and
+    // an undeclared size means TextureSize was.
     private static ShaderDiagnostic Paired(ShaderDiagnostic diagnostic) =>
         diagnostic.Message.Contains($"'{ShaderTemplate.PairedSampler}", StringComparison.Ordinal)
-            ? diagnostic with { Message = "samples a texture that is not a texture parameter. Call Sample(texture, uv) with the parameter itself, not a function argument holding it." }
-            : diagnostic;
+            || diagnostic.Message.Contains($"'{ShaderTemplate.Region}", StringComparison.Ordinal) ? diagnostic with { Message = "samples a texture that is not a texture parameter. Call Sample(texture, uv) or Texel(texture, xy) with the parameter itself, not a function argument holding it." }
+        : diagnostic.Message.Contains($"'{ShaderTemplate.Texels}", StringComparison.Ordinal) ? diagnostic with { Message = "sizes a texture that is not a texture parameter. Call TextureSize(texture) with the parameter itself, not a function argument holding it." }
+        : diagnostic;
+
+    // Why a fragment that reads a texture past Sample and TextureSize cannot ship, or null. Such a read
+    // takes the texture bound for the parameter, which is a whole atlas page when the build packed the
+    // texture.
+    private static string? DirectRead(string fragment)
+    {
+        string code = Comment().Replace(fragment, " ");
+        const string Fix = "Read a texel with Texel(texture, xy) and a size with TextureSize(texture), which read a texture packed into an atlas as its own";
+        if (TextureMethod().Match(code) is { Success: true } method)
+        {
+            return $"reads a texture with {method.Groups["name"].Value}, which reads past the texture's own texels when an atlas holds it. {Fix}.";
+        }
+
+        // Every name a texture is declared under, one or several to a declaration and with or without a texel
+        // type. An index may follow the name past the parentheses that wrap it.
+        IEnumerable<string> names = TextureNames().Matches(code)
+            .SelectMany(static declared => declared.Groups["names"].Value.Split(','))
+            .Select(static declared => Identifier().Match(declared).Value)
+            .Where(static name => name.Length > 0)
+            .Prepend(ShaderTemplate.SpriteTexture)
+            .Distinct(StringComparer.Ordinal);
+        foreach (string name in names)
+        {
+            if (Regex.IsMatch(code, $@"\b{Regex.Escape(name)}[\s)]*\["))
+            {
+                return $"indexes the texture '{name}', which reads past the texture's own texels when an atlas holds it. {Fix}.";
+            }
+        }
+
+        return null;
+    }
 
     // DXC's 'file:line:column: error: message', one per diagnostic. The source excerpt and caret
     // lines that follow each one match nothing.
@@ -353,4 +393,17 @@ internal static partial class ShaderCompiler
 
     [GeneratedRegex(@"^(?<file>.+?):(?<line>\d+):(?<column>\d+):\s*(?<severity>error|warning):\s*(?<message>.*)$")]
     private static partial Regex DiagnosticLine();
+
+    [GeneratedRegex(@"//[^\n]*|/\*.*?\*/", RegexOptions.Singleline)]
+    private static partial Regex Comment();
+
+    // The members that read a texture without the engine's Sample. No other HLSL type has them.
+    [GeneratedRegex(@"\.\s*(?<name>Load|GetDimensions|Gather\w*|mips)\b")]
+    private static partial Regex TextureMethod();
+
+    [GeneratedRegex(@"\bTexture2D\s*(?:<[^>]*>)?\s*(?<names>[^;(){}=]+)")]
+    private static partial Regex TextureNames();
+
+    [GeneratedRegex(@"[A-Za-z_]\w*")]
+    private static partial Regex Identifier();
 }

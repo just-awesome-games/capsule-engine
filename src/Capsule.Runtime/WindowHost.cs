@@ -735,11 +735,16 @@ internal sealed unsafe class WindowHost
         }
     }
 
-    // What a scene boundary loads. A failure leaves the run on its current scene with its assets.
-    private void PrepareAssets(AssetCollection preloads) => ExchangeAssets(
-        loadRest => _textures.ChangeScene(preloads, loadRest),
-        () => _shaders.Load(preloads.Shaders),
-        () => _sounds?.ChangeScene(preloads));
+    // What a scene boundary loads. A failure leaves the run on its current scene with its assets. The
+    // sounds start decoding first and decode while the textures are waited on and created.
+    private void PrepareAssets(AssetCollection preloads)
+    {
+        _sounds?.Begin(preloads);
+        ExchangeAssets(
+            loadRest => _textures.ChangeScene(preloads, loadRest),
+            () => _shaders.Load(preloads.Shaders),
+            () => _sounds?.ChangeScene(preloads));
+    }
 
     // Every store finishes loading before any releases an outgoing asset. The texture store releases
     // once the loads it wraps return. Shaders are kept for the run and release nothing. The sound store

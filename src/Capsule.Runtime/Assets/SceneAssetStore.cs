@@ -54,6 +54,16 @@ internal sealed class SceneAssetStore<THandle, TAsset> : IDisposable
         return asset;
     }
 
+    // Starts the decodes the coming ChangeScene waits on, which then run while the caller does other work.
+    // One that change never takes is dropped by the next change or prefetch.
+    internal void Begin(IReadOnlyList<THandle> handles)
+    {
+        foreach (THandle handle in handles)
+        {
+            Start(handle);
+        }
+    }
+
     // Starts the decodes of the prefetch set and releases what the previous set warmed alone.
     internal void Prefetch(IReadOnlyList<THandle> handles)
     {

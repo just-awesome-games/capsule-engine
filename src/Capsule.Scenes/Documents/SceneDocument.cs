@@ -24,6 +24,9 @@ public sealed class SceneDocument
     // The document's members, or null when it authors none.
     internal AuthoredObject? Authored { get; }
 
+    // What each shared read made of an array the document authors.
+    internal SharedReads Shared { get; } = new();
+
     /// <summary>A validated document over <paramref name="entries"/>.</summary>
     /// <param name="entries">Every entry, in composition order.</param>
     /// <param name="members">

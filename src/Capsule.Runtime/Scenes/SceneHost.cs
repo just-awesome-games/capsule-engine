@@ -116,9 +116,9 @@ internal sealed class SceneHost : ISimulation, IDisposable
             return;
         }
 
-        _current.Step(context);
-        Consume();
-        TakePrefetch();
+        SceneSimulation stepped = _current;
+        stepped.Step(context);
+        Finish(stepped);
     }
 
     // Step with the host's before-step act inside the current scene's step. A scene the act asks for
@@ -130,9 +130,20 @@ internal sealed class SceneHost : ISimulation, IDisposable
             return;
         }
 
-        ((ISimulation)_current).Step(context, before);
+        SceneSimulation stepped = _current;
+        ((ISimulation)stepped).Step(context, before);
+        Finish(stepped);
+    }
+
+    // Resolves what the step asked for. A step that opened a scene leaves a prefetch to the next step,
+    // which keeps the building of a second scene off the frame that pays for the first.
+    private void Finish(SceneSimulation stepped)
+    {
         Consume();
-        TakePrefetch();
+        if (ReferenceEquals(_current, stepped))
+        {
+            TakePrefetch();
+        }
     }
 
     // Opens a step and returns whether there is one to run. An exit already tore the current scene

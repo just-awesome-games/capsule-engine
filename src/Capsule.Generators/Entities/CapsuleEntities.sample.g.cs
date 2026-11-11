@@ -76,7 +76,7 @@ namespace Capsule.Generated
                         {
                             SetColumns(entity, members.Int("columns"));
                         }
-                        SetTileTypes(entity, members.Array<global::Capsule.Tiles.TileType>("tileTypes", static element => Object_Capsule_Tiles_TileType(null, element.Object("tileTypes"), replaces: true)));
+                        SetTileTypes(entity, members.Shared<global::Capsule.Tiles.TileType>("tileTypes", static element => Object_Capsule_Tiles_TileType(null, element.Object("tileTypes"), replaces: true)));
                         if (members.Has("tiles"))
                         {
                             SetTiles(entity, members.Shared<int>("tiles", static element => element.Int("tiles")));
@@ -202,7 +202,7 @@ namespace Capsule.Generated
         private static extern void SetColumns(global::Capsule.Tiles.TileMap owner, int value);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_TileTypes")]
-        private static extern void SetTileTypes(global::Capsule.Tiles.TileMap owner, global::Capsule.Tiles.TileType[] value);
+        private static extern void SetTileTypes(global::Capsule.Tiles.TileMap owner, global::System.ReadOnlyMemory<global::Capsule.Tiles.TileType> value);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Tiles")]
         private static extern void SetTiles(global::Capsule.Tiles.TileMap owner, global::System.ReadOnlyMemory<int> value);
