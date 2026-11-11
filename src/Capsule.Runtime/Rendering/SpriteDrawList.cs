@@ -199,6 +199,40 @@ internal sealed class SpriteDrawList : IDisposable
         instance.Flags = FlagsOf(in sprite);
     }
 
+    // Consecutive sprites whose regions sit at offsetX, offsetY on texture, as Add records each. Neighbours
+    // mostly share a colour, and its packing is worked out where it changes.
+    internal void AddRange(SampledTexture texture, ReadOnlySpan<SpriteIntent> sprites, int offsetX, int offsetY)
+    {
+        Span<SpriteInstance> instances = Open(texture, sprites.Length);
+        ColorRgba color = default;
+        BlendMode blend = BlendMode.Alpha;
+        uint tint = 0;
+        for (int index = 0; index < sprites.Length; index++)
+        {
+            ref readonly SpriteIntent sprite = ref sprites[index];
+            if (index == 0 || sprite.Color != color || sprite.Blend != blend)
+            {
+                color = sprite.Color;
+                blend = sprite.Blend;
+                tint = Tint(color, blend);
+            }
+
+            TextureRegion region = sprite.Sprite.Region;
+            ref SpriteInstance instance = ref instances[index];
+            instance.PreviousPosition = sprite.PreviousPosition;
+            instance.Position = sprite.Position;
+            instance.PreviousRotation = sprite.PreviousRotation;
+            instance.Rotation = sprite.Rotation;
+            instance.Origin = sprite.DrawOrigin;
+            instance.Size = sprite.Size;
+            instance.Region = SpriteInstance.Pack(region.X + offsetX, region.Y + offsetY);
+            instance.Extent = SpriteInstance.Pack(region.Width, region.Height);
+            instance.Tint = tint;
+            instance.Flash = Flash(sprite.Flash, color.A);
+            instance.Flags = FlagsOf(in sprite);
+        }
+    }
+
     // The way the texels read: the intent's flips over the frame's own.
     internal static SpriteFlags FlagsOf(in SpriteIntent sprite) =>
         (sprite.MirrorsX ? SpriteFlags.FlipX : SpriteFlags.None) | (sprite.MirrorsY ? SpriteFlags.FlipY : SpriteFlags.None);
@@ -450,6 +484,28 @@ internal sealed class SpriteDrawList : IDisposable
         _draws[_drawCount - 1].Count++;
 
         return ref _instances[_count++];
+    }
+
+    // The instances the next count quads write, in the open draw if it shares texture, or in a new one.
+    private Span<SpriteInstance> Open(SampledTexture texture, int count)
+    {
+        if (!_open || !ReferenceEquals(_draws[_drawCount - 1].Texture, texture))
+        {
+            Grow(ref _draws, _drawCount);
+            _draws[_drawCount++] = new Draw(_state, texture, _count);
+            _open = true;
+        }
+
+        if (_count + count > _instances.Length)
+        {
+            Array.Resize(ref _instances, Math.Max(_instances.Length * 2, _count + count));
+        }
+
+        _draws[_drawCount - 1].Count += count;
+        Span<SpriteInstance> instances = _instances.AsSpan(_count, count);
+        _count += count;
+
+        return instances;
     }
 
     private readonly record struct Area(int X, int Y, int Width, int Height);

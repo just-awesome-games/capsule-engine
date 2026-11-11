@@ -23,7 +23,7 @@ namespace Capsule.Rendering;
 /// other entity throws <see cref="InvalidOperationException"/>.
 /// </remarks>
 /// <param name="sprite">The frame to draw.</param>
-public sealed class SpriteRenderer(Sprite sprite) : Renderer
+public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: true)
 {
     private Sprite _sprite = sprite;
     private Vector2 _offset;
@@ -48,8 +48,24 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
 
         set
         {
-            _sprite = value;
-            Resolve();
+            if (Awake)
+            {
+                _sprite = value;
+                Resolve();
+            }
+            else
+            {
+                // An animation whose frames share a size and a pivot covers the same rect on each of them,
+                // and a sprite at rest stays there.
+                Sprite? drawn = DrawnFrame;
+                _sprite = value;
+                Resolve();
+                if (!SameCover(drawn, DrawnFrame))
+                {
+                    Wake();
+                }
+            }
+
             Place(frameChanged: true);
         }
     }
@@ -81,6 +97,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
 
         set
         {
+            Wake();
             if (value is not null)
             {
                 Extras extras = _extras ??= new();
@@ -114,6 +131,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         set
         {
             _offset = value;
+            Wake();
             Place(frameChanged: false);
         }
     }
@@ -129,7 +147,16 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
     /// component draws nothing, as does a non-zero tiling on an entity whose
     /// <see cref="Entity.WorldTransform"/> is turned.
     /// </remarks>
-    public Vector2 Tiling { get; set; }
+    public Vector2 Tiling
+    {
+        get;
+
+        set
+        {
+            field = value;
+            Wake();
+        }
+    }
 
     /// <summary>Whether the frame is mirrored horizontally about its pivot. Bound sockets and boxes mirror with it.</summary>
     public bool FlipX
@@ -139,6 +166,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         set
         {
             _flipX = value;
+            Wake();
             Place(frameChanged: false);
         }
     }
@@ -151,6 +179,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
         set
         {
             _flipY = value;
+            Wake();
             Place(frameChanged: false);
         }
     }
@@ -340,6 +369,13 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer
 
     // The frame drawn: the held one, or what Variant maps it to, and null where that is nothing.
     private Sprite? DrawnFrame => _extras?.Look is { } look ? look.Drawn : _sprite;
+
+    // Whether two frames drawn from one place cover the same rect, whatever texels they show.
+    private static bool SameCover(Sprite? before, Sprite? after) =>
+        before is { } was && after is { } now
+            ? was.Region.Width == now.Region.Width && was.Region.Height == now.Region.Height && was.Pivot == now.Pivot
+                && was.FlipX == now.FlipX && was.FlipY == now.FlipY
+            : before is null && after is null;
 
     // Settled on every write to Sprite or Variant, and never by a draw.
     private void Resolve()

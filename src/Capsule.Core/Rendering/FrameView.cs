@@ -53,6 +53,18 @@ public sealed class FrameView
 
     private int _submitted;
 
+    // How many sprites, polygons, lines and lights the frame has kept.
+    private int _stores;
+
+    // What the running renderer has offered since OpenOffer that the frame dropped: how many offers, the
+    // world rect they reach together, and whether one reaches past any rect this can state.
+    private Rect _offerReach = Nothing;
+    private int _offerDropped;
+    private bool _offerUnbounded;
+
+    // Whether the running renderer's offers are kept account of. The scene asks only for one that may rest.
+    private bool _offerOpen;
+
     private CameraView _camera;
     private CameraView _layerCamera;
     private Vector2 _scrollFactor = Vector2.One;
@@ -332,6 +344,70 @@ public sealed class FrameView
         _styled = _tinted || _flashing;
     }
 
+    // How many sprites, polygons, lines and lights the frame has kept, and how many it was offered.
+    internal int Stores => _stores;
+
+    internal int Submitted => _submitted;
+
+    // Starts the account of what the next renderer offers and the frame drops, or keeps none for it.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void OpenOffer(bool open)
+    {
+        _offerOpen = open;
+        if (open)
+        {
+            _offerReach = Nothing;
+            _offerDropped = 0;
+            _offerUnbounded = false;
+        }
+    }
+
+    // Whether the frame kept nothing since it held stores, of a renderer that offered something, and the
+    // world rect outside which the same offers are dropped again. False where an offer has no such rect.
+    internal bool TryCloseOffer(int stores, out Rect reach)
+    {
+        reach = _offerReach;
+
+        return _stores == stores && _offerDropped > 0 && !_offerUnbounded;
+    }
+
+    // The region world intent under a scroll factor is culled against, and whether it is culled at all.
+    internal bool TryGetWorldCull(Vector2 scrollFactor, out Rect region)
+    {
+        CameraView camera = scrollFactor == Vector2.One ? _camera : _camera.ScrolledBy(scrollFactor);
+        region = camera.SweptBounds;
+
+        return camera.Size.X > 0f && camera.Size.Y > 0f && !region.IsEmpty;
+    }
+
+    // Counts the submissions of renderers the scene left out, each of which the frame would have dropped.
+    internal void CountDropped(int submissions) => _submitted += submissions;
+
+    // An offer the frame dropped. One with no rect draws nothing wherever the camera stands. One culled by
+    // the screen layer answers to the canvas and its clips, which no world rect states.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void Drop(Route route, bool bounded, in Rect reach)
+    {
+        if (!_offerOpen)
+        {
+            return;
+        }
+
+        _offerDropped++;
+        if (!ReferenceEquals(route, _worldRoute))
+        {
+            _offerUnbounded = true;
+        }
+        else if (bounded)
+        {
+            _offerReach = Rect.FromEdges(
+                MathF.Min(_offerReach.Left, reach.Left),
+                MathF.Min(_offerReach.Top, reach.Top),
+                MathF.Max(_offerReach.Right, reach.Right),
+                MathF.Max(_offerReach.Bottom, reach.Bottom));
+        }
+    }
+
     // The region the running renderer's space culls against, and whether it culls at all. A
     // bulk-drawing renderer tests its own bounds against this once instead of paying an Add
     // overload's per-sprite test.
@@ -350,6 +426,47 @@ public sealed class FrameView
         Store(RouteOf(Space), in sprite);
     }
 
+    // Makes room for up to count sprites with no bounds test, for a caller that tested its own bounds. The
+    // caller writes them from the front and then calls Keep with how many it wrote. Nothing else is stored
+    // in between.
+    internal Span<SpriteIntent> Reserve(int count)
+    {
+        List<SpriteIntent> sprites = RouteOf(Space).List.Sprites;
+        int first = sprites.Count;
+        CollectionsMarshal.SetCount(sprites, first + count);
+
+        return CollectionsMarshal.AsSpan(sprites)[first..];
+    }
+
+    // Keeps the first written of the reserved sprites, each of which counts as a sprite added does. The runs
+    // they are stored under open here, at the first of them, and a caller that wrote none opens no run.
+    internal void Keep(int reserved, int written)
+    {
+        Route route = RouteOf(Space);
+        Layer layer = route.List;
+        if (written > 0)
+        {
+            layer.Reserved = reserved;
+            OpenMaterialRun(layer);
+            Enter(route);
+            layer.Reserved = 0;
+        }
+
+        List<SpriteIntent> sprites = layer.Sprites;
+        int first = sprites.Count - reserved;
+        CollectionsMarshal.SetCount(sprites, first + written);
+        _submitted += written;
+        _stores += written;
+
+        if (_styled)
+        {
+            foreach (ref SpriteIntent sprite in CollectionsMarshal.AsSpan(sprites)[first..])
+            {
+                sprite = Styled(in sprite);
+            }
+        }
+    }
+
     /// <summary>Adds a sprite. An unset camera or canvas disables culling.</summary>
     public void Add(in SpriteIntent sprite) => Add(in sprite, Space);
 
@@ -359,9 +476,14 @@ public sealed class FrameView
         _submitted++;
 
         Route route = RouteOf(space);
-        if (route.Culls && !(sprite.TryGetSweptBounds(out Rect swept) && swept.Intersects(route.Bounds)))
+        if (route.Culls)
         {
-            return;
+            bool bounded = sprite.TryGetSweptBounds(out Rect swept);
+            if (!(bounded && swept.Intersects(route.Bounds)))
+            {
+                Drop(route, bounded, in swept);
+                return;
+            }
         }
 
         Store(route, in sprite);
@@ -382,9 +504,15 @@ public sealed class FrameView
         }
 
         if (!(light.Intensity > 0f) || !float.IsFinite(light.Intensity) ||
-            !light.ToSprite(light.Color).TryGetSweptBounds(out Rect swept) ||
-            (_worldRoute.Culls && !swept.Intersects(_worldRoute.Bounds)))
+            !light.ToSprite(light.Color).TryGetSweptBounds(out Rect swept))
         {
+            Drop(_worldRoute, bounded: false, default);
+            return;
+        }
+
+        if (_worldRoute.Culls && !swept.Intersects(_worldRoute.Bounds))
+        {
+            Drop(_worldRoute, bounded: true, in swept);
             return;
         }
 
@@ -395,6 +523,7 @@ public sealed class FrameView
         }
 
         _lights.Add(_tinted ? light with { Color = ColorRgba.Multiply(light.Color, _tint) } : light);
+        _stores++;
         LitWorld = true;
     }
 
@@ -438,6 +567,9 @@ public sealed class FrameView
         {
             return;
         }
+
+        // Only the copies that reach the region are offered, and the rest have no account here.
+        _offerUnbounded = true;
 
         Route route = RouteOf(space);
         bool culls = route.Culls;
@@ -503,13 +635,16 @@ public sealed class FrameView
         _submitted++;
 
         Route route = RouteOf(space);
-        if (!line.TryGetBounds(out Rect bounds) || (route.Culls && !bounds.Intersects(route.Bounds)))
+        bool bounded = line.TryGetBounds(out Rect bounds);
+        if (!bounded || (route.Culls && !bounds.Intersects(route.Bounds)))
         {
+            Drop(route, bounded, in bounds);
             return;
         }
 
         Enter(route);
         route.List.Lines.Add(_tinted ? line with { Color = ColorRgba.Multiply(line.Color, _tint) } : line);
+        _stores++;
     }
 
     /// <summary>Adds a polygon, culled by the rect its outline sweeps as a sprite is.</summary>
@@ -524,14 +659,17 @@ public sealed class FrameView
         ReadOnlySpan<Vector2> current = polygon.Points;
         Rect swept = Rect.FromEdges(current[0].X, current[0].Y, current[0].X, current[0].Y);
         Route route = RouteOf(space);
-        if (!TryWiden(ref swept, previous) || !TryWiden(ref swept, current) || (route.Culls && !swept.Intersects(route.Bounds)))
+        bool bounded = TryWiden(ref swept, previous) && TryWiden(ref swept, current);
+        if (!bounded || (route.Culls && !swept.Intersects(route.Bounds)))
         {
+            Drop(route, bounded, in swept);
             return;
         }
 
         Layer layer = route.List;
         OpenMaterialRun(layer);
         Enter(route);
+        _stores++;
 
         int first = _points.Count;
         _points.AddRange(previous);
@@ -632,8 +770,13 @@ public sealed class FrameView
     internal bool Rejects(in Rect reach, RenderSpace space)
     {
         Route route = RouteOf(space);
+        if (route.Culls && !reach.Intersects(route.Bounds))
+        {
+            Drop(route, bounded: true, in reach);
+            return true;
+        }
 
-        return route.Culls && !reach.Intersects(route.Bounds);
+        return false;
     }
 
     /// <summary>
@@ -713,6 +856,7 @@ public sealed class FrameView
         OpenMaterialRun(layer);
         Enter(route);
         layer.Sprites.Add(_styled ? Styled(in sprite) : sprite);
+        _stores++;
     }
 
     // Opens a material run where the running material differs from the one layer's last run opened with.
@@ -721,7 +865,7 @@ public sealed class FrameView
     {
         if (!ReferenceEquals(Material, layer.RunMaterial))
         {
-            layer.Runs.Add(new MaterialRun(layer.Sprites.Count, Material, layer.Polygons.Count));
+            layer.Runs.Add(new MaterialRun(layer.Stored, Material, layer.Polygons.Count));
             layer.RunMaterial = Material;
             ReadsScreen |= Material is { Shader.ReadsScreen: true };
         }
@@ -746,7 +890,7 @@ public sealed class FrameView
         if (route.Key >> 1 != layer.RunKey >> 1)
         {
             bool clipped = route.ClipSerial != Unclipped;
-            layer.ClipRuns.Add(new ClipRun(layer.Sprites.Count, layer.Lines.Count, clipped ? _clipStart : 0, clipped ? _clipCount : 0, layer.Polygons.Count));
+            layer.ClipRuns.Add(new ClipRun(layer.Stored, layer.Lines.Count, clipped ? _clipStart : 0, clipped ? _clipCount : 0, layer.Polygons.Count));
         }
 
         if (route.Canvas != layer.RunCanvas)
@@ -760,7 +904,7 @@ public sealed class FrameView
     // Opens a run on the world's list placed in canvas pixels, or by the running scroll factor.
     private void OpenPlacementRun(bool canvas)
     {
-        _placements.Add(new PlacementRun(WorldList.Sprites.Count, WorldList.Lines.Count, _scrollFactor, _lights.Count, canvas, WorldList.Polygons.Count));
+        _placements.Add(new PlacementRun(WorldList.Stored, WorldList.Lines.Count, _scrollFactor, _lights.Count, canvas, WorldList.Polygons.Count));
         WorldList.RunKey = (WorldList.RunKey & ~1) | (canvas ? 1 : 0);
     }
 
@@ -785,6 +929,8 @@ public sealed class FrameView
         _clipCount = 0;
         _screenRoute.ClipSerial = 0;
         _submitted = 0;
+        _stores = 0;
+        _offerOpen = false;
         Space = RenderSpace.World;
         SortsWithWorld = false;
         SetStyle(ColorRgba.White, default);
@@ -855,6 +1001,12 @@ public sealed class FrameView
         private readonly int _unclipped = unclipped;
 
         internal List<SpriteIntent> Sprites { get; } = [];
+
+        // How many sprites at the end of the list are reserved and not yet kept, zero outside Keep.
+        internal int Reserved { get; set; }
+
+        // How many sprites the list holds for good, which is where the next run opens.
+        internal int Stored => Sprites.Count - Reserved;
 
         internal List<StoredPolygon> Polygons { get; } = [];
 

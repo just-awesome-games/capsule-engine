@@ -696,17 +696,50 @@ internal sealed partial class FrameRenderer : IDisposable
                 continue;
             }
 
-            if (!hidden)
+            // The sprites up to where the next run opens or the next polygon draws share every setting.
+            // A run whose polygon cursor has not come opens after a polygon, which ends the stretch itself.
+            int end = sprites.Length;
+            if (next < layers.Length && layers[next].FirstSprite > index)
             {
-                if (pass.Reading && sprites[index].TryGetSweptBounds(out Rect swept))
-                {
-                    _sprites.Widen(in swept, pass.FrameCorner - pass.LayerCorner);
-                }
-
-                DrawSprite(in sprites[index], ref pass);
+                end = Math.Min(end, layers[next].FirstSprite);
             }
 
-            index++;
+            if (nextMaterial < materials.Length && materials[nextMaterial].FirstSprite > index)
+            {
+                end = Math.Min(end, materials[nextMaterial].FirstSprite);
+            }
+
+            if (nextClip < clips.Length && clips[nextClip].FirstSprite > index)
+            {
+                end = Math.Min(end, clips[nextClip].FirstSprite);
+            }
+
+            if (polygon < polygons.Length)
+            {
+                end = Math.Min(end, polygons[polygon].Before);
+            }
+
+            if (hidden)
+            {
+                index = end;
+            }
+            else if (pass.Reading)
+            {
+                for (; index < end; index++)
+                {
+                    if (sprites[index].TryGetSweptBounds(out Rect swept))
+                    {
+                        _sprites.Widen(in swept, pass.FrameCorner - pass.LayerCorner);
+                    }
+
+                    DrawSprite(in sprites[index], ref pass);
+                }
+            }
+            else
+            {
+                DrawSprites(sprites[index..end], ref pass);
+                index = end;
+            }
         }
 
         _sprites.SetMaterial(null);
@@ -916,6 +949,36 @@ internal sealed partial class FrameRenderer : IDisposable
         _sprites.SetPlacement(pass.LayerCorner, pass.FrameCorner, pass.Snap ? pass.Scale : 0f);
         _sprites.Add(pass.Slice.Texture, in sprite, pass.Slice.OffsetX, pass.Slice.OffsetY);
     }
+
+    // A stretch of sprites under one placement, each run of them on one handle recorded in one pass.
+    private void DrawSprites(ReadOnlySpan<SpriteIntent> sprites, ref Pass pass)
+    {
+        _sprites.SetPlacement(pass.LayerCorner, pass.FrameCorner, pass.Snap ? pass.Scale : 0f);
+        int first = 0;
+        while (first < sprites.Length)
+        {
+            TextureHandle handle = sprites[first].Sprite.Texture;
+            int end = first + 1;
+            while (end < sprites.Length && SameHandle(sprites[end].Sprite.Texture, in handle))
+            {
+                end++;
+            }
+
+            if (pass.Slice.Texture is null || handle != pass.Resolved)
+            {
+                pass.Resolved = handle;
+                pass.Slice = Slice(in pass.Resolved);
+            }
+
+            _sprites.AddRange(pass.Slice.Texture, sprites[first..end], pass.Slice.OffsetX, pass.Slice.OffsetY);
+            first = end;
+        }
+    }
+
+    // Handles a sheet hands out share their strings, and two of one texture match without a character read.
+    private static bool SameHandle(TextureHandle left, in TextureHandle right) =>
+        (ReferenceEquals(left.Name, right.Name) && ReferenceEquals(left.Extension, right.Extension) && left.IsEngineOwned == right.IsEngineOwned)
+        || left == right;
 
     private TextureSlice Slice(in TextureHandle handle)
     {

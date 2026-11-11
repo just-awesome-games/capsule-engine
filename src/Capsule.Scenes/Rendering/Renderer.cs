@@ -17,6 +17,25 @@ namespace Capsule.Rendering;
 /// </remarks>
 public abstract class Renderer : Component
 {
+    // The frame dropped all this renderer last offered, and the next frame sees whether it can rest.
+    private const byte Dropped = 1;
+
+    // The most submissions a renderer at rest can stand for.
+    private const int MostRestOffers = byte.MaxValue - 2;
+
+    // Zero while the scene asks this renderer to draw each frame, and Dropped. Above that it is at rest:
+    // two more than the submissions its last draw offered, every one of which the frame dropped.
+    private byte _rest;
+
+    // While at rest: the world rect its offers reach, and which of its scene's scroll factors they were
+    // culled under. A frame whose view misses the rect leaves the renderer out.
+    private Rect _restReach;
+    private byte _restLayer;
+
+    // Whether what this renderer offers a frame follows from its entity's transform and from state whose
+    // every write calls Wake. The scene then lets it rest while it stands still out of view.
+    private readonly bool _restsWhenStill;
+
     /// <summary>
     /// This renderer's offset from its entity's summed <see cref="Entity.ZIndex"/>, zero by default. A
     /// higher sum draws later.
@@ -62,6 +81,16 @@ public abstract class Renderer : Component
     /// </remarks>
     public Material? Material { get; set; }
 
+    /// <summary>A renderer attached to no entity.</summary>
+    protected Renderer()
+    {
+    }
+
+    private protected Renderer(bool restsWhenStill)
+    {
+        _restsWhenStill = restsWhenStill;
+    }
+
     /// <summary>
     /// The rect this renderer covers, in the space it draws in: world units under a world root, or
     /// canvas pixels with every anchor resolved under a screen root. It reads the entity's current
@@ -104,6 +133,47 @@ public abstract class Renderer : Component
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => Entity is { } entity ? PreviousPlaced(entity.PreviousWorld, entity) : Transform2D.Identity;
     }
+
+    internal bool Resting => _rest > Dropped;
+
+    // Whether the scene asks this renderer to draw each frame and has no rest in sight for it.
+    private protected bool Awake => _rest == 0;
+
+    // Whether the frame before dropped all this renderer offered, and it is one that can rest.
+    internal bool MayRest => _rest == Dropped;
+
+    internal int RestOffers => _rest - 2;
+
+    // A frame kept nothing this renderer offered.
+    internal void NoteDropped()
+    {
+        if (_rest == 0 && _restsWhenStill)
+        {
+            _rest = Dropped;
+        }
+    }
+
+    internal ref readonly Rect RestReach => ref _restReach;
+
+    internal int RestLayer => _restLayer;
+
+    // Puts the renderer at rest. False where it offered more than a rest can count.
+    internal bool Rest(in Rect reach, int layer, int offers)
+    {
+        if ((uint)offers > MostRestOffers)
+        {
+            return false;
+        }
+
+        _restReach = reach;
+        _restLayer = (byte)layer;
+        _rest = (byte)(offers + 2);
+
+        return true;
+    }
+
+    // What this renderer offers may have changed, and the next frame asks it again.
+    internal void Wake() => _rest = 0;
 
     private static Transform2D Placed(in Transform2D world, Entity entity) =>
         world.With(world.Position + entity.SpaceOrigin, world.Scale);

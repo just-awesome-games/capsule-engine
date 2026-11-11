@@ -380,7 +380,7 @@ public class TileMap : Entity
 
         // Draws only the cells the camera's swept bounds reach, row by row, and skips each stretch of a row whose
         // block holds nothing. Every cell drawn meets the bounds the view culls against, and the view's own test
-        // is skipped.
+        // is skipped. A row is written straight into the view's list, which is sized for it once.
         protected internal override void Draw(FrameView view)
         {
             ArgumentNullException.ThrowIfNull(view);
@@ -398,6 +398,8 @@ public class TileMap : Entity
             int lastBlock = (maxX - 1) >> CellBlocks.BlockShift;
             for (int y = minY; y < maxY; y++)
             {
+                Span<SpriteIntent> row = view.Reserve(maxX - minX);
+                int written = 0;
                 for (int bx = firstBlock; bx <= lastBlock; bx++)
                 {
                     if (cells.BlockAt(bx, y >> CellBlocks.BlockShift) is not { } block)
@@ -418,7 +420,7 @@ public class TileMap : Entity
                         // as both ends of the interpolation, and a mirror or turn stays inside the cell.
                         Vector2 centre = map.CellCenter(x, y);
                         ref readonly TileTransforms.Pose pose = ref TileTransforms.PoseOf((TileTransform)block.VariantAt(cell));
-                        view.AddUnculled(new SpriteIntent(
+                        row[written++] = new SpriteIntent(
                             sprite,
                             centre,
                             centre,
@@ -427,9 +429,11 @@ public class TileMap : Entity
                             size,
                             pose.FlipX,
                             pose.FlipY,
-                            ColorRgba.White));
+                            ColorRgba.White);
                     }
                 }
+
+                view.Keep(maxX - minX, written);
             }
         }
 

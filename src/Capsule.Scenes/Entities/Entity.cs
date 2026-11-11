@@ -53,6 +53,9 @@ public partial class Entity
     // Count of attached components that step. The step skips the component walk when it is zero.
     private int _steppers;
     private bool _started;
+
+    // Whether a renderer here may be at rest. Whatever moves the entity or changes how it shows wakes them.
+    private bool _holdsRest;
     private Vector2 _scrollFactor = Vector2.One;
 
     // The name the game or its scene document asked for, null for the type name. Name spells a numbered one
@@ -422,6 +425,11 @@ public partial class Entity
                 RequireScrollable();
             }
 
+            if (value != _scrollFactor)
+            {
+                WakeTree();
+            }
+
             _scrollFactor = value;
         }
     }
@@ -707,9 +715,53 @@ public partial class Entity
     // A renderer about to join or leave an entity a scene already holds changes that scene's draw order.
     private void NoteRendererChange(Component component)
     {
-        if (component is Renderer)
+        if (component is Renderer renderer)
         {
+            renderer.Wake();
             SceneOrNull?.Drawing.Changing(this, band: false);
+        }
+    }
+
+    // A renderer here went to rest. Its world transform and its appearance are both fresh, and whatever
+    // stales either reaches this entity.
+    internal void HoldRest() => _holdsRest = true;
+
+    // Whether the entity stands where the previous step left it.
+    internal bool Still
+    {
+        get
+        {
+            // Compared member by member, the place first, which is what a moving entity differs in.
+            ref readonly Transform2D world = ref World;
+
+            return world.Position == _previousWorld.Position && world.Rotation == _previousWorld.Rotation && world.Scale == _previousWorld.Scale;
+        }
+    }
+
+    internal void WakeRenderers()
+    {
+        if (!_holdsRest)
+        {
+            return;
+        }
+
+        _holdsRest = false;
+        foreach (Component component in _components)
+        {
+            (component as Renderer)?.Wake();
+        }
+    }
+
+    private void WakeTree()
+    {
+        if (_holdsRest)
+        {
+            WakeRenderers();
+        }
+
+        foreach (Entity child in Children)
+        {
+            child.WakeTree();
         }
     }
 

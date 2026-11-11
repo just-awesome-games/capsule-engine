@@ -87,6 +87,45 @@ public sealed class TileMapTests
         Assert.Equal([stone.Shader], simulation.Scene.CollectAssetPreloads(entryPayload: null).Shaders);
     }
 
+    // A row is written into the frame in one piece, sized for every cell in view. The empty cell leaves no
+    // sprite behind, and what draws after the map follows its last tile.
+    [Fact]
+    public void ATintedTilemapWithAnEmptyCell_TintsAndCountsOnlyTheTilesItDraws()
+    {
+        ColorRgba tint = new(255, 128, 0, 255);
+        TileMap tiles = new(SceneFixtures.EightPixelRow(1, 0, 1, 1)) { Tint = tint };
+        EntityHierarchyFixtures.Node after = new(new Vector2(4f, 4f));
+        after.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
+        SceneSimulation simulation = Framed(tiles, after);
+        simulation.Step(SceneFixtures.Step());
+
+        SpriteIntent[] sprites = simulation.View.Sprites.ToArray();
+        Assert.Equal([4f, 20f, 28f, 4f], sprites.Select(static sprite => sprite.Position.X));
+        Assert.Equal([tint, tint, tint, ColorRgba.White], sprites.Select(static sprite => sprite.Color));
+        Assert.Equal(new RenderMetrics(4, 4, 0), simulation.View.Metrics);
+    }
+
+    // A run opened for a row that keeps nothing would end the run the sprite before the map opened, and a
+    // material that reads the picture would then read it again for the sprite after.
+    [Fact]
+    public void ATilemapWithNoTileInView_OpensNoRunBetweenTheSpritesAroundIt()
+    {
+        Material shared = new(new Shader("effects/stone"));
+        EntityHierarchyFixtures.Node before = new(new Vector2(4f, 4f));
+        before.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)) { Material = shared });
+        EntityHierarchyFixtures.Node after = new(new Vector2(4f, 4f));
+        after.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)) { Material = shared });
+        TileMap tiles = new(SceneFixtures.EightPixelRow(0, 0, 1, 1));
+
+        Scene scene = new();
+        SceneFixtures.Open(scene, new Vector2(8f, 4f), new Vector2(16f, 8f));
+        SceneSimulation simulation = SceneFixtures.Simulation(scene, before, tiles, after);
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Equal(2, simulation.View.Sprites.Length);
+        Assert.Equal([new MaterialRun(0, shared)], simulation.View.MaterialRuns.ToArray());
+    }
+
     [Fact]
     public void TerrainEmitsOnlyTilesCrossingTheCamera()
     {

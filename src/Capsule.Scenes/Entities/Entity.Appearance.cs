@@ -211,6 +211,10 @@ public partial class Entity
         }
 
         _appearanceStale = true;
+        if (_holdsRest)
+        {
+            WakeRenderers();
+        }
 
         foreach (Entity child in Children)
         {

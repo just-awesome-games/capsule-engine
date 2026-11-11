@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Capsule.Diagnostics;
 using Capsule.Scenes;
 using Capsule.UI;
 
@@ -13,7 +14,18 @@ internal sealed class SceneDrawing
     // The widest span of bands a rebuild groups by counting. A wider one sorts by comparison.
     private const int MostCountedBands = 4096;
 
+    // Whether a frame draws each renderer it leaves out into a view of its own and throws where the
+    // renderer would have drawn. The engine's tests run with it on.
+    private static readonly bool ChecksRests = AppContext.TryGetSwitch("Capsule.CheckRests", out bool on) && on;
+
     private readonly Scene _scene;
+
+    // The view a renderer left out is drawn into under ChecksRests.
+    private FrameView? _restCheck;
+
+    // The scroll factors renderers have gone to rest under, which each names by its place here. A scene
+    // scrolls a handful of layers. Past a byte's worth, a renderer under a new factor does not rest.
+    private readonly List<Vector2> _restFactors = new(16);
     private List<Renderer> _renderers = [];
     private List<DrawKey> _keys = [];
 
@@ -72,7 +84,8 @@ internal sealed class SceneDrawing
         Scene scene = _scene;
         runs?.Clear();
         view.Clear();
-        view.Camera = camera ?? scene.Camera.ToView();
+        CameraView framed = camera ?? scene.Camera.ToView();
+        view.Camera = framed;
         view.Canvas = scene.Run.Canvas;
         view.ClearColor = scene.ClearColor;
         view.Ambient = scene.Ambient;
@@ -84,11 +97,25 @@ internal sealed class SceneDrawing
         {
             ReadOnlySpan<Renderer> renderers = GetDrawOrder(scene.Entities);
             ClipRect? clip = null;
+
+            RestCull rests = new() { Layer = -1, Factors = _restFactors };
             for (int index = 0; index < renderers.Length; index++)
             {
                 Renderer renderer = renderers[index];
                 if (!renderer.Visible)
                 {
+                    continue;
+                }
+
+                // A renderer at rest offers what it last did, and a view that misses all of it drops it
+                // again. It is left out before its entity is read.
+                if (renderer.Resting && LeavesOut(renderer, view, ref rests))
+                {
+                    if (Development.IsSupported && ChecksRests)
+                    {
+                        CheckRest(renderer, in framed, view.Canvas);
+                    }
+
                     continue;
                 }
 
@@ -125,12 +152,28 @@ internal sealed class SceneDrawing
                         runs.Add(new DrawRun(entity, view.Sprites.Length, view.Polygons.Length));
                     }
 
-                    renderer.Draw(view);
+                    // A renderer the frame keeps something of pays one comparison here.
+                    if (renderer.MayRest)
+                    {
+                        DrawToRest(renderer, entity, view, _restFactors);
+                    }
+                    else
+                    {
+                        int stores = view.Stores;
+                        renderer.Draw(view);
+                        if (view.Stores == stores && entity.Still)
+                        {
+                            renderer.NoteDropped();
+                        }
+                    }
                 }
             }
+
+            view.CountDropped(rests.Dropped);
         }
         finally
         {
+            view.OpenOffer(open: false);
             view.Space = RenderSpace.World;
             view.SortsWithWorld = false;
             view.ScrollFactor = Vector2.One;
@@ -138,6 +181,94 @@ internal sealed class SceneDrawing
             view.Material = null;
             view.ClearClip();
             _drawing = false;
+        }
+    }
+
+    // Whether the frame's view misses all a renderer at rest offers. The region its scroll factor is culled
+    // against is worked out where the factor changes from the renderer at rest before it.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool LeavesOut(Renderer renderer, FrameView view, ref RestCull rests)
+    {
+        if (renderer.RestLayer != rests.Layer)
+        {
+            rests.Layer = renderer.RestLayer;
+            rests.Culls = view.TryGetWorldCull(rests.Factors[rests.Layer], out rests.Region);
+        }
+
+        if (!rests.Culls || renderer.RestReach.Intersects(in rests.Region))
+        {
+            return false;
+        }
+
+        rests.Dropped += renderer.RestOffers;
+
+        return true;
+    }
+
+    // Draws a renderer the frame before dropped whole. Where it stands still in the world and the frame drops
+    // all it offers again, it goes to rest, and the reach then holds until the entity moves, its appearance
+    // changes or the renderer wakes itself. The frame keeps account of the offers of no other renderer.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void DrawToRest(Renderer renderer, Entity entity, FrameView view, List<Vector2> factors)
+    {
+        if (!entity.Still)
+        {
+            renderer.Draw(view);
+            return;
+        }
+
+        int stores = view.Stores;
+        int submitted = view.Submitted;
+        view.OpenOffer(open: true);
+        renderer.Draw(view);
+        if (view.TryCloseOffer(stores, out Rect reach) && entity.Space == RenderSpace.World
+            && LayerOf(entity.ScrollFactor, factors) is var layer and >= 0
+            && renderer.Rest(in reach, layer, view.Submitted - submitted))
+        {
+            entity.HoldRest();
+        }
+        else if (view.Stores != stores)
+        {
+            renderer.Wake();
+        }
+
+        view.OpenOffer(open: false);
+    }
+
+    // A scroll factor's place among those renderers rest under, added where it is new, or -1 past a byte's worth.
+    private static int LayerOf(Vector2 scrollFactor, List<Vector2> factors)
+    {
+        int layer = factors.IndexOf(scrollFactor);
+        if (layer < 0 && factors.Count <= byte.MaxValue)
+        {
+            layer = factors.Count;
+            factors.Add(scrollFactor);
+        }
+
+        return layer;
+    }
+
+    // Draws a renderer the frame left out as the frame would have, and throws where it is not dropped whole.
+    private void CheckRest(Renderer renderer, in CameraView framed, Vector2 canvas)
+    {
+        FrameView check = _restCheck ??= new FrameView();
+        check.Clear();
+        check.Camera = framed;
+        check.Canvas = canvas;
+
+        Entity entity = renderer.Entity!;
+        bool shown = entity.TryGetDrawStyle(out _, out _);
+        check.Space = entity.Space;
+        check.ScrollFactor = entity.ScrollFactor;
+        if (shown)
+        {
+            renderer.Draw(check);
+        }
+
+        if (!shown || check.Stores != 0 || check.Submitted != renderer.RestOffers || entity.ScrollFactor != _restFactors[renderer.RestLayer])
+        {
+            throw new InvalidOperationException(
+                $"A {renderer.GetType().Name} on a {entity.GetType().Name} was left out of a frame at rest, and drawn now it offers {check.Submitted} and the frame keeps {check.Stores}, where it rested on {renderer.RestOffers} offered and none kept. A write that changes what it draws did not wake it.");
         }
     }
 
@@ -225,6 +356,7 @@ internal sealed class SceneDrawing
     // next read drops the keys of whatever left.
     internal void Left(Entity entity)
     {
+        entity.WakeRenderers();
         bool awaited = entity.AwaitsDrawOrder;
         entity.AwaitsDrawOrder = false;
         if (_renderersStale)
@@ -305,6 +437,12 @@ internal sealed class SceneDrawing
 
     internal void Clear()
     {
+        // A renderer at rest names a scroll factor by its place in this scene's list.
+        foreach (Renderer? renderer in _renderers)
+        {
+            renderer?.Wake();
+        }
+
         _renderers.Clear();
         _keys.Clear();
         _arrived.Clear();
@@ -560,6 +698,17 @@ internal sealed class SceneDrawing
             keys[slot] = key;
             renderers[slot] = renderer;
         }
+    }
+
+    // The region the renderers at rest under one scroll factor are culled against, whether it culls at all,
+    // and the submissions of those left out so far. Layer names the factor among Factors, and none before the first.
+    private struct RestCull
+    {
+        internal List<Vector2> Factors;
+        internal int Layer;
+        internal Rect Region;
+        internal bool Culls;
+        internal int Dropped;
     }
 
     // Each key carries its entity's label in tree order and its renderer's place among that entity's,

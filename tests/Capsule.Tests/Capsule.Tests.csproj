@@ -14,6 +14,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Every frame a test builds draws each renderer it left out at rest and throws where it would have drawn. -->
+    <RuntimeHostConfigurationOption Include="Capsule.CheckRests" Value="true" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The registry generator's specs host it the way the compiler does: over a compilation
          they build in memory. A diagnostic is asserted there without failing this build. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />

@@ -267,6 +267,10 @@ public partial class Entity
         while (!entity._worldStale || previous)
         {
             entity._worldStale = true;
+            if (entity._holdsRest)
+            {
+                entity.WakeRenderers();
+            }
 
             if (previous)
             {
