@@ -1,0 +1,24 @@
+Capsule's change to SDL 3.4.18's Direct3D 12 swapchain. Its buffer count followed the frames in flight,
+never below two, and with two each frame draws into the buffer that left the screen on the latest flip.
+A display one flip behind what DXGI reports is still scanning that buffer out, and the frame's clear and
+draw show there as a band of garbage. The swapchain now holds three buffers whatever the frames in
+flight, which costs one buffer of memory and no latency. It needs SDL3-d3d12-frame-latency.patch, which
+cycles the fences by the frames in flight and not by the buffer count. Capsule keeps it: sizing the
+swapchain by the frames in flight is SDL's design, not a defect it will fix.
+
+diff --git a/src/gpu/d3d12/SDL_gpu_d3d12.c b/src/gpu/d3d12/SDL_gpu_d3d12.c
+--- a/src/gpu/d3d12/SDL_gpu_d3d12.c
++++ b/src/gpu/d3d12/SDL_gpu_d3d12.c
+@@ -7059,8 +7059,10 @@ static bool D3D12_INTERNAL_CreateSwapchain(
+ 
+     swapchainFormat = SwapchainCompositionToTextureFormat[swapchainComposition];
+ 
+-    // Min swapchain image count is 2
+-    windowData->swapchainTextureCount = SDL_clamp(renderer->allowedFramesInFlight, 2, 3);
++    // Three buffers whatever the frames in flight. A frame then draws into a buffer that left the
++    // screen two flips ago. With two it left on the latest flip, and a display one flip behind what
++    // DXGI reports is still scanning it out.
++    windowData->swapchainTextureCount = MAX_FRAMES_IN_FLIGHT;
+ 
+     // Initialize the swapchain buffer descriptor
+     swapchainDesc.Width = 0;  // use client window width
