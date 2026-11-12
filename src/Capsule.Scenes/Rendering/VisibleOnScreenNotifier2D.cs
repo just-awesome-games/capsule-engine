@@ -6,8 +6,8 @@ namespace Capsule.Rendering;
 
 /// <summary>
 /// Watches a <see cref="Rendering.Rect"/> on its entity against the scene camera's
-/// <see cref="Camera.VisibleRegion"/>, grown by <see cref="Margin"/>, and reports when it comes on screen and when it
-/// leaves.
+/// <see cref="Camera.VisibleRegion"/>, grown at each edge by <see cref="Margin"/>, and reports when it comes on screen
+/// and when it leaves.
 /// </summary>
 /// <remarks>
 /// <see cref="Rect"/> is in the entity's own units about its position, corner-anchored like a
@@ -27,16 +27,18 @@ namespace Capsule.Rendering;
 /// </remarks>
 /// <example>
 /// A falling leaf watches its body and leaves once all of it is off screen. A spawner watches its own position and fires
-/// 32 units before that position reaches the view:
+/// 32 units before that position reaches the view. A climber watches its position and leaves only once it falls 32
+/// units below the view:
 /// <code>
 /// Add(new VisibleOnScreenNotifier2D { Rect = new Rect(2f, -4f, 12f, 8f) });
-/// Add(new VisibleOnScreenNotifier2D { Margin = new Vector2(32f) });
+/// Add(new VisibleOnScreenNotifier2D { Margin = Rect.FromEdges(32f, 32f, 32f, 32f) });
+/// Add(new VisibleOnScreenNotifier2D { Margin = new Rect { Bottom = 32f } });
 /// </code>
 /// </example>
 public sealed class VisibleOnScreenNotifier2D : Component, ISettleListEntry
 {
     private Rect _rect;
-    private Vector2 _margin;
+    private Rect _margin;
     private Scene? _scene;
     private bool _dispatching;
 
@@ -68,17 +70,26 @@ public sealed class VisibleOnScreenNotifier2D : Component, ISettleListEntry
     }
 
     /// <summary>
-    /// How far the visible region is grown before the rect is tested against it, in world units: X on the left and
-    /// right, Y above and below. Zero, the default, tests against the region itself.
+    /// How far each edge of the visible region is grown outward before the rect is tested against it, in world units:
+    /// its <see cref="Rendering.Rect.Left"/>, <see cref="Rendering.Rect.Top"/>, <see cref="Rendering.Rect.Right"/>
+    /// and <see cref="Rendering.Rect.Bottom"/> each a distance out from that edge.
     /// </summary>
+    /// <remarks>
+    /// An edge at zero, as every edge is by default, tests against the region's own edge. Each edge is a distance rather
+    /// than a coordinate. Its size means nothing here.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">Set from inside this notifier's own handler.</exception>
-    public Vector2 Margin
+    public Rect Margin
     {
         get => _margin;
         set
         {
             RequireNotDispatching();
-            _margin = Guard.NonNegative(value, nameof(value));
+            _ = Guard.NonNegative(value.Left, nameof(value));
+            _ = Guard.NonNegative(value.Top, nameof(value));
+            _ = Guard.NonNegative(value.Right, nameof(value));
+            _ = Guard.NonNegative(value.Bottom, nameof(value));
+            _margin = value;
         }
     }
 
@@ -121,7 +132,8 @@ public sealed class VisibleOnScreenNotifier2D : Component, ISettleListEntry
     // overlap test also takes an axis with no extent as a line strictly inside the region.
     internal void SettleVisibility(in Rect region)
     {
-        Rect grown = Rect.FromEdges(region.Left - _margin.X, region.Top - _margin.Y, region.Right + _margin.X, region.Bottom + _margin.Y);
+        Rect grown = Rect.FromEdges(region.Left - _margin.Left, region.Top - _margin.Top, region.Right + _margin.Right,
+            region.Bottom + _margin.Bottom);
         bool onScreen = !region.IsEmpty && grown.Intersects(WorldRect(Entity!.World));
 
         if (onScreen == IsOnScreen)

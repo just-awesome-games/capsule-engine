@@ -183,7 +183,7 @@ public sealed class SceneVisibilityTests
         watched.Notifier.ScreenEntered += () =>
         {
             rectFailure = Record.Exception(() => watched.Notifier.Rect = new Rect(Vector2.One, Vector2.One));
-            marginFailure = Record.Exception(() => watched.Notifier.Margin = Vector2.One);
+            marginFailure = Record.Exception(() => watched.Notifier.Margin = Rect.FromEdges(1f, 1f, 1f, 1f));
         };
 
         SceneSimulation simulation = Framing(watched);
@@ -192,7 +192,7 @@ public sealed class SceneVisibilityTests
         Assert.IsType<InvalidOperationException>(rectFailure);
         Assert.IsType<InvalidOperationException>(marginFailure);
         Assert.Equal(new Rect(Vector2.Zero, Vector2.One), watched.Notifier.Rect);
-        Assert.Equal(Vector2.Zero, watched.Notifier.Margin);
+        Assert.Equal(default, watched.Notifier.Margin);
         Assert.Equal(["entered"], log);
     }
 
@@ -234,18 +234,23 @@ public sealed class SceneVisibilityTests
         Assert.Equal(onScreen, Settles(new Vector2(x, 0f), notifier, Span));
     }
 
-    // The margin grows the region in world units, by its X on the left and right and its Y above and below. It never
-    // scales with the entity, and it never makes an empty region visible.
+    // The margin grows each edge of the region by its own distance in world units, the left edge by its left alone. It
+    // never scales with the entity, and it never makes an empty region visible.
     [Theory]
-    [InlineData(-8f, 0f, 3f, 0f, 1f, 10f, false)]
-    [InlineData(-8f, 0f, 3.5f, 0f, 1f, 10f, true)]
-    [InlineData(-8f, 0f, 0f, 10f, 1f, 10f, false)]
-    [InlineData(0f, -8f, 0f, 3.5f, 1f, 10f, true)]
-    [InlineData(-8f, 0f, 2f, 0f, 2f, 10f, false)]
-    [InlineData(0f, 0f, 100f, 100f, 1f, 0f, false)]
-    public void AMargin_GrowsTheRegionTheRectMeets(float x, float y, float horizontal, float vertical, float scale, float view, bool onScreen)
+    [InlineData(-8f, 0f, 3f, 0f, 0f, 0f, 1f, 10f, false)]
+    [InlineData(-8f, 0f, 3.5f, 0f, 0f, 0f, 1f, 10f, true)]
+    [InlineData(-8f, 0f, 0f, 0f, 3.5f, 0f, 1f, 10f, false)]
+    [InlineData(8f, 0f, 0f, 0f, 3.5f, 0f, 1f, 10f, true)]
+    [InlineData(-8f, 0f, 0f, 10f, 0f, 10f, 1f, 10f, false)]
+    [InlineData(0f, -8f, 0f, 3.5f, 0f, 0f, 1f, 10f, true)]
+    [InlineData(0f, 8f, 0f, 3.5f, 0f, 0f, 1f, 10f, false)]
+    [InlineData(0f, 8f, 0f, 0f, 0f, 3.5f, 1f, 10f, true)]
+    [InlineData(-8f, 0f, 2f, 0f, 0f, 0f, 2f, 10f, false)]
+    [InlineData(0f, 0f, 100f, 100f, 100f, 100f, 1f, 0f, false)]
+    public void AMargin_GrowsEachEdgeOfTheRegionTheRectMeets(float x, float y, float left, float top, float right, float bottom,
+        float scale, float view, bool onScreen)
     {
-        VisibleOnScreenNotifier2D notifier = new() { Margin = new Vector2(horizontal, vertical) };
+        VisibleOnScreenNotifier2D notifier = new() { Margin = Rect.FromEdges(left, top, right, bottom) };
 
         Assert.Equal(onScreen, Settles(new Vector2(x, y), notifier, new Vector2(view), scale));
     }
@@ -257,7 +262,8 @@ public sealed class SceneVisibilityTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Rect = Rect.FromEdges(1f, 0f, 0f, 1f));
         Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Rect = Rect.FromEdges(float.NaN, 0f, 1f, 1f));
-        Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Margin = new Vector2(0f, -1f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Margin = new Rect { Bottom = -1f });
+        Assert.Throws<ArgumentOutOfRangeException>(() => notifier.Margin = new Rect { Left = float.NaN });
     }
 
     // A simulation of entities under a camera framing Span about the origin.
