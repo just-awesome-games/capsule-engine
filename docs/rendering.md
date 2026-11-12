@@ -60,6 +60,7 @@ public PlayField()
 | Need | Member |
 | --- | --- |
 | Slack before the camera moves, or an aim off the subject | `Deadzone`, `FollowOffset` |
+| A pan rather than a cut when the subject's position jumps | `MaxFollowSpeed` |
 | A change of bounds that glides | `SetBounds` with a `BoundsTransition` |
 | A push the game owns, such as a recoil | `Offset` |
 | A shake, or one shaped per call | `Shake`, with a `CameraShake` |

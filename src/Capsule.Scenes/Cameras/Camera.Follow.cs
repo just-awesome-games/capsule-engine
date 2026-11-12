@@ -5,8 +5,8 @@ using Capsule.Rendering;
 namespace Capsule.Scenes;
 
 // The follow: the subject, the point on it the camera aims at, the deadzone that aim moves in, the lead
-// ahead of it and the smoothing that carries the centre after them. The follow's own move each step lets
-// an opening bounds edge keep pace with it.
+// ahead of it, and the smoothing and the speed cap that carry the centre after them. The follow's own
+// move each step lets an opening bounds edge keep pace with it.
 public partial class Camera
 {
     // The point the smoothing chases. The deadzone is centred on it, and each settle confines it as it
@@ -99,6 +99,31 @@ public partial class Camera
     }
 
     /// <summary>
+    /// The fastest the follow moves the camera on each axis, in world units per second, where zero, the
+    /// default, leaves that axis unlimited.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A subject whose position jumps a few units in one step is reached by a pan at this speed rather
+    /// than a cut. Each axis is capped on its own. A diagonal pan can move up to 1.41 times the cap. The cap
+    /// measures from where the view settled at the previous step. A subject newly followed, or one resuming
+    /// after it was paused or left the scene, is reached the same way.
+    /// </para>
+    /// <para>
+    /// The cap applies to the centre with the lookahead's lead included. A camera that looks ahead needs a
+    /// cap above the subject's top speed plus the rate its lead grows, or it trails. The subject's own
+    /// position still never leaves the frame inside <see cref="Bounds"/>, and the bounds move the view
+    /// faster than the cap when a closing edge or a <see cref="BoundsTransition.Snap"/> pushes it. A caller
+    /// that moves the subject far away and wants the view there at once calls <see cref="Teleport"/>.
+    /// </para>
+    /// </remarks>
+    public Vector2 MaxFollowSpeed
+    {
+        get;
+        set => field = Guard.NonNegative(value, nameof(value));
+    }
+
+    /// <summary>
     /// Frames <paramref name="subject"/> from this step on, or holds the framing when it is null. A call
     /// before this camera's first settle cuts to the subject where it stands once the scene finishes
     /// starting, or at that settle for a camera installed later.
@@ -174,11 +199,16 @@ public partial class Camera
         Vector2 reach = Deadzone / 2f;
         _focus = Vector2.Clamp(_focus, aim - reach, aim + reach);
 
+        // The cap measures from the settled view, not from _followCenter. A step after a Follow, a cut or a
+        // held subject has no previous follow, and the view would jump on it.
+        Vector2 from = Center;
+
         // The implicit step of an exponential approach. At a steady speed it trails by exactly
         // SmoothTime seconds of travel whatever the step length.
         Center = SmoothTime > 0f ? Center + ((_focus - Center) * (seconds / (SmoothTime + seconds))) : _focus;
+        Center = from + CapFollow(Center - from, MaxFollowSpeed * seconds);
 
-        // The hard edge keeps the subject inside the span at any speed.
+        // The hard edge keeps the subject inside the span at any speed, and outranks the cap.
         Vector2 half = span / 2f;
         Center = Vector2.Clamp(Center, position - half, position + half);
 
@@ -189,4 +219,9 @@ public partial class Camera
 
         _followCenter = Center;
     }
+
+    // The move shortened on each axis to that axis's cap, where a cap of zero leaves the axis free.
+    private static Vector2 CapFollow(Vector2 move, Vector2 cap) => new(
+        cap.X > 0f ? Math.Clamp(move.X, -cap.X, cap.X) : move.X,
+        cap.Y > 0f ? Math.Clamp(move.Y, -cap.Y, cap.Y) : move.Y);
 }

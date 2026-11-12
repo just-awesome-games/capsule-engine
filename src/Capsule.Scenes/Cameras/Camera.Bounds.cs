@@ -76,6 +76,9 @@ public partial class Camera
     /// <remarks>
     /// A change carried by a transition reads true as soon as it is made. A snap, null bounds, a
     /// <see cref="Teleport"/> and the camera's first step in a scene land at once and never read true.
+    /// It reads only the bounds. A change that opens an edge can land while a follow held to
+    /// <see cref="MaxFollowSpeed"/> is still catching its subject, and the view then moves on after this
+    /// reads false.
     /// </remarks>
     /// <example>
     /// A door that closes behind once the next room has scrolled into view:

@@ -20,6 +20,10 @@ public sealed class GameCamera : Camera
         // Seconds the camera takes to catch its aim. Lower snaps, higher drifts.
         SmoothTime = 0.25f;
 
+        // The fastest the camera pans across, in px/s. The visit to the lift starts its pan at an even
+        // speed rather than a lurch. Vertical stays unlimited so a long fall is never trailed.
+        MaxFollowSpeed = new Vector2(360f, 0f);
+
         // Seconds the view takes to settle back out of a camera zone's bounds. Lower snaps, higher drifts.
         BoundsTransition = BoundsTransition.Smooth(0.35f);
 
