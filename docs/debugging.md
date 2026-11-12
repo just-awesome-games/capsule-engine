@@ -183,7 +183,7 @@ and its draws then stay on screen with the overlay closed.
 protected override void OnDebugDraw()
 {
     DebugDraw.Line("Aim", WorldPosition, WorldPosition + (_facing * 24f));
-    DebugDraw.Rect("Aim", new Rect(WorldPosition - new Vector2(8f), new Vector2(16f)));
+    DebugDraw.Rect("Aim", Rect.FromCenter(WorldPosition, new Vector2(16f)));
 }
 
 protected override void OnDebugPanel(DebugPanel panel)

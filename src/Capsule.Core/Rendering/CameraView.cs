@@ -138,7 +138,7 @@ public readonly record struct CameraView(
 
         center += StepInterpolation.Interpolate(PreviousOffset, Offset, alpha);
 
-        return Rect.FromEdges(center.X - half.X, center.Y - half.Y, center.X + half.X, center.Y + half.Y);
+        return Rect.FromCorners(center - half, center + half);
     }
 
     // The world units this view spans on an output of outputSize pixels, per Fit. This is the span

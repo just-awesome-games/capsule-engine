@@ -27,12 +27,12 @@ internal static class SelectionBounds
             {
                 if (component is Renderer { Bounds: { IsEmpty: false } bounds })
                 {
-                    Include(ref union, ref any, bounds.Left, bounds.Top, bounds.Right, bounds.Bottom);
+                    Include(ref union, ref any, bounds);
                 }
                 else if (component is Collider2D collider)
                 {
                     Aabb2D box = collider.Bounds;
-                    Include(ref union, ref any, box.Min.X, box.Min.Y, box.Max.X, box.Max.Y);
+                    Include(ref union, ref any, Rect.FromCorners(box.Min, box.Max));
                 }
             }
         }
@@ -43,16 +43,14 @@ internal static class SelectionBounds
         }
     }
 
-    private static void Include(ref Rect union, ref bool any, float left, float top, float right, float bottom)
+    private static void Include(ref Rect union, ref bool any, in Rect added)
     {
-        if (!float.IsFinite(left + top + right + bottom))
+        if (!float.IsFinite(added.Left + added.Top + added.Right + added.Bottom))
         {
             return;
         }
 
-        union = any
-            ? Rect.FromEdges(MathF.Min(union.Left, left), MathF.Min(union.Top, top), MathF.Max(union.Right, right), MathF.Max(union.Bottom, bottom))
-            : Rect.FromEdges(left, top, right, bottom);
+        union = any ? Rect.Union(union, added) : added;
         any = true;
     }
 }

@@ -579,7 +579,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         Vector2 sign = new(scale.X < 0f ? -1f : 1f, scale.Y < 0f ? -1f : 1f);
         Vector2 near = position + ((upright.Position - position) * sign);
         Vector2 far = position + ((new Vector2(upright.Right, upright.Bottom) - position) * sign);
-        placed = new Rect(Vector2.Min(near, far), Vector2.Abs(far - near));
+        placed = Rect.FromCorners(Vector2.Min(near, far), Vector2.Max(near, far));
         origin = position + ((pen - position) * sign);
 
         return layout;

@@ -20,7 +20,7 @@ internal static class ClipScissor
                 new Vector2(levels[i].Current.Right, levels[i].Current.Bottom),
                 alpha);
 
-            shown = Rect.Intersection(shown, Rect.FromEdges(low.X, low.Y, high.X, high.Y));
+            shown = Rect.Intersection(shown, Rect.FromCorners(low, high));
         }
 
         return shown;

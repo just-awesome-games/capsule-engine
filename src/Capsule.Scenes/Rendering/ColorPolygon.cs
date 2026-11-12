@@ -83,7 +83,7 @@ public sealed class ColorPolygon : Renderer
                 max = Vector2.Max(max, point);
             }
 
-            return Rect.FromEdges(min.X, min.Y, max.X, max.Y);
+            return Rect.FromCorners(min, max);
         }
     }
 

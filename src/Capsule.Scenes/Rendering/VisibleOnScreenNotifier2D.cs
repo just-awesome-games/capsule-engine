@@ -31,7 +31,7 @@ namespace Capsule.Rendering;
 /// units below the view:
 /// <code>
 /// Add(new VisibleOnScreenNotifier2D { Rect = new Rect(2f, -4f, 12f, 8f) });
-/// Add(new VisibleOnScreenNotifier2D { Margin = Rect.FromEdges(32f, 32f, 32f, 32f) });
+/// Add(new VisibleOnScreenNotifier2D { Margin = Rect.FromEdges(32f) });
 /// Add(new VisibleOnScreenNotifier2D { Margin = new Rect { Bottom = 32f } });
 /// </code>
 /// </example>
@@ -132,9 +132,7 @@ public sealed class VisibleOnScreenNotifier2D : Component, ISettleListEntry
     // overlap test also takes an axis with no extent as a line strictly inside the region.
     internal void SettleVisibility(in Rect region)
     {
-        Rect grown = Rect.FromEdges(region.Left - _margin.Left, region.Top - _margin.Top, region.Right + _margin.Right,
-            region.Bottom + _margin.Bottom);
-        bool onScreen = !region.IsEmpty && grown.Intersects(WorldRect(Entity!.World));
+        bool onScreen = !region.IsEmpty && region.Grown(_margin).Intersects(WorldRect(Entity!.World));
 
         if (onScreen == IsOnScreen)
         {
@@ -151,15 +149,13 @@ public sealed class VisibleOnScreenNotifier2D : Component, ISettleListEntry
     {
         if (world.Scale == Vector2.One)
         {
-            return new Rect(world.Position + _rect.Position, _rect.Size);
+            return _rect.Translated(world.Position);
         }
 
         Vector2 first = world.Position + (_rect.Position * world.Scale);
         Vector2 second = world.Position + ((_rect.Position + _rect.Size) * world.Scale);
-        Vector2 min = Vector2.Min(first, second);
-        Vector2 max = Vector2.Max(first, second);
 
-        return Rect.FromEdges(min.X, min.Y, max.X, max.Y);
+        return Rect.FromCorners(Vector2.Min(first, second), Vector2.Max(first, second));
     }
 
     // A handler sees the new state and may not change the notifier it is running for.

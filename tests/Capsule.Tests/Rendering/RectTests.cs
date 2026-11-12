@@ -3,8 +3,8 @@ using Capsule.Rendering;
 
 namespace Capsule.Tests.Rendering;
 
-// The two ways to build a rect, and containment on the half-open region the pointer is tested against.
-// A point on a shared edge lands in exactly one of two abutting rects.
+// The ways to build, move and grow a rect, and containment on the half-open region the pointer is tested
+// against. A point on a shared edge lands in exactly one of two abutting rects.
 public sealed class RectTests
 {
     private static readonly Rect Box = Rect.FromEdges(10f, 20f, 30f, 40f);
@@ -13,6 +13,29 @@ public sealed class RectTests
     public void EdgesAndACornerWithAnExtent_BuildTheSameRect()
     {
         Assert.Equal(Box, new Rect(10f, 20f, 20f, 20f));
+    }
+
+    [Fact]
+    public void TheShorthandBuilders_MatchTheEdgesTheyName()
+    {
+        Assert.Equal(Rect.FromEdges(4f, 4f, 4f, 4f), Rect.FromEdges(4f));
+        Assert.Equal(Box, Rect.FromCorners(new Vector2(10f, 20f), new Vector2(30f, 40f)));
+        Assert.Equal(Box, Rect.FromCenter(new Vector2(20f, 30f), new Vector2(20f, 20f)));
+    }
+
+    [Fact]
+    public void Translated_MovesEveryEdgeAndKeepsTheSize()
+    {
+        Assert.Equal(Rect.FromEdges(15f, 17f, 35f, 37f), Box.Translated(new Vector2(5f, -3f)));
+    }
+
+    // Each edge moves outward by its own distance, and inward where that distance is negative.
+    [Fact]
+    public void Grown_MovesEachEdgeOutwardByItsDistance()
+    {
+        Assert.Equal(Rect.FromEdges(8f, 18f, 32f, 42f), Box.Grown(2f));
+        Assert.Equal(Rect.FromEdges(12f, 19f, 28f, 41f), Box.Grown(new Vector2(-2f, 1f)));
+        Assert.Equal(Rect.FromEdges(9f, 20f, 30f, 44f), Box.Grown(new Rect { Left = 1f, Bottom = 4f }));
     }
 
     [Fact]

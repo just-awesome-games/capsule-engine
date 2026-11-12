@@ -426,7 +426,7 @@ public sealed class ParticleEmitter : Renderer
                 PlaceBox(Frame(PreviousRenderTransform), Frame(RenderTransform), ref min, ref max);
             }
 
-            return Inflate(min, max, BoundsRadius);
+            return Rect.FromCorners(min, max).Grown(BoundsRadius);
         }
     }
 
@@ -1114,9 +1114,6 @@ public sealed class ParticleEmitter : Renderer
         inner.Top >= outer.Top &&
         inner.Right <= outer.Right &&
         inner.Bottom <= outer.Bottom;
-
-    private static Rect Inflate(Vector2 min, Vector2 max, float radius) =>
-        Rect.FromEdges(min.X - radius, min.Y - radius, max.X + radius, max.Y + radius);
 
     // The farthest any frame's region reaches from the pivot it is drawn at, its farthest corner. A flip mirrors the
     // region about the pivot and a turn spins it there, and neither moves that corner farther.

@@ -91,12 +91,58 @@ public readonly record struct Rect
     public static Rect FromEdges(float left, float top, float right, float bottom) =>
         new() { Left = left, Top = top, Right = right, Bottom = bottom };
 
+    /// <summary>The rect with every edge at <paramref name="all"/>, which reads as the same margin on each side.</summary>
+    /// <param name="all">The value of each edge.</param>
+    /// <example>
+    /// <code>
+    /// Add(new VisibleOnScreenNotifier2D { Margin = Rect.FromEdges(32f) });
+    /// </code>
+    /// </example>
+    public static Rect FromEdges(float all) => FromEdges(all, all, all, all);
+
+    /// <summary>The rect between two opposite corners.</summary>
+    /// <param name="topLeft">The corner at the low edge on both axes.</param>
+    /// <param name="bottomRight">The corner at the high edge on both axes.</param>
+    public static Rect FromCorners(Vector2 topLeft, Vector2 bottomRight) =>
+        FromEdges(topLeft.X, topLeft.Y, bottomRight.X, bottomRight.Y);
+
+    /// <summary>The rect spanning <paramref name="size"/> centred on <paramref name="center"/>.</summary>
+    /// <param name="center">The point midway between the edges on each axis.</param>
+    /// <param name="size">The extent between the edges. A non-positive axis encloses nothing.</param>
+    public static Rect FromCenter(Vector2 center, Vector2 size) =>
+        FromCorners(center - (size * 0.5f), center + (size * 0.5f));
+
     /// <summary>Whether this rect and <paramref name="other"/> overlap on both axes.</summary>
     public bool Intersects(in Rect other) =>
         Right > other.Left &&
         Bottom > other.Top &&
         Left < other.Right &&
         Top < other.Bottom;
+
+    /// <summary>This rect moved by <paramref name="offset"/>, with its size unchanged.</summary>
+    public Rect Translated(Vector2 offset) => FromEdges(Left + offset.X, Top + offset.Y, Right + offset.X, Bottom + offset.Y);
+
+    /// <summary>This rect with every edge moved outward by <paramref name="distance"/>, or inward where it is negative.</summary>
+    public Rect Grown(float distance) => Grown(new Vector2(distance));
+
+    /// <summary>
+    /// This rect with its left and right edges moved outward by the X of <paramref name="distance"/> and its top and
+    /// bottom by the Y, or inward where an axis is negative.
+    /// </summary>
+    public Rect Grown(Vector2 distance) => FromCorners(Position - distance, new Vector2(Right, Bottom) + distance);
+
+    /// <summary>
+    /// This rect with each edge moved outward by the matching edge of <paramref name="edges"/>, or inward where it is
+    /// negative.
+    /// </summary>
+    /// <example>
+    /// A view grown 32 units below and nowhere else:
+    /// <code>
+    /// Rect reach = view.Grown(new Rect { Bottom = 32f });
+    /// </code>
+    /// </example>
+    public Rect Grown(in Rect edges) =>
+        FromEdges(Left - edges.Left, Top - edges.Top, Right + edges.Right, Bottom + edges.Bottom);
 
     // The rect covering a box swept between two points. The box reaches lowPad from a point towards the
     // low edges and highPad towards the high ones, both measured from the point.

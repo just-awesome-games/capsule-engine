@@ -168,7 +168,7 @@ public partial class Camera
     {
         if (Subject is not null && Deadzone != Vector2.Zero)
         {
-            DebugDraw.Rect(DebugDraw.Camera, new Rect(_focus - (Deadzone / 2f), Deadzone));
+            DebugDraw.Rect(DebugDraw.Camera, Rect.FromCenter(_focus, Deadzone));
         }
     }
 

@@ -404,11 +404,7 @@ public sealed class FrameView
         }
         else if (bounded)
         {
-            _offerReach = Rect.FromEdges(
-                MathF.Min(_offerReach.Left, reach.Left),
-                MathF.Min(_offerReach.Top, reach.Top),
-                MathF.Max(_offerReach.Right, reach.Right),
-                MathF.Max(_offerReach.Bottom, reach.Bottom));
+            _offerReach = Rect.Union(_offerReach, reach);
         }
     }
 
@@ -661,7 +657,7 @@ public sealed class FrameView
 
         ReadOnlySpan<Vector2> previous = polygon.PreviousPoints;
         ReadOnlySpan<Vector2> current = polygon.Points;
-        Rect swept = Rect.FromEdges(current[0].X, current[0].Y, current[0].X, current[0].Y);
+        Rect swept = Rect.FromCorners(current[0], current[0]);
         Route route = RouteOf(space);
         bool bounded = TryWiden(ref swept, previous) && TryWiden(ref swept, current);
         if (!bounded || (route.Culls && !swept.Intersects(route.Bounds)))

@@ -88,7 +88,7 @@ public sealed class BoxCollider2D : Collider2D
     protected internal override void OnDebugDraw()
     {
         Aabb2D box = WorldShape.Bounds;
-        DebugDraw.Rect(DebugDraw.Colliders, Rect.FromEdges(box.Min.X, box.Min.Y, box.Max.X, box.Max.Y), DebugColor, Motion);
+        DebugDraw.Rect(DebugDraw.Colliders, Rect.FromCorners(box.Min, box.Max), DebugColor, Motion);
     }
 
     /// <inheritdoc/>

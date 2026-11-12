@@ -35,7 +35,7 @@ internal static class TextBox
         Vector2 topLeft = position - pivot.On(box);
         origin = new Vector2(topLeft.X, topLeft.Y + ((box.Y - measured.Y) * Share(alignment)));
 
-        return Rect.FromEdges(topLeft.X, topLeft.Y, topLeft.X + box.X, topLeft.Y + box.Y);
+        return new Rect(topLeft, box);
     }
 
     // Where a run's glyphs can draw across the step: its box grown by the overhang, and by one font
