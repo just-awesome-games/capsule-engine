@@ -28,6 +28,7 @@ namespace MinimalGame.Game.Entities;
 /// <param name="HurtShake">How hard the camera shakes when a hit lands, from 0 to 1.</param>
 /// <param name="HardLandingSpeed">The fall speed at or above which a landing thuds the camera, in px/s.</param>
 /// <param name="HardLandingShake">The thud a hard landing gives the camera.</param>
+/// <param name="ArrivalRevealSeconds">How long the player takes to draw in from the feet up on arriving in a room.</param>
 public sealed record class PlayerTuning(
     float WalkSpeed,
     float SlopeSpeed,
@@ -52,7 +53,8 @@ public sealed record class PlayerTuning(
     int HurtFreezeTicks,
     float HurtShake,
     float HardLandingSpeed,
-    CameraShake HardLandingShake)
+    CameraShake HardLandingShake,
+    float ArrivalRevealSeconds)
 {
     /// <summary>The feel the sample ships with.</summary>
     public static readonly PlayerTuning Default = new(
@@ -79,5 +81,6 @@ public sealed record class PlayerTuning(
         HurtFreezeTicks: 6,
         HurtShake: 0.6f,
         HardLandingSpeed: 300f,
-        HardLandingShake: new CameraShake(new Vector2(0f, 2f), 0.15f) { Wave = ShakeWave.Sine, Frequency = 30f });
+        HardLandingShake: new CameraShake(new Vector2(0f, 2f), 0.15f) { Wave = ShakeWave.Sine, Frequency = 30f },
+        ArrivalRevealSeconds: 0.4f);
 }

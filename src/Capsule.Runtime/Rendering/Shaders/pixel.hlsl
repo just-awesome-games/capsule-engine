@@ -10,9 +10,10 @@
 // vertex carries that colour already premultiplied by the tint's alpha. A full flash draws a
 // premultiplied silhouette under alpha blending and adds it under additive blending, where the
 // fragment's alpha stays zero. A zero amount leaves the colour exactly as the fragment returned it.
-// The inputs are in location order: tint, flash, texture coordinate, coverage, quad. Coverage and the
-// quad come from the vertex stage. A pixel stage reads no uniform of the engine's unless its fragment
-// calls SampleScreen, whose uniforms the renderer pushes with the copy it makes.
+// The inputs are in location order: tint, flash, texture coordinate, coverage, quad, offset from the
+// pivot. Coverage, the quad and the offset come from the vertex stage. A pixel stage reads no uniform
+// of the engine's unless its fragment calls SampleScreen, whose uniforms the renderer pushes with the
+// copy it makes.
 
 float4 SampleSprite(float2 uv)
 {
@@ -36,11 +37,12 @@ struct SpritePixel
     float2 TextureSize;
     float2 Position;
     float2 Size;
+    float2 FromPivot;
 };
 
 // <Fragment>
 
-float4 CapsulePixel(float4 tint : COLOR0, float4 flash : COLOR1, float2 uv : TEXCOORD0, float coverage : TEXCOORD1, float4 quad : TEXCOORD2, float4 surface : SV_Position) : SV_Target0
+float4 CapsulePixel(float4 tint : COLOR0, float4 flash : COLOR1, float2 uv : TEXCOORD0, float coverage : TEXCOORD1, float4 quad : TEXCOORD2, float2 fromPivot : TEXCOORD3, float4 surface : SV_Position) : SV_Target0
 {
     CapsuleSpriteCoverage = coverage;
     CapsuleScreenPixel = surface.xy;
@@ -51,6 +53,7 @@ float4 CapsulePixel(float4 tint : COLOR0, float4 flash : COLOR1, float2 uv : TEX
     pixel.TextureSize = TextureSize(SpriteTexture);
     pixel.Position = quad.xy;
     pixel.Size = quad.zw;
+    pixel.FromPivot = fromPivot;
 
     float4 color = Fragment(pixel);
     color.rgb = lerp(color.rgb, flash.rgb * pixel.Texel.a, flash.a);

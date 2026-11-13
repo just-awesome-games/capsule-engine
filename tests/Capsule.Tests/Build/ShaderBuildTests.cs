@@ -169,12 +169,14 @@ public sealed class ShaderBuildTests
     }
 
     // Direct3D 12 links the two stages by register and refuses a pipeline whose registers differ. A fragment ignoring
-    // the tint, the quad or the pixel's place must still take the rest where the vertex stage writes them, and may
-    // leave off only what comes last. Metal links by name, and reads only what the vertex stage writes.
+    // the tint, the quad, the offset from the pivot or the pixel's place must still take the rest where the vertex
+    // stage writes them, and may leave off only what comes last. Metal links by name, and reads only what the vertex
+    // stage writes.
     [Theory]
     [InlineData("float4 Fragment(SpritePixel pixel) { return pixel.Texel; }")]
     [InlineData("float4 Fragment(SpritePixel pixel) { return SampleScreen(float2(0.0, 0.0)); }")]
     [InlineData("float4 Fragment(SpritePixel pixel) { return pixel.Tint * SampleScreen(pixel.Position); }")]
+    [InlineData("float4 Fragment(SpritePixel pixel) { return pixel.Texel * frac(pixel.FromPivot.y); }")]
     public void AFragmentIgnoringItsInputs_StillLinksToTheVertexStage(string fragment)
     {
         using SceneDocumentFixtures.Workspace workspace = new();

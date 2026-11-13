@@ -7,8 +7,8 @@
 // CapsuleSprite and CapsuleVertexUniforms are the runtime's SpriteInstance and SpriteUniforms, member for
 // member, in SDL's binding layout: the sprites in storage buffer slot 0, the uniforms in uniform buffer 0.
 // The stage snaps in float, which every GPU format has. Its outputs are the pixel stage's inputs in
-// location order: tint, flash, texture coordinate, coverage, quad. The build compiles this file to the
-// vertex.<format>.shader files beside it.
+// location order: tint, flash, texture coordinate, coverage, quad, offset from the pivot. The build
+// compiles this file to the vertex.<format>.shader files beside it.
 
 struct CapsuleSprite
 {
@@ -47,6 +47,7 @@ struct CapsuleVertexOutput
     [[vk::location(2)]] float2 UV : TEXCOORD0;
     [[vk::location(3)]] float Coverage : TEXCOORD1;
     [[vk::location(4)]] float4 Quad : TEXCOORD2;
+    [[vk::location(5)]] float2 FromPivot : TEXCOORD3;
     float4 Position : SV_Position;
 };
 
@@ -85,8 +86,9 @@ float2 CapsuleBetween(float2 previous, float2 current)
 // One vertex of a polygon's triangle, numbered within its six. The corners are interpolated, then the
 // triangle moves by however far its first corner moves to land on the pixel grid where the grid is set.
 // Every triangle of a polygon starts at the polygon's first point and moves alike. The polygon keeps its
-// shape as it travels, and its triangles meet without a seam. The quad carries the corner's offset from that
-// first point and no extent. Vertices three to five collapse onto the first corner and draw nothing.
+// shape as it travels, and its triangles meet without a seam. The quad and the offset from the pivot both
+// carry the corner's offset from that first point, and the quad no extent. Vertices three to five collapse
+// onto the first corner and draw nothing.
 CapsuleVertexOutput CapsuleTriangleVertex(CapsuleSprite sprite, uint index)
 {
     precise float2 first = CapsuleBetween(sprite.PreviousPosition, sprite.Position);
@@ -105,6 +107,7 @@ CapsuleVertexOutput CapsuleTriangleVertex(CapsuleSprite sprite, uint index)
     output.UV = float2(0.5, 0.5);
     output.Coverage = CapsuleCoverage;
     output.Quad = float4(offset, 0.0, 0.0);
+    output.FromPivot = offset;
     return output;
 }
 
@@ -236,5 +239,10 @@ CapsuleVertexOutput CapsuleVertex(uint vertexId : SV_VertexID)
     output.UV = float2(corner & 1 ? uvTo.x : uvFrom.x, corner >> 1 ? uvTo.y : uvFrom.y);
     output.Coverage = CapsuleCoverage;
     output.Quad = float4(abs(drawn) * axes, abs(drawn));
+
+    // From sprite.Origin at the final scale, never the local origin, which the grid's branch zeroes after
+    // folding it into the position. Origin is mirrored on a flipped axis and the corners are not, so the
+    // offset stays unmirrored whichever way the frame faces.
+    output.FromPivot = (abs(drawn) * axes) - (sprite.Origin * abs(scale));
     return output;
 }

@@ -43,7 +43,7 @@ public abstract class PlayableScene : Scene
             Entrance entrance = FindFirst<Entrance>(entrance => entrance.From == arrival.From)
                 ?? throw new InvalidOperationException(
                     $"No entrance in this room is from \"{arrival.From}\". Place an entrance whose from names that room.");
-            Player.Teleport(entrance.Position);
+            Player.Arrive(entrance.Position);
         }
 
         // Crossfades from whatever was playing, or fades in alone under --scene scenes/room.

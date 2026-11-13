@@ -2,19 +2,32 @@ namespace MinimalGame.Game.Entities;
 
 /// <summary>
 /// Everything the <see cref="Player"/> looks like: the sprite, the cap drawn over it, their animator, the facing and
-/// squash-and-stretch composed into this child's <see cref="Entity.Scale"/>, and the walk cycle's footsteps.
+/// squash-and-stretch composed into this child's <see cref="Entity.Scale"/>, the walk cycle's footsteps, and the
+/// draw-in from the feet up on arriving in a room.
 /// It steps after its parent and reads the facts the parent published this step.
 /// </summary>
 internal sealed class PlayerVisual : Entity
 {
+    // The top of the cap above the feet, in texels: the height the draw-in climbs to before the
+    // stretch scales it.
+    private const float FigureHeight = 10f;
+
+    // reveal.fx's parameter: how far above the feet the figure is drawn so far.
+    private const string RevealHeight = "Reveal";
+
     private readonly Player _player;
     private readonly PlayerTuning _tuning;
     private readonly SpriteRenderer _cap;
     private readonly SpriteAnimator _animator;
     private readonly AudioSource _footstep;
 
+    // One material, worn by the sprite and the cap alike through this entity's Material, and only
+    // while the draw-in runs.
+    private readonly Material _reveal = new(CapsuleAssets.Shaders.RevealShader);
+
     private float _facing = 1f;
     private Vector2 _squash = Vector2.One;
+    private float _revealLeft;
 
     /// <summary>The child the sprite places at its <c>muzzle</c> socket.</summary>
     internal Entity Muzzle { get; }
@@ -51,6 +64,19 @@ internal sealed class PlayerVisual : Entity
     {
         get => _cap.Visible;
         set => _cap.Visible = value;
+    }
+
+    /// <summary>Draws the player in from the feet up over <see cref="PlayerTuning.ArrivalRevealSeconds"/>.</summary>
+    internal void DrawIn()
+    {
+        if (_tuning.ArrivalRevealSeconds <= 0f)
+        {
+            return;
+        }
+
+        _revealLeft = _tuning.ArrivalRevealSeconds;
+        _reveal.Set(RevealHeight, 0f);
+        Material = _reveal;
     }
 
     /// <inheritdoc/>
@@ -92,7 +118,20 @@ internal sealed class PlayerVisual : Entity
         }
 
         Scale = new Vector2(_facing * _squash.X, _squash.Y);
+
+        if (_revealLeft > 0f)
+        {
+            // The shader measures in drawn units, which the stretch scales along with the figure.
+            _revealLeft -= context.DeltaSeconds;
+            float drawn = 1f - (_revealLeft / _tuning.ArrivalRevealSeconds);
+            _reveal.Set(RevealHeight, drawn * FigureHeight * _squash.Y);
+            Material = _revealLeft > 0f ? _reveal : null;
+        }
     }
+
+    // The draw-in's material is set after the room starts, and declaring it here loads it with the room.
+    /// <inheritdoc/>
+    protected override void CollectAssets(AssetCollection assets) => assets.Add(_reveal);
 
     // A hit flashes white and fades, then the grace reads as a red blink. The root owns the rule
     // and this child owns the look. The late step follows contacts: the step a hit lands on draws

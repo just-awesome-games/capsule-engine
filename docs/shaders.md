@@ -41,6 +41,7 @@ float4 Fragment(SpritePixel pixel)
 | `pixel.TextureSize` | The sprite's texture size in texels, which for a packed sprite is its atlas page's. |
 | `pixel.Position` | How far this pixel is from the quad's top-left corner, in the sprite's units. On a polygon, how far it is from the polygon's first point. |
 | `pixel.Size` | The quad's size, in the sprite's units. Zero on a polygon. |
+| `pixel.FromPivot` | How far this pixel is from where the frame's pivot lands, in the sprite's units with +y down. It turns with the sprite and does not mirror with a flip. Frames with whole-texel pivots drawn at one point and scale agree on it however each is trimmed, which lets one effect span every renderer of a figure. A tiled copy measures from its own top-left corner, and a polygon from its first point. |
 | `Sample(texture, uv)` | Reads a texture parameter, named as declared, with (0, 0) and (1, 1) its own corners whether or not an atlas packed it. A coordinate past an edge reads the edge. An `r8` texture's value is in `.r`. A texture passed to a function of the shader's own cannot be sampled there. |
 | `SampleSprite(uv)` | Reads the sprite's texture at another point. |
 | `Texel(texture, xy)` | Reads the one texel at a whole coordinate of a texture parameter, counted from its own top-left corner. No sampling mixes it with a neighbour, and a coordinate past an edge reads the edge. |

@@ -142,6 +142,12 @@ public sealed class RoomTests
         Assert.True(room.CollectPreloads().Contains(CapsuleAssets.Textures.GlowTexture));
     }
 
+    // The player wears the draw-in's material only after the room starts. The room loads it up front
+    // anyway, and the first frame of an arrival does not wait on it.
+    [Fact]
+    public void TheRoom_PreloadsTheArrivalsDrawIn() =>
+        Assert.True(RoomFixture.Compose().CollectPreloads().Contains(CapsuleAssets.Shaders.RevealShader));
+
     // The music's death fade runs on under the pause menu. Quit picked on the step the fade lands
     // leaves the run exiting, and the room asks for no menu after the exit. The first room finds that
     // step, and the second plays the pause and the quit up to it.

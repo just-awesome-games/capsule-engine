@@ -135,6 +135,13 @@ public sealed class Player : Entity
         Add(_puff);
     }
 
+    /// <summary>Moves the player to <paramref name="position"/> as it comes into a room, and draws it in from the feet up.</summary>
+    public void Arrive(Vector2 position)
+    {
+        Teleport(position);
+        _visual.DrawIn();
+    }
+
     /// <summary>The levers this player runs on, fixed for its lifetime. A placement names one as <c>"tuning": "default"</c>.</summary>
     public PlayerTuning Tuning => _tuning;
 
