@@ -27,9 +27,11 @@
   </ItemGroup>
 
   <!-- Symbols are generated as usual and never copied into the publish directory, and neither is
-       reference documentation. Imported after the SDK defaults, and command-line overrides still win. -->
+       documentation, the shell's own or its references'. Imported after the SDK defaults, and
+       command-line overrides still win. -->
   <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
     <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+    <PublishDocumentationFile>false</PublishDocumentationFile>
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
 

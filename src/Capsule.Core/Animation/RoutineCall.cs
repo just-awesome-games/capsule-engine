@@ -58,12 +58,26 @@ internal sealed class RoutineCall<TStateMachine> : RoutineCall
 {
     private TStateMachine _machine = default!;
 
-    // Thread-static. Hosts stepping runs on parallel threads keep separate pools.
-    [field: ThreadStatic]
-    private static Stack<RoutineCall<TStateMachine>>? Pool { get; set; }
+    private RoutineCall<TStateMachine>? _nextFree;
 
-    internal static RoutineCall<TStateMachine> Rent() =>
-        Pool is { } pool && pool.TryPop(out RoutineCall<TStateMachine>? call) ? call : new RoutineCall<TStateMachine>();
+    // The pool is a list threaded through its calls. A collection type here is instantiated once per async method, and
+    // its array, interface and comparer types cost the executable about 2 KB per method. The pool is thread-static. Hosts
+    // stepping runs on parallel threads keep separate pools.
+    [field: ThreadStatic]
+    private static RoutineCall<TStateMachine>? FirstFree { get; set; }
+
+    internal static RoutineCall<TStateMachine> Rent()
+    {
+        if (FirstFree is not { } call)
+        {
+            return new RoutineCall<TStateMachine>();
+        }
+
+        FirstFree = call._nextFree;
+        call._nextFree = null;
+
+        return call;
+    }
 
     internal void Hold(ref TStateMachine stateMachine) => _machine = stateMachine;
 
@@ -72,7 +86,8 @@ internal sealed class RoutineCall<TStateMachine> : RoutineCall
     private protected override void Recycle()
     {
         _machine = default!;
-        (Pool ??= new Stack<RoutineCall<TStateMachine>>()).Push(this);
+        _nextFree = FirstFree;
+        FirstFree = this;
     }
 }
 
