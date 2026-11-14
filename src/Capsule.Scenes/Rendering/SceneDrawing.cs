@@ -591,8 +591,9 @@ internal sealed class SceneDrawing
         Span<Renderer> arrivedRenderers = CollectionsMarshal.AsSpan(_spareRenderers);
         if (!inOrder)
         {
-            // A sort given no comparison allocates on every call in a NativeAOT build.
-            arrivedKeys.Sort(arrivedRenderers, static (left, right) => left.CompareTo(right));
+            // A sort given no comparer allocates on every call in a NativeAOT build, and one given a
+            // Comparison wraps it in a new comparer on every call.
+            arrivedKeys.Sort(arrivedRenderers, DrawKeyOrder.Instance);
         }
 
         int held = _keys.Count;
@@ -740,5 +741,12 @@ internal sealed class SceneDrawing
 
             return order != 0 ? order : Ordinal.CompareTo(other.Ordinal);
         }
+    }
+
+    private sealed class DrawKeyOrder : IComparer<DrawKey>
+    {
+        internal static readonly DrawKeyOrder Instance = new();
+
+        public int Compare(DrawKey x, DrawKey y) => x.CompareTo(y);
     }
 }
