@@ -115,6 +115,7 @@ format's JSON Schema documents every reserved field
 | `Vector2` | `[x, y]` |
 | `ColorRgba` | `"#rrggbb"` or `"#rrggbbaa"` |
 | `Rect` | its edges, `[left, top, right, bottom]`, with right no less than left and bottom no less than top |
+| `Path2D` | its points, `[[0, 0], [48, 0]]`, at least two, closed by repeating the first point last ([`navigation.md`](navigation.md#paths)) |
 | an enum | a member's name camel-cased, `"iceCave"`, and a `[Flags]` enum's names joined by commas, `"north, east"` |
 | `TextureHandle`, `AudioClip` | key and extension, `"textures/lamp.png"`, preloaded with the scene |
 | `SceneKey` | the document's key, `"scenes/halls/hall"` |

@@ -29,7 +29,7 @@ public sealed class Lift : Entity
         _bottom = Position;
         Add(new BoxCollider2D(Size) { Layer = CollisionLayers.Platform });
         Add(new ColorRect(Size) { Color = ColorRgba.FromHex("#5a6488") });
-        _swing.Start(SwingTicks, Ease.InOutSine, TweenLoop.PingPong);
+        _swing.Start(SwingTicks, Ease.InOutSine, LoopMode.PingPong);
     }
 
     protected override void OnStep(in StepContext context)

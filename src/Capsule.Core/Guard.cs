@@ -88,4 +88,14 @@ internal static class Guard
 
         return ease;
     }
+
+    internal static LoopMode RequireLoop(LoopMode loop, string parameterName)
+    {
+        if (loop is < LoopMode.Once or > LoopMode.PingPong)
+        {
+            throw new ArgumentOutOfRangeException(parameterName, loop, "No such loop mode.");
+        }
+
+        return loop;
+    }
 }

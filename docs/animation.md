@@ -24,7 +24,7 @@ the default rate.
 | Any value stepped through keys, such as a palette row or a flag | `ValueClip<T>` played by `ValueAnimator<T>` |
 | Keys blended linearly | `ValueClip.Linear`, for `float`, `Vector2`, `Vector4` and `ColorRgba` |
 | Keys authored as data | A `*.clip.json` value clip |
-| A value eased from 0 to 1 over steps | `Tween`, with an `Ease` and a `TweenLoop` |
+| A value eased from 0 to 1 over steps | `Tween`, with an `Ease` and a `LoopMode` |
 | An ease applied to a progress of your own | `Easing.Apply` |
 | A value or a colour over a normalised time | `Curve`, `Gradient` |
 | A delay or a cooldown with no value to read | `Countdown` |

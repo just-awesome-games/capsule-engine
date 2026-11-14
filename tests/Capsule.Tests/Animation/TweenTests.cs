@@ -98,7 +98,7 @@ public sealed class TweenTests
     public void ARepeatingRun_WrapsToItsStartOnTheTickThatWouldEndIt()
     {
         Tween tween = default;
-        tween.Start(4, Ease.Linear, TweenLoop.Repeat);
+        tween.Start(4, Ease.Linear, LoopMode.Repeat);
 
         List<float> values = [tween.Value];
         List<bool> edges = [];
@@ -121,7 +121,7 @@ public sealed class TweenTests
     public void APingPongRun_SwingsBackFromItsEndAndCountsBothEnds()
     {
         Tween tween = default;
-        tween.Start(4, Ease.Linear, TweenLoop.PingPong);
+        tween.Start(4, Ease.Linear, LoopMode.PingPong);
 
         List<float> values = [tween.Value];
         List<bool> edges = [];
@@ -143,10 +143,10 @@ public sealed class TweenTests
     // Past one period of every mode. A wrap is crossed rather than approached. Seeking onto an end
     // is not the step that reached it.
     [Theory]
-    [InlineData(TweenLoop.Once)]
-    [InlineData(TweenLoop.Repeat)]
-    [InlineData(TweenLoop.PingPong)]
-    public void SeekingToATick_LandsWhereThatManyStepsWould(TweenLoop loop)
+    [InlineData(LoopMode.Once)]
+    [InlineData(LoopMode.Repeat)]
+    [InlineData(LoopMode.PingPong)]
+    public void SeekingToATick_LandsWhereThatManyStepsWould(LoopMode loop)
     {
         Tween stepped = default;
         stepped.Start(4, Ease.InOutBack, loop);
@@ -171,7 +171,7 @@ public sealed class TweenTests
     {
         Tween tween = default;
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => tween.Start(4, Ease.Linear, (TweenLoop)9));
+        Assert.Throws<ArgumentOutOfRangeException>(() => tween.Start(4, Ease.Linear, (LoopMode)9));
         Assert.Throws<ArgumentOutOfRangeException>(() => tween.Start(4, (Ease)999));
         Assert.False(tween.IsRunning);
     }
@@ -184,10 +184,10 @@ public sealed class TweenTests
         const int Longest = int.MaxValue / 2;
         Tween tween = default;
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => tween.Start(Longest + 1, Ease.Linear, TweenLoop.PingPong));
+        Assert.Throws<ArgumentOutOfRangeException>(() => tween.Start(Longest + 1, Ease.Linear, LoopMode.PingPong));
         Assert.False(tween.IsRunning);
 
-        tween.Start(Longest, Ease.Linear, TweenLoop.PingPong);
+        tween.Start(Longest, Ease.Linear, LoopMode.PingPong);
         tween.Step();
 
         Assert.False(tween.JustFinished);

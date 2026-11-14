@@ -30,7 +30,7 @@ A new assembly waits until the compiler must enforce a reference direction.
 A game-facing namespace is a feature, whichever assembly holds it. `Capsule` is the cross-cutting core of
 the step, the run, transforms, randomness and deterministic math. The features are `Capsule.Scenes`,
 `Capsule.Physics`, `Capsule.Rendering`, `Capsule.Input`, `Capsule.Audio`, `Capsule.Animation`,
-`Capsule.Particles`, `Capsule.Tiles`, `Capsule.UI`, `Capsule.Assets`, `Capsule.Persistence`,
+`Capsule.Particles`, `Capsule.Navigation`, `Capsule.Tiles`, `Capsule.UI`, `Capsule.Assets`, `Capsule.Persistence`,
 `Capsule.Localization` and `Capsule.Diagnostics`, and a new feature adds one. A logic project with `ImplicitUsings` on imports every
 feature, `Capsule` and `System.Numerics`, and drops one with `<Using Remove="..." />`. In `Capsule.Core`,
 `Capsule.Physics` and `Capsule.Scenes` a folder named for a feature carries that namespace, and a folder

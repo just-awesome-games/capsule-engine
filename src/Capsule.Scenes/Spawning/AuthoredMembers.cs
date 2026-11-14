@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using Capsule.Assets;
 using Capsule.Audio;
 using Capsule.Localization;
+using Capsule.Navigation;
 using Capsule.Rendering;
 
 namespace Capsule.Scenes;
@@ -137,6 +138,27 @@ public readonly struct AuthoredMembers
             && read[3] >= read[1]
             ? Capsule.Rendering.Rect.FromEdges(read[0], read[1], read[2], read[3])
             : throw Mismatch(key, "Rect", "[left, top, right, bottom] with all four finite, right no less than left and bottom no less than top");
+    }
+
+    /// <summary>
+    /// Reads a <see cref="Path2D"/>, written as its points <c>[[x, y], [x, y]]</c>, at least two of them, all finite
+    /// and not all the same.
+    /// </summary>
+    public Path2D Path(string key)
+    {
+        if (AuthoredValue.Kind(Authored(key).Span) != JsonValueKind.Array)
+        {
+            throw Mismatch(key, "Path2D", "its points, [[x, y], [x, y]]");
+        }
+
+        try
+        {
+            return new Path2D(Array(key, element => element.Vector2(key)));
+        }
+        catch (ArgumentException ex)
+        {
+            throw new SceneDocumentFormatException($"{Sets(key)} to points that make no path. {ex.Message}", ex);
+        }
     }
 
     /// <summary>Reads a <see cref="ColorRgba"/>, written <c>"#rrggbb"</c> or <c>"#rrggbbaa"</c>.</summary>

@@ -29,6 +29,7 @@ internal static class PropertyForms
         new("global::System.Numerics.Vector2", "Vector2"),
         new("global::Capsule.Rendering.Rect", "Rect"),
         new("global::Capsule.Rendering.ColorRgba", "Color"),
+        new("global::Capsule.Navigation.Path2D", "Path"),
     ];
 
     // A new asset type is one entry here, one read method of the same name on AuthoredMembers, and a search the

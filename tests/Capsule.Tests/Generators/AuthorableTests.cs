@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Numerics;
+using Capsule.Navigation;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Microsoft.CodeAnalysis;
@@ -19,6 +21,7 @@ public sealed class AuthorableTests
         using System.Numerics;
         using System.Text.Json;
         using System.Text.Json.Serialization;
+        using Capsule.Navigation;
         using Capsule.Rendering;
         using Capsule.Scenes;
 
@@ -101,6 +104,9 @@ public sealed class AuthorableTests
 
             [Authorable]
             public Rect? Bounds { get; set; }
+
+            [Authorable]
+            public Path2D? Track { get; set; }
         }
 
         [JsonConverter(typeof(SealConverter))]
@@ -206,6 +212,15 @@ public sealed class AuthorableTests
     }
 
     [Fact]
+    public void APath_IsReadFromItsPoints()
+    {
+        Entity gate = Composed("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "track": [[0, 0], [8, 0], [8, 6]]}""");
+        Path2D track = Assert.IsType<Path2D>(gate.GetType().GetProperty("Track")!.GetValue(gate));
+
+        Assert.Equal([Vector2.Zero, new(8f, 0f), new(8f, 6f)], track.Points.ToArray());
+    }
+
+    [Fact]
     public void AMemberOfAGenericBase_IsSet()
     {
         Entity hook = Composed("""{"id": 3, "type": "hook", "x": 0, "y": 0, "stops": 5}""");
@@ -263,6 +278,8 @@ public sealed class AuthorableTests
     [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "seal": 1}""", "SealConverter could not read as Seal: The seal registry is closed.")]
     [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "bounds": [40, 16, 8, 48]}""", "the member takes Rect. " + RectFix)]
     [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "bounds": [8, 48, 40, 16]}""", "the member takes Rect. " + RectFix)]
+    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "track": 8}""", "the member takes Path2D. Write its points, [[x, y], [x, y]].")]
+    [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "track": [[8, 0]]}""", "sets 'track' to points that make no path. A path runs through at least two points, and this one has 1. Add a point.")]
     public void AnEntryItsClassRefusesAtLoad_ThrowsNamingTheDocumentEntryAndFix(string entry, string fix) =>
         GeneratorHarness.AssertLoadRefused(() => Composed(entry), "scene document 'scenes/room': entities[0] (", fix);
 

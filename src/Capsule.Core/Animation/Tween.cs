@@ -23,7 +23,7 @@ public struct Tween
 {
     /// <summary>
     /// Ticks spent since <see cref="Start"/>, capped at <see cref="Duration"/>. A
-    /// <see cref="TweenLoop.PingPong"/> is capped at twice the duration, and its second half counts
+    /// <see cref="LoopMode.PingPong"/> is capped at twice the duration, and its second half counts
     /// the swing home.
     /// </summary>
     public int TicksElapsed { get; private set; }
@@ -35,14 +35,14 @@ public struct Tween
     public Ease Ease { get; private set; }
 
     /// <summary>What the run does with the tick after its last, as <see cref="Start"/> was last given.</summary>
-    public TweenLoop Loop { get; private set; }
+    public LoopMode Loop { get; private set; }
 
     /// <summary>
     /// Passes completed since <see cref="Start"/>, one per <see cref="Duration"/> ticks a loop
-    /// runs. A <see cref="TweenLoop.Repeat"/> counts wraps and a <see cref="TweenLoop.PingPong"/>
+    /// runs. A <see cref="LoopMode.Repeat"/> counts wraps and a <see cref="LoopMode.PingPong"/>
     /// counts ends reached.
     /// </summary>
-    /// <remarks>A finished <see cref="TweenLoop.Once"/> reads 1.</remarks>
+    /// <remarks>A finished <see cref="LoopMode.Once"/> reads 1.</remarks>
     public int Passes { get; private set; }
 
     /// <summary>
@@ -56,8 +56,8 @@ public struct Tween
     /// step clears it.
     /// </summary>
     /// <remarks>
-    /// A pass ends on the final tick of a <see cref="TweenLoop.Once"/>, on the step that wrapped a
-    /// <see cref="TweenLoop.Repeat"/>, and at either end of a <see cref="TweenLoop.PingPong"/>
+    /// A pass ends on the final tick of a <see cref="LoopMode.Once"/>, on the step that wrapped a
+    /// <see cref="LoopMode.Repeat"/>, and at either end of a <see cref="LoopMode.PingPong"/>
     /// swing. <see cref="Seek"/> and <see cref="Stop"/> do not raise it.
     /// </remarks>
     public bool JustFinished { get; private set; }
@@ -71,7 +71,7 @@ public struct Tween
     /// </summary>
     /// <remarks>
     /// An overshooting curve leaves <c>[0, 1]</c> in between. A running
-    /// <see cref="TweenLoop.Repeat"/> never reads 1. The tick that would reach 1 opens the next
+    /// <see cref="LoopMode.Repeat"/> never reads 1. The tick that would reach 1 opens the next
     /// pass at 0.
     /// </remarks>
     public readonly float Value
@@ -95,21 +95,17 @@ public struct Tween
     /// whatever the tween was running. <see cref="Value"/> is 0 until the first <see cref="Step"/>
     /// and <see cref="Passes"/> begins again at 0.
     /// </summary>
-    /// <param name="ticks">Fixed steps one pass of the run takes. At least one, and for a <see cref="TweenLoop.PingPong"/> at most half of <see cref="int.MaxValue"/>.</param>
+    /// <param name="ticks">Fixed steps one pass of the run takes. At least one, and for a <see cref="LoopMode.PingPong"/> at most half of <see cref="int.MaxValue"/>.</param>
     /// <param name="ease">The curve to read the run through. Linear by default.</param>
     /// <param name="loop">What to do with the tick after the last. Finish by default.</param>
-    public void Start(int ticks, Ease ease = Ease.Linear, TweenLoop loop = TweenLoop.Once)
+    public void Start(int ticks, Ease ease = Ease.Linear, LoopMode loop = LoopMode.Once)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ticks);
         Guard.RequireEase(ease, nameof(ease));
-
-        if (loop is < TweenLoop.Once or > TweenLoop.PingPong)
-        {
-            throw new ArgumentOutOfRangeException(nameof(loop), loop, "No such loop mode.");
-        }
+        Guard.RequireLoop(loop, nameof(loop));
 
         // A ping-pong's period of two durations is counted in an int.
-        if (loop == TweenLoop.PingPong && ticks > int.MaxValue / 2)
+        if (loop == LoopMode.PingPong && ticks > int.MaxValue / 2)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(ticks),
@@ -127,7 +123,7 @@ public struct Tween
     }
 
     /// <summary>
-    /// Spends one tick of the run, wrapping where the <see cref="TweenLoop"/> says to, and clears a
+    /// Spends one tick of the run, wrapping where the <see cref="LoopMode"/> says to, and clears a
     /// <see cref="JustFinished"/> raised by the previous step. On a finished or unstarted tween it
     /// only clears that flag.
     /// </summary>
@@ -144,7 +140,7 @@ public struct Tween
 
         switch (Loop)
         {
-            case TweenLoop.Once:
+            case LoopMode.Once:
                 if (TicksElapsed >= Duration)
                 {
                     TicksElapsed = Duration;
@@ -155,7 +151,7 @@ public struct Tween
 
                 break;
 
-            case TweenLoop.Repeat:
+            case LoopMode.Repeat:
                 if (TicksElapsed >= Duration)
                 {
                     TicksElapsed = 0;
@@ -199,7 +195,7 @@ public struct Tween
     /// <see cref="Passes"/> included. Tick 0 is the state <see cref="Start"/> left.
     /// </summary>
     /// <remarks>
-    /// A looping run takes the tick within its period. On a <see cref="TweenLoop.Once"/>, a tick at
+    /// A looping run takes the tick within its period. On a <see cref="LoopMode.Once"/>, a tick at
     /// or past <see cref="Duration"/> gives the finished run.
     /// </remarks>
     /// <param name="tick">Ticks into the run. Must not be negative.</param>
@@ -215,7 +211,7 @@ public struct Tween
 
         JustFinished = false;
 
-        if (Loop == TweenLoop.Once)
+        if (Loop == LoopMode.Once)
         {
             TicksElapsed = Math.Min(tick, Duration);
             IsFinished = TicksElapsed == Duration;
@@ -225,7 +221,7 @@ public struct Tween
         }
 
         // A pass is one duration in both looping modes. Only the period differs.
-        TicksElapsed = tick % (Loop == TweenLoop.Repeat ? Duration : Duration + Duration);
+        TicksElapsed = tick % (Loop == LoopMode.Repeat ? Duration : Duration + Duration);
         Passes = tick / Duration;
         IsFinished = false;
     }
