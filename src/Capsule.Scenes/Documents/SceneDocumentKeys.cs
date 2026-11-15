@@ -68,8 +68,11 @@ public static class SceneDocumentKeys
         /// <summary>How far the entity moves with the camera, written <c>[x, y]</c>.</summary>
         public const string ScrollFactor = "scrollFactor";
 
+        /// <summary>The colour multiplied into everything the entity draws, written <c>"#rrggbb"</c> or <c>"#rrggbbaa"</c>.</summary>
+        public const string Tint = "tint";
+
         // Every key an entry reserves.
-        internal static string[] Keys { get; } = [Type, Id, Name, X, Y, Rotation, Scale, ZIndex, ScrollFactor];
+        internal static string[] Keys { get; } = [Type, Id, Name, X, Y, Rotation, Scale, ZIndex, ScrollFactor, Tint];
 
         /// <summary>Whether an entry reserves <paramref name="key"/>, compared ordinally.</summary>
         public static bool Contains(string key) => Keys.AsSpan().Contains(key);

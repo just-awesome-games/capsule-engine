@@ -47,7 +47,7 @@ public sealed class AuthorableTests
         public sealed class Lift : Platform
         {
             public Lift(EntitySpawn spawn) : base(spawn) => Seen = FormattableString.Invariant(
-                $"{Rise}|{_swingTicks}|{Biome}|{Size?.ToString() ?? "none"}|{Label ?? "none"}|{Tint.B}|{Tuning.Speed}");
+                $"{Rise}|{_swingTicks}|{Biome}|{Size?.ToString() ?? "none"}|{Label ?? "none"}|{Shade.B}|{Tuning.Speed}");
 
             [Authorable(Required = true)]
             public float Rise { get; init; }
@@ -59,7 +59,7 @@ public sealed class AuthorableTests
             public Vector2? Size { get; set; } = Vector2.One;
 
             [Authorable]
-            internal ColorRgba Tint { get; set; } = new(1, 2, 3);
+            internal ColorRgba Shade { get; set; } = new(1, 2, 3);
 
             [Authorable]
             public Tuning Tuning { get; set; } = Tuning.Default;
@@ -269,7 +269,7 @@ public sealed class AuthorableTests
     // At load a wrong value form, a missing required member, a key the class does not declare or a converter
     // that throws each fails the load.
     [Theory]
-    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 1, "height": 2}""", "sets 'height', which no authorable member takes. Its authorable members are: label, rise, biome, size, tint, tuning, swingTicks.")]
+    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 1, "height": 2}""", "sets 'height', which no authorable member takes. Its authorable members are: label, rise, biome, size, shade, tuning, swingTicks.")]
     [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": "high"}""", "the member takes float. Write a finite number.")]
     [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "swingTicks": 5}""", "omits 'rise'")]
     [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 1, "tuning": "light"}""", "Write one of: default, heavy.")]

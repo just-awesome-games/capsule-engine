@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Rendering;
 
 namespace Capsule.Scenes;
 
@@ -42,6 +43,9 @@ public readonly record struct EntitySpawn(Vector2 Position)
 
     /// <summary>The scroll factor, or null to keep the entity's own.</summary>
     public Vector2? ScrollFactor { get; init; }
+
+    /// <summary>The <see cref="Entity.Tint"/>, or null to keep the entity's own.</summary>
+    public ColorRgba? Tint { get; init; }
 
     // A placement's type key, authored member values and its class's generated applier. A spawn built in
     // code carries none of them, and the members stay out of the record's printed form.

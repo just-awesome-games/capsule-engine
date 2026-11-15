@@ -74,6 +74,13 @@ internal sealed class DebugDrawRenderer : Renderer
     // Settles once at the frame's last tick. A multi-step frame's later draws leave early.
     internal void Settle() => _buffer.Settle(_scheduler.Tick);
 
+    // Drops the entities it holds of a scene the run has left. The overlay's next highlight selects again.
+    internal void ClearSelection()
+    {
+        Selected = null;
+        _lastOwner = null;
+    }
+
     // Runs the held scene's debug pass unless the settled step drew. Its draws expire next step.
     internal void Emit()
     {

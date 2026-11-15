@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Rendering;
 using Capsule.Scenes;
 
 namespace Capsule.Tests.Documents;
@@ -49,6 +50,20 @@ public sealed class SceneDocumentRoundTripTests
 
         Assert.Equal(new SceneDocumentEntry("tile-map", new EntitySpawn(Vector2.Zero) { Name = "north" }) { Id = 1 }, document.Entries[0]);
         Assert.Equal(Json, document.ToJson());
+    }
+
+    // The tint sits after the scroll factor. An opaque one writes the shorter form, and either form reads in either case.
+    [Fact]
+    public void ATintedEntry_RoundTrips()
+    {
+        const string Json = """{"entities":[{"type":"tile-map","tint":"#ffffff80"},{"type":"coin","tint":"#484c68"},{"type":"coin"}]}""";
+
+        SceneDocument document = SceneDocument.Parse(Json);
+
+        Assert.Equal(new SceneDocumentEntry("tile-map", new EntitySpawn(Vector2.Zero) { Tint = new ColorRgba(255, 255, 255, 128) }), document.Entries[0]);
+        Assert.Null(document.Entries[2].Spawn.Tint);
+        Assert.Equal(Json, document.ToJson());
+        Assert.Equal(Json, SceneDocument.Parse(Json.Replace("#484c68", "#484C68FF", StringComparison.Ordinal)).ToJson());
     }
 
     // Entry fields are recognised only inside the entities array, never in the scene's own members.

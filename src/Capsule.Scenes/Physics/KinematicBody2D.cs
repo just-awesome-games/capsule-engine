@@ -480,7 +480,7 @@ public sealed partial class KinematicBody2D : Component
         MoveResult2D result = Test(translation, from, _found, out CollisionWorld2D world);
 
         // A blocked move's first pass is the one cut short, and its nearest surface comes first.
-        contact = result.Blocked ? Collider2D.Describe(world, _found[0]) : default;
+        contact = result.Blocked ? ColliderContact2D.Of(world, _found[0]) : default;
         return result.Blocked;
     }
 
@@ -507,7 +507,7 @@ public sealed partial class KinematicBody2D : Component
         Collider2D.Grow(ref _moveContacts, _moveContactCount);
         for (int index = 0; index < _moveContactCount; index++)
         {
-            _moveContacts[index] = Collider2D.Describe(world, _found[index]);
+            _moveContacts[index] = ColliderContact2D.Of(world, _found[index]);
         }
 
         Classify();

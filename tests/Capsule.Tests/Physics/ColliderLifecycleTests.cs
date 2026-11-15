@@ -90,15 +90,17 @@ public sealed class ColliderLifecycleTests
         Assert.Equal(new Vector2(104f, 100f), body.Collider.Bounds.Max);
     }
 
-    [Fact]
-    public void ADisabledCollider_LeavesTheWorldAndCanBeEnabledAgain()
+    // Leaving and returning re-announces every contact, one or a crowd past the starting buffers.
+    [Theory]
+    [InlineData(1)]
+    [InlineData(80)]
+    public void ADisabledCollider_LeavesTheWorldAndCanBeEnabledAgain(int crowd)
     {
         Scene scene = new();
         Body first = new(Vector2.Zero);
-        Body second = new(new Vector2(4f, 0f));
+        first.Collider.Size = new Vector2(64f, 64f);
         first.Collider.Detects = new("other");
         first.Collider.ReportsContacts = true;
-        second.Collider.Layer = "other";
 
         int entered = 0;
         int exited = 0;
@@ -106,12 +108,18 @@ public sealed class ColliderLifecycleTests
         first.Collider.ContactExited += _ => exited++;
 
         scene.Add(first);
-        scene.Add(second);
+        for (int index = 0; index < crowd; index++)
+        {
+            Body other = new(new Vector2(4f + (index % 8 * 5f), 4f + (index / 8 * 5f)));
+            other.Collider.Layer = "other";
+            scene.Add(other);
+        }
+
         using SimulationHost run = new(scene);
         run.Step();
 
         ColliderHandle original = first.Collider.Handle;
-        Assert.Equal(1, entered);
+        Assert.Equal(crowd, entered);
 
         first.Collider.Enabled = false;
 
@@ -119,14 +127,15 @@ public sealed class ColliderLifecycleTests
         Assert.Null(first.Collider.World);
         Assert.True(first.Collider.Handle.IsNone);
         Assert.Empty(first.Collider.Touching.ToArray());
-        Assert.Equal(1, exited);
+        Assert.Equal(crowd, exited);
         Assert.Throws<InvalidOperationException>(() => first.Mover.Move(Vector2.UnitX));
 
         first.Collider.Enabled = true;
         run.Step();
 
         Assert.Same(scene.Collision, first.Collider.World);
-        Assert.Equal(2, entered);
+        Assert.Equal(crowd, first.Collider.Touching.Length);
+        Assert.Equal(2 * crowd, entered);
     }
 
     // A collider keeps layer names, not bits. The scene it lands in is the one it filters against.

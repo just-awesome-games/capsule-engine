@@ -122,7 +122,7 @@ public sealed partial class KinematicBody2D
                 _walkNormal = _found[index].Normal;
             }
 
-            ColliderContact2D contact = Collider2D.Describe(world, _found[index]);
+            ColliderContact2D contact = ColliderContact2D.Of(world, _found[index]);
             if (MovedByFilter.Admits(contact.Layer) && Carries(contact))
             {
                 Ride(contact.OtherCollider, contact.Tile);
@@ -179,7 +179,7 @@ public sealed partial class KinematicBody2D
                 point,
                 normal,
                 shortfall);
-            Crushed?.Invoke(Collider2D.Describe(world, contact));
+            Crushed?.Invoke(ColliderContact2D.Of(world, contact));
         }
     }
 

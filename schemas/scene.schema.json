@@ -72,6 +72,11 @@
             },
             "minItems": 2,
             "maxItems": 2
+          },
+          "tint": {
+            "description": "The colour multiplied into everything the entry draws, alpha included, as \"#rrggbb\" or \"#rrggbbaa\" with the alpha last. Absent keeps the tint the entity's class sets.",
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
           }
         },
         "required": [

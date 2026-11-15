@@ -9,8 +9,9 @@ public sealed class ColliderFootprintTests(ITestOutputHelper output)
 {
     private const int Colliders = 64;
 
-    // Four contact buffers of starting size come to about 1 KB, and the sixteen-slot buffers every
-    // collider once carried came to almost 4 KB. A collider that never reports holds none of them.
+    // A reporter's three contact buffers of starting size come to about 650 bytes, and the sixteen-slot
+    // buffers every collider once carried came to almost 4 KB. A collider that never reports holds none
+    // of them.
     private const long BytesPerCollider = 512;
 
     [Fact]

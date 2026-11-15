@@ -2,6 +2,7 @@ using System.Numerics;
 using Capsule.Physics;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
+using Capsule.Tiles;
 using Body = Capsule.Tests.Scenes.SceneFixtures.Body;
 
 namespace Capsule.Tests.Physics;
@@ -266,6 +267,30 @@ public sealed class ColliderContactEventTests
         Assert.Equal(["-(2,1)", "-(3,1)", "-(4,1)", "-(5,1)", "+(14,1)", "+(15,1)", "+(16,1)", "+(17,1)"], body.Log);
     }
 
+
+    // Detaching a tile map's collider takes its cells out of the world. The exits that follow still name
+    // each cell and the map that held it.
+    [Fact]
+    public void ACellExitRaisedAfterTheMapsColliderDetached_StillNamesTheCellAndItsMap()
+    {
+        Scene scene = SceneFixtures.Terrain(new string('.', 8), new string('#', 8));
+        Straddler body = new(new Vector2(20f, 8f));
+        scene.Add(body);
+        List<ColliderContact2D> exits = [];
+        body.Collider.ContactExited += exits.Add;
+
+        using SimulationHost run = new(scene);
+        run.Step();
+        TileContact2D?[] touched = [.. body.Collider.Touching.ToArray().Select(static contact => contact.Tile)];
+        Assert.NotEmpty(touched);
+
+        TileMap map = scene.FindSingle<TileMap>();
+        map.Remove(map.Get<TileMapCollider2D>());
+        run.Step();
+
+        Assert.Equal(touched, exits.Select(static contact => contact.Tile));
+        Assert.All(exits, exit => Assert.Same(map, exit.OtherEntity));
+    }
 
     // A buffer's starting size is not a contact limit: a collider spanning a long floor
     // must enter every cell it stands on, and Move must name every one it landed against.

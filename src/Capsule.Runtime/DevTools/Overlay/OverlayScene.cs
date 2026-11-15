@@ -216,6 +216,15 @@ internal sealed class OverlayScene : Scene
         _pointer.SetText(written[..Math.Min(written.Length, fits)]);
     }
 
+    // Drops the rows and the entity it holds of a scene the run has left. The pointer line goes blank and
+    // the pointer finds no row until the next page is shown.
+    internal void ClearPage()
+    {
+        SetPointer(null, null, default);
+        _page = [];
+        _shown = 0;
+    }
+
     // Whether a point on the overlay's canvas lies on the menu's backdrop.
     internal bool CoversMenu(Vector2 pointer) =>
         _menuShown

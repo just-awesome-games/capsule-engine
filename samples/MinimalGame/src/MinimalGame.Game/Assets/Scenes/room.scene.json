@@ -17,6 +17,7 @@
       "name": "backdrop",
       "zIndex": -5,
       "scrollFactor": [0.75, 1],
+      "tint": "#ffffffa0",
       "tileSize": 16,
       "width": 40,
       "height": 11,

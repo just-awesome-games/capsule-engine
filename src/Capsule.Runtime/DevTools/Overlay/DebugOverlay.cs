@@ -455,6 +455,22 @@ internal sealed class DebugOverlay : IDisposable
         _pageStale = true;
     }
 
+    // Lets go of everything the overlay holds of the scene the run has just left: its entity pages, the
+    // rows built from its panels, the picks, the pointer's entity and the selection. The host calls it as
+    // the incoming scene enters, before the boundary's collection. The page rebuilds on the next update.
+    internal void LeaveScene()
+    {
+        PopDeparted();
+        _rows.Clear();
+        _pageStale = true;
+        _pageShown = false;
+        _picked.Clear();
+        _drawRuns.Clear();
+        ForgetPointerOnSceneChange();
+        _draws.ClearSelection();
+        Scene.ClearPage();
+    }
+
     internal void Load(in SceneTransition transition, string? registration = null) =>
         Request("Load", in transition, registration is null ? null : HostAct.Load(registration));
 
@@ -619,11 +635,7 @@ internal sealed class DebugOverlay : IDisposable
         }
 
         _pageShown = false;
-        while (_pages[^1] is { Kind: PageKind.Entity } departed && !_panelRows.Holds(departed.Subject!))
-        {
-            SetStatus($"{departed.Name} left the scene");
-            Pop();
-        }
+        PopDeparted();
 
         // Cleared after the pops, which mark the page stale, or the surviving page builds twice.
         _pageStale = false;
@@ -643,6 +655,16 @@ internal sealed class DebugOverlay : IDisposable
 
         _cursor.Fit();
         Scene.SetReadout(_scenes.SceneKey, _scheduler.Tick);
+    }
+
+    // Closes the entity pages on top whose entity has left the held scene.
+    private void PopDeparted()
+    {
+        while (_pages[^1] is { Kind: PageKind.Entity } departed && !_panelRows.Holds(departed.Subject!))
+        {
+            SetStatus($"{departed.Name} left the scene");
+            Pop();
+        }
     }
 
     // A row's act may have moved the run to another scene since the point was read.

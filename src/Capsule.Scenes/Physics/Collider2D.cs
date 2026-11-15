@@ -62,9 +62,10 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     // How many contacts a reporter holds from when it first reports on. A crowd grows the buffers.
     private const int StartingContacts = 4;
 
-    // The contact buffers grow together. Swapping _touching and _wasTouching never resizes. They stay
-    // empty until the collider reports contacts, as most colliders never do.
-    private Contact2D[] _found = [];
+    // The contact buffers grow together and are kept at the largest size reached, which a pooled
+    // reporter carries into its next life. Swapping _touching and _wasTouching never resizes. They stay
+    // empty until the collider reports contacts, as most colliders never do. The gather they settle
+    // from is the scene's, which every reporter shares.
     private ColliderContact2D[] _touching = [];
     private ColliderContact2D[] _wasTouching = [];
     private int _touchingCount;
@@ -716,14 +717,10 @@ public abstract partial class Collider2D : Component, ISettleListEntry
             return;
         }
 
-        // Grow the buffers to the reported count and gather again, because a truncated gather would
-        // silently drop a contact's enter and its later exit.
-        int count = world.ContactsOf(_handle, _found);
-        if (count > _found.Length)
-        {
-            ReserveContacts(count);
-            count = world.ContactsOf(_handle, _found);
-        }
+        // Every reporter gathers into the scene's one buffer. Diff records it below, before any handler
+        // runs, and nothing reads it after.
+        ReadOnlySpan<Contact2D> found = _scene!.Physics.GatherContacts(_handle);
+        int count = found.Length;
 
         // Nothing touched before or now, and nothing is owed or raised.
         if (count == 0 && _touchingCount == 0)
@@ -731,8 +728,9 @@ public abstract partial class Collider2D : Component, ISettleListEntry
             return;
         }
 
+        ReserveContacts(count);
         (_touching, _wasTouching) = (_wasTouching, _touching);
-        int leftCount = Diff(world, count, _touchingCount);
+        int leftCount = Diff(world, found, _touchingCount);
         _touchingCount = count;
 
         ColliderContact2D[] touching = _touching;
@@ -773,28 +771,24 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     }
 
     // Writes the gather into _touching and marks the contacts carried over from the previous step as
-    // announced. Both lists are in overlap-query order, and one merge finds them. The previous
+    // announced. Both lists are in overlap-query order, and one merge finds them. A carried contact
+    // names what its previous record named, since a target keeps its owner while it lives. The previous
     // contacts not found again move to the head of _wasTouching in their order, and the return value
     // says how many there are.
-    private int Diff(CollisionWorld2D world, int count, int wasCount)
+    private int Diff(CollisionWorld2D world, ReadOnlySpan<Contact2D> gather, int wasCount)
     {
         int was = 0;
         int leftCount = 0;
-        for (int index = 0; index < count; index++)
+        for (int index = 0; index < gather.Length; index++)
         {
-            ref readonly Contact2D found = ref _found[index];
+            ref readonly Contact2D found = ref gather[index];
             while (was < wasCount && world.OverlapOrder(_wasTouching[was].Target, found.Target) < 0)
             {
                 _wasTouching[leftCount++] = _wasTouching[was++];
             }
 
             bool carried = was < wasCount && _wasTouching[was].Target == found.Target;
-            if (carried)
-            {
-                was++;
-            }
-
-            _touching[index] = Describe(world, found);
+            _touching[index] = carried ? _wasTouching[was++].MovedTo(found) : ColliderContact2D.Of(world, found);
             _announced[index] = carried;
         }
 
@@ -884,7 +878,6 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     // preloads, and its first contacts, up to the starting size, allocate nothing inside the settle.
     private void ReserveContacts(int count)
     {
-        Grow(ref _found, count);
         Grow(ref _touching, count);
         Grow(ref _wasTouching, count);
         Grow(ref _announced, count);
@@ -898,23 +891,6 @@ public abstract partial class Collider2D : Component, ISettleListEntry
         {
             Array.Resize(ref buffer, (int)BitOperations.RoundUpToPowerOf2((uint)count));
         }
-    }
-
-    internal static ColliderContact2D Describe(CollisionWorld2D world, in Contact2D contact)
-    {
-        object? owner = world.UserDataOf(contact.Target.Collider);
-        Collider2D? otherCollider = contact.Target.IsGridCell ? null : owner as Collider2D;
-
-        TileContact2D? tile = TileContact2D.Of(owner, contact.Target);
-
-        return new ColliderContact2D(
-            world,
-            contact.Target,
-            contact.Point,
-            contact.Normal,
-            contact.Depth,
-            otherCollider,
-            tile);
     }
 
     // Resolves a mask to a filter in this world, interning each name as it goes, because a collider

@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Capsule.Input;
 using Capsule.Runtime;
 using Capsule.Runtime.DevTools.Recordings;
@@ -119,6 +120,50 @@ public sealed class RecordingReplayTests
         Assert.Null(result.DivergedAt);
         Assert.Equal(second.Scheduler.Tick, result.Steps);
         Assert.Equal(recorded, replayed);
+    }
+
+    // A replay finds a recorded command in a panel it builds for the purpose. Once the replayed run has
+    // restarted past it, nothing of the scene the command ran in is held.
+    [Fact]
+    public void AReplayedCommand_KeepsNothingOfTheSceneItRanIn()
+    {
+        EngineBuilder builder = Builder(() => new Reading { RestartAt = 8 });
+        Recording recording;
+        using (RecordedRun first = new(builder))
+        {
+            using OverlayRig rig = new(first.Host, scheduler: first.Scheduler);
+            rig.Frame();
+            rig.OpenEntityPanel("Walker");
+            rig.SelectRow("Nudge");
+            rig.Press(Key.Grave);
+            while (first.Scheduler.Tick < 10)
+            {
+                rig.Frame();
+            }
+
+            recording = first.Saved();
+        }
+
+        using RecordedRun replay = new(builder, recording);
+
+        Reachability.AssertReleased(ReplayPastTheRestart(replay));
+    }
+
+    // The opening scene and the walker whose command ran in it. Nothing on this stack outlives the call
+    // to keep them alive.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference[] ReplayPastTheRestart(RecordedRun replay)
+    {
+        Reading opening = (Reading)replay.Host.Scene;
+        WeakReference[] left = [new(opening), new(opening.Walker)];
+        while (replay.Scheduler.Tick < 10)
+        {
+            replay.Step(DeviceSnapshot.Empty);
+        }
+
+        Assert.NotSame(opening, replay.Host.Scene);
+
+        return left;
     }
 
     // The run's host is never built, and the recording holds its boot state under the opening's name.

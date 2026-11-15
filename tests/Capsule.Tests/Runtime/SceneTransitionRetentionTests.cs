@@ -33,11 +33,7 @@ public sealed class SceneTransitionRetentionTests
             Replace(host, tick, replaced);
         }
 
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        GC.Collect();
-
-        Assert.All(replaced, reference => Assert.False(reference.IsAlive, $"{reference.Target} outlived its scene."));
+        Reachability.AssertReleased(replaced);
     }
 
     // Steps once, which swaps in the other scene, and records the outgoing scene, its entities and

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Capsule.Physics;
+using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 using Capsule.Tiles;
@@ -102,6 +103,21 @@ public sealed class SceneCompositionTests
         Assert.Equal(Vector2.Zero, scene.Entities[0].ScrollFactor);
         Assert.Equal(Vector2.One, scene.Entities[1].ScrollFactor);
         Assert.Equal(Vector2.Zero, scene.Entities[2].ScrollFactor);
+    }
+
+    // An authored tint lands before the body runs, and an entry without one keeps the class's own.
+    [Fact]
+    public void ADocumentsTint_ReachesTheEntityAndAnAbsentOneKeepsItsOwn()
+    {
+        ColorRgba glass = new(255, 255, 255, 128);
+        SceneDocument document = new(
+            [
+                new SceneDocumentEntry("placed", new EntitySpawn(Vector2.Zero) { Tint = glass }),
+                new SceneDocumentEntry("placed", new EntitySpawn(Vector2.Zero)),
+            ]);
+        Scene scene = SceneFixtures.RoomScene(document, SceneFixtures.Registry(("placed", spawn => new SceneFixtures.Placed(spawn))));
+
+        Assert.Equal((glass, ColorRgba.White), (scene.Entities[0].Tint, scene.Entities[1].Tint));
     }
 
     // An authored name lands before the body runs, and a body that sets its own wins.

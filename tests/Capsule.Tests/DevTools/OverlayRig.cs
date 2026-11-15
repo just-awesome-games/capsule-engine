@@ -50,6 +50,7 @@ internal sealed class OverlayRig : IDisposable
         Host = host ?? RecordingHost();
         Scheduler = scheduler ?? (recordings is null ? CreateScheduler() : RecordingScheduler(Host));
         Overlay = new DebugOverlay(toggle ?? Key.Grave, Scheduler, Host, registry, () => _ticks, recordings);
+        Host.SceneEntered = Overlay.LeaveScene;
     }
 
     internal RecordingSimulation Recording => ((RecordingScene)Host.Scene).Recorder;

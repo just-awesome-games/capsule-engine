@@ -127,9 +127,7 @@ public sealed class SequenceTests
         }
 
         Assert.False(sequence.IsRunning);
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        Assert.False(state.IsAlive);
+        Reachability.AssertReleased([state]);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

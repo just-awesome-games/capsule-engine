@@ -7,6 +7,9 @@ namespace Capsule.Physics;
 // report contacts, the layer unions a shove searches, and how deep any body has sunk.
 internal sealed class ScenePhysics
 {
+    // How many contacts the shared gather holds before a reporter in a crowd first grows it.
+    private const int StartingGather = 16;
+
     private readonly SettleList<Collider2D> _contactReporters = new();
 
     // How many bodies in this scene are moved by each collision layer, indexed by layer.
@@ -39,6 +42,9 @@ internal sealed class ScenePhysics
 
     internal int ContactReporterCount => _contactReporters.Count;
 
+    // Every reporter's settle gathers into this one buffer, sized for the most any has gathered at once.
+    private Contact2D[] _gather = new Contact2D[StartingGather];
+
     // Raises every contact the step's final positions produce. A collider whose entity is held settles nothing.
     internal void SettleContacts()
     {
@@ -57,6 +63,21 @@ internal sealed class ScenePhysics
         {
             _contactReporters.End();
         }
+    }
+
+    // Everything a reporter touches, good until the next gather. A gather that did not fit grows the
+    // buffer and runs again, because a truncated one would silently drop a contact's enter and its
+    // later exit.
+    internal ReadOnlySpan<Contact2D> GatherContacts(ColliderHandle reporter)
+    {
+        int count = World.ContactsOf(reporter, _gather);
+        if (count > _gather.Length)
+        {
+            Collider2D.Grow(ref _gather, count);
+            count = World.ContactsOf(reporter, _gather);
+        }
+
+        return _gather.AsSpan(0, count);
     }
 
     internal void TrackContacts(Collider2D collider) => _contactReporters.Add(collider);

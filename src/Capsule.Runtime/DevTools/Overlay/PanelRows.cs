@@ -131,6 +131,9 @@ internal sealed class PanelRows
             AddSection(rows, panel, index, end, subject, owner);
             index = end;
         }
+
+        // The page's rows carry what they need. The panel's own would keep the scene past its end.
+        _panel.Clear();
     }
 
     // The section is panel[start..end]. A command or toggle is recorded by its label and its occurrence in

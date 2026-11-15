@@ -91,6 +91,53 @@ public sealed class ColliderContactReportTests
         Assert.Same(replacement.Collider, Assert.Single(sensor.Collider.Touching.ToArray()).OtherCollider);
     }
 
+    // A crowd lands on a moving reporter in one step, from slots spread on both sides of the one a
+    // contact is replaced in during that step. Both sides of every new pair moved. Touching holds each
+    // member once, in overlap-query order, and names the replacement.
+    [Fact]
+    public void ACrowdArrivingInOneStep_IsTouchedOnceEachInOverlapOrder()
+    {
+        const int Crowd = 24;
+        Scene scene = new();
+        Body[] front = [.. Enumerable.Range(0, Crowd / 2).Select(index => new Body(new Vector2(600f + (index * 20f), 0f)))];
+        Body sensor = new(Vector2.Zero);
+        sensor.Collider.Size = new Vector2(64f, 64f);
+        sensor.Collider.Detects = new(CollisionWorld2D.DefaultLayerName);
+        sensor.Collider.ReportsContacts = true;
+        Body old = new(new Vector2(4f, 4f));
+        Body[] back = [.. Enumerable.Range(0, Crowd / 2).Select(index => new Body(new Vector2(600f + (index * 20f), 300f)))];
+        foreach (Body body in (Body[])[.. front, sensor, old, .. back])
+        {
+            scene.Add(body);
+        }
+
+        using SimulationHost run = new(scene);
+        run.Step();
+        Assert.Same(old.Collider, Assert.Single(sensor.Collider.Touching.ToArray()).OtherCollider);
+
+        // Landing in reverse slot order, which is not the order any query meets them in.
+        Body[] crowd = [.. front, .. back];
+        for (int index = 0; index < Crowd; index++)
+        {
+            crowd[Crowd - 1 - index].Teleport(new Vector2(8f + (index * 7 % 48), 8f + (index * 13 % 48)));
+        }
+
+        int slot = old.Collider.Handle.Index;
+        scene.Remove(old);
+        Body replacement = new(new Vector2(4f, 4f));
+        scene.Add(replacement);
+        Assert.Equal(slot, replacement.Collider.Handle.Index);
+        sensor.Position += new Vector2(1f, 1f);
+        run.Step();
+
+        Span<Contact2D> expected = stackalloc Contact2D[Crowd + 4];
+        int count = sensor.Collider.OverlapAll(expected);
+        ColliderContact2D[] touching = sensor.Collider.Touching.ToArray();
+        Assert.Equal(Crowd + 1, count);
+        Assert.Equal(expected[..count].ToArray().Select(static contact => contact.Target), touching.Select(static contact => contact.Target));
+        Assert.Contains(touching, contact => contact.OtherCollider == replacement.Collider);
+    }
+
     // Contacts settle between the entity steps and the late steps. A late step's move shows on the next
     // settle, and the list a late step reads is the one that settle wrote.
     [Fact]

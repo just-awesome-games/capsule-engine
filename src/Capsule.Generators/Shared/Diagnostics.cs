@@ -112,7 +112,7 @@ internal static class Diagnostics
     internal static readonly DiagnosticDescriptor SpawnNotPassedToBase = Rule(
         "CAP026", ScenesCategory, ScenesPage,
         "An entity must pass its spawn to its base constructor",
-        "Entity '{0}' takes an EntitySpawn but does not pass it to its base constructor, which drops the authored rotation, zIndex and scrollFactor. Pass the spawn to base");
+        "Entity '{0}' takes an EntitySpawn but does not pass it to its base constructor, which drops the authored rotation, zIndex, scrollFactor and tint. Pass the spawn to base");
 
     internal static readonly DiagnosticDescriptor DocumentBaseSceneConflictsWithAClaim = Rule(
         "CAP027", ScenesCategory, ScenesPage,

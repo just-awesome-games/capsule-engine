@@ -251,7 +251,8 @@ internal sealed class Replay
         _ => EntityPath.Find(scene, act.Path!)?.Name ?? string.Empty,
     };
 
-    // Builds the subject's panel as the overlay does and finds the command or toggle it ran.
+    // Builds the subject's panel as the overlay does and finds the command or toggle it ran. The panel's
+    // rows hold the scene and are dropped once the one wanted is found.
     private Action? Command(Scene scene, in HostAct act)
     {
         Entity? entity = act.Subject == PanelSubject.Entity ? EntityPath.Find(scene, act.Path!) : null;
@@ -261,8 +262,10 @@ internal sealed class Replay
         }
 
         PanelSubjects.Fill(_panel, scene, act.Subject, entity);
+        Action? command = PanelSubjects.Find(_panel.Rows, act.Name!, act.Occurrence);
+        _panel.Clear();
 
-        return PanelSubjects.Find(_panel.Rows, act.Name!, act.Occurrence);
+        return command;
     }
 
     private void Diverge(long tick)

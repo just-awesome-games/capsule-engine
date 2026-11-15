@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Capsule.Assets;
+using Capsule.Rendering;
 
 namespace Capsule.Scenes;
 
@@ -115,6 +116,7 @@ internal sealed class SceneDocumentJson
                 Scale = spawn.Scale == Vector2.One ? null : [spawn.Scale.X, spawn.Scale.Y],
                 ZIndex = spawn.ZIndex,
                 ScrollFactor = spawn.ScrollFactor is { } factor ? [factor.X, factor.Y] : null,
+                Tint = spawn.Tint is { } tint ? Hex(tint) : null,
                 Members = ExtensionData(entry.Authored),
             };
         }
@@ -157,6 +159,7 @@ internal sealed class SceneDocumentJson
                 Scale = Pair(entry.Scale, i, SceneDocumentKeys.Entry.Scale) ?? Vector2.One,
                 ZIndex = entry.ZIndex,
                 ScrollFactor = Pair(entry.ScrollFactor, i, SceneDocumentKeys.Entry.ScrollFactor),
+                Tint = Color(entry.Tint, i),
             };
             documentEntries[i] = new SceneDocumentEntry(entry.Type ?? string.Empty, spawn) { Id = entry.Id, Authored = members[i + 1] };
         }
@@ -247,6 +250,31 @@ internal sealed class SceneDocumentJson
         return new Vector2(pair[0], pair[1]);
     }
 
+    // Reads an entry's tint, returning null when the field is absent.
+    private static ColorRgba? Color(string? hex, int index)
+    {
+        if (hex is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return ColorRgba.FromHex(hex);
+        }
+        catch (FormatException ex)
+        {
+            throw new SceneDocumentFormatException(
+                $"entities[{index}] has a {SceneDocumentKeys.Entry.Tint} of \"{hex}\", which is not a colour. Write it as \"#rrggbb\" or as \"#rrggbbaa\" with the alpha last, or omit the field.",
+                ex);
+        }
+    }
+
+    // An opaque colour takes the shorter form. An authored "#rrggbb" then writes back as it was read.
+    private static string Hex(ColorRgba color) => color.A == byte.MaxValue
+        ? string.Create(CultureInfo.InvariantCulture, $"#{color.R:x2}{color.G:x2}{color.B:x2}")
+        : string.Create(CultureInfo.InvariantCulture, $"#{color.R:x2}{color.G:x2}{color.B:x2}{color.A:x2}");
+
     // The members an applier reads as an object's undeclared keys, in authored order, or null when there are none.
     private static Dictionary<string, JsonElement>? ExtensionData(AuthoredObject? members) =>
         members?.ToElement().EnumerateObject().ToDictionary(static member => member.Name, static member => member.Value, StringComparer.Ordinal);
@@ -302,6 +330,11 @@ internal sealed class SceneEntryJson
     [Description("How far the entry moves with the camera, as [x, y], both finite. Absent keeps the factor the entity's class sets.")]
     [SchemaLength(2, 2)]
     public float[]? ScrollFactor { get; set; }
+
+    [JsonPropertyName(SceneDocumentKeys.Entry.Tint)]
+    [Description("The colour multiplied into everything the entry draws, alpha included, as \"#rrggbb\" or \"#rrggbbaa\" with the alpha last. Absent keeps the tint the entity's class sets.")]
+    [RegularExpression("^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$")]
+    public string? Tint { get; set; }
 
     // The entry's undeclared keys, which only the writer fills. ReadMembers collects them on a read.
     [JsonExtensionData]

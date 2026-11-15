@@ -266,8 +266,8 @@ public partial class Entity
 
     /// <summary>
     /// Places the entity from a document placement or a spawn built in code. The position,
-    /// <see cref="Rotation"/>, <see cref="Name"/>, <see cref="ZIndex"/>, <see cref="ScrollFactor"/> and every
-    /// <see cref="AuthorableAttribute"/> value except an entity reference land before the subclass
+    /// <see cref="Rotation"/>, <see cref="Name"/>, <see cref="ZIndex"/>, <see cref="ScrollFactor"/>, <see cref="Tint"/>
+    /// and every <see cref="AuthorableAttribute"/> value except an entity reference land before the subclass
     /// constructor body runs, and writes in that body override them.
     /// </summary>
     /// <remarks>
@@ -296,6 +296,11 @@ public partial class Entity
         if (spawn.ScrollFactor is { } factor)
         {
             ScrollFactor = factor;
+        }
+
+        if (spawn.Tint is { } tint)
+        {
+            Tint = tint;
         }
 
         spawn.Apply?.Invoke(this, spawn.Members);

@@ -229,6 +229,9 @@ internal sealed class RunTrace : IDisposable
                     break;
             }
         }
+
+        // Its commands and toggles hold the scene, which the trace must not keep past its last step.
+        _panel.Clear();
     }
 
     // Writes the row when its value is new to the stretch or changed. A label a section repeats is

@@ -101,6 +101,9 @@ Tint = ColorRgba.White with { A = (byte)(255f * (1f - _fade.Value)) };
 Flash = _selected ? 0.5f : 0f;
 ```
 
+A document may author the tint instead, as `tint` on an entry in the `ColorRgba` form. A tile map's tiles never
+overlap. Its tint's alpha fades the whole map evenly.
+
 ## Two layers, and draw order
 
 A frame carries two ordered lists. The world layer is placed by the camera and culled against it. The

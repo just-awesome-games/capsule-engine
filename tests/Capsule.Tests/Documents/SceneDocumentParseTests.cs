@@ -33,6 +33,7 @@ public sealed class SceneDocumentParseTests
     [InlineData(""",{"type": "coin", "x": 8, "y": 0, "name": "north (2)"}""", "is named 'north (2)', which ends in a number in parentheses")]
     [InlineData(""",{"type": "coin", "x": 8, "y": 0, "rotation": 1e39}""", "not finite")]
     [InlineData(""",{"type": "coin", "x": 8, "y": 0, "scrollFactor": [0.5, 1, 2]}""", "entities[1] has a scrollFactor of 3 components")]
+    [InlineData(""",{"type": "coin", "x": 8, "y": 0, "tint": "#80ffffff0"}""", "entities[1] has a tint of \"#80ffffff0\", which is not a colour. Write it as \"#rrggbb\" or as \"#rrggbbaa\"")]
     [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "scale": [2]}""", "scale of 1 components")]
     [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "scale": [1, 2, 3]}""", "scale of 3 components")]
     [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "scale": [0, 1]}""", "which is not a scale")]

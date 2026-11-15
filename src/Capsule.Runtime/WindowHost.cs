@@ -73,6 +73,10 @@ internal sealed unsafe class WindowHost
     // in a shipping build.
     private readonly Action<string>? _holdOverlay;
 
+    // Tells the overlay to let go of the scene the run just left, ahead of the boundary's collection. Null
+    // in a shipping build.
+    private readonly Action? _leaveOverlayScene;
+
     // SDL's window, zero until Open creates it and after Close destroys it.
     private nint _window;
 
@@ -158,6 +162,7 @@ internal sealed unsafe class WindowHost
             DebugOverlay overlay = new(builder.Input.DebugOverlayButton, _scheduler, scenes, builder.Scenes, recordings: recorder is null ? null : builder.RecordingsDirectory());
             _overlayHost = overlay;
             _holdOverlay = overlay.HoldAt;
+            _leaveOverlayScene = overlay.LeaveScene;
             _interceptOverlay = (snapshot, renderer) => overlay.Intercept(
                 snapshot,
                 renderer.ScreenLayer,
@@ -354,7 +359,7 @@ internal sealed unsafe class WindowHost
         SceneHost scenes = _scenes;
         scenes.PrepareAssets = PrepareAssets;
         scenes.PrefetchAssets = PrefetchAssets;
-        scenes.SceneEntered = CollectAtBoundary;
+        scenes.SceneEntered = EnterScene;
         scenes.PrepareInitialAssets();
         CollectAtBoundary();
 
@@ -756,6 +761,13 @@ internal sealed unsafe class WindowHost
             shaders();
             sounds();
         });
+
+    // The overlay lets go of the outgoing scene before the collection runs.
+    private void EnterScene()
+    {
+        _leaveOverlayScene?.Invoke();
+        CollectAtBoundary();
+    }
 
     // Gameplay starts on an empty young generation whatever the machine's GC budget is.
     private static void CollectAtBoundary()

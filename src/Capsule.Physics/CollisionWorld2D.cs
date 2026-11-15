@@ -31,6 +31,8 @@ public sealed partial class CollisionWorld2D
     // How many candidates a collider's list holds from registration on. A larger crowd doubles it.
     private const int StartingCandidates = 8;
 
+    private static readonly Comparison<ColliderHandle> BySlot = static (left, right) => left.Index.CompareTo(right.Index);
+
     // How many colliders the slot table and the shove gather hold before either first grows.
     private const int StartingSlots = 16;
 
@@ -48,6 +50,11 @@ public sealed partial class CollisionWorld2D
 
     // The slots whose proxy was inserted or reinserted since contacts last settled, each listed once.
     private readonly List<int> _moved = [];
+
+    // The slots the running FindNewPairs has appended unsorted candidates to, each listed once, and
+    // the scratch that merges a list's appended run into its sorted head, sized for the longest run.
+    private readonly List<int> _appended = [];
+    private ColliderHandle[] _mergeScratch = [];
 
     // The slots the running CollidersNear query has met, in the order it met them. It is sized with
     // the slot table, which no gather outgrows.
@@ -270,6 +277,7 @@ public sealed partial class CollisionWorld2D
         }
 
         _moved.EnsureCapacity(colliders);
+        _appended.EnsureCapacity(colliders);
         _tree.Reserve(colliders);
     }
 
@@ -879,6 +887,13 @@ public sealed partial class CollisionWorld2D
         }
 
         _moved.Clear();
+
+        foreach (int index in _appended)
+        {
+            MergeAppended(ref _slots[index]);
+        }
+
+        _appended.Clear();
     }
 
     // Adds delta colliders on layer to the detectors of every layer filter admits. Every write of a
@@ -901,23 +916,25 @@ public sealed partial class CollisionWorld2D
         PairProxiesVisited++;
         if (_slots[first].ContactFilter.Admits(_slots[second].Layer))
         {
-            AddCandidate(ref _slots[first], HandleAt(second));
+            AddCandidate(first, HandleAt(second));
         }
 
         if (_slots[second].ContactFilter.Admits(_slots[first].Layer))
         {
-            AddCandidate(ref _slots[second], HandleAt(first));
+            AddCandidate(second, HandleAt(first));
         }
     }
 
-    // Keeps the list in slot order with one entry per slot. A handle to a reused slot replaces the
-    // stale one. A binary search finds the place among the hundreds a sensor in a crowd holds.
-    private static void AddCandidate(ref ColliderSlot slot, ColliderHandle handle)
+    // A handle to a slot the sorted list holds replaces that entry, which may be a reused slot's stale
+    // handle. Any other is appended after the sorted entries, and MergeAppended sorts it in once the
+    // pass ends. A crowd arriving in one step then costs one sort, not an insertion each.
+    private void AddCandidate(int index, ColliderHandle handle)
     {
+        ref ColliderSlot slot = ref _slots[index];
         slot.Candidates ??= new ColliderHandle[StartingCandidates];
         int count = slot.CandidateCount;
 
-        // The first entry past the handle's slot.
+        // The first sorted entry past the handle's slot.
         int position = 0;
         int end = count;
         while (position < end)
@@ -939,14 +956,60 @@ public sealed partial class CollisionWorld2D
             return;
         }
 
-        if (count == slot.Candidates.Length)
+        int appended = count + slot.AppendedCount;
+        if (appended == slot.Candidates.Length)
         {
-            Array.Resize(ref slot.Candidates, count * 2);
+            Array.Resize(ref slot.Candidates, appended * 2);
         }
 
-        Array.Copy(slot.Candidates, position, slot.Candidates, position + 1, count - position);
-        slot.Candidates[position] = handle;
-        slot.CandidateCount = count + 1;
+        if (slot.AppendedCount == 0)
+        {
+            _appended.Add(index);
+        }
+
+        slot.Candidates[appended] = handle;
+        slot.AppendedCount++;
+    }
+
+    // Sorts the appended run and merges it into the sorted entries, leaving one entry per slot in slot
+    // order. The run names no slot the sorted entries hold. It names a collider twice where both sides
+    // of a pair moved. Both handles are the same one, because no slot is reused inside a pass.
+    private void MergeAppended(ref ColliderSlot slot)
+    {
+        ColliderHandle[] list = slot.Candidates!;
+        int sorted = slot.CandidateCount;
+        Span<ColliderHandle> run = list.AsSpan(sorted, slot.AppendedCount);
+        slot.AppendedCount = 0;
+
+        run.Sort(BySlot);
+        int unique = 0;
+        foreach (ColliderHandle handle in run)
+        {
+            if (unique == 0 || run[unique - 1].Index != handle.Index)
+            {
+                run[unique++] = handle;
+            }
+        }
+
+        slot.CandidateCount = sorted + unique;
+        if (sorted == 0 || list[sorted - 1].Index < run[0].Index)
+        {
+            return;
+        }
+
+        // Merge from the back, where the run's copy frees the room the sorted entries move into.
+        if (_mergeScratch.Length < unique)
+        {
+            _mergeScratch = new ColliderHandle[BitOperations.RoundUpToPowerOf2((uint)unique)];
+        }
+
+        run[..unique].CopyTo(_mergeScratch);
+        int left = sorted - 1;
+        int right = unique - 1;
+        for (int write = sorted + unique - 1; right >= 0; write--)
+        {
+            list[write] = left >= 0 && list[left].Index > _mergeScratch[right].Index ? list[left--] : _mergeScratch[right--];
+        }
     }
 
     /// <summary>
@@ -1224,10 +1287,13 @@ public sealed partial class CollisionWorld2D
         internal bool SolidSides;
 
         // What this collider's settled contacts detect, and the colliders whose fat boxes are within
-        // the skin of its own, sorted by slot. Moved marks the slot as listed in _moved.
+        // the skin of its own, sorted by slot. Moved marks the slot as listed in _moved. While
+        // FindNewPairs runs, AppendedCount unsorted candidates follow the sorted ones, and outside it
+        // there are none.
         internal CollisionFilter ContactFilter;
         internal ColliderHandle[]? Candidates;
         internal int CandidateCount;
+        internal int AppendedCount;
         internal bool Moved;
     }
 
