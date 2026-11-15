@@ -68,7 +68,7 @@ public sealed class MixVoiceLifetimeTests
         {
             int frame = sample / 2;
             float envelope = frame < Fade ? (float)frame / Fade : 1f;
-            expected[sample] = clip[(2 * Held) + sample] * PcmAudio.Pcm16Scale * (1f * envelope);
+            expected[sample] = clip[(2 * Held) + sample] * PcmAudio.Pcm16Scale * envelope;
         }
 
         Assert.Equal(expected, block);
@@ -91,8 +91,8 @@ public sealed class MixVoiceLifetimeTests
         float[] expected = new float[block.Length];
         for (int frame = 0; frame < Block; frame++)
         {
-            float old = frame < Fade ? 0.5f * (1f * ((float)(Fade - 1 - frame) / Fade)) : 0f;
-            expected[2 * frame] = expected[(2 * frame) + 1] = (0.25f * (1f * 1f)) + old;
+            float old = frame < Fade ? 0.5f * ((float)(Fade - 1 - frame) / Fade) : 0f;
+            expected[2 * frame] = expected[(2 * frame) + 1] = 0.25f + old;
         }
 
         Assert.Equal(expected, block);
@@ -126,20 +126,11 @@ public sealed class MixVoiceLifetimeTests
         float[] expected = new float[block.Length];
         for (int sample = 0; sample < 2 * (Frames - Block); sample++)
         {
-            expected[sample] = clip[(2 * Block) + sample] * PcmAudio.Pcm16Scale * (1f * 1f);
+            expected[sample] = clip[(2 * Block) + sample] * PcmAudio.Pcm16Scale;
         }
 
         Assert.Equal(expected, block);
         Assert.True(ended.TryRead(out VoiceEnded report));
         Assert.Equal((0, 1), (report.Slot, report.Generation));
-    }
-
-    // A stereo clip at the output's rate holding one value throughout.
-    private static PcmAudio Level(short value)
-    {
-        short[] level = new short[2 * 4096];
-        Array.Fill(level, value);
-
-        return new PcmAudio(level, 2, VoiceMixer.SampleRate);
     }
 }

@@ -1,7 +1,7 @@
 # Audio
 
-After this page you can play a sound from an entity, play music that survives a scene transition, and
-give a settings screen volume sliders. Each type's XML docs hold its rules.
+After this page you can play a sound from an entity, play music that survives a scene transition, give
+a settings screen volume sliders, and echo or muffle a bus. Each type's XML docs hold its rules.
 
 Capsule mixes clips on buses and computes every voice's state from the clip's measured duration, in fixed
 steps. Which sound answers which event, and where the music handle lives, are the game's. Volumes are
@@ -18,6 +18,7 @@ headphone processing.
 | Hearing positional sound from an entity | `Camera.Listener` |
 | Music, and any sound that outlives a scene | `Run.Audio`, the run's `AudioMixer` |
 | A level or a voice that changes over time | `FadeVolume`, `CrossFade`, and `Stop` with seconds |
+| An echo, or a bus muffled or thinned | `AudioEffects` and `AudioEcho`, through `SetEffects` and `FadeEffects` |
 | Sound heard sooner after its step, or no gaps on a slow machine | `EngineBuilder.WithAudioLatency` |
 
 ## Buses
@@ -35,8 +36,8 @@ public static class AudioBuses
 }
 ```
 
-Bus volume and pause state belong to the run and stand across every scene transition. A settings screen
-writes them:
+Bus volume, effects and pause state belong to the run and stand across every scene transition. A
+settings screen writes them:
 
 ```csharp
 Run.Audio.SetVolume(AudioBuses.Music, volume);
@@ -127,6 +128,36 @@ Run.Audio.Stop(_music, seconds: 0.5f);
 
 A fade raises no completion callback. A game that changes scene once the music has faded polls
 `IsFading` on the bus, the voice or the `AudioSource` it started.
+
+## Effects
+
+A bus can echo its sound and filter it. Effects belong to a bus, never to one voice. Sounds that share
+a space share a bus:
+
+```csharp
+Run.Audio.SetEffects(AudioBuses.Sfx, new AudioEffects
+{
+    Echo = new AudioEcho(0.25f) { Feedback = 0.4f, HighCutHertz = 6000f },
+});
+```
+
+A bus sums its voices, then runs the echo, the high-pass and the low-pass in that order, then applies its
+volume. A filter therefore muffles the echo's repeats too, and the bus's volume silences them. A voice
+stopped on an echoing bus leaves its repeats ringing, as does a paused bus. The master bus takes the
+voices on it and every other bus's output, then runs its own effects and volume.
+
+`FadeEffects` ramps only the settings whose target it changes, and leaves any other ramp running.
+Cutoffs move in octaves, and a cutoff faded to null slides to the end of the range and turns off. An
+echo fades its volume in as it turns on and out as it turns off. Building the fade from `GetEffects`
+changes one setting and keeps the rest:
+
+```csharp
+Run.Audio.FadeEffects(AudioBuses.Music, Run.Audio.GetEffects(AudioBuses.Music) with { LowPassHertz = 900f }, 0.2f);
+```
+
+An echo's `DelaySeconds` and `InvertLeft` never fade. A changed delay takes effect on the call and cuts the repeats
+already ringing. Setting a bus's effects to what they already are changes nothing, and a scene may set
+its space on every load.
 
 ## Formats and streaming
 

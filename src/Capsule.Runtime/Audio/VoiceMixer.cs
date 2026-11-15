@@ -2,9 +2,10 @@ using Capsule.Audio;
 
 namespace Capsule.Runtime.Audio;
 
-// The host's mix: every voice the game has sounding, resampled to the output's rate, summed into
-// one buffer per bus, and the buses summed into the master output. Voices on the master bus write
-// to the output directly. Each bus buffer is where that bus's effects would run before the sum.
+// The host's mix: every voice the game has sounding, resampled to the output's rate and summed into
+// its bus's buffer. Each bus runs its effects and gain on its buffer and adds it into the output.
+// Voices on the master bus write to the output directly, and the master's effects and gain run on the
+// output last. A voice whose bus is muted keeps its time unheard.
 //
 // Mix is pure. It opens no device and starts no thread, and the suite calls it directly. The thread
 // that calls it in a run is host policy (MixThread). On that thread Mix takes no lock and allocates
@@ -27,6 +28,7 @@ internal sealed class VoiceMixer
     private readonly AudioRing<MixCommand> _commands;
     private readonly AudioRing<VoiceEnded> _ended;
     private readonly MixVoice[] _slots = new MixVoice[AudioMixer.MaxVoices];
+    private readonly MixBus _master = new();
 
     // Voices fading out after a stop or a steal, or playing out an expired one-shot's tail, beside
     // whatever their slot has started since, and the voices free to take a slot's place. A voice is
@@ -38,7 +40,7 @@ internal sealed class VoiceMixer
 
     // Every bus but the master, by index less one. The game thread hands over a larger array as it
     // meets a new bus.
-    private float[][] _buses = [];
+    private MixBus[] _buses = [];
 
     // Each block in which a playing stream found its ring empty before its end, counted once per stream.
     private long _starved;
@@ -79,16 +81,19 @@ internal sealed class VoiceMixer
         }
 
         master.Clear();
-        float[][] buses = _buses;
         int samples = frames * Channels;
-        foreach (float[] bus in buses)
+        _master.Quiet = _master.Muted;
+        foreach (MixBus bus in _buses)
         {
-            bus.AsSpan(0, samples).Clear();
+            bus.Buffer.AsSpan(0, samples).Clear();
+
+            // Under a muted master a bus's sound goes unheard, unless its echo has repeats to keep.
+            bus.Quiet = bus.Muted || (_master.Quiet && !bus.Ringing);
         }
 
         foreach (MixVoice voice in _slots)
         {
-            if (voice.Live && Render(voice, master, buses, frames))
+            if (voice.Live && Render(voice, master, frames))
             {
                 End(voice);
             }
@@ -97,12 +102,11 @@ internal sealed class VoiceMixer
         for (int i = 0; i < _fadingCount;)
         {
             MixVoice voice = _fading[i];
-            if (Render(voice, master, buses, frames))
+            if (Render(voice, master, frames))
             {
                 End(voice);
                 _spare[_spareCount++] = voice;
                 _fading[i] = _fading[--_fadingCount];
-                _fading[_fadingCount] = null!;
             }
             else
             {
@@ -110,19 +114,28 @@ internal sealed class VoiceMixer
             }
         }
 
-        foreach (float[] bus in buses)
+        foreach (MixBus bus in _buses)
         {
-            for (int i = 0; i < samples; i++)
+            Span<float> sum = bus.Buffer.AsSpan(0, samples);
+            bus.Process(sum, frames);
+            if (!bus.Quiet)
             {
-                master[i] += bus[i];
+                for (int i = 0; i < samples; i++)
+                {
+                    master[i] += sum[i];
+                }
             }
         }
+
+        _master.Process(master, frames);
     }
 
-    private bool Render(MixVoice voice, Span<float> master, float[][] buses, int frames)
+    private bool Render(MixVoice voice, Span<float> master, int frames)
     {
-        int bus = voice.Bus - 1;
-        bool ended = voice.Render((uint)bus < (uint)buses.Length ? buses[bus].AsSpan(0, frames * Channels) : master, frames);
+        int index = voice.Bus - 1;
+        bool ended = (uint)index < (uint)_buses.Length
+            ? voice.Render(_buses[index].Buffer.AsSpan(0, frames * Channels), frames, _buses[index].Quiet)
+            : voice.Render(master, frames, _master.Quiet);
         if (voice.Starved)
         {
             Volatile.Write(ref _starved, _starved + 1);
@@ -133,11 +146,19 @@ internal sealed class VoiceMixer
 
     private void Apply(in MixCommand command)
     {
-        if (command.Kind == MixCommandKind.Buses)
+        switch (command.Kind)
         {
-            _buses = command.Buses!;
+            case MixCommandKind.Buses:
+                _buses = command.Buses!;
+                return;
 
-            return;
+            case MixCommandKind.SetBusGain:
+                BusAt(command.Bus)?.SetGain(command.Gain);
+                return;
+
+            case MixCommandKind.SetBusEffects:
+                BusAt(command.Bus)?.SetEffects(command.Effects, command.Line);
+                return;
         }
 
         if ((uint)command.Slot >= (uint)_slots.Length)
@@ -216,8 +237,9 @@ internal sealed class VoiceMixer
 
         _fading[_fadingCount++] = voice;
         _slots[slot] = _spare[--_spareCount];
-        _spare[_spareCount] = null!;
     }
+
+    private MixBus? BusAt(int index) => index == 0 ? _master : (uint)(index - 1) < (uint)_buses.Length ? _buses[index - 1] : null;
 
     private void End(MixVoice voice)
     {

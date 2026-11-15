@@ -129,7 +129,7 @@ internal static class AudioProbeFixtures
         return file.ToArray();
     }
 
-    internal static byte[] Identification(int rate)
+    private static byte[] Identification(int rate)
     {
         byte[] identification = new byte[30];
         identification[0] = 1;
@@ -142,7 +142,7 @@ internal static class AudioProbeFixtures
 
     // A comment header holding one tag whose length prefix claims 64 bytes more than the packet
     // carries.
-    internal static byte[] Overrunning(string tag)
+    private static byte[] Overrunning(string tag)
     {
         byte[] header = Comments([tag]);
         int length = header.Length - Encoding.UTF8.GetByteCount(tag) - sizeof(int);
@@ -242,7 +242,7 @@ internal static class AudioProbeFixtures
         writer.Write(second);
     }
 
-    internal static void Lace(BinaryWriter writer, byte[] packet)
+    private static void Lace(BinaryWriter writer, byte[] packet)
     {
         for (int i = 0; i < packet.Length / 255; i++)
         {

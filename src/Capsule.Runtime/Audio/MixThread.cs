@@ -16,12 +16,7 @@ internal sealed class MixThread : IDisposable
 
     private readonly VoiceMixer _mixer;
     private readonly AudioOutput _output;
-
-    // The frames kept queued, and the frames mixed at a time. A chunk is a block, or half a lead shorter
-    // than two blocks, and a top-up never queues more than a chunk past the lead.
     private readonly int _leadFrames;
-    private readonly int _chunkFrames;
-
     private readonly Thread _thread;
 
     // The warning for a mix that stopped, written by this thread and logged by the game thread,
@@ -37,7 +32,6 @@ internal sealed class MixThread : IDisposable
         _mixer = mixer;
         _output = output;
         _leadFrames = leadFrames;
-        _chunkFrames = Math.Min(VoiceMixer.BlockFrames, leadFrames / 2);
         _thread = new Thread(Run)
         {
             IsBackground = true,
@@ -66,7 +60,9 @@ internal sealed class MixThread : IDisposable
 
     private void Run()
     {
-        float[] block = new float[_chunkFrames * VoiceMixer.Channels];
+        // The frames mixed at a time: a block, or half a lead shorter than two blocks. A top-up never
+        // queues more than this past the lead.
+        float[] block = new float[Math.Min(VoiceMixer.BlockFrames, _leadFrames / 2) * VoiceMixer.Channels];
         bool fed = false;
 
         try

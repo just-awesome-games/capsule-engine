@@ -32,7 +32,6 @@ internal static class OggProbe
         // Where the comment header begins. The spec puts the identification packet alone on the
         // first page. The next page of the same stream opens the comment header. -1 until seen.
         long comments = -1;
-        bool opened = false;
         long header = stream.Position;
 
         while (TryReadPage(stream, segments, out Page page))
@@ -44,11 +43,11 @@ internal static class OggProbe
                 throw new FormatException("ends inside an Ogg page. The file is truncated. Export it again.");
             }
 
-            if (!opened)
+            // The rate is zero until the first page opens the stream, and never zero after it.
+            if (rate == 0)
             {
                 serial = page.Serial;
                 rate = IdentificationRate(stream, page.Payload);
-                opened = true;
             }
             else if (page.Serial == serial && comments < 0)
             {
@@ -66,7 +65,7 @@ internal static class OggProbe
             header = stream.Position;
         }
 
-        if (!opened)
+        if (rate == 0)
         {
             throw new FormatException("holds no Ogg page. Export it as Ogg Vorbis.");
         }
@@ -76,14 +75,7 @@ internal static class OggProbe
             throw new FormatException("carries no Ogg granule position, and its length cannot be measured. Export it again.");
         }
 
-        long? start = null;
-        long? length = null;
-        long? end = null;
-
-        if (comments >= 0)
-        {
-            LoopTags(stream, serial, comments, out start, out length, out end);
-        }
+        (long? start, long? length, long? end) = comments < 0 ? default : LoopTags(stream, serial, comments);
 
         // LOOPSTART with LOOPLENGTH is the common pair. LOOPSTART with LOOPEND is the same
         // authoring spelt the other way, and LOOPSTART alone loops the rest of the file.
@@ -105,7 +97,7 @@ internal static class OggProbe
             return false;
         }
 
-        if (!Is(header[..4], "OggS"))
+        if (!header[..4].SequenceEqual("OggS"u8))
         {
             throw new FormatException("is no Ogg stream, or carries a page Capsule could not find the start of. Export it as Ogg Vorbis.");
         }
@@ -137,18 +129,18 @@ internal static class OggProbe
     // pages carry it. Each comment's length is read, and a value too long to be a loop tag is
     // stepped over in the file. A large METADATA_BLOCK_PICTURE neither hides a tag behind it nor is
     // held in memory. A packet the file does not finish is refused as a malformed container.
-    private static void LoopTags(FileStream stream, uint serial, long page, out long? start, out long? length, out long? end)
+    private static (long? Start, long? Length, long? End) LoopTags(FileStream stream, uint serial, long page)
     {
-        start = null;
-        length = null;
-        end = null;
+        long? start = null;
+        long? length = null;
+        long? end = null;
 
         OggPacket packet = new(stream, serial, page);
 
         Span<byte> opening = stackalloc byte[7];
         packet.Read(opening);
 
-        if (opening[0] != 3 || !Is(opening[1..], "vorbis"))
+        if (opening[0] != 3 || !opening[1..].SequenceEqual("vorbis"u8))
         {
             throw new FormatException(
                 "follows its Vorbis identification header with no comment header. Capsule reads Ogg Vorbis. Export it as Ogg Vorbis.");
@@ -181,38 +173,22 @@ internal static class OggProbe
             ReadOnlySpan<byte> name = comment[..separator];
             ReadOnlySpan<byte> value = comment[(separator + 1)..];
 
-            if (Named(name, "LOOPSTART"))
+            // Vorbis comment names are case-insensitive ASCII.
+            if (Ascii.EqualsIgnoreCase(name, "LOOPSTART"u8))
             {
                 start = Samples(name, value);
             }
-            else if (Named(name, "LOOPLENGTH"))
+            else if (Ascii.EqualsIgnoreCase(name, "LOOPLENGTH"u8))
             {
                 length = Samples(name, value);
             }
-            else if (Named(name, "LOOPEND"))
+            else if (Ascii.EqualsIgnoreCase(name, "LOOPEND"u8))
             {
                 end = Samples(name, value);
             }
         }
-    }
 
-    // Vorbis comment names are case-insensitive ASCII.
-    private static bool Named(ReadOnlySpan<byte> name, string tag)
-    {
-        if (name.Length != tag.Length)
-        {
-            return false;
-        }
-
-        for (int i = 0; i < tag.Length; i++)
-        {
-            if (char.ToUpperInvariant((char)name[i]) != tag[i])
-            {
-                return false;
-            }
-        }
-
-        return true;
+        return (start, length, end);
     }
 
     private static long Samples(ReadOnlySpan<byte> name, ReadOnlySpan<byte> value)
@@ -239,7 +215,7 @@ internal static class OggProbe
 
         AudioProbe.Read(stream, identification);
 
-        if (identification[0] != 1 || !Is(identification[1..7], "vorbis"))
+        if (identification[0] != 1 || !identification[1..7].SequenceEqual("vorbis"u8))
         {
             throw new FormatException("opens with no Vorbis identification header. Capsule reads Ogg Vorbis. Export it as Ogg Vorbis.");
         }

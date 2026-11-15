@@ -2,13 +2,12 @@ using System.Numerics;
 using Capsule.Assets;
 using Capsule.Audio;
 using Capsule.Scenes;
+using static Capsule.Tests.Audio.AudioMixerFixtures;
 
 namespace Capsule.Tests.Audio;
 
 public sealed class AudioSourceTests
 {
-    private static readonly AudioClip Step = new("step-soft", ".wav", 0.08);
-
     [Fact]
     public void AutoPlay_StartsTheSourceWhereTheSceneStartsIt()
     {

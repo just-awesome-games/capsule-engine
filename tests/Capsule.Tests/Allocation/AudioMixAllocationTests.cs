@@ -12,13 +12,16 @@ public sealed class AudioMixAllocationTests
 
     // Every voice sounding: resident clips of both widths and layouts at varied pitch, on the master
     // bus and on another, looping regions that wrap many times over the measured blocks, one voice
-    // held silent, a stream decoded on its worker, and gain changes landing between blocks. The mix
-    // thread's whole job allocates nothing.
+    // held silent, a stream decoded on its worker, and gain changes landing between blocks. The other
+    // bus echoes through both cuts and filters, and its cutoffs, echo and gain fade between blocks. The
+    // mix thread's whole job allocates nothing.
     [Fact]
-    public void MixingSixtyFourVoicesWithAStreamAndLoopWraps_AllocatesNothing()
+    public void MixingSixtyFourVoicesWithAStreamLoopWrapsAndFadingEffects_AllocatesNothing()
     {
         (VoiceMixer mixer, AudioRing<MixCommand> commands, _) = Mixer();
-        commands.TryWrite(new MixCommand(MixCommandKind.Buses, 0, 0) { Buses = [new float[VoiceMixer.BlockFrames * VoiceMixer.Channels]] });
+        commands.TryWrite(new MixCommand(MixCommandKind.Buses, 0, 0) { Buses = [new MixBus()] });
+        EffectLevels effects = new(120f, 6000f, 0.05f, 0.6f, 0.7f, 300f, 8000f);
+        commands.TryWrite(new MixCommand(MixCommandKind.SetBusEffects, 0, 0) { Bus = 1, Effects = effects, Line = new float[2400 * VoiceMixer.Channels] });
 
         PcmAudio[] clips =
         [
@@ -44,17 +47,24 @@ public sealed class AudioMixAllocationTests
             index =>
             {
                 commands.TryWrite(new MixCommand(MixCommandKind.SetGain, index % (AudioMixer.MaxVoices - 1), 1, Gain: 0.25f + ((index % 3) * 0.25f)));
+                commands.TryWrite(new MixCommand(MixCommandKind.SetBusGain, 0, 0, Gain: 0.5f + ((index % 2) * 0.5f)) { Bus = 1 });
+                commands.TryWrite(new MixCommand(MixCommandKind.SetBusEffects, 0, 0)
+                {
+                    Bus = 1,
+                    Effects = effects with { LowPassHertz = 500f + ((index % 7) * 900f), EchoVolume = (index % 5) * 0.2f, EchoHighCutHertz = 2000f + (index % 3 * 3000f) },
+                });
                 mixer.Mix(block);
             },
             warmup: 20,
             measured: 400));
     }
 
-    // With the voice table, the bus and a stream already met, playing, retuning and stopping from the
-    // game thread allocates nothing there. A stream's replay comes from the pool, and the source here
-    // is one object a test can arm again, where a run opens a file.
+    // With the voice table, the bus, its echo line and a stream already met, playing, retuning,
+    // stopping, levelling the bus and fading its effects from the game thread allocates nothing there.
+    // A stream's replay comes from the pool, and the source here is one object a test can arm again,
+    // where a run opens a file.
     [Fact]
-    public void WarmPlaysStopsAndGainChangesFromTheGameThread_AllocateNothing()
+    public void WarmPlaysStopsGainAndEffectChangesFromTheGameThread_AllocateNothing()
     {
         SampleSource source = new(new float[2 * 20_000], 2, 44_100);
         AudioClip music = new("hum", ".ogg", 4.0);
@@ -78,6 +88,9 @@ public sealed class AudioMixAllocationTests
             Command(AudioCommandKind.SetGain, Slot(0, 1), gain: 0.5f),
             Command(AudioCommandKind.SetPitch, Slot(0, 1), pitch: 1.5f),
             Command(AudioCommandKind.Stop, Slot(0, 1)),
+            Command(AudioCommandKind.SetBusGain, Voice.None, gain: 0.5f, bus: sfx),
+            new(AudioCommandKind.SetBusEffects, Voice.None, default, sfx, 0f, 0f, 0f, false, 0.0, EffectLevels.None with { EchoDelaySeconds = 0.1f, EchoVolume = 0.5f }),
+            new(AudioCommandKind.SetBusEffects, Voice.None, default, sfx, 0f, 0f, 0f, false, 0.0, EffectLevels.None with { EchoDelaySeconds = 0.1f, LowPassHertz = 900f }),
         ];
         AudioCommand[] streamed =
         [

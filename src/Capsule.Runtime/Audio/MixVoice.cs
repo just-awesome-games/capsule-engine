@@ -127,15 +127,13 @@ internal sealed class MixVoice
     internal bool Pausing => _state == State.FadingToHold;
 
     // Whether ending the voice now would cut off sound that was heard, which a fade avoids.
-    internal bool Audible => Live && _primed && !Held && _envelope > 0 && (_left != 0f || _right != 0f || HasTargetGain);
-
-    private bool HasTargetGain
+    internal bool Audible
     {
         get
         {
             TargetGains(out float left, out float right);
 
-            return left != 0f || right != 0f;
+            return Live && _primed && !Held && _envelope > 0 && (_left != 0f || _right != 0f || left != 0f || right != 0f);
         }
     }
 
@@ -158,7 +156,6 @@ internal sealed class MixVoice
             _channels = stream.Channels;
             _rate = stream.SampleRate;
             _streamRead = stream.ReadPosition;
-            _loopEnd = NoLoop;
         }
         else
         {
@@ -170,7 +167,6 @@ internal sealed class MixVoice
             _frames = samples.Frames;
 
             long start = play.StartFrame;
-            _loopStart = 0;
             _loopEnd = NoLoop;
             if (play.Loop)
             {
@@ -211,11 +207,6 @@ internal sealed class MixVoice
     // time the game holds. A resume fades it in from 0.
     internal void Pause()
     {
-        if (Held)
-        {
-            return;
-        }
-
         if (!Audible)
         {
             _state = State.Held;
@@ -250,8 +241,8 @@ internal sealed class MixVoice
 
     // Adds the next frames of this voice into bus, interleaved stereo. Returns whether the voice ended
     // in them, by running out or by a stop's fade reaching 0. Gain and pan changes since the last
-    // block ramp linearly across this one.
-    internal bool Render(Span<float> bus, int frames)
+    // block ramp linearly across this one. A silent block adds nothing and only keeps the voice's time.
+    internal bool Render(Span<float> bus, int frames, bool silent)
     {
         Starved = false;
         if (Held)
@@ -268,12 +259,12 @@ internal sealed class MixVoice
 
         bool ended = (_stream, _float, _channels) switch
         {
-            (null, null, 1) => Render<Pcm16Mono>(bus, frames),
-            (null, null, _) => Render<Pcm16Stereo>(bus, frames),
-            (null, _, 1) => Render<FloatMono>(bus, frames),
-            (null, _, _) => Render<FloatStereo>(bus, frames),
-            (_, _, 1) => Render<StreamMono>(bus, frames),
-            _ => Render<StreamStereo>(bus, frames),
+            (null, null, 1) => Render<Pcm16Mono>(bus, frames, silent),
+            (null, null, _) => Render<Pcm16Stereo>(bus, frames, silent),
+            (null, _, 1) => Render<FloatMono>(bus, frames, silent),
+            (null, _, _) => Render<FloatStereo>(bus, frames, silent),
+            (_, _, 1) => Render<StreamMono>(bus, frames, silent),
+            _ => Render<StreamStereo>(bus, frames, silent),
         };
 
         if (_stream is { } read)
@@ -292,7 +283,7 @@ internal sealed class MixVoice
     private static float Spline(float p0, float p1, float p2, float p3, float t) =>
         p1 + (0.5f * t * (p2 - p0 + (t * ((2f * p0) - (5f * p1) + (4f * p2) - p3 + (t * ((3f * (p1 - p2)) + p3 - p0))))));
 
-    private bool Render<TSource>(Span<float> bus, int frames)
+    private bool Render<TSource>(Span<float> bus, int frames, bool silent)
         where TSource : struct, IFrameSource
     {
         if (!_primed)
@@ -307,7 +298,7 @@ internal sealed class MixVoice
         _right = targetRight;
 
         // Not mixed, but the cursor and any fade still run. The voice resumes where its time says.
-        if (left == 0f && right == 0f && targetLeft == 0f && targetRight == 0f)
+        if (silent || (left == 0f && right == 0f && targetLeft == 0f && targetRight == 0f))
         {
             return AdvanceSilently<TSource>(frames);
         }
@@ -485,11 +476,6 @@ internal sealed class MixVoice
         right *= _gain;
     }
 
-    // Counts frames past the end among count positions ending at position, for a source whose last
-    // frame is end - 1.
-    private void PassEnd(long position, long count, long end) =>
-        _pastEnd = (int)Math.Min(Window, _pastEnd + Math.Max(0, position - Math.Max(position - count, end)));
-
     // The next resident frame's index, after its loop's jump, or -1 past the end and before the start.
     private long NextResident()
     {
@@ -502,7 +488,7 @@ internal sealed class MixVoice
 
         if (frame >= _frames)
         {
-            _pastEnd = Math.Min(Window, _pastEnd + 1);
+            PassEnd(1);
         }
 
         return -1;
@@ -520,7 +506,7 @@ internal sealed class MixVoice
         }
         else
         {
-            PassEnd(read, frames, _frames);
+            PassEnd(Math.Max(0, read - Math.Max(_read, _frames)));
         }
 
         _read = read;
@@ -534,19 +520,11 @@ internal sealed class MixVoice
 
         if (taken < frames)
         {
-            if (_streamEnded)
-            {
-                _pastEnd = (int)Math.Min(Window, _pastEnd + frames - taken);
-            }
-            else
-            {
-                Starved = true;
-            }
+            RunDry(frames - taken);
         }
     }
 
-    // The next streamed sample pair, or false when the ring is empty, which past the stream's end
-    // counts toward the voice's end and before it is an underrun.
+    // The next streamed sample pair, or false when the ring is empty.
     private bool NextStream(out int at)
     {
         if (_streamRead < _streamWritten)
@@ -558,16 +536,26 @@ internal sealed class MixVoice
         }
 
         at = 0;
+        RunDry(1);
+
+        return false;
+    }
+
+    // Counts frames fetched at or past the source's end toward the voice's end.
+    private void PassEnd(long frames) => _pastEnd = (int)Math.Min(Window, _pastEnd + frames);
+
+    // Frames a stream's ring lacked count toward the voice's end once the stream has ended, and are an
+    // underrun before then.
+    private void RunDry(long frames)
+    {
         if (_streamEnded)
         {
-            _pastEnd = Math.Min(Window, _pastEnd + 1);
+            PassEnd(frames);
         }
         else
         {
             Starved = true;
         }
-
-        return false;
     }
 
     private readonly struct Pcm16Mono : IFrameSource

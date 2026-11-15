@@ -21,22 +21,20 @@ internal sealed class LoopedPcmReader
     private long _start;
     private long _end;
 
-    // Whether any frame has been read since the last rewind. A region the source yields nothing from
-    // would otherwise wrap forever inside one fill.
-    private bool _read = true;
+    // A region the source yields nothing from would otherwise wrap forever inside one fill.
+    private bool _readSinceRewind = true;
 
     private long _frame;
 
-    // Points the reader at source, discarding wherever the previous play left it. The region arrives
-    // in seconds, both bounds a whole sample count over the source's own rate. Rounding recovers
-    // the frame the file named. startFrame is where the first read begins. A source handed out fresh
-    // is already at frame 0. Only an offset start seeks.
-    internal void Arm(IPcmSource source, in AudioLoopRegion region, bool loop, long startFrame = 0)
+    // Points the reader at source from startFrame, discarding wherever the previous play left it. A
+    // fresh source is already at frame 0, and only an offset start seeks. Each region bound in seconds
+    // is a whole sample count over the source's rate, which rounding recovers.
+    internal void Arm(IPcmSource source, in AudioLoopRegion region, bool loop, long startFrame)
     {
         _source = source;
         _loop = loop;
         _frame = startFrame;
-        _read = true;
+        _readSinceRewind = true;
 
         if (startFrame > 0)
         {
@@ -101,7 +99,7 @@ internal sealed class LoopedPcmReader
                 continue;
             }
 
-            _read = true;
+            _readSinceRewind = true;
             _frame += read / source.Channels;
             filled += read;
         }
@@ -111,12 +109,12 @@ internal sealed class LoopedPcmReader
 
     private bool Rewind(IPcmSource source)
     {
-        if (!_loop || !_read)
+        if (!_loop || !_readSinceRewind)
         {
             return false;
         }
 
-        _read = false;
+        _readSinceRewind = false;
         _frame = _start;
         source.SeekTo(_start);
 

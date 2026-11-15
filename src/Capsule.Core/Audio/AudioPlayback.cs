@@ -13,8 +13,8 @@ public readonly record struct AudioPlayback(AudioClip Clip)
     public AudioBus Bus { get; init; }
 
     /// <summary>
-    /// This voice's own linear amplitude in [0, 1], multiplied by its bus's volume and the master
-    /// volume to give the gain the host applies. 1 by default.
+    /// This voice's own linear amplitude in [0, 1], and 1 by default. Its bus's volume and the master
+    /// volume scale it after the buses' effects.
     /// </summary>
     public float Volume { get; init; } = 1f;
 

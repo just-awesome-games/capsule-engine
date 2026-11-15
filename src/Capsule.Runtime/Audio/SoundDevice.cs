@@ -39,7 +39,7 @@ internal sealed class SoundDevice : IDisposable
         Player = new AudioPlayer(Sounds, _streamer, commands, ended);
         _mixer = new VoiceMixer(commands, ended);
 
-        // The game's lead or what the output's device needs, whichever is longer. A raised lead is logged.
+        // The game's lead or what the device needs, whichever is longer. A raised lead is logged.
         int lead = MixThread.LeadFor(leadFrames, output.DeviceFrames);
         if (lead > leadFrames)
         {

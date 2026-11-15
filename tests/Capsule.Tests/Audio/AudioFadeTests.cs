@@ -9,8 +9,6 @@ public sealed class AudioFadeTests
     public void AVoiceFade_RaisesOneSetGainPerStepAndLandsExactlyOnTarget()
     {
         AudioMixer mixer = new();
-        mixer.SetVolume(AudioBus.Master, 0.5f);
-        mixer.SetVolume(Sfx, 0.5f);
         Voice voice = mixer.Play(new AudioPlayback(Theme) { Bus = Sfx, Volume = 0.2f, Loop = true });
 
         mixer.FadeVolume(voice, 0.8f, 0.5f);
@@ -30,7 +28,7 @@ public sealed class AudioFadeTests
         Advance(mixer, ticks);
         AudioCommand landing = Assert.Single(mixer.Commands.ToArray());
         Assert.Equal(AudioCommandKind.SetGain, landing.Kind);
-        Assert.Equal(0.5f * 0.5f * 0.8f, landing.Gain);
+        Assert.Equal(0.8f, landing.Gain);
         Assert.False(mixer.IsFading(voice));
         Assert.True(mixer.IsLive(voice));
     }
@@ -109,8 +107,10 @@ public sealed class AudioFadeTests
         Assert.False(mixer.IsLive(voice));
     }
 
+    // A bus fade moves the bus's gain and a voice fade the voice's, each step and apart. A voice on
+    // another bus hears neither.
     [Fact]
-    public void ABusFadeAndAVoiceFadeOnTheSameVoice_RaiseTheProductPerStepAndLeaveOtherBusesAlone()
+    public void ABusFadeAndAVoiceFadeOnTheSameVoice_RaiseTheirOwnGainsPerStepAndLeaveOtherBusesAlone()
     {
         AudioMixer mixer = new();
         Voice voice = mixer.Play(new AudioPlayback(Theme) { Bus = Music, Loop = true });
@@ -120,13 +120,12 @@ public sealed class AudioFadeTests
         mixer.FadeVolume(voice, 0.5f, 1f);
 
         Advance(mixer, 1);
-        AudioCommand raised = Assert.Single(mixer.Commands.ToArray());
-        Assert.Equal(voice, raised.Voice);
-        Assert.Equal(AudioCommandKind.SetGain, raised.Kind);
+        Assert.Equal([(AudioCommandKind.SetBusGain, Voice.None), (AudioCommandKind.SetGain, voice)], Raised(mixer));
+        Assert.Equal(Music, Assert.Single(BusGains(mixer)).Bus);
 
         Advance(mixer, Ticks(1.0));
-        AudioCommand landing = Assert.Single(mixer.Commands.ToArray());
-        Assert.Equal(0.5f * 0.5f, landing.Gain);
+        Assert.Equal([(Music, 0.5f)], BusGains(mixer));
+        Assert.Equal(0.5f, mixer.Commands[^1].Gain);
     }
 
     [Fact]

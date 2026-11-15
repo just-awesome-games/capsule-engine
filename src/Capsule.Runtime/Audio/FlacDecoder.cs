@@ -74,20 +74,12 @@ internal static class FlacDecoder
 
         while (!last)
         {
-            if (offset + 4 > file.Length)
-            {
-                throw Truncated(clipName);
-            }
-
+            Need(file, offset + 4, clipName);
             last = (file[offset] & 0x80) != 0;
             int type = file[offset] & 0x7F;
             int length = (file[offset + 1] << 16) | (file[offset + 2] << 8) | file[offset + 3];
             offset += 4;
-
-            if (offset + length > file.Length)
-            {
-                throw Truncated(clipName);
-            }
+            Need(file, offset + length, clipName);
 
             if (first)
             {
@@ -145,22 +137,17 @@ internal static class FlacDecoder
             throw Malformed(clipName, "holds more samples than its FLAC STREAMINFO block declares");
         }
 
+        // A decorrelated pair codes its side channel one bit wider.
+        int side = header.Assignment switch { LeftSide or MidSide => 1, SideRight => 0, _ => -1 };
         BitReader reader = new(file, header.Length + start, clipName);
         for (int channel = 0; channel < info.Channels; channel++)
         {
-            bool side = (header.Assignment == LeftSide && channel == 1)
-                || (header.Assignment == SideRight && channel == 0)
-                || (header.Assignment == MidSide && channel == 1);
-
-            Subframe(ref reader, scratch.AsSpan(channel * info.MaxBlock, header.Count), info.Bits + (side ? 1 : 0), clipName);
+            Subframe(ref reader, scratch.AsSpan(channel * info.MaxBlock, header.Count), info.Bits + (channel == side ? 1 : 0), clipName);
         }
 
         reader.AlignToByte();
         int end = reader.BytePosition;
-        if (end + 2 > file.Length)
-        {
-            throw Truncated(clipName);
-        }
+        Need(file, end + 2, clipName);
 
         if (BinaryPrimitives.ReadUInt16BigEndian(file[end..]) != FlacFormat.Crc16(file[start..end]))
         {
@@ -330,8 +317,7 @@ internal static class FlacDecoder
             throw Malformed(clipName, "carries a FLAC LPC subframe whose precision or shift the format forbids");
         }
 
-        Span<long> coefficients = stackalloc long[32];
-        coefficients = coefficients[..order];
+        Span<long> coefficients = stackalloc long[order];
         for (int j = 0; j < order; j++)
         {
             coefficients[j] = reader.ReadSigned(precision);

@@ -10,9 +10,6 @@ internal static class AudioFiles
 {
     private static readonly AssetFiles Files = new("Audio clip", "clip");
 
-    internal static Stream Open(HostPlatform platform, in AudioClip clip) =>
-        Files.Open(platform, clip.Name, clip.ShippedExtension);
-
     // A resident clip's samples, decoded whole. Throws when the file is missing or malformed.
     internal static PcmAudio ReadResident(HostPlatform platform, in AudioClip clip)
     {
@@ -99,4 +96,7 @@ internal static class AudioFiles
 
         return reader;
     }
+
+    private static Stream Open(HostPlatform platform, in AudioClip clip) =>
+        Files.Open(platform, clip.Name, clip.ShippedExtension);
 }

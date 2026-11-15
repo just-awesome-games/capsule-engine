@@ -15,7 +15,8 @@ internal static class WavProbe
     // The 'fmt ' body an extensible file carries through the sub-format's first two bytes.
     private const int ExtensibleFormatBytes = 26;
 
-    // The format tag of IEEE float samples. 1 is integer PCM.
+    // The format tags of integer PCM and IEEE float samples.
+    private const int PcmTag = 1;
     private const int FloatTag = 3;
 
     internal static Measurement Measure(FileStream stream)
@@ -25,7 +26,7 @@ internal static class WavProbe
         return new Measurement(
             wave.Frames / (double)wave.Rate,
             Region(wave.LoopStart, wave.LoopEnd, wave.Frames, wave.Rate),
-            FloatSamples: wave.Tag == FloatTag);
+            wave.FloatSamples);
     }
 
     // RIFF: a 12-byte header, then 'id' + little-endian size + payload padded to an even length. A
@@ -36,7 +37,7 @@ internal static class WavProbe
         Span<byte> riff = stackalloc byte[12];
         Read(stream, riff);
 
-        if (!Is(riff[..4], "RIFF") || !Is(riff[8..12], "WAVE"))
+        if (!riff[..4].SequenceEqual("RIFF"u8) || !riff[8..].SequenceEqual("WAVE"u8))
         {
             throw new FormatException("is no RIFF/WAVE file. Export it as a WAVE file.");
         }
@@ -58,7 +59,8 @@ internal static class WavProbe
             uint size = BinaryPrimitives.ReadUInt32LittleEndian(chunk[4..]);
             long end = stream.Position + size;
 
-            if (Is(chunk[..4], "fmt "))
+            ReadOnlySpan<byte> id = chunk[..4];
+            if (id.SequenceEqual("fmt "u8))
             {
                 if (size < format.Length)
                 {
@@ -74,7 +76,7 @@ internal static class WavProbe
                     tag = SubFormat(stream, size);
                 }
 
-                if (tag is not 1 and not 3)
+                if (tag is not (PcmTag or FloatTag))
                 {
                     throw new FormatException(
                         $"is WAVE format {Number(tag)}. Capsule reads PCM (1) and IEEE float (3). Re-encode it as 16-bit PCM.");
@@ -84,12 +86,12 @@ internal static class WavProbe
                 rate = BinaryPrimitives.ReadUInt32LittleEndian(format[4..]);
                 bits = BinaryPrimitives.ReadUInt16LittleEndian(format[14..]);
             }
-            else if (Is(chunk[..4], "data"))
+            else if (id.SequenceEqual("data"u8))
             {
                 dataBytes = size;
                 dataOffset = stream.Position;
             }
-            else if (Is(chunk[..4], "smpl"))
+            else if (id.SequenceEqual("smpl"u8))
             {
                 SampleLoop(stream, size, ref loopStart, ref loopEnd);
             }
@@ -110,7 +112,7 @@ internal static class WavProbe
 
         RequireMonoOrStereo(channels);
 
-        if (tag == 1 ? bits is not (8 or 16 or 24 or 32) : bits != 32)
+        if (tag == PcmTag ? bits is not (8 or 16 or 24 or 32) : bits != 32)
         {
             throw new FormatException(
                 $"is WAVE format {Number(tag)} at {Number(bits)} bits. Capsule plays 8-, 16-, 24- and 32-bit PCM and 32-bit float. Re-encode it as 16-bit PCM.");
@@ -127,7 +129,7 @@ internal static class WavProbe
             throw new FormatException("carries a 'data' chunk holding no whole sample frame, and a clip sounds at least one. Export the file again with its audio.");
         }
 
-        return new Layout(tag, channels, bits, rate, dataOffset, frames, loopStart, loopEnd);
+        return new Layout(tag == FloatTag, channels, bits, rate, dataOffset, frames, loopStart, loopEnd);
     }
 
     // The format tag an extensible 'fmt ' body's sub-format names, read with the stream past the body's
@@ -154,13 +156,13 @@ internal static class WavProbe
         const int Header = 36;
         const int Loop = 24;
 
-        Span<byte> header = stackalloc byte[Header];
         if (size < Header)
         {
             throw new FormatException(
                 $"carries a {Number(size)}-byte 'smpl' chunk. A sampler chunk is at least {Number(Header)} bytes. Export the file again.");
         }
 
+        Span<byte> header = stackalloc byte[Header];
         Read(stream, header);
 
         uint loops = BinaryPrimitives.ReadUInt32LittleEndian(header[28..]);
@@ -183,7 +185,7 @@ internal static class WavProbe
     }
 
     /// <summary>Where a source's samples sit and what shape they are, as <see cref="Locate"/> found them.</summary>
-    /// <param name="Tag">1 for integer PCM, 3 for IEEE float.</param>
+    /// <param name="FloatSamples">Whether the samples are 32-bit IEEE float instead of integer PCM.</param>
     /// <param name="Channels">1 or 2.</param>
     /// <param name="Bits">8, 16, 24 or 32. 8-bit samples are unsigned.</param>
     /// <param name="Rate">Frames per second, above zero.</param>
@@ -192,7 +194,7 @@ internal static class WavProbe
     /// <param name="LoopStart">The first 'smpl' loop's first sample, or null.</param>
     /// <param name="LoopEnd">The sample one past the first 'smpl' loop's last, or null.</param>
     internal readonly record struct Layout(
-        int Tag,
+        bool FloatSamples,
         int Channels,
         int Bits,
         uint Rate,

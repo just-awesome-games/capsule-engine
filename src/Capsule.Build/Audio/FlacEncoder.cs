@@ -27,27 +27,23 @@ internal static class FlacEncoder
     private const int Precision = 15;
     private const int MaxShift = 15;
 
-    // Subframe types: 1 + 6 + 1 header bits ahead of each.
+    // A subframe header: a zero bit, the 6-bit type and the wasted-bits flag.
     private const int SubframeHeaderBits = 8;
 
     /// <summary>Encodes the WAVE file at <paramref name="wavePath"/> into a FLAC file at <paramref name="target"/>.</summary>
     /// <exception cref="FormatException">The source is not a WAVE of integer samples Capsule plays.</exception>
     internal static void Encode(string wavePath, string target)
     {
-        byte[] data;
-        WavProbe.Layout wave;
-        using (FileStream source = new(wavePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        using FileStream source = new(wavePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        WavProbe.Layout wave = WavProbe.Locate(source);
+        if (wave.FloatSamples)
         {
-            wave = WavProbe.Locate(source);
-            if (wave.Tag != 1)
-            {
-                throw new FormatException("holds float samples, which FLAC cannot carry. Ship it as authored.");
-            }
-
-            data = new byte[checked((int)(wave.Frames * wave.Channels * (wave.Bits / 8)))];
-            source.Seek(wave.DataOffset, SeekOrigin.Begin);
-            AudioProbe.Read(source, data);
+            throw new FormatException("holds float samples, which FLAC cannot carry. Ship it as authored.");
         }
+
+        byte[] data = new byte[checked((int)(wave.Frames * wave.Channels * (wave.Bits / 8)))];
+        source.Seek(wave.DataOffset, SeekOrigin.Begin);
+        AudioProbe.Read(source, data);
 
         using FileStream output = new(target, FileMode.Create, FileAccess.Write);
         Encode(data, wave.Channels, wave.Bits, wave.Rate, output);
@@ -89,6 +85,8 @@ internal static class FlacEncoder
 
         Span<byte> header = stackalloc byte[4 + 4 + FlacFormat.StreamInfoBytes];
         FlacFormat.Marker.CopyTo(header);
+
+        // The last metadata block flag, over block type 0, STREAMINFO.
         header[4] = 0x80;
         header[7] = FlacFormat.StreamInfoBytes;
 
@@ -163,6 +161,8 @@ internal static class FlacEncoder
     // One stream's frames, built with scratch reused across every frame of it.
     private sealed class Encoder(int bits, uint rate, int channels)
     {
+        // A frame codes no longer than verbatim: two channels of at most 33 bits a sample, which this
+        // holds with room to spare.
         private readonly byte[] _frame = new byte[(BlockSize * 34 * 2 / 8) + 4096];
 
         // Mid and side of a stereo frame. Side carries one bit more than the samples.
@@ -616,8 +616,8 @@ internal static class FlacEncoder
         private const int Partitions8 = 1 << MaxPartitionOrder;
 
         // Per partition at the finest order: the sum of folded residuals and the largest of them.
-        private readonly ulong[] _sums = new ulong[Partitions8 * 2];
-        private readonly ulong[] _largest = new ulong[Partitions8 * 2];
+        private readonly ulong[] _sums = new ulong[Partitions8];
+        private readonly ulong[] _largest = new ulong[Partitions8];
 
         private readonly int[] _parameters = new int[Partitions8];
 
@@ -758,11 +758,6 @@ internal static class FlacEncoder
         // residuals, and those bits.
         private static (int Parameter, long Bits) Parameter(ulong sum, long samples)
         {
-            if (samples == 0)
-            {
-                return (0, 0);
-            }
-
             int guess = sum <= (ulong)samples ? 0 : BitOperations.Log2(sum / (ulong)samples);
             int best = 0;
             long fewest = long.MaxValue;
@@ -794,7 +789,7 @@ internal static class FlacEncoder
                 Array.Fill(_values, 1.0);
 
                 int taper = (length / 4) - 1;
-                for (int n = 0; n < taper && taper > 0; n++)
+                for (int n = 0; n < taper; n++)
                 {
                     _values[n] = 0.5 - (0.5 * Math.Cos(Math.PI * n / taper));
                     _values[length - taper - 1 + n] = 0.5 - (0.5 * Math.Cos(Math.PI * (n + taper) / taper));

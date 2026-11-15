@@ -9,8 +9,8 @@ namespace Capsule.Runtime.Audio;
 //
 // A retired stream's source is closed by the worker, not by whoever retired it, and nothing is freed
 // under a decode in progress. The worker then returns the stream to the pool, and a stream handed out
-// again is one no decode still holds. The pool holds no more streams than a run has sounded at once, and a
-// replay allocates none of them.
+// again is one no decode still holds. The pool holds no more streams than a run has sounded at once,
+// and a replay allocates none of them.
 internal sealed class AudioStreamer : IDisposable
 {
     // How long an idle worker waits before looking again. A retirement wakes it. A ring holds a third
@@ -141,7 +141,7 @@ internal sealed class AudioStreamer : IDisposable
         _worker.Join();
         _disposed = true;
 
-        // The worker is joined. This thread releases what it left and logs any fault a stream still holds.
+        // The worker is joined. This thread releases what it left and logs any fault a stream holds.
         foreach (AudioStream stream in _streams)
         {
             stream.ReportFault();

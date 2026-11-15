@@ -5,7 +5,7 @@ using Capsule.Animation;
 namespace Capsule.Audio;
 
 /// <summary>
-/// The run's sound: buses, their volumes and pause state, and the voices playing on them. Reached
+/// The run's sound: buses, their volumes, effects and pause state, and the voices playing on them. Reached
 /// as <c>Run.Audio</c> and held for the run.
 /// </summary>
 /// <remarks>
@@ -17,7 +17,7 @@ namespace Capsule.Audio;
 /// Nothing is read back from a device. A headless run reaches the same state as a windowed one.
 /// </para>
 /// </remarks>
-public sealed class AudioMixer
+public sealed partial class AudioMixer
 {
     /// <summary>How many voices may sound at once before <see cref="Play(in AudioPlayback)"/> steals one.</summary>
     public const int MaxVoices = 64;
@@ -35,8 +35,8 @@ public sealed class AudioMixer
     // How many of _commands the host has taken this step.
     private int _taken;
 
-    // Index 0 is the master bus. It sits in the table like any other bus, which keeps gain resolution to
-    // two multiplications with no name comparison.
+    // Index 0 is the master bus. It sits in the table like any other bus, and a voice reaches its bus by
+    // index with no name comparison.
     private readonly List<Bus> _buses = [new Bus(string.Empty)];
 
     private readonly Slot[] _slots = new Slot[MaxVoices];
@@ -44,8 +44,6 @@ public sealed class AudioMixer
     private long _tick;
 
     private double _stepSeconds = 1.0 / StepContext.DefaultStepHertz;
-
-    private float _unfocusedVolume;
 
     // Whether the last step's input read unfocused.
     private bool _unfocused;
@@ -57,6 +55,28 @@ public sealed class AudioMixer
     private float _viewWidth;
 
     private bool _hasListener;
+
+    /// <summary>
+    /// The linear amplitude the whole mix is scaled by while the run's input reads unfocused, in [0, 1].
+    /// Defaults to 0, which silences an unfocused game.
+    /// </summary>
+    /// <remarks>
+    /// It follows <see cref="Input.InputState.HasWindowFocus"/>, and a headless run reaches the same gains. To
+    /// pause music instead of ducking it, set this to 1 and pause the bus on
+    /// <see cref="Input.InputState.WindowFocusLost"/>.
+    /// </remarks>
+    public float UnfocusedVolume
+    {
+        get;
+        set
+        {
+            field = Guard.InUnit(value, nameof(value));
+            if (_unfocused)
+            {
+                RaiseBusGain(0);
+            }
+        }
+    }
 
     // An idle mixer: master at volume 1, no other bus registered, nothing playing.
     internal AudioMixer()
@@ -82,28 +102,6 @@ public sealed class AudioMixer
         return taken;
     }
 
-    /// <summary>
-    /// The linear amplitude every voice is scaled by while the run's input reads unfocused, in [0, 1].
-    /// Defaults to 0, which silences an unfocused game.
-    /// </summary>
-    /// <remarks>
-    /// It follows <see cref="Input.InputState.HasWindowFocus"/>, and a headless run reaches the same gains. To
-    /// pause music instead of ducking it, set this to 1 and pause the bus on
-    /// <see cref="Input.InputState.WindowFocusLost"/>.
-    /// </remarks>
-    public float UnfocusedVolume
-    {
-        get => _unfocusedVolume;
-        set
-        {
-            _unfocusedVolume = Guard.InUnit(value, nameof(value));
-            if (_unfocused)
-            {
-                RaiseGains(0);
-            }
-        }
-    }
-
     /// <summary>This bus's own linear amplitude in [0, 1]. An unchanged bus reads 1.</summary>
     public float GetVolume(AudioBus bus)
     {
@@ -116,7 +114,8 @@ public sealed class AudioMixer
     /// Sets this bus's linear amplitude in [0, 1], registering the bus if it is new.
     /// </summary>
     /// <remarks>
-    /// <see cref="AudioBus.Master"/> scales every live voice. This cancels any ramp
+    /// The volume scales the bus after its effects, and 0 silences an echo still ringing on it.
+    /// <see cref="AudioBus.Master"/> scales every bus. This cancels any ramp
     /// <see cref="FadeVolume(AudioBus, float, float, Ease)"/> started on the bus.
     /// </remarks>
     public void SetVolume(AudioBus bus, float volume)
@@ -124,11 +123,11 @@ public sealed class AudioMixer
         Guard.InUnit(volume, nameof(volume));
 
         int index = Register(bus);
-        ref Bus bus0 = ref CollectionsMarshal.AsSpan(_buses)[index];
-        bus0.Volume = volume;
-        bus0.Ramp.Active = false;
+        ref Bus row = ref CollectionsMarshal.AsSpan(_buses)[index];
+        row.Volume = volume;
+        row.Ramp.Active = false;
 
-        RaiseGains(index);
+        RaiseBusGain(index);
     }
 
     /// <summary>
@@ -146,17 +145,14 @@ public sealed class AudioMixer
         Guard.RequireEase(ease, nameof(ease));
 
         int index = Register(bus);
-        ref Bus bus0 = ref CollectionsMarshal.AsSpan(_buses)[index];
-        StartRamp(ref bus0.Ramp, bus0.Volume, volume, seconds, ease);
+        ref Bus row = ref CollectionsMarshal.AsSpan(_buses)[index];
+        StartRamp(ref row.Ramp, row.Volume, volume, seconds, ease);
 
-        if (bus0.Ramp.Active)
+        if (!row.Ramp.Active)
         {
-            return;
+            row.Volume = volume;
+            RaiseBusGain(index);
         }
-
-        bus0.Volume = volume;
-
-        RaiseGains(index);
     }
 
     /// <summary>Whether this bus is paused in its own right. An untouched bus is not.</summary>
@@ -248,7 +244,6 @@ public sealed class AudioMixer
         slot.Position = playback.Position;
         slot.Anchor = anchor;
         Spatialize(ref slot);
-        slot.StartSeconds = start;
         slot.Loop = playback.Loop;
         slot.Live = true;
         slot.SelfPaused = false;
@@ -257,7 +252,16 @@ public sealed class AudioMixer
         slot.TimeAtClock = start;
         Arm(ref slot);
 
-        Raise(AudioCommandKind.Play, index, in slot, Gain(in slot), slot.Pitch);
+        _commands.Add(new AudioCommand(
+            AudioCommandKind.Play,
+            Voice.Of(index, slot.Generation),
+            slot.Clip,
+            BusOf(bus),
+            Gain(in slot),
+            slot.Pitch,
+            PanOf(in slot),
+            slot.Loop,
+            start));
 
         if (EffectivelyPaused(in slot))
         {
@@ -299,14 +303,10 @@ public sealed class AudioMixer
     /// <summary>Ends <paramref name="voice"/> and frees its slot.</summary>
     public void Stop(Voice voice)
     {
-        if (!TryResolve(voice, out int index))
+        if (TryResolve(voice, out int index))
         {
-            return;
+            End(index);
         }
-
-        ref Slot slot = ref _slots[index];
-        Raise(AudioCommandKind.Stop, index, in slot, 0f, 0f);
-        Free(ref slot);
     }
 
     /// <summary>
@@ -356,7 +356,7 @@ public sealed class AudioMixer
         slot.Volume = volume;
         slot.Ramp.Active = false;
         slot.FadeStops = false;
-        Raise(AudioCommandKind.SetGain, index, in slot, Gain(in slot), 0f);
+        Raise(AudioCommandKind.SetGain, index, in slot, Gain(in slot));
     }
 
     /// <summary>
@@ -393,7 +393,7 @@ public sealed class AudioMixer
         if (!slot.Ramp.Active)
         {
             slot.Volume = volume;
-            Raise(AudioCommandKind.SetGain, index, in slot, Gain(in slot), 0f);
+            Raise(AudioCommandKind.SetGain, index, in slot, Gain(in slot));
         }
     }
 
@@ -421,7 +421,7 @@ public sealed class AudioMixer
             Arm(ref slot);
         }
 
-        Raise(AudioCommandKind.SetPitch, index, in slot, 0f, pitch);
+        Raise(AudioCommandKind.SetPitch, index, in slot, pitch: pitch);
     }
 
     /// <summary>
@@ -447,7 +447,7 @@ public sealed class AudioMixer
 
         if (!IsPositional(in slot))
         {
-            Raise(AudioCommandKind.SetPan, index, in slot, 0f, 0f);
+            Raise(AudioCommandKind.SetPan, index, in slot);
         }
     }
 
@@ -496,12 +496,13 @@ public sealed class AudioMixer
                 continue;
             }
 
-            if (slots[i].Anchor is { } anchor)
+            ref Slot slot = ref slots[i];
+            if (slot.Anchor is { } anchor)
             {
-                slots[i].Position = anchor.Position;
+                slot.Position = anchor.Position;
             }
 
-            RaiseSpatial(ref slots[i], i, slots[i].Attenuation, PanOf(in slots[i]));
+            RaiseSpatial(ref slot, i, slot.Attenuation, PanOf(in slot));
         }
     }
 
@@ -572,7 +573,7 @@ public sealed class AudioMixer
 
     // Clears the previous step's commands and moves the mixer's clock onto this step. A voice started
     // during the step expires against this step's tick and step length. One walk over the buses and
-    // slots advances every active ramp and raises the gain each moved one lands on.
+    // slots advances every active ramp and raises the gain or effects each moved one lands on.
     internal void BeginStep(in StepContext context)
     {
         _commands.Clear();
@@ -584,15 +585,22 @@ public sealed class AudioMixer
             ChangeStepLength(context.StepSeconds);
         }
 
+        bool focusMoved = _unfocused == context.Input.HasWindowFocus;
+        _unfocused = !context.Input.HasWindowFocus;
+
         Span<Bus> buses = CollectionsMarshal.AsSpan(_buses);
         for (int i = 0; i < buses.Length; i++)
         {
-            buses[i].Moved = AdvanceRamp(ref buses[i].Ramp, ref buses[i].Volume, _tick);
-        }
+            if (AdvanceRamp(ref buses[i].Ramp, ref buses[i].Volume, _tick) || (i == 0 && focusMoved))
+            {
+                RaiseBusGain(i);
+            }
 
-        bool focusMoved = _unfocused == context.Input.HasWindowFocus;
-        _unfocused = !context.Input.HasWindowFocus;
-        bool masterMoved = buses[0].Moved || focusMoved;
+            if (AdvanceEffects(ref buses[i].Effects))
+            {
+                RaiseEffects(i);
+            }
+        }
 
         Span<Slot> slots = _slots;
         for (int i = 0; i < slots.Length; i++)
@@ -608,15 +616,13 @@ public sealed class AudioMixer
 
             if (slot.FadeStops && landed)
             {
-                Raise(AudioCommandKind.Stop, i, in slot, 0f, 0f);
-                Free(ref slot);
+                End(i);
                 continue;
             }
 
-            bool busMoved = masterMoved || (slot.Bus != 0 && buses[slot.Bus].Moved);
-            if (slotMoved || busMoved)
+            if (slotMoved)
             {
-                Raise(AudioCommandKind.SetGain, i, in slot, Gain(in slot), 0f);
+                Raise(AudioCommandKind.SetGain, i, in slot, Gain(in slot));
             }
         }
     }
@@ -641,13 +647,14 @@ public sealed class AudioMixer
         for (int i = 0; i < buses.Length; i++)
         {
             RebaseRamp(ref buses[i].Ramp, _stepSeconds, stepSeconds);
+            RebaseEffects(ref buses[i].Effects, _stepSeconds, stepSeconds);
         }
 
         _stepSeconds = stepSeconds;
 
         for (int i = 0; i < slots.Length; i++)
         {
-            if (!ReclaimIfExpired(ref slots[i]) && !slots[i].Loop && !slots[i].Paused)
+            if (slots[i].Live && !slots[i].Loop && !slots[i].Paused)
             {
                 Arm(ref slots[i]);
             }
@@ -710,16 +717,14 @@ public sealed class AudioMixer
     // float) and the outgoing half of CrossFade, which differ only in the curve.
     private void FadeStop(int index, float seconds, Ease ease)
     {
-        ref Slot slot = ref _slots[index];
-
         if (TicksFor(seconds) == 0)
         {
-            Raise(AudioCommandKind.Stop, index, in slot, 0f, 0f);
-            Free(ref slot);
+            End(index);
 
             return;
         }
 
+        ref Slot slot = ref _slots[index];
         StartRamp(ref slot.Ramp, slot.Volume, 0f, seconds, ease);
         slot.FadeStops = true;
     }
@@ -771,7 +776,7 @@ public sealed class AudioMixer
     {
         Rebase(ref slot);
         slot.Paused = true;
-        Raise(AudioCommandKind.Pause, index, in slot, 0f, 0f);
+        Raise(AudioCommandKind.Pause, index, in slot);
     }
 
     private void Release(ref Slot slot, int index)
@@ -780,7 +785,7 @@ public sealed class AudioMixer
         Rebase(ref slot);
         slot.Paused = false;
         Arm(ref slot);
-        Raise(AudioCommandKind.Resume, index, in slot, 0f, 0f);
+        Raise(AudioCommandKind.Resume, index, in slot);
     }
 
     // Where the voice is sounded from. A looping voice given a start at or past its loop region's end is
@@ -811,11 +816,10 @@ public sealed class AudioMixer
     private void Arm(ref Slot slot)
     {
         slot.Clock = _tick;
-        slot.EndTick = slot.Loop ? long.MaxValue : _tick + TicksFor(ClipTimeLeft(in slot) / slot.Pitch);
+        slot.EndTick = slot.Loop
+            ? long.MaxValue
+            : _tick + TicksFor(Math.Max(0.0, slot.Clip.DurationSeconds - ClipTimeAt(in slot)) / slot.Pitch);
     }
-
-    // The clip time this one-shot has left at the current tick.
-    private double ClipTimeLeft(in Slot slot) => Math.Max(0.0, slot.Clip.DurationSeconds - ClipTimeAt(in slot));
 
     // Clip time this voice has consumed by the current tick, unwrapped: what a looping voice would read if
     // the clip ran forever. A held voice's clock does not run.
@@ -829,21 +833,14 @@ public sealed class AudioMixer
         return slot.TimeAtClock + ((_tick - slot.Clock) * _stepSeconds * slot.Pitch);
     }
 
-    private void Raise(AudioCommandKind kind, int index, in Slot slot, float gain, float pitch)
-    {
-        bool play = kind == AudioCommandKind.Play;
-
+    // Raises a command on a live voice. Play builds its own command because it alone carries the clip.
+    private void Raise(AudioCommandKind kind, int index, in Slot slot, float gain = 0f, float pitch = 0f) =>
         _commands.Add(new AudioCommand(
             kind,
             Voice.Of(index, slot.Generation),
-            play ? slot.Clip : default,
-            play ? BusOf(slot.Bus) : default,
-            gain,
-            pitch,
-            play || kind == AudioCommandKind.SetPan ? PanOf(in slot) : 0f,
-            play && slot.Loop,
-            play ? slot.StartSeconds : 0.0));
-    }
+            Gain: gain,
+            Pitch: pitch,
+            Pan: kind == AudioCommandKind.SetPan ? PanOf(in slot) : 0f));
 
     // The master row is keyed by the empty string, not by the name AudioBus.Master carries.
     private AudioBus BusOf(int index) => index == 0 ? AudioBus.Master : new AudioBus(_buses[index].Name);
@@ -895,10 +892,16 @@ public sealed class AudioMixer
             return -1;
         }
 
-        Raise(AudioCommandKind.Stop, oldest, in slots[oldest], 0f, 0f);
-        Free(ref slots[oldest]);
+        End(oldest);
 
         return oldest;
+    }
+
+    // Tells the host the voice in this slot has ended, and frees the slot.
+    private void End(int index)
+    {
+        Raise(AudioCommandKind.Stop, index, in _slots[index]);
+        Free(ref _slots[index]);
     }
 
     // Advancing the generation makes existing handles to this slot stale. The wrap collides only with a
@@ -929,10 +932,10 @@ public sealed class AudioMixer
     private bool Expired(in Slot slot) => !slot.Loop && !slot.Paused && slot.EndTick <= _tick;
 
     private bool EffectivelyPaused(in Slot slot) =>
-        slot.SelfPaused || _buses[0].Paused || (slot.Bus != 0 && _buses[slot.Bus].Paused);
+        slot.SelfPaused || _buses[0].Paused || _buses[slot.Bus].Paused;
 
-    private float Gain(in Slot slot) =>
-        (_unfocused ? _unfocusedVolume : 1f) * _buses[0].Volume * (slot.Bus == 0 ? 1f : _buses[slot.Bus].Volume) * slot.Volume * slot.Attenuation;
+    // A voice's own share of its gain. Its bus's volume and the master's apply on the bus, after effects.
+    private static float Gain(in Slot slot) => slot.Volume * slot.Attenuation;
 
     private static bool IsPositional(in Slot slot) => slot.Range.MaxDistance > 0f;
 
@@ -946,12 +949,12 @@ public sealed class AudioMixer
 
         if (slot.Attenuation != toldAttenuation)
         {
-            Raise(AudioCommandKind.SetGain, index, in slot, Gain(in slot), 0f);
+            Raise(AudioCommandKind.SetGain, index, in slot, Gain(in slot));
         }
 
         if (PanOf(in slot) != toldPan)
         {
-            Raise(AudioCommandKind.SetPan, index, in slot, 0f, 0f);
+            Raise(AudioCommandKind.SetPan, index, in slot);
         }
     }
 
@@ -992,30 +995,23 @@ public sealed class AudioMixer
         slot.SpatialPan = Math.Clamp(dx / _viewWidth, -1f, 1f);
     }
 
-    // Raises the gain of every live voice on the bus at this index, or of every live voice for master.
-    private void RaiseGains(int bus)
+    // Raises the gain of the bus at this index: its volume, and for master the unfocused volume too.
+    private void RaiseBusGain(int index)
     {
-        Span<Slot> slots = _slots;
-        for (int i = 0; i < slots.Length; i++)
-        {
-            if (!ReclaimIfExpired(ref slots[i]) && (bus == 0 || slots[i].Bus == bus))
-            {
-                Raise(AudioCommandKind.SetGain, i, in slots[i], Gain(in slots[i]), 0f);
-            }
-        }
+        float gain = index == 0 ? (_unfocused ? UnfocusedVolume : 1f) * _buses[0].Volume : _buses[index].Volume;
+        _commands.Add(new AudioCommand(AudioCommandKind.SetBusGain, Voice.None, Bus: BusOf(index), Gain: gain));
     }
 
     private int Find(AudioBus bus)
     {
-        string name = bus.Name ?? string.Empty;
-        if (name.Length == 0)
+        if (string.IsNullOrEmpty(bus.Name))
         {
             return 0;
         }
 
         for (int i = 1; i < _buses.Count; i++)
         {
-            if (string.Equals(_buses[i].Name, name, StringComparison.Ordinal))
+            if (string.Equals(_buses[i].Name, bus.Name, StringComparison.Ordinal))
             {
                 return i;
             }
@@ -1096,8 +1092,7 @@ public sealed class AudioMixer
 
         internal Ramp Ramp;
 
-        // Whether this step's ramp moved Volume. Recomputed every step.
-        internal bool Moved;
+        internal EffectState Effects = new();
     }
 
     private struct Slot
@@ -1125,9 +1120,6 @@ public sealed class AudioMixer
         internal float Attenuation;
 
         internal float SpatialPan;
-
-        // Clip time the voice was played from.
-        internal double StartSeconds;
 
         internal bool Loop;
 

@@ -3,11 +3,7 @@ using Capsule.Audio;
 
 namespace Capsule.Build.Audio;
 
-/// <summary>
-/// Measures a shipped audio source by reading its container: how long it runs, and the loop region
-/// it authors. The mixer derives playback state from the measured duration instead of reading a
-/// device, and the host loops a region without opening the file to find it.
-/// </summary>
+/// <summary>Measures an audio source's duration and authored loop region from its container.</summary>
 internal static class AudioProbe
 {
     /// <summary>What the build reads out of one source's container.</summary>
@@ -65,19 +61,6 @@ internal static class AudioProbe
         {
             throw new FormatException($"carries {Number(channels)} channels. Capsule plays mono and stereo. Mix it down to stereo.");
         }
-    }
-
-    internal static bool Is(ReadOnlySpan<byte> bytes, string ascii)
-    {
-        for (int i = 0; i < ascii.Length; i++)
-        {
-            if (bytes[i] != (byte)ascii[i])
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     // False only at a clean end of file. A partial read is a truncation.

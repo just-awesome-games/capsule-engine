@@ -23,21 +23,52 @@ internal enum AudioCommandKind : byte
 
     // Set this voice's stereo position to the command's Pan.
     SetPan,
+
+    // Set the named bus's gain, applied after its effects, to the command's Gain.
+    SetBusGain,
+
+    // Set the named bus's effects to the command's Effects.
+    SetBusEffects,
 }
 
 // One instruction from the pure mixer to whatever plays sound. Every field carries a settled value,
 // not a delta. Applying a step's commands in order leaves the device in the state the mixer holds.
-// Fields the Kind does not name are unset. Clip, Bus, Loop and StartSeconds are set on Play only.
-// Gain is linear in [0, 1] with the unfocused volume, master, bus and voice volume and the distance
-// attenuation already multiplied together. Pan is in
-// [-1, 1] with -1 hard left.
+// Fields the Kind does not name are unset. Clip, Loop and StartSeconds are set on Play only, Bus on
+// Play and the bus kinds, and Effects on SetBusEffects. A voice's Gain is linear in [0, 1], its own
+// volume times its distance attenuation. A bus's is its volume, and the master's is the master volume
+// times the unfocused volume while the input reads unfocused. Pan is in [-1, 1] with -1 hard left.
 internal readonly record struct AudioCommand(
     AudioCommandKind Kind,
     Voice Voice,
-    AudioClip Clip,
-    AudioBus Bus,
-    float Gain,
-    float Pitch,
-    float Pan,
-    bool Loop,
-    double StartSeconds);
+    AudioClip Clip = default,
+    AudioBus Bus = default,
+    float Gain = 0f,
+    float Pitch = 0f,
+    float Pan = 0f,
+    bool Loop = false,
+    double StartSeconds = 0.0,
+    EffectLevels Effects = default);
+
+// The values a bus's effects sound at after a step, in the units the host runs them in. A cutoff at
+// its off end passes everything: AudioEffects.LowestHertz for the high-pass and the echo's low cut,
+// AudioEffects.HighestHertz for the low-pass and the echo's high cut. EchoDelaySeconds is 0 while the
+// bus has no echo line.
+internal readonly record struct EffectLevels(
+    float HighPassHertz,
+    float LowPassHertz,
+    float EchoDelaySeconds,
+    float EchoFeedback,
+    float EchoVolume,
+    float EchoLowCutHertz,
+    float EchoHighCutHertz,
+    bool EchoInvertLeft = false)
+{
+    internal static EffectLevels None => new(
+        AudioEffects.LowestHertz,
+        AudioEffects.HighestHertz,
+        0f,
+        0f,
+        0f,
+        AudioEffects.LowestHertz,
+        AudioEffects.HighestHertz);
+}

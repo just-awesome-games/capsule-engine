@@ -6,14 +6,14 @@ namespace Capsule.Runtime.Audio;
 // that plays it. Interleaved, at the clip's own rate and channel count. 8- and 16-bit sources and short
 // Ogg Vorbis clips are held as 16-bit integers, half the memory of floats, and 24- and 32-bit integer
 // and float sources as floats. A 16-bit sample s reads as s / 32768.
-//
-// A scene releasing the clip frees nothing here. A voice still playing it holds its own reference, and
-// the collector frees the samples once no voice and no scene holds them.
 internal sealed class PcmAudio : IDisposable
 {
     // The scale from a 16-bit sample to [-1, 1). A power of two, which keeps the conversion exact.
     internal const float Pcm16Scale = 1f / 32768f;
 
+    // The WAVE format tags read: integer PCM, IEEE float, and an extensible chunk naming either.
+    private const int Pcm = 1;
+    private const int IeeeFloat = 3;
     private const int Extensible = 0xFFFE;
 
     // Exactly one of Pcm16 and Float holds the samples.
@@ -45,7 +45,7 @@ internal sealed class PcmAudio : IDisposable
     // and 16-, 24- and 32-bit PCM, and FlacDecoder holds the same samples for the same integers.
     internal static PcmAudio FromWav(ReadOnlySpan<byte> bytes, string clipName)
     {
-        if (bytes.Length < 12 || !Is(bytes[..4], "RIFF") || !Is(bytes[8..12], "WAVE"))
+        if (bytes.Length < 12 || !bytes[..4].SequenceEqual("RIFF"u8) || !bytes[8..12].SequenceEqual("WAVE"u8))
         {
             throw new InvalidDataException($"Audio clip '{clipName}' is no RIFF/WAVE file.");
         }
@@ -65,7 +65,7 @@ internal sealed class PcmAudio : IDisposable
 
             int length = (int)Math.Min(size, (uint)(bytes.Length - offset));
 
-            if (Is(id, "fmt ") && length >= 16)
+            if (id.SequenceEqual("fmt "u8) && length >= 16)
             {
                 ReadOnlySpan<byte> format = bytes.Slice(offset, length);
                 tag = BinaryPrimitives.ReadUInt16LittleEndian(format);
@@ -79,7 +79,7 @@ internal sealed class PcmAudio : IDisposable
                     tag = BinaryPrimitives.ReadUInt16LittleEndian(format[24..]);
                 }
             }
-            else if (Is(id, "data"))
+            else if (id.SequenceEqual("data"u8))
             {
                 data = bytes.Slice(offset, length);
             }
@@ -99,7 +99,7 @@ internal sealed class PcmAudio : IDisposable
     private static PcmAudio Decode(ReadOnlySpan<byte> data, int tag, int bits, int channels, int rate, string clipName)
     {
         int width = bits / 8;
-        bool admitted = tag == 3 ? bits == 32 : tag == 1 && bits is (8 or 16 or 24 or 32);
+        bool admitted = tag == IeeeFloat ? bits == 32 : tag == Pcm && bits is (8 or 16 or 24 or 32);
         if (!admitted)
         {
             throw new NotSupportedException(
@@ -109,7 +109,7 @@ internal sealed class PcmAudio : IDisposable
         int count = data.Length / width;
         count -= count % channels;
 
-        if (tag == 1 && bits <= 16)
+        if (tag == Pcm && bits <= 16)
         {
             short[] pcm = new short[count];
             for (int i = 0; i < pcm.Length; i++)
@@ -129,8 +129,8 @@ internal sealed class PcmAudio : IDisposable
 
             samples[i] = (tag, bits) switch
             {
-                (1, 24) => (sample[0] | (sample[1] << 8) | ((sbyte)sample[2] << 16)) / 8388608f,
-                (1, 32) => BinaryPrimitives.ReadInt32LittleEndian(sample) / 2147483648f,
+                (Pcm, 24) => (sample[0] | (sample[1] << 8) | ((sbyte)sample[2] << 16)) / 8388608f,
+                (Pcm, 32) => BinaryPrimitives.ReadInt32LittleEndian(sample) / 2147483648f,
                 _ => BinaryPrimitives.ReadSingleLittleEndian(sample),
             };
         }
@@ -138,21 +138,9 @@ internal sealed class PcmAudio : IDisposable
         return new PcmAudio(samples, channels, rate);
     }
 
-    // Nothing is freed. A scene's release only drops the store's reference.
+    // Frees nothing. A voice still playing the clip holds its own reference, and the collector frees
+    // the samples once no voice and no scene holds them.
     public void Dispose()
     {
-    }
-
-    private static bool Is(ReadOnlySpan<byte> bytes, string ascii)
-    {
-        for (int i = 0; i < ascii.Length; i++)
-        {
-            if (bytes[i] != (byte)ascii[i])
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 }

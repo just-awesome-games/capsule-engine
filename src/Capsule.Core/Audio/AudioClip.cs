@@ -43,8 +43,6 @@ public readonly record struct AudioClip(
     // every play. Music and ambience run longer and play rarely.
     internal const double ResidentVorbisSeconds = 3.0;
 
-    private const string Wave = ".wav";
-
     // Whether the source is a float WAV, the one form that ships as authored though it is a .wav.
     private bool FloatSamples { get; }
 
@@ -69,5 +67,5 @@ public readonly record struct AudioClip(
     // The rule the build writes by and the host opens by. FLAC carries integer samples losslessly
     // and float samples not at all.
     internal static string Shipped(string extension, bool floatSamples) =>
-        !floatSamples && string.Equals(extension, Wave, StringComparison.OrdinalIgnoreCase) ? Flac : extension;
+        !floatSamples && string.Equals(extension, ".wav", StringComparison.OrdinalIgnoreCase) ? Flac : extension;
 }

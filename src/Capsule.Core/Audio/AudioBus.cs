@@ -7,12 +7,12 @@ namespace Capsule.Audio;
 /// A bus registers with a <see cref="AudioMixer"/> the first time that mixer plays on it or changes
 /// it, at volume 1 and unpaused. Names are compared ordinally. The default value is
 /// <see cref="Master"/>, and the mixer treats an empty name as <see cref="Master"/> too. A bus's
-/// volume and pause state belong to the run. Both stand across a scene transition until something
-/// sets them again. A registered bus is never removed. Declare each bus once, as a
+/// volume, effects and pause state belong to the run. Each stands across a scene transition until
+/// something sets it again. A registered bus is never removed. Declare each bus once, as a
 /// <c>static readonly</c> field. A name built per play grows the mixer's table without bound.
 /// </remarks>
 public readonly record struct AudioBus(string Name)
 {
-    /// <summary>The bus every other one is nested under. Its volume scales every voice, and pausing it pauses every voice.</summary>
+    /// <summary>The bus every other one is nested under. Every bus's output passes through its effects and volume, and pausing it pauses every voice.</summary>
     public static AudioBus Master => default;
 }

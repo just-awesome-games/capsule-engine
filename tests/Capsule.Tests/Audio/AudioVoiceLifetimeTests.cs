@@ -143,7 +143,7 @@ public sealed class AudioVoiceLifetimeTests
 
         Assert.False(mixer.IsPlaying(voice));
         Assert.False(mixer.IsPaused(voice));
-        Assert.Empty(Raised(mixer));
+        Assert.Equal([(AudioCommandKind.SetBusGain, Voice.None)], Raised(mixer));
     }
 
     [Theory]

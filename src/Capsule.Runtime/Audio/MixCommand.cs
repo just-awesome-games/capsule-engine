@@ -1,3 +1,5 @@
+using Capsule.Audio;
+
 namespace Capsule.Runtime.Audio;
 
 // What one MixCommand asks the mix thread to do.
@@ -21,14 +23,21 @@ internal enum MixCommandKind : byte
 
     SetPan,
 
-    // Replace the mixer's bus buffers with the command's, which hold one more bus than before.
+    // Replace the mixer's buses with the command's, which hold one more bus than before.
     Buses,
+
+    // Set the gain the bus at index Bus applies after its effects.
+    SetBusGain,
+
+    // Set the effects of the bus at index Bus, and hand it a new echo line when Line is set.
+    SetBusEffects,
 }
 
-// One instruction from the game thread to the mix thread, addressed to a slot at a generation. Gain
-// is linear and already resolved against the master and bus volumes. Pitch is a playback-rate
-// multiplier and Pan is in [-1, 1], -1 hard left. The init members are set on Play only, and Buses on
-// Buses only.
+// One instruction from the game thread to the mix thread, addressed to a slot at a generation, or for
+// the bus kinds to the bus at index Bus. Gain is linear: a voice's own volume times its attenuation, or
+// a bus's volume, which the mix applies after that bus's effects. Pitch is a playback-rate multiplier
+// and Pan is in [-1, 1], -1 hard left. The init members are set on Play only, Bus on Play and the bus
+// kinds, Buses on Buses only, and Effects and Line on SetBusEffects only.
 internal readonly record struct MixCommand(MixCommandKind Kind, int Slot, int Generation, float Gain = 0f, float Pitch = 1f, float Pan = 0f)
 {
     // A resident clip's samples, or null for a streamed voice.
@@ -55,7 +64,13 @@ internal readonly record struct MixCommand(MixCommandKind Kind, int Slot, int Ge
     // Whether the voice starts held, as a voice played while the host is suspended does.
     internal bool Held { get; init; }
 
-    internal float[][]? Buses { get; init; }
+    internal MixBus[]? Buses { get; init; }
+
+    internal EffectLevels Effects { get; init; }
+
+    // A new, empty echo line sized to Effects.EchoDelaySeconds, interleaved stereo. Null keeps the line
+    // the bus has, or drops it when the delay is 0.
+    internal float[]? Line { get; init; }
 }
 
 // The mix thread's report that the voice it was sent as slot and generation has ended and holds

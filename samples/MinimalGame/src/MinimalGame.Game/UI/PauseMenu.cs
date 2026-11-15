@@ -3,12 +3,16 @@ namespace MinimalGame.Game.UI;
 /// <summary>
 /// The menu over a paused room: the whole canvas dimmed and drained of colour, and a panel centred on it holding
 /// Resume and Quit over one <see cref="FocusNavigator"/>. The scene opens and closes it, and the menu owns what
-/// pausing means: the world, the sound effects and the rumble all stop.
+/// pausing means: the world, the sound effects and the rumble all stop, and the music sinks behind a low-pass.
 /// </summary>
 public sealed class PauseMenu : ScreenEntity
 {
     // Canvas pixels between the panel's edge and its items.
     private const float PanelPadding = 8f;
+
+    // The music heard behind the menu: muffled as through a wall, sliding there and back in a fifth of a second.
+    private const float MuffledHertz = 900f;
+    private const float MuffleSeconds = 0.2f;
 
     private static readonly ColorRgba PanelColor = new(24, 24, 32);
 
@@ -48,13 +52,14 @@ public sealed class PauseMenu : ScreenEntity
     }
 
     /// <summary>
-    /// Pauses the scene and its sound effects, stops the rumble, and shows the menu with Resume focused
-    /// and the system arrow to point at it.
+    /// Pauses the scene and its sound effects, muffles the music, stops the rumble, and shows the menu with
+    /// Resume focused and the system arrow to point at it.
     /// </summary>
     public void Open()
     {
         Scene.Paused = true;
         Run.Audio.Pause(AudioBuses.Sfx);
+        Muffle(MuffledHertz);
         Run.Rumble.Stop();
         _roomCursor = Run.Cursor.Image;
         Run.Cursor.Image = null;
@@ -64,14 +69,18 @@ public sealed class PauseMenu : ScreenEntity
         _navigator.Focus(_resume.Focusable);
     }
 
-    /// <summary>Resumes the scene and its sound effects, hides the menu and gives the room its cursor back.</summary>
+    /// <summary>Resumes the scene and its sound effects, clears the music, hides the menu and gives the room its cursor back.</summary>
     public void Close()
     {
         Scene.Paused = false;
         Run.Audio.Resume(AudioBuses.Sfx);
+        Muffle(null);
         Run.Cursor.Image = _roomCursor;
         Visible = false;
     }
+
+    private void Muffle(float? hertz) =>
+        Run.Audio.FadeEffects(AudioBuses.Music, Run.Audio.GetEffects(AudioBuses.Music) with { LowPassHertz = hertz }, MuffleSeconds);
 
     private void Quit() => Run.RequestExit();
 }

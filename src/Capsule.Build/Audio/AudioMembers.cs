@@ -25,8 +25,7 @@ internal static class AudioMembers
             .Append(" => new ").Append(GeneratedTypes.AudioClip).Append('(').Append(Literal.Of(audio.Key)).Append(", ")
             .Append(Literal.Of(audio.Extension)).Append(", ").Append(Literal.Of(duration));
 
-        // Omitted when the source authored no region, and the constructor's default stands. The float
-        // constructor takes a region. A float clip with none writes the default.
+        // The float constructor takes a region, and a float clip with none passes the default.
         if (loop.HasRegion)
         {
             code.Append(", new ").Append(GeneratedTypes.AudioLoopRegion).Append('(').Append(Literal.Of(loop.StartSeconds))

@@ -53,6 +53,15 @@ internal static class AudioPlaybackFixtures
             Bus = bus,
         };
 
+    // A stereo clip at the output's rate holding one value throughout.
+    internal static PcmAudio Level(short value)
+    {
+        short[] level = new short[2 * 4096];
+        Array.Fill(level, value);
+
+        return new PcmAudio(level, 2, VoiceMixer.SampleRate);
+    }
+
     // Interleaved 16-bit samples no two neighbours of which repeat, from seed.
     internal static short[] Noise(int samples, int seed)
     {

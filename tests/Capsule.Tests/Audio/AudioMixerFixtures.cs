@@ -24,15 +24,11 @@ internal static class AudioMixerFixtures
     internal static void Advance(AudioMixer mixer, long tick, int stepHertz) =>
         mixer.BeginStep(new StepContext(1.0 / stepHertz, new InputState(new ActionBindings()), tick));
 
-    internal static (AudioCommandKind Kind, Voice Voice)[] Raised(AudioMixer mixer)
-    {
-        ReadOnlySpan<AudioCommand> commands = mixer.Commands;
-        (AudioCommandKind Kind, Voice Voice)[] raised = new (AudioCommandKind, Voice)[commands.Length];
-        for (int i = 0; i < commands.Length; i++)
-        {
-            raised[i] = (commands[i].Kind, commands[i].Voice);
-        }
+    // The bus and gain of every SetBusGain the last step raised, in order.
+    internal static (AudioBus Bus, float Gain)[] BusGains(AudioMixer mixer) =>
+        [.. mixer.Commands.ToArray().Where(static command => command.Kind == AudioCommandKind.SetBusGain).Select(static command => (command.Bus, command.Gain))];
 
-        return raised;
-    }
+    // The kind and voice of every command the last step raised, in order.
+    internal static (AudioCommandKind Kind, Voice Voice)[] Raised(AudioMixer mixer) =>
+        [.. mixer.Commands.ToArray().Select(static command => (command.Kind, command.Voice))];
 }

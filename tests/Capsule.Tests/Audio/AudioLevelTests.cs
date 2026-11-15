@@ -9,29 +9,27 @@ namespace Capsule.Tests.Audio;
 
 public sealed class AudioLevelTests
 {
+    // A voice's gain is its own volume. A bus's volume reaches the host once, as that bus's gain, which
+    // the host applies after the bus's effects. No voice is re-gained when a bus changes.
     [Fact]
-    public void ABusVolume_RaisesTheResolvedProductForItsOwnLiveVoicesOnly()
+    public void ABusVolume_RaisesOneGainForTheBusAndNoneForItsVoices()
     {
         AudioMixer mixer = new();
         mixer.SetVolume(AudioBus.Master, 0.5f);
         mixer.SetVolume(Sfx, 0.8f);
-
-        Voice sfx = mixer.Play(new AudioPlayback(Step) { Bus = Sfx, Volume = 0.5f });
-        Assert.Equal(0.5f * 0.8f * 0.5f, mixer.Commands[0].Gain);
-        Voice music = mixer.Play(Theme, Music);
+        Assert.Equal([(AudioBus.Master, 0.5f), (Sfx, 0.8f)], BusGains(mixer));
 
         Advance(mixer, 1);
-        mixer.SetVolume(Sfx, 0.4f);
+        mixer.Play(new AudioPlayback(Step) { Bus = Sfx, Volume = 0.5f });
+        mixer.Play(Theme, Music);
+        Assert.Equal(0.5f, mixer.Commands[0].Gain);
 
-        AudioCommand raised = Assert.Single(mixer.Commands.ToArray());
-        Assert.Equal(AudioCommandKind.SetGain, raised.Kind);
-        Assert.Equal(sfx, raised.Voice);
-        Assert.Equal(0.5f * 0.4f * 0.5f, raised.Gain);
-
-        // Master reaches every voice whatever bus it plays on.
         Advance(mixer, 2);
+        mixer.SetVolume(Sfx, 0.4f);
         mixer.SetVolume(AudioBus.Master, 1f);
-        Assert.Equal([(AudioCommandKind.SetGain, sfx), (AudioCommandKind.SetGain, music)], Raised(mixer));
+
+        Assert.Equal([(AudioCommandKind.SetBusGain, Voice.None), (AudioCommandKind.SetBusGain, Voice.None)], Raised(mixer));
+        Assert.Equal([(Sfx, 0.4f), (AudioBus.Master, 1f)], BusGains(mixer));
     }
 
     [Fact]
@@ -50,25 +48,26 @@ public sealed class AudioLevelTests
         Assert.Equal(AudioBus.Master, Assert.Single(mixer.Commands.ToArray()).Bus);
     }
 
-    // Levelling a bus after playing into it within one start re-gains the voice rather than losing
-    // it. The two are only an ordering.
+    // Levelling a bus after playing into it within one step levels the bus and leaves the voice at
+    // its own volume. The two are only an ordering.
     [Fact]
-    public void ABusVolumeSetAfterAPlayInTheSameStep_ReLevelsThatVoice()
+    public void ABusVolumeSetAfterAPlayInTheSameStep_LevelsTheBusAndNotTheVoice()
     {
         AudioMixer mixer = new();
         Voice voice = mixer.Play(new AudioPlayback(Theme) { Bus = Music, Volume = 0.5f, Loop = true });
         mixer.SetVolume(Music, 0.4f);
 
         Assert.Equal(
-            [(AudioCommandKind.Play, voice), (AudioCommandKind.SetGain, voice)],
+            [(AudioCommandKind.Play, voice), (AudioCommandKind.SetBusGain, Voice.None)],
             Raised(mixer));
         Assert.Equal(0.5f, mixer.Commands[0].Gain);
-        Assert.Equal(0.5f * 0.4f, mixer.Commands[1].Gain);
+        Assert.Equal([(Music, 0.4f)], BusGains(mixer));
     }
 
-    // Bus volumes are the run's: what a boot scene levels stands for every scene after it.
+    // Bus volumes are the run's: what a boot scene levels stands for every scene after it, and the
+    // next scene's play raises no level of its own.
     [Fact]
-    public void ABusVolumeOneSceneSets_LevelsAVoiceTheNextScenePlays()
+    public void ABusVolumeOneSceneSets_StandsForAVoiceTheNextScenePlays()
     {
         static Scene Resolve(in SceneTransition target) =>
             target.SceneType == typeof(LevellingScene) ? new LevellingScene() : new MusicScene();
@@ -80,7 +79,8 @@ public sealed class AudioLevelTests
         AudioCommand played = Assert.Single(host.Run.Audio.Commands.ToArray());
         Assert.Equal(AudioCommandKind.Play, played.Kind);
         Assert.Equal(Music, played.Bus);
-        Assert.Equal(0.25f, played.Gain);
+        Assert.Equal(1f, played.Gain);
+        Assert.Equal(0.25f, host.Run.Audio.GetVolume(Music));
     }
 
     [Fact]
@@ -124,25 +124,26 @@ public sealed class AudioLevelTests
     }
 
     // The loss silences at the default, a new volume lands at once while unfocused, and the regain
-    // restores the resolved gain.
+    // restores the master volume. Each reaches the host as the master's gain alone.
     [Fact]
-    public void UnfocusedVolume_ScalesEveryVoiceFromAWindowFocusLossUntilTheRegain()
+    public void UnfocusedVolume_ScalesTheMasterFromAWindowFocusLossUntilTheRegain()
     {
         AudioMixer mixer = new();
         mixer.SetVolume(AudioBus.Master, 0.5f);
-        Voice music = mixer.Play(new AudioPlayback(Theme) { Bus = Music, Loop = true });
+        mixer.Play(new AudioPlayback(Theme) { Bus = Music, Loop = true });
 
         mixer.BeginStep(Focused(1, false));
-        Assert.Equal((AudioCommandKind.SetGain, music, 0f), Last(mixer));
+        Assert.Equal((AudioCommandKind.SetBusGain, AudioBus.Master, 0f), Last(mixer));
 
         mixer.UnfocusedVolume = 0.5f;
-        Assert.Equal((AudioCommandKind.SetGain, music, 0.25f), Last(mixer));
+        Assert.Equal((AudioCommandKind.SetBusGain, AudioBus.Master, 0.25f), Last(mixer));
 
         mixer.BeginStep(Focused(2, false));
         Assert.Empty(mixer.Commands.ToArray());
 
         mixer.BeginStep(Focused(3, true));
-        Assert.Equal((AudioCommandKind.SetGain, music, 0.5f), Last(mixer));
+        Assert.Equal([(AudioCommandKind.SetBusGain, Voice.None)], Raised(mixer));
+        Assert.Equal((AudioCommandKind.SetBusGain, AudioBus.Master, 0.5f), Last(mixer));
     }
 
     private static StepContext Focused(long tick, bool focused)
@@ -154,11 +155,11 @@ public sealed class AudioLevelTests
     }
 
     // The last command raised. A command raised outside a step is appended to the last step's list.
-    private static (AudioCommandKind Kind, Voice Voice, float Gain) Last(AudioMixer mixer)
+    private static (AudioCommandKind Kind, AudioBus Bus, float Gain) Last(AudioMixer mixer)
     {
         AudioCommand command = mixer.Commands[^1];
 
-        return (command.Kind, command.Voice, command.Gain);
+        return (command.Kind, command.Bus, command.Gain);
     }
 
     private sealed class LevellingScene : Scene

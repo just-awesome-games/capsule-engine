@@ -4,7 +4,8 @@ namespace Capsule.Runtime.Audio;
 
 // The game thread's side of the mix: one entry per mixer slot holding the generation it was last
 // played at, the translation of each step's commands into the mix thread's, and the retirement of
-// the voices the mix thread reports ended.
+// the voices the mix thread reports ended. A bus's gain and effects are its state, not a hold on its
+// voices, and pass the host's suspension untouched.
 //
 // The mixer in Core is the authority on what is playing, and nothing here is read back into it. A
 // command naming a generation the table does not hold addresses a voice that has been stolen,
@@ -13,7 +14,7 @@ namespace Capsule.Runtime.Audio;
 //
 // A warm play of a resident clip, a stop or a change allocates nothing. A streamed play opens the
 // clip's file and a decoder over it, because a file handle is per play. Meeting a bus for the first
-// time allocates its buffer.
+// time allocates its buffer, and changing a bus's echo delay allocates the echo's line.
 internal sealed class AudioPlayer
 {
     // Commands one step of 64 voices raises are a few hundred at most. The mix thread drains every
@@ -35,7 +36,10 @@ internal sealed class AudioPlayer
 
     // Bus names to the mixer's bus indices, 0 being the master bus.
     private readonly Dictionary<string, int> _buses = new(StringComparer.Ordinal);
-    private float[][] _busBuffers = [];
+    private MixBus[] _mixBuses = [];
+
+    // The echo delay each bus's line was last handed for, by index with 0 the master, or 0 for none.
+    private float[] _lineDelays = new float[1];
 
     // The host's suspension, a layer over each voice's own pause. While it is on, every voice is held
     // whatever the game asked, and what the game asks meanwhile is remembered instead of applied. A
@@ -110,6 +114,20 @@ internal sealed class AudioPlayer
 
         foreach (AudioCommand command in commands)
         {
+            if (command.Kind == AudioCommandKind.SetBusGain)
+            {
+                Post(new MixCommand(MixCommandKind.SetBusGain, 0, 0, Gain: command.Gain) { Bus = Bus(command.Bus) });
+
+                continue;
+            }
+
+            if (command.Kind == AudioCommandKind.SetBusEffects)
+            {
+                Post(Effects(command));
+
+                continue;
+            }
+
             int slot = command.Voice.Slot;
             if ((uint)slot >= (uint)_slots.Length)
             {
@@ -226,7 +244,26 @@ internal sealed class AudioPlayer
         };
     }
 
-    // The mixer's index for bus. A bus heard for the first time hands the mixer a larger set of buffers.
+    // A line is allocated only when the delay changes, which cuts the repeats ringing on the old one. A
+    // fade or an equal set keeps the line the bus has, and a delay of 0 drops it.
+    private MixCommand Effects(in AudioCommand command)
+    {
+        int bus = Bus(command.Bus);
+        EffectLevels levels = command.Effects;
+        float delay = levels.EchoDelaySeconds;
+        float[]? line = null;
+
+        if (delay != _lineDelays[bus])
+        {
+            _lineDelays[bus] = delay;
+            int frames = Math.Max(1, (int)Math.Round(delay * (double)VoiceMixer.SampleRate));
+            line = delay > 0f ? new float[frames * VoiceMixer.Channels] : null;
+        }
+
+        return new MixCommand(MixCommandKind.SetBusEffects, 0, 0) { Bus = bus, Effects = levels, Line = line };
+    }
+
+    // The mixer's index for bus. A bus heard for the first time hands the mixer a larger set of buses.
     private int Bus(in AudioBus bus)
     {
         if (string.IsNullOrEmpty(bus.Name))
@@ -239,15 +276,14 @@ internal sealed class AudioPlayer
             return index;
         }
 
-        float[][] buffers = new float[_busBuffers.Length + 1][];
-        _busBuffers.CopyTo(buffers, 0);
-        buffers[^1] = new float[VoiceMixer.BlockFrames * VoiceMixer.Channels];
-        _busBuffers = buffers;
+        MixBus[] buses = [.. _mixBuses, new MixBus()];
+        _mixBuses = buses;
+        Array.Resize(ref _lineDelays, buses.Length + 1);
 
-        Post(new MixCommand(MixCommandKind.Buses, 0, 0) { Buses = buffers });
-        _buses.Add(bus.Name, buffers.Length);
+        Post(new MixCommand(MixCommandKind.Buses, 0, 0) { Buses = buses });
+        _buses.Add(bus.Name, buses.Length);
 
-        return buffers.Length;
+        return buses.Length;
     }
 
     private void Hold(MixCommandKind kind)

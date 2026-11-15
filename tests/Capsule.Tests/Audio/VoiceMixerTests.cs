@@ -87,7 +87,7 @@ public sealed class VoiceMixerTests
         }
 
         (VoiceMixer looped, AudioRing<MixCommand> loopCommands, _) = Mixer();
-        loopCommands.TryWrite(new MixCommand(MixCommandKind.Buses, 0, 0) { Buses = [new float[VoiceMixer.BlockFrames * VoiceMixer.Channels]] });
+        loopCommands.TryWrite(new MixCommand(MixCommandKind.Buses, 0, 0) { Buses = [new MixBus()] });
         loopCommands.TryWrite(Play(new PcmAudio(clip, 2, Rate), Pitch, loop: true, loopStart: Start, loopEnd: End, bus: 1));
 
         (VoiceMixer straight, AudioRing<MixCommand> straightCommands, _) = Mixer();
@@ -106,10 +106,8 @@ public sealed class VoiceMixerTests
     [Fact]
     public void AStop_FadesToExactlyZeroAndTheVoiceThenProducesNothing()
     {
-        short[] level = new short[2 * 4096];
-        Array.Fill(level, (short)16384);
         (VoiceMixer mixer, AudioRing<MixCommand> commands, AudioRing<VoiceEnded> ended) = Mixer();
-        commands.TryWrite(Play(new PcmAudio(level, 2, VoiceMixer.SampleRate), loop: true));
+        commands.TryWrite(Play(Level(16384), loop: true));
         float[] block = new float[VoiceMixer.BlockFrames * VoiceMixer.Channels];
         mixer.Mix(block);
 
@@ -119,7 +117,7 @@ public sealed class VoiceMixerTests
         float[] expected = new float[block.Length];
         for (int frame = 0; frame < Fade; frame++)
         {
-            expected[2 * frame] = expected[(2 * frame) + 1] = 0.5f * (1f * ((float)(Fade - 1 - frame) / Fade));
+            expected[2 * frame] = expected[(2 * frame) + 1] = 0.5f * ((float)(Fade - 1 - frame) / Fade);
         }
 
         Assert.Equal(expected, block);
@@ -181,7 +179,7 @@ public sealed class VoiceMixerTests
         {
             int frame = sample / 2;
             float envelope = frame < Fade ? (float)frame / Fade : 1f;
-            expected[sample] = clip[(2 * Offset) + sample] * PcmAudio.Pcm16Scale * (1f * envelope);
+            expected[sample] = clip[(2 * Offset) + sample] * PcmAudio.Pcm16Scale * envelope;
         }
 
         Assert.Equal(expected, output);

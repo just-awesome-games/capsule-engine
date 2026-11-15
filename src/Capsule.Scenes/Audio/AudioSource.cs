@@ -97,8 +97,8 @@ public sealed class AudioSource(AudioClip clip) : Component, IAudioAnchor
     /// <remarks>
     /// It applies to the live voice immediately and to every voice played afterwards. A mono clip
     /// pans across the field at equal power. A stereo clip keeps its near side whole and fades its far
-    /// side, which is silent at a hard pan. While <see cref="Range"/> is positional the voice ignores this and pans from its entity's
-    /// position.
+    /// side, which is silent at a hard pan. While <see cref="Range"/> is positional the voice ignores
+    /// this and pans from its entity's position.
     /// </remarks>
     public float Pan
     {

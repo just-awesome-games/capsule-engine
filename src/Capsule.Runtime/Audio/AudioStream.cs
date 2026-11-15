@@ -6,12 +6,8 @@ namespace Capsule.Runtime.Audio;
 // One streamed voice's decoded frames: a fixed ring of float samples the decode worker fills ahead
 // and the mix thread reads. The source and the loop reader over it belong to the worker for the
 // length of a play, and the loop region is honoured there. The mixer sees a plain run of frames that
-// ends only when the source does.
-//
-// Everything a play needs belongs to the stream and outlives the play: the ring and the loop reader.
-// A stream that has ended goes back to the streamer's pool and is armed over the next play's source in
-// place, and a warm replay allocates nothing. A file-backed source is per play, because it holds a
-// file handle.
+// ends only when the source does. The ring and the loop reader outlive every play, and an ended
+// stream is armed in place over the next play's source.
 //
 // The worker owns the written count and the mixer the read count, and each only reads the other's.
 // The end flag is published after the last written count. A mixer that sees the end has every frame.
@@ -33,7 +29,6 @@ internal sealed class AudioStream
 
     private const int Mask = Capacity - 1;
 
-    private readonly float[] _ring = new float[Capacity];
     private readonly LoopedPcmReader _reader = new();
     private readonly AudioStreamer _streamer;
 
@@ -55,6 +50,9 @@ internal sealed class AudioStream
     // thread, because a log sink is written only on the simulation thread.
     private string? _fault;
 
+    // The ring the mixer reads, at ReadPosition and below WrittenSamples, masked by Capacity.
+    internal float[] Ring { get; } = new float[Capacity];
+
     internal int Channels { get; private set; } = 1;
 
     internal int SampleRate { get; private set; } = 1;
@@ -67,9 +65,6 @@ internal sealed class AudioStream
 
     // Whether the source is spent or has faulted. Every frame it yielded is already counted written.
     internal bool Ended => _ended;
-
-    // The ring the mixer reads, at ReadPosition and below WrittenSamples, masked by Capacity.
-    internal float[] Ring => _ring;
 
     // On the mixer. Its own count, read without a barrier.
     internal long ReadPosition => _read;
@@ -109,10 +104,6 @@ internal sealed class AudioStream
         _streamer.Wake();
     }
 
-    // Decodes into the ring's free space on the worker. Returns whether it did work, letting an idle
-    // worker wait instead of spin.
-    internal bool Fill() => Fill(Capacity);
-
     // Called on the worker once this stream is retiring, and on the streamer's teardown after the
     // worker has been joined. The reader is emptied and not dropped. A stream in the pool holds no
     // file handle.
@@ -132,7 +123,9 @@ internal sealed class AudioStream
         }
     }
 
-    private bool Fill(int most)
+    // Decodes up to most samples into the ring's free space, on the worker once armed. Returns whether
+    // it did work, letting an idle worker wait instead of spin.
+    internal bool Fill(int most = Capacity)
     {
         if (_ended || _returning)
         {
@@ -155,7 +148,7 @@ internal sealed class AudioStream
         int read;
         try
         {
-            read = _reader.Read(_ring.AsSpan(start, room));
+            read = _reader.Read(Ring.AsSpan(start, room));
         }
         catch (Exception failure)
         {
