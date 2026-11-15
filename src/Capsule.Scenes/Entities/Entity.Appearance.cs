@@ -114,7 +114,8 @@ public partial class Entity
     /// <remarks>
     /// Unlike <see cref="Tint"/> and <see cref="Flash"/> it does not reach child entities, and each child sets its own.
     /// Renderers sharing it batch as any sharing one instance do. A material held at construction is loaded with the
-    /// scene, and one set later loads on its first draw.
+    /// scene. One set later is too where this entity's class reads its shader and textures from <c>CapsuleAssets</c> or
+    /// adds it in <see cref="CollectAssets"/>, and otherwise loads on its first draw.
     /// </remarks>
     /// <example>
     /// A figure of several parts, recoloured as one:

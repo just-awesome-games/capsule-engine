@@ -129,10 +129,6 @@ internal sealed class PlayerVisual : Entity
         }
     }
 
-    // The draw-in's material is set after the room starts, and declaring it here loads it with the room.
-    /// <inheritdoc/>
-    protected override void CollectAssets(AssetCollection assets) => assets.Add(_reveal);
-
     // A hit flashes white and fades, then the grace reads as a red blink. The root owns the rule
     // and this child owns the look. The late step follows contacts: the step a hit lands on draws
     // white, and the hitstop holds it. It also follows the animator: a footstep sounds on the step

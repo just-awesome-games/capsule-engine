@@ -175,18 +175,14 @@ public sealed class SpriteAnimator : Component
     {
         ArgumentNullException.ThrowIfNull(assets);
 
-        AddTextures(assets, Clip);
-        AddTextures(assets, _then);
-
-        static void AddTextures(AssetCollection assets, SpriteClip? clip)
+        if (Clip is { } clip)
         {
-            foreach (Sprite frame in clip is null ? [] : clip.Frames)
-            {
-                if (frame.Texture != default)
-                {
-                    assets.Add(frame.Texture);
-                }
-            }
+            assets.Add(clip);
+        }
+
+        if (_then is { } then)
+        {
+            assets.Add(then);
         }
     }
 

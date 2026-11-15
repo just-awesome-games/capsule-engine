@@ -60,7 +60,7 @@ public sealed class SpriteVariant
         _textures = TexturesOf(drawn);
     }
 
-    /// <summary>Every texture this variant draws from, each once. An owner preloads them with <see cref="AssetCollection.Add(ReadOnlySpan{TextureHandle})"/>.</summary>
+    /// <summary>Every texture this variant draws from, each once. <see cref="AssetCollection.Add(SpriteVariant)"/> preloads them.</summary>
     public ReadOnlySpan<TextureHandle> Textures => _textures;
 
     /// <summary>Joins <paramref name="variants"/> into one variant mapping every frame each of them maps.</summary>

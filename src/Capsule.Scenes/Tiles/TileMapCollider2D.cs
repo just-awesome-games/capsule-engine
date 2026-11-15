@@ -40,10 +40,6 @@ public sealed class TileMapCollider2D : Component
     private TileMap? _map;
     private CollisionWorld2D? _world;
 
-    // The bodies riding a cell whose tile has a surface velocity.
-    private RiderList _riders = new();
-    private bool _carrying;
-
     /// <summary>Whether the grid is in the scene's world, true by default.</summary>
     /// <remarks>A change in a scene adds or removes the grid at once.</remarks>
     public bool Enabled
@@ -77,13 +73,9 @@ public sealed class TileMapCollider2D : Component
     // no scene.
     internal CollisionGrid2D? Grid { get; private set; }
 
-    /// <summary>A collider for the map it is added to.</summary>
-    public TileMapCollider2D() => EngineSteps = true;
-
     internal override TransformSupport Supports => TransformSupport.Position;
 
-    // The palette is fixed per grid. Whether the map's cells carry is known when this attaches.
-    internal override bool Steps => Entity is TileMap { Grid.Carries: true };
+    internal override bool Steps => false;
 
     // Only a map whose palette names a layer can collide, and one grid covers the whole map.
     internal override void OnAttachedTo(Entity entity)
@@ -121,35 +113,6 @@ public sealed class TileMapCollider2D : Component
 
     // Points the registered grid at the map's own copy of its cells.
     internal void Rebind(CellBlocks cells) => Grid?.Rebind(cells);
-
-    internal void AddRider(KinematicBody2D body) => _riders.Add(body);
-
-    internal void RemoveRider(KinematicBody2D body) => _riders.Remove(body, _carrying);
-
-    // Carries each rider by one step of its cell's surface velocity. The count is read once. A body
-    // that lands here mid-carry waits for the next step.
-    internal override void OnEngineStep(in StepContext context)
-    {
-        if (_riders.Count == 0 || _carrying)
-        {
-            return;
-        }
-
-        _carrying = true;
-        try
-        {
-            int count = _riders.Count;
-            for (int index = 0; index < count && Grid is not null; index++)
-            {
-                _riders[index]?.CarryOnCell(context);
-            }
-        }
-        finally
-        {
-            _carrying = false;
-            _riders.Compact();
-        }
-    }
 
     /// <inheritdoc/>
     protected internal override void OnAddedToScene()
@@ -305,17 +268,5 @@ public sealed class TileMapCollider2D : Component
         }
 
         Grid = null;
-        ReleaseRiders();
-    }
-
-    // Lets go of every rider as the grid leaves the world.
-    private void ReleaseRiders()
-    {
-        for (int index = 0; index < _riders.Count; index++)
-        {
-            _riders.Take(index)?.ForgetCell(this);
-        }
-
-        _riders.Clear();
     }
 }

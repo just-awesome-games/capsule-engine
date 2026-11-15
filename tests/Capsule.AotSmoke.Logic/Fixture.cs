@@ -65,6 +65,13 @@ public sealed class FixtureLabel : Entity
         Add(new Label(CapsuleAssets.Fonts.MenuFont, Text));
 }
 
+// A scene whose only preload is the texture its own code names, which the assembly's generated module initializer
+// records before the class first runs.
+public sealed class NamingScene : Scene
+{
+    public static TextureHandle Named => CapsuleAssets.Textures.KeptTexture;
+}
+
 public sealed class FixtureEntity : Entity
 {
     private static readonly Sprite Visual = new(CapsuleAssets.Textures.PixelTexture, new TextureRegion(0, 0, 1, 1));

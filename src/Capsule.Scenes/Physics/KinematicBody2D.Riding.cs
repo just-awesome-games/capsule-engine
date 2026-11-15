@@ -39,30 +39,41 @@ public sealed partial class KinematicBody2D
     // cannot reach the body.
     internal bool CarriedWholeBy(Collider2D floor) => _carriedWhole && ReferenceEquals(_floor, floor);
 
-    // Carries the body one step of its cell's surface velocity. A cell that now holds another tile ends
-    // the ride.
-    internal void CarryOnCell(in StepContext context)
+    // A surface with a velocity is a floor that moves zero, and the body riding it carries itself by one step
+    // of that velocity. A held floor still carries a body that steps, and a held body is never carried. A cell
+    // that holds another tile, or whose map has left the world since, ends the ride. A floor that is the body's
+    // own entity or an ancestor's moves with it already.
+    internal override void OnEngineStep(in StepContext context)
     {
-        TileContact2D cell = _floorCell!.Value;
-        if (!ReferenceEquals(cell.Type, _floorTile))
+        Vector2 velocity;
+        if (_floorCell is { } cell)
         {
-            Unride();
+            if (!ReferenceEquals(cell.Map.AttachedCollider?.Grid, _floorGrid) || !ReferenceEquals(cell.Type, _floorTile))
+            {
+                Unride();
+                return;
+            }
+
+            velocity = cell.Map.SurfaceVelocityAt(cell.X, cell.Y);
+        }
+        else if (_floor is { } floor && !floor.MovesWith(Entity))
+        {
+            velocity = floor.SurfaceVelocity;
+        }
+        else
+        {
             return;
         }
 
-        CarryOnSurface(cell.Map.SurfaceVelocityAt(cell.X, cell.Y) * context.DeltaSeconds, context.Tick);
+        if (velocity != Vector2.Zero)
+        {
+            CarryOnSurface(velocity * context.DeltaSeconds);
+        }
     }
 
     // Carries the body by its floor's surface motion, swept as its own move is, and finds its floor again.
-    // Only the first surface to carry the body in a step moves it.
-    internal void CarryOnSurface(Vector2 motion, long tick)
+    private void CarryOnSurface(Vector2 motion)
     {
-        if (_surfaceTick == tick)
-        {
-            return;
-        }
-
-        _surfaceTick = tick;
         RecordCarry(motion);
         CollisionWorld2D world = _collider.World!;
         Entity entity = Entity!;
@@ -181,18 +192,9 @@ public sealed partial class KinematicBody2D
     {
         if (ReferenceEquals(_floor, floor))
         {
+            bool stepped = Steps;
             _floor = null;
-        }
-    }
-
-    // Called by a map collider this body rides as it leaves the world. The collider has already let go.
-    internal void ForgetCell(TileMapCollider2D grid)
-    {
-        if (ReferenceEquals(_floorGrid, grid))
-        {
-            _floorGrid = null;
-            _floorCell = null;
-            _floorTile = null;
+            FollowSteps(stepped);
         }
     }
 
@@ -213,6 +215,7 @@ public sealed partial class KinematicBody2D
 
     private void Ride(Collider2D? floor, TileContact2D? cell)
     {
+        bool stepped = Steps;
         if (!ReferenceEquals(_floor, floor))
         {
             _carriedMotion = Vector2.Zero;
@@ -225,18 +228,25 @@ public sealed partial class KinematicBody2D
             }
         }
 
-        TileMapCollider2D? grid = cell?.Map.AttachedCollider;
-        if (!ReferenceEquals(_floorGrid, grid))
+        if (!ReferenceEquals(_floorCell?.Map, cell?.Map))
         {
             _carriedMotion = Vector2.Zero;
             _priorMotion = Vector2.Zero;
-            _floorGrid?.RemoveRider(this);
-            grid?.AddRider(this);
-            _floorGrid = grid;
         }
 
         _floorCell = cell;
         _floorTile = cell?.Type;
+        _floorGrid = cell?.Map.AttachedCollider?.Grid;
+        FollowSteps(stepped);
+    }
+
+    // Tells the entity when a change of floor starts or ends this body's stepping.
+    private void FollowSteps(bool stepped)
+    {
+        if (Steps != stepped)
+        {
+            Entity?.CountStepper(Steps);
+        }
     }
 
     // Clears the riding link both ways.

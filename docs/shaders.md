@@ -55,8 +55,9 @@ page in place of a texture packed onto it.
 
 ## Drawing with it
 
-An entity that assigns a material after it has started declares it from `CollectAssets`
-([`assets.md`](assets.md#loading-and-residency)). A material never changes draw order. Lines, the light
+A material an entity assigns after it has started preloads the shader and textures its class names from
+`CapsuleAssets`. The entity declares from `CollectAssets` only what its code cannot show, such as a
+material or a texture chosen by data ([`assets.md`](assets.md#loading-and-residency)). A material never changes draw order. Lines, the light
 map and the debug overlay draw with the engine's own shader.
 
 ## Reading the picture

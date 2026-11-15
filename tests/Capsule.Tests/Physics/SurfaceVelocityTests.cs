@@ -32,8 +32,7 @@ public sealed class SurfaceVelocityTests
         Assert.True(walker.Mover.IsOnFloor);
     }
 
-    // A collider with no surface velocity does not step. Setting one in the scene starts the carry, and
-    // clearing it stops the carry.
+    // Setting a surface velocity in the scene starts the carry, and clearing it stops the carry.
     [Fact]
     public void ASurfaceVelocitySetAtRuntime_StartsAndStopsTheCarry()
     {
@@ -52,6 +51,60 @@ public sealed class SurfaceVelocityTests
         conveyor.Surface.SurfaceVelocity = Vector2.Zero;
         Advance(simulation, 15, 5);
         Assert.Equal(18f, walker.Position.X, CollisionFixtures.Tolerance);
+    }
+
+    // The body carries itself. A pause that holds the belt still carries a body stepping through it.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AHeldBelt_CarriesABodyThatSteps(bool collider)
+    {
+        Scene scene = collider ? new Scene() : SceneFixtures.Terrain(Grid("......", "......", ">>>>>>"));
+        if (collider)
+        {
+            scene.Add(new Conveyor(new Vector2(0f, 32f), Speed));
+        }
+
+        Rider walker = new(new Vector2(8f, 16f), Belt) { StepMode = StepMode.Always };
+        SceneSimulation simulation = Start(scene, walker);
+        scene.Paused = true;
+
+        Advance(simulation, 0, 10);
+
+        Assert.Equal(18f, walker.Position.X, CollisionFixtures.Tolerance);
+    }
+
+    [Fact]
+    public void AHeldBody_IsNotCarriedByABeltThatSteps()
+    {
+        Scene scene = new();
+        scene.Add(new Conveyor(new Vector2(0f, 32f), Speed) { StepMode = StepMode.Always });
+        Rider walker = new(new Vector2(8f, 16f), Belt);
+        SceneSimulation simulation = Start(scene, walker);
+        scene.Paused = true;
+
+        Advance(simulation, 0, 10);
+
+        Assert.Equal(8f, walker.Position.X);
+    }
+
+    // The body never moves itself, and only a move finds a floor. A map that leaves the world and returns
+    // before the body steps has ended the ride all the same.
+    [Fact]
+    public void AMapThatLeftTheWorldAndReturned_NoLongerCarriesTheBodyThatRodeIt()
+    {
+        Scene scene = SceneFixtures.Terrain(Grid("......", "......", ">>>>>>"));
+        Rider walker = new(new Vector2(8f, 16f), Belt);
+        SceneSimulation simulation = Start(scene, walker);
+        Advance(simulation, 0, 1);
+        float carried = walker.Position.X;
+        TileMapCollider2D ground = SceneFixtures.TerrainOf(scene).Get<TileMapCollider2D>();
+
+        ground.Enabled = false;
+        ground.Enabled = true;
+        Advance(simulation, 1, 5);
+
+        Assert.Equal(carried, walker.Position.X);
     }
 
     // Two belts meet at x = 96. The body reaches the seam on its 16th step, where the first belt hands it

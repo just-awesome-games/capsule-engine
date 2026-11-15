@@ -75,9 +75,10 @@ public abstract class Renderer : Component
     /// </summary>
     /// <remarks>
     /// Neighbouring sprites draw in one batch when they share a texture and a material instance.
-    /// A material held at construction is loaded with the scene, and one set later loads on its
-    /// first draw. <see cref="Entity.Tint"/> and <see cref="Entity.Flash"/> apply whatever the
-    /// material.
+    /// A material held at construction is loaded with the scene. One set later is too where its owner's
+    /// class reads its shader and textures from <c>CapsuleAssets</c> or adds it in <c>CollectAssets</c>, and
+    /// otherwise loads on its first draw.
+    /// <see cref="Entity.Tint"/> and <see cref="Entity.Flash"/> apply whatever the material.
     /// </remarks>
     public Material? Material { get; set; }
 

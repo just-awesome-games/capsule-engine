@@ -29,6 +29,7 @@ public sealed class GeneratorCachingTests
     [InlineData("ScenePayloadPlan")]
     [InlineData("InputDriverPlan")]
     [InlineData("BootPlan")]
+    [InlineData("PreloadPlan")]
     public void AnEditToAMethodBody_RunsNoPlanAgain(string step)
     {
         GeneratorDriverRunResult result = GeneratorHarness.RanTwice(

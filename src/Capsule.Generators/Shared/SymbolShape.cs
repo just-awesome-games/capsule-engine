@@ -7,6 +7,18 @@ internal static class SymbolShape
 {
     internal static string QualifiedName(ITypeSymbol type) => type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
+    /// <summary>The name <c>typeof</c> takes for the type, unbound where it is generic: <c>global::Game.Box&lt;&gt;</c>.</summary>
+    internal static string TypeOfName(INamedTypeSymbol type)
+    {
+        string prefix = type.ContainingType is { } containing
+            ? TypeOfName(containing) + "."
+            : type.ContainingNamespace is { IsGlobalNamespace: false } space
+                ? space.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "."
+                : "global::";
+
+        return prefix + CodeText.Identifier(type.Name) + (type.Arity > 0 ? "<" + new string(',', type.Arity - 1) + ">" : string.Empty);
+    }
+
     /// <summary>The type's namespace as written, or empty for the global namespace.</summary>
     internal static string NamespaceOf(INamedTypeSymbol type) =>
         type.ContainingNamespace is { IsGlobalNamespace: false } containing ? containing.ToDisplayString() : string.Empty;

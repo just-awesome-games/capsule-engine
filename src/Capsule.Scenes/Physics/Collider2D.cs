@@ -131,7 +131,6 @@ public abstract partial class Collider2D : Component, ISettleListEntry
 
         _shape = shape;
         _local = shape;
-        EngineSteps = true;
     }
 
     /// <summary>The shape in the collider's own space. <see cref="Offset"/> and the entity's position place it.</summary>
@@ -274,12 +273,7 @@ public abstract partial class Collider2D : Component, ISettleListEntry
         set
         {
             Guard.Finite(value, nameof(value));
-            bool steps = Steps;
             _surfaceVelocity = value;
-            if (Steps != steps)
-            {
-                Entity?.CountStepper(Steps);
-            }
         }
     }
 

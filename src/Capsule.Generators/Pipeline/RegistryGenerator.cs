@@ -54,6 +54,15 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         IncrementalValueProvider<EquatableArray<SceneDocumentModel>> documents = Collected(Marked(
             context, MetadataNames.SceneDocumentKeyAttribute, static marked => SceneDescriber.DescribeDocument(marked)));
 
+        // What each scene, entity and component class reads from CapsuleAssets in its own code. Its own pass, because
+        // a partial part with no base list or attribute reads too.
+        IncrementalValueProvider<PreloadPlan> preloadPlan = Collected(context.SyntaxProvider
+                .CreateSyntaxProvider(static (node, _) => PreloadDescriber.MayRead(node), PreloadDescriber.Describe)
+                .Where(static model => model is not null)
+                .Select(static (model, _) => model!.Value))
+            .Select(static (models, _) => PreloadResolver.Resolve(models))
+            .WithTrackingName("PreloadPlan");
+
         // What each [Authorable] member is, checked where it is declared, whether or not a class spawns it.
         IncrementalValuesProvider<AuthorableFault> authorableFaults = context.SyntaxProvider
             .ForAttributeWithMetadataName(
@@ -111,9 +120,9 @@ public sealed class RegistryGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(scenePlan.Combine(documents), DocumentClaimCheck.Run);
         context.RegisterSourceOutput(driverPlan.Combine(isLogicAssembly), static (production, input) => NamedClassRenderer.Emit(production, input, NamedRegistry.InputDrivers));
         context.RegisterSourceOutput(payloadPlan.Combine(isLogicAssembly), static (production, input) => NamedClassRenderer.Emit(production, input, NamedRegistry.ScenePayloads));
+        context.RegisterSourceOutput(preloadPlan.Combine(isLogicAssembly), PreloadRenderer.Emit);
         context.RegisterSourceOutput(providerName, RegistryProviderRenderer.Emit);
         context.RegisterSourceOutput(bootPlan, BootRenderer.Emit);
-        context.RegisterSourceOutput(project, GlobalUsingsRenderer.Emit);
         context.RegisterSourceOutput(project, RoleCheck.Report);
     }
 

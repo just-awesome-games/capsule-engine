@@ -17,13 +17,14 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Capsule.Tests.Generators;
 
-internal static class GeneratorHarness
+internal static partial class GeneratorHarness
 {
     internal const string CapsuleEntitiesFile = "CapsuleEntities.g.cs";
     internal const string CapsuleScenesFile = "CapsuleScenes.g.cs";
     internal const string CapsuleBootFile = "CapsuleBoot.g.cs";
     internal const string CapsuleInputDriversFile = "CapsuleInputDrivers.g.cs";
     internal const string CapsuleScenePayloadsFile = "CapsuleScenePayloads.g.cs";
+    internal const string CapsulePreloadsFile = "CapsulePreloads.g.cs";
 
     internal const string Preamble = """
         using System.Numerics;
@@ -48,7 +49,7 @@ internal static class GeneratorHarness
     /// <summary>A camera subclass a document's <c>camera</c> member names as <c>game-camera</c>.</summary>
     internal const string GameCamera = "public sealed class GameCamera : Camera;";
 
-    private static readonly ImmutableArray<MetadataReference> References =
+    internal static readonly ImmutableArray<MetadataReference> References =
         Referenced(null, typeof(Entity).Assembly, typeof(TileGrid).Assembly, typeof(object).Assembly);
 
     internal static IEnumerable<Diagnostic> Errors(IEnumerable<Diagnostic> diagnostics) =>
@@ -259,7 +260,7 @@ internal static class GeneratorHarness
     private static MetadataReference LogicAssembly(string assemblyName, string source) =>
         MetadataReference.CreateFromImage(LogicImage(assemblyName, source));
 
-    private static byte[] LogicImage(string assemblyName, string source, params (string Path, string? Content)[] assets)
+    internal static byte[] LogicImage(string assemblyName, string source, params (string Path, string? Content)[] assets)
     {
         Compilation logic = Run(Created(assemblyName, source, References, assets.Length == 0 ? null : Documents(assets)), logic: true, shell: false).Updated;
 
@@ -297,7 +298,7 @@ internal static class GeneratorHarness
             assemblyName.Name == "GameSpecs" ? _logic ??= LoadFromStream(new MemoryStream(logic)) : null;
     }
 
-    private static CSharpCompilation Created(
+    internal static CSharpCompilation Created(
         string assemblyName,
         string source,
         ImmutableArray<MetadataReference> references,
@@ -308,12 +309,18 @@ internal static class GeneratorHarness
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-    private static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) Run(
+    internal static (ImmutableArray<Diagnostic> Diagnostics, Compilation Updated) Run(
         CSharpCompilation compilation,
         bool logic,
         bool shell,
         string? rootNamespace = null)
     {
+        // The build imports Capsule.Generated into a logic or shell project ahead of the generator, through its Using item.
+        if (logic || shell)
+        {
+            compilation = compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText("global using global::Capsule.Generated;"));
+        }
+
         CSharpGeneratorDriver.Create(
                 [new RegistryGenerator().AsSourceGenerator()],
                 parseOptions: null,
@@ -353,46 +360,5 @@ internal static class GeneratorHarness
         }
 
         return references.ToImmutable();
-    }
-
-    /// <summary>The roles a project declares, as the compiler hands them to a generator or analyzer.</summary>
-    internal sealed class DeclaredRole : AnalyzerConfigOptionsProvider
-    {
-        private static readonly AnalyzerConfigOptions None = new Properties(logic: false, shell: false, rootNamespace: null);
-
-        public override AnalyzerConfigOptions GlobalOptions { get; }
-
-        internal DeclaredRole(bool logic, bool shell, string? rootNamespace = null) =>
-            GlobalOptions = new Properties(logic, shell, rootNamespace);
-
-        public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => None;
-
-        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => None;
-
-        private sealed class Properties(bool logic, bool shell, string? rootNamespace) : AnalyzerConfigOptions
-        {
-            public override bool TryGetValue(string key, [NotNullWhen(true)] out string? value)
-            {
-                bool declared = logic && string.Equals(key, "build_property.CapsuleGameLogic", StringComparison.Ordinal)
-                    || shell && string.Equals(key, "build_property.CapsuleGameShell", StringComparison.Ordinal);
-                if (declared)
-                {
-                    value = "true";
-
-                    return true;
-                }
-
-                if (rootNamespace is not null && string.Equals(key, "build_property.RootNamespace", StringComparison.Ordinal))
-                {
-                    value = rootNamespace;
-
-                    return true;
-                }
-
-                value = null;
-
-                return false;
-            }
-        }
     }
 }

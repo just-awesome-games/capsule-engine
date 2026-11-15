@@ -3,7 +3,7 @@
   <!-- What Capsule sets ahead of the project body. JAG.Capsule carries this file as
        buildTransitive/JAG.Capsule.props, and Capsule.Build.props imports it for a source consumer.
        A property here cannot read a role. Every role default lives in Capsule.Build.targets, apart
-       from the logic role's usings below. -->
+       from the role usings below. -->
   <PropertyGroup>
     <!-- Universal import, inert without the shell role, which Capsule.OutputType.targets reads after
          the project body and ahead of the SDK's targets, which read OutputType. -->
@@ -23,6 +23,13 @@
   <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true' and ('$(ImplicitUsings)' == 'enable' or '$(ImplicitUsings)' == 'true')">
     <Using Include="Capsule;Capsule.Animation;Capsule.Assets;Capsule.Audio;Capsule.Diagnostics;Capsule.Input;Capsule.Particles" />
     <Using Include="Capsule.Localization;Capsule.Navigation;Capsule.Persistence;Capsule.Physics;Capsule.Rendering;Capsule.Scenes;Capsule.Tiles;Capsule.UI;System.Numerics" />
+  </ItemGroup>
+
+  <!-- Every generated type lives in Capsule.Generated, which the logic and shell projects import whatever
+       ImplicitUsings says. The SDK writes the import into a source file ahead of compilation, and the
+       generators read game code with it in scope. -->
+  <ItemGroup Condition="'$(CapsuleGameLogic)' == 'true' or '$(CapsuleGameShell)' == 'true'">
+    <Using Include="global::Capsule.Generated" />
   </ItemGroup>
 
   <!-- Source control reports the repository root in the spelling the project was reached by. The SDK

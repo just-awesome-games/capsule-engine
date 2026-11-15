@@ -70,7 +70,7 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
     {
         ArgumentNullException.ThrowIfNull(assets);
 
-        assets.Add(Sprite.Texture);
+        assets.Add(Sprite);
     }
 
     /// <inheritdoc/>

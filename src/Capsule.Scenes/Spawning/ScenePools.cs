@@ -108,6 +108,7 @@ internal sealed class ScenePools
         assets.GatheringScene = _scene;
         try
         {
+            assets.AddClassAssets(_scene);
             _scene.CollectAssets(assets);
             if (_scene.AuthoredAssets is { } authored)
             {

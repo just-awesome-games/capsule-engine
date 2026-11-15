@@ -79,8 +79,8 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
     /// to nothing. A frame it does not map draws as itself. <see cref="Sprite"/>, sockets and boxes
     /// still read the held frame. A variant never moves a socket or a box. <see cref="Bounds"/>
     /// covers the frame drawn. A variant held when the scene collects its assets is preloaded with
-    /// the scene. One set later loads each texture on its first draw, and its owner preloads it by
-    /// adding <see cref="SpriteVariant.Textures"/> in its own <c>CollectAssets</c>.
+    /// the scene, and so is one its owner's class reads from <c>CapsuleAssets</c>. Any other set later
+    /// loads each texture on its first draw unless its owner adds the variant in its own <c>CollectAssets</c>.
     /// </remarks>
     /// <example>
     /// A hat drawn over an avatar, one drawing for each of the avatar's frames:
@@ -343,12 +343,12 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
 
         if (DrawnFrame is { } drawn)
         {
-            assets.Add(drawn.Texture);
+            assets.Add(drawn);
         }
 
         if (_extras?.Look is { } look)
         {
-            assets.Add(look.Variant.Textures);
+            assets.Add(look.Variant);
         }
     }
 

@@ -34,7 +34,7 @@ public sealed class PolygonCollider2D : Collider2D
     /// <summary>How far the collider extends beyond its hull, in world units. Zero for a plain polygon.</summary>
     public float Radius => Shape.Radius;
 
-    internal override bool Steps => SurfaceVelocity != Vector2.Zero;
+    internal override bool Steps => false;
 
     /// <summary>
     /// Replaces the hull's corners with three or four <paramref name="points"/> in the collider's own units,

@@ -180,9 +180,6 @@ public sealed class TileGrid
     // Whether any palette entry is on a layer. A grid with none needs no collider.
     internal bool Collides => Array.Exists(_tileTypes, static tileType => tileType.Layer is not null);
 
-    // Whether any palette entry has a surface velocity. Only such a grid's collider steps.
-    internal bool Carries => Array.Exists(_tileTypes, static tileType => tileType.SurfaceVelocity != Vector2.Zero);
-
     // Memory instead of a span, which a map can hold. A map never writes the grid's own table.
     internal ReadOnlyMemory<Sprite?> Sprites => _sprites;
 

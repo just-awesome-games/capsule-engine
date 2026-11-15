@@ -59,30 +59,9 @@ public abstract partial class Collider2D
 
     internal void RemoveRider(KinematicBody2D body) => _riders.Remove(body, _pushing);
 
-    // A surface with a velocity is a floor that moves zero and carries its riders by one step of it.
-    internal override void OnEngineStep(in StepContext context)
-    {
-        if (_surfaceVelocity == Vector2.Zero || _riders.Count == 0 || _pushing)
-        {
-            return;
-        }
-
-        _pushing = true;
-        try
-        {
-            CarryRiders(_surfaceVelocity * context.DeltaSeconds, context.Tick);
-        }
-        finally
-        {
-            _pushing = false;
-            _riders.Compact();
-        }
-    }
-
     // A carried rider's colliders move in turn, which carries whatever rides them. The count is read
-    // once. A body that lands here mid-carry waits for the next move. A surface carry passes its step's
-    // tick.
-    private void CarryRiders(Vector2 motion, long? surfaceTick = null)
+    // once. A body that lands here mid-carry waits for the next move.
+    private void CarryRiders(Vector2 motion)
     {
         int count = _riders.Count;
         for (int index = 0; index < count && _world is not null; index++)
@@ -92,14 +71,7 @@ public abstract partial class Collider2D
                 continue;
             }
 
-            if (surfaceTick is { } tick)
-            {
-                rider.CarryOnSurface(motion, tick);
-            }
-            else
-            {
-                rider.Carry(motion);
-            }
+            rider.Carry(motion);
         }
     }
 
@@ -182,7 +154,7 @@ public abstract partial class Collider2D
     }
 
     // Whether an entity is this collider's own or one of its ancestors, which move with it already.
-    private bool MovesWith(Entity? other)
+    internal bool MovesWith(Entity? other)
     {
         for (Entity? entity = Entity; entity is not null; entity = entity.Parent)
         {

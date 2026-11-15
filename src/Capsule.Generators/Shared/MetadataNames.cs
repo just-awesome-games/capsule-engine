@@ -26,6 +26,21 @@ internal static class MetadataNames
     internal const string EntryKeys = "Capsule.Scenes.SceneDocumentKeys+Entry";
     internal const string MemberObjectKeys = "Capsule.Scenes.SceneDocumentKeys+MemberObject";
 
+    // The build's tree of every asset a game ships, and the member types a scene, entity or component class
+    // preloads when its own code reads one, each spelled as generated code names it.
+    internal const string CapsuleAssets = "Capsule.Generated.CapsuleAssets";
+    internal const string ManualPreloadsAttribute = "Capsule.Assets.ManualPreloadsAttribute";
+    internal static readonly string[] PreloadedAssetTypes =
+    [
+        "global::Capsule.Audio.AudioClip",
+        "global::Capsule.Assets.TextureHandle",
+        "global::Capsule.Rendering.Sprite",
+        "global::Capsule.Animation.SpriteClip",
+        "global::Capsule.Rendering.SpriteVariant",
+        "global::Capsule.Rendering.BitmapFont",
+        "global::Capsule.Rendering.Shader",
+    ];
+
     // What the build marks CapsuleAssets with.
     internal const string SceneDocumentKeyAttribute = "Capsule.Generated.CapsuleGeneratedSceneDocumentAttribute";
 

@@ -589,10 +589,7 @@ public sealed class ParticleEmitter : Renderer
     {
         ArgumentNullException.ThrowIfNull(assets);
 
-        foreach (Sprite frame in _clip.Frames)
-        {
-            assets.Add(frame.Texture);
-        }
+        assets.Add(_clip);
     }
 
     /// <inheritdoc/>

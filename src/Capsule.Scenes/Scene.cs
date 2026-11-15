@@ -514,12 +514,14 @@ public partial class Scene
     }
 
     /// <summary>
-    /// Appends assets this scene declares beyond those owned by its entities and components.
-    /// Collection can run before <see cref="OnStart"/>.
+    /// Appends assets this scene declares beyond those its entities and components own and its class's code
+    /// names. Collection can run before <see cref="OnStart"/>.
     /// </summary>
     /// <remarks>
-    /// Declare from construction-time state and <see cref="EntryPayload"/>, which already holds the payload the
-    /// scene opens with. An override appends to <paramref name="assets"/> and changes nothing else.
+    /// Before this hook runs, the collection holds every <c>CapsuleAssets</c> member the code of this class and of
+    /// each base class reads, except a class marked <see cref="ManualPreloadsAttribute"/>. Declare here what that
+    /// code cannot show from construction-time state and <see cref="EntryPayload"/>, which already holds the
+    /// payload the scene opens with. An override appends to <paramref name="assets"/> and changes nothing else.
     /// </remarks>
     /// <example>
     /// A scene showing one of several figures, named by its payload:

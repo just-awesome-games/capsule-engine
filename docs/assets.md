@@ -84,8 +84,14 @@ compile on any desktop operating system with nothing to install.
 ## Loading and residency
 
 A scene collects what it needs before it starts, and the runtime preloads it at the scene boundary on
-worker threads. The scene starts once the last file has landed. `Scene.CollectAssets`,
-`Entity.CollectAssets` and `Component.CollectAssets` are the hooks:
+worker threads. The scene starts once the last file has landed.
+
+A scene, entity or component class preloads every sound, texture, sprite, clip, variant, font and shader
+that its own code and its base classes' code read from `CapsuleAssets`, such as a clip it plays through
+`Run.Audio`. `[ManualPreloads]` turns this off for one class that names many assets and shows one. What
+code cannot show is declared by hand: an asset chosen by data, a pool, one read through a helper class,
+and one a private nested class reads. `Scene.CollectAssets`, `Entity.CollectAssets` and
+`Component.CollectAssets` are the hooks:
 
 ```csharp
 protected override void CollectAssets(AssetCollection assets) => assets.Add(_texture);
@@ -104,7 +110,7 @@ protected override void CollectAssets(AssetCollection assets)
 }
 ```
 
-The engine's renderers, audio sources, labels and materials declare what they hold. An entity that
+The engine's renderers, audio sources, labels and materials also declare what they hold. An entity that
 attaches its components in its constructor is preloaded with them. A scene's pool is declared with
 `assets.Pool<T>(capacity)` ([Pooling](entities.md#pooling)), and an `EntityPool<T>` a
 spawner holds is forwarded from its hook. A resource the scene did not collect loads on first use, logs

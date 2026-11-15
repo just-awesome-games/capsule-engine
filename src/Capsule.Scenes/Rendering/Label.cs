@@ -450,7 +450,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     {
         ArgumentNullException.ThrowIfNull(assets);
 
-        assets.Add(Font.Pages);
+        assets.Add(Font);
     }
 
     /// <inheritdoc/>

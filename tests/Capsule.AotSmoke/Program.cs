@@ -167,6 +167,14 @@ internal static class Program
             return 5;
         }
 
+        // A trimmed publish keeps the generated module initializer that records what each class's code names.
+        if (!new NamingScene().CollectPreloads().Contains(NamingScene.Named))
+        {
+            Console.Error.WriteLine($"AOT smoke failed (13): a new {nameof(NamingScene)} does not preload {NamingScene.Named.Name}, which its own code names.");
+
+            return 13;
+        }
+
         // The half of a texture load that runs off the game thread needs no device. The published
         // decoder is proved here although the run below is headless.
         string texels = FontPageTexels();

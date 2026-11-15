@@ -931,8 +931,8 @@ public partial class Entity
     }
 
     /// <summary>
-    /// Appends assets this entity declares beyond those owned by its components. Collection can run
-    /// before <see cref="OnStart"/>.
+    /// Appends assets this entity declares beyond those its components own and its class's code names.
+    /// Collection can run before <see cref="OnStart"/>.
     /// </summary>
     /// <inheritdoc cref="Component.CollectAssets" path="/remarks"/>
     protected internal virtual void CollectAssets(AssetCollection assets)
@@ -952,6 +952,7 @@ public partial class Entity
         IEntityPool? previous = scene?.Pools.EnterDeclaringPool(OwningSharedPool());
         try
         {
+            assets.AddClassAssets(this);
             CollectAssets(assets);
 
             if (Material is { } own)
@@ -961,6 +962,7 @@ public partial class Entity
 
             foreach (Component component in Components)
             {
+                assets.AddClassAssets(component);
                 component.CollectAssets(assets);
 
                 if (component is Renderer { Material: { } material })

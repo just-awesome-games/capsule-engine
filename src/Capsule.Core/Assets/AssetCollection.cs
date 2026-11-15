@@ -1,3 +1,6 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using Capsule.Animation;
 using Capsule.Audio;
 using Capsule.Rendering;
 
@@ -7,8 +10,18 @@ namespace Capsule.Assets;
 /// Assets an object graph asks the host to preload, kept once each in first-declaration order.
 /// Collecting names does no device or file-system work.
 /// </summary>
+/// <remarks>
+/// A scene's collection holds every <c>CapsuleAssets</c> member the code of each scene, entity and
+/// component class it reaches reads, and of their base classes. A <c>CollectAssets</c> hook adds what
+/// that code does not name, such as an asset chosen by data.
+/// </remarks>
 public sealed class AssetCollection
 {
+    // What each class's own code names, keyed by the class, or by its definition for a generic class.
+    // Each logic assembly's module initializer adds its classes once. The table holds no class alive, and an
+    // unloaded assembly's entries go with it.
+    private static readonly ConditionalWeakTable<Type, Action<AssetCollection>> ClassAssets = new();
+
     private readonly List<TextureHandle> _textures = [];
     private readonly HashSet<TextureHandle> _textureSet = [];
     private readonly List<AudioClip> _clips = [];
@@ -72,6 +85,47 @@ public sealed class AssetCollection
         }
     }
 
+    /// <summary>Adds the texture a sprite is cut from unless it was already declared.</summary>
+    public void Add(Sprite sprite) => Add(sprite.Texture);
+
+    /// <summary>Adds the texture of every frame a clip plays, ignoring any already declared.</summary>
+    public void Add(SpriteClip clip)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+
+        foreach (Sprite frame in clip.Frames)
+        {
+            Add(frame.Texture);
+        }
+    }
+
+    /// <summary>Adds every texture a variant draws from, ignoring any already declared.</summary>
+    public void Add(SpriteVariant variant)
+    {
+        ArgumentNullException.ThrowIfNull(variant);
+
+        Add(variant.Textures);
+    }
+
+    /// <summary>Adds every page of a font, ignoring any already declared. The default font's page belongs to the host.</summary>
+    public void Add(BitmapFont font)
+    {
+        ArgumentNullException.ThrowIfNull(font);
+
+        Add(font.Pages);
+    }
+
+    /// <summary>Adds one shader unless it was already declared.</summary>
+    public void Add(Shader shader)
+    {
+        ArgumentNullException.ThrowIfNull(shader);
+
+        if (_shaderSet.Add(shader))
+        {
+            _shaders.Add(shader);
+        }
+    }
+
     /// <summary>Whether this collection declares <paramref name="texture"/>.</summary>
     public bool Contains(TextureHandle texture) => _textureSet.Contains(texture);
 
@@ -96,7 +150,38 @@ public sealed class AssetCollection
 
         foreach (Shader shader in other._shaders)
         {
-            AddShader(shader);
+            Add(shader);
+        }
+    }
+
+    /// <summary>Records what one class's own code names, for every scene to preload with it. Called by generated code.</summary>
+    /// <param name="type">The class, or the definition of a generic class.</param>
+    /// <param name="collect">Adds what the class names, and nothing its base classes name.</param>
+    /// <exception cref="InvalidOperationException">The class already has a record.</exception>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void RegisterClassAssets(Type type, Action<AssetCollection> collect)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(collect);
+
+        if (!ClassAssets.TryAdd(type, collect))
+        {
+            throw new InvalidOperationException(
+                $"{type.Name} already has its assets recorded. Each class is recorded once, by its own assembly's generated code.");
+        }
+    }
+
+    // Adds what the code of the owner's class and each of its bases names. A collection runs this before each
+    // object's own hook.
+    internal void AddClassAssets(object owner)
+    {
+        for (Type? type = owner.GetType(); type is not null; type = type.BaseType)
+        {
+            Type key = type.IsConstructedGenericType ? type.GetGenericTypeDefinition() : type;
+            if (ClassAssets.TryGetValue(key, out Action<AssetCollection>? collect))
+            {
+                collect(this);
+            }
         }
     }
 
@@ -115,7 +200,7 @@ public sealed class AssetCollection
     {
         ArgumentNullException.ThrowIfNull(material);
 
-        AddShader(material.Shader);
+        Add(material.Shader);
 
         for (int i = 0; i < material.Shader.Parameters.Length; i++)
         {
@@ -153,12 +238,4 @@ public sealed class AssetCollection
     internal IReadOnlyList<Shader> Shaders => _shaders;
 
     internal IReadOnlyList<AudioClip> Clips => _clips;
-
-    private void AddShader(Shader shader)
-    {
-        if (_shaderSet.Add(shader))
-        {
-            _shaders.Add(shader);
-        }
-    }
 }

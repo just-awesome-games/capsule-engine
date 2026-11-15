@@ -148,11 +148,14 @@ public abstract class Component
     }
 
     /// <summary>
-    /// Appends assets this component declares. Collection can run before <see cref="OnStart"/>.
+    /// Appends assets this component declares beyond those its class's code names. Collection can run before
+    /// <see cref="OnStart"/>.
     /// </summary>
     /// <remarks>
-    /// Declare from construction-time state. An override appends to <paramref name="assets"/> and
-    /// changes nothing else.
+    /// Before this hook runs, the collection holds every <c>CapsuleAssets</c> member the code of this class and of
+    /// each base class reads, except a class marked <see cref="ManualPreloadsAttribute"/>. Declare here what that
+    /// code cannot show, such as an asset chosen by data, from construction-time state. An override appends to
+    /// <paramref name="assets"/> and changes nothing else.
     /// </remarks>
     protected internal virtual void CollectAssets(AssetCollection assets)
     {

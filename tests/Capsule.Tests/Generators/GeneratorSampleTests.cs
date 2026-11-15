@@ -18,8 +18,10 @@ public sealed class GeneratorSampleTests
         using Capsule.Scenes;
         using Capsule.Tiles;
 
-        namespace Game;
+        {{CapsuleAssetsStandIn.Source}}
 
+        namespace Game
+        {
         public enum Glow { Dim, Bright }
 
         public sealed class Door(EntitySpawn spawn) : Entity(spawn);
@@ -34,6 +36,8 @@ public sealed class GeneratorSampleTests
 
             [Authorable]
             private int _charge = 3;
+
+            private Capsule.Audio.AudioClip Hum => CapsuleAssets.Audio.HumSound;
         }
 
         public sealed class FloorSwitch(EntitySpawn spawn) : Entity(spawn)
@@ -81,6 +85,7 @@ public sealed class GeneratorSampleTests
         public record Arrival(string Entrance) : IScenePayload;
 
         public sealed record WestArrival() : Arrival("west");
+        }
         """;
 
     private const string Shell = """
@@ -124,7 +129,7 @@ public sealed class GeneratorSampleTests
     [InlineData("Payloads/CapsuleScenePayloads", false)]
     [InlineData("Boot/CapsuleRegistryProvider", false)]
     [InlineData("Boot/CapsuleBoot", true)]
-    [InlineData("Pipeline/CapsuleGlobalUsings", false)]
+    [InlineData("Preloads/CapsulePreloads", false)]
     public void EachCommittedSample_IsWhatTheGeneratorWrites(string sample, bool shell)
     {
         string generated = GeneratorHarness.Emitted((shell ? ShellAssembly : LogicAssembly).Value, Path.GetFileName(sample) + ".g.cs");

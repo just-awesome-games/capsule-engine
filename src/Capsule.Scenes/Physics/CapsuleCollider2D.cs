@@ -65,7 +65,7 @@ public sealed class CapsuleCollider2D : Collider2D
         }
     }
 
-    internal override bool Steps => SurfaceVelocity != Vector2.Zero;
+    internal override bool Steps => false;
 
     /// <inheritdoc/>
     protected internal override void OnDebugDraw()

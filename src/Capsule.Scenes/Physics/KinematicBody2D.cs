@@ -126,22 +126,17 @@ public sealed partial class KinematicBody2D : Component
     private Collider2D? _floor;
 
     // The cell this body rides, as found by its last Move, and the tile it held then. Only a tile with a
-    // surface velocity is ridden. The ride ends when the cell holds another tile.
+    // surface velocity is ridden, with the grid its map had registered. The ride ends when the cell holds another
+    // tile or the map registers no grid or another one.
     private TileContact2D? _floorCell;
     private TileType? _floorTile;
-
-    // The map collider that lists this body while it rides one of the map's cells.
-    private TileMapCollider2D? _floorGrid;
+    private CollisionGrid2D? _floorGrid;
 
     // What the ridden floor carried this body by during the step Scene.StepsBegun counted as _carriedStep,
     // before any wall stopped it, and during the step before that one. A new floor clears both.
     private Vector2 _carriedMotion;
     private Vector2 _priorMotion;
     private int _carriedStep;
-
-    // The tick of the step that last surface-carried this body in its current scene. A later surface in the
-    // same step skips it.
-    private long _surfaceTick = -1;
 
     // True while this body writes its own position. A collider that moves because of that write, such
     // as one on a child entity, cannot carry or shove the body again.
@@ -224,6 +219,7 @@ public sealed partial class KinematicBody2D : Component
         ArgumentNullException.ThrowIfNull(collider);
         _collider = collider;
         MaxFloorAngle = 45f;
+        EngineSteps = true;
     }
 
     /// <summary>How a move meets what it hits. <see cref="BodyMode.Grounded"/> by default.</summary>
@@ -318,7 +314,7 @@ public sealed partial class KinematicBody2D : Component
     {
         get
         {
-            if ((_floor is null && _floorGrid is null) || _scene is not { StepSeconds: > 0f } scene)
+            if (!Rides || _scene is not { StepSeconds: > 0f } scene)
             {
                 return Vector2.Zero;
             }
@@ -373,11 +369,12 @@ public sealed partial class KinematicBody2D : Component
     /// <para>
     /// A floor with a <see cref="Collider2D.SurfaceVelocity"/> or <see cref="TileType.SurfaceVelocity"/>
     /// carries the body by that velocity on every step, whether or not the body moves itself. The carry runs
-    /// in the floor's own step, as a moving floor's does, and only the first such floor in tree order to
-    /// carry the body moves it that step. A <see cref="BodyMode.Grounded"/> body walks its floor as its own
-    /// move does. The carry never changes the caller's velocity, and a floor on a held entity carries
-    /// nothing. After each carry the body rides the carrying floor it then stands on, or nothing, and
-    /// <see cref="IsOnFloor"/>, <see cref="MoveContacts"/> and their peers keep what the last move set.
+    /// in the body's own step, after its entity's <see cref="Entity.OnStep"/>. A floor on a held entity
+    /// still carries a body that steps, and a held body stays where it is. A
+    /// <see cref="BodyMode.Grounded"/> body walks its floor as its own move does. The carry never changes
+    /// the caller's velocity. After each carry the body rides the carrying floor it then stands on, or
+    /// nothing, and <see cref="IsOnFloor"/>, <see cref="MoveContacts"/> and their peers keep what the last
+    /// move set.
     /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
@@ -889,7 +886,10 @@ public sealed partial class KinematicBody2D : Component
                 "A KinematicBody2D sweeps only once its collider is enabled and its entity has joined a started scene. Sweep from OnStart onward, not from a constructor.");
     }
 
-    internal override bool Steps => false;
+    // The body steps only while it rides a floor, to carry itself by that floor's surface velocity.
+    internal override bool Steps => Rides;
+
+    private bool Rides => _floor is not null || _floorCell is not null;
 
     // The sweep moves the entity along the world axes. It supports position only.
     internal override TransformSupport Supports => TransformSupport.Position;
@@ -950,9 +950,6 @@ public sealed partial class KinematicBody2D : Component
         Classify();
         _scene?.Physics.CountBody(MovedByFilter, _layerIndex, -1);
         _scene = null;
-
-        // A new scene's host may count its ticks from zero again.
-        _surfaceTick = -1;
         if (ReferenceEquals(_collider.Body, this))
         {
             _collider.Body = null;
