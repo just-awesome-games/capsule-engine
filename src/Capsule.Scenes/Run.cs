@@ -132,6 +132,14 @@ public sealed class Run
     // Counts every applied language request. A keyed label re-resolves when it changes.
     internal int LanguageVersion { get; private set; }
 
+    // The input state every step of the run advances, which a label naming a button reads between steps too.
+    // Built on first use over the run's bindings. The host advances this instance.
+    internal InputState InputState => field ??= new InputState(Input.Bindings);
+
+    // The table the shell was configured with, whose buttons group renames buttons. Null in a run built by
+    // hand, where a button in a text takes the names of that text's own table.
+    internal StringTable? Strings { get; init; }
+
     /// <summary>
     /// The sampling for world-space textures in any scene that sets none of its own, defaulting to
     /// <see cref="TextureSampling.Linear"/>.
@@ -502,6 +510,28 @@ public sealed class Run
         return KeepAndDecode(keyed);
     }
 
+    /// <summary>Returns the name of <paramref name="button"/> as a label given it shows it now.</summary>
+    /// <remarks>The string keeps this name after the device, pad, layout or language changes.</remarks>
+    /// <param name="button">The button to name, or one of the enums that converts to one.</param>
+    public string GetText(InputButton button)
+    {
+        KeyedText keyed = TakeKeyedText();
+        keyed.SetBare(button);
+
+        return KeepAndDecode(keyed);
+    }
+
+    /// <summary>Returns the name of the button <paramref name="action"/> shows now, as a label given it shows it.</summary>
+    /// <remarks>The string keeps this name after the device, pad, layout, bindings or language change.</remarks>
+    /// <param name="action">The action whose button is named.</param>
+    public string GetText(InputAction action)
+    {
+        KeyedText keyed = TakeKeyedText();
+        keyed.SetBare(action);
+
+        return KeepAndDecode(keyed);
+    }
+
     // Opens a step: the clock reads the step's tick, and a language request made since the last one
     // applies from here.
     internal void BeginStep(in StepContext context)
@@ -595,7 +625,7 @@ public sealed class Run
     private string KeepAndDecode(KeyedText keyed)
     {
         _keyedText = keyed;
-        int length = keyed.Decode(ActiveLanguage, ref _textBuffer);
+        int length = keyed.Decode(ActiveLanguage, InputState, Strings, ref _textBuffer);
 
         return new string(_textBuffer, 0, length);
     }
@@ -605,7 +635,6 @@ public sealed class Run
         ActiveLanguage = Language;
         LanguageVersion++;
     }
-
     private void ThrowIfExitRequested()
     {
         if (ExitRequested)

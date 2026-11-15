@@ -69,10 +69,25 @@ Pressed state exists only inside a step, on `StepContext.Input`, and `Run.Input`
 
 ## Show a button prompt
 
-A prompt shows the button `Run.Input.ButtonsFor` binds on `InputState.ActiveDevice`, the device the
-player last used. `InputState.PadFamily` picks the art set, and `InputState.KeyCharacter` is the
-character the player's keyboard layout prints on a key. Every word a prompt shows comes from the game's
-string tables ([`localization.md`](localization.md)). The pad family is recorded input like window
+A label names a button or an action's button, alone or in a text's placeholder:
+
+```csharp
+label.SetText(CapsuleStrings.Hints.Open, PadButton.South); // "Press {button} to open"
+label.SetText(CapsuleStrings.Hints.Open, GameInput.Open);
+label.SetText(GameInput.Open);
+label.SetText(Key.LeftShift);
+```
+
+An action shows `InputState.ButtonFor`: its first button on `InputState.ActiveDevice`, the device the
+player last used, else its first button on any device. A button shows the character the player's
+keyboard layout prints on it, else the game's own name for it, else the engine's English name for the pad
+family the player used last, as "Cross" on a PlayStation pad. An action with no button shows a name for
+none, and a sentence never has a hole. The label follows the device, the pad, the layout, a rebind and the
+language by itself. `Run.GetText` takes the same arguments. A game renames or translates a button in its
+string tables ([`localization.md`](localization.md#button-names)).
+
+A game that draws its own button art reads `InputState.ButtonFor` and `InputState.PadFamily` to pick the
+art, and gives the label the action where it has none. The pad family is recorded input like window
 focus, and a driver sets it with `DeviceSnapshot.WithPadFamily`.
 
 ## Fit bindings to the player's pad

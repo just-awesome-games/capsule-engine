@@ -16,7 +16,7 @@ public sealed class SimulationHost : IDisposable
     /// <summary>Simulated seconds per step, the reciprocal of the host's step rate and constant for its life.</summary>
     public double StepSeconds { get; }
 
-    /// <summary>The input state every step of this host advances.</summary>
+    /// <summary>The input state every step of this host advances, the run's own, which its labels read.</summary>
     public InputState Input { get; }
 
     /// <summary>The tick the next step will run at. It starts at 0 and is never reset.</summary>
@@ -49,7 +49,7 @@ public sealed class SimulationHost : IDisposable
 
         Simulation = simulation;
         StepSeconds = 1.0 / stepHertz;
-        Input = new InputState(simulation.Run.Input.Bindings);
+        Input = simulation.Run.InputState;
     }
 
     /// <summary>The run shared by the simulation's scenes.</summary>

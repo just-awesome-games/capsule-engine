@@ -29,6 +29,9 @@ public readonly struct TextKey
 
     internal int Index => _index;
 
+    // Whether this is the default key, which names no text.
+    internal bool IsDefault => _table is null;
+
     // How many arguments the text takes.
     internal int ArgumentCount => _table!.ArgumentCount(_index);
 

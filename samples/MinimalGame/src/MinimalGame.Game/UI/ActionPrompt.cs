@@ -1,10 +1,9 @@
 namespace MinimalGame.Game.UI;
 
 /// <summary>
-/// What the player presses for an action: the <see cref="GamePrompts"/> art for the first button the action
-/// has on the device they used last, else the character a key prints, else the <see cref="ButtonNames"/>
-/// name in the run's language, or nothing where the action has no button there. It follows the device, the
-/// pad, the keyboard layout, the language and a rebind on its own.
+/// What the player presses for an action: the <see cref="GamePrompts"/> art for the button the action
+/// shows, else that button's name, which follows the device, the pad, the keyboard layout, the language
+/// and a rebind by itself.
 /// </summary>
 /// <remarks>
 /// The art draws Xbox pad buttons, and a pad of another family shows its own button names instead. The
@@ -26,10 +25,8 @@ public sealed class ActionPrompt : Entity
         VerticalAlignment = VerticalAlignment.Middle,
     };
 
-    // The button shown, the pad family and key character it was shown for, or null before the first step.
-    private InputButton? _shown;
-    private PadFamily _shownFamily;
-    private string? _shownCharacter;
+    // Whether the label names the action's button, set the first time the art does not draw it.
+    private bool _named;
 
     /// <param name="parent">The entity that places the prompt.</param>
     /// <param name="action">The action whose button is shown.</param>
@@ -54,48 +51,25 @@ public sealed class ActionPrompt : Entity
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
     {
-        InputButton button = InputButton.None;
-        foreach (InputButton bound in Run.Input.ButtonsFor(_action))
-        {
-            if (bound.Device == context.Input.ActiveDevice)
-            {
-                button = bound;
-                break;
-            }
-        }
-
-        // The sheet draws an Xbox pad's buttons, which a generic pad prints too. A key's character is the
-        // same string until the layout changes, and a reference check sees the change. A named label
-        // follows the language itself.
-        PadFamily family = context.Input.PadFamily;
+        // The sheet draws an Xbox pad's buttons, which a generic pad prints too.
+        InputButton button = context.Input.ButtonFor(_action);
         bool drawsArt = GamePrompts.TryGet(button, out Sprite art)
-            && (button.Device == InputDevice.KeyboardMouse || family is PadFamily.Xbox or PadFamily.Generic);
-        string? character = drawsArt ? null : context.Input.KeyCharacter(button);
-        if (button == _shown && family == _shownFamily && ReferenceEquals(character, _shownCharacter))
-        {
-            return;
-        }
-
-        _shown = button;
-        _shownFamily = family;
-        _shownCharacter = character;
-        _art.Visible = drawsArt;
+            && (button.Device == InputDevice.KeyboardMouse || context.Input.PadFamily is PadFamily.Xbox or PadFamily.Generic);
         if (drawsArt)
         {
             _art.Sprite = art;
-            _name.Text = string.Empty;
+            if (_named || !_art.Visible)
+            {
+                _art.Visible = true;
+                _name.Text = string.Empty;
+                _named = false;
+            }
         }
-        else if (character is not null)
+        else if (!_named)
         {
-            _name.Text = character;
-        }
-        else if (ButtonNames.TryGet(button, family, out TextKey name))
-        {
-            _name.SetText(name);
-        }
-        else
-        {
-            _name.Text = string.Empty;
+            _art.Visible = false;
+            _name.SetText(_action);
+            _named = true;
         }
     }
 }

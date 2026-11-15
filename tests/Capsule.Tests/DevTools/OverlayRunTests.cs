@@ -215,7 +215,7 @@ public sealed class OverlayRunTests
     public void AStepThatExhaustsTheDriver_EndsTheRunOnTheNextHeldAdvance()
     {
         SceneHost host = CreateHost();
-        using OverlayRig rig = new(host, scheduler: new FixedStepScheduler(StepSeconds, 5, new ActionBindings(), new InputScript().Build(), host));
+        using OverlayRig rig = new(host, scheduler: new FixedStepScheduler(StepSeconds, 5, new InputState(new ActionBindings()), new InputScript().Build(), host));
 
         rig.Open();
         rig.Frame(DeviceSnapshot.Of(Key.Right));

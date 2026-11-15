@@ -71,7 +71,7 @@ public sealed class KeyCharacterTests
         CharacterRecorder scene = new();
         using SceneHost host = new(SceneTransition.ToScene(typeof(CharacterRecorder), null), (in SceneTransition _) => scene, new Run());
         IInputDriver? driver = driven ? new InputScript().Wait(1).Build() : null;
-        FixedStepScheduler scheduler = new(0.1, 1, new ActionBindings(), driver, host);
+        FixedStepScheduler scheduler = new(0.1, 1, new InputState(new ActionBindings()), driver, host);
         scheduler.UseKeyLayout(Azerty());
 
         scheduler.Advance(0.1, DeviceSnapshot.Empty, host);

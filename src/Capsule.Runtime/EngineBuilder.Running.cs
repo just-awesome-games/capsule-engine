@@ -298,7 +298,7 @@ public sealed partial class EngineBuilder
         SceneHost host = new(
             opening,
             new SceneComposer(Scenes, Platform).Resolve,
-            new Run(new RandomSource(seed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, Display = Display, RenderResolution = RenderResolution },
+            new Run(new RandomSource(seed)) { Canvas = Canvas, Sampling = Sampling, Input = Input, Display = Display, RenderResolution = RenderResolution, Strings = _strings },
             storage is null || recorder is null ? storage : new TeeSaveStorage(storage, recorder.Restored),
             RunStart(preferredLanguages, language),
             Scenes);

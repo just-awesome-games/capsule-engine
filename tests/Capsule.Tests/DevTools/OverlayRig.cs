@@ -151,7 +151,7 @@ internal sealed class OverlayRig : IDisposable
     }
 
     internal static FixedStepScheduler CreateScheduler(ActionBindings? bindings = null) =>
-        new(StepSeconds, 5, bindings ?? new ActionBindings());
+        new(StepSeconds, 5, new InputState(bindings ?? new ActionBindings()));
 
     // A scheduler recording every step of host.
     internal static FixedStepScheduler RecordingScheduler(SceneHost host)
@@ -159,7 +159,7 @@ internal sealed class OverlayRig : IDisposable
         Recorder recorder = new(new RecordingHeader { StepSeconds = StepSeconds });
         recorder.Attach(host);
 
-        return new FixedStepScheduler(StepSeconds, 5, new ActionBindings(), scenes: host, recorder: recorder);
+        return new FixedStepScheduler(StepSeconds, 5, new InputState(new ActionBindings()), scenes: host, recorder: recorder);
     }
 
     // A run of one RecordingScene reading actions.

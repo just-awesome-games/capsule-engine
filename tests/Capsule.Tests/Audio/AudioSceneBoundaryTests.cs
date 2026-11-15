@@ -68,7 +68,7 @@ public sealed class AudioSceneBoundaryTests : IDisposable
     // The order LoadContent wires a run with a device in.
     private static FixedStepScheduler Follow(SceneHost host, Fixture fixture)
     {
-        FixedStepScheduler scheduler = new(StepSeconds, 1, new ActionBindings());
+        FixedStepScheduler scheduler = new(StepSeconds, 1, new InputState(new ActionBindings()));
         host.PrepareAssets = fixture.Store.ChangeScene;
         host.PrepareInitialAssets();
         host.FollowSteps(scheduler, fixture.Player);

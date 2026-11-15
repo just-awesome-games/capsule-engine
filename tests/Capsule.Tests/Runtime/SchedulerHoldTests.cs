@@ -18,7 +18,7 @@ public sealed class SchedulerHoldTests
         FixedStepScheduler scheduler = new(
             StepSeconds,
             5,
-            new ActionBindings().Bind(HeldAction, Key.Space));
+            new InputState(new ActionBindings().Bind(HeldAction, Key.Space)));
 
         scheduler.Advance(StepSeconds, DeviceSnapshot.Of(Key.Space), simulation);
         simulation.Recorded.Clear();
@@ -53,7 +53,7 @@ public sealed class SchedulerHoldTests
         FixedStepScheduler scheduler = new(
             StepSeconds,
             5,
-            new ActionBindings().Bind(HeldAction, Key.Space));
+            new InputState(new ActionBindings().Bind(HeldAction, Key.Space)));
 
         Assert.Throws<InvalidOperationException>(() => scheduler.StepOnce(DeviceSnapshot.Empty, simulation));
 
@@ -86,7 +86,7 @@ public sealed class SchedulerHoldTests
         FixedStepScheduler scheduler = new(
             StepSeconds,
             5,
-            new ActionBindings(),
+            new InputState(new ActionBindings()),
             driver,
             host);
         scheduler.Held = true;
@@ -112,7 +112,7 @@ public sealed class SchedulerHoldTests
         FixedStepScheduler scheduler = new(
             StepSeconds,
             5,
-            new ActionBindings(),
+            new InputState(new ActionBindings()),
             driver,
             host);
 

@@ -88,7 +88,7 @@ public sealed class ActiveDeviceTests
         DeviceRecorder scene = new();
         using SceneHost host = new(SceneTransition.ToScene(typeof(DeviceRecorder), null), (in SceneTransition _) => scene, new Run());
         IInputDriver driver = new InputScript().Wait(1).Tap(PadButton.South).Wait(1).Build();
-        FixedStepScheduler scheduler = new(0.1, 32, new ActionBindings(), driver, host);
+        FixedStepScheduler scheduler = new(0.1, 32, new InputState(new ActionBindings()), driver, host);
 
         while (!scheduler.Advance(0.1, DeviceSnapshot.Empty, host))
         {
@@ -109,7 +109,7 @@ public sealed class ActiveDeviceTests
         using SceneHost host = new(SceneTransition.ToScene(typeof(DeviceRecorder), null), (in SceneTransition _) => scene, new Run());
         DeviceSnapshot playStation = DeviceSnapshot.Empty.WithPadFamily(PadFamily.PlayStation);
         IInputDriver driver = new ScriptedInputDriver([DeviceSnapshot.Empty, playStation, playStation.With(PadButton.South)]);
-        FixedStepScheduler scheduler = new(0.1, 32, new ActionBindings(), driver, host);
+        FixedStepScheduler scheduler = new(0.1, 32, new InputState(new ActionBindings()), driver, host);
 
         while (!scheduler.Advance(0.1, DeviceSnapshot.Empty, host))
         {

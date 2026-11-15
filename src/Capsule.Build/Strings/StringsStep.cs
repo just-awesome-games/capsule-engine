@@ -1,5 +1,6 @@
 using System.Text;
 using Capsule.Build.Caching;
+using Capsule.Input;
 using Capsule.Localization;
 
 namespace Capsule.Build.Strings;
@@ -11,7 +12,9 @@ namespace Capsule.Build.Strings;
 /// <remarks>
 /// Only the source language's files declare keys. Every language's texts ship in the same key order: the
 /// source files by asset key, then each file's document order. A key a translation lacks shows the source
-/// text in a development build, and fails a shipping one. A list's texts are keys like any other, and a
+/// text in a development build, and fails a shipping one, except a button's name under the reserved
+/// <c>buttons</c> group, which shows the source's name in either. Only a button's name may sit under that
+/// group. A list's texts are keys like any other, and a
 /// translation holds the source's count. A plural form in each language provides every
 /// category that language's CLDR rules select for a count up to 999.
 /// </remarks>
@@ -71,6 +74,7 @@ internal static class StringsStep
         }
 
         Merged source = Merge(pass, sourceFiles);
+        CheckButtons(pass, source);
         List<(string Path, Defined Defined, string[] Names)> keys = [];
         List<(string Path, string File, int First, int Count)> lists = [];
         foreach ((string path, Defined defined) in source.Entries)
@@ -184,7 +188,8 @@ internal static class StringsStep
 
         foreach ((string path, Defined authored, _) in keys)
         {
-            if (translation.Defined.ContainsKey(path))
+            // A button's name a translation lacks shows the source's name, which a player can still read.
+            if (translation.Defined.ContainsKey(path) || InButtons(path))
             {
                 continue;
             }
@@ -203,6 +208,32 @@ internal static class StringsStep
             }
         }
     }
+
+    // Holds every text in the reserved buttons group to one button's name: a path the engine reads, in plain
+    // text. A list or a group in a text's place leaves a text at a path the engine never reads.
+    private static void CheckButtons(PipelinePass pass, Merged source)
+    {
+        HashSet<string> paths = [.. ButtonNames.Paths];
+        foreach ((string path, Defined defined) in source.Entries)
+        {
+            if (defined.Text is not { } text || !InButtons(path))
+            {
+                continue;
+            }
+
+            if (!paths.Contains(path))
+            {
+                pass.Fail(defined.File, $"{path}: names no button. Name a key as buttons.keys.leftShift, a button of another device likewise under mouse, sticks, xbox, playStation or nintendo, or an action with none as buttons.none.");
+            }
+            else if (StringText.Placeholders(text, path).Length > 0)
+            {
+                pass.Fail(defined.File, $"{path}: has a placeholder or a plural, and a button's name is plain text. Write the name alone.");
+            }
+        }
+    }
+
+    // Whether path lies in the reserved buttons group.
+    private static bool InButtons(string path) => (path + ".").StartsWith(ButtonNames.Group + ".", StringComparison.Ordinal);
 
     // Holds each plural form in a text to the categories its language's CLDR rules select. A language with
     // no CLDR rules shows other alone.

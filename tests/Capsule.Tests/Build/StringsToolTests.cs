@@ -55,6 +55,9 @@ public sealed class StringsToolTests
         { ["en", """{ "speech": ["A", ["B"]] }"""], null, "Assets/en.strings.json: speech.1: is an array. A list holds texts in quotes alone." },
         { ["en", """{ "speech": [{ "a": "A" }] }"""], null, "Assets/en.strings.json: speech.0: is an object. A list holds texts in quotes alone." },
         { ["en", """{ "speech": [] }"""], null, "Assets/en.strings.json: speech: is an empty list." },
+        { ["en", """{ "buttons": { "keys": { "leftShfit": "Shift" } } }"""], null, "Assets/en.strings.json: buttons.keys.leftShfit: names no button. Name a key as buttons.keys.leftShift" },
+        { ["en", """{ "buttons": { "none": ["Free"] } }"""], null, "buttons.none.0: names no button." },
+        { ["en", """{ "buttons": { "none": "{count} free" } }"""], null, "buttons.none: has a placeholder or a plural, and a button's name is plain text." },
     };
 
     [Theory]
@@ -101,6 +104,27 @@ public sealed class StringsToolTests
         Assert.Equal(0, StepMeasurement.Bytes(_ => table.Text(2, out ReadOnlySpan<byte> _), warmup: 10, measured: 100));
 
         Assert.Contains(Missing + " A shipping build ships no text left untranslated.", workspace.Fail("--shipping"), StringComparison.Ordinal);
+    }
+
+    // A button's name a translation lacks neither warns nor fails a shipping build, and shows the source's
+    // name. Any other key the translation lacks still fails a shipping build.
+    [Fact]
+    public void AButtonsNameATranslationLacks_ShowsTheSourceName_AndOnlyOtherKeysFailShipping()
+    {
+        using ToolWorkspace workspace = Authored(
+            "en", """{ "title": "Title", "buttons": { "keys": { "leftShift": "Shift Left" } } }""",
+            "de", """{ "title": "Titel" }""");
+
+        workspace.Succeed("--shipping");
+
+        Assert.DoesNotContain("buttons", workspace.Output, StringComparison.Ordinal);
+        StringTable table = (StringTable)Loaded(workspace).GetType("Capsule.Generated.CapsuleStrings")!.GetProperty("Table")!.GetValue(null)!;
+        Assert.Equal("Shift Left", new Run { Language = "de", Strings = table }.GetText(Capsule.Input.Key.LeftShift));
+
+        workspace.Write("Assets/de.strings.json", "{}");
+        string refused = workspace.Fail("--shipping");
+        Assert.Contains("Assets/de.strings.json: title: this language lacks the key Assets/en.strings.json defines.", refused, StringComparison.Ordinal);
+        Assert.DoesNotContain("buttons", refused, StringComparison.Ordinal);
     }
 
     // A list's texts are keys like any other, consecutive between its neighbours. A translation short of the

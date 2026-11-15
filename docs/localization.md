@@ -57,6 +57,21 @@ translation lacks shows the source text with a warning in a development build an
 Text compiles into the game's logic assembly, and a lookup reads no file and allocates nothing. Each megabyte
 of text, counted over every language, adds about 1.4 s to a rebuild and 1.7 MB to the assembly.
 
+## Button names
+
+The engine names every button in English ([`input.md`](input.md#show-a-button-prompt)). A game renames or
+translates one in the reserved `buttons` group of its own string tables, as `buttons.keys.leftShift`,
+`buttons.playStation.south` or `buttons.none`, the name of an action with no button:
+
+```json
+{ "buttons": { "keys": { "leftShift": "Left Shift" }, "none": "Unbound" } }
+```
+
+The groups are `keys`, `mouse`, `sticks`, `xbox`, `playStation` and `nintendo`, and each name in one is a
+member of `Key`, `MouseButton`, `StickDirection` or `PadButton` with its first letter lowered. The build
+fails on a name that is no button, and on a placeholder, a plural or a list under `buttons`. A
+translation that lacks a button's name shows the source's, with no warning, in a shipping build too.
+
 ## Switching
 
 `Run.Language` takes a BCP 47 tag and shows the closest shipped language, else the fallback, which is the

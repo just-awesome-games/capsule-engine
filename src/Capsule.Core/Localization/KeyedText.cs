@@ -1,27 +1,45 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Unicode;
+using Capsule.Input;
 
 namespace Capsule.Localization;
 
 // A key and the arguments that fill it, decoded on demand into a caller's buffer in any language. A keyed
-// Label holds one and decodes it again on each language change. Run.GetText decodes one once.
+// Label holds one and decodes it again on each language change, and on each input change while it names a
+// button. Run.GetText decodes one once.
 internal sealed class KeyedText
 {
     // The text of each argument formatted once at the call, each ending at its entry in _argumentEnds. A
     // key argument is held in _argumentKeys instead, marked in _keyArguments, and resolves with the template.
+    // A button or action argument is held the same way, in _argumentButtons and _buttonArguments.
     private char[] _arguments = [];
     private ArgumentEnds _argumentEnds;
     private ArgumentKeys _argumentKeys;
     private int _keyArguments;
+    private ArgumentButtons _argumentButtons;
+    private int _buttonArguments;
     private ArgumentCounts _counts;
     private int _negatives;
     private int _argumentCount;
 
-    // The key the text resolves from. Default until the first Set.
+    // The key the text resolves from. Default until the first Set, and for a bare button or action.
     internal TextKey Key { get; private set; }
 
+    // Whether the text names a button, and changes with the device, the pad, the layout or the bindings.
+    internal bool NamesButtons => _buttonArguments != 0;
+
     internal void Set(TextKey text) => Reset(text, 0, 0);
+
+    // Holds one button or action alone, with no text around it.
+    internal void SetBare<T>(T value)
+    {
+        Key = default;
+        _argumentCount = 0;
+        _keyArguments = 0;
+        _buttonArguments = 0;
+        Append(value);
+    }
 
     internal void Set<T0>(TextKey text, T0 arg0)
     {
@@ -51,12 +69,19 @@ internal sealed class KeyedText
     }
 
     // Decodes the text in the shipped language closest to tag into buffer from its start, growing it while
-    // it is too short, and returns the length written.
-    internal int Decode(string? tag, ref char[] buffer)
+    // it is too short, and returns the length written. A button argument reads input, and takes the game's
+    // own names from names, the run's table, else from the text's own table, else the engine's English.
+    internal int Decode(string? tag, InputState input, StringTable? names, ref char[] buffer)
     {
+        if (Key.IsDefault)
+        {
+            return DecodeArgument(0, tag, input, names, ref buffer, length: 0);
+        }
+
+        names ??= Key.Table;
         ReadOnlySpan<byte> template = Template(Key, tag, out int language);
 
-        return DecodeTemplate(Key.Table, language, template, tag, counted: -1, ref buffer, length: 0);
+        return DecodeTemplate(Key.Table, language, template, tag, counted: -1, input, names, ref buffer, length: 0);
     }
 
     // 1 << index when T is an integer type a plural form selects on, else 0. The JIT folds it to a constant.
@@ -111,6 +136,7 @@ internal sealed class KeyedText
         Key = text;
         _argumentCount = 0;
         _keyArguments = 0;
+        _buttonArguments = 0;
     }
 
     // Refuses a key argument no text can show: a null or default key, or one with placeholders of its own.
@@ -137,8 +163,8 @@ internal sealed class KeyedText
     }
 
     // Formats one argument after the ones before it, growing the buffer they share while it is too short.
-    // An integer is also kept as the count a plural form selects on, and a key is kept to resolve with the
-    // template, taking no room in the buffer.
+    // An integer is also kept as the count a plural form selects on, and a key, a button or an action is kept
+    // to resolve with the template, taking no room in the buffer.
     private void Append<T>(T value)
     {
         int start = _argumentCount == 0 ? 0 : _argumentEnds[_argumentCount - 1];
@@ -153,6 +179,14 @@ internal sealed class KeyedText
         {
             _argumentKeys[_argumentCount] = key;
             _keyArguments |= 1 << _argumentCount;
+            written = 0;
+        }
+        else if (IsButton<T>())
+        {
+            _argumentButtons[_argumentCount] = typeof(T) == typeof(InputAction)
+                ? (InputButton.None, Unsafe.As<T, InputAction>(ref value))
+                : (Button(ref value), default);
+            _buttonArguments |= 1 << _argumentCount;
             written = 0;
         }
         else if (value is string text)
@@ -212,6 +246,19 @@ internal sealed class KeyedText
         return false;
     }
 
+    // Whether T names a button: an InputButton, an enum that converts to one, or an action. The JIT folds it.
+    private static bool IsButton<T>() =>
+        typeof(T) == typeof(InputButton) || typeof(T) == typeof(Key) || typeof(T) == typeof(PadButton)
+        || typeof(T) == typeof(MouseButton) || typeof(T) == typeof(StickDirection) || typeof(T) == typeof(InputAction);
+
+    // The button value names, of a type IsButton holds other than an action. The JIT keeps only T's branch.
+    private static InputButton Button<T>(ref T value) =>
+        typeof(T) == typeof(Key) ? Unsafe.As<T, Key>(ref value)
+        : typeof(T) == typeof(PadButton) ? Unsafe.As<T, PadButton>(ref value)
+        : typeof(T) == typeof(MouseButton) ? Unsafe.As<T, MouseButton>(ref value)
+        : typeof(T) == typeof(StickDirection) ? Unsafe.As<T, StickDirection>(ref value)
+        : Unsafe.As<T, InputButton>(ref value);
+
     // Grows buffer to at least length, keeping what it holds.
     private static void Reserve(ref char[] buffer, int length)
     {
@@ -240,7 +287,16 @@ internal sealed class KeyedText
 
     // Decodes template into buffer from length on, and returns the new length. A plural block writes the
     // branch its count selects, in which each count mark writes the text of argument counted.
-    private int DecodeTemplate(StringTable table, int language, ReadOnlySpan<byte> template, string? tag, int counted, ref char[] buffer, int length)
+    private int DecodeTemplate(
+        StringTable table,
+        int language,
+        ReadOnlySpan<byte> template,
+        string? tag,
+        int counted,
+        InputState input,
+        StringTable? names,
+        ref char[] buffer,
+        int length)
     {
         while (true)
         {
@@ -259,7 +315,7 @@ internal sealed class KeyedText
             byte code = template[marker];
             if (code == StringTable.Count)
             {
-                length = DecodeArgument(counted, tag, ref buffer, length);
+                length = DecodeArgument(counted, tag, input, names, ref buffer, length);
                 template = template[(marker + 1)..];
                 continue;
             }
@@ -268,7 +324,7 @@ internal sealed class KeyedText
             template = template[(marker + 2)..];
             if (code == StringTable.Placeholder)
             {
-                length = DecodeArgument(argument, tag, ref buffer, length);
+                length = DecodeArgument(argument, tag, input, names, ref buffer, length);
                 continue;
             }
 
@@ -276,21 +332,29 @@ internal sealed class KeyedText
             ulong magnitude = _counts[argument];
             ReadOnlySpan<byte> branch = StringTable.Branch(
                 template[..close], magnitude, (_negatives & (1 << argument)) != 0, table.Category(language, magnitude));
-            length = DecodeTemplate(table, language, branch, tag, argument, ref buffer, length);
+            length = DecodeTemplate(table, language, branch, tag, argument, input, names, ref buffer, length);
             template = template[(close + 1)..];
         }
     }
 
     // Copies argument's formatted text into buffer at length, or decodes a key argument's text in the
-    // shipped language closest to tag, and returns the new length.
-    private int DecodeArgument(int argument, string? tag, ref char[] buffer, int length)
+    // shipped language closest to tag, or names a button or action argument's button, and returns the new length.
+    private int DecodeArgument(int argument, string? tag, InputState input, StringTable? names, ref char[] buffer, int length)
     {
-        if ((_keyArguments & (1 << argument)) != 0)
+        int bit = 1 << argument;
+        if ((_keyArguments & bit) != 0)
         {
             TextKey key = _argumentKeys[argument];
             ReadOnlySpan<byte> template = Template(key, tag, out int language);
 
-            return DecodeTemplate(key.Table, language, template, tag, counted: -1, ref buffer, length);
+            return DecodeTemplate(key.Table, language, template, tag, counted: -1, input, names, ref buffer, length);
+        }
+
+        if ((_buttonArguments & bit) != 0)
+        {
+            (InputButton button, InputAction action) = _argumentButtons[argument];
+
+            return DecodeButton(action.Name is null ? button : input.ButtonFor(action), tag, input, names, ref buffer, length);
         }
 
         int start = argument == 0 ? 0 : _argumentEnds[argument - 1];
@@ -299,6 +363,29 @@ internal sealed class KeyedText
         _arguments.AsSpan(start, count).CopyTo(buffer.AsSpan(length));
 
         return length + count;
+    }
+
+    // Names button into buffer at length and returns the new length: the character the player's layout
+    // prints on it, else the game's own name for it in the language closest to tag, else the engine's
+    // English for the pad family the player used last. No button takes the name of none.
+    private int DecodeButton(InputButton button, string? tag, InputState input, StringTable? names, ref char[] buffer, int length)
+    {
+        string? name = input.KeyCharacter(button);
+        if (name is null)
+        {
+            (string path, name) = ButtonNames.Of(button, input.PadFamily);
+            if (names?.Find(path) is { } key && key.ArgumentCount == 0)
+            {
+                ReadOnlySpan<byte> template = Template(key, tag, out int language);
+
+                return DecodeTemplate(names, language, template, tag, counted: -1, input, names, ref buffer, length);
+            }
+        }
+
+        Reserve(ref buffer, length + name.Length);
+        name.CopyTo(buffer.AsSpan(length));
+
+        return length + name.Length;
     }
 
     // The end of each argument's text in _arguments, one per placeholder a key can take.
@@ -313,6 +400,14 @@ internal sealed class KeyedText
     private struct ArgumentKeys
     {
         private TextKey _key;
+    }
+
+    // Each argument that names a button, marked in _buttonArguments: a button, or an action whose button is
+    // read as the text decodes.
+    [InlineArray(3)]
+    private struct ArgumentButtons
+    {
+        private (InputButton Button, InputAction Action) _named;
     }
 
     // The magnitude of each integer argument, the count a plural form selects on. _negatives holds the signs.

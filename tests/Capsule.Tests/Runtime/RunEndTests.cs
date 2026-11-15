@@ -67,7 +67,7 @@ public sealed class RunEndTests
 
         builder.RunRecorded(SceneTransition.ToScene(typeof(Ending), null), replayed: null, (host, recorder, _) =>
         {
-            FixedStepScheduler scheduler = new(builder.StepSeconds, 8, builder.Input.Bindings, scenes: host, recorder: recorder);
+            FixedStepScheduler scheduler = new(builder.StepSeconds, 8, host.Run.InputState, scenes: host, recorder: recorder);
             for (int step = 0; step < 3; step++)
             {
                 scheduler.Advance(builder.StepSeconds, DeviceSnapshot.Empty, host);
@@ -98,7 +98,7 @@ public sealed class RunEndTests
 
         builder.RunRecorded(SceneTransition.ToScene(typeof(Ending), null), replayed: null, (host, recorder, _) =>
         {
-            FixedStepScheduler scheduler = new(builder.StepSeconds, 8, builder.Input.Bindings, scenes: host, recorder: recorder);
+            FixedStepScheduler scheduler = new(builder.StepSeconds, 8, host.Run.InputState, scenes: host, recorder: recorder);
             for (int step = 0; step < 3; step++)
             {
                 scheduler.Advance(builder.StepSeconds, DeviceSnapshot.Empty, host);

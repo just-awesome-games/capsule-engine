@@ -27,7 +27,7 @@ internal sealed class HeadlessHost(
     RunCapture? capture = null)
 {
     private readonly FixedStepScheduler _scheduler =
-        new(builder.StepSeconds, builder.MaxStepsPerFrame, builder.Input.Bindings, driver, scenes, builder.Timestamp, replay: replay);
+        new(builder.StepSeconds, builder.MaxStepsPerFrame, scenes.Run.InputState, driver, scenes, builder.Timestamp, replay: replay);
 
     internal long SimulationTick => _scheduler.Tick;
 

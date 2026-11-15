@@ -21,6 +21,19 @@ internal static class StringTableFixtures
         ["Titre", "Score : \u00010", "\u00010 sur \u00011", "\u00020\u00031\u0006 boulon\u00035\u0006 boulons\u0007", "\u0008On"],
         ["Tytuł", "Wynik: \u00010", "\u00010 z \u00011", "\u00020\u00031\u0006 śruba\u00033\u0006 śruby\u00034\u0006 śrub\u00035\u0006 śruby\u0007", "Wł."]);
 
+    // A game's table renaming buttons, English then German. The source restyles Left Shift, German
+    // translates it and the PlayStation pad's south button, and German lacks the none text.
+    internal static readonly StringTable Buttons = new FixtureTable(
+        ["en", "de"],
+        fallback: 0,
+        ["hint", "buttons.keys.leftShift", "buttons.playStation.south", "buttons.none"],
+        [1, 0, 0, 0],
+        [0, 0, 0, 0],
+        ["Press \u00010", "Shift Left", "Cross", "Free"],
+        ["Drücke \u00010", "Umschalt links", "Kreuz", "\u0008Free"]);
+
+    internal static TextKey Hint => new(Buttons, 0);
+
     internal static TextKey Title => new(Table, 0);
 
     // A table with no keys shipping these languages, the first its fallback, for specs of which language a run starts in.

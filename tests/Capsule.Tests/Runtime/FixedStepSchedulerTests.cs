@@ -258,7 +258,7 @@ public sealed class FixedStepSchedulerTests
     }
 
     private static FixedStepScheduler CreateScheduler(int maxStepsPerFrame = 5, Func<long>? timestamp = null) =>
-        new(StepSeconds, maxStepsPerFrame, new ActionBindings().Bind(Jump, Key.Space), timestamp: timestamp);
+        new(StepSeconds, maxStepsPerFrame, new InputState(new ActionBindings().Bind(Jump, Key.Space)), timestamp: timestamp);
 
     private static void AssertStep(in RecordedStep step, long tick)
     {

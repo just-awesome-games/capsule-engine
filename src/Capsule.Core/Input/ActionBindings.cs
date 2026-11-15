@@ -10,10 +10,14 @@ internal sealed class ActionBindings
     private InputButton[]?[] _buttons = [];
     private AxisSource[]?[] _sources = [];
 
+    // Counts every write to an action's buttons, which a label naming an action's button follows.
+    internal int Version { get; private set; }
+
     internal ActionBindings Bind(InputAction action, params ReadOnlySpan<InputButton> buttons)
     {
         Require(action, buttons);
         Union(ref Row(ref _buttons, action.Index), buttons);
+        Version++;
 
         return this;
     }
@@ -95,6 +99,7 @@ internal sealed class ActionBindings
         }
 
         _buttons[action.Index] = row;
+        Version++;
 
         return this;
     }
@@ -103,6 +108,7 @@ internal sealed class ActionBindings
     {
         RequireName(action.Index, nameof(action));
         Row(ref _buttons, action.Index) = null;
+        Version++;
 
         return this;
     }

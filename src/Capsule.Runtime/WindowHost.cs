@@ -137,7 +137,7 @@ internal sealed unsafe class WindowHost
         _scheduler = new FixedStepScheduler(
             builder.StepSeconds,
             builder.MaxStepsPerFrame,
-            builder.Input.Bindings,
+            scenes.Run.InputState,
             replay is null ? builder.Driver : null,
             scenes,
             recorder: recorder,
@@ -461,6 +461,7 @@ internal sealed unsafe class WindowHost
         if (events.KeymapChanged)
         {
             KeyboardSampler.ReadLayout(_keyLayout);
+            _scenes.Run.InputState.KeyLayoutRewritten(_keyLayout);
         }
 
         DeviceSnapshot sampled = active ? KeyboardSampler.Sample(events) : DeviceSnapshot.Empty;

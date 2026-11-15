@@ -34,8 +34,9 @@ public sealed class ActionPromptTests
         Assert.Equal(Art(PadButton.East), Drawn(host));
     }
 
+    // An action with no button on the pad keeps showing its key there.
     [Fact]
-    public void AKeyWithNoArt_ShowsItsCharacterAndAnActionUnboundOnTheDeviceShowsNothing()
+    public void AKeyWithNoArt_ShowsItsCharacterOnEveryDevice()
     {
         Run run = new();
         run.Input.Bind(Action, Key.F);
@@ -46,8 +47,8 @@ public sealed class ActionPromptTests
         Assert.Equal(CapsuleAssets.Fonts.MenuFont.Measure("F").X, prompt.Width);
 
         host.Step(DeviceSnapshot.Empty.With(PadButton.South));
-        Assert.Equal(0f, prompt.Width);
-        Assert.Empty(host.Simulation.View.Sprites.ToArray());
+        Assert.Equal("F", Shown(prompt));
+        Assert.Equal(CapsuleAssets.Fonts.MenuFont.Measure("F").X, prompt.Width);
     }
 
     // The sheet draws an Xbox pad. Another family's pad shows its button's name, and switching back
@@ -71,19 +72,23 @@ public sealed class ActionPromptTests
         Assert.Equal(Art(PadButton.South), Drawn(host));
     }
 
-    // A key that prints no character and a button the sheet has no art for are named in the run's language.
+    // A key that prints no character and a button the sheet has no art for show their names. A run a test
+    // builds has no string tables of its own: the prompt's bare name is the engine's English, and a button
+    // in one of the game's texts takes the game's own name in the run's language.
     [Fact]
-    public void AButtonWithNoArtOrCharacter_ShowsItsNameInTheRunsLanguage()
+    public void AButtonWithNoArtOrCharacter_ShowsItsName()
     {
         Run run = new() { Language = "de" };
         run.Input.Bind(Action, Key.LeftShift, PadButton.South);
         using SimulationHost host = Host(run, out ActionPrompt prompt);
 
         host.Step();
-        Assert.Equal("Umschalt links", Shown(prompt));
+        Assert.Equal("Left Shift", Shown(prompt));
+        Assert.Equal("VSync: Umschalt links", run.GetText(CapsuleStrings.Options.Vsync, Action));
 
         host.Step(DeviceSnapshot.Empty.With(PadButton.South).WithPadFamily(PadFamily.PlayStation));
-        Assert.Equal("Kreuz", Shown(prompt));
+        Assert.Equal("Cross", Shown(prompt));
+        Assert.Equal("VSync: Kreuz", run.GetText(CapsuleStrings.Options.Vsync, Action));
     }
 
     private static SimulationHost Host(Run run, out ActionPrompt prompt)

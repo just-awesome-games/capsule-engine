@@ -114,7 +114,7 @@ public sealed class InputDriverPlaybackTests
         JumpRecorder scene = new();
         SceneHost host = new(SceneTransition.ToScene(typeof(JumpRecorder), null), (in SceneTransition _) => scene, new Run());
 
-        return (new FixedStepScheduler(StepSeconds, 32, new ActionBindings().Bind(Jump, Key.Space), driver, host), host, scene);
+        return (new FixedStepScheduler(StepSeconds, 32, new InputState(new ActionBindings().Bind(Jump, Key.Space)), driver, host), host, scene);
     }
 
     private static EngineBuilder Builder() =>

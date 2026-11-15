@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Numerics;
 using Capsule.Assets;
 using Capsule.Diagnostics;
+using Capsule.Input;
 using Capsule.Localization;
 using Capsule.Physics;
 using Capsule.Scenes;
@@ -26,8 +27,9 @@ namespace Capsule.Rendering;
 /// </para>
 /// <para>
 /// A label given a <see cref="TextKey"/> shows that text in its run's active language, and shows the
-/// new one from the step a <see cref="Run.Language"/> request applies. Its text and measures are
-/// readable from <c>OnStart</c> on.
+/// new one from the step a <see cref="Run.Language"/> request applies. A label given a button or an
+/// action shows its name as the run's input stands when it is read, after a device or pad switch, a
+/// keyboard layout change or a rebind. Its text and measures are readable from <c>OnStart</c> on.
 /// </para>
 /// </remarks>
 /// <param name="font">The font the run is drawn with.</param>
@@ -61,9 +63,11 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     private KeyedText? _keyedText;
     private bool _keyed;
 
-    // The run and its language version the keyed text was resolved under. A null run resolves on the next read.
+    // The run, its language version and, while the text names a button, the input a button's name depends
+    // on, as the keyed text was resolved under them. A null run resolves on the next read.
     private Run? _resolvedRun;
     private int _resolvedVersion;
+    private (InputDevice Device, PadFamily Family, int Bindings, int Layout) _resolvedInputs;
 
     // The run laid out, built on the first draw or bounds read and kept until something it depends on changes.
     private LabelLayout? _layout;
@@ -129,14 +133,18 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// <remarks>
     /// A <see cref="TextKey"/> argument, or a <see cref="Nullable{T}"/> or <see cref="object"/> holding one,
     /// shows its own text in the run's active language and follows a language change. Its key takes no
-    /// arguments. Any other argument is formatted once, now, with the invariant culture, and optimized code
-    /// formats a value type without boxing. A placeholder that selects a plural form takes an integer type,
-    /// <see langword="sbyte"/> to <see langword="ulong"/>, and a language change selects the form again.
+    /// arguments. An <see cref="InputButton"/>, a <see cref="Key"/>, <see cref="PadButton"/>,
+    /// <see cref="MouseButton"/>, <see cref="StickDirection"/> or <see cref="InputAction"/> shows a button's
+    /// name as <see cref="SetText(InputButton)"/> and <see cref="SetText(InputAction)"/> do. Any other argument
+    /// is formatted once, now, with the invariant culture, and optimized code formats a value type without
+    /// boxing. A placeholder that selects a plural form takes an integer type, <see langword="sbyte"/> to
+    /// <see langword="ulong"/>, and a language change selects the form again.
     /// </remarks>
     /// <example>
     /// <code>
     /// label.SetText(CapsuleStrings.Options.WindowScale, scale);
     /// label.SetText(CapsuleStrings.Options.Speed, CapsuleStrings.Options.Fast); // "Speed: {speed}" and "Fast"
+    /// label.SetText(CapsuleStrings.Hints.Open, GameInput.Open); // "Press {button} to open" and the button bound to Open
     /// </code>
     /// </example>
     /// <param name="text">A <c>CapsuleStrings</c> member taking one argument.</param>
@@ -178,6 +186,37 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     public void SetText<T0, T1, T2>(TextKey text, T0 arg0, T1 arg1, T2 arg2)
     {
         (_keyedText ??= new KeyedText()).Set(text, arg0, arg1, arg2);
+        ShowKeyedText();
+    }
+
+    /// <summary>Shows the name of <paramref name="button"/>, and keeps it current, in place of any text or key before it.</summary>
+    /// <remarks>
+    /// The name is the character the keyboard layout prints on a key, else the game's text in its
+    /// <c>buttons</c> group, else the engine's English, for the pad family the player used last. A run built
+    /// by hand without string tables names a bare button in English.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// label.SetText(Key.LeftShift); // "Left Shift"
+    /// label.SetText(PadButton.South); // "A" on an Xbox pad, "Cross" on a PlayStation pad
+    /// </code>
+    /// </example>
+    /// <param name="button">The button to name, or one of the enums that converts to one.</param>
+    public void SetText(InputButton button)
+    {
+        (_keyedText ??= new KeyedText()).SetBare(button);
+        ShowKeyedText();
+    }
+
+    /// <summary>Shows the name of the button <paramref name="action"/> has, and keeps it current, in place of any text or key before it.</summary>
+    /// <remarks>
+    /// The button is <see cref="InputState.ButtonFor"/>, named as <see cref="SetText(InputButton)"/> names
+    /// one. An action with no button shows <c>buttons.none</c>.
+    /// </remarks>
+    /// <param name="action">The action whose button is named.</param>
+    public void SetText(InputAction action)
+    {
+        (_keyedText ??= new KeyedText()).SetBare(action);
         ShowKeyedText();
     }
 
@@ -533,8 +572,10 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         return _layout;
     }
 
-    // Brings a keyed label's text up to its run's active language: one compare while that is unchanged.
-    // The text is decoded into the label's own buffer with each argument's text in its placeholder.
+    // Brings a keyed label's text up to its run's active language and, while it names a button, to the run's
+    // input as it stands: a few compares while those are unchanged. Every read is live, and a label read
+    // earlier shows what one read now does. The text is decoded into the label's own buffer with each
+    // argument's text in its placeholder.
     private void Resolve()
     {
         if (!_keyed)
@@ -542,16 +583,22 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
             return;
         }
 
+        KeyedText keyed = _keyedText!;
         Run run = Entity?.SceneOrNull?.RunOrNull ?? throw new InvalidOperationException(
-            $"This label shows the text '{_keyedText!.Key}', which resolves against its run's language. Read its text or measures from OnStart on, once its entity is in a running scene.");
-        if (run == _resolvedRun && run.LanguageVersion == _resolvedVersion)
+            $"This label shows {(keyed.Key.IsDefault ? "a button's name" : $"the text '{keyed.Key}'")}, which resolves against its run. Read its text or measures from OnStart on, once its entity is in a running scene.");
+        InputState input = run.InputState;
+        (InputDevice, PadFamily, int, int) inputs = keyed.NamesButtons
+            ? (input.ActiveDevice, input.PadFamily, run.Input.Bindings.Version, input.KeyLayoutVersion)
+            : default;
+        if (run == _resolvedRun && run.LanguageVersion == _resolvedVersion && inputs == _resolvedInputs)
         {
             return;
         }
 
         _resolvedRun = run;
         _resolvedVersion = run.LanguageVersion;
-        int length = _keyedText!.Decode(run.ActiveLanguage, ref _buffer);
+        _resolvedInputs = inputs;
+        int length = keyed.Decode(run.ActiveLanguage, run.InputState, run.Strings, ref _buffer);
         _memory = _buffer.AsMemory(0, length);
         _text = null;
         _textVersion++;

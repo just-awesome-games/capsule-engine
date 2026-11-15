@@ -67,7 +67,7 @@ internal static class RecordingFixtures
             Recorder = builder.NewRecorder(in opening, seed, languages: null, language: null)!;
             Host = builder.CreateHost(in opening, medium, seed, preferredLanguages: null, language: null, Recorder);
             Replay? replay = replaying is null ? null : new Replay(replaying, Host, builder.Scenes, Recorder, holdsAtEnd: true);
-            Scheduler = new FixedStepScheduler(builder.StepSeconds, 8, builder.Input.Bindings, scenes: Host, recorder: Recorder, replay: replay) { Output = FirstOutput };
+            Scheduler = new FixedStepScheduler(builder.StepSeconds, 8, Host.Run.InputState, scenes: Host, recorder: Recorder, replay: replay) { Output = FirstOutput };
         }
 
         private static RecordedSave Save => new("settings", "{\"volume\":3}", new SaveMetadata(DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));

@@ -89,6 +89,11 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
     // The key this button is, or null for any other button.
     internal Key? AsKey => _source == Source.Key ? (Key)_value : null;
 
+    // Which device enum the button belongs to, and its value there.
+    internal Source Kind => _source;
+
+    internal int Value => _value;
+
     /// <summary>Whether both name the same device constant.</summary>
     public bool Equals(InputButton other) => _source == other._source && _value == other._value;
 
@@ -230,7 +235,7 @@ public readonly struct InputButton : IEquatable<InputButton>, IParsable<InputBut
         direction is StickDirection.LeftStickUp or StickDirection.LeftStickRight
             or StickDirection.RightStickUp or StickDirection.RightStickRight;
 
-    private enum Source : byte
+    internal enum Source : byte
     {
         None,
         Key,

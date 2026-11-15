@@ -24,6 +24,9 @@ public sealed class InputState
     // when the layout changes.
     private string?[]? _keyLayout;
 
+    // Counts every layout installed or rewritten in place. A label naming a button follows it.
+    internal int KeyLayoutVersion { get; private set; }
+
     internal InputState(ActionBindings bindings) => _bindings = bindings;
 
     /// <summary>
@@ -74,7 +77,7 @@ public sealed class InputState
     public bool ActiveDeviceChanged => _activeDeviceChanged;
 
     /// <summary>
-    /// The family of the pad the player last used this step, which picks a prompt's art set.
+    /// The family of the pad the player last used this step, which picks a pad button's name and a prompt's art.
     /// <see cref="Input.PadFamily.Generic"/> until a pad of a known family is found.
     /// </summary>
     /// <remarks>
@@ -104,8 +107,8 @@ public sealed class InputState
     /// <remarks>
     /// Null for a key that prints no character, such as <see cref="Key.LeftShift"/>, <see cref="Key.F1"/>,
     /// an arrow, <see cref="Key.Enter"/> or <see cref="Key.Space"/>, for every key of the numeric keypad,
-    /// which prints the same on every layout and which a game names itself, and for a button that is not a
-    /// key.
+    /// which prints the same on every layout, and for a button that is not a key. A label given the button
+    /// names such a key in English, or by the game's own <c>buttons</c> text.
     /// A run an input driver plays and a headless run read a US layout's characters. A repeated read
     /// allocates nothing.
     /// </remarks>
@@ -114,6 +117,29 @@ public sealed class InputState
         string?[] characters = _keyLayout ?? KeyCharacters.Us;
 
         return button.AsKey is { } key && (uint)key < (uint)characters.Length ? characters[(int)key] : null;
+    }
+
+    /// <summary>
+    /// The button a prompt for <paramref name="action"/> shows this step: the first one bound on
+    /// <see cref="ActiveDevice"/>, else the first one bound on any device.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="InputButton.None"/> where the action has no button. A label given the action shows the
+    /// same button and follows it by itself. A game that draws its own button art reads this to pick the
+    /// art or hide the prompt.
+    /// </remarks>
+    public InputButton ButtonFor(InputAction action)
+    {
+        ReadOnlySpan<InputButton> bound = _bindings.ButtonsFor(action);
+        foreach (InputButton button in bound)
+        {
+            if (button.Device == _activeDevice)
+            {
+                return button;
+            }
+        }
+
+        return bound.IsEmpty ? InputButton.None : bound[0];
     }
 
     // Advances to a snapshot. Repeating a snapshot produces no second edge.
@@ -130,7 +156,20 @@ public sealed class InputState
     // Reads key characters from the player's keyboard layout from now on, or from a US layout's when
     // null. Only a played run installs one, and a driven or headless run keeps the US characters it
     // replays with.
-    internal void UseKeyLayout(string?[]? characters) => _keyLayout = characters;
+    internal void UseKeyLayout(string?[]? characters)
+    {
+        _keyLayout = characters;
+        KeyLayoutVersion++;
+    }
+
+    // Reads that the host rewrote layout in place. Only the layout in use counts.
+    internal void KeyLayoutRewritten(string?[] layout)
+    {
+        if (ReferenceEquals(layout, _keyLayout))
+        {
+            KeyLayoutVersion++;
+        }
+    }
 
     // The layout key characters are read from, null for a US layout's.
     internal string?[]? KeyLayout => _keyLayout;

@@ -16,6 +16,8 @@ internal sealed class FixedStepScheduler
     // step length.
     private readonly long _budgetTicks;
     private readonly Func<long> _timestamp;
+
+    // The run's input state, which its labels read between steps too.
     private readonly InputState _input;
     private readonly SnapshotLatch _latch = new();
 
@@ -63,14 +65,14 @@ internal sealed class FixedStepScheduler
     internal FixedStepScheduler(
         double stepSeconds,
         int maxStepsPerFrame,
-        ActionBindings bindings,
+        InputState input,
         IInputDriver? driver = null,
         SceneHost? scenes = null,
         Func<long>? timestamp = null,
         Recorder? recorder = null,
         Replay? replay = null)
     {
-        ArgumentNullException.ThrowIfNull(bindings);
+        ArgumentNullException.ThrowIfNull(input);
 
         if ((driver is not null || replay is not null) && scenes is null)
         {
@@ -88,7 +90,7 @@ internal sealed class FixedStepScheduler
         _maxStepsPerFrame = maxStepsPerFrame;
         _budgetTicks = (long)(stepSeconds * Stopwatch.Frequency);
         _timestamp = timestamp ?? Stopwatch.GetTimestamp;
-        _input = new InputState(bindings);
+        _input = input;
         _driver = driver;
         _scenes = scenes;
         if (Development.IsSupported)
