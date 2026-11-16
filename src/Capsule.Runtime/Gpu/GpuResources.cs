@@ -212,21 +212,26 @@ internal sealed class GpuReadback(nint device, nint handle, int width, int heigh
     // The texels as a PNG.
     internal unsafe byte[] EncodePng()
     {
-        byte* texels = Sdl3.SDL_MapGPUTransferBuffer(device, Handle, cycle: false);
-        if (texels is null)
-        {
-            throw new InvalidOperationException($"The captured frame could not be read back: {Sdl3.Error()}");
-        }
-
+        byte* texels = Map();
         try
         {
             return EncodePng(new ReadOnlySpan<byte>(texels, Width * Height * 4), Width, Height, Format);
         }
         finally
         {
-            Sdl3.SDL_UnmapGPUTransferBuffer(device, Handle);
+            Unmap();
         }
     }
+
+    // The texels, readable until Unmap, once every command buffer that downloads into this has completed.
+    internal unsafe byte* Map()
+    {
+        byte* texels = Sdl3.SDL_MapGPUTransferBuffer(device, Handle, cycle: false);
+
+        return texels is not null ? texels : throw new InvalidOperationException($"The captured frame could not be read back: {Sdl3.Error()}");
+    }
+
+    internal void Unmap() => Sdl3.SDL_UnmapGPUTransferBuffer(device, Handle);
 
     // Texels of four bytes each in format, rows tightly packed, as a PNG through SDL's encoder, which
     // reads them in the pixel format matching format. The PNG is the same whichever byte order holds the

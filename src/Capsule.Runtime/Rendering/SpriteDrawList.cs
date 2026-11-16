@@ -77,6 +77,13 @@ internal sealed class SpriteDrawList : IDisposable
         _samplers = samplers;
     }
 
+    // The last walk's kept instances, the instances it wrote for the frame alone, and its draws.
+    internal int KeptCount => _count;
+
+    internal int FrameInstanceCount => _frameCount;
+
+    internal int DrawCount => _drawCount;
+
     // Begins a walk. A recording forgets the last one. A reuse, where there is a recording to reuse, keeps its
     // kept instances and checks the walk against its log. alpha is the fraction of a step every instance
     // interpolates by.
