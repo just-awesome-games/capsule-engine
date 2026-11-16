@@ -10,6 +10,10 @@ internal sealed class ScenePhysics
     // How many contacts the shared gather holds before a reporter in a crowd first grows it.
     private const int StartingGather = 16;
 
+    // How many bodies the shared shove gather holds, over every shove running at once, before a crowd
+    // or a deep chain of shoves first grows it.
+    private const int StartingShoved = 32;
+
     private readonly SettleList<Collider2D> _contactReporters = new();
 
     // How many bodies in this scene are moved by each collision layer, indexed by layer.
@@ -44,6 +48,19 @@ internal sealed class ScenePhysics
 
     // Every reporter's settle gathers into this one buffer, sized for the most any has gathered at once.
     private Contact2D[] _gather = new Contact2D[StartingGather];
+
+    // Every shove gathers the bodies near its pusher into this one buffer, from ShovedUsed on. A shove
+    // raised inside another one gathers past the outer's entries and leaves them intact. The buffer is
+    // kept at the most every running shove has held at once.
+    private ColliderHandle[] _shoved = new ColliderHandle[StartingShoved];
+
+    // The bodies the running shoves have gathered, read by index from a shove's own start. A gather that
+    // grows the buffer replaces it, and a shove reads it through here after each body it moves.
+    internal ref ColliderHandle[] Shoved => ref _shoved;
+
+    // How many entries of Shoved the running shoves hold. A shove gathers from here and restores it as
+    // it ends.
+    internal int ShovedUsed { get; set; }
 
     // Raises every contact the step's final positions produce. A collider whose entity is held settles nothing.
     internal void SettleContacts()

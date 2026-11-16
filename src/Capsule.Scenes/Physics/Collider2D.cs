@@ -87,9 +87,8 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     // The bodies whose last move stopped on this collider.
     private RiderList _riders = new();
 
-    // The colliders near this one's last move, allocated on its first shove. Each collider owns its
-    // own, and _pushing keeps a nested move of this one from reusing it.
-    private ColliderHandle[]? _near;
+    // True while this collider carries its riders and shoves bodies. A move of it made inside that only
+    // follows its entity.
     private bool _pushing;
 
     /// <summary>

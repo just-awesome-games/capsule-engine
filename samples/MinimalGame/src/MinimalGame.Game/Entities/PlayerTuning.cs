@@ -7,6 +7,8 @@ namespace MinimalGame.Game.Entities;
 /// <param name="WalkSpeed">Ground and air horizontal speed, in px/s.</param>
 /// <param name="SlopeSpeed">How much a slope slows the climb and speeds the descent, where 0 walks a slope at <paramref name="WalkSpeed"/>.</param>
 /// <param name="StepHeight">The tallest lip the player walks up onto and the deepest drop it walks down without leaving the ground, in px.</param>
+/// <param name="AirStepHeight">The tallest lip the player climbs onto while jumping or falling into its side, in px, where 0 leaves it to clear the lip.</param>
+/// <param name="CeilingCornerCorrection">How far a jump that clips the edge of a ceiling slides sideways to rise past it, in px, where 0 stops it.</param>
 /// <param name="Gravity">Downward acceleration in a Y-down world, in px/s².</param>
 /// <param name="JumpSpeed">Upward speed at take-off, in px/s.</param>
 /// <param name="CoyoteTicks">Steps after walking off a ledge in which a jump still takes off, where 0 needs the floor underfoot.</param>
@@ -33,6 +35,8 @@ public sealed record class PlayerTuning(
     float WalkSpeed,
     float SlopeSpeed,
     float StepHeight,
+    float AirStepHeight,
+    float CeilingCornerCorrection,
     float Gravity,
     float JumpSpeed,
     int CoyoteTicks,
@@ -61,6 +65,8 @@ public sealed record class PlayerTuning(
         WalkSpeed: 80f,
         SlopeSpeed: 0.3f,
         StepHeight: 5f,
+        AirStepHeight: 3f,
+        CeilingCornerCorrection: 3f,
         Gravity: 600f,
         JumpSpeed: 220f,
         CoyoteTicks: 6,

@@ -31,6 +31,10 @@ public sealed partial class CollisionWorld2D
     // How many candidates a collider's list holds from registration on. A larger crowd doubles it.
     private const int StartingCandidates = 8;
 
+    // The longest appended run a merge copies onto the stack, 3 KB of handles. Only a crowd arriving at
+    // one collider in one pass runs longer.
+    private const int MergeOnStack = 256;
+
     private static readonly Comparison<ColliderHandle> BySlot = static (left, right) => left.Index.CompareTo(right.Index);
 
     // How many colliders the slot table and the shove gather hold before either first grows.
@@ -52,7 +56,8 @@ public sealed partial class CollisionWorld2D
     private readonly List<int> _moved = [];
 
     // The slots the running FindNewPairs has appended unsorted candidates to, each listed once, and
-    // the scratch that merges a list's appended run into its sorted head, sized for the longest run.
+    // the scratch that merges a run longer than MergeOnStack into its list's sorted head, sized for the
+    // longest such run. A world whose runs all fit on the stack never allocates it.
     private readonly List<int> _appended = [];
     private ColliderHandle[] _mergeScratch = [];
 
@@ -997,19 +1002,26 @@ public sealed partial class CollisionWorld2D
             return;
         }
 
-        // Merge from the back, where the run's copy frees the room the sorted entries move into.
-        if (_mergeScratch.Length < unique)
-        {
-            _mergeScratch = new ColliderHandle[BitOperations.RoundUpToPowerOf2((uint)unique)];
-        }
-
-        run[..unique].CopyTo(_mergeScratch);
+        // Merge from the back, where the run's copy frees the room the sorted entries move into. A run
+        // up to MergeOnStack long is copied to the stack, and only a longer one needs the world's scratch.
+        Span<ColliderHandle> scratch = unique <= MergeOnStack ? stackalloc ColliderHandle[unique] : LongRunScratch(unique);
+        run[..unique].CopyTo(scratch);
         int left = sorted - 1;
         int right = unique - 1;
         for (int write = sorted + unique - 1; right >= 0; write--)
         {
-            list[write] = left >= 0 && list[left].Index > _mergeScratch[right].Index ? list[left--] : _mergeScratch[right--];
+            list[write] = left >= 0 && list[left].Index > scratch[right].Index ? list[left--] : scratch[right--];
         }
+    }
+
+    private Span<ColliderHandle> LongRunScratch(int length)
+    {
+        if (_mergeScratch.Length < length)
+        {
+            _mergeScratch = new ColliderHandle[BitOperations.RoundUpToPowerOf2((uint)length)];
+        }
+
+        return _mergeScratch;
     }
 
     /// <summary>

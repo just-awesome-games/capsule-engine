@@ -66,7 +66,7 @@ public sealed partial class KinematicBody2D
         }
 
         float reach = MathF.Max(0f, (MathF.Abs(result.Translation.X) * wall.Fraction) - CollisionTolerance.LinearSlop);
-        result = Sweep(world, shape, origin, new Vector2(MathF.Sign(swept.X) * reach, swept.Y), blocking, false, false);
+        result = Sweep(world, shape, origin, new Vector2(MathF.Sign(swept.X) * reach, swept.Y), blocking, false, 0f);
 
         int count = result.ContactCount;
         if (count == _found.Length)

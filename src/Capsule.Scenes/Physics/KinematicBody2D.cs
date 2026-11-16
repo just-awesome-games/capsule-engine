@@ -79,6 +79,18 @@ public sealed partial class KinematicBody2D : Component
 
     private float _stepHeight;
 
+    private float _airStepHeight;
+
+    private float _ceilingCornerCorrection;
+
+    // Whether the last grounded walk stepped up while its move rose. The swept pose then took the whole
+    // rise, and the sink that stood on the floor below ends.
+    private bool _steppedRising;
+
+    // What the last resolved move's steps and corner correction added to it, which Travel reports as the
+    // move's Correction.
+    private Vector2 _correction;
+
     /// <summary>
     /// Whether a <see cref="BodyMode.Grounded"/> walk on a slope covers the move's whole X horizontally,
     /// true by default.
@@ -268,8 +280,9 @@ public sealed partial class KinematicBody2D : Component
     /// A body whose last move ended on a floor and whose walk meets a wall rises, walks on and settles
     /// onto a floor no lower than where it started. Without headroom or such a floor, the wall stops it
     /// as usual. A walk that leaves its floor stays on one up to this far below where the walk ended. A
-    /// move that rises or follows <see cref="DropThrough"/> never steps. A body steps onto a one-way
-    /// surface only where that surface blocks it.
+    /// move that rises steps up only by <see cref="AirStepHeight"/>, and one that follows
+    /// <see cref="DropThrough"/> never steps. A body steps onto a one-way surface only where that surface
+    /// blocks it.
     /// </remarks>
     public float StepHeight
     {
@@ -282,6 +295,62 @@ public sealed partial class KinematicBody2D : Component
             }
 
             _stepHeight = value;
+        }
+    }
+
+    /// <summary>
+    /// How tall a lip a <see cref="BodyMode.Grounded"/> body off the floor or rising steps up onto, in world
+    /// units, where 0, the default, turns stepping in the air off.
+    /// </summary>
+    /// <remarks>
+    /// It applies to the walks <see cref="StepHeight"/> leaves alone: those of a body whose last move did not
+    /// end on a floor, and those of a move that rises. The body rises, walks on and settles onto a floor no
+    /// lower than where it started. Without headroom or such a floor, the wall stops it as usual. A move that
+    /// falls or keeps level ends on the lip with <see cref="IsOnFloor"/> true. A move that rises goes on rising
+    /// from the lip by its whole rise, and <see cref="IsOnFloor"/> and <see cref="IsOnWall"/> read false after
+    /// it. A move that follows <see cref="DropThrough"/> never steps. A body steps onto a one-way surface only
+    /// where that surface blocks it.
+    /// </remarks>
+    public float AirStepHeight
+    {
+        get => _airStepHeight;
+        set
+        {
+            if (!(value >= 0f && float.IsFinite(value)))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "AirStepHeight must be finite and at least 0. Use 0 to turn stepping in the air off.");
+            }
+
+            _airStepHeight = value;
+        }
+    }
+
+    /// <summary>
+    /// How far a <see cref="BodyMode.Grounded"/> body whose rise meets the edge of a flat ceiling slides
+    /// sideways to rise past it, in world units, where 0, the default, turns the correction off.
+    /// </summary>
+    /// <remarks>
+    /// A move's rise that a ceiling facing straight down stops, overlapping the top of the body's box by no
+    /// more than this from one side, shifts the body sideways by that overlap, away from the ceiling, and
+    /// rises on. The smaller overlap of the two sides is the one cleared. When they are equal the shift runs
+    /// against the move's horizontal part, and a move with none is stopped. A wall in the way of the shift
+    /// or anything that stops the rest of the rise leaves the ceiling stopping the rise as usual. A
+    /// correction that clears leaves <see cref="IsOnCeiling"/> false. A slanted ceiling, a round ceiling and
+    /// a body whose collider is not a box are never corrected. The body corrects past a one-way surface
+    /// only where that surface blocks it. The horizontal part of the move runs first, and the correction
+    /// also clears an edge that part carried the body under.
+    /// </remarks>
+    public float CeilingCornerCorrection
+    {
+        get => _ceilingCornerCorrection;
+        set
+        {
+            if (!(value >= 0f && float.IsFinite(value)))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "CeilingCornerCorrection must be finite and at least 0. Use 0 to turn the correction off.");
+            }
+
+            _ceilingCornerCorrection = value;
         }
     }
 
@@ -539,7 +608,15 @@ public sealed partial class KinematicBody2D : Component
             _sink = 0f;
         }
 
-        MoveResult2D result = Sweep(world, shape, origin, swept, blocking, through, rising);
+        MoveResult2D result = Sweep(world, shape, origin, swept, blocking, through, Vector2.Dot(translation, Up));
+        if (_steppedRising)
+        {
+            // The entity hung its sink below the swept pose. The step lifts it by that sink on top of the
+            // rise the move asked for.
+            _correction.Y -= sunk;
+            _sink = 0f;
+        }
+
         centerNormal = Vector2.Zero;
         if (rests)
         {
@@ -558,30 +635,35 @@ public sealed partial class KinematicBody2D : Component
         Vector2 moved = result.Translation + new Vector2(0f, _sink - sunk);
         Displace(entity, moved);
 
-        return result with { Translation = moved };
+        return result with { Translation = moved, Correction = _correction };
     }
 
-    // Resolves the move, and runs it again with room for every contact when the span overflowed.
-    private MoveResult2D Sweep(CollisionWorld2D world, in Shape2D shape, Vector2 origin, Vector2 translation, CollisionFilter blocking, bool through, bool rising)
+    // Resolves the move, and runs it again with room for every contact while the span overflows. A run
+    // with more room can take a path the cut-short run passed up, a step or a corner correction, and
+    // find more contacts again. The span only grows, and the world holds finitely many contacts.
+    // `asked` is the rise the caller asked for, before the sink took any of it.
+    private MoveResult2D Sweep(CollisionWorld2D world, in Shape2D shape, Vector2 origin, Vector2 translation, CollisionFilter blocking, bool through, float asked)
     {
-        MoveResult2D result = Resolve(world, shape, origin, translation, blocking, through, rising);
-        if (result.ContactCount > _found.Length)
+        MoveResult2D result = Resolve(world, shape, origin, translation, blocking, through, asked);
+        while (result.ContactCount > _found.Length)
         {
             Collider2D.Grow(ref _found, result.ContactCount);
             Collider2D.Grow(ref _stopped, result.ContactCount);
-            result = Resolve(world, shape, origin, translation, blocking, through, rising);
+            result = Resolve(world, shape, origin, translation, blocking, through, asked);
         }
 
         return result;
     }
 
-    // Runs the whole move against the world without writing the body. It is pure. An overflowing
-    // contact span can be grown and the move run again. Kept out of line, because each inlined copy
+    // Runs the whole move against the world, writing nothing of the body but the contacts and whether a
+    // rising walk stepped. An overflowing contact span can be grown and the move run again. Kept out of line, because each inlined copy
     // would add a sweep that MoveWith's frame zeroes on every move.
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private MoveResult2D Resolve(CollisionWorld2D world, in Shape2D shape, Vector2 origin, Vector2 translation, CollisionFilter blocking, bool through, bool rising)
+    private MoveResult2D Resolve(CollisionWorld2D world, in Shape2D shape, Vector2 origin, Vector2 translation, CollisionFilter blocking, bool through, float asked)
     {
         MoveSweep sweep = new(world, shape, origin, blocking, _collider.Handle, through, _found, _stopped);
+        _steppedRising = false;
+        _correction = Vector2.Zero;
 
         if (_mode == BodyMode.Floating)
         {
@@ -589,21 +671,24 @@ public sealed partial class KinematicBody2D : Component
         }
         else
         {
-            Walk(ref sweep, translation, through, rising);
+            Walk(ref sweep, translation, through, asked);
         }
 
         return sweep.Result;
     }
 
     // The grounded move. The part across up walks along the floor, the part along up falls onto floors
-    // and rises into ceilings, and a body that stood on a floor follows it down. A rising move neither
-    // steps nor follows the floor down, even when the sink took its whole rise.
-    private void Walk(ref MoveSweep sweep, Vector2 translation, bool through, bool rising)
+    // and rises into ceilings or past their edges, and a body that stood on a floor follows it down. A rising move steps only
+    // by the air step and never follows the floor down, even when the sink took its whole rise. A rising
+    // move that steps leaves the floor the sink stood on, and its swept pose rises by all of `asked`.
+    private void Walk(ref MoveSweep sweep, Vector2 translation, bool through, float asked)
     {
         float rise = Vector2.Dot(translation, Up);
+        bool rising = asked > 0f;
 
         // Lateral is horizontal while up is -Y. Its length and direction need no square root.
         float length = MathF.Abs(translation.X);
+        bool stepped = false;
 
         if (length > 0f)
         {
@@ -614,11 +699,18 @@ public sealed partial class KinematicBody2D : Component
                 direction = Tangent(direction, _walkNormal);
             }
 
-            bool steps = _stepHeight > 0f && IsOnFloor && !rising && !through;
-            Across(ref sweep, direction, length, steps);
+            float climb = through ? 0f : IsOnFloor && !rising ? _stepHeight : _airStepHeight;
+            stepped = Across(ref sweep, direction, length, climb);
+        }
+
+        if (stepped && rising)
+        {
+            rise = asked;
+            _steppedRising = true;
         }
 
         float walked = sweep.At.Y;
+        int across = sweep.Written;
 
         if (rise != 0f)
         {
@@ -630,11 +722,22 @@ public sealed partial class KinematicBody2D : Component
                 // A floor stops a fall outright. A body resting on a slope never slides down it.
                 if (!step.Blocked || (rise < 0f ? IsFloor(step.Normal) : IsCeiling(step.Normal)))
                 {
+                    if (step.Blocked && rise > 0f && pass == 0 && _ceilingCornerCorrection > 0f)
+                    {
+                        PassCorner(ref sweep, step, remaining - step.Moved, translation.X);
+                    }
+
                     break;
                 }
 
                 remaining = MoveSweep.AlongSurface(remaining - step.Moved, step.Normal);
             }
+        }
+
+        // A rise goes on from the lip it stepped onto and leaves that lip behind.
+        if (_steppedRising)
+        {
+            LeaveFloors(across);
         }
 
         // The farthest a walk can leave a floor it followed is the distance it covers across up times the
@@ -649,7 +752,9 @@ public sealed partial class KinematicBody2D : Component
                 float down = walked + _stepHeight + CollisionTolerance.ContactSkin - sweep.At.Y;
                 if (down > reach)
                 {
+                    float before = sweep.At.Y;
                     sweep.Snap(-Up * down, _floorCos);
+                    _correction.Y += sweep.At.Y - before;
                 }
             }
         }
@@ -657,8 +762,8 @@ public sealed partial class KinematicBody2D : Component
 
     // Walks `left` on from `direction`, turning along each walkable surface it meets. The walk spends
     // `left` across up, or along the floor when KeepsHorizontalSpeedOnSlopes is off. A wall ends it, or
-    // is stepped over when `steps` allows.
-    private void Across(ref MoveSweep sweep, Vector2 direction, float left, bool steps)
+    // is stepped over when it is no taller than `climb`. Returns whether the walk stepped.
+    private bool Across(ref MoveSweep sweep, Vector2 direction, float left, float climb)
     {
         // A floor turns the walk along it from the heading, not from the direction that met it. A
         // direction running straight into the far face of a valley would otherwise leave none.
@@ -693,49 +798,128 @@ public sealed partial class KinematicBody2D : Component
                 continue;
             }
 
-            if (steps && left > CollisionTolerance.LinearSlop)
+            if (climb > 0f && left > CollisionTolerance.LinearSlop)
             {
-                StepUp(ref sweep, step, left, heading.X);
+                return StepUp(ref sweep, step, left, heading.X, climb);
             }
 
             break;
         }
+
+        return false;
     }
 
-    // Climbs the wall that stopped `wall`. The body rises by up to StepHeight, walks on with what is left
+    // Climbs the wall that stopped `wall`. The body rises by up to `climb`, walks on with what is left
     // and settles onto a floor no lower than where the rise began. A climb that fails any of these puts
-    // the move back where the wall stopped it. Every leg is a sweep. The body then never ends inside
-    // anything it blocks on. It is kept out of line to keep the saved sweep out of every walk's frame.
+    // the move back where the wall stopped it and returns false. Every leg is a sweep. The body then never
+    // ends inside anything it blocks on. It is kept out of line to keep the saved sweep out of every walk's
+    // frame.
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private void StepUp(ref MoveSweep sweep, in MovePass wall, float left, float way)
+    private bool StepUp(ref MoveSweep sweep, in MovePass wall, float left, float way, float climb)
     {
         // A face turned down is an overhang. A wall met only above the step's reach is taller than the
-        // step. Neither needs a sweep to rule out.
+        // step. A box's upright face still meets a wall after the rise where it touched the wall above that
+        // reach. A box pressed into a tall wall then pays no sweep. None needs a sweep to rule out.
         int from = sweep.Written - wall.Written;
-        if (IsCeiling(wall.Normal) || (wall.Written > 0 && LowestPoint(from, sweep.Written) < sweep.Bottom - _stepHeight - CollisionTolerance.LinearSlop))
+        float reach = sweep.Bottom - climb - CollisionTolerance.LinearSlop;
+        if (IsCeiling(wall.Normal)
+            || (wall.Written > 0 && (sweep.IsBox ? HighestPoint(from, sweep.Written) : LowestPoint(from, sweep.Written)) < reach))
         {
-            return;
+            return false;
         }
 
         MoveSweep blocked = sweep;
-        float lifted = -sweep.Pass(Up * _stepHeight).Moved.Y;
+        float lifted = -sweep.Pass(Up * climb).Moved.Y;
         int risen = sweep.Written;
         float start = sweep.At.X;
 
         // The walk after the rise only climbs. Settling by the rise then lands no lower than the start.
         if (lifted > CollisionTolerance.LinearSlop)
         {
-            Across(ref sweep, new Vector2(way, 0f), left, false);
+            Across(ref sweep, new Vector2(way, 0f), left, 0f);
             int landed = sweep.Written;
+            float walked = sweep.At.Y;
             if (MathF.Abs(sweep.At.X - start) > CollisionTolerance.LinearSlop
                 && sweep.Snap(-Up * (lifted + CollisionTolerance.ContactSkin), _floorCos))
             {
                 Supersede(from, risen, landed);
-                return;
+
+                // The walk between the rise and the landing follows the floor, which no step adds.
+                _correction.Y += sweep.At.Y - walked - lifted;
+                return true;
             }
         }
 
         sweep = blocked;
+        return false;
+    }
+
+    // Shifts a rise that `ceiling` stopped sideways past the ceiling's edge, by the smaller overlap of the
+    // undersides it met with the body's top, and rises on by `rest`. A shift or a rise that something stops
+    // puts the move back where the ceiling stopped it. The overlaps come from the undersides, not a search.
+    // A correction then costs two sweeps. It is kept out of line to keep the saved sweep out of every walk's
+    // frame.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void PassCorner(ref MoveSweep sweep, in MovePass ceiling, Vector2 rest, float way)
+    {
+        // An overflowed span drops contacts, and the move runs again with room for them.
+        if (!sweep.IsBox || ceiling.Written < ceiling.Found)
+        {
+            return;
+        }
+
+        int from = sweep.Written - ceiling.Written;
+        float low = float.PositiveInfinity;
+        float high = float.NegativeInfinity;
+        for (int index = from; index < sweep.Written; index++)
+        {
+            ref readonly Contact2D contact = ref _found[index];
+            if (MathF.Abs(contact.Normal.X) > FlatX || contact.Normal.Y <= 0f || !sweep.Underside(contact, out float left, out float right))
+            {
+                return;
+            }
+
+            low = MathF.Min(low, left);
+            high = MathF.Max(high, right);
+        }
+
+        // Shifting left clears what reaches in from the right, and shifting right what reaches in from the left.
+        float leftward = sweep.Right - low;
+        float rightward = high - sweep.Left;
+        if (leftward == rightward && way == 0f)
+        {
+            return;
+        }
+
+        float shift = leftward < rightward || (leftward == rightward && way > 0f) ? -leftward : rightward;
+        if (MathF.Abs(shift) > _ceilingCornerCorrection)
+        {
+            return;
+        }
+
+        MoveSweep stopped = sweep;
+        if (!sweep.Pass(new Vector2(shift, 0f)).Blocked && !sweep.Pass(rest).Blocked)
+        {
+            LeaveCeilings(from + ceiling.Written);
+            _correction.X += shift;
+            return;
+        }
+
+        sweep = stopped;
+    }
+
+    // Leaves every ceiling among the contacts found before `to` as one that stopped nothing. A ceiling the
+    // walk across stopped on touched the body's top where the rise began, and a rise that cleared has
+    // risen past it.
+    private void LeaveCeilings(int to)
+    {
+        for (int index = 0; index < to; index++)
+        {
+            if (IsCeiling(_found[index].Normal))
+            {
+                _stopped[index] = false;
+            }
+        }
     }
 
     // Leaves the landing as the only floor that stopped a step. The wall and anything the rise touched
@@ -745,6 +929,18 @@ public sealed partial class KinematicBody2D : Component
         for (int index = 0; index < landed; index++)
         {
             if ((index >= from && index < risen) || IsFloor(_found[index].Normal))
+            {
+                _stopped[index] = false;
+            }
+        }
+    }
+
+    // Leaves every floor among the contacts found before `to` as one that stopped nothing.
+    private void LeaveFloors(int to)
+    {
+        for (int index = 0; index < to; index++)
+        {
+            if (IsFloor(_found[index].Normal))
             {
                 _stopped[index] = false;
             }
@@ -761,6 +957,18 @@ public sealed partial class KinematicBody2D : Component
         }
 
         return lowest;
+    }
+
+    // The smallest Y, the highest point, among the contacts found from `from` up to `to`.
+    private float HighestPoint(int from, int to)
+    {
+        float highest = float.PositiveInfinity;
+        for (int index = from; index < to; index++)
+        {
+            highest = MathF.Min(highest, _found[index].Point.Y);
+        }
+
+        return highest;
     }
 
     private bool StoppedOnFloor(in MoveSweep sweep)

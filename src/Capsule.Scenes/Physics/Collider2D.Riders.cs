@@ -90,66 +90,78 @@ public abstract partial class Collider2D
             .Expanded(CollisionTolerance.ContactSkin);
         Aabb2D reach = new(path.Min, path.Max + new Vector2(0f, _scene.Physics.DeepestSink));
 
-        int changes = _scene.Physics.BodyChanges;
-        int layer = _layerIndex;
-        int count = GatherNear(world, reach, _scene.Physics.LayersMovedBy(layer));
-
-        // The slot of the last body judged. A gather made again passes over the ones up to it.
-        int judged = -1;
-        for (int index = 0; index < count && _world is not null; index++)
+        // The bodies gathered sit in the scene's shared buffer from start on. A shove a handler raises
+        // gathers past them, and each shove gives its entries back as it ends.
+        ScenePhysics physics = _scene.Physics;
+        int start = physics.ShovedUsed;
+        try
         {
-            ColliderHandle near = _near![index];
-            if (near.Index <= judged)
-            {
-                continue;
-            }
+            int changes = physics.BodyChanges;
+            int layer = _layerIndex;
+            int count = GatherNear(world, physics, start, reach, physics.LayersMovedBy(layer));
 
-            judged = near.Index;
-            if (!world.Contains(near)
-                || world.UserDataOf(near) is not Collider2D { Body: { } body }
-                || !body.IsMovedBy(_layerIndex)
-                || MovesWith(body.Entity)
-                || body.CarriedWholeBy(this)
-                || !world.SweepPair(
-                    _handle,
-                    from,
-                    motion,
-                    near,
-                    body.SweptOffset(),
-                    out float fraction,
-                    out Vector2 normal,
-                    out Vector2 point))
+            // The slot of the last body judged. A gather made again passes over the ones up to it.
+            int judged = -1;
+            for (int index = 0; index < count && _world is not null; index++)
             {
-                continue;
-            }
+                ColliderHandle near = physics.Shoved[start + index];
+                if (near.Index <= judged)
+                {
+                    continue;
+                }
 
-            // The sweep reports the body's normal. The pusher's surface faces the other way.
-            body.Shove(this, motion * (1f - fraction), -normal, point);
+                judged = near.Index;
+                if (!world.Contains(near)
+                    || world.UserDataOf(near) is not Collider2D { Body: { } body }
+                    || !body.IsMovedBy(_layerIndex)
+                    || MovesWith(body.Entity)
+                    || body.CarriedWholeBy(this)
+                    || !world.SweepPair(
+                        _handle,
+                        from,
+                        motion,
+                        near,
+                        body.SweptOffset(),
+                        out float fraction,
+                        out Vector2 normal,
+                        out Vector2 point))
+                {
+                    continue;
+                }
 
-            // A handler the shove raised may have changed which bodies this collider moves, or the layer
-            // it is on. The bodies past this one are gathered again as they now stand.
-            if (_scene is { } scene && (scene.Physics.BodyChanges != changes || _layerIndex != layer))
-            {
-                changes = scene.Physics.BodyChanges;
-                layer = _layerIndex;
-                count = GatherNear(world, reach, scene.Physics.LayersMovedBy(layer));
-                index = -1;
+                // The sweep reports the body's normal. The pusher's surface faces the other way.
+                body.Shove(this, motion * (1f - fraction), -normal, point);
+
+                // A handler the shove raised may have changed which bodies this collider moves, or the
+                // layer it is on. The bodies past this one are gathered again as they now stand.
+                if (_scene is { } scene && (scene.Physics.BodyChanges != changes || _layerIndex != layer))
+                {
+                    changes = scene.Physics.BodyChanges;
+                    layer = _layerIndex;
+                    count = GatherNear(world, physics, start, reach, scene.Physics.LayersMovedBy(layer));
+                    index = -1;
+                }
             }
+        }
+        finally
+        {
+            physics.ShovedUsed = start;
         }
     }
 
-    // Fills _near with the colliders on `layers` whose boxes meet `reach`, in slot order, and returns
-    // how many there are.
-    private int GatherNear(CollisionWorld2D world, in Aabb2D reach, ulong layers)
+    // Fills the scene's shove buffer from `start` with the colliders on `layers` whose boxes meet
+    // `reach`, in slot order, claims those entries and returns how many there are.
+    private int GatherNear(CollisionWorld2D world, ScenePhysics physics, int start, in Aabb2D reach, ulong layers)
     {
-        _near ??= new ColliderHandle[8];
-        int count = world.CollidersNear(reach, layers, _handle, _near);
-        if (count > _near.Length)
+        ref ColliderHandle[] near = ref physics.Shoved;
+        int count = world.CollidersNear(reach, layers, _handle, near.AsSpan(start));
+        if (start + count > near.Length)
         {
-            Grow(ref _near, count);
-            count = world.CollidersNear(reach, layers, _handle, _near);
+            Grow(ref near, start + count);
+            count = world.CollidersNear(reach, layers, _handle, near.AsSpan(start));
         }
 
+        physics.ShovedUsed = start + count;
         return count;
     }
 

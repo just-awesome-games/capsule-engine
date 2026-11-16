@@ -39,8 +39,20 @@ internal ref struct MoveSweep(
 
     internal readonly Vector2 At => _at;
 
+    // Whether the shape is an axis-aligned box, whose sides stand upright.
+    internal readonly bool IsBox => _shape.Kind == ShapeKind2D.Box;
+
     // The lowest the shape reaches where the move stands, as a Y-down coordinate.
     internal readonly float Bottom => _at.Y + _shape.Bounds.Max.Y;
+
+    // How far the shape reaches to either side where the move stands.
+    internal readonly float Left => _at.X + _shape.Bounds.Min.X;
+
+    internal readonly float Right => _at.X + _shape.Bounds.Max.X;
+
+    // The span across X of the flat underside of what a contact touched.
+    internal readonly bool Underside(in Contact2D contact, out float left, out float right) =>
+        _world.Underside(contact.Target, out left, out right);
 
     // What is left of a translation once the part driving into a surface is taken out.
     internal static Vector2 AlongSurface(Vector2 translation, Vector2 normal) =>

@@ -85,11 +85,14 @@ public sealed class Player : Entity
         BoxCollider2D bodyCollider = Add(new BoxCollider2D(Body) { Layer = CollisionLayers.Player });
 
         // A body walks the hill at the speed it is given and follows the ground down its far side. The
-        // step height walks it over the curb without a jump. Resting on the center stands the player's
-        // feet on the hill instead of on the corner of its box.
+        // step height walks it over the curb without a jump, and the air step lifts a jump that falls just
+        // short onto a ledge. The corner correction slides a jump that clips the edge of a brick past it.
+        // Resting on the center stands the player's feet on the hill instead of on the corner of its box.
         _body = new KinematicBody2D(bodyCollider)
         {
             StepHeight = _tuning.StepHeight,
+            AirStepHeight = _tuning.AirStepHeight,
+            CeilingCornerCorrection = _tuning.CeilingCornerCorrection,
             RestsOnCenter = true,
             BlockedBy = CollisionLayers.Blocking,
             MovedBy = new(CollisionLayers.Platform),

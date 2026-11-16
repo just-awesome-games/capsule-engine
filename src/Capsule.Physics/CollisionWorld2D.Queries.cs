@@ -1048,6 +1048,60 @@ public sealed partial class CollisionWorld2D
         return new MovePass(moved, true, accumulator.Normal, accumulator.Written, accumulator.Found);
     }
 
+    // The span across X of the flat face a target turns down, the underside a rising shape meets. False
+    // when its lowest part is a vertex or a curve.
+    internal bool Underside(in CollisionTarget target, out float left, out float right)
+    {
+        Shape2D shape;
+        Vector2 offset = Vector2.Zero;
+        if (target.IsGridCell)
+        {
+            CollisionGrid2D grid = GridOf(target.Collider)!;
+            if ((grid.StateAt(target.CellX, target.CellY) & CellState2D.Solid) != 0)
+            {
+                Aabb2D cell = grid.CellBox(target.CellX, target.CellY);
+                left = cell.Min.X;
+                right = cell.Max.X;
+                return true;
+            }
+
+            shape = grid.PolygonAt(target.CellX, target.CellY);
+            offset = grid.CellCorner(target.CellX, target.CellY);
+        }
+        else
+        {
+            shape = WorldShapeOf(target.Collider);
+        }
+
+        left = float.PositiveInfinity;
+        right = float.NegativeInfinity;
+        if (shape.Radius > 0f || shape.Kind is ShapeKind2D.Circle or ShapeKind2D.Capsule)
+        {
+            return false;
+        }
+
+        if (shape.Kind == ShapeKind2D.Box)
+        {
+            left = shape.Bounds.Min.X + offset.X;
+            right = shape.Bounds.Max.X + offset.X;
+            return true;
+        }
+
+        // A convex outline's underside is the run of its points along its lowest line.
+        float bottom = shape.Bounds.Max.Y - Shape2D.PointTolerance;
+        for (int index = 0; index < shape.PointCount; index++)
+        {
+            Vector2 point = shape.PointAt(index);
+            if (point.Y >= bottom)
+            {
+                left = MathF.Min(left, point.X + offset.X);
+                right = MathF.Max(right, point.X + offset.X);
+            }
+        }
+
+        return right > left;
+    }
+
     private ref struct RayVisitor(
         CollisionWorld2D world,
         Vector2 origin,
