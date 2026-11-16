@@ -95,11 +95,6 @@ internal sealed unsafe class GpuDevice : IDisposable
     // Whether the device presents to a window. One with none draws offscreen alone.
     internal bool HasWindow => _window != 0;
 
-    // Bytes the frame not yet submitted has staged so far, and whether it overflowed a staging buffer.
-    internal int FrameStaged => _frameStaged;
-
-    internal bool FrameOverflowed => _overflowed;
-
     // The window's drawable extent in pixels, zero while it has none and for a device with no window.
     internal (int Width, int Height) WindowSize
     {
@@ -358,15 +353,6 @@ internal sealed unsafe class GpuDevice : IDisposable
         {
             Sdl3.SDL_ReleaseGPUFence(_device, _watched);
             _watched = 0;
-        }
-    }
-
-    // Returns once the GPU has run every command buffer submitted to it.
-    internal void WaitForIdle()
-    {
-        if (!Sdl3.SDL_WaitForGPUIdle(_device))
-        {
-            throw new InvalidOperationException($"The GPU could not be waited on: {Sdl3.Error()}");
         }
     }
 

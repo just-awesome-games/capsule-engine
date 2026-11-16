@@ -215,9 +215,6 @@ public sealed partial class EngineBuilder
     internal string RecordingsDirectory() =>
         _recordingsDirectory ?? Path.Combine(LocalFolder.Resolve(_localFolderName), RecordingFiles.DirectoryName);
 
-    // Where the frame trap's dumps go, beside the recordings.
-    internal string FrameTrapDirectory() => Path.Combine(LocalFolder.Resolve(_localFolderName), "FrameTrap");
-
     // The recorder of a windowed run, with its boot state and the shell's settings as they stand before
     // the game's startup runs, or null when the shell turned recording off.
     internal Recorder? NewRecorder(in SceneTransition opening, ulong seed, string[]? languages, string? language)

@@ -11,7 +11,6 @@ using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime.Assets;
 using Capsule.Runtime.Audio;
-using Capsule.Runtime.DevTools;
 using Capsule.Runtime.DevTools.Latency;
 using Capsule.Runtime.DevTools.Overlay;
 using Capsule.Runtime.DevTools.Recordings;
@@ -88,9 +87,6 @@ internal sealed unsafe class WindowHost
     private FrameRenderer _renderer = null!;
     private CursorApplier _cursor = null!;
     private GamepadSampler _pad = null!;
-
-    // Null in a shipping build and where the frame trap's switch is false.
-    private FrameTrap? _trap;
 
     // All null when the platform opened no audio output, which makes every command and preload a
     // no-op instead of failing the run. The device owns the store and the player.
@@ -378,12 +374,6 @@ internal sealed unsafe class WindowHost
 
         _diagnostics?.Mark(FrameDiagnostics.Stage.SceneAssetsLoaded);
         _renderer = new FrameRenderer(_gpu, samplers, _builder.RenderResolution, _textures, _shaders);
-        if (Development.IsSupported && FrameTrap.IsOn)
-        {
-            _trap = new FrameTrap(_gpu, _builder.FrameTrapDirectory(), () => _scenes.Run.Display.RefreshRate);
-            _renderer.Trap = _trap;
-        }
-
         _cursor = new CursorApplier(_textures, confined => Sdl3.SDL_SetWindowMouseGrab(_window, confined));
 
         // The pads already connected raise their added events too, which the sampler opens once.
@@ -471,12 +461,6 @@ internal sealed unsafe class WindowHost
         if (active)
         {
             _latencyTaken?.Invoke(events);
-        }
-
-        // Read raw, ahead of the overlay, and still handed to the game. No command buffer is open here.
-        if (Development.IsSupported && _trap is { } trap && active && events.KeysPressed[(int)Scancode.F9])
-        {
-            trap.Dump();
         }
 
         if (events.KeymapChanged)
@@ -727,7 +711,6 @@ internal sealed unsafe class WindowHost
         // The mix thread stops before the output, the clips and the decoders it reads go.
         Release(ref failure, () => _device?.Dispose());
 
-        Release(ref failure, () => _trap?.Dispose());
         Release(ref failure, () => _renderer?.Dispose());
         Release(ref failure, () => _shaders?.Dispose());
         Release(ref failure, () => _textures?.Dispose());

@@ -4,7 +4,6 @@ using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
 using Capsule.Runtime.Assets;
-using Capsule.Runtime.DevTools;
 using Capsule.Runtime.Gpu;
 
 namespace Capsule.Runtime.Rendering;
@@ -123,9 +122,6 @@ internal sealed partial class FrameRenderer : IDisposable
     // The captures Submit has written to their files since the renderer was made.
     internal long CapturesSaved { get; private set; }
 
-    // Keeps every frame's capture surface for a later dump, or null for none. Read only in development.
-    internal FrameTrap? Trap { get; set; }
-
     // renderResolution: A fixed render surface, or null to draw the world in the window pass.
     //
     // textures: The scene texture cache, loading on first use. The caller owns it.
@@ -200,8 +196,7 @@ internal sealed partial class FrameRenderer : IDisposable
         (int width, int height) = _window is { } shown ? (shown.Width, shown.Height) : WindowSize;
         (int, int, bool, bool) output = (width, height, _window is not null, capturePath is not null);
         bool reuse = ReferenceEquals(view, _recordedView) && view.Builds == _recordedBuild && output == _recordedOutput;
-        bool held = Record(view, alpha, capturePath, reuse);
-        if (!held)
+        if (!Record(view, alpha, capturePath, reuse))
         {
             Record(view, alpha, capturePath, reuse: false);
             _sprites.CompareCheck();
@@ -211,11 +206,8 @@ internal sealed partial class FrameRenderer : IDisposable
         _recordedBuild = view.Builds;
         _recordedOutput = output;
 
-        FrameTrap? trap = Development.IsSupported ? Trap : null;
         GpuCopyPass copy = commands.BeginCopyPass();
-        int stagedBeforePump = trap is null ? 0 : _device.FrameStaged;
         _textures.Pump(copy);
-        bool pumped = trap is not null && _device.FrameStaged != stagedBeforePump;
         _sprites.Upload(copy);
         copy.End();
         _sprites.Execute(commands);
@@ -223,15 +215,6 @@ internal sealed partial class FrameRenderer : IDisposable
         if (capturePath is not null)
         {
             Capture(commands, capturePath);
-        }
-
-        if (trap is not null)
-        {
-            FrameTrap.Walk walk = !reuse ? FrameTrap.Walk.Recorded : held ? FrameTrap.Walk.Reused : FrameTrap.Walk.Diverged;
-            trap.Record(
-                commands,
-                _canvas is not null ? _target?.Texture : capturePath is not null || view.ReadsScreen ? _offscreen?.Texture : null,
-                new FrameTrap.Facts(alpha, walk, _sprites.KeptCount, _sprites.FrameInstanceCount, _sprites.DrawCount, _device.FrameStaged, _device.FrameOverflowed, pumped));
         }
 
         LastFrameMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
