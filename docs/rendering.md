@@ -46,6 +46,10 @@ A window is rarely a whole multiple of the surface, and by default the surface f
 `Display.IntegerScaling` shows it at the largest whole-number scale that fits instead, centred with bars. It is a
 player's choice: a settings screen sets it on `Run.Display`, and `WithIntegerScaling` starts it on.
 
+A pixel-perfect frame places its view on a whole surface pixel. A camera whose `FollowOffset` is a whole number of
+pixels holds its subject on one pixel of the view as it scrolls. Anything moving at another speed than the view steps
+a pixel against it as the view crosses one.
+
 How a texture is filtered is the texture's own setting, linear unless its config says otherwise. The same
 game samples every texture by the nearest texel from its root `Assets/.config.json`
 ([`configuring-assets.md`](configuring-assets.md)):
