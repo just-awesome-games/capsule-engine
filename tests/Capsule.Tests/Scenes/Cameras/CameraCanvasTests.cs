@@ -16,7 +16,8 @@ public sealed class CameraCanvasTests
     private const int OutputHeight = 500;
 
     // A resolution of zero declares none. The output is wider than every canvas. Expand and
-    // FixedHeight grow the span and centre the canvas in a wider surface.
+    // FixedHeight grow the span and centre the canvas in a wider surface. Under integer scaling the
+    // surface takes twice its resolution of the output and the route is the same.
     [Theory]
     [InlineData(ViewportFit.Letterbox, 0, 0, 640f, 360f)]
     [InlineData(ViewportFit.Expand, 0, 0, 640f, 360f)]
@@ -27,19 +28,23 @@ public sealed class CameraCanvasTests
     [InlineData(ViewportFit.Letterbox, 320, 180, 1280f, 720f)]
     [InlineData(ViewportFit.Expand, 320, 180, 1280f, 720f)]
     [InlineData(ViewportFit.FixedHeight, 320, 180, 1280f, 720f)]
+    [InlineData(ViewportFit.Letterbox, 320, 180, 320f, 180f, true)]
+    [InlineData(ViewportFit.Expand, 320, 180, 320f, 180f, true)]
+    [InlineData(ViewportFit.FixedHeight, 320, 180, 1280f, 720f, true)]
     public void ACanvasPoint_MapsToTheWorldPointTheHostDrawsUnderIt(
         ViewportFit fit,
         int resolutionWidth,
         int resolutionHeight,
         float canvasWidth,
-        float canvasHeight)
+        float canvasHeight,
+        bool integerScaling = false)
     {
         (int Width, int Height)? resolution = resolutionWidth > 0 ? (resolutionWidth, resolutionHeight) : null;
         Vector2 canvas = new(canvasWidth, canvasHeight);
-        Camera camera = Settle(fit, resolution, canvas, scrollCenter: null);
+        Camera camera = Settle(fit, resolution, canvas, scrollCenter: null, integerScaling);
 
         CameraView view = camera.ToView();
-        ScreenLayout layout = FrameLayout.Layout(resolution, view, canvas, OutputWidth, OutputHeight);
+        ScreenLayout layout = FrameLayout.Layout(resolution, view, canvas, OutputWidth, OutputHeight, integerScaling);
         Rect drawn = view.Place(1f, layout.Span);
 
         Assert.Equal(drawn, camera.VisibleRegion);
@@ -79,8 +84,11 @@ public sealed class CameraCanvasTests
         }
     }
 
-    private static Camera Settle(ViewportFit fit, (int Width, int Height)? resolution, Vector2 canvas, Vector2? scrollCenter)
+    private static Camera Settle(ViewportFit fit, (int Width, int Height)? resolution, Vector2 canvas, Vector2? scrollCenter, bool integerScaling = false)
     {
+        Run run = new() { Canvas = canvas, PixelPerfect = true, RenderResolution = resolution };
+        run.Display.IntegerScaling = integerScaling;
+
         SceneFixtures.HookScene scene = new(start: opened =>
         {
             SceneFixtures.Open(opened, Center, Size);
@@ -89,9 +97,7 @@ public sealed class CameraCanvasTests
         });
 
         // Left undisposed: stopping the scene releases the camera and the framing it settled.
-        SceneSimulation simulation = new(
-            scene,
-            run: new Run { Canvas = canvas, Sampling = TextureSampling.Point, RenderResolution = resolution });
+        SceneSimulation simulation = new(scene, run: run);
         simulation.Step(SceneFixtures.Step(output: new Vector2(OutputWidth, OutputHeight)));
 
         return scene.Camera;

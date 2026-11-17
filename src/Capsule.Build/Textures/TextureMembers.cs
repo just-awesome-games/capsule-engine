@@ -27,7 +27,7 @@ internal static class TextureMembers
         List<string> parts = [];
         Describe(parts, "atlas", texture.Atlas is { } atlas ? $"\"{atlas}\"" : null, texture.AtlasSetBy);
         Describe(parts, "format", texture.Format == default ? null : Spell(texture.Format, AssetConfigJsonContext.Default.TextureFormatSetting), texture.FormatSetBy);
-        Describe(parts, "sampling", texture.Sampling == default ? null : Spell(texture.Sampling, AssetConfigJsonContext.Default.TextureSamplingSetting), texture.SamplingSetBy);
+        Describe(parts, "sampling", texture.Sampling == default ? null : Spell(texture.Sampling, AssetConfigJsonContext.Default.TextureSampling), texture.SamplingSetBy);
 
         return parts.Count switch
         {

@@ -1,4 +1,3 @@
-using Capsule.Rendering;
 using Capsule.Runtime;
 using MinimalGame.Game;
 using MinimalGame.Game.Scenes;
@@ -10,7 +9,7 @@ try
         .WithCommandLine(args)
         .WithGame(static run => new MinimalGameInstance(run))
         .WithRenderResolution((int)World.ViewportSize.X, (int)World.ViewportSize.Y)
-        .WithSampling(TextureSampling.Point)
+        .WithPixelPerfect()
         .RunScene<MainMenu>();
 }
 catch (CommandLineException failure)

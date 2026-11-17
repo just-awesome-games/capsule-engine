@@ -1,5 +1,4 @@
 using Capsule.Audio;
-using Capsule.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using static Capsule.Tests.Runtime.SceneHostFixtures;
@@ -12,19 +11,19 @@ public sealed class SceneHostRunStateTests
     /// <summary>A service the run owns and hands to every scene.</summary>
     public enum Service
     {
-        Sampling,
+        PixelPerfect,
         Random,
         Audio,
     }
 
     // One instance, set up once at boot, serves every scene the host opens.
     [Theory]
-    [InlineData(Service.Sampling)]
+    [InlineData(Service.PixelPerfect)]
     [InlineData(Service.Random)]
     [InlineData(Service.Audio)]
     public void EverySceneTheHostOpens_IsServedTheRunsOwn_AcrossATransition(Service service)
     {
-        using SceneHost host = Transitioning(new Run(new RandomSource(0xC0FFEE)) { Sampling = TextureSampling.Point });
+        using SceneHost host = Transitioning(new Run(new RandomSource(0xC0FFEE)) { PixelPerfect = true });
         Assert.Equal(Owned(host.Run, service), Served(host, service));
 
         host.Step(Step(0));
@@ -88,7 +87,7 @@ public sealed class SceneHostRunStateTests
 
     private static object Owned(Run run, Service service) => service switch
     {
-        Service.Sampling => run.Sampling,
+        Service.PixelPerfect => run.PixelPerfect,
         Service.Random => run.Random,
         _ => run.Audio,
     };
@@ -96,7 +95,7 @@ public sealed class SceneHostRunStateTests
     // The service as the open scene sees it, or as the host draws it.
     private static object Served(SceneHost host, Service service) => service switch
     {
-        Service.Sampling => host.View.Sampling,
+        Service.PixelPerfect => host.View.PixelPerfect,
         Service.Random => host.Scene.Run.Random,
         _ => host.Scene.Run.Audio,
     };

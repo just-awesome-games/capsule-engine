@@ -89,7 +89,8 @@ internal sealed class SceneDrawing
         view.Canvas = scene.Run.Canvas;
         view.ClearColor = scene.ClearColor;
         view.Ambient = scene.Ambient;
-        view.Sampling = scene.Sampling;
+        view.PixelPerfect = scene.Run.PixelPerfect;
+        view.IntegerScaling = scene.Run.Display.IntegerScaling;
         view.ShaderGlobals = scene.ShaderGlobals;
 
         _drawing = true;

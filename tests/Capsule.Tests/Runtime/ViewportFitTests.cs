@@ -90,7 +90,7 @@ public sealed class ViewportFitTests
         float spanY)
     {
         CameraView camera = new(Vector2.Zero, Vector2.Zero, new Vector2(200f, 90f), fit);
-        FrameView view = new() { Canvas = Canvas, Sampling = TextureSampling.Point, Camera = camera };
+        FrameView view = new() { Canvas = Canvas, PixelPerfect = true, Camera = camera };
 
         ScreenLayout layout = Layout((320, 180), view, windowWidth, windowHeight);
 
@@ -110,7 +110,7 @@ public sealed class ViewportFitTests
     public void LetterboxOnACameraOfAnotherAspect_BarsTheCanvasAtTheTighterAxis()
     {
         CameraView camera = new(Vector2.Zero, Vector2.Zero, new Vector2(200f, 90f), ViewportFit.Letterbox);
-        FrameView view = new() { Canvas = Canvas, Sampling = TextureSampling.Point, Camera = camera };
+        FrameView view = new() { Canvas = Canvas, PixelPerfect = true, Camera = camera };
 
         ScreenLayout layout = Layout((320, 180), view, 1280, 720);
 
@@ -127,7 +127,7 @@ public sealed class ViewportFitTests
     public void ThePlacedSpan_NeverReachesPastTheSweptBoundsAndTheEdgeEntityIsDrawn()
     {
         CameraView camera = new(Vector2.Zero, Vector2.Zero, new Vector2(300f, 100f), ViewportFit.Expand);
-        FrameView view = new() { Canvas = Canvas, Sampling = TextureSampling.Point, Camera = camera };
+        FrameView view = new() { Canvas = Canvas, PixelPerfect = true, Camera = camera };
 
         ScreenLayout layout = Layout((320, 180), view, 1600, 400);
         Rect placed = camera.Place(1f, layout.Span);
@@ -210,7 +210,7 @@ public sealed class ViewportFitTests
         int grownPixels)
     {
         CameraView camera = new(Vector2.Zero, Vector2.Zero, new Vector2(100f, 60f), fit);
-        FrameView view = new() { Canvas = Canvas, Sampling = TextureSampling.Point, Camera = camera };
+        FrameView view = new() { Canvas = Canvas, PixelPerfect = true, Camera = camera };
         Vector2 window = new(windowWidth, windowHeight);
 
         Assert.Equal((grownPixels, null), FrameLayout.GrownPixels(camera, (320, 180), camera.ResolveSpan(window), 3f, windowWidth, windowHeight));
@@ -243,7 +243,7 @@ public sealed class ViewportFitTests
         int grownPixels)
     {
         CameraView camera = new(Vector2.Zero, Vector2.Zero, new Vector2(sizeX, sizeY), ViewportFit.Expand);
-        FrameView view = new() { Canvas = Canvas, Sampling = TextureSampling.Point, Camera = camera };
+        FrameView view = new() { Canvas = Canvas, PixelPerfect = true, Camera = camera };
         Vector2 window = new(windowWidth, windowHeight);
         float scale = 320f / sizeX;
 
@@ -283,7 +283,7 @@ public sealed class ViewportFitTests
     public void ASurfaceTheCanvasClampEnlarged_BarsTheQuantisedSpanRatherThanStretchingIt()
     {
         CameraView camera = new(Vector2.Zero, Vector2.Zero, new Vector2(100f, 100f), ViewportFit.Expand);
-        FrameView view = new() { Canvas = new Vector2(500f, 100f), Sampling = TextureSampling.Point, Camera = camera };
+        FrameView view = new() { Canvas = new Vector2(500f, 100f), PixelPerfect = true, Camera = camera };
 
         ScreenLayout layout = Layout((500, 100), view, 500, 500);
         Rect placed = camera.Place(1f, layout.Span);

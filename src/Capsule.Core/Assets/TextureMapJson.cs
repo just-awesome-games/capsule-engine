@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Capsule.Rendering;
 
 namespace Capsule.Assets;
 
@@ -41,10 +42,10 @@ internal sealed class TextureEntryJson
     public TextureFormatSetting? Format { get; set; }
 
     [JsonPropertyName("sampling")]
-    public TextureSamplingSetting? Sampling { get; set; }
+    public TextureSampling? Sampling { get; set; }
 
     // The entry for a file of format and sampling, or null when both are the default.
-    internal static TextureEntryJson? Facts(TextureFormatSetting format, TextureSamplingSetting sampling) =>
+    internal static TextureEntryJson? Facts(TextureFormatSetting format, TextureSampling sampling) =>
         format == default && sampling == default
             ? null
             : new TextureEntryJson
@@ -62,18 +63,6 @@ internal enum TextureFormatSetting
 
     // One 8-bit channel.
     R8,
-}
-
-// How a texture is sampled, as its config and the shipped map spell it.
-[JsonConverter(typeof(LowerCaseEnumConverter<TextureSamplingSetting>))]
-internal enum TextureSamplingSetting
-{
-    // Follows the scene's sampling.
-    Scene,
-
-    Point,
-
-    Linear,
 }
 
 // An enum spelled as its member's name in lower case, read only in exactly that spelling.

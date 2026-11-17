@@ -7,8 +7,8 @@ internal static class Glow
     public const int Texels = 8;
 
     // A greyscale falloff pivoted at its centre, where an entity's scale sizes it about the position.
-    // Its config makes it an r8 mask the renderer's colour tints, sampled linearly to stay soft in this
-    // point-sampled game.
+    // Its config makes it an r8 mask the renderer's colour tints, sampled linearly to stay soft where the
+    // root config samples every other texture by the nearest texel.
     private static readonly Sprite Falloff = new(CapsuleAssets.Textures.GlowTexture, new TextureRegion(0, 0, Texels, Texels), new Vector2(Texels / 2f));
 
     /// <summary>A renderer drawing the glow additively in <paramref name="color"/>.</summary>

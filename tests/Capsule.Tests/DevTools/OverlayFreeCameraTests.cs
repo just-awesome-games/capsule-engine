@@ -235,7 +235,7 @@ public sealed class OverlayFreeCameraTests
     private static Rect Placed(FrameView view)
     {
         CameraView camera = view.Camera.At(1f);
-        ScreenLayout layout = FrameLayout.Layout(null, camera, view.Canvas, (int)Output.X, (int)Output.Y);
+        ScreenLayout layout = FrameLayout.Layout(null, camera, view.Canvas, (int)Output.X, (int)Output.Y, integerScaling: false);
 
         return camera.Place(1f, layout.Span);
     }

@@ -284,7 +284,7 @@ internal sealed class FreeCamera
         int height = (int)_scheduler.Output.Y;
 
         return width > 0 && height > 0
-            ? FrameLayout.Layout(_scenes.Run.RenderResolution, game, canvas, width, height).Span
+            ? FrameLayout.Layout(_scenes.Run.RenderResolution, game, canvas, width, height, _scenes.Run.Display.IntegerScaling).Span
             : game.ResolveSpan(_scheduler.Output);
     }
 }

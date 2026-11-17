@@ -171,12 +171,10 @@ public sealed class SceneWorldTests
         SceneSimulation simulation = new(scene);
 
         Assert.Equal(new ColorRgba(12, 24, 36), simulation.View.ClearColor);
-        Assert.Equal(TextureSampling.Point, simulation.View.Sampling);
 
         simulation.Step(SceneFixtures.Step());
 
         Assert.Equal(new ColorRgba(12, 24, 36), simulation.View.ClearColor);
-        Assert.Equal(TextureSampling.Point, simulation.View.Sampling);
     }
 
     private class TestEntity() : Entity(Vector2.Zero);
@@ -195,7 +193,6 @@ public sealed class SceneWorldTests
         internal RenderIntentScene()
         {
             ClearColor = new ColorRgba(12, 24, 36);
-            Sampling = TextureSampling.Point;
         }
     }
 

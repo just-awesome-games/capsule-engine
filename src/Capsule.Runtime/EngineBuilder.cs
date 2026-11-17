@@ -94,7 +94,7 @@ public sealed partial class EngineBuilder
 
     internal int MaxStepsPerFrame { get; private set; } = DefaultMaxStepsPerFrame;
 
-    internal TextureSampling Sampling { get; private set; } = TextureSampling.Linear;
+    internal bool PixelPerfect { get; private set; }
 
     internal int FramesInFlight { get; private set; } = 1;
 
@@ -183,6 +183,13 @@ public sealed partial class EngineBuilder
     public EngineBuilder WithFullscreen()
     {
         Display.Fullscreen = true;
+        return this;
+    }
+
+    /// <summary>Starts <see cref="Display.IntegerScaling"/> on. The render surface is shown at the largest whole-number scale that fits the window.</summary>
+    public EngineBuilder WithIntegerScaling()
+    {
+        Display.IntegerScaling = true;
         return this;
     }
 
@@ -416,18 +423,11 @@ public sealed partial class EngineBuilder
         return this;
     }
 
-    /// <summary>
-    /// How every scene filters world-space textures unless it sets its own. Defaults to
-    /// <see cref="TextureSampling.Linear"/>.
-    /// </summary>
-    public EngineBuilder WithSampling(TextureSampling sampling)
+    /// <summary>Starts <see cref="Run.PixelPerfect"/> on. Sprites snap to the render surface's pixels, and the surface is presented in crisp blocks.</summary>
+    /// <remarks>A texture filters as its asset config says. A pixel-art game sets <c>"sampling": "point"</c> in its root <c>.config.json</c> too.</remarks>
+    public EngineBuilder WithPixelPerfect()
     {
-        if (sampling is not TextureSampling.Linear and not TextureSampling.Point)
-        {
-            throw new ArgumentOutOfRangeException(nameof(sampling), sampling, "A sampling policy must be one of the declared modes.");
-        }
-
-        Sampling = sampling;
+        PixelPerfect = true;
         return this;
     }
 

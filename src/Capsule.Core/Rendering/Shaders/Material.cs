@@ -60,7 +60,7 @@ public sealed class Material
 
     /// <summary>
     /// Sets the <c>Texture2D</c> parameter <paramref name="name"/>, which the shader reads with the
-    /// texture's own sampling or else the frame's, clamped at its edges.
+    /// sampling its asset config sets, clamped at its edges.
     /// </summary>
     /// <remarks>
     /// A texture the build packed into an atlas reads as its own file would: the shader sees its size and

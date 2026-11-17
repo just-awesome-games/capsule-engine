@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Capsule.Assets;
 using Capsule.Build.Caching;
 using Capsule.Build.Textures;
+using Capsule.Rendering;
 
 namespace Capsule.Build.Atlases;
 
@@ -99,7 +100,7 @@ internal static class AtlasStep
         Dictionary<string, TextureEntryJson> pageFacts = new(StringComparer.Ordinal);
         int first = 0;
 
-        foreach (IGrouping<(TextureFormatSetting Format, TextureSamplingSetting Sampling), string> group in members
+        foreach (IGrouping<(TextureFormatSetting Format, TextureSampling Sampling), string> group in members
             .GroupBy(key => (settings[key].Format, settings[key].Sampling))
             .OrderBy(static group => group.Key.Format)
             .ThenBy(static group => group.Key.Sampling))

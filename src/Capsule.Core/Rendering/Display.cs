@@ -3,8 +3,8 @@ using System.Numerics;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// The run's window, frame pacing and screen shake: fullscreen, the window's size, vertical sync, the
-/// frame caps and the shake strength. Reached as <c>Run.Display</c> and held for the run.
+/// The run's window, frame pacing and screen shake: fullscreen, the window's size, integer scaling, vertical
+/// sync, the frame caps and the shake strength. Reached as <c>Run.Display</c> and held for the run.
 /// </summary>
 /// <remarks>
 /// The shell's builder sets where each starts, and game code changes them from a settings screen. The
@@ -92,6 +92,19 @@ public sealed class Display
     /// is left misses a refresh it would otherwise have made. Motion and the simulation are the same either way.
     /// </remarks>
     public bool LowLatency { get; set; }
+
+    /// <summary>
+    /// Whether a declared render surface is shown at the largest whole-number scale that fits the window, centred
+    /// with bars around it, or by default fills the window at whatever scale does.
+    /// </summary>
+    /// <remarks>
+    /// Every surface pixel then covers the same whole block of window pixels, with no filtering between them,
+    /// whether or not the frame is pixel-perfect. An axis the camera's <see cref="ViewportFit"/> grows shows as much
+    /// more world as the window has room for at that scale. The setting changes nothing for a window smaller than
+    /// the surface, a run with no render surface, or a surface more than four times as long on the axis its camera's
+    /// fit grows as on the other.
+    /// </remarks>
+    public bool IntegerScaling { get; set; }
 
     /// <summary>The refresh rate in hertz of the display the window is on, or 0 where the platform reports none.</summary>
     /// <remarks>

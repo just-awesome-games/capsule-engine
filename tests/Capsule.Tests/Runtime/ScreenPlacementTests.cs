@@ -76,21 +76,67 @@ public sealed class ScreenPlacementTests
         Assert.Equal(MathF.Truncate(placement.Origin.Y), placement.Origin.Y);
     }
 
-    // A point-sampled surface keeps one point blit at a whole scale and filters straight down below
-    // 1. At a fractional scale above 1 it is point-prescaled to the next whole scale and filtered down
-    // from there. A linear-sampled surface always takes one linear blit.
+    // Under integer scaling the surface takes the largest whole scale its resolution fits the window at,
+    // centred on whole pixels. An axis the fit holds is barred. The axis it grows takes every surface
+    // pixel the window has room for at that scale, up to four times the held axis, and a camera of
+    // another aspect than the resolution grows the same way. A window smaller than the resolution, or
+    // a resolution already past four times its held axis, is laid out as it is without the setting.
     [Theory]
-    [InlineData(TextureSampling.Point, 1f, 1, TextureSampling.Point)]
-    [InlineData(TextureSampling.Point, 0.75f, 1, TextureSampling.Linear)]
-    [InlineData(TextureSampling.Point, 720f / 224f, 4, TextureSampling.Linear)]
-    [InlineData(TextureSampling.Linear, 720f / 224f, 1, TextureSampling.Linear)]
-    public void ThePresentPass_PrescalesAPointSurfaceOnlyAtAFractionalScaleAboveOne(
-        TextureSampling sampling,
+    [InlineData(ViewportFit.Letterbox, 256, 224, 256f, 224f, 3440, 1440, 256, 224, 6f, 952f, 48f)]
+    [InlineData(ViewportFit.Expand, 320, 180, 320f, 180f, 3440, 1440, 430, 180, 8f, 0f, 0f)]
+    [InlineData(ViewportFit.Expand, 320, 180, 320f, 180f, 1000, 1000, 320, 333, 3f, 20f, 0f)]
+    [InlineData(ViewportFit.Expand, 320, 180, 160f, 120f, 1400, 800, 350, 180, 4f, 0f, 40f)]
+    [InlineData(ViewportFit.FixedHeight, 320, 180, 320f, 180f, 1000, 1000, 333, 180, 3f, 0f, 230f)]
+    [InlineData(ViewportFit.FixedHeight, 400, 250, 400f, 250f, 5120, 1440, 1000, 250, 5f, 60f, 95f)]
+    [InlineData(ViewportFit.FixedHeight, 640, 128, 128f, 128f, 1280, 256, 640, 128, 0f, 0f, 0f)]
+    [InlineData(ViewportFit.Expand, 128, 640, 128f, 640f, 256, 1280, 128, 640, 0f, 0f, 0f)]
+    [InlineData(ViewportFit.Letterbox, 256, 224, 256f, 224f, 200, 200, 256, 224, 0f, 0f, 0f)]
+    public void UnderIntegerScaling_TheSurfaceTakesTheLargestWholeScaleThatFits(
+        ViewportFit fit,
+        int resolutionWidth,
+        int resolutionHeight,
+        float cameraWidth,
+        float cameraHeight,
+        int windowWidth,
+        int windowHeight,
+        int surfaceWidth,
+        int surfaceHeight,
+        float scale,
+        float left,
+        float top)
+    {
+        (int, int) resolution = (resolutionWidth, resolutionHeight);
+        FrameView view = View(new Vector2(resolutionWidth, resolutionHeight), new Vector2(cameraWidth, cameraHeight), fit);
+
+        ScreenLayout layout = Layout(resolution, view, windowWidth, windowHeight, integerScaling: true);
+
+        if (scale == 0f)
+        {
+            Assert.Equal(Layout(resolution, view, windowWidth, windowHeight), layout);
+            return;
+        }
+
+        Assert.Equal((surfaceWidth, surfaceHeight), layout.Surface);
+        Assert.Equal(new ScreenPlacement(new Vector2(left, top), scale), layout.Present);
+        Assert.Equal((1, TextureSampling.Point), FrameLayout.PresentPass(pixelPerfect: true, layout.Present.Scale));
+    }
+
+    // A pixel-perfect surface keeps one point blit at a whole scale and filters straight down below
+    // 1. At a fractional scale above 1 it is point-prescaled to the next whole scale and filtered down
+    // from there. Any other surface always takes one linear blit.
+    [Theory]
+    [InlineData(true, 1f, 1, true)]
+    [InlineData(true, 0.75f, 1, false)]
+    [InlineData(true, 720f / 224f, 4, false)]
+    [InlineData(false, 720f / 224f, 1, false)]
+    [InlineData(false, 1f, 1, false)]
+    public void ThePresentPass_PrescalesAPixelPerfectSurfaceOnlyAtAFractionalScaleAboveOne(
+        bool pixelPerfect,
         float scale,
         int prescale,
-        TextureSampling final)
+        bool pointBlit)
     {
-        Assert.Equal((prescale, final), FrameLayout.PresentPass(sampling, scale));
+        Assert.Equal((prescale, pointBlit ? TextureSampling.Point : TextureSampling.Linear), FrameLayout.PresentPass(pixelPerfect, scale));
     }
 
     [Fact]
@@ -226,7 +272,7 @@ public sealed class ScreenPlacementTests
     {
         Vector2 resolution = new(256f, 224f);
         ScreenLayout layout = Layout((256, 224), View(resolution, resolution * zoomOut), outputWidth, outputHeight);
-        int limit = FrameLayout.SurfaceFactorLimit(TextureSampling.Point, layout.Present.Scale);
+        int limit = FrameLayout.SurfaceFactorLimit(pixelPerfect: true, layout.Present.Scale);
 
         Assert.Equal(factor, FrameLayout.SurfaceFactor(zoomOut, limit));
         for (int allowed = 2; allowed <= limit; allowed++)
@@ -243,7 +289,7 @@ public sealed class ScreenPlacementTests
     private static (float Left, float Top, float Right, float Bottom, Vector2 Screen) Presented(in ScreenLayout layout, int factor)
     {
         ScreenLayout drawn = FrameLayout.Enlarge(layout, factor);
-        (int prescale, TextureSampling _, float scale) = FrameLayout.PresentPass(TextureSampling.Point, layout.Present.Scale, factor);
+        (int prescale, TextureSampling _, float scale) = FrameLayout.PresentPass(pixelPerfect: true, layout.Present.Scale, factor);
         Letterbox world = drawn.World;
         Vector2 origin = drawn.Present.Origin;
 

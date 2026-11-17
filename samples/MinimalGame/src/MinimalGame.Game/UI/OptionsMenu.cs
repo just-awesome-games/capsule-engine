@@ -31,6 +31,7 @@ public sealed class OptionsMenu : ScreenEntity
     private readonly MenuItem _vsync = new();
     private readonly MenuItem _frameCap = new();
     private readonly MenuItem _lowLatency = new();
+    private readonly MenuItem _integerScaling = new();
 
     private readonly MenuItem _language = new(CapsuleStrings.Options.Language);
 
@@ -51,7 +52,7 @@ public sealed class OptionsMenu : ScreenEntity
     public OptionsMenu()
         : base(Anchor.Center, Vector2.Zero)
     {
-        _items = [_jump, _shoot, _fullscreen, _windowSize, _vsync, _frameCap, _lowLatency, _language, _back];
+        _items = [_jump, _shoot, _fullscreen, _windowSize, _vsync, _frameCap, _lowLatency, _integerScaling, _language, _back];
 
         ScrollContainer list = new(Anchor.Fill, Vector2.Zero) { Parent = this, Padding = new Insets(0f, 0f, ScrollBar.Width + BarGap, 0f) };
         BoxContainer column = new(Axis.Vertical, Anchor.TopWide, Vector2.Zero) { Parent = list, Spacing = MenuItem.Spacing };
@@ -67,6 +68,7 @@ public sealed class OptionsMenu : ScreenEntity
         _vsync.Parent = column;
         _frameCap.Parent = column;
         _lowLatency.Parent = column;
+        _integerScaling.Parent = column;
         _language.Parent = column;
         _back.Parent = column;
 
@@ -96,6 +98,7 @@ public sealed class OptionsMenu : ScreenEntity
         });
         _frameCap.Pressed += () => ChangeDisplay(settings => settings.MaxFrameRate = NextFrameCap(settings.MaxFrameRate));
         _lowLatency.Pressed += () => ChangeDisplay(static settings => settings.LowLatency = !settings.LowLatency);
+        _integerScaling.Pressed += () => ChangeDisplay(static settings => settings.IntegerScaling = !settings.IntegerScaling);
         _back.Pressed += Leave;
         _navigator.Canceled += Leave;
     }
@@ -251,6 +254,7 @@ public sealed class OptionsMenu : ScreenEntity
         }
 
         _lowLatency.SetCaption(CapsuleStrings.Options.LowLatency, _settings.LowLatency ? CapsuleStrings.Options.On : CapsuleStrings.Options.Off);
+        _integerScaling.SetCaption(CapsuleStrings.Options.IntegerScaling, _settings.IntegerScaling ? CapsuleStrings.Options.On : CapsuleStrings.Options.Off);
     }
 
     // As wide as the widest row shows now, and tall enough that only half of the fourth row shows, which

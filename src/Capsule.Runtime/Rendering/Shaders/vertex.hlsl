@@ -182,7 +182,13 @@ CapsuleVertexOutput CapsuleVertex(uint vertexId : SV_VertexID)
             precise float2 high = rotation == 0.0 ? low + sprite.Size
                 : position + (turns == 0 ? b : turns == 1 ? float2(-a.y, b.x) : turns == 2 ? -a : float2(b.y, -a.x));
             float2 left = CapsulePixel(CapsuleLayerCorner, low, CapsuleGrid);
-            float2 extent = CapsulePixel(CapsuleLayerCorner, high, CapsuleGrid) - left;
+            float2 far = CapsulePixel(CapsuleLayerCorner, high, CapsuleGrid) - left;
+
+            // A size of whole pixels is drawn that size. Its far edge is a sum a float can hold less finely
+            // than the near edge, and the sum's own pixel can fall one off. Any other size ends on its far
+            // edge's pixel, where the next quad begins.
+            float2 span = ((turns & 1) == 0 ? sprite.Size : sprite.Size.yx) * CapsuleGrid;
+            float2 extent = float2(frac(span.x) == 0.0 ? span.x : far.x, frac(span.y) == 0.0 ? span.y : far.y);
             precise float2 snappedLow = CapsuleFrameCorner + (left / CapsuleGrid);
             precise float2 snappedHigh = snappedLow + (extent / CapsuleGrid);
             float2 pixels = (turns & 1) == 0 ? extent : extent.yx;

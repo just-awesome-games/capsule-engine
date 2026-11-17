@@ -32,7 +32,7 @@ public readonly record struct CameraView(
     // How far from square an output may be before a fit that follows its aspect reveals world this view
     // culled. A step's render intent is drawn on whatever output the frame has by then. A fit other
     // than Letterbox is culled against this ceiling rather than any one output.
-    private const float CullAspectCeiling = 4f;
+    internal const float CullAspectCeiling = 4f;
 
     /// <summary><see cref="Size"/> as of the previous fixed step, which defaults to <see cref="Size"/>.</summary>
     public Vector2 PreviousSize { get; init; } = Size;

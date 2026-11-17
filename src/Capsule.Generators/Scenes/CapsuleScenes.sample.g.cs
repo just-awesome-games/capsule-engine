@@ -64,15 +64,6 @@ namespace Capsule.Generated
             {
                 SetAmbient(scene, members.Color("ambient"));
             }
-            if (members.Has("sampling"))
-            {
-                SetSampling(scene, members.Name("sampling") switch
-                {
-                    "linear" => global::Capsule.Rendering.TextureSampling.Linear,
-                    "point" => global::Capsule.Rendering.TextureSampling.Point,
-                    _ => throw members.NotAName("sampling", "linear, point"),
-                });
-            }
         }
 
         private static void Apply_Game_PlayableScene(global::Capsule.Scenes.Scene composed, global::Capsule.Scenes.AuthoredMembers members)
@@ -123,9 +114,6 @@ namespace Capsule.Generated
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Ambient")]
         private static extern void SetAmbient(global::Capsule.Scenes.Scene owner, global::Capsule.Rendering.ColorRgba value);
-
-        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Sampling")]
-        private static extern void SetSampling(global::Capsule.Scenes.Scene owner, global::Capsule.Rendering.TextureSampling value);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Floor")]
         private static extern void SetFloor(global::Game.PlayableScene owner, int value);

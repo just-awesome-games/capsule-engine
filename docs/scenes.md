@@ -96,7 +96,7 @@ other key sets the member of that name its class marks `[Authorable]`:
 
 | Object | Reserved keys | Every other key sets a member of |
 | --- | --- | --- |
-| The document | `$schema`, `baseScene`, `entities` | the composing scene: the class claiming the document, the `baseScene` it names, or `Scene`, whose own are `size`, `clearColor`, `ambient`, `sampling` and `camera` |
+| The document | `$schema`, `baseScene`, `entities` | the composing scene: the class claiming the document, the `baseScene` it names, or `Scene`, whose own are `size`, `clearColor`, `ambient` and `camera` |
 | An entry | `type`, `id`, `name`, `x`, `y`, `rotation` (degrees), `scale`, `zIndex`, `scrollFactor`, `tint` | the entity class its `type` names |
 | A member's object | `type` | the object the member holds, or else a new one of the member's class or of the subclass its `type` names |
 

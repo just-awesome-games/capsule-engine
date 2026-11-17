@@ -1,5 +1,4 @@
 using System.Numerics;
-using Capsule.Rendering;
 using Capsule.Scenes;
 
 namespace Capsule.Tests.Scenes;
@@ -110,16 +109,6 @@ public sealed class RunTests
         Assert.Throws<InvalidOperationException>(() => run.CaptureFrame("later.png"));
         Assert.Null(run.FrameCaptureRequested);
         Assert.False(run.TryTakeFrameCapture(out _));
-    }
-
-    [Fact]
-    public void ASceneDeclaringNoSampling_OpensAtTheRunsDefault()
-    {
-        using SceneSimulation simulation = new(
-            new SceneFixtures.HookScene(),
-            run: new Run { Sampling = TextureSampling.Point });
-
-        Assert.Equal(TextureSampling.Point, simulation.View.Sampling);
     }
 
     [Fact]

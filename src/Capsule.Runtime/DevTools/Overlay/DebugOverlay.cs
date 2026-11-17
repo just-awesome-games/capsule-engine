@@ -158,7 +158,7 @@ internal sealed class DebugOverlay : IDisposable
         _sceneRun = new Run
         {
             Canvas = Run.StandardCanvas,
-            Sampling = TextureSampling.Point,
+            PixelPerfect = true,
             EmitsDebugDraw = false,
         };
 

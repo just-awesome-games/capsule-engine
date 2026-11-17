@@ -41,7 +41,7 @@ public sealed class TextureMapTests
         Assert.Equal(new AtlasSlot(Page0, 40, 1, 16, 16), tiles);
         Assert.Equal(new System.Numerics.Vector4(0.625f, 0.03125f, 0.25f, 0.5f), tiles.RegionOn(64, 32));
         Assert.False(map.TryGet(Loose, out _));
-        Assert.Equal(new TextureFacts(true, null), map.Facts(new TextureHandle("glow", ".png")));
+        Assert.Equal(new TextureFacts(true, TextureSampling.Linear), map.Facts(new TextureHandle("glow", ".png")));
         Assert.Equal(new TextureFacts(false, TextureSampling.Point), map.Facts(new TextureHandle("atlases/game.1", ".png")));
         Assert.Equal(default, map.Facts(Page0));
     }

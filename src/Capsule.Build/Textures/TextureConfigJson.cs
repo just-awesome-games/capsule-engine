@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json.Serialization;
 using Capsule.Assets;
+using Capsule.Rendering;
 
 namespace Capsule.Build.Textures;
 
@@ -11,7 +12,7 @@ internal sealed class TextureConfigJson
 {
     /// <summary>Every texture setting and its values, as a refusal lists them.</summary>
     internal const string Menu =
-        "A texture's settings are \"atlas\" (an atlas name or false), \"format\" (\"rgba\" or \"r8\") and \"sampling\" (\"scene\", \"point\" or \"linear\").";
+        "A texture's settings are \"atlas\" (an atlas name or false), \"format\" (\"rgba\" or \"r8\") and \"sampling\" (\"linear\" or \"point\").";
 
     /// <summary>What a texture's sidecar holds, as a refusal describes it.</summary>
     internal const string Shape = "A sidecar holds its asset's settings, as { \"format\": \"r8\" }. " + Menu;
@@ -27,6 +28,6 @@ internal sealed class TextureConfigJson
     [Description("How the texture's texels are stored. \"rgba\" is four 8-bit channels. \"r8\" is one 8-bit channel, read from a non-interlaced greyscale PNG's values or an indexed PNG's palette indices.")]
     public TextureFormatSetting? Format { get; set; }
 
-    [Description("How the texture is sampled. \"scene\" follows the scene's sampling. \"point\" and \"linear\" override it wherever the texture is drawn or sampled.")]
-    public TextureSamplingSetting? Sampling { get; set; }
+    [Description("How the texture is filtered wherever it is drawn or sampled. \"linear\" blends neighbouring texels, and \"point\" takes the nearest one.")]
+    public TextureSampling? Sampling { get; set; }
 }

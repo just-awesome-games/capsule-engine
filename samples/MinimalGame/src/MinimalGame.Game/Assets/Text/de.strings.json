@@ -24,6 +24,7 @@
     "vsync": "VSync: {mode}",
     "frameCap": "Bildratenlimit: {fps}",
     "lowLatency": "Niedrige Latenz: {mode}",
+    "integerScaling": "Ganzzahlige Skalierung: {mode}",
     "on": "An",
     "mailbox": "Mailbox",
     "off": "Aus"

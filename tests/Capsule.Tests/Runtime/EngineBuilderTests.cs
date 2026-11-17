@@ -31,7 +31,6 @@ public sealed class EngineBuilderTests
         yield return [new Action<EngineBuilder>(b => b.WithMaxStepsPerFrame(0))];
         yield return [new Action<EngineBuilder>(b => b.WithMaxStepsPerFrame(-1))];
         yield return [new Action<EngineBuilder>(b => b.WithWindowTitle("  "))];
-        yield return [new Action<EngineBuilder>(b => b.WithSampling((TextureSampling)99))];
         yield return [new Action<EngineBuilder>(b => b.WithMaxFrameRate(-1))];
         yield return [new Action<EngineBuilder>(b => b.WithUnfocusedMaxFrameRate(-1))];
         yield return [new Action<EngineBuilder>(b => b.WithFramesInFlight(0))];
@@ -68,20 +67,35 @@ public sealed class EngineBuilderTests
     [Fact]
     public void TheCanvas_IsTheDeclaredOneElseTheRenderResolutionElseTheWindow()
     {
-        Assert.Equal(new Vector2(640f, 360f), CanvasOf(b => b.WithWindow(1280, 720).WithRenderResolution(320, 180).WithCanvas(640, 360)));
-        Assert.Equal(new Vector2(320f, 180f), CanvasOf(b => b.WithWindow(1280, 720).WithRenderResolution(320, 180)));
-        Assert.Equal(new Vector2(1280f, 720f), CanvasOf(b => b.WithWindow(1280, 720)));
+        Assert.Equal(new Vector2(640f, 360f), Started(b => b.WithWindow(1280, 720).WithRenderResolution(320, 180).WithCanvas(640, 360)).Canvas);
+        Assert.Equal(new Vector2(320f, 180f), Started(b => b.WithWindow(1280, 720).WithRenderResolution(320, 180)).Canvas);
+        Assert.Equal(new Vector2(1280f, 720f), Started(b => b.WithWindow(1280, 720)).Canvas);
     }
 
-    // The canvas the run opened with, read by the scene as it starts on a one-step headless run.
-    private static Vector2 CanvasOf(Func<EngineBuilder, EngineBuilder> configure)
+    // The run draws pixel-perfect only when the game asked. Run.PixelPerfect carries it to every frame.
+    [Fact]
+    public void WithPixelPerfect_StartsARunDrawnPixelPerfect()
     {
-        Vector2 seen = Vector2.Zero;
-        EngineBuilder builder = QuietEngine.Configure([SceneRegistration.Plain(typeof(Reader), _ => new Reader(canvas => seen = canvas))]);
+        Assert.True(Started(static b => b.WithPixelPerfect()).PixelPerfect);
+        Assert.False(Started(static b => b).PixelPerfect);
+    }
+
+    [Fact]
+    public void WithIntegerScaling_StartsTheSettingOn()
+    {
+        Assert.True(Started(static b => b.WithIntegerScaling()).Display.IntegerScaling);
+        Assert.False(Started(static b => b).Display.IntegerScaling);
+    }
+
+    // The run a scene starts in on a one-step headless run.
+    private static Run Started(Func<EngineBuilder, EngineBuilder> configure)
+    {
+        Run? seen = null;
+        EngineBuilder builder = QuietEngine.Configure([SceneRegistration.Plain(typeof(Reader), _ => new Reader(run => seen = run))]);
 
         configure(builder).RunHeadless<Reader>(new InputScript().Wait(1).Build());
 
-        return seen;
+        return Assert.IsType<Run>(seen);
     }
 
     // Two launches a person plays must not repeat, and a test or replay must. Two fresh 64-bit seeds
@@ -158,7 +172,7 @@ public sealed class EngineBuilderTests
             .WithMaxFrameRate(144)
             .WithUnfocusedMaxFrameRate(0)
             .WithRenderResolution(320, 180)
-            .WithSampling(TextureSampling.Point)
+            .WithPixelPerfect()
             .WithRandomSeed(7)
             .WithoutCrashLog()
             .WithoutLogging()
@@ -169,9 +183,9 @@ public sealed class EngineBuilderTests
 
     private sealed class Menu : Scene;
 
-    private sealed class Reader(Action<Vector2> read) : Scene
+    private sealed class Reader(Action<Run> read) : Scene
     {
-        protected override void OnStart() => read(Run.Canvas);
+        protected override void OnStart() => read(Run);
     }
 
     private sealed class Room01(SceneContent content) : Scene(content);

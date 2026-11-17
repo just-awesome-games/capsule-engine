@@ -140,11 +140,8 @@ public sealed class Run
     // hand, where a button in a text takes the names of that text's own table.
     internal StringTable? Strings { get; init; }
 
-    /// <summary>
-    /// The sampling for world-space textures in any scene that sets none of its own, defaulting to
-    /// <see cref="TextureSampling.Linear"/>.
-    /// </summary>
-    public TextureSampling Sampling { get; init; } = TextureSampling.Linear;
+    /// <summary>Whether every frame of the run is drawn pixel-perfect, as <see cref="FrameView.PixelPerfect"/> describes. False by default.</summary>
+    public bool PixelPerfect { get; init; }
 
     /// <summary>
     /// The run's deterministic random source, the instance the run was built with.
@@ -262,7 +259,7 @@ public sealed class Run
     /// </remarks>
     public double TotalSeconds => Tick * _stepSeconds;
 
-    /// <summary>Starts a run with the default random seed, a 1280 by 720 canvas and linear sampling.</summary>
+    /// <summary>Starts a run with the default random seed, a 1280 by 720 canvas and pixel-perfect drawing off.</summary>
     public Run()
         : this(new RandomSource())
     {
@@ -270,8 +267,7 @@ public sealed class Run
 
     /// <summary>
     /// Starts a run using <paramref name="random"/> and keeps that source for the run's lifetime. The
-    /// canvas starts at 1280 by 720 pixels and sampling at <see cref="TextureSampling.Linear"/> until the
-    /// game changes them.
+    /// canvas starts at 1280 by 720 pixels until the game changes it, and pixel-perfect drawing is off.
     /// </summary>
     /// <param name="random">The deterministic random source shared by every scene this run opens.</param>
     public Run(RandomSource random)

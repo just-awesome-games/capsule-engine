@@ -78,8 +78,6 @@ public sealed class FrameView
 
     private Vector2 _canvas;
 
-    private TextureSampling _sampling = TextureSampling.Linear;
-
     /// <summary>
     /// The world region on screen. A non-positive <see cref="CameraView.Size"/> draws nothing.
     /// </summary>
@@ -232,20 +230,21 @@ public sealed class FrameView
     // lighting keeps its unlit look and pays nothing.
     internal bool LitWorld { get; private set; }
 
-    /// <summary>How world textures are filtered. Linear by default.</summary>
-    public TextureSampling Sampling
-    {
-        get => _sampling;
-        internal set
-        {
-            if (value is not TextureSampling.Linear and not TextureSampling.Point)
-            {
-                throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown texture sampling mode.");
-            }
+    /// <summary>
+    /// Whether the frame snaps its sprites to the render surface's pixel grid and presents the surface in
+    /// even, crisp blocks, as <c>EngineBuilder.WithPixelPerfect</c> asks. False by default.
+    /// </summary>
+    /// <remarks>
+    /// An unturned sprite, or one turned by whole quarter turns, snaps all four edges, and abutting tiles
+    /// share their edges at any zoom. A game's texture filters as its asset config says, linear unless it
+    /// sets point. The engine's own textures, such as the default font, and the picture a material samples
+    /// take point sampling on a pixel-perfect frame and linear otherwise.
+    /// </remarks>
+    public bool PixelPerfect { get; internal set; }
 
-            _sampling = value;
-        }
-    }
+    // Display.IntegerScaling as the build read it. The frame is laid out and presented by the value its
+    // step read, whatever the setting is by the time it draws.
+    internal bool IntegerScaling { get; set; }
 
     /// <summary>The world layer's sprites to draw, in the order added, under the screen sprites. Invalidated by the next mutation.</summary>
     /// <remarks>

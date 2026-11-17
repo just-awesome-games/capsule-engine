@@ -9,7 +9,7 @@ maps and lights. What a game's world looks like is the game's.
 
 | Need | Piece |
 | --- | --- |
-| A fixed pixel resolution | `EngineBuilder.WithRenderResolution` and `WithSampling` |
+| A fixed pixel resolution | `EngineBuilder.WithRenderResolution` and `WithPixelPerfect` |
 | What part of the world shows | `Camera` |
 | Hiding, fading or flashing | `Visible`, `Tint` and `Flash` on `Entity`, `Visible` and `Color` on a renderer |
 | What draws over what | `ZIndex`, `Scene.YSort`, and `ScreenEntity` for the screen layer |
@@ -30,15 +30,28 @@ menus and panels are [`ui.md`](ui.md).
 | Canvas | `EngineBuilder.WithCanvas(width, height)`, or `Run.Canvas` during the run | The screen layer's extent in canvas pixels. Defaults to the render surface, then to the window size. |
 | Viewport | `Camera.ViewportSize` | World units the camera spans. A sprite draws one texel per world unit. `Camera.Fit` answers an output of another aspect ratio. |
 
-A pixel-art game declares one render surface and point sampling, and lets the canvas follow the surface.
-The interface is then drawn in the same pixels as the world:
+A pixel-art game declares one render surface drawn pixel-perfect, and lets the canvas follow the surface.
+The interface is then drawn in the same pixels as the world. `WithPixelPerfect` snaps every sprite to the
+surface's pixels and presents the surface in crisp, even blocks:
 
 ```csharp
 return CapsuleBoot.Configure("My Game")
     .WithCommandLine(args)
     .WithRenderResolution(320, 180)
-    .WithSampling(TextureSampling.Point)
+    .WithPixelPerfect()
     .RunScene<PlayField>();
+```
+
+A window is rarely a whole multiple of the surface, and by default the surface fills it at the scale that fits.
+`Display.IntegerScaling` shows it at the largest whole-number scale that fits instead, centred with bars. It is a
+player's choice: a settings screen sets it on `Run.Display`, and `WithIntegerScaling` starts it on.
+
+How a texture is filtered is the texture's own setting, linear unless its config says otherwise. The same
+game samples every texture by the nearest texel from its root `Assets/.config.json`
+([`configuring-assets.md`](configuring-assets.md)):
+
+```json
+{ "texture": { "sampling": "point" } }
 ```
 
 ## The camera

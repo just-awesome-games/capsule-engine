@@ -3,11 +3,12 @@ using Capsule.Rendering;
 
 namespace Capsule.Runtime.Rendering;
 
-// Where a drawn frame's world landed in the window. TopLeft is the world rect's corner, where the
-// frame's pixel grid is anchored. Fit is where that rect landed on the surface, Present where the
-// surface landed in the window, and Snap whether the frame quantised to the surface's pixel grid.
-// Parallax is the frame's ScrollLayout.Parallax, which places each scrolled layer.
-internal readonly record struct WorldPlacement(Vector2 TopLeft, Letterbox Fit, ScreenPlacement Present, bool Snap, Vector2 Parallax)
+// Where a drawn frame's world landed in the window. TopLeft is the world rect's corner as the frame
+// placed it, and Anchor the origin its sprites snapped from, which is TopLeft on a frame that did not
+// snap. Fit is where that rect landed on the surface, Present where the surface landed in the window,
+// and Snap whether the frame quantised to the surface's pixel grid. Parallax is the frame's
+// ScrollLayout.Parallax, which places each scrolled layer.
+internal readonly record struct WorldPlacement(Vector2 TopLeft, Vector2 Anchor, Letterbox Fit, ScreenPlacement Present, bool Snap, Vector2 Parallax)
 {
     internal float PixelsPerUnit => Fit.Scale * Present.Scale;
 

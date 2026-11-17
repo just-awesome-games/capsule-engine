@@ -20,8 +20,8 @@ internal readonly record struct MaterialTexture(SampledTexture Texture, Vector4 
         new(texture, new Vector4(0f, 0f, 1f, 1f), new Vector2(texture.Texture.Width, texture.Texture.Height));
 }
 
-// A texture on the device and the sampler its own sampling asks for, or null to sample as the draw
-// does.
+// A texture on the device and the sampler its asset config asks for, or null to sample as the draw
+// does. Every file the store loads has one. The engine's own textures and render targets have none.
 internal sealed class SampledTexture(GpuTexture texture, GpuSampler? sampler = null) : IDisposable
 {
     internal GpuTexture Texture { get; } = texture;
@@ -76,9 +76,8 @@ internal sealed class TextureStore : IDisposable
         TextureUpload Decode(TextureHandle handle)
         {
             TextureFacts facts = _map.Facts(handle);
-            GpuSampler? sampler = facts.Sampling is { } sampling ? samplers.Get(sampling) : null;
             using Stream file = Open(platform, handle);
-            return new TextureUpload(this, TextureDecoder.Decode(file, handle.Name, facts.SingleChannel), sampler);
+            return new TextureUpload(this, TextureDecoder.Decode(file, handle.Name, facts.SingleChannel), samplers.Get(facts.Sampling));
         }
     }
 

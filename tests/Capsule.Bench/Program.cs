@@ -86,8 +86,8 @@ internal static class Program
         }
 
         engine = surface == Surface.Hd1080
-            ? engine.WithWindow(1920, 1080).WithRenderResolution(1920, 1080).WithSampling(TextureSampling.Linear)
-            : engine.WithWindow(1280, 720).WithRenderResolution(640, 360).WithSampling(TextureSampling.Point);
+            ? engine.WithWindow(1920, 1080).WithRenderResolution(1920, 1080)
+            : engine.WithWindow(1280, 720).WithRenderResolution(640, 360).WithPixelPerfect();
 
         if (cap > 0)
         {

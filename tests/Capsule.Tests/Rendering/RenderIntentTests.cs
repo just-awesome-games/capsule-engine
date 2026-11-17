@@ -34,7 +34,7 @@ public sealed class RenderIntentTests
         {
             Camera = camera,
             ClearColor = clearColor,
-            Sampling = TextureSampling.Point,
+            PixelPerfect = true,
         };
 
         view.Add(Unit(Vector2.Zero, Vector2.Zero));
@@ -42,7 +42,7 @@ public sealed class RenderIntentTests
 
         Assert.Equal(camera, view.Camera);
         Assert.Equal(clearColor, view.ClearColor);
-        Assert.Equal(TextureSampling.Point, view.Sampling);
+        Assert.True(view.PixelPerfect);
         Assert.Equal(default, view.Metrics);
         Assert.Empty(view.Sprites.ToArray());
     }
@@ -177,14 +177,6 @@ public sealed class RenderIntentTests
         view.Add(travelling with { FlipX = true });
 
         Assert.True(Assert.Single(view.Sprites.ToArray()).FlipX);
-    }
-
-    [Fact]
-    public void AView_RejectsAnUnknownSamplingMode()
-    {
-        FrameView view = new();
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => view.Sampling = (TextureSampling)99);
     }
 
     [Fact]

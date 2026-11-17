@@ -1,3 +1,8 @@
+using Capsule.Assets;
+using Capsule.Rendering;
+using Capsule.Runtime.Assets;
+using Capsule.Tests.Runtime;
+
 namespace Capsule.Tests.Build;
 
 /// <summary>
@@ -8,8 +13,8 @@ namespace Capsule.Tests.Build;
 public sealed class AssetConfigTests
 {
     // The nearest file wins per setting, and an explicit default overrides an inherited value. The
-    // nested .config.json also proves a dotfile below Assets/ is discovered. A root "$schema" is ignored
-    // in every shape.
+    // summary names only a setting that is not its default. The nested .config.json also proves a
+    // dotfile below Assets/ is discovered. A root "$schema" is ignored in every shape.
     [Fact]
     public void EachSetting_ResolvesToTheNearestFileAndTheSummaryNamesIt()
     {
@@ -18,20 +23,36 @@ public sealed class AssetConfigTests
         workspace.WritePng("Assets/Actors/foe.png", 4, 3);
         workspace.Write("Assets/.config.json", """{ "$schema": "folder", "texture": { "atlas": "game", "sampling": "point" } }""");
         workspace.Write("Assets/Actors/.config.json", """{ "texture": { "sampling": "linear" } }""");
+        workspace.Write("Assets/Actors/foe.png.config.json", """{ "sampling": "point" }""");
         workspace.Write("Assets/Actors/hero.png.config.json", """{ "$schema": "texture", "atlas": false }""");
         workspace.Write("Assets/game.atlas.json", """{ "$schema": "atlas" }""");
 
         workspace.Succeed();
 
         Assert.Contains(
-            """/// <summary><c>actors/foe.png</c>, with atlas "game" from <c>.config.json</c> and sampling "linear" from <c>Actors/.config.json</c>.</summary>""",
+            """/// <summary><c>actors/foe.png</c>, with atlas "game" from <c>.config.json</c> and sampling "point" from <c>Actors/foe.png.config.json</c>.</summary>""",
             workspace.Generated,
             StringComparison.Ordinal);
-        Assert.Contains(
-            """/// <summary><c>actors/hero.png</c>, with sampling "linear" from <c>Actors/.config.json</c>.</summary>""",
-            workspace.Generated,
-            StringComparison.Ordinal);
+        Assert.Contains("""/// <summary><c>actors/hero.png</c>.</summary>""", workspace.Generated, StringComparison.Ordinal);
         Assert.Equal(["actors/hero.png", "atlases/game.0.png", "textures.json"], workspace.Shipped);
+    }
+
+    // A texture's sampling is an asset fact the runtime reads from what the build shipped. A texture no
+    // config gives a sampling filters linearly whatever the frame, and a pixel-perfect frame's point
+    // sampler reaches only the engine's own textures.
+    [Fact]
+    public void ATexturesSampling_ReachesTheRuntime_AndAnUnsetOneFiltersLinearly()
+    {
+        using ToolWorkspace workspace = new();
+        workspace.WritePng("Assets/hero.png", 4, 3);
+        workspace.WritePng("Assets/tiles.png", 4, 3);
+        workspace.Write("Assets/tiles.png.config.json", """{ "sampling": "point" }""");
+
+        workspace.Succeed();
+
+        TextureMap map = TextureMap.Load(new ContentPlatform(Path.GetFullPath(ToolWorkspace.Out)));
+        Assert.Equal(TextureSampling.Point, map.Facts(new TextureHandle("tiles", ".png")).Sampling);
+        Assert.Equal(TextureSampling.Linear, map.Facts(new TextureHandle("hero", ".png")).Sampling);
     }
 
     [Theory]

@@ -44,6 +44,10 @@ default and the file that set it.
 
 ## Texture settings
 
+A texture filters linearly, blending neighbouring texels wherever it is drawn or sampled. A `sampling` of
+`point` takes the nearest texel instead, as pixel art wants, and a game drawn with `WithPixelPerfect` sets it
+in its root `.config.json` ([`rendering.md`](rendering.md)).
+
 An `r8` texture holds one 8-bit channel in a quarter of the memory. The engine's sprite shader draws it as
 white at that coverage, as a greyscale font page wants. [`shaders.md`](shaders.md) shows how a shader of
 your own reads one.

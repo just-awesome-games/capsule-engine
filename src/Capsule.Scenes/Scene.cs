@@ -41,7 +41,6 @@ public partial class Scene
 
     // Set as OnStart is entered. A start that fails before it releases entities without OnStop.
     private bool _startHookRan;
-    private TextureSampling? _sampling;
 
     // Steps a freeze still holds after the current one. BeginStep settles it with Paused into this
     // step's state, which every entity resolves against. The tree resolves again only when that state
@@ -127,17 +126,6 @@ public partial class Scene
     /// </remarks>
     [Authorable]
     public ColorRgba Ambient { get; protected set; } = ColorRgba.White;
-
-    /// <summary>
-    /// The sampling for world-space textures. A scene that sets none takes <see cref="Run.Sampling"/>
-    /// when it starts, and reads <see cref="TextureSampling.Linear"/> before then.
-    /// </summary>
-    [Authorable]
-    public TextureSampling Sampling
-    {
-        get => _sampling ?? TextureSampling.Linear;
-        protected set => _sampling = value;
-    }
 
     /// <summary>
     /// The values of the shader parameters this scene sets for every material, which start at zero.
@@ -505,8 +493,8 @@ public partial class Scene
     /// <see cref="Component.OnDebugPanel"/> describes. Writes nothing by default.
     /// </summary>
     /// <remarks>
-    /// The run's seed, <see cref="Size"/>, <see cref="ClearColor"/>, <see cref="Ambient"/>,
-    /// <see cref="Sampling"/> and <see cref="Paused"/> are written before this call, and the scene's
+    /// The run's seed, <see cref="Size"/>, <see cref="ClearColor"/>, <see cref="Ambient"/> and
+    /// <see cref="Paused"/> are written before this call, and the scene's
     /// entities are listed after it. A Camera row opens <see cref="Camera.OnDebugPanel"/>.
     /// </remarks>
     protected virtual void OnDebugPanel(DebugPanel panel)
@@ -552,9 +540,6 @@ public partial class Scene
     {
         RequireUnstarted();
         _started = true;
-
-        // The game default fills in behind the scene's own setting.
-        _sampling ??= Run.Sampling;
 
         // A host with nothing to load still collects. Forwarding a pool is recorded before any start
         // hook can take from it. A host's collection already set the same payload.
@@ -745,7 +730,6 @@ public partial class Scene
         panel.Field("Size", Size);
         panel.Field("ClearColor", ClearColor);
         panel.Field("Ambient", Ambient);
-        panel.Field("Sampling", Sampling);
         panel.Field("Paused", Paused);
 
         if (_started)

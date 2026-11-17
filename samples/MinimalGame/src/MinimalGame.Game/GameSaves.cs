@@ -29,6 +29,9 @@ public sealed record GameSettings
     /// <summary>The window's size as a whole multiple of the view, 4 by default.</summary>
     public int WindowScale { get; set; } = 4;
 
+    /// <summary>Whether the view is shown at the largest whole-number scale that fits the window, with bars, or fills it.</summary>
+    public bool IntegerScaling { get; set; }
+
     /// <summary>How each frame waits for the display.</summary>
     /// <remarks>Stored under a new name. A document from when this was a switch reads as the default.</remarks>
     [JsonPropertyName("VSyncMode")]
@@ -45,6 +48,7 @@ public sealed record GameSettings
     {
         display.Fullscreen = Fullscreen;
         display.WindowSize = World.ViewportSize * WindowScale;
+        display.IntegerScaling = IntegerScaling;
         display.VSync = VSync;
         display.MaxFrameRate = MaxFrameRate;
         display.LowLatency = LowLatency;

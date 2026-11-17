@@ -45,4 +45,49 @@ public sealed class PixelGridTests
 
         Assert.Equal(new Vector2(984f, 984f), far - near);
     }
+
+    // The corner sweeps a whole pixel. Each pair holds a point a fraction of a pixel off the grid, and the
+    // last sits far out, where a float holds a position least finely.
+    [Theory]
+    [InlineData(16f, 16.5f, 1f)]
+    [InlineData(16.3f, 40f, 1f)]
+    [InlineData(7000.25f, 7100.75f, 3f)]
+    public void WorldPoints_KeepTheirPixelDistanceWhereverTheCornerSits(float near, float far, float scale)
+    {
+        float? apart = null;
+
+        for (int step = 0; step < 97; step++)
+        {
+            Vector2 corner = new(-3f + (step / 97f));
+            (Vector2 frame, Vector2 anchor) = PixelGrid.Corners(corner, scale);
+            float distance = MathF.Round((PixelGrid.SnapOffset(anchor, new Vector2(far), scale).X - PixelGrid.SnapOffset(anchor, new Vector2(near), scale).X) * scale);
+
+            Assert.Equal(MathF.Round(frame.X * scale), frame.X * scale, 0.001);
+            Assert.InRange(MathF.Abs(frame.X - corner.X) * scale, 0f, 0.54f);
+            Assert.Equal(apart ??= distance, distance);
+        }
+    }
+
+    // The followed point is a few float steps off its whole distance from the corner, as a view lerped apart
+    // from its subject is, and the sweep puts the corner exactly on the edge between two pixels.
+    [Theory]
+    [InlineData(100f, 1f)]
+    [InlineData(4090f, 1f)]
+    [InlineData(8100f, 2f)]
+    public void AFollowedPoint_HoldsItsPixelAsTheCornerCrossesPixels(float from, float scale)
+    {
+        const float Apart = 128f;
+
+        for (int step = 0; step < 4000; step++)
+        {
+            float corner = from + (step * 0.00390625f) + (0.53125f / scale);
+            for (int noise = -2; noise <= 2; noise++)
+            {
+                float followed = BitConverter.Int32BitsToSingle(BitConverter.SingleToInt32Bits(corner + Apart) + noise);
+                (_, Vector2 anchor) = PixelGrid.Corners(new Vector2(corner), scale);
+
+                Assert.Equal(Apart, PixelGrid.SnapOffset(anchor, new Vector2(followed), scale).X);
+            }
+        }
+    }
 }

@@ -33,12 +33,11 @@
       ]
     },
     "sampling": {
-      "description": "How the texture is sampled. \"scene\" follows the scene's sampling. \"point\" and \"linear\" override it wherever the texture is drawn or sampled.",
-      "default": "scene",
+      "description": "How the texture is filtered wherever it is drawn or sampled. \"linear\" blends neighbouring texels, and \"point\" takes the nearest one.",
+      "default": "linear",
       "enum": [
-        "scene",
-        "point",
-        "linear"
+        "linear",
+        "point"
       ]
     }
   },

@@ -13,8 +13,8 @@ internal readonly record struct AtlasSlot(TextureHandle Page, int X, int Y, int 
         new((float)X / pageWidth, (float)Y / pageHeight, (float)Width / pageWidth, (float)Height / pageHeight);
 }
 
-// A texture file's non-default settings. The default is four channels sampled as the scene says.
-internal readonly record struct TextureFacts(bool SingleChannel, TextureSampling? Sampling);
+// A texture file's settings. The default is four channels, filtered linearly.
+internal readonly record struct TextureFacts(bool SingleChannel, TextureSampling Sampling);
 
 // The map the build shipped: which texture handles are served from a page instead of a file of their
 // own, and which files carry a non-default format or sampling. Read once at boot. A game with every
@@ -133,12 +133,5 @@ internal sealed class TextureMap
         return pages;
     }
 
-    private static TextureFacts Facts(TextureEntryJson entry) => new(
-        entry.Format == TextureFormatSetting.R8,
-        entry.Sampling switch
-        {
-            TextureSamplingSetting.Point => TextureSampling.Point,
-            TextureSamplingSetting.Linear => TextureSampling.Linear,
-            _ => null,
-        });
+    private static TextureFacts Facts(TextureEntryJson entry) => new(entry.Format == TextureFormatSetting.R8, entry.Sampling ?? TextureSampling.Linear);
 }

@@ -1,4 +1,5 @@
 using Capsule.Assets;
+using Capsule.Rendering;
 
 namespace Capsule.Build.Textures;
 
@@ -11,7 +12,7 @@ internal sealed class ResolvedTexture
 
     internal TextureFormatSetting Format { get; set; } = TextureFormatSetting.Rgba;
 
-    internal TextureSamplingSetting Sampling { get; set; } = TextureSamplingSetting.Scene;
+    internal TextureSampling Sampling { get; set; }
 
     internal string? AtlasSetBy { get; set; }
 

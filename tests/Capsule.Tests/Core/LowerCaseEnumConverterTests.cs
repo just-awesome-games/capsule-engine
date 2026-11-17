@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Capsule.Assets;
+using Capsule.Rendering;
 
 namespace Capsule.Tests.Core;
 
@@ -16,7 +17,7 @@ public sealed class LowerCaseEnumConverterTests
     {
         if (taken)
         {
-            Assert.Equal(TextureSamplingSetting.Point, Read(spelled));
+            Assert.Equal(TextureSampling.Point, Read(spelled));
         }
         else
         {
@@ -24,10 +25,10 @@ public sealed class LowerCaseEnumConverterTests
         }
     }
 
-    private static TextureSamplingSetting Read(string spelled)
+    private static TextureSampling Read(string spelled)
     {
         Utf8JsonReader reader = new(Encoding.UTF8.GetBytes($"\"{spelled}\""));
         reader.Read();
-        return new LowerCaseEnumConverter<TextureSamplingSetting>().Read(ref reader, typeof(TextureSamplingSetting), JsonSerializerOptions.Default);
+        return new LowerCaseEnumConverter<TextureSampling>().Read(ref reader, typeof(TextureSampling), JsonSerializerOptions.Default);
     }
 }

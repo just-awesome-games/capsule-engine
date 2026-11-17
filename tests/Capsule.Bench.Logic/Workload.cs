@@ -31,9 +31,9 @@ public enum WorkloadKind
 
 public enum Surface
 {
-    /// <summary>640 by 360, point sampled.</summary>
+    /// <summary>640 by 360, pixel-perfect.</summary>
     Canvas360,
 
-    /// <summary>1920 by 1080, linearly sampled.</summary>
+    /// <summary>1920 by 1080, not pixel-perfect.</summary>
     Hd1080,
 }

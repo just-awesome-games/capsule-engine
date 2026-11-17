@@ -438,7 +438,7 @@ public partial class Camera
 
         Run? run = _scene?.RunOrNull;
 
-        return FrameLayout.Layout(run?.RenderResolution, view, Canvas, width, height);
+        return FrameLayout.Layout(run?.RenderResolution, view, Canvas, width, height, run?.Display.IntegerScaling ?? false);
     }
 
     // The declared span, with the canvas letterboxed over it.
@@ -450,7 +450,8 @@ public partial class Camera
             view with { Fit = ViewportFit.Letterbox },
             canvas,
             Pixels(canvas.X),
-            Pixels(canvas.Y));
+            Pixels(canvas.Y),
+            integerScaling: false);
         Rect region = view.Place(1f, fitted.Span);
 
         return (region, CanvasMap.Resolve(fitted, region, ResolvedScrollCenter) ?? CanvasMap.Identity);

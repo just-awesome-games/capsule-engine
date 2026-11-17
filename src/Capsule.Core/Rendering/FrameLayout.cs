@@ -13,8 +13,55 @@ internal static class FrameLayout
 {
     // The geometry for a camera and canvas on a window of this extent. Two paths: the canvas
     // letterboxed straight into the window, and the render surface presented into it where a
-    // resolution is declared.
+    // resolution is declared. Under integer scaling a render surface is laid out on the part of the
+    // window WholeScaleOutput gives it, centred on whole pixels, and the rest is bars.
     internal static ScreenLayout Layout(
+        (int Width, int Height)? renderResolution,
+        in CameraView camera,
+        Vector2 canvas,
+        int outputWidth,
+        int outputHeight,
+        bool integerScaling)
+    {
+        if (!integerScaling || renderResolution is not { } resolution || WholeScaleOutput(resolution, camera, outputWidth, outputHeight) is not { } output)
+        {
+            return Fitted(renderResolution, camera, canvas, outputWidth, outputHeight);
+        }
+
+        ScreenLayout layout = Fitted(renderResolution, camera, canvas, output.Width, output.Height);
+        Vector2 bars = new((outputWidth - output.Width) / 2, (outputHeight - output.Height) / 2);
+
+        return layout with { Present = Moved(layout.Present, bars), Layer = Moved(layout.Layer, bars) };
+
+        static ScreenPlacement Moved(ScreenPlacement placement, Vector2 by) =>
+            placement.Scale > 0f ? placement with { Origin = placement.Origin + by } : placement;
+    }
+
+    // The part of the window a render surface fills at the largest whole scale the resolution fits at,
+    // or null where it fits at none. An axis the fit holds takes the resolution at that scale. The axis
+    // it grows takes every whole surface pixel the window has room for, up to the aspect the camera
+    // culled against. A resolution already past that aspect has no such part, since the surface never
+    // shrinks below it.
+    internal static (int Width, int Height)? WholeScaleOutput((int Width, int Height) resolution, in CameraView camera, int outputWidth, int outputHeight)
+    {
+        int scale = Math.Min(outputWidth / resolution.Width, outputHeight / resolution.Height);
+        if (scale < 1)
+        {
+            return null;
+        }
+
+        bool growsX = camera.Fit == ViewportFit.FixedHeight
+            || (camera.Fit == ViewportFit.Expand && (float)outputWidth / outputHeight > camera.Size.X / camera.Size.Y);
+        bool growsY = camera.Fit == ViewportFit.Expand && !growsX;
+        const int Ceiling = (int)CameraView.CullAspectCeiling;
+
+        int width = growsX ? Math.Min(outputWidth / scale, resolution.Height * Ceiling) : resolution.Width;
+        int height = growsY ? Math.Min(outputHeight / scale, resolution.Width * Ceiling) : resolution.Height;
+
+        return width < resolution.Width || height < resolution.Height ? null : (width * scale, height * scale);
+    }
+
+    private static ScreenLayout Fitted(
         (int Width, int Height)? renderResolution,
         in CameraView camera,
         Vector2 canvas,
@@ -202,9 +249,9 @@ internal static class FrameLayout
         return fit.IsEmpty ? default : new ScreenPlacement(new Vector2(fit.X, fit.Y), fit.Scale);
     }
 
-    // Where the render surface's own top-left corner lands in the window. The surface fills the
-    // window on its binding axis at the fractional scale that keeps its aspect, with bars on the
-    // other axis. A scale of 0 is a surface or a window with no area.
+    // Where the render surface's own top-left corner lands in the output it is laid out on. The surface
+    // fills that output on its binding axis at the scale that keeps its aspect, with bars on the
+    // other axis. A scale of 0 is a surface or an output with no area.
     internal static ScreenPlacement TargetPlacement(int targetWidth, int targetHeight, int containerWidth, int containerHeight)
     {
         Letterbox fit = Letterbox.Fit(targetWidth, targetHeight, containerWidth, containerHeight);
@@ -267,18 +314,14 @@ internal static class FrameLayout
 
     // How a surface reaches the window at a present scale. Prescale is the whole factor the
     // surface is first blown up by with point sampling, 1 for none, and Final the sampling of the blit
-    // into the window. A point-sampled surface at a fractional scale of 1 or more is prescaled to
+    // into the window. A pixel-perfect surface at a fractional scale of 1 or more is prescaled to
     // the next whole scale and filtered down from there. Every texel then keeps an even, crisp block,
     // where a direct point blit would give texels of uneven width and a direct linear blit would blur.
-    // Below a scale of 1 there is no block to keep, and the surface is filtered straight down.
-    internal static (int Prescale, TextureSampling Final) PresentPass(TextureSampling sampling, float scale)
+    // Below a scale of 1 there is no block to keep, and the surface is filtered straight down. Any other
+    // surface is filtered straight to the window.
+    internal static (int Prescale, TextureSampling Final) PresentPass(bool pixelPerfect, float scale)
     {
-        if (sampling != TextureSampling.Point)
-        {
-            return (1, sampling);
-        }
-
-        if (scale < 1f)
+        if (!pixelPerfect || scale < 1f)
         {
             return (1, TextureSampling.Linear);
         }
@@ -291,19 +334,19 @@ internal static class FrameLayout
     // The present pass for a surface drawn factor times larger than a layout at scale declares. The
     // prescale shrinks by the factor and Scale is the final blit's. The blit's source extent and scale
     // are the factor of 1's. The world lands on the same window pixels.
-    internal static (int Prescale, TextureSampling Final, float Scale) PresentPass(TextureSampling sampling, float scale, int factor)
+    internal static (int Prescale, TextureSampling Final, float Scale) PresentPass(bool pixelPerfect, float scale, int factor)
     {
-        (int prescale, TextureSampling final) = PresentPass(sampling, scale);
+        (int prescale, TextureSampling final) = PresentPass(pixelPerfect, scale);
         int remaining = Math.Max(prescale / factor, 1);
 
         return (remaining, final, scale / (remaining * factor));
     }
 
     // The largest factor a surface presented at scale may be drawn larger by: the whole scale a
-    // point-sampled surface is presented at or prescaled to. 1 for a linear surface or one shrunk to
+    // pixel-perfect surface is presented at or prescaled to. 1 for any other surface or one shrunk to
     // fit. A factor dividing it keeps the present whole.
-    internal static int SurfaceFactorLimit(TextureSampling sampling, float scale) =>
-        sampling == TextureSampling.Point && scale >= 1f ? (int)MathF.Ceiling(scale) : 1;
+    internal static int SurfaceFactorLimit(bool pixelPerfect, float scale) =>
+        pixelPerfect && scale >= 1f ? (int)MathF.Ceiling(scale) : 1;
 
     // The smallest factor dividing limit that is at least ratio, or limit itself past it.
     internal static int SurfaceFactor(float ratio, int limit)

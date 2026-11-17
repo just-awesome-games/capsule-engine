@@ -74,8 +74,9 @@ internal sealed partial class FrameRenderer
             Scale = pixelsPerUnit,
             SnapLines = world.Snap,
             LineScale = world.Fit.Scale,
-            LayerCorner = world.TopLeft,
+            LayerCorner = world.Anchor,
             FrameCorner = world.TopLeft,
+            WorldAnchor = world.Anchor,
         };
 
         DrawIntents(view.Sprites, view.Polygons, view.PolygonPoints, view.Lines, default, default, default, default, default, ref pass);

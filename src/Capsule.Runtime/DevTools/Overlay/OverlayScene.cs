@@ -85,8 +85,6 @@ internal sealed class OverlayScene : Scene
 
     internal OverlayScene(string toggleName)
     {
-        Sampling = TextureSampling.Point;
-
         _menu = new ScreenEntity(Anchor.TopLeft, Vector2.Zero);
         _backdrop = new ColorRect(Vector2.Zero) { Color = BackdropColor };
         _highlight = new ColorRect(Vector2.Zero) { Color = ColorRgba.White with { A = 64 } };

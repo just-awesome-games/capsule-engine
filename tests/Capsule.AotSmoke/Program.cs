@@ -297,7 +297,7 @@ internal static class Program
         EngineBuilder engine = CapsuleBoot.Configure("Capsule AOT Smoke")
             .WithCommandLine(args)
             .WithGame(static run => new FixtureGame(run))
-            .WithSampling(TextureSampling.Point)
+            .WithPixelPerfect()
             .WithoutCrashLog()
             .WithoutLogging();
 

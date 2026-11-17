@@ -4,6 +4,7 @@ using System.Text.Json.Serialization.Metadata;
 using Capsule.Assets;
 using Capsule.Build.Atlases;
 using Capsule.Build.Textures;
+using Capsule.Rendering;
 
 namespace Capsule.Build.Configuration;
 
@@ -16,7 +17,7 @@ namespace Capsule.Build.Configuration;
 [JsonSerializable(typeof(TextureConfigJson))]
 [JsonSerializable(typeof(AtlasConfigJson))]
 [JsonSerializable(typeof(TextureFormatSetting))]
-[JsonSerializable(typeof(TextureSamplingSetting))]
+[JsonSerializable(typeof(TextureSampling))]
 internal sealed partial class AssetConfigJsonContext : JsonSerializerContext
 {
     /// <summary>What a refusal calls a config or atlas file's members.</summary>

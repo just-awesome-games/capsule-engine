@@ -60,7 +60,7 @@ internal sealed partial class FrameRenderer : IDisposable
     // reallocated when that size changes. Null while no frame has lit.
     private SampledTexture? _lightMap;
 
-    // A point-sampled surface blown up to the whole scale above a fractional present, allocated on the
+    // A pixel-perfect surface blown up to the whole scale above a fractional present, allocated on the
     // first such present and reallocated when its size changes. Null until then.
     private SampledTexture? _prescaled;
 
@@ -241,7 +241,7 @@ internal sealed partial class FrameRenderer : IDisposable
         }
 
         CameraView camera = view.Camera.At(alpha);
-        ScreenLayout layout = FrameLayout.Layout(_canvas, camera, view.Canvas, outputWidth, outputHeight);
+        ScreenLayout layout = FrameLayout.Layout(_canvas, camera, view.Canvas, outputWidth, outputHeight, view.IntegerScaling);
         Rect world = camera.Place(1f, layout.Span);
 
         if (_canvas is null)
@@ -266,7 +266,7 @@ internal sealed partial class FrameRenderer : IDisposable
         }
         else
         {
-            int limit = FrameLayout.SurfaceFactorLimit(view.Sampling, layout.Present.Scale);
+            int limit = FrameLayout.SurfaceFactorLimit(view.PixelPerfect, layout.Present.Scale);
             int factor = FrameLayout.SurfaceFactor(WorldZoomOut, limit);
             ScreenLayout drawn = FrameLayout.Enlarge(layout, factor);
             SampledTexture target = Sized(ref _target, drawn.Surface.Width, drawn.Surface.Height);
@@ -287,7 +287,8 @@ internal sealed partial class FrameRenderer : IDisposable
                 DrawScreen(view, alpha, target.Texture, drawn.OnSurface, width, height, factor);
             }
 
-            Present(target, view.Sampling, layout.Present, factor);
+            // A surface under integer scaling is shown in whole blocks whether or not it is pixel-perfect.
+            Present(target, view.PixelPerfect || view.IntegerScaling, layout.Present, factor);
 
             if (!layout.ScreenOnSurface && _window is not null)
             {
@@ -354,7 +355,7 @@ internal sealed partial class FrameRenderer : IDisposable
     internal void ResolveScreenLayer(FrameView view)
     {
         (int width, int height) = WindowSize;
-        ScreenLayout layout = FrameLayout.Layout(_canvas, view.Camera, view.Canvas, width, height);
+        ScreenLayout layout = FrameLayout.Layout(_canvas, view.Camera, view.Canvas, width, height, view.IntegerScaling);
 
         if (layout.Layer.Scale > 0f)
         {
@@ -381,16 +382,16 @@ internal sealed partial class FrameRenderer : IDisposable
 
         _sprites.SetViewport(fit.X, fit.Y, fit.Width, fit.Height);
 
-        Vector2 topLeft = new(world.Left, world.Top);
-        bool snap = view.Sampling == TextureSampling.Point;
+        bool snap = view.PixelPerfect;
+        (Vector2 topLeft, Vector2 anchor) = Corners(in world, snap, fit.Scale);
 
-        Pass pass = WorldPass(alpha, snap, fit.Scale, topLeft);
+        Pass pass = WorldPass(alpha, snap, fit.Scale, topLeft, anchor);
 
         // Every quad here is additive, drawn with the pass's premultiplied blend: an additive intent packs
         // alpha zero, and under One/OneMinusSourceAlpha that is exactly One/One. An additive blend would
         // scale the source by its alpha.
         _sprites.SetTransform(WorldToSurface(topLeft, fit.Scale));
-        _sprites.SetSampling(view.Sampling);
+        _sprites.SetSampling(DrawSampling(snap));
 
         Vector2 parallax = ScrollLayout.Parallax(topLeft, span, view.Camera.ScrollCenter);
         DrawLights(view.Lights, view.PlacementRuns, parallax, ref pass);
@@ -401,13 +402,13 @@ internal sealed partial class FrameRenderer : IDisposable
     // A light is always stored under a run of the world's own, never a canvas run.
     private void DrawLights(ReadOnlySpan<LightIntent> lights, ReadOnlySpan<PlacementRun> layers, Vector2 parallax, ref Pass pass)
     {
-        Vector2 frameCorner = pass.FrameCorner;
+        Vector2 anchor = pass.WorldAnchor;
         int next = 0;
         for (int index = 0; index < lights.Length; index++)
         {
             while (next < layers.Length && layers[next].FirstLight <= index)
             {
-                pass.LayerCorner = ScrollLayout.Corner(frameCorner, parallax, layers[next].ScrollFactor);
+                pass.LayerCorner = ScrollLayout.Corner(anchor, parallax, layers[next].ScrollFactor);
                 next++;
             }
 
@@ -428,20 +429,20 @@ internal sealed partial class FrameRenderer : IDisposable
             }
         }
 
-        pass.LayerCorner = frameCorner;
+        pass.LayerCorner = anchor;
     }
 
     // A screen root sorted with the world is lit with it but lights nothing, and its canvas runs are skipped.
     private void DrawAdditiveSprites(ReadOnlySpan<SpriteIntent> sprites, ReadOnlySpan<PlacementRun> layers, Vector2 parallax, ref Pass pass)
     {
-        Vector2 frameCorner = pass.FrameCorner;
+        Vector2 anchor = pass.WorldAnchor;
         int next = 0;
         bool canvas = false;
         for (int index = 0; index < sprites.Length; index++)
         {
             while (next < layers.Length && layers[next].FirstSprite <= index)
             {
-                pass.LayerCorner = ScrollLayout.Corner(frameCorner, parallax, layers[next].ScrollFactor);
+                pass.LayerCorner = ScrollLayout.Corner(anchor, parallax, layers[next].ScrollFactor);
                 canvas = layers[next].Canvas;
                 next++;
             }
@@ -459,21 +460,21 @@ internal sealed partial class FrameRenderer : IDisposable
             }
         }
 
-        pass.LayerCorner = frameCorner;
+        pass.LayerCorner = anchor;
     }
 
     // The additive polygons into the map as the additive sprites go. The map's sum is order-free, and they
     // need not interleave with the sprites.
     private void DrawAdditivePolygons(ReadOnlySpan<StoredPolygon> polygons, ReadOnlySpan<Vector2> points, ReadOnlySpan<PlacementRun> layers, Vector2 parallax, ref Pass pass)
     {
-        Vector2 frameCorner = pass.FrameCorner;
+        Vector2 anchor = pass.WorldAnchor;
         int next = 0;
         bool canvas = false;
         for (int index = 0; index < polygons.Length; index++)
         {
             while (next < layers.Length && layers[next].FirstPolygon <= index)
             {
-                pass.LayerCorner = ScrollLayout.Corner(frameCorner, parallax, layers[next].ScrollFactor);
+                pass.LayerCorner = ScrollLayout.Corner(anchor, parallax, layers[next].ScrollFactor);
                 canvas = layers[next].Canvas;
                 next++;
             }
@@ -489,7 +490,21 @@ internal sealed partial class FrameRenderer : IDisposable
             }
         }
 
-        pass.LayerCorner = frameCorner;
+        pass.LayerCorner = anchor;
+    }
+
+    // The sampler a texture with none of its own takes: point on a pixel-perfect frame, else linear.
+    // A texture the build shipped always has its own, and only the engine's textures and the picture a
+    // material samples take this one.
+    private static TextureSampling DrawSampling(bool pixelPerfect) => pixelPerfect ? TextureSampling.Point : TextureSampling.Linear;
+
+    // The world rect's corner as the frame places it, and the anchor its sprites snap from: the rect's own
+    // corner twice, or the pixel grid's pair on a frame that snaps.
+    private static (Vector2 Corner, Vector2 Anchor) Corners(in Rect world, bool snap, float scale)
+    {
+        Vector2 corner = new(world.Left, world.Top);
+
+        return snap ? PixelGrid.Corners(corner, scale) : (corner, corner);
     }
 
     // Scales a colour's RGB by fraction. Additive accumulation saturates and is order-free. This
@@ -580,17 +595,16 @@ internal sealed partial class FrameRenderer : IDisposable
         }
 
         // The camera interpolates on the same clock as what it looks at. Snapping it to the step's
-        // end would slide the world back once per step. The corner itself is not snapped, because
-        // each sprite snaps to the grid anchored here and stays a whole number of pixels from the
-        // corner, and a followed sprite does not crawl between two roundings. The simulation
-        // keeps its fractional positions.
-        Vector2 topLeft = new(world.Left, world.Top);
-        bool snap = view.Sampling == TextureSampling.Point;
+        // end would slide the world back once per step. A pixel-perfect frame places its corner on a
+        // whole pixel and takes every layer's corner from there, as PixelGrid.Corners describes. The
+        // simulation keeps its fractional positions.
+        bool snap = view.PixelPerfect;
+        (Vector2 topLeft, Vector2 anchor) = Corners(in world, snap, fit.Scale);
         Vector2 parallax = ScrollLayout.Parallax(topLeft, span, view.Camera.ScrollCenter);
 
         if (present.Scale > 0f)
         {
-            _world = new WorldPlacement(topLeft, fit, present, snap, parallax);
+            _world = new WorldPlacement(topLeft, anchor, fit, present, snap, parallax);
         }
 
         if (target is null)
@@ -599,7 +613,7 @@ internal sealed partial class FrameRenderer : IDisposable
         }
 
         _sprites.SetViewport(fit.X, fit.Y, fit.Width, fit.Height);
-        Pass pass = WorldPass(alpha, snap, fit.Scale, topLeft);
+        Pass pass = WorldPass(alpha, snap, fit.Scale, topLeft, anchor);
         pass.Surface = target;
 
         // A canvas run lands where the screen layer would on this surface, through the narrowed viewport
@@ -612,7 +626,7 @@ internal sealed partial class FrameRenderer : IDisposable
         pass.SurfaceHeight = surfaceHeight;
 
         _sprites.SetTransform(in pass.WorldTransform);
-        _sprites.SetSampling(view.Sampling);
+        _sprites.SetSampling(DrawSampling(snap));
 
         // Drawn through the narrowed world viewport. Presentation bars stay black.
         _sprites.AddWhole(_white, topLeft, Vector2.Zero, span, rotation: 0f, view.ClearColor);
@@ -638,7 +652,7 @@ internal sealed partial class FrameRenderer : IDisposable
     // larger it snaps to the grid it had at a factor of 1, and its pixels are those pixels enlarged.
     private void DrawScreen(FrameView view, float alpha, GpuTexture? surface, in ScreenPlacement placement, int surfaceWidth, int surfaceHeight, int surfaceFactor)
     {
-        TextureSampling sampling = view.Sampling;
+        bool snap = view.PixelPerfect;
         ReadOnlySpan<SpriteIntent> sprites = view.ScreenSprites;
         ReadOnlySpan<StoredPolygon> polygons = view.ScreenPolygons;
         ReadOnlySpan<LineIntent> lines = view.ScreenLines;
@@ -649,9 +663,8 @@ internal sealed partial class FrameRenderer : IDisposable
 
         _sprites.SetViewport(0, 0, surfaceWidth, surfaceHeight);
         _sprites.SetTransform(CanvasToSurface(placement));
-        _sprites.SetSampling(sampling);
+        _sprites.SetSampling(DrawSampling(snap));
 
-        bool snap = sampling == TextureSampling.Point;
         float grid = placement.Scale / surfaceFactor;
         Pass pass = new()
         {
@@ -835,7 +848,7 @@ internal sealed partial class FrameRenderer : IDisposable
             }
         }
 
-        pass.LayerCorner = run.Canvas ? Vector2.Zero : ScrollLayout.Corner(pass.FrameCorner, parallax, run.ScrollFactor);
+        pass.LayerCorner = run.Canvas ? Vector2.Zero : ScrollLayout.Corner(pass.WorldAnchor, parallax, run.ScrollFactor);
     }
 
     // Cuts the quads drawn next to the run's clip, each level moved by alpha between its two ends, intersected, and
@@ -899,10 +912,11 @@ internal sealed partial class FrameRenderer : IDisposable
     }
 
     // What one pass of intents is drawn with. LayerCorner is the camera corner the current scrolled
-    // run is drawn by, and FrameCorner the corner of the rect the frame draws, the same point outside
-    // a scrolled run and the canvas's origin on a screen pass. The pixel grid is anchored at
-    // FrameCorner. Resolved is the handle Slice was fetched for, carried across the stream, and a run
-    // of sprites on one texture resolves it once.
+    // run is drawn by, and FrameCorner the corner of the rect the frame draws, on a whole pixel where
+    // the pass snaps. Outside a scrolled run LayerCorner is the world's anchor, which PixelGrid.Corners
+    // keeps within a margin of FrameCorner, and both are the canvas's origin on a screen pass. The pixel
+    // grid is anchored at FrameCorner. Resolved is the handle Slice was fetched for, carried across the
+    // stream, and a run of sprites on one texture resolves it once.
     private struct Pass
     {
         internal float Alpha;
@@ -925,9 +939,11 @@ internal sealed partial class FrameRenderer : IDisposable
         internal int SurfaceWidth;
         internal int SurfaceHeight;
 
-        // On a world pass: the world's corner, scale and transform, the canvas's grid and transform for a
-        // screen root sorted with the world, and whether the current run is that root's.
+        // On a world pass: the world's corner, the anchor its layers' corners are taken from, its scale and
+        // transform, the canvas's grid and transform for a screen root sorted with the world, and whether the
+        // current run is that root's.
         internal Vector2 WorldCorner;
+        internal Vector2 WorldAnchor;
         internal float WorldScale;
         internal Matrix4x4 WorldTransform;
         internal float CanvasScale;
@@ -943,17 +959,18 @@ internal sealed partial class FrameRenderer : IDisposable
         internal bool Reading;
     }
 
-    // A pass over a world surface at scale pixels per unit, its grid anchored at corner.
-    private static Pass WorldPass(float alpha, bool snap, float scale, Vector2 corner) => new()
+    // A pass over a world surface at scale pixels per unit, placed at corner, its sprites snapped from anchor.
+    private static Pass WorldPass(float alpha, bool snap, float scale, Vector2 corner, Vector2 anchor) => new()
     {
         Alpha = alpha,
         Snap = snap,
         Scale = scale,
         SnapLines = snap,
         LineScale = scale,
-        LayerCorner = corner,
+        LayerCorner = anchor,
         FrameCorner = corner,
         WorldCorner = corner,
+        WorldAnchor = anchor,
         WorldScale = scale,
     };
 
@@ -1036,9 +1053,9 @@ internal sealed partial class FrameRenderer : IDisposable
             : throw new ArgumentException($"Unknown engine-owned texture handle '{handle.Name}'.", nameof(handle));
 
     // Letterboxed a second time, into the swapchain texture, at the surface's present placement. See
-    // FrameLayout.PresentPass for how a point-sampled surface reaches a fractional scale. placement is
+    // FrameLayout.PresentPass for how a pixel-perfect surface reaches a fractional scale. placement is
     // the layout's own, and factor how many times larger than it the surface was drawn.
-    private void Present(SampledTexture target, TextureSampling sampling, in ScreenPlacement placement, int factor)
+    private void Present(SampledTexture target, bool pixelPerfect, in ScreenPlacement placement, int factor)
     {
         if (_window is not { } window)
         {
@@ -1046,7 +1063,7 @@ internal sealed partial class FrameRenderer : IDisposable
         }
 
         SampledTexture source = target;
-        (int prescale, TextureSampling final, float scale) = FrameLayout.PresentPass(sampling, placement.Scale, factor);
+        (int prescale, TextureSampling final, float scale) = FrameLayout.PresentPass(pixelPerfect, placement.Scale, factor);
 
         if (prescale > 1)
         {
