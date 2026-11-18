@@ -1,7 +1,7 @@
 namespace Capsule.Bench.Logic.Scenes;
 
 /// <summary>
-/// 2 000 drifting 256-pixel sprites from a 2048-texel atlas on a 1920 by 1080 linear surface, some
+/// 2 000 drifting 256-pixel sprites from a linearly sampled 2048-texel atlas on a 1920 by 1080 surface, some
 /// 130 megapixels of fill a frame: GPU fill, read in <c>intervalMs</c> p95 and max beside <c>drawMs</c>.
 /// </summary>
 [Workload(WorkloadKind.Rendering, Surface.Hd1080)]

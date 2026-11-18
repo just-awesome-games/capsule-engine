@@ -118,5 +118,5 @@ internal static class Program
         return value;
     }
 
-    internal static string Describe(Surface surface) => surface == Surface.Hd1080 ? "1920x1080-linear" : "640x360-point";
+    internal static string Describe(Surface surface) => surface == Surface.Hd1080 ? "1920x1080" : "640x360-pixel-perfect";
 }

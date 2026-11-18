@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Capsule.Rendering;
 
 namespace Capsule.Runtime.Rendering;
@@ -21,19 +22,29 @@ internal readonly record struct GridPlacement(
     internal static GridPlacement Canvas(float grid, bool snap, float alpha) =>
         new(Vector2.Zero, Vector2.Zero, Vector2.Zero, Vector2.Zero, new Vector2(grid), snap ? grid : 0f, alpha);
 
-    // Where a point at previous and current lands, as the vertex stage places a sprite's pivot.
-    internal Vector2 Place(Vector2 previous, Vector2 current)
+    // Where a point at previous and current lands, as the vertex stage places a sprite's pivot. A point and a
+    // placement that both hold still have two equal ends, which Between returns unchanged, and the point is counted once.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Vector2 Place(Vector2 previous, Vector2 current) =>
+        Grid > 0f && previous == current && PreviousLayerCorner == LayerCorner && Grids.X == Grids.Y && Shift == Vector2.Zero
+            ? OnGrid(PixelGrid.Pixels(LayerCorner, current, Grids.Y))
+            : Carry(previous, current);
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private Vector2 Carry(Vector2 previous, Vector2 current)
     {
         if (!(Grid > 0f))
         {
             return FrameCorner + (StepInterpolation.Interpolate(previous, current, Alpha) - LayerCorner);
         }
 
-        Vector2 pixels = PixelGrid.Between(
+        return OnGrid(PixelGrid.Between(
             PixelGrid.Pixels(PreviousLayerCorner, previous, Grids.X),
             PixelGrid.Pixels(LayerCorner, current, Grids.Y) + Shift,
-            Alpha);
-
-        return FrameCorner + new Vector2((float)(pixels.X / (double)Grid), (float)(pixels.Y / (double)Grid));
+            Alpha));
     }
+
+    // Whole pixels drawn at Grid, from FrameCorner.
+    private Vector2 OnGrid(Vector2 pixels) =>
+        FrameCorner + new Vector2((float)(pixels.X / (double)Grid), (float)(pixels.Y / (double)Grid));
 }

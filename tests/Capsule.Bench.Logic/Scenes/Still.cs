@@ -12,7 +12,7 @@ namespace Capsule.Bench.Logic.Scenes;
 /// Row <c>StillLit</c> dims the frame by an ambient colour and adds one point light and one additive
 /// world sprite near the middle, which exercises the light pass. Row <c>StillShaded</c> adds a strip of
 /// sprites drawn through a game material that binds a texture of its own and reads its size. Row
-/// <c>StillHd</c> draws the unlit frame on the linearly sampled 1080p surface. Row <c>StillRead</c> adds a band reading
+/// <c>StillHd</c> draws the unlit frame on the 1080p surface, which does not snap. Row <c>StillRead</c> adds a band reading
 /// the picture behind it in shifted rows, and a swatch over the band that the read must not see.
 /// </remarks>
 [Workload(WorkloadKind.Rendering)]

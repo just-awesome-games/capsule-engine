@@ -65,6 +65,26 @@ public sealed class PixelPerfectMotionTests
             ends.Base.Place(new Vector2(sprite, 30.3f), position));
     }
 
+    // A point held through the step under a still placement is counted once, and lands where its two ends carried
+    // between would, out past the whole pixel counts a float holds exactly.
+    [Fact]
+    public void AStillPointUnderAStillPlacement_LandsWhereItsTwoEndsWould()
+    {
+        GridPlacement still = new(new Vector2(10.3f, 4.7f), new Vector2(10.3f, 4.7f), new Vector2(10f, 5f), Vector2.Zero, new Vector2(3f), 3f, 0.37f);
+        for (int i = 0; i < 400; i++)
+        {
+            Vector2 point = new(i * 0.137f, i * -0.291f);
+            Vector2 pixels = PixelGrid.Between(PixelGrid.Pixels(still.PreviousLayerCorner, point, 3f), PixelGrid.Pixels(still.LayerCorner, point, 3f), still.Alpha);
+
+            Assert.Equal(still.FrameCorner + new Vector2((float)(pixels.X / 3.0), (float)(pixels.Y / 3.0)), still.Place(point, point));
+        }
+
+        // 16 777 221 pixels out, a count a float rounds to 16 777 220.
+        GridPlacement origin = new(Vector2.Zero, Vector2.Zero, Vector2.Zero, Vector2.Zero, new Vector2(3f), 3f, 0.37f);
+        Vector2 far = new(5592407f, 0f);
+        Assert.Equal(new Vector2(5592406.5f, 0f), origin.Place(far, far));
+    }
+
     // A frame that is not pixel-perfect places the camera and every sprite where each stands at the frame's
     // fraction of the step, unsnapped.
     [Fact]
