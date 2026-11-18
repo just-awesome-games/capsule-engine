@@ -21,15 +21,20 @@ namespace Capsule.Rendering;
 /// <param name="Color">The colour filled, with straight alpha.</param>
 public readonly record struct LineIntent(Vector2 A, Vector2 B, float Thickness, ColorRgba Color)
 {
+    // How far the segment moved over the step, which the engine's own debug draws carry. The segment is drawn
+    // between A - Motion and A, B - Motion and B, as a sprite is between its two positions. Zero for a game's
+    // segment, which is drawn at the settled step.
+    internal Vector2 Motion { get; init; }
+
     /// <summary>A hairline segment, with <see cref="Thickness"/> at zero.</summary>
     public LineIntent(Vector2 a, Vector2 b, ColorRgba color)
         : this(a, b, 0f, color)
     {
     }
 
-    // The rect the drawn segment covers, or false where it draws nothing: a non-finite end or thickness, a
-    // negative thickness, or no length. An axis-aligned hairline has no area on one axis and is still a
-    // region something is drawn in. Rect.IsEmpty is not the test here.
+    // The rect the drawn segment covers at either end of its motion, or false where it draws nothing: a
+    // non-finite end or thickness, a negative thickness, or no length. An axis-aligned hairline has no area
+    // on one axis and is still a region something is drawn in. Rect.IsEmpty is not the test here.
     internal bool TryGetBounds(out Rect bounds)
     {
         bounds = default;
@@ -42,6 +47,10 @@ public readonly record struct LineIntent(Vector2 A, Vector2 B, float Thickness, 
 
         float half = Thickness / 2f;
         bounds = Rect.Sweep(A, B, new Vector2(half, half));
+        if (Motion != Vector2.Zero)
+        {
+            bounds = Rect.Union(bounds, bounds.Translated(-Motion));
+        }
 
         return true;
     }

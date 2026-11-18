@@ -210,7 +210,7 @@ public sealed class ShaderBuildTests
 
         Assert.Equal(Unsafe.SizeOf<SpriteInstance>(), Type("type.StructuredBuffer.CapsuleSprite").GetProperty("members")[0].GetProperty("array_stride").GetInt32());
         Assert.Equal(Declared<SpriteInstance>(11), Offsets(Type("CapsuleSprite"))[..11]);
-        Assert.Equal(Declared<SpriteUniforms>(8), Offsets(Type("type.CapsuleVertexUniforms")));
+        Assert.Equal(Declared<SpriteUniforms>(11), Offsets(Type("type.CapsuleVertexUniforms")));
     }
 
     // A DXIL container's hash follows its four-byte magic. All zero means no validator signed it.

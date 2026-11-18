@@ -235,10 +235,12 @@ public sealed class FrameView
     /// even, crisp blocks, as <c>EngineBuilder.WithPixelPerfect</c> asks. False by default.
     /// </summary>
     /// <remarks>
-    /// An unturned sprite, or one turned by whole quarter turns, snaps all four edges, and abutting tiles
-    /// share their edges at any zoom. A game's texture filters as its asset config says, linear unless it
-    /// sets point. The engine's own textures, such as the default font, and the picture a material samples
-    /// take point sampling on a pixel-perfect frame and linear otherwise.
+    /// The camera and every sprite snap at both ends of each fixed step, and a frame drawn between two steps
+    /// moves each that fraction of its whole-pixel travel. Things on the same pixels at both ends of a step
+    /// move as one. An unturned sprite, or one turned by whole quarter turns, snaps all four edges, and
+    /// abutting tiles share their edges at any zoom. A game's texture filters as its asset config says, linear
+    /// unless it sets point. The engine's own textures, such as the default font, and the picture a material
+    /// samples take point sampling on a pixel-perfect frame and linear otherwise.
     /// </remarks>
     public bool PixelPerfect { get; internal set; }
 

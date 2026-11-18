@@ -41,7 +41,6 @@ internal sealed class SpriteDrawList : IDisposable
     private Pass[] _passes = new Pass[8];
     private int _passCount;
     private GpuBuffer? _buffer;
-    private float _alpha;
 
     // The quads the frame writes every time, which draws read from their own buffer.
     private SpriteInstance[] _frameInstances = new SpriteInstance[64];
@@ -78,11 +77,9 @@ internal sealed class SpriteDrawList : IDisposable
     }
 
     // Begins a walk. A recording forgets the last one. A reuse, where there is a recording to reuse, keeps its
-    // kept instances and checks the walk against its log. alpha is the fraction of a step every instance
-    // interpolates by.
-    internal void Reset(float alpha, bool reuse)
+    // kept instances and checks the walk against its log.
+    internal void Reset(bool reuse)
     {
-        _alpha = alpha;
         _count = 0;
         _frameCount = 0;
         _drawCount = 0;
@@ -265,14 +262,11 @@ internal sealed class SpriteDrawList : IDisposable
         _state.Clip = null;
     }
 
-    // Where the sprites drawn next are placed from: their layer's corner, the frame's corner it lands
-    // on, and the surface pixels per unit they snap to, zero for none.
-    internal void SetPlacement(Vector2 layerCorner, Vector2 frameCorner, float grid)
+    // Where the sprites drawn next are placed.
+    internal void SetPlacement(in GridPlacement placement)
     {
-        _open &= layerCorner == _state.LayerCorner && frameCorner == _state.FrameCorner && grid == _state.Grid;
-        _state.LayerCorner = layerCorner;
-        _state.FrameCorner = frameCorner;
-        _state.Grid = grid;
+        _open &= placement == _state.Placement;
+        _state.Placement = placement;
     }
 
     // A sprite whose region sits at offsetX, offsetY on texture, the page it is resident on.
@@ -560,10 +554,13 @@ internal sealed class SpriteDrawList : IDisposable
             {
                 Transform = projected,
                 TexelSize = new Vector2(1f / texture.Width, 1f / texture.Height),
-                LayerCorner = state.LayerCorner,
-                FrameCorner = state.FrameCorner,
-                Alpha = _alpha,
-                Grid = state.Grid,
+                PreviousLayerCorner = state.Placement.PreviousLayerCorner,
+                LayerCorner = state.Placement.LayerCorner,
+                FrameCorner = state.Placement.FrameCorner,
+                Shift = state.Placement.Shift,
+                Grids = state.Placement.Grids,
+                Alpha = state.Placement.Alpha,
+                Grid = state.Placement.Grid,
                 Coverage = texture.Format == GpuTextureFormat.R8Unorm ? 1f : 0f,
                 FirstSprite = (uint)draw.First,
             };
@@ -703,9 +700,7 @@ internal sealed class SpriteDrawList : IDisposable
         internal GpuSampler Sampler;
         internal GpuBlendState Blend;
         internal Material? Material;
-        internal Vector2 LayerCorner;
-        internal Vector2 FrameCorner;
-        internal float Grid;
+        internal GridPlacement Placement;
         internal float ReadScale;
     }
 

@@ -90,8 +90,8 @@ public static class DebugDraw
     public static void Line(string channel, Vector2 a, Vector2 b, ColorRgba? color = null, int steps = 1) =>
         Segment(channel, a, b, color, steps, default);
 
-    // For one step, following something that moved by motion this step. The host draws the shape back
-    // along that motion by the frame's unsimulated fraction. Every verb below has a twin like this.
+    // For one step, following something that moved by motion this step. The host draws the shape between
+    // its two ends of the step, where it draws that thing. Every verb below has a twin like this.
     [Conditional(Development.Symbol)]
     internal static void Line(string channel, Vector2 a, Vector2 b, ColorRgba? color, Vector2 motion) =>
         Segment(channel, a, b, color, 1, motion);

@@ -14,13 +14,25 @@ Path2D track = new(Vector2.Zero, new Vector2(48f, 0f));
 Path2D loop = new(Vector2.Zero, new Vector2(32f, 0f), new Vector2(32f, 32f), Vector2.Zero);
 ```
 
+A path measures each leg by its straight length unless it is built with a measure of its own, which paces
+whatever follows it. `Length`, `PointAt` and a follower's speed all read in the measure's unit. This one
+measures a diagonal by its longer axis, which a follower rides at its speed on both axes:
+
+```csharp
+Path2D paced = new([Vector2.Zero, new Vector2(32f, 32f), new Vector2(0f, 32f), Vector2.Zero], static (from, to) =>
+{
+    Vector2 leg = Vector2.Abs(to - from);
+    return MathF.Max(leg.X, leg.Y);
+});
+```
+
 A scene document writes a path as its points. An `[Authorable] Path2D` member reads them:
 
 ```json
 { "type": "slab", "x": 184, "y": 168, "track": [[0, 0], [48, 0]] }
 ```
 
-A `PathFollower2D` moves its entity along a path at `Speed` units a second. The path and the speed are in
+A `PathFollower2D` moves its entity along a path at `Speed` of the path's distance a second. The path and the speed are in
 the space of the entity's `Position`, its parent's, and the points are relative to where the entity stands
 as the follower starts. `Loop` says what happens at the end: `LoopMode.Once`
 holds there and reads `IsFinished`, `Repeat` starts over, and `PingPong` runs back. `Repeat` on a path

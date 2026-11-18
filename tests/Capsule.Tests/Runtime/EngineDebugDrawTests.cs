@@ -3,6 +3,7 @@ using Capsule.Diagnostics;
 using Capsule.Input;
 using Capsule.Physics;
 using Capsule.Rendering;
+using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Tests.DevTools;
@@ -123,8 +124,8 @@ public sealed class EngineDebugDrawTests
         Assert.Equal(68, view.Lines.Length);
     }
 
-    // The box walks two units a step. With half a step accumulated, the frame and the collider are
-    // both drawn halfway.
+    // The box walks two units a step. The collider's outline carries the box's motion, and with half a step
+    // accumulated the frame draws it halfway, where it draws the box.
     [Fact]
     public void AMovingCollider_IsDrawnWhereTheFrameDrawsItsEntity()
     {
@@ -147,7 +148,10 @@ public sealed class EngineDebugDrawTests
         rig.Frame(DeviceSnapshot.Empty, StepSeconds / 2);
 
         Assert.Equal(0.5f, rig.Scheduler.InterpolationAlpha);
-        Assert.Equal(scene.Box.Collider.Bounds.Min - (motion * 0.5f), view.Lines[0].A);
+        LineIntent line = view.Lines[0];
+        GridPlacement unsnapped = new(Vector2.Zero, Vector2.Zero, Vector2.Zero, Vector2.Zero, Vector2.Zero, 0f, rig.Scheduler.InterpolationAlpha);
+        Assert.Equal(motion, line.Motion);
+        Assert.Equal(scene.Box.Collider.Bounds.Min - (motion * 0.5f), unsnapped.Place(line.A - line.Motion, line.A));
     }
 
     // The hook runs once a step, after the late step, and only while a buffer is attached: with

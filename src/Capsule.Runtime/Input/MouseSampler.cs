@@ -8,11 +8,17 @@ namespace Capsule.Runtime.Input;
 // Turns the OS mouse into the canvas pointer, wheel and mouse buttons of a DeviceSnapshot. A button
 // reads down while held and on the sample after any press, however short. An unfocused window samples
 // as a still pointer with nothing held. A button held when focus returns stays unreported until it is
-// released or pressed again. The first active sample reports no notch and no press.
+// released or pressed again. The first active sample reports no notch and no press. A sample whose
+// screen placement differs from the previous active sample's reports the pointer remapped. The canvas
+// moving under a still mouse is then no motion. The first active sample after focus returns is no
+// remap, because the mouse was free to move while the window was away.
 internal sealed class MouseSampler
 {
     // Canvas pixels, as last sampled while the window was active. The canvas origin until then.
     private Vector2 _pointer;
+
+    // The placement the last active sample mapped the pointer through.
+    private ScreenPlacement _placement;
 
     // Buttons held when the window came back into focus, each masked until it is seen released.
     // Everything is masked until the first active sample, and a button held through the launch does not
@@ -55,7 +61,8 @@ internal sealed class MouseSampler
 
         return Fold(
             snapshot,
-            placement.ToCanvas(new Vector2(x, y) * pixelDensity),
+            new Vector2(x, y) * pixelDensity,
+            placement,
             new Vector2(events.WheelX, events.WheelY),
             held,
             events.MouseButtonsPressed);
@@ -69,18 +76,22 @@ internal sealed class MouseSampler
         return snapshot.WithPointer(_pointer);
     }
 
-    // notches is the wheel's turn since the last sample, held the buttons down now, and pressed the
-    // buttons that went down since the last sample.
+    // window is the pointer in window pixels, placement the screen layer's, notches the wheel's turn
+    // since the last sample, held the buttons down now, and pressed the buttons that went down since the
+    // last sample.
     internal DeviceSnapshot Resume(
         DeviceSnapshot snapshot,
-        Vector2 pointer,
+        Vector2 window,
+        in ScreenPlacement placement,
         Vector2 notches,
         ReadOnlySpan<MouseButton> held,
         ReadOnlySpan<MouseButton> pressed) =>
-        Fold(snapshot, pointer, notches, Down(held), Down(pressed));
+        Fold(snapshot, window, placement, notches, Down(held), Down(pressed));
 
-    private DeviceSnapshot Fold(DeviceSnapshot snapshot, Vector2 pointer, Vector2 notches, uint held, uint pressed)
+    private DeviceSnapshot Fold(DeviceSnapshot snapshot, Vector2 window, in ScreenPlacement placement, Vector2 notches, uint held, uint pressed)
     {
+        bool remapped = _active && placement != _placement;
+        _placement = placement;
         if (!_active)
         {
             _active = true;
@@ -94,9 +105,13 @@ internal sealed class MouseSampler
         // A masked button is released the moment the OS stops reporting it or reports it pressed again,
         // and reports normally from that press on.
         _masked &= held & ~pressed;
-        _pointer = pointer;
+        _pointer = placement.ToCanvas(window);
 
-        return snapshot.WithPointer(pointer).WithScroll(notches).WithMouseButtons((held | pressed) & ~_masked);
+        return snapshot
+            .WithPointer(_pointer)
+            .WithPointerRemapped(remapped)
+            .WithScroll(notches)
+            .WithMouseButtons((held | pressed) & ~_masked);
     }
 
     private static uint Down(ReadOnlySpan<MouseButton> buttons)

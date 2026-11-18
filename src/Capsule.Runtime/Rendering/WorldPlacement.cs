@@ -3,12 +3,10 @@ using Capsule.Rendering;
 
 namespace Capsule.Runtime.Rendering;
 
-// Where a drawn frame's world landed in the window. TopLeft is the world rect's corner as the frame
-// placed it, and Anchor the origin its sprites snapped from, which is TopLeft on a frame that did not
-// snap. Fit is where that rect landed on the surface, Present where the surface landed in the window,
-// and Snap whether the frame quantised to the surface's pixel grid. Parallax is the frame's
-// ScrollLayout.Parallax, which places each scrolled layer.
-internal readonly record struct WorldPlacement(Vector2 TopLeft, Vector2 Anchor, Letterbox Fit, ScreenPlacement Present, bool Snap, Vector2 Parallax)
+// Where a drawn frame's world landed in the window. Ends is where the frame placed the world, Fit where its rect
+// landed on the surface, and Present where the surface landed in the window. Parallax is ScrollLayout.Parallax of
+// the drawn rect, which places each scrolled layer.
+internal readonly record struct WorldPlacement(WorldEnds Ends, Letterbox Fit, ScreenPlacement Present, Vector2 Parallax)
 {
     internal float PixelsPerUnit => Fit.Scale * Present.Scale;
 
@@ -16,7 +14,7 @@ internal readonly record struct WorldPlacement(Vector2 TopLeft, Vector2 Anchor, 
     private Vector2 Corner => Present.Origin + (new Vector2(Fit.X, Fit.Y) * Present.Scale);
 
     // The world point drawn under a window pixel. A pixel off the world's region extrapolates.
-    internal Vector2 ToWorld(Vector2 window) => TopLeft + ((window - Corner) / PixelsPerUnit);
+    internal Vector2 ToWorld(Vector2 window) => Ends.Corner + ((window - Corner) / PixelsPerUnit);
 
     // Whether a window pixel lies on the world's region, not on a bar beside it.
     internal bool Contains(Vector2 window)

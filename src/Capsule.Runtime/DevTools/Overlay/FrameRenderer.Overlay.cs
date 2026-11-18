@@ -10,7 +10,7 @@ internal sealed partial class FrameRenderer
     // list and an upload of its own. Its world list comes first, placed where the last game frame's world landed so it annotates that frame's
     // sprites, then its screen layer at an integer scale of the window's pixels, into the swapchain texture
     // after any capture's download. The host's own camera is not used here, and the world list is culled
-    // against nothing and drawn at the settled step.
+    // against nothing and placed between the game frame's two ends at its alpha.
     internal void DrawOverlay(FrameView view, int scale)
     {
         if (_commands is not { } commands || _window is not { } window)
@@ -23,7 +23,7 @@ internal sealed partial class FrameRenderer
         (_sprites, _overlaySprites) = (_overlaySprites, _sprites);
         try
         {
-            _sprites.Reset(1f, reuse: false);
+            _sprites.Reset(reuse: false);
             _sprites.BeginPass(window, null);
 
             if (_world is { } world && (!view.Sprites.IsEmpty || !view.Polygons.IsEmpty || !view.Lines.IsEmpty))
@@ -47,7 +47,8 @@ internal sealed partial class FrameRenderer
     // The world's region of the window is the fit inside the surface carried through the
     // surface's placement, and the viewport is narrowed to that region so nothing lands on the bars.
     // With the viewport's origin at the region's corner, the transform maps the world's top-left to
-    // the origin and units to window pixels.
+    // the origin and units to window pixels. A sprite snaps to the window's pixels from the game frame's
+    // ends, and a line to the game surface's.
     private void DrawOverlayWorld(FrameView view, in WorldPlacement world, int width, int height)
     {
         Letterbox fit = world.Fit;
@@ -64,21 +65,14 @@ internal sealed partial class FrameRenderer
         _sprites.SetViewport(left, top, right - left, bottom - top);
 
         float pixelsPerUnit = world.PixelsPerUnit;
-        _sprites.SetTransform(WorldToSurface(world.TopLeft, pixelsPerUnit));
+        _sprites.SetTransform(WorldToSurface(world.Ends.Corner, pixelsPerUnit));
         _sprites.SetSampling(TextureSampling.Point);
 
-        Pass pass = new()
-        {
-            Alpha = 1f,
-            Snap = true,
-            Scale = pixelsPerUnit,
-            SnapLines = world.Snap,
-            LineScale = world.Fit.Scale,
-            LayerCorner = world.Anchor,
-            FrameCorner = world.TopLeft,
-            WorldAnchor = world.Anchor,
-        };
+        GridPlacement game = world.Ends.Base;
+        Pass pass = WorldPass(world.Ends, fit.Scale);
+        pass.Scale = pixelsPerUnit;
+        pass.Sprites = game with { Grids = game.Grids * present.Scale, Shift = game.Shift * present.Scale, Grid = pixelsPerUnit };
 
-        DrawIntents(view.Sprites, view.Polygons, view.PolygonPoints, view.Lines, default, default, default, default, default, ref pass);
+        DrawIntents(view.Sprites, view.Polygons, view.PolygonPoints, view.Lines, default, default, default, default, ref pass);
     }
 }

@@ -56,6 +56,19 @@ public sealed class SnapshotLatchTests
         Assert.True(latch.Consume().HasWindowFocus);
     }
 
+    // A remap is a delta like a notch: the next step reads it and a second step in the frame does not.
+    [Fact]
+    public void ARemapBetweenSteps_SurvivesToTheNextStepAndIsSpentThere()
+    {
+        SnapshotLatch latch = new();
+
+        latch.Observe(DeviceSnapshot.Empty.WithPointerRemapped(true));
+        latch.Observe(DeviceSnapshot.Empty);
+
+        Assert.True(latch.Consume().PointerRemapped);
+        Assert.False(latch.Consume().PointerRemapped);
+    }
+
     [Fact]
     public void AReleaseObservedAfterAStep_LandsOnTheFollowingStep()
     {

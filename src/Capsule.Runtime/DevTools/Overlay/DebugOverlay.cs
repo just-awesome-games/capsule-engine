@@ -73,6 +73,11 @@ internal sealed class DebugOverlay : IDisposable
 
     private OverlayState _state;
     private bool _toggleDown;
+
+    // The overlay scale the pointer was last mapped through. The game's pointer comes back to the
+    // window through the game's own layer, and lands a float's error off where it was when that layer
+    // moved. A remap of the game's canvas or a change of this scale is no motion to the overlay.
+    private int _overlayScale;
     private bool _framePaneOn;
     private string? _title;
     private HoldRepeat _repeat;
@@ -257,7 +262,9 @@ internal sealed class DebugOverlay : IDisposable
         if (gameLayer.Scale > 0f && overlayScale > 0)
         {
             window = (game.Pointer * gameLayer.Scale) + gameLayer.Origin;
-            overlayInput = game.WithPointer(window / overlayScale);
+            bool scaled = _overlayScale != 0 && overlayScale != _overlayScale;
+            overlayInput = game.WithPointer(window / overlayScale).WithPointerRemapped(game.PointerRemapped || scaled);
+            _overlayScale = overlayScale;
         }
 
         // Advanced while closed too. A press made before the overlay opens is no edge once it has.
@@ -361,8 +368,6 @@ internal sealed class DebugOverlay : IDisposable
         {
             renderer.WorldZoomOut = _freeCamera.ZoomOut;
         }
-
-        _draws.Alpha = _scheduler.InterpolationAlpha;
 
         // World tools act open or hidden.
         if (_state != OverlayState.Closed && _click is { } click)

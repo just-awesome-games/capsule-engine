@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Input;
 using Capsule.Runtime.DevTools.Recordings;
 
@@ -14,6 +15,23 @@ public sealed class RecordingBodyTests
         DeviceSnapshot noTriggers = pressed.WithPadLacking(PadButton.LeftTrigger, PadButton.RightTrigger);
         DeviceSnapshot[] steps = [pressed, noTriggers, noTriggers.Without(PadButton.South)];
 
+        AssertRoundTrips(steps);
+    }
+
+    // A replay reads the canvas moving under the pointer where the live run did, or the two disagree on
+    // motion and on the active device. A recording made before the flag never sets it.
+    [Fact]
+    public void ARemappedPointer_RoundTripsAndAStepWithoutItReadsNone()
+    {
+        DeviceSnapshot pointed = DeviceSnapshot.Empty.WithPointer(new Vector2(10f, 10f));
+        DeviceSnapshot remapped = pointed.WithPointer(new Vector2(40f, 60f)).WithPointerRemapped(true);
+        DeviceSnapshot[] steps = [pointed, remapped, remapped, remapped.WithPointerRemapped(false)];
+
+        AssertRoundTrips(steps);
+    }
+
+    private static void AssertRoundTrips(DeviceSnapshot[] steps)
+    {
         ChunkedBuffer writer = new(256);
         DeviceSnapshot previous = default;
         foreach (DeviceSnapshot step in steps)

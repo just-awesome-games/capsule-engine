@@ -6,58 +6,65 @@ namespace Capsule.Runtime.Rendering;
 // Maps a clip's canvas-pixel rect to the surface pixels the device scissors to.
 internal static class ClipScissor
 {
-    // What a clip shows at `alpha` through the step: each level moved between its two ends, then all of them
-    // intersected. Interpolating first matters. The intersection of the ends is not the end of the
-    // intersection when an inner level moves inside an outer one.
-    internal static Rect Shown(ReadOnlySpan<ClipRegion> levels, float alpha)
+    // What a clip shows at grid's alpha, in whole surface pixels cut to the surface. Each level's corners are placed
+    // by grid, as a sprite on the canvas is, then put on the surface at placement and intersected, and each edge is
+    // rounded. Placing each level first matters. The intersection of the ends is not the end of the intersection when
+    // an inner level moves inside an outer one. A snapped edge changes pixel on the frame a sprite moving with it
+    // does. Rounding the edges and not the corner and size keeps two abutting clips on one shared pixel boundary.
+    // False when nothing is left, which is a rect with no area, one off the surface, and one that rounds to no width
+    // or height.
+    internal static bool TryShow(
+        ReadOnlySpan<ClipRegion> levels,
+        in GridPlacement grid,
+        in ScreenPlacement placement,
+        int surfaceWidth,
+        int surfaceHeight,
+        out int x,
+        out int y,
+        out int width,
+        out int height)
     {
+        x = y = width = height = 0;
         Rect shown = Rect.FromEdges(float.NegativeInfinity, float.NegativeInfinity, float.PositiveInfinity, float.PositiveInfinity);
         for (int i = 0; i < levels.Length; i++)
         {
-            Vector2 low = StepInterpolation.Interpolate(levels[i].Previous.Position, levels[i].Current.Position, alpha);
-            Vector2 high = StepInterpolation.Interpolate(
-                new Vector2(levels[i].Previous.Right, levels[i].Previous.Bottom),
-                new Vector2(levels[i].Current.Right, levels[i].Current.Bottom),
-                alpha);
-
+            Rect previous = levels[i].Previous;
+            Rect current = levels[i].Current;
+            Vector2 low = grid.Place(previous.Position, current.Position);
+            Vector2 high = grid.Place(new Vector2(previous.Right, previous.Bottom), new Vector2(current.Right, current.Bottom));
             shown = Rect.Intersection(shown, Rect.FromCorners(low, high));
         }
 
-        return shown;
-    }
-
-    // The rect placed on the surface with its edges rounded to whole pixels, then cut to the surface.
-    // False when nothing is left, which is a rect with no area, one off the surface, and one that rounds
-    // to no width or height. Rounding the edges and not the corner and size keeps two abutting clips on
-    // one shared pixel boundary.
-    internal static bool TryMap(in Rect canvas, in ScreenPlacement placement, int surfaceWidth, int surfaceHeight, out int x, out int y, out int width, out int height)
-    {
-        x = y = width = height = 0;
-        if (canvas.IsEmpty)
+        if (shown.IsEmpty)
         {
             return false;
         }
 
-        float scale = placement.Scale;
-        float left = MathF.Round((canvas.Left * scale) + placement.Origin.X);
-        float top = MathF.Round((canvas.Top * scale) + placement.Origin.Y);
-        float right = MathF.Round((canvas.Right * scale) + placement.Origin.X);
-        float bottom = MathF.Round((canvas.Bottom * scale) + placement.Origin.Y);
-
-        int clippedLeft = (int)Math.Clamp(left, 0f, surfaceWidth);
-        int clippedTop = (int)Math.Clamp(top, 0f, surfaceHeight);
-        int clippedRight = (int)Math.Clamp(right, 0f, surfaceWidth);
-        int clippedBottom = (int)Math.Clamp(bottom, 0f, surfaceHeight);
-        if (clippedRight <= clippedLeft || clippedBottom <= clippedTop)
+        Vector2 topLeft = OnSurface(shown.Position, in grid, in placement);
+        Vector2 bottomRight = OnSurface(new Vector2(shown.Right, shown.Bottom), in grid, in placement);
+        int left = (int)Math.Clamp(topLeft.X, 0f, surfaceWidth);
+        int top = (int)Math.Clamp(topLeft.Y, 0f, surfaceHeight);
+        int right = (int)Math.Clamp(bottomRight.X, 0f, surfaceWidth);
+        int bottom = (int)Math.Clamp(bottomRight.Y, 0f, surfaceHeight);
+        if (right <= left || bottom <= top)
         {
             return false;
         }
 
-        x = clippedLeft;
-        y = clippedTop;
-        width = clippedRight - clippedLeft;
-        height = clippedBottom - clippedTop;
+        x = left;
+        y = top;
+        width = right - left;
+        height = bottom - top;
 
         return true;
+    }
+
+    // A canvas point on the surface pixel it lands on, by the midpoint rule a snapped sprite rounds by, or to the
+    // nearest otherwise.
+    private static Vector2 OnSurface(Vector2 canvas, in GridPlacement grid, in ScreenPlacement placement)
+    {
+        Vector2 surface = (canvas * placement.Scale) + placement.Origin;
+
+        return grid.Grid > 0f ? PixelGrid.Whole(surface) : new Vector2(MathF.Round(surface.X), MathF.Round(surface.Y));
     }
 }

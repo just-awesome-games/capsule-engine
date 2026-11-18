@@ -26,33 +26,24 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     // The axes a snapshot holds, one slot per PadAxis value above None.
     internal const int AxisCount = 6;
 
-    private readonly UInt128 _down;
-    private readonly uint _padDown;
-    private readonly uint _mouseDown;
-    private readonly Vector2 _pointer;
-    private readonly Vector2 _scroll;
-    private readonly AxisSet _axes;
+    // Bit n of each mask is the key or button of value n. A recording writes and reads these back raw.
+    internal UInt128 KeyBits { get; private init; }
+
+    internal uint PadBits { get; private init; }
+
+    internal uint MouseBits { get; private init; }
+
+    // The pad buttons the active pad lacks, inverted so that default reads a full pad.
+    internal uint PadLackingBits { get; private init; }
+
+    // Whether the canvas moved under the pointer since the previous sample, as when the window or the
+    // screen layer's placement changed. A jump of the pointer here is no motion.
+    internal bool PointerRemapped { get; private init; }
 
     // Inverted so that default reads focused.
-    private readonly bool _unfocused;
-    private readonly PadFamily _padFamily;
+    private bool Unfocused { get; init; }
 
-    // The pad buttons the active pad lacks, bit n for the button of value n, inverted so that default
-    // reads a full pad.
-    private readonly uint _padLacking;
-
-    private DeviceSnapshot(UInt128 down, uint padDown, uint mouseDown, Vector2 pointer, Vector2 scroll, AxisSet axes, bool unfocused, PadFamily padFamily, uint padLacking)
-    {
-        _down = down;
-        _padDown = padDown;
-        _mouseDown = mouseDown;
-        _pointer = pointer;
-        _scroll = scroll;
-        _axes = axes;
-        _unfocused = unfocused;
-        _padFamily = padFamily;
-        _padLacking = padLacking;
-    }
+    private AxisSet Axes { get; init; }
 
     /// <summary>
     /// A snapshot with window focus, a <see cref="PadFamily.Generic"/> pad having every
@@ -70,23 +61,14 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
             down |= Bit(keys[i]);
         }
 
-        return new DeviceSnapshot(down, 0, 0, Vector2.Zero, Vector2.Zero, default, false, PadFamily.Generic, 0);
+        return new DeviceSnapshot { KeyBits = down };
     }
 
     // Whether the window has focus, the pad is generic and full, nothing is held, every axis is at rest, the wheel is still and the pointer is at the origin.
     internal bool IsEmpty => Equals(Empty);
 
-    // The raw parts a recording writes and reads back. Bit n of a mask is the key or button of value n.
-    internal UInt128 KeyBits => _down;
-
-    internal uint PadBits => _padDown;
-
-    internal uint MouseBits => _mouseDown;
-
-    internal uint PadLackingBits => _padLacking;
-
     // The axis in slot index, which is its PadAxis value less one.
-    internal float AxisAt(int index) => _axes[index];
+    internal float AxisAt(int index) => Axes[index];
 
     // A snapshot from the parts a recording read, which a writer took from a valid one.
     internal static DeviceSnapshot FromParts(
@@ -98,7 +80,8 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         ReadOnlySpan<float> axes,
         bool focused,
         PadFamily family,
-        uint padLacking)
+        uint padLacking,
+        bool pointerRemapped)
     {
         AxisSet set = default;
         for (int index = 0; index < AxisCount; index++)
@@ -106,7 +89,19 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
             set[index] = axes[index];
         }
 
-        return new DeviceSnapshot(keys, pad, mouse, pointer, scroll, set, !focused, family, padLacking);
+        return new DeviceSnapshot
+        {
+            KeyBits = keys,
+            PadBits = pad,
+            MouseBits = mouse,
+            Pointer = pointer,
+            Scroll = scroll,
+            Axes = set,
+            Unfocused = !focused,
+            PadFamily = family,
+            PadLackingBits = padLacking,
+            PointerRemapped = pointerRemapped,
+        };
     }
 
     /// <summary>
@@ -114,21 +109,21 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// Unclamped.
     /// </summary>
     /// <remarks>A pointer outside the window reads outside the canvas.</remarks>
-    public Vector2 Pointer => _pointer;
+    public Vector2 Pointer { get; private init; }
 
     /// <summary>
     /// Wheel notches turned since the previous sample, and zero while the wheel rests. X positive
     /// scrolls right, Y positive scrolls away from the user.
     /// </summary>
     /// <remarks>Unbounded. Latching several samples into one step sums the notches.</remarks>
-    public Vector2 Scroll => _scroll;
+    public Vector2 Scroll { get; private init; }
 
     /// <summary>Whether the game's window has input focus at this instant.</summary>
-    public bool HasWindowFocus => !_unfocused;
+    public bool HasWindowFocus => !Unfocused;
 
     /// <summary>The family of the pad the player last used, which a prompt's art follows.</summary>
     /// <remarks>It keeps the last pad's family while no pad is connected, and changing it alone is no use of the pad.</remarks>
-    public PadFamily PadFamily => _padFamily;
+    public PadFamily PadFamily { get; private init; }
 
     /// <summary>
     /// Whether the player's pad has <paramref name="button"/>, as its mapping defines it. Every button
@@ -139,66 +134,66 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// never be pressed. It keeps the last pad's buttons while no pad is connected.
     /// </remarks>
     public bool PadHas(PadButton button) =>
-        button != PadButton.None && (uint)button < PadCapacity && (_padLacking & (1u << (int)button)) == 0;
+        button != PadButton.None && (uint)button < PadCapacity && (PadLackingBits & (1u << (int)button)) == 0;
 
     /// <summary>Whether <paramref name="key"/> is held down at this instant.</summary>
-    public bool IsDown(Key key) => (uint)key < Capacity && (_down & (UInt128.One << (int)key)) != UInt128.Zero;
+    public bool IsDown(Key key) => (uint)key < Capacity && (KeyBits & (UInt128.One << (int)key)) != UInt128.Zero;
 
     /// <summary>Whether <paramref name="button"/> is held down at this instant.</summary>
-    public bool IsDown(PadButton button) => (uint)button < PadCapacity && (_padDown & (1u << (int)button)) != 0;
+    public bool IsDown(PadButton button) => (uint)button < PadCapacity && (PadBits & (1u << (int)button)) != 0;
 
     /// <summary>Whether <paramref name="button"/> is held down at this instant.</summary>
-    public bool IsDown(MouseButton button) => (uint)button < MouseCapacity && (_mouseDown & (1u << (int)button)) != 0;
+    public bool IsDown(MouseButton button) => (uint)button < MouseCapacity && (MouseBits & (1u << (int)button)) != 0;
 
     /// <summary>Position of <paramref name="axis"/>, reading 0 at rest and for <see cref="PadAxis.None"/>.</summary>
     public float Axis(PadAxis axis)
     {
         int index = (int)axis - 1;
 
-        return (uint)index < AxisCount ? _axes[index] : 0f;
+        return (uint)index < AxisCount ? Axes[index] : 0f;
     }
 
     /// <summary>This snapshot with <paramref name="key"/> additionally held.</summary>
-    public DeviceSnapshot With(Key key) => new(_down | Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
+    public DeviceSnapshot With(Key key) => this with { KeyBits = KeyBits | Bit(key) };
 
     /// <summary>This snapshot with <paramref name="button"/> additionally held.</summary>
-    public DeviceSnapshot With(PadButton button) => new(_down, _padDown | PadBit(button), _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
+    public DeviceSnapshot With(PadButton button) => this with { PadBits = PadBits | PadBit(button) };
 
     /// <summary>This snapshot with <paramref name="button"/> additionally held.</summary>
-    public DeviceSnapshot With(MouseButton button) => new(_down, _padDown, _mouseDown | MouseBit(button), _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
+    public DeviceSnapshot With(MouseButton button) => this with { MouseBits = MouseBits | MouseBit(button) };
 
     /// <summary>This snapshot with <paramref name="key"/> released.</summary>
-    public DeviceSnapshot Without(Key key) => new(_down & ~Bit(key), _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
+    public DeviceSnapshot Without(Key key) => this with { KeyBits = KeyBits & ~Bit(key) };
 
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
-    public DeviceSnapshot Without(PadButton button) => new(_down, _padDown & ~PadBit(button), _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
+    public DeviceSnapshot Without(PadButton button) => this with { PadBits = PadBits & ~PadBit(button) };
 
     /// <summary>This snapshot with <paramref name="button"/> released.</summary>
-    public DeviceSnapshot Without(MouseButton button) => new(_down, _padDown, _mouseDown & ~MouseBit(button), _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
+    public DeviceSnapshot Without(MouseButton button) => this with { MouseBits = MouseBits & ~MouseBit(button) };
 
     // Whether a pad button is down here that was not down in the older snapshot.
-    internal bool AnyPadButtonNewlyDown(in DeviceSnapshot older) => (_padDown & ~older._padDown) != 0;
+    internal bool AnyPadButtonNewlyDown(in DeviceSnapshot older) => (PadBits & ~older.PadBits) != 0;
 
     // Whether a key or mouse button is down here that was not down in the older snapshot.
     internal bool AnyKeyOrMouseButtonNewlyDown(in DeviceSnapshot older) =>
-        (_down & ~older._down) != UInt128.Zero || (_mouseDown & ~older._mouseDown) != 0;
+        (KeyBits & ~older.KeyBits) != UInt128.Zero || (MouseBits & ~older.MouseBits) != 0;
 
     // The lowest-valued key newly down here, or null.
     internal Key? NewlyDownKey(in DeviceSnapshot older)
     {
-        UInt128 pressed = _down & ~older._down;
+        UInt128 pressed = KeyBits & ~older.KeyBits;
         return pressed == 0 ? null : (Key)(int)UInt128.TrailingZeroCount(pressed);
     }
 
     internal MouseButton? NewlyDownMouseButton(in DeviceSnapshot older)
     {
-        uint pressed = _mouseDown & ~older._mouseDown;
+        uint pressed = MouseBits & ~older.MouseBits;
         return pressed == 0 ? null : (MouseButton)BitOperations.TrailingZeroCount(pressed);
     }
 
     internal PadButton? NewlyDownPadButton(in DeviceSnapshot older)
     {
-        uint pressed = _padDown & ~older._padDown;
+        uint pressed = PadBits & ~older.PadBits;
         return pressed == 0 ? null : (PadButton)BitOperations.TrailingZeroCount(pressed);
     }
 
@@ -209,7 +204,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         {
             for (int i = 0; i < AxisCount; i++)
             {
-                if (_axes[i] != 0f)
+                if (Axes[i] != 0f)
                 {
                     return true;
                 }
@@ -220,7 +215,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     }
 
     // Mouse buttons as a mask whose bit n is the button of value n.
-    internal DeviceSnapshot WithMouseButtons(uint buttons) => new(_down, _padDown, _mouseDown | buttons, _pointer, _scroll, _axes, _unfocused, _padFamily, _padLacking);
+    internal DeviceSnapshot WithMouseButtons(uint buttons) => this with { MouseBits = MouseBits | buttons };
 
     /// <summary>
     /// This snapshot with <paramref name="button"/> additionally held. A stick direction is held by
@@ -245,7 +240,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     {
         Guard.Finite(position, nameof(position));
 
-        return new DeviceSnapshot(_down, _padDown, _mouseDown, position, _scroll, _axes, _unfocused, _padFamily, _padLacking);
+        return this with { Pointer = position };
     }
 
     /// <summary>This snapshot with the wheel having turned <paramref name="notches"/>.</summary>
@@ -257,11 +252,11 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     {
         Guard.Finite(notches, nameof(notches));
 
-        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, notches, _axes, _unfocused, _padFamily, _padLacking);
+        return this with { Scroll = notches };
     }
 
     /// <summary>This snapshot with the game's window focused or not.</summary>
-    public DeviceSnapshot WithWindowFocus(bool focused) => new(_down, _padDown, _mouseDown, _pointer, _scroll, _axes, !focused, _padFamily, _padLacking);
+    public DeviceSnapshot WithWindowFocus(bool focused) => this with { Unfocused = !focused };
 
     /// <summary>This snapshot with the player's pad of <paramref name="family"/>.</summary>
     public DeviceSnapshot WithPadFamily(PadFamily family)
@@ -271,7 +266,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
             throw new ArgumentOutOfRangeException(nameof(family), family, $"{nameof(PadFamily)} has no such family.");
         }
 
-        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused, family, _padLacking);
+        return this with { PadFamily = family };
     }
 
     /// <summary>
@@ -296,8 +291,11 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         return WithPadLackingBits(lacking);
     }
 
+    // This snapshot with the canvas having moved under the pointer since the previous sample or not.
+    internal DeviceSnapshot WithPointerRemapped(bool remapped) => this with { PointerRemapped = remapped };
+
     // The pad buttons as a mask whose bit n is the button of value n the pad lacks.
-    internal DeviceSnapshot WithPadLackingBits(uint lacking) => new(_down, _padDown, _mouseDown, _pointer, _scroll, _axes, _unfocused, _padFamily, lacking);
+    internal DeviceSnapshot WithPadLackingBits(uint lacking) => this with { PadLackingBits = lacking };
 
     /// <summary>This snapshot with <paramref name="axis"/> at <paramref name="value"/>.</summary>
     /// <param name="axis">The axis to place. Must not be <see cref="PadAxis.None"/>.</param>
@@ -307,43 +305,42 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         int index = AxisIndex(axis);
         Guard.InRange(value, Minimum(axis), 1f, nameof(value));
 
-        AxisSet axes = _axes;
+        AxisSet axes = Axes;
         axes[index] = value;
 
-        return new DeviceSnapshot(_down, _padDown, _mouseDown, _pointer, _scroll, axes, _unfocused, _padFamily, _padLacking);
+        return this with { Axes = axes };
     }
 
-    // Unions held buttons and window focus loss with a newer sample, sums the wheel notches, and takes
-    // the newer axis values, pointer, pad family and pad buttons. A click, notch or window focus loss
-    // between two fixed steps survives to the next step.
-    internal DeviceSnapshot LatchedWith(in DeviceSnapshot newer) =>
-        new(
-            _down | newer._down,
-            _padDown | newer._padDown,
-            _mouseDown | newer._mouseDown,
-            newer._pointer,
-            _scroll + newer._scroll,
-            newer._axes,
-            _unfocused | newer._unfocused,
-            newer._padFamily,
-            newer._padLacking);
+    // Unions held buttons, window focus loss and a remap of the pointer with a newer sample, sums the
+    // wheel notches, and takes the newer axis values, pointer, pad family and pad buttons. A click,
+    // notch, window focus loss or remap between two fixed steps survives to the next step.
+    internal DeviceSnapshot LatchedWith(in DeviceSnapshot newer) => newer with
+    {
+        KeyBits = KeyBits | newer.KeyBits,
+        PadBits = PadBits | newer.PadBits,
+        MouseBits = MouseBits | newer.MouseBits,
+        Scroll = Scroll + newer.Scroll,
+        Unfocused = Unfocused | newer.Unfocused,
+        PointerRemapped = PointerRemapped | newer.PointerRemapped,
+    };
 
     /// <summary>
     /// Whether window focus, the pad family and the pad's buttons are the same, the same keys and buttons
-    /// are held, every axis and the wheel read the same, and the pointer is on the same position.
+    /// are held, every axis and the wheel read the same, and the pointer is on the same position with the
+    /// canvas moved under it in both or neither.
     /// </summary>
     public bool Equals(DeviceSnapshot other)
     {
-        if (_down != other._down || _padDown != other._padDown || _mouseDown != other._mouseDown ||
-            _pointer != other._pointer || _scroll != other._scroll || _unfocused != other._unfocused ||
-            _padFamily != other._padFamily || _padLacking != other._padLacking)
+        if (KeyBits != other.KeyBits || PadBits != other.PadBits || MouseBits != other.MouseBits ||
+            Pointer != other.Pointer || Scroll != other.Scroll || Unfocused != other.Unfocused ||
+            PadFamily != other.PadFamily || PadLackingBits != other.PadLackingBits || PointerRemapped != other.PointerRemapped)
         {
             return false;
         }
 
         for (int i = 0; i < AxisCount; i++)
         {
-            if (_axes[i] != other._axes[i])
+            if (Axes[i] != other.Axes[i])
             {
                 return false;
             }
@@ -359,26 +356,27 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     public override int GetHashCode()
     {
         HashCode hash = new();
-        hash.Add(_down);
-        hash.Add(_padDown);
-        hash.Add(_mouseDown);
-        hash.Add(_pointer);
-        hash.Add(_scroll);
-        hash.Add(_unfocused);
-        hash.Add(_padFamily);
-        hash.Add(_padLacking);
+        hash.Add(KeyBits);
+        hash.Add(PadBits);
+        hash.Add(MouseBits);
+        hash.Add(Pointer);
+        hash.Add(Scroll);
+        hash.Add(Unfocused);
+        hash.Add(PadFamily);
+        hash.Add(PadLackingBits);
+        hash.Add(PointerRemapped);
         for (int i = 0; i < AxisCount; i++)
         {
-            hash.Add(_axes[i]);
+            hash.Add(Axes[i]);
         }
 
         return hash.ToHashCode();
     }
 
-    /// <summary>Whether the two snapshots read the same in window focus, the pad's family and buttons, everything held, every axis, the wheel and the pointer.</summary>
+    /// <summary>Whether the two snapshots read the same in window focus, the pad's family and buttons, everything held, every axis, the wheel, the pointer and whether the canvas moved under it.</summary>
     public static bool operator ==(DeviceSnapshot left, DeviceSnapshot right) => left.Equals(right);
 
-    /// <summary>Whether the two snapshots differ in window focus, the pad's family or buttons, anything held, any axis, the wheel or the pointer.</summary>
+    /// <summary>Whether the two snapshots differ in window focus, the pad's family or buttons, anything held, any axis, the wheel, the pointer or whether the canvas moved under it.</summary>
     public static bool operator !=(DeviceSnapshot left, DeviceSnapshot right) => !left.Equals(right);
 
     // A None value is the empty set. Bit 0 is unused in all three masks.

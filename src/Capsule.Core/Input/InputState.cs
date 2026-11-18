@@ -33,14 +33,26 @@ public sealed class InputState
     /// Where the pointer sits this step, in canvas pixels from the canvas's top-left corner.
     /// Unclamped.
     /// </summary>
-    /// <remarks>A pointer off the canvas reads outside it.</remarks>
+    /// <remarks>
+    /// A pointer off the canvas reads outside it. A still mouse reads a new position on a step the
+    /// canvas moved under it, as when the window is resized or the screen layer is placed anew.
+    /// </remarks>
     public Vector2 Pointer => _current.Pointer;
 
-    /// <summary>Whether the pointer sits somewhere other than where it was the previous step.</summary>
-    public bool PointerMoved => _current.Pointer != _previous.Pointer;
+    /// <summary>Whether the player moved the pointer into this step.</summary>
+    /// <remarks>
+    /// False on a step the canvas moved under the pointer, as when the window is resized or the screen
+    /// layer is placed anew, even where the hand moved the mouse too. Motion reads again from the
+    /// next step.
+    /// </remarks>
+    public bool PointerMoved => !_current.PointerRemapped && _current.Pointer != _previous.Pointer;
 
-    /// <summary>How far the pointer moved into this step, in canvas pixels. Zero while it rests.</summary>
-    public Vector2 PointerDelta => _current.Pointer - _previous.Pointer;
+    /// <summary>How far the player moved the pointer into this step, in canvas pixels. Zero while it rests.</summary>
+    /// <remarks>
+    /// Zero on a step the canvas moved under the pointer, as when the window is resized or the screen
+    /// layer is placed anew, even where the hand moved the mouse too.
+    /// </remarks>
+    public Vector2 PointerDelta => _current.PointerRemapped ? Vector2.Zero : _current.Pointer - _previous.Pointer;
 
     /// <summary>
     /// Wheel notches turned this step, and zero while the wheel rests. X positive scrolls right, Y
@@ -66,8 +78,8 @@ public sealed class InputState
     /// <remarks>
     /// It becomes <see cref="InputDevice.Gamepad"/> on a step a pad button goes down or a pad axis is
     /// off centre, and <see cref="InputDevice.KeyboardMouse"/> on a step a key or mouse button goes
-    /// down, the wheel turns or the pointer moves more than two canvas pixels. A button that stays
-    /// held changes nothing. The pad wins a step both devices act on. A run starts on
+    /// down, the wheel turns or the player moves the pointer more than two canvas pixels. A button that
+    /// stays held changes nothing, and the canvas moving under a still mouse is no use of it. The pad wins a step both devices act on. A run starts on
     /// <see cref="InputDevice.Gamepad"/> when it finds a pad at boot and no input driver plays it.
     /// Every later value is derived from the snapshots alone, and a replay reproduces it.
     /// </remarks>
@@ -192,7 +204,7 @@ public sealed class InputState
 
         if (current.AnyKeyOrMouseButtonNewlyDown(in previous)
             || current.Scroll != Vector2.Zero
-            || Vector2.Distance(current.Pointer, previous.Pointer) > PointerActivationPixels)
+            || (!current.PointerRemapped && Vector2.Distance(current.Pointer, previous.Pointer) > PointerActivationPixels))
         {
             return InputDevice.KeyboardMouse;
         }

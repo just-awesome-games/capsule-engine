@@ -79,6 +79,7 @@ internal sealed class RecordingBody(RecordingReader reader)
         mask |= next.HasWindowFocus != previous.HasWindowFocus ? RecordingFormat.FocusBit : 0;
         mask |= next.PadFamily != previous.PadFamily ? RecordingFormat.FamilyBit : 0;
         mask |= next.PadLackingBits != previous.PadLackingBits ? RecordingFormat.LackingBit : 0;
+        mask |= next.PointerRemapped != previous.PointerRemapped ? RecordingFormat.RemappedBit : 0;
         for (int slot = 0; slot < DeviceSnapshot.AxisCount; slot++)
         {
             mask |= BitConverter.SingleToUInt32Bits(next.AxisAt(slot)) != BitConverter.SingleToUInt32Bits(previous.AxisAt(slot)) ? 1 << (RecordingFormat.AxisBit + slot) : 0;
@@ -184,7 +185,7 @@ internal sealed class RecordingBody(RecordingReader reader)
     private DeviceSnapshot ReadSnapshot(in DeviceSnapshot previous)
     {
         int mask = reader.ReadCount(int.MaxValue);
-        if (mask >= RecordingFormat.LackingBit << 1)
+        if (mask >= RecordingFormat.RemappedBit << 1)
         {
             throw reader.Defect($"holds a step whose change mask 0x{mask:X} names a field no snapshot has, before byte {reader.Position}");
         }
@@ -219,8 +220,9 @@ internal sealed class RecordingBody(RecordingReader reader)
         }
 
         uint lacking = (mask & RecordingFormat.LackingBit) != 0 ? reader.ReadBits() : previous.PadLackingBits;
+        bool remapped = (mask & RecordingFormat.RemappedBit) != 0 ? !previous.PointerRemapped : previous.PointerRemapped;
 
-        return DeviceSnapshot.FromParts(keys, pad, mouse, pointer, scroll, axes, focused, family, lacking);
+        return DeviceSnapshot.FromParts(keys, pad, mouse, pointer, scroll, axes, focused, family, lacking, remapped);
     }
 
     private HostAct ReadAct()

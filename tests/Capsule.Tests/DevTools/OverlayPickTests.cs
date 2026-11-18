@@ -19,7 +19,7 @@ public sealed class OverlayPickTests
         pile.Back.ScrollFactor = Vector2.Zero;
         using SceneSimulation simulation = new(pile);
         Vector2 parallax = new(-40f, -30f);
-        Vector2 drawn = ScrollLayout.Place(Pile.BackOnly, ScrollLayout.Corner(Vector2.Zero, parallax, Vector2.Zero), Vector2.Zero, snap: false, scale: 1f);
+        Vector2 drawn = Pile.BackOnly - ScrollLayout.Corner(Vector2.Zero, parallax, Vector2.Zero);
 
         Assert.Equal([pile.Back], Pick(simulation, drawn, parallax));
         Assert.Empty(Pick(simulation, Pile.BackOnly, parallax));
@@ -98,7 +98,7 @@ public sealed class OverlayPickTests
     }
 
     private static Vector2 Window(in WorldPlacement world, Vector2 point) =>
-        world.Present.Origin + (new Vector2(world.Fit.X, world.Fit.Y) * world.Present.Scale) + ((point - world.TopLeft) * world.PixelsPerUnit);
+        world.Present.Origin + (new Vector2(world.Fit.X, world.Fit.Y) * world.Present.Scale) + ((point - world.Ends.Corner) * world.PixelsPerUnit);
 
     // A wide back rect, and over its centre a smaller one drawn by the child of an entity that draws nothing.
     private sealed class Pile : Scene

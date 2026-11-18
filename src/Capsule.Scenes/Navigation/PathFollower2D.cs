@@ -43,8 +43,9 @@ public sealed class PathFollower2D : Component
     public Path2D Path { get; }
 
     /// <summary>
-    /// Units travelled along the path a second, on the fixed step. Zero by default, which leaves the entity
-    /// where <see cref="Offset"/> places it, and a negative speed travels toward the first point.
+    /// Distance travelled along the path a second, in the path's <see cref="Path2D.Distances"/>, on the fixed step.
+    /// Zero by default, which leaves the entity where <see cref="Offset"/> places it, and a negative speed travels
+    /// toward the first point.
     /// </summary>
     public float Speed
     {
@@ -67,7 +68,10 @@ public sealed class PathFollower2D : Component
         Path = path;
     }
 
-    /// <summary>The distance along the path the entity stands at, from 0 to the path's <see cref="Path2D.Length"/>.</summary>
+    /// <summary>
+    /// The distance along the path the entity stands at, in the path's <see cref="Path2D.Distances"/>, from 0 to its
+    /// <see cref="Path2D.Length"/>.
+    /// </summary>
     /// <remarks>Writing it moves the entity there at once, and a distance outside that range is clamped into it.</remarks>
     public float Offset
     {

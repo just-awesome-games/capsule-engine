@@ -23,13 +23,13 @@ internal sealed class SnapshotLatch
     internal void DiscardPending() => _observedSinceStep = false;
 
     // Consumes latched buttons and the latest axis values for one fixed step. A second step drained in
-    // the same frame sees the same held state and positions, and no scroll. Notches are a delta one step
-    // spends, while a held button is a state every step reads.
+    // the same frame sees the same held state and positions, and no scroll or remap. Notches and a remap
+    // of the pointer are deltas one step spends, while a held button is a state every step reads.
     internal DeviceSnapshot Consume()
     {
         DeviceSnapshot consumed = _observedSinceStep ? _latched : _live;
         _observedSinceStep = false;
-        _live = _live.WithScroll(Vector2.Zero);
+        _live = _live.WithScroll(Vector2.Zero).WithPointerRemapped(false);
 
         return consumed;
     }

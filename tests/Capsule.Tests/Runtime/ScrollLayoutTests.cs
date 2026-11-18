@@ -74,7 +74,8 @@ public sealed class ScrollLayoutTests
 
             for (int index = 0; index < tiles.Length; index++)
             {
-                float placed = ScrollLayout.Place(new Vector2(tiles[index], 0f), corner, Vector2.Zero, snap: true, scale).X;
+                Vector2 at = new(tiles[index], 0f);
+                float placed = new GridPlacement(corner, corner, Vector2.Zero, Vector2.Zero, new Vector2(scale), scale, Alpha: 1f).Place(at, at).X;
                 float pixels = placed * scale;
 
                 Assert.Equal(MathF.Round(pixels), pixels, 3);

@@ -58,9 +58,8 @@ internal struct SpriteInstance
 }
 
 // The sprite vertex stage's uniforms, its CapsuleVertexUniforms member for member: the transform to
-// clip space, the bound texture's texel, the corners a layer is drawn from, the frame's interpolation
-// fraction, the pixels per unit a quad snaps to (zero for none), whether the texture is single-channel,
-// and the draw's first sprite in the storage buffer.
+// clip space, the bound texture's texel, the GridPlacement the quads are placed by, whether the texture is
+// single-channel, and the draw's first sprite in the storage buffer.
 [StructLayout(LayoutKind.Sequential)]
 internal struct SpriteUniforms
 {
@@ -68,9 +67,15 @@ internal struct SpriteUniforms
 
     public Vector2 TexelSize;
 
+    public Vector2 PreviousLayerCorner;
+
     public Vector2 LayerCorner;
 
     public Vector2 FrameCorner;
+
+    public Vector2 Shift;
+
+    public Vector2 Grids;
 
     public float Alpha;
 
@@ -79,6 +84,4 @@ internal struct SpriteUniforms
     public float Coverage;
 
     public uint FirstSprite;
-
-    private readonly Vector2 _padding;
 }

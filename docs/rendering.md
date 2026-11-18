@@ -46,9 +46,10 @@ A window is rarely a whole multiple of the surface, and by default the surface f
 `Display.IntegerScaling` shows it at the largest whole-number scale that fits instead, centred with bars. It is a
 player's choice: a settings screen sets it on `Run.Display`, and `WithIntegerScaling` starts it on.
 
-A pixel-perfect frame places its view on a whole surface pixel. A camera whose `FollowOffset` is a whole number of
-pixels holds its subject on one pixel of the view as it scrolls. Anything moving at another speed than the view steps
-a pixel against it as the view crosses one.
+A pixel-perfect frame snaps the view and every sprite to whole surface pixels at both ends of each fixed step. A frame
+drawn between two steps moves each of them that fraction of its whole-pixel travel. Things on the same pixels at both
+ends of a step move as one at any frame rate, and a sprite on the same pixel of the view at both ends holds it, as a
+subject followed at a whole-pixel `FollowOffset` does. A frame drawn at a step's end shows that step snapped.
 
 How a texture is filtered is the texture's own setting, linear unless its config says otherwise. The same
 game samples every texture by the nearest texel from its root `Assets/.config.json`

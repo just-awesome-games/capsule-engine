@@ -31,7 +31,7 @@ public sealed class ClipScissorTests
     {
         ScreenPlacement placement = new(new Vector2(originX, originY), scale);
 
-        bool mapped = ClipScissor.TryMap(Rect.FromEdges(left, top, right, bottom), in placement, 100, 100, out int mappedX, out int mappedY, out int mappedWidth, out int mappedHeight);
+        bool mapped = Show(Rect.FromEdges(left, top, right, bottom), in placement, out int mappedX, out int mappedY, out int mappedWidth, out int mappedHeight);
 
         Assert.Equal(shown, mapped);
         Assert.Equal((x, y, width, height), (mappedX, mappedY, mappedWidth, mappedHeight));
@@ -46,8 +46,12 @@ public sealed class ClipScissorTests
         Rect outer = Rect.FromEdges(0f, 0f, 10f, 10f);
         ClipRegion[] levels = [new(Rect.FromEdges(-5f, 0f, 5f, 10f), Rect.FromEdges(5f, 0f, 15f, 10f)), new(outer, outer)];
 
-        Assert.Equal(outer, ClipScissor.Shown(levels, 0.5f));
-        Assert.Equal(Rect.FromEdges(0f, 0f, 5f, 10f), ClipScissor.Shown(levels, 0f));
+        ScreenPlacement placement = new(Vector2.Zero, 1f);
+
+        ClipScissor.TryShow(levels, GridPlacement.Canvas(1f, snap: false, alpha: 0.5f), in placement, 100, 100, out int x, out int y, out int width, out int height);
+        Assert.Equal((0, 0, 10, 10), (x, y, width, height));
+        ClipScissor.TryShow(levels, GridPlacement.Canvas(1f, snap: false, alpha: 0f), in placement, 100, 100, out x, out y, out width, out height);
+        Assert.Equal((0, 0, 5, 10), (x, y, width, height));
     }
 
     // Two clips that abut on the canvas share one pixel boundary on the surface, whatever the scale.
@@ -56,9 +60,37 @@ public sealed class ClipScissorTests
     {
         ScreenPlacement placement = new(Vector2.Zero, 3f);
 
-        ClipScissor.TryMap(Rect.FromEdges(0f, 0f, 10.4f, 5f), in placement, 100, 100, out int leftX, out _, out int leftWidth, out _);
-        ClipScissor.TryMap(Rect.FromEdges(10.4f, 0f, 20f, 5f), in placement, 100, 100, out int rightX, out _, out _, out _);
+        Show(Rect.FromEdges(0f, 0f, 10.4f, 5f), in placement, out int leftX, out _, out int leftWidth, out _);
+        Show(Rect.FromEdges(10.4f, 0f, 20f, 5f), in placement, out int rightX, out _, out _, out _);
 
         Assert.Equal(rightX, leftX + leftWidth);
     }
+
+    // On a pixel-perfect frame a clip's edge and a sprite on the same pixels at both ends of the step change
+    // pixel on the same frame. The panel's content does not slide under its clip. A surface drawn enlarged snaps
+    // its sprites on the grid of a factor of 1, and its clips with them.
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void OnAPixelPerfectFrame_AClipEdgeMovesWithTheSpriteItClips(int factor)
+    {
+        ScreenPlacement placement = new(Vector2.Zero, factor);
+        ClipRegion[] levels = [new(Rect.FromEdges(10.2f, 0f, 50f, 10f), Rect.FromEdges(17.4f, 0f, 57f, 10f))];
+        Vector2 previous = new(10.4f, 0f);
+        Vector2 current = new(17.3f, 0f);
+
+        for (int step = 0; step <= 240; step++)
+        {
+            float alpha = step / 240f;
+            GridPlacement screen = new(Vector2.Zero, Vector2.Zero, Vector2.Zero, Vector2.Zero, Vector2.One, 1f, alpha);
+            GridPlacement clip = GridPlacement.Canvas(placement.Scale / factor, snap: true, alpha);
+            ClipScissor.TryShow(levels, in clip, in placement, 200, 100, out int left, out _, out _, out _);
+
+            Assert.Equal(screen.Place(previous, current).X * placement.Scale, left);
+        }
+    }
+
+    // A clip of one level that holds still through the step, placed unsnapped.
+    private static bool Show(in Rect canvas, in ScreenPlacement placement, out int x, out int y, out int width, out int height) =>
+        ClipScissor.TryShow([new(canvas, canvas)], GridPlacement.Canvas(placement.Scale, snap: false, alpha: 1f), in placement, 100, 100, out x, out y, out width, out height);
 }

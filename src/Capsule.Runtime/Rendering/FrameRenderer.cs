@@ -174,7 +174,8 @@ internal sealed partial class FrameRenderer : IDisposable
     // Draws one frame into a new command buffer, which Submit submits. Allocation-free at steady state.
     //
     // alpha: Fraction of a fixed step not yet simulated, clamped to [0, 1]. Each sprite, and the
-    // camera looking at it, is drawn that far from its previous position towards its current one.
+    // camera looking at it, is drawn that far from its previous position towards its current one. A
+    // pixel-perfect frame snaps both ends and carries the whole pixels that far, as WorldEnds describes.
     //
     // capturePath: Where the frame is saved as a PNG once Submit has run it, or null for none. The
     // image is the canvas where a render resolution is configured, whose extent is independent of the
@@ -224,7 +225,7 @@ internal sealed partial class FrameRenderer : IDisposable
     // walk holds.
     private bool Record(FrameView view, float alpha, string? capturePath, bool reuse)
     {
-        _sprites.Reset(alpha, reuse);
+        _sprites.Reset(reuse);
 
         // A store may load or release between frames, and no slice outlives the walk that fetched it.
         _recentSlices.AsSpan().Clear();
@@ -246,12 +247,13 @@ internal sealed partial class FrameRenderer : IDisposable
 
         if (_canvas is null)
         {
+            WorldEnds ends = WorldEnds.Resolve(view, alpha, null, outputWidth, outputHeight, factor: 1, in world, layout.Span, layout.World);
             if (view.LitWorld && windowPass is not null)
             {
-                DrawLightMap(view, alpha, world, layout.Span, layout.World, outputWidth, outputHeight);
+                DrawLightMap(view, world, in ends, layout.World, outputWidth, outputHeight);
             }
 
-            DrawWorld(view, alpha, windowPass, world, layout.Span, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity, layout.OnSurface, surfaceFactor: 1);
+            DrawWorld(view, alpha, windowPass, world, layout.Span, in ends, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity, layout.OnSurface, surfaceFactor: 1);
             if (windowPass is not null)
             {
                 DrawScreen(view, alpha, windowPass, layout.OnSurface, outputWidth, outputHeight, surfaceFactor: 1);
@@ -272,13 +274,14 @@ internal sealed partial class FrameRenderer : IDisposable
             SampledTexture target = Sized(ref _target, drawn.Surface.Width, drawn.Surface.Height);
             int width = target.Texture.Width;
             int height = target.Texture.Height;
+            WorldEnds ends = WorldEnds.Resolve(view, alpha, _canvas, outputWidth, outputHeight, factor, in world, layout.Span, drawn.World);
 
             if (view.LitWorld)
             {
-                DrawLightMap(view, alpha, world, layout.Span, drawn.World, width, height);
+                DrawLightMap(view, world, in ends, drawn.World, width, height);
             }
 
-            DrawWorld(view, alpha, target.Texture, world, layout.Span, drawn.World, width, height, drawn.Present, drawn.OnSurface, factor);
+            DrawWorld(view, alpha, target.Texture, world, layout.Span, in ends, drawn.World, width, height, drawn.Present, drawn.OnSurface, factor);
 
             // Drawn over the world's bars. The viewport is the full surface again and the canvas sits
             // centred in it on whole pixels. Nothing lands on a grid the world did not use.
@@ -365,7 +368,7 @@ internal sealed partial class FrameRenderer : IDisposable
 
     // Draws every light and every additive world sprite into the light map, cleared to the scene's
     // ambient colour. Mirrors DrawWorld's preamble, on the light map instead of the world's surface.
-    private void DrawLightMap(FrameView view, float alpha, in Rect world, Vector2 span, in Letterbox fit, int surfaceWidth, int surfaceHeight)
+    private void DrawLightMap(FrameView view, in Rect world, in WorldEnds ends, in Letterbox fit, int surfaceWidth, int surfaceHeight)
     {
         if (surfaceWidth <= 0 || surfaceHeight <= 0)
         {
@@ -382,33 +385,28 @@ internal sealed partial class FrameRenderer : IDisposable
 
         _sprites.SetViewport(fit.X, fit.Y, fit.Width, fit.Height);
 
-        bool snap = view.PixelPerfect;
-        (Vector2 topLeft, Vector2 anchor) = Corners(in world, snap, fit.Scale);
-
-        Pass pass = WorldPass(alpha, snap, fit.Scale, topLeft, anchor);
+        Pass pass = WorldPass(in ends, fit.Scale);
 
         // Every quad here is additive, drawn with the pass's premultiplied blend: an additive intent packs
         // alpha zero, and under One/OneMinusSourceAlpha that is exactly One/One. An additive blend would
         // scale the source by its alpha.
-        _sprites.SetTransform(WorldToSurface(topLeft, fit.Scale));
-        _sprites.SetSampling(DrawSampling(snap));
+        _sprites.SetTransform(WorldToSurface(ends.Corner, fit.Scale));
+        _sprites.SetSampling(DrawSampling(view.PixelPerfect));
 
-        Vector2 parallax = ScrollLayout.Parallax(topLeft, span, view.Camera.ScrollCenter);
-        DrawLights(view.Lights, view.PlacementRuns, parallax, ref pass);
-        DrawAdditiveSprites(view.Sprites, view.PlacementRuns, parallax, ref pass);
-        DrawAdditivePolygons(view.Polygons, view.PolygonPoints, view.PlacementRuns, parallax, ref pass);
+        DrawLights(view.Lights, view.PlacementRuns, ref pass);
+        DrawAdditiveSprites(view.Sprites, view.PlacementRuns, ref pass);
+        DrawAdditivePolygons(view.Polygons, view.PolygonPoints, view.PlacementRuns, ref pass);
     }
 
     // A light is always stored under a run of the world's own, never a canvas run.
-    private void DrawLights(ReadOnlySpan<LightIntent> lights, ReadOnlySpan<PlacementRun> layers, Vector2 parallax, ref Pass pass)
+    private void DrawLights(ReadOnlySpan<LightIntent> lights, ReadOnlySpan<PlacementRun> layers, ref Pass pass)
     {
-        Vector2 anchor = pass.WorldAnchor;
         int next = 0;
         for (int index = 0; index < lights.Length; index++)
         {
             while (next < layers.Length && layers[next].FirstLight <= index)
             {
-                pass.LayerCorner = ScrollLayout.Corner(anchor, parallax, layers[next].ScrollFactor);
+                ScrollTo(ref pass, layers[next].ScrollFactor);
                 next++;
             }
 
@@ -429,20 +427,19 @@ internal sealed partial class FrameRenderer : IDisposable
             }
         }
 
-        pass.LayerCorner = anchor;
+        ScrollTo(ref pass, Vector2.One);
     }
 
     // A screen root sorted with the world is lit with it but lights nothing, and its canvas runs are skipped.
-    private void DrawAdditiveSprites(ReadOnlySpan<SpriteIntent> sprites, ReadOnlySpan<PlacementRun> layers, Vector2 parallax, ref Pass pass)
+    private void DrawAdditiveSprites(ReadOnlySpan<SpriteIntent> sprites, ReadOnlySpan<PlacementRun> layers, ref Pass pass)
     {
-        Vector2 anchor = pass.WorldAnchor;
         int next = 0;
         bool canvas = false;
         for (int index = 0; index < sprites.Length; index++)
         {
             while (next < layers.Length && layers[next].FirstSprite <= index)
             {
-                pass.LayerCorner = ScrollLayout.Corner(anchor, parallax, layers[next].ScrollFactor);
+                ScrollTo(ref pass, layers[next].ScrollFactor);
                 canvas = layers[next].Canvas;
                 next++;
             }
@@ -460,21 +457,20 @@ internal sealed partial class FrameRenderer : IDisposable
             }
         }
 
-        pass.LayerCorner = anchor;
+        ScrollTo(ref pass, Vector2.One);
     }
 
     // The additive polygons into the map as the additive sprites go. The map's sum is order-free, and they
     // need not interleave with the sprites.
-    private void DrawAdditivePolygons(ReadOnlySpan<StoredPolygon> polygons, ReadOnlySpan<Vector2> points, ReadOnlySpan<PlacementRun> layers, Vector2 parallax, ref Pass pass)
+    private void DrawAdditivePolygons(ReadOnlySpan<StoredPolygon> polygons, ReadOnlySpan<Vector2> points, ReadOnlySpan<PlacementRun> layers, ref Pass pass)
     {
-        Vector2 anchor = pass.WorldAnchor;
         int next = 0;
         bool canvas = false;
         for (int index = 0; index < polygons.Length; index++)
         {
             while (next < layers.Length && layers[next].FirstPolygon <= index)
             {
-                pass.LayerCorner = ScrollLayout.Corner(anchor, parallax, layers[next].ScrollFactor);
+                ScrollTo(ref pass, layers[next].ScrollFactor);
                 canvas = layers[next].Canvas;
                 next++;
             }
@@ -490,22 +486,13 @@ internal sealed partial class FrameRenderer : IDisposable
             }
         }
 
-        pass.LayerCorner = anchor;
+        ScrollTo(ref pass, Vector2.One);
     }
 
     // The sampler a texture with none of its own takes: point on a pixel-perfect frame, else linear.
     // A texture the build shipped always has its own, and only the engine's textures and the picture a
     // material samples take this one.
     private static TextureSampling DrawSampling(bool pixelPerfect) => pixelPerfect ? TextureSampling.Point : TextureSampling.Linear;
-
-    // The world rect's corner as the frame places it, and the anchor its sprites snap from: the rect's own
-    // corner twice, or the pixel grid's pair on a frame that snaps.
-    private static (Vector2 Corner, Vector2 Anchor) Corners(in Rect world, bool snap, float scale)
-    {
-        Vector2 corner = new(world.Left, world.Top);
-
-        return snap ? PixelGrid.Corners(corner, scale) : (corner, corner);
-    }
 
     // Scales a colour's RGB by fraction. Additive accumulation saturates and is order-free. This
     // stays exact and deterministic.
@@ -567,6 +554,7 @@ internal sealed partial class FrameRenderer : IDisposable
         GpuTexture? target,
         in Rect world,
         Vector2 span,
+        in WorldEnds ends,
         in Letterbox fit,
         int surfaceWidth,
         int surfaceHeight,
@@ -594,17 +582,14 @@ internal sealed partial class FrameRenderer : IDisposable
             return;
         }
 
-        // The camera interpolates on the same clock as what it looks at. Snapping it to the step's
-        // end would slide the world back once per step. A pixel-perfect frame places its corner on a
-        // whole pixel and takes every layer's corner from there, as PixelGrid.Corners describes. The
-        // simulation keeps its fractional positions.
+        // The camera moves on the same clock as what it looks at. Snapping it to the step's end would
+        // slide the world back once per step. A pixel-perfect frame snaps the camera and everything it
+        // draws at both ends of the step, and carries the whole pixels between them, as WorldEnds
+        // describes. The simulation keeps its fractional positions.
         bool snap = view.PixelPerfect;
-        (Vector2 topLeft, Vector2 anchor) = Corners(in world, snap, fit.Scale);
-        Vector2 parallax = ScrollLayout.Parallax(topLeft, span, view.Camera.ScrollCenter);
-
         if (present.Scale > 0f)
         {
-            _world = new WorldPlacement(topLeft, anchor, fit, present, snap, parallax);
+            _world = new WorldPlacement(ends, fit, present, ScrollLayout.Parallax(ends.Corner, span, view.Camera.ScrollCenter));
         }
 
         if (target is null)
@@ -613,14 +598,14 @@ internal sealed partial class FrameRenderer : IDisposable
         }
 
         _sprites.SetViewport(fit.X, fit.Y, fit.Width, fit.Height);
-        Pass pass = WorldPass(alpha, snap, fit.Scale, topLeft, anchor);
+        Pass pass = WorldPass(in ends, fit.Scale);
         pass.Surface = target;
 
         // A canvas run lands where the screen layer would on this surface, through the narrowed viewport
         // the world draws in, on the grid the canvas had at a factor of 1.
-        pass.WorldTransform = WorldToSurface(topLeft, fit.Scale);
+        pass.WorldTransform = WorldToSurface(ends.Corner, fit.Scale);
         pass.CanvasTransform = SpriteDrawList.Multiply(CanvasToSurface(canvas), Matrix4x4.CreateTranslation(-fit.X, -fit.Y, 0f));
-        pass.CanvasScale = canvas.Scale / surfaceFactor;
+        pass.Canvas = GridPlacement.Canvas(canvas.Scale / surfaceFactor, snap, alpha);
         pass.Placement = canvas;
         pass.SurfaceWidth = surfaceWidth;
         pass.SurfaceHeight = surfaceHeight;
@@ -629,9 +614,9 @@ internal sealed partial class FrameRenderer : IDisposable
         _sprites.SetSampling(DrawSampling(snap));
 
         // Drawn through the narrowed world viewport. Presentation bars stay black.
-        _sprites.AddWhole(_white, topLeft, Vector2.Zero, span, rotation: 0f, view.ClearColor);
+        _sprites.AddWhole(_white, ends.Corner, Vector2.Zero, span, rotation: 0f, view.ClearColor);
 
-        DrawIntents(view.Sprites, view.Polygons, view.PolygonPoints, view.Lines, view.PlacementRuns, parallax, view.MaterialRuns, view.ClipRuns, view.ClipLevels, ref pass);
+        DrawIntents(view.Sprites, view.Polygons, view.PolygonPoints, view.Lines, view.PlacementRuns, view.MaterialRuns, view.ClipRuns, view.ClipLevels, ref pass);
 
         // The world's colour times twice the light map, which is drawn at half scale (an ambient of
         // white is stored as 128). Its 8 bits span a light of zero to two, and a light on a white ambient
@@ -666,20 +651,20 @@ internal sealed partial class FrameRenderer : IDisposable
         _sprites.SetSampling(DrawSampling(snap));
 
         float grid = placement.Scale / surfaceFactor;
+        GridPlacement canvas = GridPlacement.Canvas(grid, snap, alpha);
         Pass pass = new()
         {
-            Alpha = alpha,
-            Snap = snap,
             Scale = grid,
-            SnapLines = snap,
-            LineScale = grid,
+            Sprites = canvas,
+            Lines = canvas,
+            Canvas = canvas,
             Placement = placement,
             SurfaceWidth = surfaceWidth,
             SurfaceHeight = surfaceHeight,
             Surface = surface,
         };
 
-        DrawIntents(sprites, polygons, view.PolygonPoints, lines, default, default, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, ref pass);
+        DrawIntents(sprites, polygons, view.PolygonPoints, lines, default, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, ref pass);
     }
 
     // Draws the sprites with the polygons among them, then the lines, each placement run as it opens, each
@@ -694,7 +679,6 @@ internal sealed partial class FrameRenderer : IDisposable
         ReadOnlySpan<Vector2> points,
         ReadOnlySpan<LineIntent> lines,
         ReadOnlySpan<PlacementRun> layers,
-        Vector2 parallax,
         ReadOnlySpan<MaterialRun> materials,
         ReadOnlySpan<ClipRun> clips,
         ReadOnlySpan<ClipRegion> clipLevels,
@@ -709,7 +693,7 @@ internal sealed partial class FrameRenderer : IDisposable
         {
             while (next < layers.Length && layers[next].FirstSprite <= index && layers[next].FirstPolygon <= polygon)
             {
-                Place(in layers[next], parallax, ref pass);
+                Place(in layers[next], ref pass);
                 next++;
             }
 
@@ -730,7 +714,7 @@ internal sealed partial class FrameRenderer : IDisposable
             {
                 if (pass.Reading)
                 {
-                    _sprites.Widen(polygons[polygon].Bounds, pass.FrameCorner - pass.LayerCorner);
+                    _sprites.Widen(polygons[polygon].Bounds, ReadShift(in pass.Sprites));
                 }
 
                 DrawPolygon(in polygons[polygon], points, in pass);
@@ -768,7 +752,7 @@ internal sealed partial class FrameRenderer : IDisposable
                 {
                     if (sprites[index].TryGetSweptBounds(out Rect swept))
                     {
-                        _sprites.Widen(in swept, pass.FrameCorner - pass.LayerCorner);
+                        _sprites.Widen(in swept, ReadShift(in pass.Sprites));
                     }
 
                     DrawSprite(in sprites[index], ref pass);
@@ -783,14 +767,14 @@ internal sealed partial class FrameRenderer : IDisposable
 
         _sprites.SetMaterial(null);
         _sprites.ClearClip();
-        Place(new PlacementRun(0, 0, Vector2.One), parallax, ref pass);
+        Place(new PlacementRun(0, 0, Vector2.One), ref pass);
         next = 0;
         nextClip = 0;
         for (int line = 0; line < lines.Length; line++)
         {
             while (next < layers.Length && layers[next].FirstLine <= line)
             {
-                Place(in layers[next], parallax, ref pass);
+                Place(in layers[next], ref pass);
                 next++;
             }
 
@@ -830,16 +814,16 @@ internal sealed partial class FrameRenderer : IDisposable
     // The surface pixels one unit of the current placement spans.
     private static float ReadScale(in Pass pass) => pass.WorldScale > 0f && !pass.OnCanvas ? pass.WorldScale : pass.Placement.Scale;
 
-    // Moves the pass onto run's placement: a scroll factor's corner on the world's grid, or canvas pixels on
+    // Moves the pass onto run's placement: a scroll factor's corners on the world's grid, or canvas pixels on
     // the canvas's grid. Only a world pass holds a canvas run, and it swaps the draw list's transform to reach it.
-    private void Place(in PlacementRun run, Vector2 parallax, ref Pass pass)
+    private void Place(in PlacementRun run, ref Pass pass)
     {
         if (run.Canvas != pass.OnCanvas)
         {
             pass.OnCanvas = run.Canvas;
             _sprites.SetTransform(run.Canvas ? pass.CanvasTransform : pass.WorldTransform);
-            pass.Scale = pass.LineScale = run.Canvas ? pass.CanvasScale : pass.WorldScale;
-            pass.FrameCorner = run.Canvas ? Vector2.Zero : pass.WorldCorner;
+            pass.Scale = run.Canvas ? pass.Canvas.Grids.X : pass.WorldScale;
+            pass.Sprites = pass.Lines = run.Canvas ? pass.Canvas : pass.World.Base;
 
             // A read's offset is in its sprite's units, and a run can cross from the world to a screen root.
             if (pass.Reading)
@@ -848,12 +832,28 @@ internal sealed partial class FrameRenderer : IDisposable
             }
         }
 
-        pass.LayerCorner = run.Canvas ? Vector2.Zero : ScrollLayout.Corner(pass.WorldAnchor, parallax, run.ScrollFactor);
+        if (!run.Canvas)
+        {
+            ScrollTo(ref pass, run.ScrollFactor);
+        }
     }
 
+    // Moves the pass onto the world layer at factor, its corners at each end of the step.
+    private static void ScrollTo(ref Pass pass, Vector2 factor)
+    {
+        pass.Sprites = pass.World.Layer(in pass.Sprites, factor);
+        pass.Lines = pass.World.Layer(in pass.Lines, factor);
+    }
+
+    // How far a world rect is moved onto the frame where the pass draws it, within the pixel snapping adds,
+    // which a read's reach covers.
+    private static Vector2 ReadShift(in GridPlacement sprites) =>
+        sprites.FrameCorner - StepInterpolation.Interpolate(sprites.PreviousLayerCorner, sprites.LayerCorner, sprites.Alpha);
+
     // Cuts the quads drawn next to the run's clip, each level moved by alpha between its two ends, intersected, and
-    // placed on the surface. A clip that leaves nothing of the surface still takes its quads, and draws none of
-    // them, which keeps what a frame stores the same at any fraction of a step.
+    // placed on the surface. On a frame that snaps, each level's edges snap at both ends and move between them as a
+    // sprite does. A clip that leaves nothing of the surface still takes its quads, and draws none of them, which
+    // keeps what a frame stores the same at any fraction of a step.
     private void ApplyClip(in ClipRun run, ReadOnlySpan<ClipRegion> clipLevels, in Pass pass)
     {
         if (run.Levels == 0)
@@ -862,8 +862,8 @@ internal sealed partial class FrameRenderer : IDisposable
             return;
         }
 
-        Rect shown = ClipScissor.Shown(clipLevels.Slice(run.FirstLevel, run.Levels), pass.Alpha);
-        if (ClipScissor.TryMap(in shown, in pass.Placement, pass.SurfaceWidth, pass.SurfaceHeight, out int x, out int y, out int width, out int height))
+        ReadOnlySpan<ClipRegion> levels = clipLevels.Slice(run.FirstLevel, run.Levels);
+        if (ClipScissor.TryShow(levels, in pass.Canvas, in pass.Placement, pass.SurfaceWidth, pass.SurfaceHeight, out int x, out int y, out int width, out int height))
         {
             _sprites.SetClip(x, y, width, height);
         }
@@ -878,8 +878,8 @@ internal sealed partial class FrameRenderer : IDisposable
     // thinner quad would miss the pixel centres and not rasterise.
     private void DrawLine(in LineIntent line, in Pass pass)
     {
-        Vector2 a = ScrollLayout.Place(line.A, pass.LayerCorner, pass.FrameCorner, pass.SnapLines, pass.LineScale);
-        Vector2 b = ScrollLayout.Place(line.B, pass.LayerCorner, pass.FrameCorner, pass.SnapLines, pass.LineScale);
+        Vector2 a = pass.Lines.Place(line.A - line.Motion, line.A);
+        Vector2 b = pass.Lines.Place(line.B - line.Motion, line.B);
 
         Vector2 delta = b - a;
         float length = delta.Length();
@@ -904,49 +904,38 @@ internal sealed partial class FrameRenderer : IDisposable
         uint tint = SpriteDrawList.Tint(polygon.Color, polygon.Blend);
         uint flash = SpriteDrawList.Flash(polygon.Flash, polygon.Color.A);
 
-        _sprites.SetPlacement(pass.LayerCorner, pass.FrameCorner, pass.Snap ? pass.Scale : 0f);
+        _sprites.SetPlacement(in pass.Sprites);
         for (int corner = 1; corner < current.Length - 1; corner++)
         {
             _sprites.AddTriangle(_white, previous[0], current[0], previous[corner], current[corner], previous[corner + 1], current[corner + 1], tint, flash);
         }
     }
 
-    // What one pass of intents is drawn with. LayerCorner is the camera corner the current scrolled
-    // run is drawn by, and FrameCorner the corner of the rect the frame draws, on a whole pixel where
-    // the pass snaps. Outside a scrolled run LayerCorner is the world's anchor, which PixelGrid.Corners
-    // keeps within a margin of FrameCorner, and both are the canvas's origin on a screen pass. The pixel
-    // grid is anchored at FrameCorner. Resolved is the handle Slice was fetched for, carried across the
+    // What one pass of intents is drawn with. Resolved is the handle Slice was fetched for, carried across the
     // stream, and a run of sprites on one texture resolves it once.
     private struct Pass
     {
-        internal float Alpha;
-
-        // Whether a sprite quantises to whole pixels, and the pixels per world unit of the surface
-        // being drawn. The scale is both that grid and a hairline's width.
-        internal bool Snap;
+        // The pixels per unit of the surface being drawn, which is a hairline's width.
         internal float Scale;
 
-        // The same two for a line. On the overlay pass a line quantises on the game surface's grid,
-        // not the window's. It lands on the sprite it outlines.
-        internal bool SnapLines;
-        internal float LineScale;
+        // Where the current run's sprites and lines are placed. On the overlay pass a sprite snaps on the window's
+        // grid and a line on the game surface's. It lands on the sprite it outlines.
+        internal GridPlacement Sprites;
+        internal GridPlacement Lines;
 
-        internal Vector2 LayerCorner;
-        internal Vector2 FrameCorner;
+        // Where a canvas run is placed, on the grid the canvas had at a factor of 1. A clip is placed by it too.
+        internal GridPlacement Canvas;
 
         // Where the canvas lands on the surface, and the surface's extent, which a clip is placed by.
         internal ScreenPlacement Placement;
         internal int SurfaceWidth;
         internal int SurfaceHeight;
 
-        // On a world pass: the world's corner, the anchor its layers' corners are taken from, its scale and
-        // transform, the canvas's grid and transform for a screen root sorted with the world, and whether the
-        // current run is that root's.
-        internal Vector2 WorldCorner;
-        internal Vector2 WorldAnchor;
+        // On a world pass: the world's ends, its scale and transform, the canvas's transform for a screen root
+        // sorted with the world, and whether the current run is that root's.
+        internal WorldEnds World;
         internal float WorldScale;
         internal Matrix4x4 WorldTransform;
-        internal float CanvasScale;
         internal Matrix4x4 CanvasTransform;
         internal bool OnCanvas;
 
@@ -959,18 +948,13 @@ internal sealed partial class FrameRenderer : IDisposable
         internal bool Reading;
     }
 
-    // A pass over a world surface at scale pixels per unit, placed at corner, its sprites snapped from anchor.
-    private static Pass WorldPass(float alpha, bool snap, float scale, Vector2 corner, Vector2 anchor) => new()
+    // A pass over a world surface at scale pixels per unit, placed from ends.
+    private static Pass WorldPass(in WorldEnds ends, float scale) => new()
     {
-        Alpha = alpha,
-        Snap = snap,
         Scale = scale,
-        SnapLines = snap,
-        LineScale = scale,
-        LayerCorner = anchor,
-        FrameCorner = corner,
-        WorldCorner = corner,
-        WorldAnchor = anchor,
+        Sprites = ends.Base,
+        Lines = ends.Base,
+        World = ends,
         WorldScale = scale,
     };
 
@@ -985,14 +969,14 @@ internal sealed partial class FrameRenderer : IDisposable
         // A snapped quad puts both edges on the grid, or abutting tiles leave a gap at a fractional
         // scale. The vertex stage snaps a quad at a whole number of quarter turns whole, and any other
         // turn by its pivot alone.
-        _sprites.SetPlacement(pass.LayerCorner, pass.FrameCorner, pass.Snap ? pass.Scale : 0f);
+        _sprites.SetPlacement(in pass.Sprites);
         _sprites.Add(pass.Slice.Texture, in sprite, pass.Slice.OffsetX, pass.Slice.OffsetY);
     }
 
     // A stretch of sprites under one placement, each run of them on one handle recorded in one pass.
     private void DrawSprites(ReadOnlySpan<SpriteIntent> sprites, ref Pass pass)
     {
-        _sprites.SetPlacement(pass.LayerCorner, pass.FrameCorner, pass.Snap ? pass.Scale : 0f);
+        _sprites.SetPlacement(in pass.Sprites);
         int first = 0;
         while (first < sprites.Length)
         {

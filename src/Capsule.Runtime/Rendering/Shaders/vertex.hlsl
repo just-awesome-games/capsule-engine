@@ -6,7 +6,10 @@
 //
 // CapsuleSprite and CapsuleVertexUniforms are the runtime's SpriteInstance and SpriteUniforms, member for
 // member, in SDL's binding layout: the sprites in storage buffer slot 0, the uniforms in uniform buffer 0.
-// The stage snaps in float, which every GPU format has. Its outputs are the pixel stage's inputs in
+// The stage snaps in float, which every GPU format has. Where CapsuleGrid is set the frame snaps, as the
+// runtime's GridPlacement describes: each end of the step is snapped from its own layer corner at its own grid,
+// and the two ends' whole pixels are carried between by the frame's fraction. Otherwise a point is interpolated
+// and placed from CapsuleLayerCorner. Its outputs are the pixel stage's inputs in
 // location order: tint, flash, texture coordinate, coverage, quad, offset from the pivot. The build
 // compiles this file to the vertex.<format>.shader files beside it.
 
@@ -32,8 +35,11 @@ cbuffer CapsuleVertexUniforms : register(b0, space1)
 {
     row_major float4x4 MatrixTransform;
     float2 CapsuleTexelSize;
+    float2 CapsulePreviousLayerCorner;
     float2 CapsuleLayerCorner;
     float2 CapsuleFrameCorner;
+    float2 CapsuleShift;
+    float2 CapsuleGrids;
     float CapsuleAlpha;
     float CapsuleGrid;
     float CapsuleCoverage;
@@ -76,6 +82,38 @@ float2 CapsulePixel(float2 origin, float2 value, float scale)
     return float2(CapsulePixel(origin.x, value.x, scale), CapsulePixel(origin.y, value.y, scale));
 }
 
+// Whole pixels at the frame's fraction of the way from one end of the step to the other. The travel alone is
+// rounded, by CapsulePixel's midpoint rule. Points whose ends lie the same pixels apart change pixel on the same
+// frame, and a point whose ends agree holds them.
+float2 CapsuleBetweenPixels(float2 previous, float2 current)
+{
+    precise float2 offset = ((current - previous) * CapsuleAlpha) + 0.5;
+    return previous + floor(offset - (1.0 / 32.0));
+}
+
+// The whole pixels from the frame's corner a point given at both ends of the step is drawn at.
+float2 CapsuleSnapped(float2 previous, float2 current)
+{
+    float2 from = CapsulePixel(CapsulePreviousLayerCorner, previous, CapsuleGrids.x);
+    float2 to = CapsulePixel(CapsuleLayerCorner, current, CapsuleGrids.y) + CapsuleShift;
+    return CapsuleBetweenPixels(from, to);
+}
+
+// One end's edges of a quad at a whole number of quarter turns, in whole pixels from the frame's corner: the low
+// corner, then the high. near and far are the corners' offsets from the pivot, and sized the drawn size on the
+// surface's axes. A size of whole pixels is drawn that size. Its far edge is a sum a float can hold less finely
+// than the near edge, and the sum's own pixel can fall one off. Any other size ends on its far edge's pixel,
+// where the next quad begins.
+float4 CapsuleEdges(float2 layerCorner, float grid, float2 position, float2 near, float2 far, float2 sized, bool unturned)
+{
+    precise float2 low = position + near;
+    precise float2 high = unturned ? low + sized : position + far;
+    float2 left = CapsulePixel(layerCorner, low, grid);
+    float2 right = CapsulePixel(layerCorner, high, grid);
+    float2 span = sized * grid;
+    return float4(left, float2(frac(span.x) == 0.0 ? left.x + span.x : right.x, frac(span.y) == 0.0 ? left.y + span.y : right.y));
+}
+
 // A point at the frame's fraction of the way across the step, exactly either end where it did not move.
 float2 CapsuleBetween(float2 previous, float2 current)
 {
@@ -84,7 +122,7 @@ float2 CapsuleBetween(float2 previous, float2 current)
 }
 
 // One vertex of a polygon's triangle, numbered within its six. The corners are interpolated, then the
-// triangle moves by however far its first corner moves to land on the pixel grid where the grid is set.
+// triangle moves by however far its first corner moves to land where the grid, where it is set, draws it.
 // Every triangle of a polygon starts at the polygon's first point and moves alike. The polygon keeps its
 // shape as it travels, and its triangles meet without a seam. The quad and the offset from the pivot both
 // carry the corner's offset from that first point, and the quad no extent. Vertices three to five collapse
@@ -96,7 +134,7 @@ CapsuleVertexOutput CapsuleTriangleVertex(CapsuleSprite sprite, uint index)
         : index == 2 ? CapsuleBetween(sprite.Size, float2(asfloat(sprite.Region), asfloat(sprite.Extent)))
         : first;
     precise float2 placed = CapsuleGrid > 0.0
-        ? CapsuleFrameCorner + (CapsulePixel(CapsuleLayerCorner, first, CapsuleGrid) / CapsuleGrid)
+        ? CapsuleFrameCorner + (CapsuleSnapped(sprite.PreviousPosition, sprite.Position) / CapsuleGrid)
         : CapsuleFrameCorner + (first - CapsuleLayerCorner);
     precise float2 offset = corner - first;
 
@@ -112,8 +150,9 @@ CapsuleVertexOutput CapsuleTriangleVertex(CapsuleSprite sprite, uint index)
 }
 
 // One sprite's six vertices, numbered from SV_VertexID: the sprite interpolated by the frame's
-// fraction, moved from its layer's corner onto the frame's, snapped to whole pixels where the grid
-// is set, and placed. A quad snapped at a whole number of quarter turns has every edge on the grid.
+// fraction, moved from its layer's corner onto the frame's, and placed, or where the grid is set,
+// snapped at both ends of the step and carried between them. A quad snapped at a whole number of
+// quarter turns has every edge on the grid.
 // A whole texture stands where it is. The diagonal runs top right to bottom left.
 CapsuleVertexOutput CapsuleVertex(uint vertexId : SV_VertexID)
 {
@@ -174,21 +213,18 @@ CapsuleVertexOutput CapsuleVertex(uint vertexId : SV_VertexID)
 
         if (CapsuleGrid > 0.0 && (rotation == 0.0 || abs(quarters - nearest) <= 1e-4))
         {
-            // Every edge on the grid, at the exact quarter turn.
+            // Every edge on the grid, at the exact quarter turn the frame draws, at both ends of the step. The
+            // edges are carried between the ends, not the size, which changes with the grid.
             int turns = rotation == 0.0 ? 0 : ((int(nearest) % 4) + 4) % 4;
             precise float2 a = -(origin * scale);
             precise float2 b = sprite.Size - (origin * scale);
-            precise float2 low = position + (turns == 0 ? a : turns == 1 ? float2(-b.y, a.x) : turns == 2 ? -b : float2(a.y, -b.x));
-            precise float2 high = rotation == 0.0 ? low + sprite.Size
-                : position + (turns == 0 ? b : turns == 1 ? float2(-a.y, b.x) : turns == 2 ? -a : float2(b.y, -a.x));
-            float2 left = CapsulePixel(CapsuleLayerCorner, low, CapsuleGrid);
-            float2 far = CapsulePixel(CapsuleLayerCorner, high, CapsuleGrid) - left;
-
-            // A size of whole pixels is drawn that size. Its far edge is a sum a float can hold less finely
-            // than the near edge, and the sum's own pixel can fall one off. Any other size ends on its far
-            // edge's pixel, where the next quad begins.
-            float2 span = ((turns & 1) == 0 ? sprite.Size : sprite.Size.yx) * CapsuleGrid;
-            float2 extent = float2(frac(span.x) == 0.0 ? span.x : far.x, frac(span.y) == 0.0 ? span.y : far.y);
+            precise float2 near = turns == 0 ? a : turns == 1 ? float2(-b.y, a.x) : turns == 2 ? -b : float2(a.y, -b.x);
+            precise float2 far = turns == 0 ? b : turns == 1 ? float2(-a.y, b.x) : turns == 2 ? -a : float2(b.y, -a.x);
+            float2 sized = (turns & 1) == 0 ? sprite.Size : sprite.Size.yx;
+            float4 from = CapsuleEdges(CapsulePreviousLayerCorner, CapsuleGrids.x, sprite.PreviousPosition, near, far, sized, rotation == 0.0);
+            float4 to = CapsuleEdges(CapsuleLayerCorner, CapsuleGrids.y, sprite.Position, near, far, sized, rotation == 0.0) + CapsuleShift.xyxy;
+            float2 left = CapsuleBetweenPixels(from.xy, to.xy);
+            float2 extent = CapsuleBetweenPixels(from.zw, to.zw) - left;
             precise float2 snappedLow = CapsuleFrameCorner + (left / CapsuleGrid);
             precise float2 snappedHigh = snappedLow + (extent / CapsuleGrid);
             float2 pixels = (turns & 1) == 0 ? extent : extent.yx;
@@ -205,7 +241,7 @@ CapsuleVertexOutput CapsuleVertex(uint vertexId : SV_VertexID)
         else
         {
             position = CapsuleGrid > 0.0
-                ? CapsuleFrameCorner + (CapsulePixel(CapsuleLayerCorner, position, CapsuleGrid) / CapsuleGrid)
+                ? CapsuleFrameCorner + (CapsuleSnapped(sprite.PreviousPosition, sprite.Position) / CapsuleGrid)
                 : CapsuleFrameCorner + (position - CapsuleLayerCorner);
             if (rotation != 0.0)
             {

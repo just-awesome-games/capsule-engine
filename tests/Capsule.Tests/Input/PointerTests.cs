@@ -96,6 +96,31 @@ public sealed class PointerTests
         Assert.Equal(Vector2.Zero, input.PointerDelta);
     }
 
+    // The canvas moving under the pointer, as a window resize or a new screen placement does, jumps the
+    // pointer with no hand on the mouse. The step reads the new position and no motion. It drops any
+    // real move made in the same step, and motion reads again from the next step.
+    [Fact]
+    public void ACanvasMovedUnderThePointer_IsNoMotionAndNoUseOfTheMouse()
+    {
+        InputState input = new(new ActionBindings());
+        input.Seed(InputDevice.Gamepad);
+        input.Advance(DeviceSnapshot.Empty);
+
+        input.Advance(DeviceSnapshot.Empty.WithPointer(new Vector2(40f, 60f)).WithPointerRemapped(true));
+
+        Assert.Equal(new Vector2(40f, 60f), input.Pointer);
+        Assert.False(input.PointerMoved);
+        Assert.Equal(Vector2.Zero, input.PointerDelta);
+        Assert.Equal(InputDevice.Gamepad, input.ActiveDevice);
+        Assert.False(input.ActiveDeviceChanged);
+
+        input.Advance(DeviceSnapshot.Empty.WithPointer(new Vector2(50f, 60f)));
+
+        Assert.True(input.PointerMoved);
+        Assert.Equal(new Vector2(10f, 0f), input.PointerDelta);
+        Assert.Equal(InputDevice.KeyboardMouse, input.ActiveDevice);
+    }
+
     [Fact]
     public void TheWheel_ReadsTheStepItTurnedOnAndThenStills()
     {

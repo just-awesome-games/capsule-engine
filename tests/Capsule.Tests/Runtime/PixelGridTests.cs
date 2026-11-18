@@ -15,7 +15,7 @@ public sealed class PixelGridTests
     [InlineData(101.111f, 6f)]
     public void Snap_LandsOnAWholeSurfacePixel(float value, float scale)
     {
-        float surface = PixelGrid.SnapOffset(Vector2.Zero, new Vector2(value, value), scale).X * scale;
+        float surface = PixelGrid.Pixels(Vector2.Zero, new Vector2(value, value), scale).X;
 
         Assert.Equal(MathF.Round(surface), surface, 0.001);
     }
@@ -29,7 +29,7 @@ public sealed class PixelGridTests
     [InlineData(45.25f, 2f)]
     public void AMidpoint_RoundsDownOnBothSidesOfZero(float value, float scale)
     {
-        Vector2 snapped = PixelGrid.SnapOffset(Vector2.Zero, new Vector2(value, value), scale);
+        Vector2 snapped = PixelGrid.Pixels(Vector2.Zero, new Vector2(value, value), scale) / scale;
 
         Assert.Equal(MathF.Floor(value * scale) / scale, snapped.X);
         Assert.Equal(snapped.X, snapped.Y);
@@ -40,10 +40,10 @@ public sealed class PixelGridTests
     {
         Vector2 origin = new(18.5000019f, 981.4999981f);
 
-        Vector2 near = PixelGrid.SnapOffset(origin, new Vector2(16f, 16f), 3f);
-        Vector2 far = PixelGrid.SnapOffset(origin, new Vector2(1000f, 1000f), 3f);
+        Vector2 near = PixelGrid.Pixels(origin, new Vector2(16f, 16f), 3f);
+        Vector2 far = PixelGrid.Pixels(origin, new Vector2(1000f, 1000f), 3f);
 
-        Assert.Equal(new Vector2(984f, 984f), far - near);
+        Assert.Equal(new Vector2(984f * 3f, 984f * 3f), far - near);
     }
 
     // The corner sweeps a whole pixel. Each pair holds a point a fraction of a pixel off the grid, and the
@@ -60,7 +60,7 @@ public sealed class PixelGridTests
         {
             Vector2 corner = new(-3f + (step / 97f));
             (Vector2 frame, Vector2 anchor) = PixelGrid.Corners(corner, scale);
-            float distance = MathF.Round((PixelGrid.SnapOffset(anchor, new Vector2(far), scale).X - PixelGrid.SnapOffset(anchor, new Vector2(near), scale).X) * scale);
+            float distance = PixelGrid.Pixels(anchor, new Vector2(far), scale).X - PixelGrid.Pixels(anchor, new Vector2(near), scale).X;
 
             Assert.Equal(MathF.Round(frame.X * scale), frame.X * scale, 0.001);
             Assert.InRange(MathF.Abs(frame.X - corner.X) * scale, 0f, 0.54f);
@@ -86,7 +86,7 @@ public sealed class PixelGridTests
                 float followed = BitConverter.Int32BitsToSingle(BitConverter.SingleToInt32Bits(corner + Apart) + noise);
                 (_, Vector2 anchor) = PixelGrid.Corners(new Vector2(corner), scale);
 
-                Assert.Equal(Apart, PixelGrid.SnapOffset(anchor, new Vector2(followed), scale).X);
+                Assert.Equal(Apart * scale, PixelGrid.Pixels(anchor, new Vector2(followed), scale).X);
             }
         }
     }

@@ -60,6 +60,36 @@ public sealed class OverlayScrollTests
         Assert.Equal(0, rig.Overlay.Focus);
     }
 
+    // The game's canvas moving under a still mouse is no motion to the overlay either, though mapping the
+    // remapped pointer back to the window lands a float's error away from where it was.
+    [Fact]
+    public void TheGamesCanvasMovingUnderAStillPointer_DoesNotOverwriteTheFocusTheKeysMoved()
+    {
+        using OverlayRig rig = new(CreateHost());
+        DebugOverlay overlay = rig.Overlay;
+        ScreenPlacement before = new(Vector2.Zero, 2f);
+        ScreenPlacement after = new(Vector2.Zero, 800f / 360f);
+        const int overlayScale = 1;
+        Vector2 window = new(31f, RowPoint(0).Y);
+        rig.Open();
+
+        Show(DeviceSnapshot.Empty.WithPointer(window / before.Scale), before);
+        Show(DeviceSnapshot.Of(Key.Down).WithPointer(window / before.Scale), before);
+        Show(DeviceSnapshot.Empty.WithPointer(window / before.Scale), before);
+        Assert.Equal(1, overlay.Focus);
+
+        Show(DeviceSnapshot.Empty.WithPointer(window / after.Scale).WithPointerRemapped(true), after);
+
+        Assert.Equal(1, overlay.Focus);
+
+        void Show(DeviceSnapshot sampled, ScreenPlacement gameLayer)
+        {
+            DeviceSnapshot game = overlay.Intercept(sampled, gameLayer, overlayScale);
+            rig.Scheduler.Advance(OverlayRig.StepSeconds, game, rig.Host);
+            overlay.Update();
+        }
+    }
+
     // The click was aimed at the page Back left. It chooses no row of the page Back returned to.
     [Fact]
     public void AClickInTheFrameBackPopsAPage_ChoosesNoRowOfThePageBeneath()

@@ -25,9 +25,6 @@ internal sealed class DebugDrawRenderer : Renderer
     // World units per font pixel, which keeps label glyphs screen-sized. One until a frame has drawn.
     internal float TextScale { get; set; } = 1f;
 
-    // The frame's interpolation alpha. A draw moves back by its unsimulated motion onto its sprite.
-    internal float Alpha { get; set; } = 1f;
-
     // The entity the overlay highlights, or null. Its subtree's draws show whatever the toggles say. They draw
     // after everything else, and its renderers' bounds are outlined.
     internal Entity? Selected { get; set; }
@@ -95,9 +92,10 @@ internal sealed class DebugDrawRenderer : Renderer
         Settle();
     }
 
+    // Each draw carries its motion over the step, and the renderer draws it where its sprite is drawn between
+    // the step's two ends.
     protected internal override void Draw(FrameView view)
     {
-        float unsimulated = 1f - Alpha;
         _lastOwner = null;
         _lastOwned = false;
 
@@ -106,7 +104,7 @@ internal sealed class DebugDrawRenderer : Renderer
         {
             if (_enabled.Contains(segment.Channel) && !InSelection(segment.Owner))
             {
-                AddSegment(view, in segment, unsimulated);
+                AddSegment(view, in segment);
             }
         }
 
@@ -114,7 +112,7 @@ internal sealed class DebugDrawRenderer : Renderer
         {
             if (_enabled.Contains(label.Channel) && !InSelection(label.Owner))
             {
-                AddLabel(view, in label, unsimulated);
+                AddLabel(view, in label);
             }
         }
 
@@ -127,7 +125,7 @@ internal sealed class DebugDrawRenderer : Renderer
         {
             if (InSelection(segment.Owner))
             {
-                AddSegment(view, in segment, unsimulated);
+                AddSegment(view, in segment);
             }
         }
 
@@ -135,27 +133,23 @@ internal sealed class DebugDrawRenderer : Renderer
         {
             if (InSelection(label.Owner))
             {
-                AddLabel(view, in label, unsimulated);
+                AddLabel(view, in label);
             }
         }
 
-        Outline(view, selected, SelectionColor, unsimulated);
+        Outline(view, selected, SelectionColor);
     }
 
-    private static void AddSegment(FrameView view, in DebugDrawSegment segment, float unsimulated)
-    {
-        Vector2 back = segment.Motion * unsimulated;
-        view.Add(new LineIntent(segment.A - back, segment.B - back, segment.Color ?? DebugDraw.ColorOf(segment.Channel)));
-    }
+    private static void AddSegment(FrameView view, in DebugDrawSegment segment) =>
+        view.Add(new LineIntent(segment.A, segment.B, segment.Color ?? DebugDraw.ColorOf(segment.Channel)) { Motion = segment.Motion });
 
-    private void AddLabel(FrameView view, in DebugDrawLabel label, float unsimulated)
+    private void AddLabel(FrameView view, in DebugDrawLabel label)
     {
-        Vector2 position = label.Position - (label.Motion * unsimulated);
         view.Add(new TextIntent(
             OverlayScene.Font,
             label.Text,
-            position,
-            position,
+            label.Position - label.Motion,
+            label.Position,
             new Vector2(TextScale),
             label.Color ?? DebugDraw.ColorOf(label.Channel)));
     }
@@ -181,33 +175,34 @@ internal sealed class DebugDrawRenderer : Renderer
         return _lastOwned;
     }
 
-    // Outlines each renderer's bounds in the subtree where the sprite is drawn at the frame's alpha. The bounds
-    // describe the entity's current transform. The outline moves back by the motion the sprite has yet to
-    // make, as a draw does. Descendants take the child colour.
-    private static void Outline(FrameView view, Entity entity, ColorRgba color, float unsimulated)
+    // Outlines each renderer's bounds in the subtree, moving with the entity over the step as its sprite does.
+    // The bounds describe the entity's current transform. Descendants take the child colour.
+    private static void Outline(FrameView view, Entity entity, ColorRgba color)
     {
         if (entity.Space == RenderSpace.World)
         {
-            Vector2 back = (entity.World.Position - entity.PreviousWorld.Position) * unsimulated;
+            Vector2 motion = entity.World.Position - entity.PreviousWorld.Position;
             foreach (Component component in entity.Components)
             {
                 if (component is Renderer { Bounds: { IsEmpty: false } bounds })
                 {
-                    Vector2 topLeft = new Vector2(bounds.Left, bounds.Top) - back;
-                    Vector2 topRight = new Vector2(bounds.Right, bounds.Top) - back;
-                    Vector2 bottomRight = new Vector2(bounds.Right, bounds.Bottom) - back;
-                    Vector2 bottomLeft = new Vector2(bounds.Left, bounds.Bottom) - back;
-                    view.Add(new LineIntent(topLeft, topRight, color));
-                    view.Add(new LineIntent(topRight, bottomRight, color));
-                    view.Add(new LineIntent(bottomRight, bottomLeft, color));
-                    view.Add(new LineIntent(bottomLeft, topLeft, color));
+                    Vector2 topLeft = new(bounds.Left, bounds.Top);
+                    Vector2 topRight = new(bounds.Right, bounds.Top);
+                    Vector2 bottomRight = new(bounds.Right, bounds.Bottom);
+                    Vector2 bottomLeft = new(bounds.Left, bounds.Bottom);
+                    Edge(topLeft, topRight);
+                    Edge(topRight, bottomRight);
+                    Edge(bottomRight, bottomLeft);
+                    Edge(bottomLeft, topLeft);
                 }
             }
+
+            void Edge(Vector2 a, Vector2 b) => view.Add(new LineIntent(a, b, color) { Motion = motion });
         }
 
         foreach (Entity child in entity.Children)
         {
-            Outline(view, child, ChildSelectionColor, unsimulated);
+            Outline(view, child, ChildSelectionColor);
         }
     }
 }

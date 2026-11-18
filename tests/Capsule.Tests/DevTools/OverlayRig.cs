@@ -142,7 +142,9 @@ internal sealed class OverlayRig : IDisposable
         ScreenLayout layout = FrameLayout.Layout(null, camera, view.Canvas, (int)Scheduler.Output.X, (int)Scheduler.Output.Y, integerScaling: false);
         Rect world = camera.Place(1f, layout.Span);
         Vector2 topLeft = new(world.Left, world.Top);
-        World = new WorldPlacement(topLeft, topLeft, layout.World, ScreenPlacement.Identity, Snap: false, ScrollLayout.Parallax(topLeft, layout.Span, camera.ScrollCenter));
+        Vector2 parallax = ScrollLayout.Parallax(topLeft, layout.Span, camera.ScrollCenter);
+        GridPlacement placement = new(topLeft, topLeft, topLeft, Vector2.Zero, new Vector2(layout.World.Scale), Grid: 0f, Alpha: 1f);
+        World = new WorldPlacement(new WorldEnds(topLeft, placement, parallax, parallax), layout.World, ScreenPlacement.Identity, parallax);
     }
 
     public void Dispose()
