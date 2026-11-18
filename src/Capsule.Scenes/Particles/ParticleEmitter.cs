@@ -10,8 +10,8 @@ using Capsule.Scenes;
 namespace Capsule.Particles;
 
 /// <summary>
-/// A <see cref="Renderer"/> that draws a fixed pool of sprite particles simulated on the fixed step, one
-/// <see cref="SpriteIntent"/> per live particle.
+/// A <see cref="Renderer"/> that draws a fixed pool of particles simulated on the fixed step, each live one a
+/// <see cref="SpriteIntent"/> when the emitter has a sprite and a <see cref="LightIntent"/> when <see cref="Light"/> is set.
 /// </summary>
 /// <remarks>
 /// Positions are in world units under a world root and canvas pixels under a screen root. In
@@ -65,7 +65,8 @@ public sealed class ParticleEmitter : Renderer
     private const float DefaultDeltaSeconds = 1f / StepContext.DefaultStepHertz;
 
     private readonly Particle[] _particles;
-    private readonly SpriteClip _clip;
+    // Null on an emitter built from its capacity alone, which draws only its lights.
+    private readonly SpriteClip? _clip;
     private readonly float _boundsRadius;
 
     // Built with the emitter and seeded as it starts. An emitter built ahead for a pool then starts without allocating.
@@ -296,8 +297,17 @@ public sealed class ParticleEmitter : Renderer
         set => field = Guard.Finite(value, nameof(value));
     }
 
-    /// <summary>How every particle blends with what is already drawn. <see cref="BlendMode.Alpha"/> by default.</summary>
+    /// <summary>How every particle's sprite blends with what is already drawn. <see cref="BlendMode.Alpha"/> by default.</summary>
+    /// <remarks>It has no effect on <see cref="Light"/>, which always adds into the frame's light.</remarks>
     public BlendMode Blend { get; set; }
+
+    /// <summary>The light every live particle adds into the frame's light. Null by default, which adds none.</summary>
+    /// <remarks>
+    /// Each light takes its particle's drawn position, turn, mirror and scale, and its colour from <see cref="Color"/>.
+    /// The emitter's own sprites are multiplied by the light they add unless their entity is <see cref="Entity.Unlit"/>.
+    /// The screen layer is never lit, and an emitter with a light under a <see cref="UI.ScreenEntity"/> throws as it draws.
+    /// </remarks>
+    public ParticleLight? Light { get; set; }
 
     /// <summary>
     /// Whether <see cref="Rate"/> and <see cref="RateOverDistance"/> spawn, true by default.
@@ -371,16 +381,27 @@ public sealed class ParticleEmitter : Renderer
     {
     }
 
+    /// <summary>Creates an emitter whose particles draw no sprite and only add their <see cref="Light"/>.</summary>
+    /// <param name="capacity">The pool's fixed size, the most particles alive at once.</param>
+    public ParticleEmitter(int capacity)
+        : this(capacity, null)
+    {
+    }
+
     /// <summary>Creates an emitter whose particles draw <paramref name="clip"/>'s frames as <see cref="FrameMode"/> says.</summary>
     /// <param name="clip">The frames every particle draws, each held for its own steps by default.</param>
     /// <param name="capacity">The pool's fixed size, the most particles alive at once.</param>
     public ParticleEmitter(SpriteClip clip, int capacity)
+        : this(capacity, clip ?? throw new ArgumentNullException(nameof(clip)))
     {
-        ArgumentNullException.ThrowIfNull(clip);
+    }
+
+    private ParticleEmitter(int capacity, SpriteClip? clip)
+    {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(capacity, 0);
 
         _clip = clip;
-        _boundsRadius = LargestReach(clip.Frames);
+        _boundsRadius = clip is null ? 0f : LargestReach(clip.Frames);
         Capacity = capacity;
         _particles = new Particle[capacity];
         _pending = new PendingEmit[capacity];
@@ -406,8 +427,8 @@ public sealed class ParticleEmitter : Renderer
         && (EmitOnDeath.Into is not { } into || into.Entity != Entity || into.Alive == 0);
 
     /// <summary>
-    /// The rect covering every live particle's last move, grown by the largest frame's reach at its
-    /// largest scale. Empty with nothing alive.
+    /// The rect covering every live particle's last move, grown by the farther of the largest frame's reach and its
+    /// <see cref="Light"/>'s at the largest scale. Empty with nothing alive.
     /// </summary>
     public override Rect Bounds
     {
@@ -430,8 +451,8 @@ public sealed class ParticleEmitter : Renderer
         }
     }
 
-    // The farthest any live particle's sprite reaches from its position, at the largest scale it draws at.
-    private float BoundsRadius => _boundsRadius * _boundsScale * ScaleOverLifetime.Reach;
+    // The farthest any live particle's sprite or light reaches from its position, at the largest scale it draws at.
+    private float BoundsRadius => MathF.Max(_boundsRadius, LightReach(Light)) * _boundsScale * ScaleOverLifetime.Reach;
 
     /// <summary>
     /// Spawns <paramref name="count"/> particles now, at <see cref="Shape"/> about <see cref="Offset"/>,
@@ -589,13 +610,29 @@ public sealed class ParticleEmitter : Renderer
     {
         ArgumentNullException.ThrowIfNull(assets);
 
-        assets.Add(_clip);
+        if (_clip is not null)
+        {
+            assets.Add(_clip);
+        }
+
+        if (Light is { } light)
+        {
+            assets.Add(light.Sprite);
+        }
     }
 
     /// <inheritdoc/>
     protected internal override void Draw(FrameView view)
     {
         ArgumentNullException.ThrowIfNull(view);
+
+        // Thrown before the cull, which would otherwise make the throw depend on where the particles are.
+        ParticleLight? light = Light;
+        if (light is not null && view.Space == RenderSpace.Screen)
+        {
+            throw new InvalidOperationException(
+                "A particle light is world-only: the screen layer is never lit. Put the emitter on a world entity, or set its Light to null.");
+        }
 
         bool culls = view.TryGetCullRegion(out Rect region);
         Rect bounds = Bounds;
@@ -606,9 +643,15 @@ public sealed class ParticleEmitter : Renderer
             return;
         }
 
-        SpriteClip clip = _clip;
-        ReadOnlySpan<Sprite> frames = clip.Frames;
+        SpriteClip? clip = _clip;
+        ReadOnlySpan<Sprite> frames = clip is null ? default : clip.Frames;
         FrameMode mode = frames.Length == 1 ? FrameMode.RandomAtSpawn : FrameMode;
+
+        // A light's size at unit scale. A light that adds nothing is left out, as the view would drop it.
+        bool lights = light is { Intensity: > 0f };
+        ParticleLight lit = light.GetValueOrDefault();
+        Vector2 lightExtent = lights ? PointLight.Extent(lit.Sprite, lit.Radius) : Vector2.Zero;
+
         Curve scaleOverLifetime = ScaleOverLifetime;
         Gradient color = Color;
 
@@ -660,14 +703,10 @@ public sealed class ParticleEmitter : Renderer
             }
 
             float t = (float)particle.Age / particle.Lifetime;
-            Sprite frame = frames[mode switch
-            {
-                FrameMode.Clip => clip.FrameIndexAt(particle.Age),
-                FrameMode.OverLife => clip.FrameIndexAt((int)((long)particle.Age * clip.Duration / particle.Lifetime)),
-                _ => particle.SpriteIndex,
-            }];
             float scale = particle.Scale * scaleOverLifetime.Evaluate(t);
-            Vector2 size = new Vector2(frame.Region.Width, frame.Region.Height) * scale;
+            ColorRgba tint = color.Evaluate(t);
+            bool flipX = particle.FlipX != frameFlipX;
+            bool flipY = particle.FlipY != frameFlipY;
 
             float previousRotation = still ? particle.Rotation : particle.PreviousRotation;
             float rotation = particle.Rotation;
@@ -677,25 +716,51 @@ public sealed class ParticleEmitter : Renderer
                 rotation = currentFrame.Rotation + (currentTurn * rotation);
             }
 
-            SpriteIntent intent = new(
-                frame,
-                previousPosition,
-                position,
-                previousRotation,
-                rotation,
-                size,
-                particle.FlipX != frameFlipX,
-                particle.FlipY != frameFlipY,
-                color.Evaluate(t),
-                Blend);
+            if (clip is not null)
+            {
+                Sprite frame = frames[mode switch
+                {
+                    FrameMode.Clip => clip.FrameIndexAt(particle.Age),
+                    FrameMode.OverLife => clip.FrameIndexAt((int)((long)particle.Age * clip.Duration / particle.Lifetime)),
+                    _ => particle.SpriteIndex,
+                }];
+                SpriteIntent intent = new(
+                    frame,
+                    previousPosition,
+                    position,
+                    previousRotation,
+                    rotation,
+                    new Vector2(frame.Region.Width, frame.Region.Height) * scale,
+                    flipX,
+                    flipY,
+                    tint,
+                    Blend);
 
-            if (unculled)
-            {
-                view.AddUnculled(in intent);
+                if (unculled)
+                {
+                    view.AddUnculled(in intent);
+                }
+                else
+                {
+                    view.Add(in intent);
+                }
             }
-            else
+
+            // A negative scale mirrors the light as it mirrors the sprite. The view culls each light on its own.
+            if (lights)
             {
-                view.Add(in intent);
+                Vector2 lightSize = lightExtent * scale;
+                view.Add(new LightIntent(
+                    lit.Sprite,
+                    previousPosition,
+                    position,
+                    previousRotation,
+                    rotation,
+                    Vector2.Abs(lightSize),
+                    flipX != lightSize.X < 0f,
+                    flipY != lightSize.Y < 0f,
+                    tint,
+                    lit.Intensity));
             }
         }
     }
@@ -920,22 +985,22 @@ public sealed class ParticleEmitter : Renderer
 
         float lifetimeSeconds = _random.Range(Lifetime);
         int lifetimeTicks = Math.Max(1, (int)MathF.Ceiling(lifetimeSeconds / MathF.Max(dt, 1e-6f)));
-        if (FrameMode == FrameMode.Clip && !_clip.Loop)
+        if (FrameMode == FrameMode.Clip && _clip is { Loop: false } clip)
         {
-            lifetimeTicks = Math.Min(lifetimeTicks, _clip.Duration);
+            lifetimeTicks = Math.Min(lifetimeTicks, clip.Duration);
         }
 
         float rotationDegrees = _random.Range(Rotation);
         float angularVelocityDegreesPerSecond = _random.Range(AngularVelocity);
         float scale = _random.Range(Scale);
 
-        int frameCount = _clip.Frames.Length;
+        int frameCount = _clip?.Frames.Length ?? 0;
         int spriteIndex = 0;
         if (frameCount > 1 && FrameMode == FrameMode.RandomAtSpawn)
         {
             spriteIndex = _random.Range(0, frameCount);
         }
-        else if (FrameMode == FrameMode.InOrderAtSpawn)
+        else if (FrameMode == FrameMode.InOrderAtSpawn && frameCount > 0)
         {
             spriteIndex = _nextFrame;
             _nextFrame = (_nextFrame + 1) % frameCount;
@@ -1111,6 +1176,21 @@ public sealed class ParticleEmitter : Renderer
         inner.Top >= outer.Top &&
         inner.Right <= outer.Right &&
         inner.Bottom <= outer.Bottom;
+
+    // The farthest a light reaches from its particle at unit scale: its sprite's farthest corner from the pivot, at the
+    // size the radius draws it.
+    private static float LightReach(ParticleLight? light)
+    {
+        if (light is not { Intensity: > 0f } lit)
+        {
+            return 0f;
+        }
+
+        Sprite sprite = lit.Sprite;
+        int wider = Math.Max(sprite.Region.Width, sprite.Region.Height);
+
+        return wider <= 0 ? 0f : LargestReach(new ReadOnlySpan<Sprite>(in sprite)) * 2f * lit.Radius / wider;
+    }
 
     // The farthest any frame's region reaches from the pivot it is drawn at, its farthest corner. A flip mirrors the
     // region about the pivot and a turn spins it there, and neither moves that corner farther.

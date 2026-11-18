@@ -115,14 +115,14 @@ public sealed class SceneHidingTests
     public void AnEntityReparentedAfterItsStateWasRead_TakesItsNewParentsTintAndVisibility()
     {
         Entity child = new Node(Vector2.Zero);
-        Assert.True(child.TryGetDrawStyle(out ColorRgba before, out _));
+        Assert.True(child.TryGetDrawStyle(out ColorRgba before, out _, out _));
         Assert.Equal(ColorRgba.White, before);
 
         ColorRgba shade = new(10, 20, 30, 40);
         Entity tinted = new Node(Vector2.Zero) { Tint = shade };
         child.Parent = tinted;
 
-        Assert.True(child.TryGetDrawStyle(out ColorRgba under, out _));
+        Assert.True(child.TryGetDrawStyle(out ColorRgba under, out _, out _));
         Assert.Equal(shade, under);
 
         Entity hidden = new Node(Vector2.Zero) { Visible = false };

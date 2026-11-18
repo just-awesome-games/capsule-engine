@@ -8,7 +8,7 @@ namespace Capsule.Build.Shaders;
 /// declares.
 /// </summary>
 /// <remarks>
-/// Ships each at its path as <c>{key}.{format}.shader</c>, one per GPU format, and declares it as a
+/// Ships each at its path as <c>{key}.{format}.shader</c>, one per GPU format holding its lit and unlit forms, and declares it as a
 /// <c>Shader</c>. A misspelt shader is a compile error, and a misspelt parameter throws where the
 /// material is written. A platform module's further format also gets the engine's own sprite stages,
 /// which the engine commits only in its own formats.
@@ -92,8 +92,8 @@ internal static class ShaderStep
         return new ShaderFacts([.. result.Parameters], result.ReadsScreen, [.. result.Diagnostics.Where(static diagnostic => diagnostic.Warning)]);
     }
 
-    // The engine's sprite fragment and vertex stage in each further format, which a host on that
-    // format reads in place of its embedded ones.
+    // The engine's sprite fragment, lit and unlit, and vertex stage in each further format, which a host on
+    // that format reads in place of its embedded ones.
     private static void CompileEngineStages(PipelinePass pass, ShaderTools tools, DerivedFiles files)
     {
         string directory = Path.Combine(pass.OutputDirectory, IntermediateDirectory, EngineStages);

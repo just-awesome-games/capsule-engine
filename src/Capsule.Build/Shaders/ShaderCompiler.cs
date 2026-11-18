@@ -30,11 +30,13 @@ internal static partial class ShaderCompiler
 
     // SDL's descriptor sets: a stage's textures, samplers and storage in one, its uniform buffers in
     // the next. The material's uniform buffer is binding 0, the scene globals' binding 1, the picture's
-    // binding 2 and the texture regions' binding 3.
+    // binding 2 and the texture regions' binding 3. The sprite's texture is sampler 0, the light 1, the
+    // fragment's own textures follow from FirstOwnTexture, and the picture comes after them.
     private const int FragmentResources = 2;
     private const int FragmentUniforms = 3;
     private const int VertexResources = 0;
     private const int VertexUniforms = 1;
+    private const int FirstOwnTexture = 2;
 
     // The block DXC gathers a source's loose parameters into, as SPIR-V names its variable.
     private const string LooseParameters = "$Globals";
@@ -46,7 +48,8 @@ internal static partial class ShaderCompiler
     // The entry point SPIRV-Cross gives the HLSL it writes.
     private const string HlslEntryPoint = "main";
 
-    /// <summary>Compiles a game's fragment, wrapped in the engine's template, to every format.</summary>
+    /// <summary>Compiles a game's fragment, wrapped in the engine's template, to every format, lit and unlit.</summary>
+    /// <remarks>A fragment that reads the picture compiles once, since the picture it reads is already lit.</remarks>
     /// <param name="tools">The downloaded tools, and the further formats.</param>
     /// <param name="basePath">Where the intermediate files are written and deleted, as a path without extension in a directory of its own.</param>
     /// <param name="fragment">The game's fragment.</param>
@@ -77,38 +80,67 @@ internal static partial class ShaderCompiler
                 [ShaderTemplate.SceneGlobalsBlock] = (FragmentUniforms, 1),
                 [ShaderTemplate.ScreenBlock] = (FragmentUniforms, 2),
                 [ShaderTemplate.RegionsBlock] = (FragmentUniforms, 3),
-                [ShaderTemplate.ScreenTexture] = (FragmentResources, reflected.Textures.Count + 1),
-                [ShaderTemplate.PairedSampler + ShaderTemplate.ScreenTexture] = (FragmentResources, reflected.Textures.Count + 1),
+                [ShaderTemplate.SpriteTexture] = (FragmentResources, 0),
+                [ShaderTemplate.PairedSampler + ShaderTemplate.SpriteTexture] = (FragmentResources, 0),
+                [ShaderTemplate.LightTexture] = (FragmentResources, 1),
+                [ShaderTemplate.PairedSampler + ShaderTemplate.LightTexture] = (FragmentResources, 1),
+                [ShaderTemplate.ScreenTexture] = (FragmentResources, FirstOwnTexture + reflected.Textures.Count),
+                [ShaderTemplate.PairedSampler + ShaderTemplate.ScreenTexture] = (FragmentResources, FirstOwnTexture + reflected.Textures.Count),
             };
 
             List<ShaderBinding> table = [.. reflected.Constants];
-            for (int slot = 0; slot <= reflected.Textures.Count; slot++)
+            for (int index = 0; index < reflected.Textures.Count; index++)
             {
-                string texture = slot == 0 ? ShaderTemplate.SpriteTexture : reflected.Textures[slot - 1];
+                string texture = reflected.Textures[index];
+                int slot = FirstOwnTexture + index;
                 places[texture] = (FragmentResources, slot);
                 places[ShaderTemplate.PairedSampler + texture] = (FragmentResources, slot);
-                if (slot > 0)
-                {
-                    table.Add(new ShaderBinding(texture, ShaderParameterKind.Texture, false, slot));
-                }
+                table.Add(new ShaderBinding(texture, ShaderParameterKind.Texture, false, slot));
             }
 
             ShaderContainer layout = new(
                 string.Empty,
                 ShaderStage.Fragment,
                 ShaderTemplate.EntryPoint,
-                Samplers: reflected.Textures.Count + (reflected.ReadsScreen ? 2 : 1),
+                Samplers: FirstOwnTexture + reflected.Textures.Count + (reflected.ReadsScreen ? 1 : 0),
                 StorageTextures: 0,
                 StorageBuffers: 0,
                 UniformBuffers: reflected.Textures.Count > 0 ? 4 : reflected.ReadsScreen ? 3 : reflected.HasGlobalsBuffer ? 2 : reflected.HasMaterialBuffer ? 1 : 0,
                 [.. table],
+                [],
                 []);
 
-            Write(basePath + ".bound.fx", ShaderTemplate.ComposeBound(fragment, fragmentPath, reflected.Textures));
+            // The two forms compile side by side, and only the lit one's diagnostics are kept: the unlit one
+            // compiles the same fragment.
+            bool twoForms = !reflected.ReadsScreen;
+            Write(basePath + ".bound.fx", ShaderTemplate.ComposeBound(fragment, fragmentPath, reflected.Textures, lit: twoForms));
+            List<ShaderContainer> unlitShaders = [];
+            List<ShaderDiagnostic> unlitDiagnostics = [];
+            string? unlitFailure = null;
+            Task<bool> unlitCompile = Task.FromResult(true);
+            if (twoForms)
+            {
+                string unlitPath = basePath + "-unlit";
+                Write(unlitPath + ".bound.fx", ShaderTemplate.ComposeBound(fragment, fragmentPath, reflected.Textures, lit: false));
+                unlitCompile = Task.Run(() => CompileBound(tools, unlitPath, layout, places, unlitShaders, unlitDiagnostics, out unlitFailure));
+            }
+
             List<ShaderContainer> shaders = [];
-            if (!CompileBound(tools, basePath, layout, places, shaders, diagnostics, out string? failure))
+            bool litCompiled = CompileBound(tools, basePath, layout, places, shaders, diagnostics, out string? failure);
+            bool unlitCompiled = unlitCompile.GetAwaiter().GetResult();
+            if (!litCompiled)
             {
                 return Failed(failure, diagnostics);
+            }
+
+            if (!unlitCompiled)
+            {
+                return Failed(unlitFailure, [.. diagnostics, .. unlitDiagnostics]);
+            }
+
+            if (twoForms)
+            {
+                shaders = [.. shaders.Select(lit => lit with { UnlitCode = unlitShaders.Single(unlit => unlit.Format == lit.Format).Code })];
             }
 
             ShaderParameter[] parameters = [.. table.Select(static parameter => new ShaderParameter(parameter.Name, parameter.Kind, parameter.Global))];
@@ -131,7 +163,7 @@ internal static partial class ShaderCompiler
         try
         {
             Write(basePath + ".bound.fx", $"#line 1 \"{ShaderTemplate.VertexFile}\"\n{ShaderTemplate.VertexStage}");
-            ShaderContainer layout = new(string.Empty, ShaderStage.Vertex, ShaderTemplate.VertexEntryPoint, 0, 0, StorageBuffers: 1, UniformBuffers: 1, [], []);
+            ShaderContainer layout = new(string.Empty, ShaderStage.Vertex, ShaderTemplate.VertexEntryPoint, 0, 0, StorageBuffers: 1, UniformBuffers: 1, [], [], []);
             List<ShaderContainer> shaders = [];
             Dictionary<string, (int, int)> places = new()
             {

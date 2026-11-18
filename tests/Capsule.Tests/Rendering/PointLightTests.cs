@@ -29,7 +29,7 @@ public sealed class PointLightTests
         LightIntent light = view.Lights[0];
         Assert.Equal(new Vector2(100, 50), light.PreviousPosition);
         Assert.Equal(new Vector2(101, 50), light.Position);
-        Assert.Equal(10f, light.Radius);
+        Assert.Equal(new Vector2(20f, 20f), light.Size);
     }
 
     // Bounds is the light where the next frame places it, not swept from where the last frame drew it,
@@ -78,21 +78,6 @@ public sealed class PointLightTests
 
         Assert.Equal(ColorRgba.White, simulation.View.Ambient);
         Assert.Equal(0, simulation.View.Lights.Length);
-        Assert.False(simulation.View.LitWorld);
-    }
-
-    [Fact]
-    public void OneAdditiveWorldColorRect_DoesNotFlipLitWorldAlone()
-    {
-        SceneFixtures.Drifter glow = new(new Vector2(50, 50));
-        glow.Add(new ColorRect(new Vector2(4, 4)) { Blend = BlendMode.Additive });
-
-        SceneFixtures.HookScene scene = new(SceneFixtures.Opens(new Vector2(50, 50)));
-        scene.Add(glow);
-        SceneSimulation simulation = new(scene);
-
-        simulation.Step(SceneFixtures.Step());
-
         Assert.False(simulation.View.LitWorld);
     }
 

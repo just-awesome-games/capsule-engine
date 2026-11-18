@@ -11,14 +11,14 @@ A committed record comes from the bench published NativeAOT with its development
 
 ```text
 dotnet publish tests/Capsule.Bench -c Release -r win-x64 --self-contained true -p:PublishAot=true -p:CapsuleShipping=false -o artifacts/bench/publish
-artifacts/bench/publish/Capsule.Bench suite --label <text> [--lane simulation|rendering|paced] [--uncapped]
+artifacts/bench/publish/Capsule.Bench suite --label <text> [--lane simulation|rendering|paced] [--uncapped] [--row <name>]...
 ```
 
 `dotnet run -c Release --project tests/Capsule.Bench --` takes every command below JIT-compiled with `TieredCompilation=false`, for iterating and profiling. Its absolute numbers differ from the publish's.
 
 `--scale <n>` on a workload run by hand multiplies the populations of the workloads that read `Workloads.Scaled`, 1 when absent. The same row at 1, 4 and 16 is its scaling curve, and a row whose cost grows faster than its scale has found something. The suite takes no scale, and a record always holds scale 1.
 
-`--lane` runs one lane, and the record's `lane` names it (`all` without the option). The windowed lane paces to vertical sync unless `--uncapped` is given, and then `intervalMs` is the host's true frame cost. The suite refuses `--uncapped` with a headless lane. Each workload runs in a child process on the engine's own command line, and `-- --scene Crowd1k [--uncapped]` runs one by hand. A record goes to `results/<UTC timestamp>.json` and is committed. Frame CSVs go under `artifacts/bench/` as `<row>.csv` and are not. The captures of `Still`'s rows go there as `<row>-<label>.png` and are not either, except a capture a later change is measured against, which is kept under `results/captures/<label>/`.
+`--lane` runs one lane, and the record's `lane` names it (`all` without the option). The windowed lane paces to vertical sync unless `--uncapped` is given, and then `intervalMs` is the host's true frame cost. The suite refuses `--uncapped` with a headless lane. Each `--row` keeps the record to the rows it names, and `Mix64` runs only in a record that names none. Each workload runs in a child process on the engine's own command line, and `-- --scene Crowd1k [--uncapped]` runs one by hand. A record goes to `results/<UTC timestamp>.json` and is committed. Frame CSVs go under `artifacts/bench/` as `<row>.csv` and are not. The captures of `Still`'s rows go there as `<row>-<label>.png` and are not either, except a capture a later change is measured against, which is kept under `results/captures/<label>/`.
 
 ## Reading a record
 

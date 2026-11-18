@@ -122,10 +122,22 @@ public partial class Scene
     /// world at its authored colour.
     /// </summary>
     /// <remarks>
-    /// A light adds to it and brightens up to twice that colour. The screen layer is never lit.
+    /// Every world sprite is multiplied by the light at its pixel, which is this colour where no light reaches and
+    /// each light added over it, with no ceiling. The screen layer and an <see cref="Entity.Unlit"/> entity are
+    /// never lit. In an <see cref="Unlit"/> scene nothing is multiplied, and this is only the value
+    /// <c>SampleLight</c> reads where no light reaches.
     /// </remarks>
     [Authorable]
     public ColorRgba Ambient { get; protected set; } = ColorRgba.White;
+
+    /// <summary>Whether everything the scene draws keeps its own colour untouched by the light, defaulting to false.</summary>
+    /// <remarks>
+    /// The scene draws as if it were the unlit root of every entity, and its clear colour keeps its own colour too.
+    /// <see cref="Entity.Unlit"/> adds nothing beneath an unlit scene. The ambient and every light still make the
+    /// light as they do in a lit scene, and a material on any world draw reads it through <c>SampleLight</c>.
+    /// </remarks>
+    [Authorable]
+    public bool Unlit { get; protected set; }
 
     /// <summary>
     /// The values of the shader parameters this scene sets for every material, which start at zero.
@@ -493,7 +505,7 @@ public partial class Scene
     /// <see cref="Component.OnDebugPanel"/> describes. Writes nothing by default.
     /// </summary>
     /// <remarks>
-    /// The run's seed, <see cref="Size"/>, <see cref="ClearColor"/>, <see cref="Ambient"/> and
+    /// The run's seed, <see cref="Size"/>, <see cref="ClearColor"/>, <see cref="Ambient"/>, <see cref="Unlit"/> and
     /// <see cref="Paused"/> are written before this call, and the scene's
     /// entities are listed after it. A Camera row opens <see cref="Camera.OnDebugPanel"/>.
     /// </remarks>
@@ -730,6 +742,7 @@ public partial class Scene
         panel.Field("Size", Size);
         panel.Field("ClearColor", ClearColor);
         panel.Field("Ambient", Ambient);
+        panel.Field("Unlit", Unlit);
         panel.Field("Paused", Paused);
 
         if (_started)

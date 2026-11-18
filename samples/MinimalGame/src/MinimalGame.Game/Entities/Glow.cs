@@ -1,6 +1,10 @@
 namespace MinimalGame.Game.Entities;
 
 /// <summary>The soft light the sample draws additively: the bolt's body, the lamp's head and the particles that fade to clear.</summary>
+/// <remarks>
+/// The bolt and the lamp glow in their own point light, and each spark in its particle light. The sparks are drawn
+/// by unlit entities, which keep them at their own colour in a dim room.
+/// </remarks>
 internal static class Glow
 {
     /// <summary>The edge of <c>textures/glow.png</c> in texels.</summary>

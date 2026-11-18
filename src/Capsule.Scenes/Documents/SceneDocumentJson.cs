@@ -117,6 +117,7 @@ internal sealed class SceneDocumentJson
                 ZIndex = spawn.ZIndex,
                 ScrollFactor = spawn.ScrollFactor is { } factor ? [factor.X, factor.Y] : null,
                 Tint = spawn.Tint is { } tint ? Hex(tint) : null,
+                Unlit = spawn.Unlit,
                 Members = ExtensionData(entry.Authored),
             };
         }
@@ -160,6 +161,7 @@ internal sealed class SceneDocumentJson
                 ZIndex = entry.ZIndex,
                 ScrollFactor = Pair(entry.ScrollFactor, i, SceneDocumentKeys.Entry.ScrollFactor),
                 Tint = Color(entry.Tint, i),
+                Unlit = entry.Unlit,
             };
             documentEntries[i] = new SceneDocumentEntry(entry.Type ?? string.Empty, spawn) { Id = entry.Id, Authored = members[i + 1] };
         }
@@ -335,6 +337,11 @@ internal sealed class SceneEntryJson
     [Description("The colour multiplied into everything the entry draws, alpha included, as \"#rrggbb\" or \"#rrggbbaa\" with the alpha last. Absent keeps the tint the entity's class sets.")]
     [RegularExpression("^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$")]
     public string? Tint { get; set; }
+
+    // An authored false is kept and written back. It overrides a class that sets the entity unlit.
+    [JsonPropertyName(SceneDocumentKeys.Entry.Unlit)]
+    [Description("Whether everything the entry draws keeps its own colour in a lit frame, which the scene's ambient and its lights do not multiply. Absent keeps the setting the entity's class makes.")]
+    public bool? Unlit { get; set; }
 
     // The entry's undeclared keys, which only the writer fills. ReadMembers collects them on a read.
     [JsonExtensionData]

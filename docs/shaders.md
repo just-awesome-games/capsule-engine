@@ -5,8 +5,8 @@ across every material of a shader. Each type's XML docs hold its rules.
 
 A shader is a fragment function the build wraps in the engine's sprite shader. The engine keeps the
 vertex stage ([`vertex.hlsl`](../src/Capsule.Runtime/Rendering/Shaders/vertex.hlsl)), the pixel stage around
-the fragment ([`pixel.hlsl`](../src/Capsule.Runtime/Rendering/Shaders/pixel.hlsl)), the batching, the tint
-and the flash. What a pixel becomes is the game's.
+the fragment ([`pixel.hlsl`](../src/Capsule.Runtime/Rendering/Shaders/pixel.hlsl)), the batching, the tint,
+the flash and the light. What a pixel becomes is the game's.
 
 | Need | Piece |
 | --- | --- |
@@ -15,6 +15,7 @@ and the flash. What a pixel becomes is the game's.
 | One renderer drawn with it, or all of an entity's | `Renderer.Material`, `Entity.Material` |
 | A value every material of a shader shares | `Scene.ShaderGlobals` |
 | The picture already drawn behind a sprite | `SampleScreen` |
+| The light at a pixel, for a shader that lights itself | `SampleLight`, `Entity.Unlit` and `Scene.Unlit` |
 
 ## The fragment
 
@@ -47,6 +48,7 @@ float4 Fragment(SpritePixel pixel)
 | `Texel(texture, xy)` | Reads the one texel at a whole coordinate of a texture parameter, counted from its own top-left corner. No sampling mixes it with a neighbour, and a coordinate past an edge reads the edge. |
 | `TextureSize(texture)` | A texture parameter's own size in texels, named as declared. |
 | `SampleScreen(offset)` | Reads the picture already drawn at this pixel, moved by `offset` in the sprite's units. |
+| `SampleLight()` | Reads the light at this pixel, with alpha 1: the ambient where no light reaches, and white in a frame that lights nothing and on the screen layer. |
 
 A parameter is a `float`, `float2`, `float3`, `float4` or `Texture2D` declared at file scope. Names
 starting with `Capsule` are the engine's. A fragment reads a texture only through `Sample`, `Texel` and
@@ -57,8 +59,13 @@ page in place of a texture packed onto it.
 
 A material an entity assigns after it has started preloads the shader and textures its class names from
 `CapsuleAssets`. The entity declares from `CollectAssets` only what its code cannot show, such as a
-material or a texture chosen by data ([`assets.md`](assets.md#loading-and-residency)). A material never changes draw order. Lines, the light
-map and the debug overlay draw with the engine's own shader.
+material or a texture chosen by data ([`assets.md`](assets.md#loading-and-residency)). A material never changes draw order. Lines, lights
+and the debug overlay draw with the engine's own shader.
+
+The stage multiplies a lit world sprite's fragment by the light at its pixel ([`rendering.md`](rendering.md#lighting)). A
+shader that uses the light some other way, such as moving a texel along a palette, is drawn by an `Entity.Unlit` entity, or in a
+`Scene.Unlit` scene, and calls `SampleLight` itself. The build compiles every shader with the multiply and without it, and a draw the
+light does not multiply takes the form without. A shader that reads the picture compiles once.
 
 ## Reading the picture
 
@@ -86,7 +93,7 @@ Add(new ColorRect(new Vector2(256f, 32f)) { Material = ripple });
 - Sprites next to each other with one material share a copy and do not see each other. Anything drawn between them
   starts a new copy.
 - A read more than 64 units past its sprite repeats the edge of the copy.
-- A world material reads the picture before lighting, and its additive sprites light with the engine's shader.
+- The picture a world material reads is already lit, and the stage does not multiply its fragment by the light again.
 - A canvas declared apart from the render resolution draws the screen layer on the window, where a read shows nothing.
 
 ## Scene globals

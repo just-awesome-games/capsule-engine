@@ -15,7 +15,7 @@ maps and lights. What a game's world looks like is the game's.
 | What draws over what | `ZIndex`, `Scene.YSort`, and `ScreenEntity` for the screen layer |
 | An interface panel the world draws over | `ScreenEntity.SortsWithWorld` |
 | A layer that scrolls slower than the world | `Entity.ScrollFactor` |
-| Light in a dark scene | `Scene.Ambient` and `PointLight` |
+| Light in a dark scene | `Scene.Ambient`, `PointLight`, `PolygonLight`, `ParticleEmitter.Light`, `Entity.Unlit` and `Scene.Unlit` |
 | A reaction to coming on screen | `VisibleOnScreenNotifier2D` |
 | The next frame built while the GPU draws the last | `EngineBuilder.WithFramesInFlight` |
 
@@ -103,13 +103,15 @@ a sprite that turns or flips in place.
 | `Label` | A run of a `BitmapFont`, wrapped and aligned inside `Size`. |
 | `NineSlice` | A sprite stretched to `Size` with its corners kept. |
 | `ParticleEmitter` | A fixed pool of sprite particles stepped on the fixed tick. |
+| `PointLight` | Light in the shape of a sprite, a soft disc unless given one. |
+| `PolygonLight` | Light in a flat convex polygon, such as a beam's cone. |
 
 A game that needs geometry no renderer draws subclasses `Renderer` and writes sprite, polygon and line
 intents into the `FrameView` it is handed. When `Draw` runs is in [`architecture.md`](architecture.md#simulation-and-host).
 
 ## Hiding, fading and flashing
 
-`Entity.Visible`, `Entity.Tint` and `Entity.Flash` reach everything beneath the entity.
+`Entity.Visible`, `Entity.Tint`, `Entity.Flash` and `Entity.Unlit` reach everything beneath the entity.
 `Renderer.Visible` and a renderer's own `Color` reach one renderer. None of them stops the entity
 stepping:
 
@@ -216,9 +218,26 @@ Add(spray);
 
 ## Lighting
 
-A scene lowers the light with `Scene.Ambient`. A `PointLight` draws into the frame's light map, which the
-host multiplies over the world layer. A world sprite or polygon drawn with `BlendMode.Additive` in a lit frame
-lights the map too, and a glow stays bright in a dim room. A scene with white ambient and no light runs no pass.
+A scene lowers the light with `Scene.Ambient`. A `PointLight` or `PolygonLight` adds to the light where it
+reaches, and every world sprite, polygon, line, tile and glyph is drawn at its colour times the light at its pixel.
+The light starts at the ambient, and a light of 1 over white ambient doubles what it covers, with no ceiling past
+that. In a `Scene.Unlit` scene nothing is multiplied, and the ambient is only what `SampleLight` reads where no
+light reaches. A light follows its entity's position, rotation and scale on each axis, and a negative scale mirrors it.
+A `ParticleEmitter` whose `Light` is set adds one light for each live particle, placed, turned and scaled as the
+particle and coloured by its `Color`, whose alpha fades the light. `new ParticleEmitter(capacity)` draws those lights and no sprite.
+A light's own sprite adds its colour times its alpha. A custom falloff goes in the alpha of a white image or the
+grey of an opaque one, never both, which would square it.
+
+Only a light lights. A `BlendMode.Additive` draw lights nothing and is lit like any other draw. A glow that should
+stay bright in a dim room sets `Entity.Unlit`, which keeps everything beneath the entity at its own colour, or a
+document sets `unlit` on its entry. `Scene.Unlit`, or `unlit` at a document's root, draws the scene as if it were
+the unlit root of every entity, its clear colour included. The screen layer is never lit, but a `ScreenEntity` that
+sorts with the world is lit with it. A scene with white ambient and no light runs no light pass. A shader can read the light itself with
+`SampleLight` ([`shaders.md`](shaders.md)). A `Renderer` adds a light of its own with `FrameView.Add(in LightIntent)`
+or `FrameView.AddLight(in PolygonIntent, float)`.
+
+A lit sprite reads the light once for every pixel it shades, and a light costs the pixels it covers. Art stacked
+deep over the same pixels pays the read at every layer.
 
 ## Text
 

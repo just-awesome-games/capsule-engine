@@ -28,15 +28,22 @@ internal static class Suite
     // of them. An uncapped window passes 120 frames within its first 40 ms.
     private const double WarmUpMs = 1000d;
 
-    private const string Usage = "usage: Capsule.Bench suite [--label <text>] [--lane simulation|rendering|paced] [--uncapped]";
+    private const string Usage = "usage: Capsule.Bench suite [--label <text>] [--lane simulation|rendering|paced] [--uncapped] [--row <name>]...";
 
     internal static int Run(string[] args)
     {
         string? label = null;
         WorkloadKind? only = null;
         bool uncapped = false;
+        HashSet<string> rows = new(StringComparer.Ordinal);
         for (int index = 0; index < args.Length; index++)
         {
+            if (args[index] == "--row" && index + 1 < args.Length)
+            {
+                rows.Add(args[++index]);
+                continue;
+            }
+
             if (args[index] == "--label" && index + 1 < args.Length && label is null)
             {
                 label = args[++index];
@@ -84,10 +91,20 @@ internal static class Suite
 
             foreach (WorkloadAttribute lane in declared)
             {
-                if (only is null || lane.Kind == only)
+                string row = lane.Row ?? scene.Name;
+                if ((only is null || lane.Kind == only) && (rows.Count == 0 || rows.Contains(row)))
                 {
-                    lanes.Add((lane.Row ?? scene.Name, lane));
+                    lanes.Add((row, lane));
                 }
+            }
+        }
+
+        foreach (string row in rows)
+        {
+            if (!lanes.Exists(lane => lane.Name == row))
+            {
+                Console.Error.WriteLine($"bench: --row {row} names no workload row in the lane run. Name a row the suite lists.");
+                return 2;
             }
         }
 
@@ -116,7 +133,7 @@ internal static class Suite
         }
 
         // The mix is timed in this process. It needs no window and runs with the headless lane.
-        if (only is null or WorkloadKind.Simulation)
+        if (rows.Count == 0 && only is null or WorkloadKind.Simulation)
         {
             Console.WriteLine($"bench: {MixBench.Name} (mixer)");
             WorkloadRecord mix = MixBench.Run();

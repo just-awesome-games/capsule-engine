@@ -30,6 +30,9 @@ internal sealed class SpriteDrawList : IDisposable
     private readonly ShaderStore _shaders;
     private readonly TextureSamplers _samplers;
 
+    // The light every draw that sets none is multiplied by, the white texel.
+    private readonly SampledTexture _unlit;
+
     // How far past its sprite a read of the picture reaches before it repeats the copy's edge, in the sprite's
     // units. The copy stops there, and a small strip does not pay for the whole surface.
     private const float ReadReach = 64f;
@@ -69,11 +72,12 @@ internal sealed class SpriteDrawList : IDisposable
     private State _state;
     private bool _open;
 
-    internal SpriteDrawList(GpuDevice device, ShaderStore shaders, TextureSamplers samplers)
+    internal SpriteDrawList(GpuDevice device, ShaderStore shaders, TextureSamplers samplers, SampledTexture unlit)
     {
         _device = device;
         _shaders = shaders;
         _samplers = samplers;
+        _unlit = unlit;
     }
 
     // Begins a walk. A recording forgets the last one. A reuse, where there is a recording to reuse, keeps its
@@ -145,7 +149,7 @@ internal sealed class SpriteDrawList : IDisposable
 
     // Draws what follows into target after clearing it to clear, a straight-alpha colour, unless that is
     // null. The pass starts over the whole target with no transform, point sampling, premultiplied
-    // blending, Capsule's own shader, and no clip or placement.
+    // blending, Capsule's own shader, no light, and no clip or placement.
     internal void BeginPass(GpuTexture target, ColorRgba? clear)
     {
         Grow(ref _passes, _passCount);
@@ -235,6 +239,17 @@ internal sealed class SpriteDrawList : IDisposable
         _state.Blend = blend;
     }
 
+    // The light the sprites drawn next see at their pixel, at the target's extent, or null for none, which binds
+    // the white texel. A lit sprite is multiplied by it. An unlit one takes its shader's unlit form, which reads the
+    // light only where its fragment calls SampleLight.
+    internal void SetLight(SampledTexture? light, bool lit)
+    {
+        lit &= light is not null;
+        _open &= ReferenceEquals(light, _state.Light) && lit == _state.Lit;
+        _state.Light = light;
+        _state.Lit = lit;
+    }
+
     // The material the sprites drawn next use, null for Capsule's own sprite shader. Its textures load
     // now, and their uploads join the frame's.
     internal void SetMaterial(Material? material)
@@ -269,8 +284,9 @@ internal sealed class SpriteDrawList : IDisposable
         _state.Placement = placement;
     }
 
-    // A sprite whose region sits at offsetX, offsetY on texture, the page it is resident on.
-    internal void Add(SampledTexture texture, in SpriteIntent sprite, int offsetX, int offsetY)
+    // A sprite whose region sits at offsetX, offsetY on texture, the page it is resident on, with its tint's colour
+    // drawn intensity times.
+    internal void Add(SampledTexture texture, in SpriteIntent sprite, int offsetX, int offsetY, float intensity = 1f)
     {
         if (!Reserve(texture, offsetX, offsetY, 1))
         {
@@ -290,6 +306,7 @@ internal sealed class SpriteDrawList : IDisposable
         instance.Tint = Tint(sprite.Color, sprite.Blend);
         instance.Flash = Flash(sprite.Flash, sprite.Color.A);
         instance.Flags = FlagsOf(in sprite);
+        instance.Intensity = intensity;
     }
 
     // Consecutive sprites whose regions sit at offsetX, offsetY on texture, as Add records each. Neighbours
@@ -328,6 +345,7 @@ internal sealed class SpriteDrawList : IDisposable
             instance.Tint = tint;
             instance.Flash = Flash(sprite.Flash, color.A);
             instance.Flags = FlagsOf(in sprite);
+            instance.Intensity = 1f;
         }
     }
 
@@ -351,11 +369,13 @@ internal sealed class SpriteDrawList : IDisposable
         instance.Tint = Tint(color, BlendMode.Alpha);
         instance.Flash = 0;
         instance.Flags = SpriteFlags.Whole;
+        instance.Intensity = 1f;
     }
 
     // One triangle of a polygon on texture, the white texel's page, each corner given at both ends of the step.
-    // Every triangle of one polygon starts at its first point, which the vertex stage snaps for them all.
-    internal void AddTriangle(SampledTexture texture, Vector2 previousA, Vector2 a, Vector2 previousB, Vector2 b, Vector2 previousC, Vector2 c, uint tint, uint flash)
+    // Every triangle of one polygon starts at its first point, which the vertex stage snaps for them all. Its
+    // tint's colour is drawn intensity times.
+    internal void AddTriangle(SampledTexture texture, Vector2 previousA, Vector2 a, Vector2 previousB, Vector2 b, Vector2 previousC, Vector2 c, uint tint, uint flash, float intensity = 1f)
     {
         if (!Reserve(texture, 0, 0, 1))
         {
@@ -374,6 +394,7 @@ internal sealed class SpriteDrawList : IDisposable
         instance.Tint = tint;
         instance.Flash = flash;
         instance.Flags = SpriteFlags.Triangle;
+        instance.Intensity = intensity;
     }
 
     // Uploads the frame's own quads in the frame's copy pass, and the kept instances unless the frame reuses
@@ -483,6 +504,7 @@ internal sealed class SpriteDrawList : IDisposable
         Material? material = null;
         GpuSampler? materialSampler = null;
         GpuTextureSamplerBinding sprite = default;
+        SampledTexture? boundLight = null;
         GpuBuffer? bound = null;
         foreach (ref readonly Draw draw in draws)
         {
@@ -514,7 +536,7 @@ internal sealed class SpriteDrawList : IDisposable
 
             // Each binds only when it changes. A material's samplers and uniforms outlive a pipeline bind, and
             // a pipeline bind makes the GPU rebind every table, which a material change alone does not.
-            GpuPipeline next = _shaders.Pipeline(state.Material, state.Blend);
+            GpuPipeline next = _shaders.Pipeline(state.Material, state.Blend, recorded.Target.Format, state.Lit);
             if (!ReferenceEquals(next, pipeline))
             {
                 pass.BindGraphicsPipeline(next);
@@ -543,6 +565,15 @@ internal sealed class SpriteDrawList : IDisposable
                 pass.BindFragmentSamplers(0, new ReadOnlySpan<GpuTextureSamplerBinding>(in sprite));
             }
 
+            // Point sampling reads the light's texel at the pixel's own place, unmixed with its neighbours.
+            SampledTexture light = state.Light ?? _unlit;
+            if (!ReferenceEquals(light, boundLight))
+            {
+                boundLight = light;
+                GpuTextureSamplerBinding lightBinding = new(light.Texture, _samplers.Get(TextureSampling.Point));
+                pass.BindFragmentSamplers(1, new ReadOnlySpan<GpuTextureSamplerBinding>(in lightBinding));
+            }
+
             if (state.Transform != transform || state.Viewport != projectedFor)
             {
                 transform = state.Transform;
@@ -563,11 +594,20 @@ internal sealed class SpriteDrawList : IDisposable
                 Grid = state.Placement.Grid,
                 Coverage = texture.Format == GpuTextureFormat.R8Unorm ? 1f : 0f,
                 FirstSprite = (uint)draw.First,
+                LightPlace = LightPlace(state.Viewport, recorded.Target),
             };
             commands.PushVertexUniformData(0, in uniforms);
             pass.DrawPrimitives(draw.Count * 6, 1, 0, 0);
         }
     }
+
+    // The scale and offset from the viewport's clip space to texture coordinates on a light the size of target,
+    // which is drawn through the same viewport.
+    private static Vector4 LightPlace(in Area viewport, GpuTexture target) => new(
+        viewport.Width / (2f * target.Width),
+        viewport.Height / (-2f * target.Height),
+        (viewport.X + (viewport.Width / 2f)) / target.Width,
+        (viewport.Y + (viewport.Height / 2f)) / target.Height);
 
     // Clip space of the viewport: an orthographic projection with Y down and the origin at the
     // viewport's top-left corner.
@@ -702,6 +742,8 @@ internal sealed class SpriteDrawList : IDisposable
         internal Material? Material;
         internal GridPlacement Placement;
         internal float ReadScale;
+        internal SampledTexture? Light;
+        internal bool Lit;
     }
 
     // Count instances from First, drawn with Texture under State, from the frame's own buffer where Frame

@@ -11,6 +11,8 @@ public sealed class SparkBurst : Entity
     public SparkBurst()
         : base(Vector2.Zero)
     {
+        // Each spark lights what it flies past. Unlit keeps the spark at its own colour, which its own light would brighten.
+        Unlit = true;
         _emitter = new ParticleEmitter(Sprite.White, capacity: 8)
         {
             // A burst on a ring spreads evenly. Six sparks fly out six ways.
@@ -23,6 +25,7 @@ public sealed class SparkBurst : Entity
             ScaleOverLifetime = Curve.Linear(1f, 0f),
             Color = Glow.FadeToClear(BoltTuning.Default.Tint),
             Blend = BlendMode.Additive,
+            Light = new ParticleLight(radius: 6f),
             RemovesEntityWhenFinished = true,
         };
         Add(_emitter);

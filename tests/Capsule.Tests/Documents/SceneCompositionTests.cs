@@ -105,19 +105,20 @@ public sealed class SceneCompositionTests
         Assert.Equal(Vector2.Zero, scene.Entities[2].ScrollFactor);
     }
 
-    // An authored tint lands before the body runs, and an entry without one keeps the class's own.
+    // An authored tint and unlit land before the body runs, and an entry without them keeps the class's own.
     [Fact]
-    public void ADocumentsTint_ReachesTheEntityAndAnAbsentOneKeepsItsOwn()
+    public void ADocumentsTintAndUnlit_ReachTheEntity_AndAbsentOnesKeepItsOwn()
     {
         ColorRgba glass = new(255, 255, 255, 128);
         SceneDocument document = new(
             [
-                new SceneDocumentEntry("placed", new EntitySpawn(Vector2.Zero) { Tint = glass }),
+                new SceneDocumentEntry("placed", new EntitySpawn(Vector2.Zero) { Tint = glass, Unlit = true }),
                 new SceneDocumentEntry("placed", new EntitySpawn(Vector2.Zero)),
             ]);
         Scene scene = SceneFixtures.RoomScene(document, SceneFixtures.Registry(("placed", spawn => new SceneFixtures.Placed(spawn))));
 
-        Assert.Equal((glass, ColorRgba.White), (scene.Entities[0].Tint, scene.Entities[1].Tint));
+        Assert.Equal((glass, true), (scene.Entities[0].Tint, scene.Entities[0].Unlit));
+        Assert.Equal((ColorRgba.White, false), (scene.Entities[1].Tint, scene.Entities[1].Unlit));
     }
 
     // An authored name lands before the body runs, and a body that sets its own wins.

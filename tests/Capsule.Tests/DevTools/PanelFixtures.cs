@@ -18,6 +18,7 @@ internal static class PanelFixtures
         "Size",
         "ClearColor",
         "Ambient",
+        "Unlit",
         "Paused",
         "",
         "[Entities]",

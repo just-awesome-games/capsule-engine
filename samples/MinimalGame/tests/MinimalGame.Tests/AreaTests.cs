@@ -134,7 +134,7 @@ public sealed class AreaTests
         using SimulationHost hall = new(CapsuleScenes.Registry.Create(CapsuleAssets.Scenes.Halls.HallScene), run: run);
         Player player = hall.Scene.FindSingle<Player>();
         Searchlight searchlight = hall.Scene.FindSingle<Searchlight>();
-        Assert.True(searchlight.TryGet(out ColorPolygon? light));
+        Assert.True(searchlight.TryGet(out PolygonLight? light));
         Vector2 under = new(searchlight.Position.X - 4f, player.Position.Y);
         int sightings = 0;
         ColorRgba last = light.Color;

@@ -106,9 +106,10 @@ public sealed class Hazard : Entity
         internal Spark(Entity parent)
             : base(parent, new Vector2(0f, -OrbitRadius))
         {
-            // Over the player, in orbit and loose alike, whatever band its hazard is placed in.
+            // Over the player, in orbit and loose alike, whatever band its hazard is placed in, and glowing.
             ZIndex = OverPlayer;
             ZIndexIsAbsolute = true;
+            Unlit = true;
 
             // The trail draws under the spark because it is added before the frame.
             Add(new ParticleEmitter(SparkFrame, capacity: 48)

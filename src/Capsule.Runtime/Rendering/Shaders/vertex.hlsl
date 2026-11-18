@@ -10,8 +10,10 @@
 // runtime's GridPlacement describes: each end of the step is snapped from its own layer corner at its own grid,
 // and the two ends' whole pixels are carried between by the frame's fraction. Otherwise a point is interpolated
 // and placed from CapsuleLayerCorner. Its outputs are the pixel stage's inputs in
-// location order: tint, flash, texture coordinate, coverage, quad, offset from the pivot. The build
-// compiles this file to the vertex.<format>.shader files beside it.
+// location order: tint, flash, texture coordinate with where the pixel falls on the light after it, coverage,
+// quad, offset from the pivot. The tint, the flash and the coverage are the same at every corner and are not
+// interpolated, which a GPU would pay for on every pixel it shades. The build compiles this file to the
+// vertex.<format>.shader files beside it.
 
 struct CapsuleSprite
 {
@@ -26,7 +28,7 @@ struct CapsuleSprite
     uint Tint;
     uint Flash;
     uint Flags;
-    uint Padding;
+    float Intensity;
 };
 
 StructuredBuffer<CapsuleSprite> CapsuleSprites : register(t0, space0);
@@ -44,14 +46,15 @@ cbuffer CapsuleVertexUniforms : register(b0, space1)
     float CapsuleGrid;
     float CapsuleCoverage;
     uint CapsuleFirstSprite;
+    float4 CapsuleLightPlace;
 };
 
 struct CapsuleVertexOutput
 {
-    [[vk::location(0)]] float4 Tint : COLOR0;
-    [[vk::location(1)]] float4 Flash : COLOR1;
-    [[vk::location(2)]] float2 UV : TEXCOORD0;
-    [[vk::location(3)]] float Coverage : TEXCOORD1;
+    [[vk::location(0)]] nointerpolation float4 Tint : COLOR0;
+    [[vk::location(1)]] nointerpolation float4 Flash : COLOR1;
+    [[vk::location(2)]] float4 UV : TEXCOORD0;
+    [[vk::location(3)]] nointerpolation float Coverage : TEXCOORD1;
     [[vk::location(4)]] float4 Quad : TEXCOORD2;
     [[vk::location(5)]] float2 FromPivot : TEXCOORD3;
     float4 Position : SV_Position;
@@ -67,6 +70,21 @@ static const float CapsuleTau = 6.28318530717959;
 float4 CapsuleUnpack(uint color)
 {
     return float4(color & 0xFF, (color >> 8) & 0xFF, (color >> 16) & 0xFF, color >> 24) / 255.0;
+}
+
+// The tint's colour scaled by the sprite's intensity, which is 1 on every quad but a light's.
+float4 CapsuleTint(CapsuleSprite sprite)
+{
+    float4 tint = CapsuleUnpack(sprite.Tint);
+    return float4(tint.rgb * sprite.Intensity, tint.a);
+}
+
+// Where a clip-space position falls on the light, which covers the target the viewport is placed in. The pixel
+// stage reads the light there, interpolated beside the texture coordinate, which costs a GPU less per pixel than
+// reading it at the pixel's own position.
+float2 CapsuleLightUV(float4 position)
+{
+    return (position.xy * CapsuleLightPlace.xy) + CapsuleLightPlace.zw;
 }
 
 // The whole surface pixel value lands on, counted from origin. A midpoint rounds down by a margin
@@ -140,9 +158,9 @@ CapsuleVertexOutput CapsuleTriangleVertex(CapsuleSprite sprite, uint index)
 
     CapsuleVertexOutput output;
     output.Position = mul(float4(placed + offset, 0.0, 1.0), MatrixTransform);
-    output.Tint = CapsuleUnpack(sprite.Tint);
+    output.Tint = CapsuleTint(sprite);
     output.Flash = CapsuleUnpack(sprite.Flash);
-    output.UV = float2(0.5, 0.5);
+    output.UV = float4(0.5, 0.5, CapsuleLightUV(output.Position));
     output.Coverage = CapsuleCoverage;
     output.Quad = float4(offset, 0.0, 0.0);
     output.FromPivot = offset;
@@ -276,9 +294,9 @@ CapsuleVertexOutput CapsuleVertex(uint vertexId : SV_VertexID)
 
     CapsuleVertexOutput output;
     output.Position = mul(float4(vertex, 0.0, 1.0), MatrixTransform);
-    output.Tint = CapsuleUnpack(sprite.Tint);
+    output.Tint = CapsuleTint(sprite);
     output.Flash = CapsuleUnpack(sprite.Flash);
-    output.UV = float2(corner & 1 ? uvTo.x : uvFrom.x, corner >> 1 ? uvTo.y : uvFrom.y);
+    output.UV = float4(corner & 1 ? uvTo.x : uvFrom.x, corner >> 1 ? uvTo.y : uvFrom.y, CapsuleLightUV(output.Position));
     output.Coverage = CapsuleCoverage;
     output.Quad = float4(abs(drawn) * axes, abs(drawn));
 

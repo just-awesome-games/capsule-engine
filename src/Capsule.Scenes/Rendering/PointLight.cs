@@ -6,15 +6,16 @@ using Capsule.UI;
 namespace Capsule.Rendering;
 
 /// <summary>
-/// Draws its entity's light additively into the frame's light map as its
-/// <see cref="PointLight.Sprite"/>.
+/// Adds its entity's light into the frame's light as its <see cref="PointLight.Sprite"/>, which multiplies
+/// every world sprite drawn where it reaches.
 /// </summary>
 /// <remarks>
 /// Two lights add, and a light brightens the sprites it overlaps. <see cref="Renderer.ZIndex"/> has
 /// no effect on a light. Drawing under a <see cref="ScreenEntity"/> throws, because the screen
 /// layer is never lit. A cone or any other shape is a <see cref="Rendering.Sprite"/> from a sheet,
-/// turned by the entity. A flat shape whose outline changes as it plays is a <see cref="ColorPolygon"/>
-/// drawn with <see cref="BlendMode.Additive"/>, which lights a lit frame as an additive sprite does.
+/// turned, scaled and mirrored by the entity. A flat shape whose outline changes as it plays is a
+/// <see cref="PolygonLight"/>. A light draws nothing itself: a visible glow is a sprite of its own, which an
+/// <see cref="Entity.Unlit"/> entity keeps bright in the dark.
 /// </remarks>
 /// <example>
 /// <code>
@@ -24,25 +25,26 @@ namespace Capsule.Rendering;
 /// </example>
 public sealed class PointLight : Renderer
 {
-    /// <summary>
-    /// World units from the light's point to its falloff edge, 32 by default. The larger axis of the
-    /// entity's world scale multiplies it.
-    /// </summary>
+    /// <summary>World units from the light's point to its falloff edge along the sprite's wider axis, 32 by default.</summary>
+    /// <remarks>
+    /// The other axis keeps the sprite's aspect. The entity's world scale multiplies each axis, and a negative axis
+    /// mirrors the sprite.
+    /// </remarks>
     public float Radius
     {
         get;
         set => field = Guard.NonNegative(value, nameof(value));
     } = 32f;
 
-    /// <summary>The light's colour, added into the light map scaled by its alpha. White by default.</summary>
+    /// <summary>The light's colour, added into the light scaled by its alpha. White by default.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
 
     /// <summary>
     /// How many times the colour is added, 1 by default. Zero adds nothing.
     /// </summary>
     /// <remarks>
-    /// A light of one on a white ambient brightens what it reaches towards white, up to twice the
-    /// authored colour. Above one widens that core, one quad per whole unit and 16 at most.
+    /// A light of one on a white ambient doubles the authored colour at its centre. Above one it brightens
+    /// further, with no ceiling.
     /// </remarks>
     public float Intensity
     {
@@ -51,6 +53,10 @@ public sealed class PointLight : Renderer
     } = 1f;
 
     /// <summary>The frame the light is drawn as. <see cref="Rendering.Sprite.Light"/> by default, the engine's radial falloff.</summary>
+    /// <remarks>
+    /// A light adds the frame's colour times its alpha, as a sprite drawn additively would. Author a falloff in the
+    /// alpha of a white image, or in the grey of an opaque one, but not in both, which squares it.
+    /// </remarks>
     public Sprite Sprite { get; set; } = Sprite.Light;
 
     /// <summary>The point in the entity's own space where the light sits, placed by the entity's world transform. Zero by default.</summary>
@@ -63,7 +69,7 @@ public sealed class PointLight : Renderer
     /// when the light draws nothing.
     /// </summary>
     public override Rect Bounds =>
-        Entity is not null && Intensity > 0f && Intent(RenderTransform, RenderTransform).ToSprite(Color).TryGetSweptBounds(out Rect box)
+        Entity is not null && Intensity > 0f && Intent(RenderTransform, RenderTransform).ToSprite().TryGetSweptBounds(out Rect box)
             ? box
             : default;
 
@@ -75,11 +81,11 @@ public sealed class PointLight : Renderer
         view.Add(Intent(PreviousRenderTransform, RenderTransform));
     }
 
-    // The radius scales with the render transform's scale, the larger axis, as a turned circle would.
+    // The render transform's scale stretches each axis of the extent. A negative axis folds into the flip, as a
+    // sprite's does.
     private LightIntent Intent(in Transform2D previous, in Transform2D current)
     {
-        Vector2 scale = current.Scale;
-        float radius = Radius * MathF.Max(MathF.Abs(scale.X), MathF.Abs(scale.Y));
+        Vector2 size = Extent(Sprite, Radius) * current.Scale;
 
         return new LightIntent(
             Sprite,
@@ -87,9 +93,23 @@ public sealed class PointLight : Renderer
             current.TransformPoint(Offset),
             previous.Rotation,
             current.Rotation,
-            radius,
+            Vector2.Abs(size),
+            size.X < 0f,
+            size.Y < 0f,
             Color,
             Intensity);
+    }
+
+    // The size a light sprite is drawn at for a radius at unit scale: its wider axis spans 2 * radius and the other
+    // keeps the region's aspect. A particle light shares it.
+    internal static Vector2 Extent(in Sprite sprite, float radius)
+    {
+        TextureRegion region = sprite.Region;
+        float span = 2f * radius;
+
+        return region.Width <= 0 || region.Height <= 0 ? Vector2.Zero
+            : region.Width >= region.Height ? new Vector2(span, span * region.Height / region.Width)
+            : new Vector2(span * region.Width / region.Height, span);
     }
 
     /// <inheritdoc/>
@@ -100,10 +120,5 @@ public sealed class PointLight : Renderer
         panel.Field("Color", Color);
         panel.Field("Intensity", Intensity);
         panel.Field("Offset", Offset);
-
-        if (Entity?.SceneOrNull?.Ambient == ColorRgba.White)
-        {
-            panel.Field("Ambient", "white: nothing to light");
-        }
     }
 }

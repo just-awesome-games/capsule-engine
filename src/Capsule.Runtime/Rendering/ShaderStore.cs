@@ -7,10 +7,11 @@ using Capsule.Runtime.Gpu;
 
 namespace Capsule.Runtime.Rendering;
 
-// The shaders sprites draw with, and a pipeline for each blend they draw with into the renderer's
-// surfaces: Capsule's own sprite shader, and every game shader, loaded with its pipelines at the scene
-// boundary that first holds it. A draw waits on no driver's compile, except that a shader no boundary
-// collected loads on its first draw and logs it. Each is kept for the run.
+// The shaders sprites draw with, and a pipeline for each blend, surface format and form they draw with into the
+// renderer's surfaces: Capsule's own sprite shader, which alone draws the light, and every game shader, loaded
+// with its pipelines at the scene boundary that first holds it. Each is compiled lit and unlit, and a draw that
+// binds no light takes the unlit form, which reads none. A draw waits on no driver's compile, except that a
+// shader no boundary collected loads on its first draw and logs it. Each is kept for the run.
 // Binding a material pushes its values, the scene's globals and where each of its textures sits on the
 // texture bound for it, through offsets resolved at load. A frame at steady state looks nothing up by
 // name and allocates nothing.
@@ -23,16 +24,6 @@ internal sealed class ShaderStore : IDisposable
         GpuBlendOp.Add,
         GpuBlendFactor.One,
         GpuBlendFactor.OneMinusSourceAlpha,
-        GpuBlendOp.Add);
-
-    // The world's colour times twice the light map: source x destination + destination x source, alpha
-    // kept. Both factors stay inside [0, 1], where every desktop API blends exactly.
-    internal static readonly GpuBlendState Modulate2x = new(
-        GpuBlendFactor.DestinationColor,
-        GpuBlendFactor.SourceColor,
-        GpuBlendOp.Add,
-        GpuBlendFactor.Zero,
-        GpuBlendFactor.One,
         GpuBlendOp.Add);
 
     private const string EngineResources = "Capsule.Runtime.Rendering.Shaders.";
@@ -48,8 +39,12 @@ internal sealed class ShaderStore : IDisposable
     // Keyed by reference: each generated shader is one instance for the run.
     private readonly Dictionary<Shader, Binding> _loaded = [];
 
-    // The material's texture bindings, slot 1 onwards, written in place for each bind.
-    private readonly GpuTextureSamplerBinding[] _textures = new GpuTextureSamplerBinding[15];
+    // The sampler slot of a material's first texture, after the sprite's and the light's, which the draw
+    // list binds.
+    private const int FirstMaterialSlot = 2;
+
+    // The material's texture bindings, FirstMaterialSlot onwards, written in place for each bind.
+    private readonly GpuTextureSamplerBinding[] _textures = new GpuTextureSamplerBinding[14];
 
     // The fragment's uniform buffer of texture regions, after the material's, the scene globals' and
     // the picture's.
@@ -64,7 +59,7 @@ internal sealed class ShaderStore : IDisposable
 
     internal ShaderGlobals Globals { get; set; } = new();
 
-    // target: the format of every surface a sprite is drawn into, which each pipeline targets.
+    // target: the format of every surface a sprite is drawn into but the light, which each pipeline targets.
     internal ShaderStore(GpuDevice device, HostPlatform platform, GpuTextureFormat target)
     {
         _device = device;
@@ -73,9 +68,10 @@ internal sealed class ShaderStore : IDisposable
         _vertex = CreateShader(ReadEngine("vertex", device.ShaderFormat), "vertex", GpuShaderStage.Vertex);
 
         ShaderContainer sprite = ReadEngine("sprite", device.ShaderFormat);
-        _sprite = new Binding(CreateShader(sprite, "sprite", GpuShaderStage.Fragment), null, sprite);
-        CreatePipeline(_sprite, Premultiplied);
-        CreatePipeline(_sprite, Modulate2x);
+        _sprite = Bind(sprite, "sprite", null);
+        CreatePipeline(_sprite, Premultiplied, target, lit: true);
+        CreatePipeline(_sprite, Premultiplied, target, lit: false);
+        CreatePipeline(_sprite, Premultiplied, FrameRenderer.LightFormat, lit: false);
     }
 
     // Loads the shaders a scene boundary collected that no earlier scene loaded, with their pipelines.
@@ -90,13 +86,15 @@ internal sealed class ShaderStore : IDisposable
         }
     }
 
-    // The pipeline material's shader, or Capsule's own for null, draws through with blend.
-    internal GpuPipeline Pipeline(Material? material, in GpuBlendState blend)
+    // The pipeline material's shader, or Capsule's own for null, draws through with blend into a surface of format,
+    // in its lit form for a draw that binds a light and its unlit form otherwise.
+    internal GpuPipeline Pipeline(Material? material, in GpuBlendState blend, GpuTextureFormat format, bool lit)
     {
         Binding binding = material is null ? _sprite : Get(material.Shader);
-        if (!binding.Pipelines.TryGetValue(blend, out GpuPipeline? pipeline))
+        lit |= binding.OneForm;
+        if (!binding.Pipelines.TryGetValue((blend, format, lit), out GpuPipeline? pipeline))
         {
-            pipeline = CreatePipeline(binding, blend);
+            pipeline = CreatePipeline(binding, blend, format, lit);
             Log.Info($"shader '{binding.Name}' compiled a pipeline on first draw");
         }
 
@@ -117,7 +115,7 @@ internal sealed class ShaderStore : IDisposable
         }
     }
 
-    // Pushes material's values and the scene's globals, and binds its textures from slot 1, each through
+    // Pushes material's values and the scene's globals, and binds its textures from FirstMaterialSlot, each through
     // its own sampling's sampler or else through sampler, with the region each fills of what is bound for
     // it. After them comes screen, if the shader reads the picture, or the transparent texel where nothing
     // was copied. Capsule's own shader reads none.
@@ -137,7 +135,7 @@ internal sealed class ShaderStore : IDisposable
             if (parameter.Kind == ShaderParameterKind.Texture)
             {
                 MaterialTexture read = MaterialTexture!(material.TryGetTexture(i, out TextureHandle texture) ? texture : default);
-                int slot = binding.Locations[i] - 1;
+                int slot = binding.Locations[i] - FirstMaterialSlot;
                 _textures[slot] = new GpuTextureSamplerBinding(read.Texture.Texture, read.Texture.Sampler ?? sampler);
                 Write(binding.Regions, slot * RegionBytes, ShaderParameterKind.Vector4, read.Region);
                 Write(binding.Regions, (slot * RegionBytes) + (RegionBytes / 2), ShaderParameterKind.Vector2, new System.Numerics.Vector4(read.Texels, 0f, 0f));
@@ -178,7 +176,7 @@ internal sealed class ShaderStore : IDisposable
             _textures[textures++] = new GpuTextureSamplerBinding((screen ?? MaterialTexture!(default).Texture).Texture, sampler);
         }
 
-        pass.BindFragmentSamplers(1, _textures.AsSpan(0, textures));
+        pass.BindFragmentSamplers(FirstMaterialSlot, _textures.AsSpan(0, textures));
     }
 
     // The shipped container of a game shader, as a content path. The format joins the name, since an
@@ -263,16 +261,29 @@ internal sealed class ShaderStore : IDisposable
             container = Read(file, shader.Name);
         }
 
-        Binding binding = new(CreateShader(container, shader.Name, GpuShaderStage.Fragment), shader, container);
-        CreatePipeline(binding, Premultiplied);
+        Binding binding = Bind(container, shader.Name, shader);
+        CreatePipeline(binding, Premultiplied, _target, lit: true);
+        if (!binding.OneForm)
+        {
+            CreatePipeline(binding, Premultiplied, _target, lit: false);
+        }
 
         return binding;
     }
 
-    private GpuShader CreateShader(ShaderContainer container, string name, GpuShaderStage stage) =>
+    // A fragment's binding with both its forms, or its one form twice where the container holds no unlit code.
+    private Binding Bind(ShaderContainer container, string name, Shader? source)
+    {
+        GpuShader lit = CreateShader(container, name, GpuShaderStage.Fragment);
+        GpuShader unlit = container.UnlitCode.Length == 0 ? lit : CreateShader(container, name + " (unlit)", GpuShaderStage.Fragment, container.UnlitCode);
+
+        return new Binding(lit, unlit, source, container);
+    }
+
+    private GpuShader CreateShader(ShaderContainer container, string name, GpuShaderStage stage, byte[]? code = null) =>
         _device.CreateShader(new GpuShaderInfo(
             name,
-            container.Code,
+            code ?? container.Code,
             container.EntryPoint,
             stage,
             container.Samplers,
@@ -280,10 +291,10 @@ internal sealed class ShaderStore : IDisposable
             container.StorageBuffers,
             container.UniformBuffers));
 
-    private GpuPipeline CreatePipeline(Binding binding, in GpuBlendState blend)
+    private GpuPipeline CreatePipeline(Binding binding, in GpuBlendState blend, GpuTextureFormat format, bool lit)
     {
-        GpuPipeline pipeline = _device.CreatePipeline(new GpuPipelineInfo(_vertex, binding.Shader, _target, blend));
-        binding.Pipelines.Add(blend, pipeline);
+        GpuPipeline pipeline = _device.CreatePipeline(new GpuPipelineInfo(_vertex, lit ? binding.Shader : binding.Unlit, format, blend));
+        binding.Pipelines.Add((blend, format, lit), pipeline);
 
         return pipeline;
     }
@@ -294,11 +305,17 @@ internal sealed class ShaderStore : IDisposable
     // scene's values once, and again when the scene or its set of names changes.
     private sealed class Binding : IDisposable
     {
+        // The lit form, which multiplies by the light, and the unlit form, the same shader where there is one form.
         internal GpuShader Shader { get; }
+
+        internal GpuShader Unlit { get; }
+
+        // Whether the shader reads the picture and was compiled in one form, which every draw takes.
+        internal bool OneForm => ReferenceEquals(Shader, Unlit);
 
         internal string Name { get; }
 
-        internal Dictionary<GpuBlendState, GpuPipeline> Pipelines { get; } = [];
+        internal Dictionary<(GpuBlendState Blend, GpuTextureFormat Format, bool Lit), GpuPipeline> Pipelines { get; } = [];
 
         // Null for the engine's own shader, which declares none.
         internal GlobalSlots? Globals { get; }
@@ -313,9 +330,10 @@ internal sealed class ShaderStore : IDisposable
         // Each texture's region and size, in sampler slot order.
         internal byte[] Regions { get; }
 
-        internal Binding(GpuShader shader, Shader? source, ShaderContainer container)
+        internal Binding(GpuShader shader, GpuShader unlit, Shader? source, ShaderContainer container)
         {
             Shader = shader;
+            Unlit = unlit;
             Name = source?.Name ?? "sprite";
             Globals = source is null ? null : new GlobalSlots(source);
 
@@ -337,7 +355,7 @@ internal sealed class ShaderStore : IDisposable
                 Locations[i] = shipped.Location;
                 if (shipped.Kind == ShaderParameterKind.Texture)
                 {
-                    textures = Math.Max(textures, shipped.Location);
+                    textures = Math.Max(textures, shipped.Location - FirstMaterialSlot + 1);
                 }
                 else
                 {
@@ -360,6 +378,10 @@ internal sealed class ShaderStore : IDisposable
             }
 
             Shader.Dispose();
+            if (!OneForm)
+            {
+                Unlit.Dispose();
+            }
         }
     }
 }

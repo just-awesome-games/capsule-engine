@@ -93,6 +93,10 @@ internal sealed class SceneDrawing
         view.IntegerScaling = scene.Run.Display.IntegerScaling;
         view.ShaderGlobals = scene.ShaderGlobals;
 
+        // An unlit scene is the unlit root of every entity. No entity's own setting then opens a run.
+        bool unlitWorld = scene.Unlit;
+        view.UnlitWorld = unlitWorld;
+
         _drawing = true;
         try
         {
@@ -120,14 +124,15 @@ internal sealed class SceneDrawing
                     continue;
                 }
 
-                // The only place the render space, draw order, scroll factor, tint, flash and material are
-                // chosen.
+                // The only place the render space, draw order, scroll factor, tint, flash, lighting and material
+                // are chosen.
                 Entity entity = renderer.Entity!;
-                if (entity.TryGetDrawStyle(out ColorRgba tint, out ColorRgba flash))
+                if (entity.TryGetDrawStyle(out ColorRgba tint, out ColorRgba flash, out bool unlit))
                 {
                     view.Space = entity.Space;
                     view.SortsWithWorld = entity.InWorldOrder;
                     view.ScrollFactor = entity.ScrollFactor;
+                    view.Unlit = unlit || unlitWorld;
                     view.SetStyle(tint, flash);
                     view.Material = renderer.Material ?? entity.Material;
 
@@ -178,6 +183,7 @@ internal sealed class SceneDrawing
             view.Space = RenderSpace.World;
             view.SortsWithWorld = false;
             view.ScrollFactor = Vector2.One;
+            view.Unlit = false;
             view.SetStyle(ColorRgba.White, default);
             view.Material = null;
             view.ClearClip();
@@ -258,7 +264,7 @@ internal sealed class SceneDrawing
         check.Canvas = canvas;
 
         Entity entity = renderer.Entity!;
-        bool shown = entity.TryGetDrawStyle(out _, out _);
+        bool shown = entity.TryGetDrawStyle(out _, out _, out _);
         check.Space = entity.Space;
         check.ScrollFactor = entity.ScrollFactor;
         if (shown)

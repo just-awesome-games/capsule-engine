@@ -1,0 +1,47 @@
+{
+  "timestamp": "2026-11-18T20:36:15Z",
+  "label": "particle-lights-before",
+  "lane": "rendering",
+  "uncapped": true,
+  "commit": "5116d52",
+  "configuration": "Release",
+  "nativeAot": true,
+  "os": "Microsoft Windows 10.0.26200",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+  "gpu": "AMD Radeon RX 9070 XT",
+  "engineVersion": "0.0.0+5116d5245b5044a8ae8ee42fd40e69f745a00752",
+  "workloads": [
+    {
+      "name": "Lights256",
+      "mode": "windowed",
+      "surface": "1920x1080",
+      "steps": null,
+      "frames": 5037,
+      "drawMs": {
+        "median": 0.043,
+        "p95": 0.076,
+        "max": 0.321
+      },
+      "updateMs": {
+        "median": 0.009,
+        "p95": 0.017,
+        "max": 0.178
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.081,
+        "p95": 0.11
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 3992,
+      "intervalMs": {
+        "median": 0.943,
+        "p95": 1.347,
+        "max": 65.619
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    }
+  ]
+}

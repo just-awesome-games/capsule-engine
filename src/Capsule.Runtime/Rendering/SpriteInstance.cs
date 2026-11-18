@@ -52,14 +52,16 @@ internal struct SpriteInstance
 
     public SpriteFlags Flags;
 
-    private readonly uint _padding;
+    // How many times the tint's colour is drawn: a light's intensity, and 1 on every other quad.
+    public float Intensity;
 
     internal static uint Pack(int low, int high) => (uint)low | ((uint)high << 16);
 }
 
 // The sprite vertex stage's uniforms, its CapsuleVertexUniforms member for member: the transform to
 // clip space, the bound texture's texel, the GridPlacement the quads are placed by, whether the texture is
-// single-channel, and the draw's first sprite in the storage buffer.
+// single-channel, the draw's first sprite in the storage buffer, and the scale and offset from clip space to
+// the light's texture coordinates.
 [StructLayout(LayoutKind.Sequential)]
 internal struct SpriteUniforms
 {
@@ -84,4 +86,6 @@ internal struct SpriteUniforms
     public float Coverage;
 
     public uint FirstSprite;
+
+    public Vector4 LightPlace;
 }

@@ -10,7 +10,9 @@ public sealed class Hall : PlayableScene
         ShaderGlobals.Set("Light", new ColorRgba(217, 160, 102));
         Material duotone = new(CapsuleAssets.Shaders.DuotoneShader);
 
-        // The shader loads with the scene rather than on its first draw, because the constructor sets it.
+        // Nothing in the halls is multiplied by the light. The tiles' shader reads it instead, and it loads with the
+        // scene rather than on its first draw, because the constructor sets it.
+        Unlit = true;
         FindSingle<TileMap>().Material = duotone;
     }
 }

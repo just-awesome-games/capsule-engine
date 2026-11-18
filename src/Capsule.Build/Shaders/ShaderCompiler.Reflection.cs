@@ -125,6 +125,11 @@ internal static partial class ShaderCompiler
                     continue;
                 }
 
+                if (name == ShaderTemplate.LightTexture)
+                {
+                    continue;
+                }
+
                 if (Reserved(name))
                 {
                     return $"declares texture '{name}', a name the engine reserves. Rename it without the {ShaderTemplate.ReservedPrefix} prefix.";

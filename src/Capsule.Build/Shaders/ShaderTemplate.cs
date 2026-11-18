@@ -16,6 +16,13 @@ internal static class ShaderTemplate
     /// <summary>The sprite texture parameter, which the renderer binds per draw and no material sets.</summary>
     internal const string SpriteTexture = "SpriteTexture";
 
+    /// <summary>The light a sprite is lit by and a fragment reads with <c>SampleLight</c>, in the slot after the sprite's.</summary>
+    /// <remarks>
+    /// Every fragment declares it. An unlit form, and a fragment that reads the picture, compile it out unless the
+    /// fragment calls <c>SampleLight</c>.
+    /// </remarks>
+    internal const string LightTexture = "CapsuleLight";
+
     /// <summary>The picture a fragment reads with <c>SampleScreen</c>, in the slot after its own textures.</summary>
     /// <remarks>The compiler drops it from a fragment that never calls <c>SampleScreen</c>, which is how the build knows.</remarks>
     internal const string ScreenTexture = "CapsuleScreen";
@@ -98,13 +105,21 @@ internal static class ShaderTemplate
     // bound prelude pairs samplers with. No stage compiled from it ships.
     private const string Prelude = """
         Texture2D SpriteTexture;
+        Texture2D CapsuleLight;
         Texture2D CapsuleScreen;
         SamplerState CapsuleSampler;
         static float CapsuleSpriteCoverage;
+        static float2 CapsuleLightUV;
+        static const bool CapsuleStageLights = true;
 
         float4 Sample(Texture2D source, float2 uv)
         {
             return source.Sample(CapsuleSampler, uv);
+        }
+
+        float4 CapsuleReadLight(float2 uv)
+        {
+            return CapsuleLight.SampleLevel(CapsuleSampler, uv, 0.0);
         }
 
         float2 TextureSize(Texture2D source)
@@ -129,6 +144,11 @@ internal static class ShaderTemplate
     private const string BoundSampling = """
         static const float4 CapsuleRegion_SpriteTexture = float4(0.0, 0.0, 1.0, 1.0);
         static const float4 CapsuleRegion_CapsuleScreen = float4(0.0, 0.0, 1.0, 1.0);
+
+        float4 CapsuleReadLight(float2 uv)
+        {
+            return CapsuleLight.SampleLevel(CapsuleSampler_CapsuleLight, uv, 0.0);
+        }
 
         float4 CapsuleWhole(Texture2D source)
         {
@@ -156,21 +176,22 @@ internal static class ShaderTemplate
 
     /// <summary>
     /// The pixel-stage source for <paramref name="fragment"/> in SDL's binding layout, declaring a sampler
-    /// for the sprite's texture and for each of <paramref name="textures"/>, and each one's region. Line directives report as
-    /// <see cref="Compose(string, string)"/>'s do.
+    /// for the sprite's texture, the light and each of <paramref name="textures"/>, and each one's region. Line
+    /// directives report as <see cref="Compose(string, string)"/>'s do.
     /// </summary>
     /// <param name="fragment">The game's fragment.</param>
     /// <param name="fragmentPath">What an error inside the fragment is reported against.</param>
     /// <param name="textures">The fragment's texture parameters beyond the sprite's.</param>
-    internal static string ComposeBound(string fragment, string fragmentPath, IEnumerable<string> textures)
+    /// <param name="lit">Whether the stage multiplies the fragment by the light. A fragment calling <c>SampleScreen</c> reads a picture already lit and is never multiplied.</param>
+    internal static string ComposeBound(string fragment, string fragmentPath, IEnumerable<string> textures, bool lit)
     {
         string[] own = [.. textures];
-        string samplers = string.Concat(own.Prepend(SpriteTexture).Append(ScreenTexture).Select(static texture => $"SamplerState {PairedSampler}{texture};\n"));
+        string samplers = string.Concat(own.Prepend(LightTexture).Prepend(SpriteTexture).Append(ScreenTexture).Select(static texture => $"SamplerState {PairedSampler}{texture};\n"));
         string regions = own.Length == 0
             ? string.Empty
             : $"cbuffer {RegionsBlock} {{ {string.Concat(own.Select(static texture => $"float4 {Region}{texture}; float4 {Texels}{texture}; "))}}};\n";
 
-        return Compose($"Texture2D {SpriteTexture};\nTexture2D {ScreenTexture};\n{samplers}static float CapsuleSpriteCoverage;\n{ScreenDeclarations}{regions}\n{BoundSampling}", fragment, fragmentPath);
+        return Compose($"Texture2D {SpriteTexture};\nTexture2D {LightTexture};\nTexture2D {ScreenTexture};\n{samplers}static float CapsuleSpriteCoverage;\nstatic float2 CapsuleLightUV;\nstatic const bool CapsuleStageLights = {(lit ? "true" : "false")};\n{ScreenDeclarations}{regions}\n{BoundSampling}", fragment, fragmentPath);
     }
 
     // The sampling header reports as the pixel stage's first line, since no file holds it.

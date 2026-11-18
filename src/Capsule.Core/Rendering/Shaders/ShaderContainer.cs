@@ -12,13 +12,16 @@ internal enum ShaderStage : byte
 
 // One parameter as a compiled shader binds it: a value at its byte offset in its uniform buffer, the
 // scene globals' when Global and else the material's, or a texture at its sampler slot, the sprite's
-// being 0.
+// being 0 and the light's 1.
 internal readonly record struct ShaderBinding(string Name, ShaderParameterKind Kind, bool Global, int Location);
 
 // One stage of one shader compiled to one GPU format, as the asset build ships it at
 // {name}.{format}.shader: the code, its entry point, the resource counts SDL's GPU API creates a shader
 // with, and the parameter table the host binds a material through. The material's uniform buffer is
 // slot 0, the scene globals' slot 1 and a screen read's slot 2. A screen read's texture is its last sampler.
+// A fragment's Code multiplies its colour by the light. Its UnlitCode does not, and a draw that binds no light
+// takes it. UnlitCode is empty for a vertex stage and for a fragment that reads the picture, whose one form never
+// multiplies. Both forms share the layout.
 internal sealed record ShaderContainer(
     string Format,
     ShaderStage Stage,
@@ -28,10 +31,11 @@ internal sealed record ShaderContainer(
     int StorageBuffers,
     int UniformBuffers,
     ShaderBinding[] Parameters,
-    byte[] Code)
+    byte[] Code,
+    byte[] UnlitCode)
 {
     // The layout version this file reads and writes. A change to the layout bumps it, and every shader rebuilds.
-    internal const byte Version = 2;
+    internal const byte Version = 4;
 
     // The extension every container ships under, after its format.
     internal const string Extension = ".shader";
@@ -65,6 +69,8 @@ internal sealed record ShaderContainer(
 
         writer.Write(Code.Length);
         writer.Write(Code);
+        writer.Write(UnlitCode.Length);
+        writer.Write(UnlitCode);
         writer.Flush();
 
         return stream.ToArray();
@@ -97,10 +103,20 @@ internal sealed record ShaderContainer(
             parameters[i] = new ShaderBinding(parameter, kind, global, ReadUInt16(bytes, ref at));
         }
 
+        byte[] code = ReadCode(bytes, ref at);
+        byte[] unlitCode = ReadCode(bytes, ref at);
+
+        return new ShaderContainer(format, stage, entryPoint, samplers, storageTextures, storageBuffers, uniformBuffers, parameters, code, unlitCode);
+    }
+
+    private static byte[] ReadCode(ReadOnlySpan<byte> bytes, ref int at)
+    {
         int length = BinaryPrimitives.ReadInt32LittleEndian(bytes[at..]);
         at += sizeof(int);
+        byte[] code = bytes.Slice(at, length).ToArray();
+        at += length;
 
-        return new ShaderContainer(format, stage, entryPoint, samplers, storageTextures, storageBuffers, uniformBuffers, parameters, bytes.Slice(at, length).ToArray());
+        return code;
     }
 
     private static void WriteString(BinaryWriter writer, string value)

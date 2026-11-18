@@ -121,10 +121,18 @@ public sealed class SceneAuthorableTests
     // The engine's Scene declares no members. A document no class claims authors none.
     [Theory]
     [InlineData(Hall, """{"lift": 1}""", "the scene document omits 'floor', which its class requires. Add \"floor\" to the document.")]
-    [InlineData(Hall, """{"floor": 3, "lift": 1, "music": 2}""", "the scene document sets 'music', which no authorable member takes. Its authorable members are: camera, size, clearColor, ambient, floor, title, bounds, lift.")]
-    [InlineData(Plain, """{"music": 2}""", "the scene document sets 'music', which no authorable member takes. Its authorable members are: camera, size, clearColor, ambient.")]
+    [InlineData(Hall, """{"floor": 3, "lift": 1, "music": 2}""", "the scene document sets 'music', which no authorable member takes. Its authorable members are: camera, size, clearColor, ambient, unlit, floor, title, bounds, lift.")]
+    [InlineData(Plain, """{"music": 2}""", "the scene document sets 'music', which no authorable member takes. Its authorable members are: camera, size, clearColor, ambient, unlit.")]
     public void ADocumentItsClassRefuses_FailsTheLoad(string path, string members, string fix) =>
         GeneratorHarness.AssertLoadRefused(() => Composed(members, path), $"scene document '{path[..^".scene.json".Length]}': ", fix);
+
+    // The engine's own Scene members land from the document as a game's do.
+    [Fact]
+    public void TheScenesOwnUnlit_IsSetFromTheDocument()
+    {
+        Assert.True(Composed("""{"unlit": true}""", Plain).Unlit);
+        Assert.False(Composed("""{"ambient": "#404040"}""", Plain).Unlit);
+    }
 
     [Fact]
     public void ATestSubclassOfAnAbstractScene_GetsTheDocumentsMembers_ThroughContent()

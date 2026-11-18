@@ -14,7 +14,8 @@
                       LogicalName="Capsule.Runtime.Assets.default-font.png"
                       Visible="false" />
     <!-- Capsule's sprite shader, committed compiled in every format the engine reads, its fragment
-         as sprite and its vertex stage as vertex. A game drawing only with it needs no shader tools.
+         as sprite, lit and unlit in one file, and its vertex stage as vertex. A game drawing only with
+         it needs no shader tools.
          ShaderBuildTests holds each equal to what the template compiles to, and a native publish
          keeps only the formats its runtime identifier reads. -->
     <EmbeddedResource Include="Rendering/Shaders/*.shader"

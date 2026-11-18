@@ -1,0 +1,79 @@
+{
+  "timestamp": "2026-11-18T20:11:26Z",
+  "label": "scene-unlit-before",
+  "lane": "rendering",
+  "uncapped": true,
+  "commit": "5116d52",
+  "configuration": "Release",
+  "nativeAot": true,
+  "os": "Microsoft Windows 10.0.26200",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+  "gpu": "AMD Radeon RX 9070 XT",
+  "engineVersion": "0.0.0+5116d5245b5044a8ae8ee42fd40e69f745a00752",
+  "workloads": [
+    {
+      "name": "Lights256",
+      "mode": "windowed",
+      "surface": "1920x1080",
+      "steps": null,
+      "frames": 5130,
+      "drawMs": {
+        "median": 0.036,
+        "p95": 0.065,
+        "max": 0.261
+      },
+      "updateMs": {
+        "median": 0.006,
+        "p95": 0.011,
+        "max": 0.193
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.08,
+        "p95": 0.132
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 648,
+      "intervalMs": {
+        "median": 0.938,
+        "p95": 1.184,
+        "max": 54.272
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "StillLit",
+      "mode": "windowed",
+      "surface": "640x360-pixel-perfect",
+      "steps": null,
+      "frames": 2711,
+      "drawMs": {
+        "median": 0.016,
+        "p95": 0.039,
+        "max": 0.192
+      },
+      "updateMs": {
+        "median": 0.005,
+        "p95": 0.009,
+        "max": 0.039
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.012,
+        "p95": 0.012
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 1688,
+      "intervalMs": {
+        "median": 0.169,
+        "p95": 0.258,
+        "max": 52.069
+      },
+      "gen0Collections": 0,
+      "captureSha256": "dfd0a7536d7f1522e648d60d75c5ff6259828b6f63118ec23ac3677e145431e8"
+    }
+  ]
+}

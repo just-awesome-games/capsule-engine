@@ -1,0 +1,111 @@
+{
+  "timestamp": "2026-11-18T20:42:43Z",
+  "label": "particle-lights-after",
+  "lane": "rendering",
+  "uncapped": true,
+  "commit": "5116d52",
+  "configuration": "Release",
+  "nativeAot": true,
+  "os": "Microsoft Windows 10.0.26200",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+  "gpu": "AMD Radeon RX 9070 XT",
+  "engineVersion": "0.0.0+5116d5245b5044a8ae8ee42fd40e69f745a00752",
+  "workloads": [
+    {
+      "name": "Lights256",
+      "mode": "windowed",
+      "surface": "1920x1080",
+      "steps": null,
+      "frames": 5189,
+      "drawMs": {
+        "median": 0.042,
+        "p95": 0.06,
+        "max": 0.236
+      },
+      "updateMs": {
+        "median": 0.009,
+        "p95": 0.013,
+        "max": 0.176
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.082,
+        "p95": 0.089
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 3992,
+      "intervalMs": {
+        "median": 0.934,
+        "p95": 1.203,
+        "max": 63.119
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "ParticleLights256",
+      "mode": "windowed",
+      "surface": "1920x1080",
+      "steps": null,
+      "frames": 5131,
+      "drawMs": {
+        "median": 0.042,
+        "p95": 0.069,
+        "max": 0.263
+      },
+      "updateMs": {
+        "median": 0.009,
+        "p95": 0.014,
+        "max": 0.182
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.082,
+        "p95": 0.111
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 4864,
+      "intervalMs": {
+        "median": 0.938,
+        "p95": 1.264,
+        "max": 56.231
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "StillLit",
+      "mode": "windowed",
+      "surface": "640x360-pixel-perfect",
+      "steps": null,
+      "frames": 2572,
+      "drawMs": {
+        "median": 0.016,
+        "p95": 0.042,
+        "max": 0.185
+      },
+      "updateMs": {
+        "median": 0.005,
+        "p95": 0.009,
+        "max": 0.04
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.012,
+        "p95": 0.012
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 1688,
+      "intervalMs": {
+        "median": 0.166,
+        "p95": 0.307,
+        "max": 58.463
+      },
+      "gen0Collections": 0,
+      "captureSha256": "dfd0a7536d7f1522e648d60d75c5ff6259828b6f63118ec23ac3677e145431e8"
+    }
+  ]
+}

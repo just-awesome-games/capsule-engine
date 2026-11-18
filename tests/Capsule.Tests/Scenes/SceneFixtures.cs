@@ -230,6 +230,14 @@ internal static partial class SceneFixtures
         /// <summary>Reaches the protected camera setter, which only a scene can call.</summary>
         internal void Install(Camera camera) => Camera = camera;
 
+        /// <summary>Reaches the protected clear colour, ambient and unlit setters, which only a scene can call.</summary>
+        internal void Light(ColorRgba clear, ColorRgba ambient, bool unlit = false)
+        {
+            ClearColor = clear;
+            Ambient = ambient;
+            Unlit = unlit;
+        }
+
         protected override void OnStart()
         {
             Starts++;

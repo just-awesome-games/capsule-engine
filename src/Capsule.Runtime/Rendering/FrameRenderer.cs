@@ -19,8 +19,8 @@ internal sealed partial class FrameRenderer : IDisposable
 {
     private const string DefaultFontPageResource = "Capsule.Runtime.Assets.default-font.png";
 
-    // The light map's scale: a light of one is stored as half of full. The map holds zero to two.
-    private const float MapScale = 0.5f;
+    // The light's format: a float per channel, which holds a light past white with no ceiling.
+    internal const GpuTextureFormat LightFormat = GpuTextureFormat.R16G16B16A16Float;
 
     // How many handles a frame keeps the slices of.
     private const int RecentSlices = 8;
@@ -56,9 +56,9 @@ internal sealed partial class FrameRenderer : IDisposable
     // resolved world rect under a fit that reveals more of it.
     private SampledTexture? _target;
 
-    // The frame's light map, allocated at the surface's size on the first frame that lights and
-    // reallocated when that size changes. Null while no frame has lit.
-    private SampledTexture? _lightMap;
+    // The frame's light, which every lit world sprite is multiplied by at its pixel, allocated at the surface's
+    // size on the first frame that lights and reallocated when that size changes. Null while no frame has lit.
+    private SampledTexture? _light;
 
     // A pixel-perfect surface blown up to the whole scale above a fractional present, allocated on the
     // first such present and reallocated when its size changes. Null until then.
@@ -131,12 +131,12 @@ internal sealed partial class FrameRenderer : IDisposable
     internal FrameRenderer(GpuDevice device, TextureSamplers samplers, (int Width, int Height)? renderResolution, TextureStore textures, ShaderStore shaders)
     {
         _device = device;
-        _sprites = new SpriteDrawList(device, shaders, samplers);
-        _overlaySprites = new SpriteDrawList(device, shaders, samplers);
+        _white = textures.Create(new DecodedTexture([255, 255, 255, 255], 1, 1));
+        _sprites = new SpriteDrawList(device, shaders, samplers, _white);
+        _overlaySprites = new SpriteDrawList(device, shaders, samplers, _white);
         _shaders = shaders;
         _textures = textures;
         shaders.MaterialTexture = MaterialTexture;
-        _white = textures.Create(new DecodedTexture([255, 255, 255, 255], 1, 1));
         _unset = textures.Create(new DecodedTexture([0, 0, 0, 0], 1, 1));
         _engineTextures = new Dictionary<TextureHandle, SampledTexture>
         {
@@ -250,7 +250,7 @@ internal sealed partial class FrameRenderer : IDisposable
             WorldEnds ends = WorldEnds.Resolve(view, alpha, null, outputWidth, outputHeight, factor: 1, in world, layout.Span, layout.World);
             if (view.LitWorld && windowPass is not null)
             {
-                DrawLightMap(view, world, in ends, layout.World, outputWidth, outputHeight);
+                DrawLight(view, world, in ends, layout.World, outputWidth, outputHeight);
             }
 
             DrawWorld(view, alpha, windowPass, world, layout.Span, in ends, layout.World, outputWidth, outputHeight, ScreenPlacement.Identity, layout.OnSurface, surfaceFactor: 1);
@@ -278,7 +278,7 @@ internal sealed partial class FrameRenderer : IDisposable
 
             if (view.LitWorld)
             {
-                DrawLightMap(view, world, in ends, drawn.World, width, height);
+                DrawLight(view, world, in ends, drawn.World, width, height);
             }
 
             DrawWorld(view, alpha, target.Texture, world, layout.Span, in ends, drawn.World, width, height, drawn.Present, drawn.OnSurface, factor);
@@ -366,17 +366,17 @@ internal sealed partial class FrameRenderer : IDisposable
         }
     }
 
-    // Draws every light and every additive world sprite into the light map, cleared to the scene's
-    // ambient colour. Mirrors DrawWorld's preamble, on the light map instead of the world's surface.
-    private void DrawLightMap(FrameView view, in Rect world, in WorldEnds ends, in Letterbox fit, int surfaceWidth, int surfaceHeight)
+    // Draws every light into the frame's light, cleared to the scene's ambient colour. Mirrors DrawWorld's
+    // preamble, on the light instead of the world's surface.
+    private void DrawLight(FrameView view, in Rect world, in WorldEnds ends, in Letterbox fit, int surfaceWidth, int surfaceHeight)
     {
         if (surfaceWidth <= 0 || surfaceHeight <= 0)
         {
             return;
         }
 
-        SampledTexture map = Sized(ref _lightMap, surfaceWidth, surfaceHeight);
-        _sprites.BeginPass(map.Texture, Scaled(view.Ambient, MapScale));
+        SampledTexture light = Sized(ref _light, surfaceWidth, surfaceHeight, LightFormat);
+        _sprites.BeginPass(light.Texture, view.Ambient);
 
         if (world.IsEmpty || fit.IsEmpty)
         {
@@ -394,11 +394,11 @@ internal sealed partial class FrameRenderer : IDisposable
         _sprites.SetSampling(DrawSampling(view.PixelPerfect));
 
         DrawLights(view.Lights, view.PlacementRuns, ref pass);
-        DrawAdditiveSprites(view.Sprites, view.PlacementRuns, ref pass);
-        DrawAdditivePolygons(view.Polygons, view.PolygonPoints, view.PlacementRuns, ref pass);
+        DrawLightPolygons(view.LightPolygons, view.PolygonPoints, view.PlacementRuns, ref pass);
     }
 
-    // A light is always stored under a run of the world's own, never a canvas run.
+    // A light is always stored under a run of the world's own, never a canvas run. Its intensity scales its colour
+    // in the vertex stage, and one quad draws it at any intensity.
     private void DrawLights(ReadOnlySpan<LightIntent> lights, ReadOnlySpan<PlacementRun> layers, ref Pass pass)
     {
         int next = 0;
@@ -410,80 +410,33 @@ internal sealed partial class FrameRenderer : IDisposable
                 next++;
             }
 
-            LightIntent light = lights[index];
-            if (!(light.Intensity > 0f))
-            {
-                continue;
-            }
-
-            int quads = Math.Min(16, (int)MathF.Ceiling(light.Intensity));
-            for (int quad = 0; quad < quads; quad++)
-            {
-                bool last = quad == quads - 1;
-                float fraction = light.Intensity - quad;
-                ColorRgba color = Scaled(light.Color, last && fraction < 1f ? MapScale * fraction : MapScale);
-                SpriteIntent intent = light.ToSprite(color);
-                DrawSprite(in intent, ref pass);
-            }
+            SpriteIntent intent = lights[index].ToSprite();
+            DrawSprite(in intent, ref pass, lights[index].Intensity);
         }
 
         ScrollTo(ref pass, Vector2.One);
     }
 
-    // A screen root sorted with the world is lit with it but lights nothing, and its canvas runs are skipped.
-    private void DrawAdditiveSprites(ReadOnlySpan<SpriteIntent> sprites, ReadOnlySpan<PlacementRun> layers, ref Pass pass)
+    // Each polygon light's fan of triangles, placed as a polygon is and added as a light is.
+    private void DrawLightPolygons(ReadOnlySpan<StoredLightPolygon> polygons, ReadOnlySpan<Vector2> points, ReadOnlySpan<PlacementRun> layers, ref Pass pass)
     {
         int next = 0;
-        bool canvas = false;
-        for (int index = 0; index < sprites.Length; index++)
-        {
-            while (next < layers.Length && layers[next].FirstSprite <= index)
-            {
-                ScrollTo(ref pass, layers[next].ScrollFactor);
-                canvas = layers[next].Canvas;
-                next++;
-            }
-
-            if (!canvas && sprites[index].Blend == BlendMode.Additive)
-            {
-                // The flash's colour halves with the tint and its amount stays. The map holds half of
-                // exactly what the world draws.
-                SpriteIntent halved = sprites[index] with
-                {
-                    Color = Scaled(sprites[index].Color, MapScale),
-                    Flash = Scaled(sprites[index].Flash, MapScale),
-                };
-                DrawSprite(in halved, ref pass);
-            }
-        }
-
-        ScrollTo(ref pass, Vector2.One);
-    }
-
-    // The additive polygons into the map as the additive sprites go. The map's sum is order-free, and they
-    // need not interleave with the sprites.
-    private void DrawAdditivePolygons(ReadOnlySpan<StoredPolygon> polygons, ReadOnlySpan<Vector2> points, ReadOnlySpan<PlacementRun> layers, ref Pass pass)
-    {
-        int next = 0;
-        bool canvas = false;
         for (int index = 0; index < polygons.Length; index++)
         {
-            while (next < layers.Length && layers[next].FirstPolygon <= index)
+            while (next < layers.Length && layers[next].FirstLightPolygon <= index)
             {
                 ScrollTo(ref pass, layers[next].ScrollFactor);
-                canvas = layers[next].Canvas;
                 next++;
             }
 
-            if (!canvas && polygons[index].Blend == BlendMode.Additive)
-            {
-                StoredPolygon halved = polygons[index] with
-                {
-                    Color = Scaled(polygons[index].Color, MapScale),
-                    Flash = Scaled(polygons[index].Flash, MapScale),
-                };
-                DrawPolygon(in halved, points, in pass);
-            }
+            StoredLightPolygon light = polygons[index];
+            DrawFan(
+                points.Slice(light.FirstPoint, light.Count),
+                points.Slice(light.FirstPoint + light.Count, light.Count),
+                SpriteDrawList.Tint(light.Color, BlendMode.Additive),
+                flash: 0u,
+                light.Intensity,
+                in pass);
         }
 
         ScrollTo(ref pass, Vector2.One);
@@ -494,17 +447,9 @@ internal sealed partial class FrameRenderer : IDisposable
     // material samples take this one.
     private static TextureSampling DrawSampling(bool pixelPerfect) => pixelPerfect ? TextureSampling.Point : TextureSampling.Linear;
 
-    // Scales a colour's RGB by fraction. Additive accumulation saturates and is order-free. This
-    // stays exact and deterministic.
-    private static ColorRgba Scaled(ColorRgba color, float fraction) => new(
-        (byte)Math.Clamp(MathF.Round(color.R * fraction), 0f, 255f),
-        (byte)Math.Clamp(MathF.Round(color.G * fraction), 0f, 255f),
-        (byte)Math.Clamp(MathF.Round(color.B * fraction), 0f, 255f),
-        color.A);
-
-    // Returns target at width x height, allocating it on first use and reallocating it when its size
-    // differs.
-    private SampledTexture Sized(ref SampledTexture? target, int width, int height)
+    // Returns target at width x height, in the swapchain's format unless format names another, allocating it on
+    // first use and reallocating it when its size differs.
+    private SampledTexture Sized(ref SampledTexture? target, int width, int height, GpuTextureFormat format = GpuTextureFormat.Invalid)
     {
         if (target is { } current && current.Texture.Width == width && current.Texture.Height == height)
         {
@@ -512,13 +457,13 @@ internal sealed partial class FrameRenderer : IDisposable
         }
 
         target?.Dispose();
-        target = Surface(width, height);
+        target = Surface(width, height, format);
 
         return target;
     }
 
-    private SampledTexture Surface(int width, int height) =>
-        new(_device.CreateTexture(new GpuTextureInfo(_device.SwapchainFormat, GpuTextureUsage.Sampler | GpuTextureUsage.ColorTarget, width, height)));
+    private SampledTexture Surface(int width, int height, GpuTextureFormat format = GpuTextureFormat.Invalid) =>
+        new(_device.CreateTexture(new GpuTextureInfo(format == GpuTextureFormat.Invalid ? _device.SwapchainFormat : format, GpuTextureUsage.Sampler | GpuTextureUsage.ColorTarget, width, height)));
 
     // Downloads the surface Draw's capture reads once its render passes are recorded, ahead of the
     // overlay's, for Submit to write to path.
@@ -613,23 +558,15 @@ internal sealed partial class FrameRenderer : IDisposable
         _sprites.SetTransform(in pass.WorldTransform);
         _sprites.SetSampling(DrawSampling(snap));
 
+        // Each lit quad, the clear colour's among them unless the whole world is unlit, is multiplied by the light at
+        // its pixel as it draws. The light was drawn at this surface's extent and through the same viewport.
+        pass.Light = view.LitWorld ? _light : null;
+        _sprites.SetLight(pass.Light, lit: !view.UnlitWorld);
+
         // Drawn through the narrowed world viewport. Presentation bars stay black.
         _sprites.AddWhole(_white, ends.Corner, Vector2.Zero, span, rotation: 0f, view.ClearColor);
 
         DrawIntents(view.Sprites, view.Polygons, view.PolygonPoints, view.Lines, view.PlacementRuns, view.MaterialRuns, view.ClipRuns, view.ClipLevels, ref pass);
-
-        // The world's colour times twice the light map, which is drawn at half scale (an ambient of
-        // white is stored as 128). Its 8 bits span a light of zero to two, and a light on a white ambient
-        // brightens the world towards white.
-        if (view.LitWorld && _lightMap is { } map)
-        {
-            _sprites.SetViewport(0, 0, surfaceWidth, surfaceHeight);
-            _sprites.SetTransform(Matrix4x4.Identity);
-            _sprites.SetSampling(TextureSampling.Point);
-            _sprites.SetBlend(ShaderStore.Modulate2x);
-            _sprites.AddWhole(map, Vector2.Zero, Vector2.Zero, Vector2.One, rotation: 0f, ColorRgba.White);
-            _sprites.SetBlend(ShaderStore.Premultiplied);
-        }
     }
 
     // The screen layer, in canvas pixels placed by placement. Drawn after the world and across the
@@ -646,9 +583,11 @@ internal sealed partial class FrameRenderer : IDisposable
             return;
         }
 
+        // The screen layer is never lit, though it can share the world's pass.
         _sprites.SetViewport(0, 0, surfaceWidth, surfaceHeight);
         _sprites.SetTransform(CanvasToSurface(placement));
         _sprites.SetSampling(DrawSampling(snap));
+        _sprites.SetLight(null, lit: false);
 
         float grid = placement.Scale / surfaceFactor;
         GridPlacement canvas = GridPlacement.Canvas(grid, snap, alpha);
@@ -818,6 +757,7 @@ internal sealed partial class FrameRenderer : IDisposable
     // the canvas's grid. Only a world pass holds a canvas run, and it swaps the draw list's transform to reach it.
     private void Place(in PlacementRun run, ref Pass pass)
     {
+        _sprites.SetLight(pass.Light, lit: !run.Unlit);
         if (run.Canvas != pass.OnCanvas)
         {
             pass.OnCanvas = run.Canvas;
@@ -897,17 +837,21 @@ internal sealed partial class FrameRenderer : IDisposable
 
     // A polygon's fan of triangles from its first point, on the white texel. The vertex stage snaps every
     // triangle by that point, and the fan moves as one shape.
-    private void DrawPolygon(in StoredPolygon polygon, ReadOnlySpan<Vector2> points, in Pass pass)
-    {
-        ReadOnlySpan<Vector2> previous = points.Slice(polygon.FirstPoint, polygon.Count);
-        ReadOnlySpan<Vector2> current = points.Slice(polygon.FirstPoint + polygon.Count, polygon.Count);
-        uint tint = SpriteDrawList.Tint(polygon.Color, polygon.Blend);
-        uint flash = SpriteDrawList.Flash(polygon.Flash, polygon.Color.A);
+    private void DrawPolygon(in StoredPolygon polygon, ReadOnlySpan<Vector2> points, in Pass pass) =>
+        DrawFan(
+            points.Slice(polygon.FirstPoint, polygon.Count),
+            points.Slice(polygon.FirstPoint + polygon.Count, polygon.Count),
+            SpriteDrawList.Tint(polygon.Color, polygon.Blend),
+            SpriteDrawList.Flash(polygon.Flash, polygon.Color.A),
+            intensity: 1f,
+            in pass);
 
+    private void DrawFan(ReadOnlySpan<Vector2> previous, ReadOnlySpan<Vector2> current, uint tint, uint flash, float intensity, in Pass pass)
+    {
         _sprites.SetPlacement(in pass.Sprites);
         for (int corner = 1; corner < current.Length - 1; corner++)
         {
-            _sprites.AddTriangle(_white, previous[0], current[0], previous[corner], current[corner], previous[corner + 1], current[corner + 1], tint, flash);
+            _sprites.AddTriangle(_white, previous[0], current[0], previous[corner], current[corner], previous[corner + 1], current[corner + 1], tint, flash, intensity);
         }
     }
 
@@ -946,6 +890,10 @@ internal sealed partial class FrameRenderer : IDisposable
         // the window but for a screen layer past the present, and whether the current run is reading it.
         internal GpuTexture? Surface;
         internal bool Reading;
+
+        // The light on a world pass in a lit frame, which multiplies every run but an unlit entity's, and null
+        // otherwise.
+        internal SampledTexture? Light;
     }
 
     // A pass over a world surface at scale pixels per unit, placed from ends.
@@ -958,7 +906,7 @@ internal sealed partial class FrameRenderer : IDisposable
         WorldScale = scale,
     };
 
-    private void DrawSprite(in SpriteIntent sprite, ref Pass pass)
+    private void DrawSprite(in SpriteIntent sprite, ref Pass pass, float intensity = 1f)
     {
         if (pass.Slice.Texture is null || sprite.Sprite.Texture != pass.Resolved)
         {
@@ -970,7 +918,7 @@ internal sealed partial class FrameRenderer : IDisposable
         // scale. The vertex stage snaps a quad at a whole number of quarter turns whole, and any other
         // turn by its pivot alone.
         _sprites.SetPlacement(in pass.Sprites);
-        _sprites.Add(pass.Slice.Texture, in sprite, pass.Slice.OffsetX, pass.Slice.OffsetY);
+        _sprites.Add(pass.Slice.Texture, in sprite, pass.Slice.OffsetX, pass.Slice.OffsetY, intensity);
     }
 
     // A stretch of sprites under one placement, each run of them on one handle recorded in one pass.
@@ -1069,8 +1017,10 @@ internal sealed partial class FrameRenderer : IDisposable
         _sprites.AddWhole(source, placement.Origin, Vector2.Zero, new Vector2(scale), rotation: 0f, ColorRgba.White);
     }
 
-    // The engine's radial light: full at the centre, falling to nothing at the edge on a squared
-    // falloff. Computed once. The engine ships no PNG and no byte table for it.
+    // The engine's radial light: full at the centre, falling to nothing at the edge as one minus the squared distance.
+    // Most of its radius reads lit. Its texels are premultiplied, white at the falloff's opacity, and a PNG copying
+    // them channel for channel would be premultiplied again on load. Computed once. The engine ships no PNG and no
+    // byte table for it.
     private static DecodedTexture LightTexels()
     {
         const int Size = 128;
@@ -1085,7 +1035,7 @@ internal sealed partial class FrameRenderer : IDisposable
                 float dx = (x + 0.5f) - Center;
                 float dy = (y + 0.5f) - Center;
                 float d = MathF.Sqrt((dx * dx) + (dy * dy)) / Center;
-                float v = d >= 1f ? 0f : (1f - d) * (1f - d);
+                float v = d >= 1f ? 0f : 1f - (d * d);
                 byte b = (byte)MathF.Round(v * 255f);
 
                 texels.AsSpan(((y * Size) + x) * 4, 4).Fill(b);
@@ -1120,7 +1070,7 @@ internal sealed partial class FrameRenderer : IDisposable
 
         _unset.Dispose();
         _target?.Dispose();
-        _lightMap?.Dispose();
+        _light?.Dispose();
         _prescaled?.Dispose();
         _offscreen?.Dispose();
         _screen?.Dispose();

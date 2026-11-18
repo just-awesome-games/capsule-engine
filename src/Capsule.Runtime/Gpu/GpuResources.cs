@@ -11,6 +11,7 @@ internal enum GpuTextureFormat
     R8Unorm = 2,
     R8G8B8A8Unorm = 4,
     B8G8R8A8Unorm = 12,
+    R16G16B16A16Float = 29,
 }
 
 // SDL_GPUTextureUsageFlags.

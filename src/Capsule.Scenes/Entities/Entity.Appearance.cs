@@ -3,8 +3,8 @@ using Capsule.UI;
 
 namespace Capsule.Scenes;
 
-// Whether the entity draws and the colour and flash it draws with, each composed down the tree and
-// cached with the same lazy staleness as the world transform.
+// Whether the entity draws, the colour and flash it draws with and whether it is lit, each composed down the
+// tree and cached with the same lazy staleness as the world transform.
 public partial class Entity
 {
     // The tint and the visibility composed with every ancestor's. A write above marks them stale, and the
@@ -12,6 +12,7 @@ public partial class Entity
     // descendants are also stale.
     private ColorRgba _treeTint = ColorRgba.White;
     private bool _shownInTree = true;
+    private bool _unlitInTree;
 
     // The flash composed with every ancestor's, the colour in RGB and the amount in alpha.
     private ColorRgba _treeFlash;
@@ -90,6 +91,30 @@ public partial class Entity
         }
     }
 
+    /// <summary>
+    /// Whether this entity and every entity beneath it draw at their own colours, untouched by the scene's light.
+    /// </summary>
+    /// <remarks>
+    /// Neither <see cref="Scene.Ambient"/> nor any light multiplies an unlit draw. No special material is needed:
+    /// every shader is also built in an unlit form. A child beneath an unlit entity cannot be lit again. A light
+    /// beneath it still lights, and a material it draws with can read the light itself through <c>SampleLight</c>.
+    /// </remarks>
+    public bool Unlit
+    {
+        get;
+
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            StaleAppearance();
+        }
+    }
+
     /// <summary>The colour <see cref="Flash"/> mixes towards, white by default. Its alpha is ignored.</summary>
     public ColorRgba FlashColor
     {
@@ -138,14 +163,15 @@ public partial class Entity
         }
     }
 
-    // Whether this entity's renderers draw, and the tint and flash they draw with. The flash is the colour
-    // in RGB and the amount in alpha, transparent when nothing here or above flashes. A hidden entity and
-    // a fully faded one both draw nothing.
-    internal bool TryGetDrawStyle(out ColorRgba tint, out ColorRgba flash)
+    // Whether this entity's renderers draw, the tint and flash they draw with and whether they are unlit. The
+    // flash is the colour in RGB and the amount in alpha, transparent when nothing here or above flashes. A
+    // hidden entity and a fully faded one both draw nothing.
+    internal bool TryGetDrawStyle(out ColorRgba tint, out ColorRgba flash, out bool unlit)
     {
         ResolveAppearance();
         tint = _treeTint;
         flash = _treeFlash;
+        unlit = _unlitInTree;
 
         return _shownInTree && tint.A != 0;
     }
@@ -161,12 +187,14 @@ public partial class Entity
         {
             parent.ResolveAppearance();
             _shownInTree = Visible && parent._shownInTree;
+            _unlitInTree = Unlit || parent._unlitInTree;
             _treeTint = Tint == ColorRgba.White ? parent._treeTint : ColorRgba.Multiply(parent._treeTint, Tint);
             _treeFlash = ComposeFlash(parent._treeFlash);
         }
         else
         {
             _shownInTree = Visible;
+            _unlitInTree = Unlit;
             _treeTint = Tint;
             _treeFlash = ComposeFlash(default);
         }

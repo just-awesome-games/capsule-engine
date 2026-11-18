@@ -92,8 +92,8 @@ public sealed class ShaderBuildTests
         """;
 
     // Every format binds as SDL's GPU API reads it: each texture with a sampler at its own slot of the
-    // fragment's resources, the sprite's at 0, then the material's uniforms in buffer 0, the scene
-    // globals in buffer 1 and the regions of its textures in buffer 3. The DXIL is signed, without which
+    // fragment's resources, the sprite's at 0 and the light's at 1, then the material's uniforms in buffer 0, the
+    // scene globals in buffer 1 and the regions of its textures in buffer 3. The DXIL is signed, without which
     // Direct3D 12 refuses it.
     [Fact]
     public void EveryFormat_BindsInSdlsLayout()
@@ -107,23 +107,23 @@ public sealed class ShaderBuildTests
             static format => ShaderContainer.Read(File.ReadAllBytes($"{ToolWorkspace.Out}/assets/shaders/grained.{format}.shader"), format));
         foreach (ShaderContainer shader in shaders.Values)
         {
-            Assert.Equal((ShaderStage.Fragment, 2, 4), (shader.Stage, shader.Samplers, shader.UniformBuffers));
+            Assert.Equal((ShaderStage.Fragment, 3, 4), (shader.Stage, shader.Samplers, shader.UniformBuffers));
             Assert.Equal(
-                [new("Amount", ShaderParameterKind.Float, false, 0), new("WorldAdd", ShaderParameterKind.Vector3, true, 0), new ShaderBinding("Grain", ShaderParameterKind.Texture, false, 1)],
+                [new("Amount", ShaderParameterKind.Float, false, 0), new("WorldAdd", ShaderParameterKind.Vector3, true, 0), new ShaderBinding("Grain", ShaderParameterKind.Texture, false, 2)],
                 shader.Parameters);
         }
 
         string reflection = Tool("spirv-cross", Write("grained.spv", shaders[ShaderCompiler.Spirv].Code), "--reflect");
         using JsonDocument spirv = JsonDocument.Parse(reflection);
         Assert.Equal(
-            ["CapsuleSampler_Grain 2:1", "CapsuleSampler_SpriteTexture 2:0", "Grain 2:1", "SpriteTexture 2:0", "type.$Globals 3:0", "type.CapsuleTextureRegions 3:3", "type.SceneGlobals 3:1"],
+            ["CapsuleLight 2:1", "CapsuleSampler_CapsuleLight 2:1", "CapsuleSampler_Grain 2:2", "CapsuleSampler_SpriteTexture 2:0", "Grain 2:2", "SpriteTexture 2:0", "type.$Globals 3:0", "type.CapsuleTextureRegions 3:3", "type.SceneGlobals 3:1"],
             ((string[])["separate_images", "separate_samplers", "ubos"])
                 .SelectMany(kind => spirv.RootElement.GetProperty(kind).EnumerateArray())
                 .Select(static resource => $"{resource.GetProperty("name").GetString()} {resource.GetProperty("set").GetInt32()}:{resource.GetProperty("binding").GetInt32()}")
                 .Order(StringComparer.Ordinal));
 
         string dxil = Tool("dxc", "-dumpbin", Write("grained.dxil", shaders[ShaderCompiler.Dxil].Code));
-        foreach (string register in (string[])["cb0,space3", "cb1,space3", "cb3,space3", "s0,space2", "s1,space2", "t0,space2", "t1,space2"])
+        foreach (string register in (string[])["cb0,space3", "cb1,space3", "cb3,space3", "s0,space2", "s1,space2", "s2,space2", "t0,space2", "t1,space2", "t2,space2"])
         {
             Assert.Contains(register, dxil, StringComparison.Ordinal);
         }
@@ -131,7 +131,7 @@ public sealed class ShaderBuildTests
         Assert.True(ShaderCompiler.Signed(shaders[ShaderCompiler.Dxil].Code));
 
         string msl = Encoding.UTF8.GetString(shaders[ShaderCompiler.Msl].Code);
-        foreach (string binding in (string[])["Grain [[texture(1)]]", "CapsuleSampler_Grain [[sampler(1)]]", "[[buffer(0)]]", "[[buffer(1)]]", "[[buffer(3)]]"])
+        foreach (string binding in (string[])["CapsuleLight [[texture(1)]]", "Grain [[texture(2)]]", "CapsuleSampler_Grain [[sampler(2)]]", "[[buffer(0)]]", "[[buffer(1)]]", "[[buffer(3)]]"])
         {
             Assert.Contains(binding, msl, StringComparison.Ordinal);
         }
@@ -140,12 +140,17 @@ public sealed class ShaderBuildTests
     // A fragment that reads the picture says so in its key, which is how a frame knows to copy, and takes a sampler
     // and the third uniform buffer past its own in every format. One that doesn't read takes neither. Either
     // takes the fourth buffer, which places its texture.
+    //
+    // A reader's picture is already lit. It ships in one form the stage never multiplies, and it reads the light
+    // only where its fragment calls SampleLight. Every other fragment ships a lit form and an unlit one, whose stage
+    // neither reads nor multiplies the light unless its fragment calls SampleLight.
     [Fact]
-    public void ReadingTheScreen_IsDeclared_AndBindsAfterTheFragmentsOwnTextures()
+    public void ReadingTheScreen_IsDeclared_AndBindsAfterTheFragmentsOwnTextures_AndIsNotLitAgain()
     {
         using ToolWorkspace workspace = new();
         workspace.Write("Assets/Shaders/reads.fx", "Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Sample(Grain, pixel.UV) * SampleScreen(pixel.Position / pixel.Size); }");
         workspace.Write("Assets/Shaders/keeps.fx", "Texture2D Grain;\nfloat4 Fragment(SpritePixel pixel) { return Sample(Grain, pixel.UV); }");
+        workspace.Write("Assets/Shaders/lights.fx", "float4 Fragment(SpritePixel pixel) { return SampleScreen(float2(0.0, 0.0)) * 0.5 + pixel.Texel * SampleLight(); }");
         workspace.Succeed();
 
         Assert.Contains("""Shader("shaders/reads", true, new""", workspace.Generated, StringComparison.Ordinal);
@@ -154,15 +159,22 @@ public sealed class ShaderBuildTests
         {
             ShaderContainer reads = Shipped("reads", format);
             ShaderContainer keeps = Shipped("keeps", format);
-            Assert.Equal((3, 4), (reads.Samplers, reads.UniformBuffers));
-            Assert.Equal((2, 4), (keeps.Samplers, keeps.UniformBuffers));
+            Assert.Equal((4, 4), (reads.Samplers, reads.UniformBuffers));
+            Assert.Equal((3, 4), (keeps.Samplers, keeps.UniformBuffers));
         }
 
         string metal = Encoding.UTF8.GetString(Shipped("reads", ShaderCompiler.Msl).Code);
-        foreach (string binding in (string[])["CapsuleScreen [[texture(2)]]", "CapsuleSampler_CapsuleScreen [[sampler(2)]]", "[[buffer(2)]]", "[[position]]"])
+        foreach (string binding in (string[])["CapsuleScreen [[texture(3)]]", "CapsuleSampler_CapsuleScreen [[sampler(3)]]", "[[buffer(2)]]", "[[position]]"])
         {
             Assert.Contains(binding, metal, StringComparison.Ordinal);
         }
+
+        Assert.DoesNotContain("CapsuleLight", metal, StringComparison.Ordinal);
+        Assert.Empty(Shipped("reads", ShaderCompiler.Msl).UnlitCode);
+        Assert.Empty(Shipped("lights", ShaderCompiler.Msl).UnlitCode);
+        Assert.DoesNotContain("CapsuleLight", Encoding.UTF8.GetString(Shipped("keeps", ShaderCompiler.Msl).UnlitCode), StringComparison.Ordinal);
+        Assert.Contains("CapsuleLight [[texture(1)]]", Encoding.UTF8.GetString(Shipped("keeps", ShaderCompiler.Msl).Code), StringComparison.Ordinal);
+        Assert.Contains("CapsuleLight [[texture(1)]]", Encoding.UTF8.GetString(Shipped("lights", ShaderCompiler.Msl).Code), StringComparison.Ordinal);
 
         static ShaderContainer Shipped(string name, string format) =>
             ShaderContainer.Read(File.ReadAllBytes($"{ToolWorkspace.Out}/assets/shaders/{name}.{format}.shader"), name);
@@ -209,8 +221,8 @@ public sealed class ShaderBuildTests
         static int[] Declared<T>(int count) => [.. typeof(T).GetFields(BindingFlags.Instance | BindingFlags.Public).Take(count).Select(static field => (int)Marshal.OffsetOf<T>(field.Name))];
 
         Assert.Equal(Unsafe.SizeOf<SpriteInstance>(), Type("type.StructuredBuffer.CapsuleSprite").GetProperty("members")[0].GetProperty("array_stride").GetInt32());
-        Assert.Equal(Declared<SpriteInstance>(11), Offsets(Type("CapsuleSprite"))[..11]);
-        Assert.Equal(Declared<SpriteUniforms>(11), Offsets(Type("type.CapsuleVertexUniforms")));
+        Assert.Equal(Declared<SpriteInstance>(12), Offsets(Type("CapsuleSprite")));
+        Assert.Equal(Declared<SpriteUniforms>(12), Offsets(Type("type.CapsuleVertexUniforms")));
     }
 
     // A DXIL container's hash follows its four-byte magic. All zero means no validator signed it.
@@ -241,7 +253,7 @@ public sealed class ShaderBuildTests
             new HashSet<string>(workspace.Shipped),
             new HashSet<string>(["shaders/grained.console.shader", "capsule/sprite.console.shader", "capsule/vertex.console.shader"]));
         ShaderContainer grained = ShaderContainer.Read(File.ReadAllBytes($"{ToolWorkspace.Out}/assets/shaders/grained.console.shader"), "grained");
-        Assert.Contains("Texture2D<float4> Grain : register(t1, space2);", Encoding.UTF8.GetString(grained.Code), StringComparison.Ordinal);
+        Assert.Contains("Texture2D<float4> Grain : register(t2, space2);", Encoding.UTF8.GetString(grained.Code), StringComparison.Ordinal);
         Assert.Equal(ShaderStage.Vertex, ShaderContainer.Read(File.ReadAllBytes($"{ToolWorkspace.Out}/assets/capsule/vertex.console.shader"), "vertex").Stage);
     }
 
@@ -321,8 +333,8 @@ public sealed class ShaderBuildTests
         Assert.Contains("Assets/Shaders/refused.fx" + failure, workspace.Fail(), StringComparison.Ordinal);
     }
 
-    // The runtime embeds the committed sprite shader, its fragment and vertex stage in each of the
-    // engine's formats. A game drawing only with it needs no shader tools.
+    // The runtime embeds the committed sprite shader, its fragment lit and unlit and its vertex stage in each of
+    // the engine's formats. A game drawing only with it needs no shader tools.
     [Fact]
     public void TheEnginesSpriteShader_IsCommittedAsTheTemplateCompilesIt()
     {

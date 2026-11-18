@@ -10,7 +10,7 @@ namespace Capsule.Bench.Logic.Scenes;
 /// they cover every path the renderer has, and <c>--driver StillCapture</c> saves the frame. Each
 /// further row adds one thing to the same frame. A capture that moves then names the path that moved it.
 /// Row <c>StillLit</c> dims the frame by an ambient colour and adds one point light and one additive
-/// world sprite near the middle, which exercises the light pass. Row <c>StillShaded</c> adds a strip of
+/// world sprite near the middle, which exercises the light pass and the lit sprite stage. Row <c>StillShaded</c> adds a strip of
 /// sprites drawn through a game material that binds a texture of its own and reads its size. Row
 /// <c>StillHd</c> draws the unlit frame on the 1080p surface, which does not snap. Row <c>StillRead</c> adds a band reading
 /// the picture behind it in shifted rows, and a swatch over the band that the read must not see.
@@ -72,8 +72,8 @@ public sealed class Still : Scene
             : base(position) => Add(rect);
     }
 
-    // A point light beside one additive sprite. The capture covers both light-map paths: an
-    // authored light and rule 2's additive-draw-is-a-light.
+    // A point light beside one additive sprite, which the light multiplies as it does any lit sprite and which
+    // adds no light of its own.
     private sealed class Glow : Entity
     {
         internal Glow(Vector2 position)

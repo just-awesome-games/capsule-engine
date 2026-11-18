@@ -33,12 +33,7 @@ public sealed class ColorPolygon : Renderer
     private const float RepeatedPoint = 1e-5f;
     private const double StraightCorner = 1e-4;
 
-    private Vector2[] _points = [];
-
-    // The outline placed at both ends of the step for the frame, the previous points first.
-    private Vector2[] _placed = [];
-
-    private int _count;
+    private ConvexOutline _outline;
 
     /// <summary>The fill colour, in straight alpha. White and opaque by default.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
@@ -56,7 +51,7 @@ public sealed class ColorPolygon : Renderer
     public ColorPolygon(ReadOnlySpan<Vector2> points) => SetPoints(points);
 
     /// <summary>The outline's points in order, in the entity's own units. Empty until an outline is set.</summary>
-    public ReadOnlySpan<Vector2> Points => _points.AsSpan(0, _count);
+    public ReadOnlySpan<Vector2> Points => _outline.Points;
 
     internal override bool Steps => false;
 
@@ -64,28 +59,7 @@ public sealed class ColorPolygon : Renderer
     /// The rect the outline covers, under the rules <see cref="Renderer.Bounds"/> states. Reads empty while the
     /// polygon has no outline.
     /// </summary>
-    public override Rect Bounds
-    {
-        get
-        {
-            if (Entity is null || _count == 0)
-            {
-                return default;
-            }
-
-            Transform2D transform = RenderTransform;
-            Vector2 min = transform.TransformPoint(_points[0]);
-            Vector2 max = min;
-            for (int index = 1; index < _count; index++)
-            {
-                Vector2 point = transform.TransformPoint(_points[index]);
-                min = Vector2.Min(min, point);
-                max = Vector2.Max(max, point);
-            }
-
-            return Rect.FromCorners(min, max);
-        }
-    }
+    public override Rect Bounds => Entity is null ? default : _outline.Cover(RenderTransform);
 
     /// <summary>Replaces the outline with a copy of <paramref name="points"/>, in the entity's own units.</summary>
     /// <remarks>
@@ -94,8 +68,37 @@ public sealed class ColorPolygon : Renderer
     /// that opens from nothing does. An outline no longer than one the polygon has held allocates nothing.
     /// </remarks>
     /// <param name="points">The outline's points, in order.</param>
-    /// <exception cref="ArgumentException">There are fewer than three points, a point is not finite, or the outline is not convex.</exception>
     public void SetPoints(ReadOnlySpan<Vector2> points)
+    {
+        _outline.Set(points);
+    }
+
+    /// <inheritdoc/>
+    protected internal override void Draw(FrameView view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+
+        if (_outline.Count == 0)
+        {
+            return;
+        }
+
+        _outline.Place(PreviousRenderTransform, RenderTransform, out ReadOnlySpan<Vector2> before, out ReadOnlySpan<Vector2> now);
+
+        view.Add(new PolygonIntent(before, now, Color, Blend));
+    }
+
+    /// <inheritdoc/>
+    protected internal override void OnDebugPanel(DebugPanel panel)
+    {
+        base.OnDebugPanel(panel);
+        panel.Field("Points", _outline.Count);
+        panel.Field("Color", Color);
+        panel.Field("Blend", Blend.ToString());
+    }
+
+    // Throws unless points are three or more, each finite, around a convex outline.
+    internal static void RequireOutline(ReadOnlySpan<Vector2> points)
     {
         if (points.Length < 3)
         {
@@ -108,46 +111,6 @@ public sealed class ColorPolygon : Renderer
         }
 
         RequireConvex(points);
-        if (_points.Length < points.Length)
-        {
-            _points = new Vector2[points.Length];
-            _placed = new Vector2[points.Length * 2];
-        }
-
-        points.CopyTo(_points);
-        _count = points.Length;
-    }
-
-    /// <inheritdoc/>
-    protected internal override void Draw(FrameView view)
-    {
-        ArgumentNullException.ThrowIfNull(view);
-
-        if (_count == 0)
-        {
-            return;
-        }
-
-        Transform2D previous = PreviousRenderTransform;
-        Transform2D current = RenderTransform;
-        Span<Vector2> before = _placed.AsSpan(0, _count);
-        Span<Vector2> now = _placed.AsSpan(_count, _count);
-        for (int index = 0; index < _count; index++)
-        {
-            before[index] = previous.TransformPoint(_points[index]);
-            now[index] = current.TransformPoint(_points[index]);
-        }
-
-        view.Add(new PolygonIntent(before, now, Color, Blend));
-    }
-
-    /// <inheritdoc/>
-    protected internal override void OnDebugPanel(DebugPanel panel)
-    {
-        base.OnDebugPanel(panel);
-        panel.Field("Points", _count);
-        panel.Field("Color", Color);
-        panel.Field("Blend", Blend.ToString());
     }
 
     // Throws unless the points turn one way at every corner and go once around. A turn is read between the edges

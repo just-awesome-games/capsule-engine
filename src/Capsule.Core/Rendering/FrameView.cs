@@ -32,6 +32,7 @@ public sealed class FrameView
 
     private readonly List<PlacementRun> _placements = [];
     private readonly List<LightIntent> _lights = [];
+    private readonly List<StoredLightPolygon> _lightPolygons = [];
 
     // Every stored polygon's outline, back to back: its previous points, then its current ones.
     private readonly List<Vector2> _points = [];
@@ -76,6 +77,8 @@ public sealed class FrameView
     // Whether a stored sprite takes the tint or the flash. An unstyled store costs one flag test.
     private bool _styled;
 
+    private bool _unlit;
+
     private Vector2 _canvas;
 
     /// <summary>
@@ -113,6 +116,23 @@ public sealed class FrameView
             _scrollFactor = value;
             OpenPlacementRun(canvas: false);
             UpdateCullBounds();
+        }
+    }
+
+    // Whether the running renderer's entity draws at its own colour in a lit frame, and false outside a renderer.
+    // Each change opens a run in PlacementRuns. An unchanged value between two entities costs one comparison.
+    internal bool Unlit
+    {
+        get => _unlit;
+        set
+        {
+            if (value == _unlit)
+            {
+                return;
+            }
+
+            _unlit = value;
+            OpenPlacementRun(WorldList.RunCanvas);
         }
     }
 
@@ -208,7 +228,7 @@ public sealed class FrameView
     /// authored colour.
     /// </summary>
     /// <remarks>
-    /// A frame with white ambient and no light in <see cref="Lights"/> runs no lighting pass.
+    /// A frame with white ambient and no light runs no lighting pass, and every sprite draws at its own colour.
     /// </remarks>
     public ColorRgba Ambient
     {
@@ -224,10 +244,12 @@ public sealed class FrameView
         }
     }
 
+    // Whether every world draw keeps its own colour, the clear colour among them, though the frame may still run the
+    // lighting pass for SampleLight. Rewritten from false by every Clear.
+    internal bool UnlitWorld { get; set; }
+
     // Whether this frame runs the lighting pass: a non-white ambient or a light added. Rewritten from
-    // false by every Clear. An additive sprite alone does
-    // not open the pass. It is a light only in a frame that lights, and a scene that set up no
-    // lighting keeps its unlit look and pays nothing.
+    // false by every Clear. A scene that set up no lighting keeps its unlit look and pays nothing.
     internal bool LitWorld { get; private set; }
 
     /// <summary>
@@ -255,7 +277,7 @@ public sealed class FrameView
     public ReadOnlySpan<SpriteIntent> Sprites => CollectionsMarshal.AsSpan(WorldList.Sprites);
 
     /// <summary>
-    /// The lights to draw into the frame's light map, in the order added. World-only: the screen
+    /// The sprite lights to draw into the frame's light, in the order added. World-only: the screen
     /// layer is never lit.
     /// </summary>
     /// <remarks>Invalidated by the next mutation.</remarks>
@@ -285,8 +307,11 @@ public sealed class FrameView
 
     internal ReadOnlySpan<StoredPolygon> ScreenPolygons => CollectionsMarshal.AsSpan(ScreenList.Polygons);
 
-    // The outlines both lists' polygons name, each one's previous points then its current ones. Invalidated by
-    // the next mutation.
+    // The polygon lights, in the order added. Invalidated by the next mutation.
+    internal ReadOnlySpan<StoredLightPolygon> LightPolygons => CollectionsMarshal.AsSpan(_lightPolygons);
+
+    // The outlines both lists' polygons and the polygon lights name, each one's previous points then its current
+    // ones. Invalidated by the next mutation.
     internal ReadOnlySpan<Vector2> PolygonPoints => CollectionsMarshal.AsSpan(_points);
 
     // The runs of Sprites, Polygons, Lines and Lights drawn by one placement, in list order and back-to-back: a scroll
@@ -329,7 +354,7 @@ public sealed class FrameView
         _submitted,
         WorldList.Sprites.Count + ScreenList.Sprites.Count + WorldList.Polygons.Count + ScreenList.Polygons.Count
             + WorldList.Lines.Count + ScreenList.Lines.Count,
-        _lights.Count);
+        _lights.Count + _lightPolygons.Count);
 
     // The colour the running renderer's entity is tinted by, and white outside a renderer, with its
     // composed flash, the colour in RGB and the amount in alpha, transparent outside a renderer. The
@@ -493,7 +518,8 @@ public sealed class FrameView
     /// <summary>Adds a light, culled through its swept region against the world layer as a sprite is.</summary>
     /// <remarks>
     /// A light is world-only. Attach a <c>PointLight</c> to a world entity. A light whose
-    /// <see cref="LightIntent.Intensity"/> is not positive and finite is dropped.
+    /// <see cref="LightIntent.Intensity"/> is not positive and finite is dropped. Adding one makes the frame
+    /// lit, and every world sprite not drawn unlit is then multiplied by the light at its pixel.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The running renderer's space is the screen layer.</exception>
     public void Add(in LightIntent light)
@@ -505,7 +531,7 @@ public sealed class FrameView
         }
 
         if (!(light.Intensity > 0f) || !float.IsFinite(light.Intensity) ||
-            !light.ToSprite(light.Color).TryGetSweptBounds(out Rect swept))
+            !light.ToSprite().TryGetSweptBounds(out Rect swept))
         {
             Drop(_worldRoute, bounded: false, default);
             return;
@@ -524,6 +550,56 @@ public sealed class FrameView
         }
 
         _lights.Add(_tinted ? light with { Color = ColorRgba.Multiply(light.Color, _tint) } : light);
+        _stores++;
+        LitWorld = true;
+    }
+
+    /// <summary>
+    /// Adds a polygon of light, its colour added into the frame's light <paramref name="intensity"/> times, culled by
+    /// the rect its outline sweeps against the world layer as a polygon is.
+    /// </summary>
+    /// <remarks>
+    /// The polygon lights where it covers and draws nothing of its own, and its <see cref="PolygonIntent.Blend"/> is
+    /// ignored. A light is world-only. Attach a <c>PolygonLight</c> to a world entity for a polygon that follows it.
+    /// A light whose <paramref name="intensity"/> is not positive and finite, or whose outline holds a point that is
+    /// not finite, is dropped. Adding one makes the frame lit, as <see cref="Add(in LightIntent)"/> does.
+    /// </remarks>
+    /// <param name="polygon">The convex outline at both ends of the step, and the light's colour, added scaled by its alpha.</param>
+    /// <param name="intensity">How many times the colour is added, 1 by default.</param>
+    /// <example>
+    /// A beam's cone from a renderer's <c>Draw</c>, as a world entity draws it:
+    /// <code>
+    /// view.AddLight(new PolygonIntent([tip, left, right], new ColorRgba(255, 240, 200)), intensity: 1.5f);
+    /// </code>
+    /// </example>
+    /// <exception cref="InvalidOperationException">The running renderer's space is the screen layer.</exception>
+    public void AddLight(in PolygonIntent polygon, float intensity = 1f)
+    {
+        if (Space == RenderSpace.Screen)
+        {
+            throw new InvalidOperationException(
+                "A light is world-only: the screen layer is never lit. Add the polygon light from a renderer on a world entity, such as a PolygonLight.");
+        }
+
+        ReadOnlySpan<Vector2> previous = polygon.PreviousPoints;
+        ReadOnlySpan<Vector2> current = polygon.Points;
+        Rect swept = Rect.FromCorners(current[0], current[0]);
+        bool bounded = intensity > 0f && float.IsFinite(intensity) && TryWiden(ref swept, previous) && TryWiden(ref swept, current);
+        if (!bounded || (_worldRoute.Culls && !swept.Intersects(_worldRoute.Bounds)))
+        {
+            Drop(_worldRoute, bounded, in swept);
+            return;
+        }
+
+        if (WorldList.RunCanvas)
+        {
+            OpenPlacementRun(canvas: false);
+        }
+
+        int first = _points.Count;
+        _points.AddRange(previous);
+        _points.AddRange(current);
+        _lightPolygons.Add(new StoredLightPolygon(first, current.Length, _tinted ? ColorRgba.Multiply(polygon.Color, _tint) : polygon.Color, intensity));
         _stores++;
         LitWorld = true;
     }
@@ -905,7 +981,7 @@ public sealed class FrameView
     // Opens a run on the world's list placed in canvas pixels, or by the running scroll factor.
     private void OpenPlacementRun(bool canvas)
     {
-        _placements.Add(new PlacementRun(WorldList.Stored, WorldList.Lines.Count, _scrollFactor, _lights.Count, canvas, WorldList.Polygons.Count));
+        _placements.Add(new PlacementRun(WorldList.Stored, WorldList.Lines.Count, _scrollFactor, _lights.Count, canvas, WorldList.Polygons.Count, _unlit, _lightPolygons.Count));
         WorldList.RunKey = (WorldList.RunKey & ~1) | (canvas ? 1 : 0);
     }
 
@@ -915,7 +991,7 @@ public sealed class FrameView
         Flash = _flashing ? _flash : sprite.Flash,
     };
 
-    // Drops the ordered intent, resets Metrics and returns the space, style, material, scroll factor,
+    // Drops the ordered intent, resets Metrics and returns the space, style, material, scroll factor, lighting,
     // ambient and clip to their defaults, retaining capacity.
     internal void Clear()
     {
@@ -925,6 +1001,7 @@ public sealed class FrameView
         ReadsScreen = false;
         _placements.Clear();
         _lights.Clear();
+        _lightPolygons.Clear();
         _points.Clear();
         _clipLevels.Clear();
         _clipStart = 0;
@@ -938,7 +1015,9 @@ public sealed class FrameView
         SetStyle(ColorRgba.White, default);
         Material = null;
         _scrollFactor = Vector2.One;
+        _unlit = false;
         LitWorld = false;
+        UnlitWorld = false;
         _ambient = ColorRgba.White;
         UpdateCullBounds();
         UpdateScreenBounds();

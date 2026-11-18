@@ -1,0 +1,47 @@
+{
+  "timestamp": "2026-11-18T20:37:17Z",
+  "label": "particle-lights-before",
+  "lane": "rendering",
+  "uncapped": true,
+  "commit": "5116d52",
+  "configuration": "Release",
+  "nativeAot": true,
+  "os": "Microsoft Windows 10.0.26200",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+  "gpu": "AMD Radeon RX 9070 XT",
+  "engineVersion": "0.0.0+5116d5245b5044a8ae8ee42fd40e69f745a00752",
+  "workloads": [
+    {
+      "name": "StillLit",
+      "mode": "windowed",
+      "surface": "640x360-pixel-perfect",
+      "steps": null,
+      "frames": 2503,
+      "drawMs": {
+        "median": 0.016,
+        "p95": 0.043,
+        "max": 0.218
+      },
+      "updateMs": {
+        "median": 0.005,
+        "p95": 0.01,
+        "max": 0.066
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.012,
+        "p95": 0.019
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 10240,
+      "intervalMs": {
+        "median": 0.17,
+        "p95": 0.346,
+        "max": 67.964
+      },
+      "gen0Collections": 0,
+      "captureSha256": "dfd0a7536d7f1522e648d60d75c5ff6259828b6f63118ec23ac3677e145431e8"
+    }
+  ]
+}

@@ -52,16 +52,18 @@ public sealed class SceneDocumentRoundTripTests
         Assert.Equal(Json, document.ToJson());
     }
 
-    // The tint sits after the scroll factor. An opaque one writes the shorter form, and either form reads in either case.
+    // The tint sits after the scroll factor, and unlit after the tint. An opaque tint writes the shorter form, and
+    // either form reads in either case. An authored false is kept apart from an absent unlit.
     [Fact]
-    public void ATintedEntry_RoundTrips()
+    public void ATintedOrUnlitEntry_RoundTrips()
     {
-        const string Json = """{"entities":[{"type":"tile-map","tint":"#ffffff80"},{"type":"coin","tint":"#484c68"},{"type":"coin"}]}""";
+        const string Json = """{"entities":[{"type":"tile-map","tint":"#ffffff80","unlit":true},{"type":"coin","tint":"#484c68"},{"type":"coin","unlit":false}]}""";
 
         SceneDocument document = SceneDocument.Parse(Json);
 
-        Assert.Equal(new SceneDocumentEntry("tile-map", new EntitySpawn(Vector2.Zero) { Tint = new ColorRgba(255, 255, 255, 128) }), document.Entries[0]);
+        Assert.Equal(new SceneDocumentEntry("tile-map", new EntitySpawn(Vector2.Zero) { Tint = new ColorRgba(255, 255, 255, 128), Unlit = true }), document.Entries[0]);
         Assert.Null(document.Entries[2].Spawn.Tint);
+        Assert.Equal((null, false), (document.Entries[1].Spawn.Unlit, document.Entries[2].Spawn.Unlit));
         Assert.Equal(Json, document.ToJson());
         Assert.Equal(Json, SceneDocument.Parse(Json.Replace("#484c68", "#484C68FF", StringComparison.Ordinal)).ToJson());
     }

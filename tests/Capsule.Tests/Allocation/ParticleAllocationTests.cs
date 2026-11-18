@@ -11,10 +11,10 @@ namespace Capsule.Tests.Allocation;
 [Collection(StageAllocationCollection.Name)]
 public sealed class ParticleAllocationTests
 {
-    // A full pool that ages, frees, recycles and spawns every tick, drawn through the scene's own
+    // A full pool that ages, frees, recycles and spawns every tick, drawn with its lights through the scene's own
     // FrameView every step: the whole path a workload of live particles runs.
     [Fact]
-    public void AStepThatSpawnsAgesRecyclesAndDrawsAFullPool_AllocatesNothing()
+    public void AStepThatSpawnsAgesRecyclesAndDrawsAFullLitPool_AllocatesNothing()
     {
         Sprite tile = SceneFixtures.Frame(4, 4);
         ParticleEmitter emitter = new(tile, capacity: 64)
@@ -26,6 +26,7 @@ public sealed class ParticleAllocationTests
             Gravity = new Vector2(0f, 40f),
             ScaleOverLifetime = Curve.Linear(1f, 0f),
             Color = Gradient.Linear(ColorRgba.White, ColorRgba.Black),
+            Light = new ParticleLight(radius: 6f),
         };
 
         EntityHierarchyFixtures.Node root = new(Vector2.Zero);

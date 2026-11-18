@@ -8,7 +8,7 @@ public enum BlendMode : byte
 
     /// <summary>
     /// The sprite adds its colour scaled by its alpha and hides nothing behind it, for glow, sparks and
-    /// fire. In a frame that runs lighting, an additive sprite also lights the world.
+    /// fire.
     /// </summary>
     Additive,
 }

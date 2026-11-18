@@ -71,8 +71,11 @@ public static class SceneDocumentKeys
         /// <summary>The colour multiplied into everything the entity draws, written <c>"#rrggbb"</c> or <c>"#rrggbbaa"</c>.</summary>
         public const string Tint = "tint";
 
+        /// <summary>Whether everything the entity draws keeps its own colour in a lit frame, written <c>true</c> or <c>false</c>.</summary>
+        public const string Unlit = "unlit";
+
         // Every key an entry reserves.
-        internal static string[] Keys { get; } = [Type, Id, Name, X, Y, Rotation, Scale, ZIndex, ScrollFactor, Tint];
+        internal static string[] Keys { get; } = [Type, Id, Name, X, Y, Rotation, Scale, ZIndex, ScrollFactor, Tint, Unlit];
 
         /// <summary>Whether an entry reserves <paramref name="key"/>, compared ordinally.</summary>
         public static bool Contains(string key) => Keys.AsSpan().Contains(key);
