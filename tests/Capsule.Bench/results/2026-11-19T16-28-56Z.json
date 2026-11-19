@@ -1,0 +1,127 @@
+{
+  "timestamp": "2026-11-19T16:28:56Z",
+  "label": "final-prefetch-after",
+  "lane": "paced",
+  "uncapped": false,
+  "commit": "a2226f1",
+  "configuration": "Release",
+  "nativeAot": true,
+  "os": "Microsoft Windows 10.0.26200",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+  "gpu": "AMD Radeon RX 9070 XT",
+  "engineVersion": "0.0.0+a2226f1ba9f78f1ea12889c5ba83122e4d09f305",
+  "workloads": [
+    {
+      "name": "LevelPrefetch",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.018,
+        "p95": 0.037,
+        "max": 4.041
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.014,
+        "p95": 0.022
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 6194104,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.667
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "LevelCold",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.017,
+        "p95": 0.024,
+        "max": 11.528
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.013,
+        "p95": 0.015
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 8294840,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.731
+      },
+      "gen0Collections": 0,
+      "captureSha256": null
+    },
+    {
+      "name": "LevelPrefetchHuge",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 300,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.162,
+        "p95": 0.18,
+        "max": 47.582
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.001,
+        "p95": 0.002
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 48775664,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 47.587
+      },
+      "gen0Collections": 1,
+      "captureSha256": null
+    },
+    {
+      "name": "LevelColdHuge",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 302,
+      "frames": 298,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.161,
+        "p95": 0.227,
+        "max": 70.522
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.001,
+        "p95": 0.002
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 67184520,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 70.677
+      },
+      "gen0Collections": 1,
+      "captureSha256": null
+    }
+  ]
+}

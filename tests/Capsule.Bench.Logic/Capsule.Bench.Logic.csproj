@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <Import Project="$(CapsuleSourceRoot)/build/Capsule.Build.targets" />
+  <Import Project="AuthoredHuge.targets" />
 
   <ItemGroup>
     <ProjectReference Include="$(CapsuleSourceRoot)/src/Capsule/Capsule.csproj" />

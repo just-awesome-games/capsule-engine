@@ -85,7 +85,7 @@ public sealed class ParticleEmitter : Renderer
     // Whether a particle has spawned in this life. A burst finishes only after it has.
     private bool _spawned;
 
-    // Whether a spawning emitter was turned off in a scene this life, which leaves it nothing to wait for.
+    // Whether the last Emitting write in a scene this life was false. It leaves the emitter nothing to wait for.
     private bool _stopped;
     private bool _emitting = true;
 
@@ -313,14 +313,19 @@ public sealed class ParticleEmitter : Renderer
     /// Whether <see cref="Rate"/> and <see cref="RateOverDistance"/> spawn, true by default.
     /// <see cref="Emit(int)"/> spawns either way.
     /// </summary>
+    /// <remarks>
+    /// Setting it to false while the entity is in a scene ends the emitter's run, whether or not it was on, and lets
+    /// <see cref="IsFinished"/> turn true once nothing is alive. Setting it before the entity joins a scene does not.
+    /// The value survives removal. A pooled emitter returns as its last life left it.
+    /// </remarks>
     public bool Emitting
     {
         get => _emitting;
 
         set
         {
-            _stopped |= _emitting && !value && _inScene && (Rate > 0f || RateOverDistance > 0f);
-            _stopped &= !value;
+            // A write counts, not a change: a reused emitter keeps the false its last life ended with.
+            _stopped = !value && _inScene;
             _emitting = value;
         }
     }
@@ -411,13 +416,14 @@ public sealed class ParticleEmitter : Renderer
     public int Alive => _alive;
 
     /// <summary>
-    /// Whether the emitter has spawned a particle or was turned off in a scene while it had a rate, none is alive, and none
-    /// will spawn without an <see cref="Emit(int)"/>: <see cref="Emitting"/> is false, or <see cref="Rate"/> and
+    /// Whether the emitter has spawned a particle or was turned off in a scene, none is alive, and none will spawn
+    /// without an <see cref="Emit(int)"/>: <see cref="Emitting"/> is false, or <see cref="Rate"/> and
     /// <see cref="RateOverDistance"/> are zero.
     /// </summary>
     /// <remarks>
-    /// Removal from the scene clears it. A reused emitter finishes only after it spawns again or is turned off again. An
-    /// <see cref="EmitOnDeath"/> emitter on the same entity must have nothing alive too.
+    /// An emitter placed off, or waiting for an <see cref="Emit(int)"/>, stays unfinished until it spawns or is turned
+    /// off in the scene. Removal from the scene clears it. A reused emitter finishes only after it spawns again or is
+    /// turned off again. An <see cref="EmitOnDeath"/> emitter on the same entity must have nothing alive too.
     /// </remarks>
     public bool IsFinished =>
         (_spawned || _stopped)

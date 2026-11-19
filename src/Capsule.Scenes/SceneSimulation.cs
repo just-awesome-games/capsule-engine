@@ -10,7 +10,12 @@ namespace Capsule.Scenes;
 /// </summary>
 public sealed class SceneSimulation : ISimulation, IDisposable
 {
-    private readonly FrameView _view = new();
+    // The lender a host's simulation borrows its view from, and null for one that owns its view.
+    private readonly ViewLender? _lender;
+
+    // Made with the simulation when it owns its view, borrowed at the first build when a lender holds it.
+    private FrameView? _view;
+
     private bool _disposed;
     private bool _warnedOnUndrawnWorldLayer;
 
@@ -49,8 +54,19 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         Scene scene,
         IScenePayload? entryPayload = null,
         Run? run = null)
+        : this(scene, entryPayload, run, lender: null)
+    {
+    }
+
+    // Starts scene drawing into a view borrowed from lender at its first build and returned at Dispose. A
+    // scene that follows a busier one then builds into the capacity that one grew. The view is borrowed late
+    // because a host starts the incoming scene before it disposes the outgoing one. A disposed simulation's
+    // View may show a later borrower's frame.
+    internal SceneSimulation(Scene scene, IScenePayload? entryPayload, Run? run, ViewLender? lender)
     {
         ArgumentNullException.ThrowIfNull(scene);
+        _lender = lender;
+        _view = lender is null ? new FrameView() : null;
 
         // Refused before any write. A live scene and its run are left as they were.
         scene.RequireUnstarted();
@@ -136,7 +152,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
                         "This simulation was disposed before it built any frame. Read View before Dispose to keep a frame.");
                 }
 
-                return _view;
+                return _view!;
             }
 
             if (_viewStale)
@@ -144,7 +160,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
                 RewriteView();
             }
 
-            return _view;
+            return _view!;
         }
     }
 
@@ -243,7 +259,17 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         }
 
         _disposed = true;
-        Scene.Stop();
+        try
+        {
+            Scene.Stop();
+        }
+        finally
+        {
+            if (_view is not null)
+            {
+                _lender?.Return(_view);
+            }
+        }
     }
 
     // Rebuilds View from the scene as it stands, without taking a step.
@@ -255,6 +281,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         _building = true;
         try
         {
+            _view ??= _lender!.Borrow();
             Scene.Drawing.DrawFrame(_view, _viewCamera, _drawRuns);
         }
         finally
@@ -291,7 +318,7 @@ public sealed class SceneSimulation : ISimulation, IDisposable
             return;
         }
 
-        if (_view.Sprites.Length == 0 && _view.Polygons.Length == 0 && _view.Lines.Length == 0)
+        if (_view!.Sprites.Length == 0 && _view.Polygons.Length == 0 && _view.Lines.Length == 0)
         {
             return;
         }

@@ -127,7 +127,7 @@ internal sealed class ScenePhysics
 
     internal void Reserve(int colliders, int grids, int reporters)
     {
-        World.Reserve(colliders, grids);
+        World.Reserve(colliders, grids, reporters);
         _contactReporters.Reserve(reporters);
     }
 

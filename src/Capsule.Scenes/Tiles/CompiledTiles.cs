@@ -8,8 +8,8 @@ using Capsule.Scenes;
 namespace Capsule.Tiles;
 
 // The compiled form of a tile map entry's cells, which the build ships in place of its dense tiles and transforms.
-// The entry's "blocks" member is one base64 string of this little-endian layout, over the map's blocks of 16 by 16
-// cells numbered row-major:
+// The entry's "blocks" member is one unpadded base64url string of this little-endian layout, over the map's blocks of
+// 16 by 16 cells numbered row-major:
 //   1 byte                      the format version, Version
 //   ceil(blocks / 8) bytes      a bitmap of the blocks that hold a painted or turned cell, block i at bit i % 8 of byte i / 8
 //   ceil(blocks / 8) bytes      a bitmap of those blocks that hold a turned cell, laid out the same way
@@ -25,8 +25,9 @@ internal static class CompiledTiles
     internal const string Tiles = "tiles";
     internal const string Transforms = "transforms";
 
-    // The layout's version. A change to the layout raises it, and a document of another version is refused.
-    internal const byte Version = 1;
+    // The layout's version. A change to the layout or its encoding raises it, and a document of another version is
+    // refused. The build caches a compiled document under it.
+    internal const byte Version = 2;
 
     private const int BlockBytes = CellBlocks.BlockArea * sizeof(ushort);
 
@@ -114,14 +115,19 @@ internal static class CompiledTiles
             throw Malformed("it is not a base64 string");
         }
 
-        // A JSON writer escapes base64's '+'. The text is unescaped into a pooled buffer and decoded there.
+        // The text is copied into a pooled buffer, unescaped if it was written escaped, and decoded there.
         byte[] rented = ArrayPool<byte>.Shared.Rent(reader.ValueSpan.Length);
         try
         {
             int written = reader.CopyString(rented);
-            if (Base64.DecodeFromUtf8InPlace(rented.AsSpan(0, written), out int length) != OperationStatus.Done)
+            int length;
+            try
             {
-                throw Malformed("it is not valid base64");
+                length = Base64Url.DecodeFromUtf8InPlace(rented.AsSpan(0, written));
+            }
+            catch (FormatException)
+            {
+                throw Malformed("it is not valid base64url");
             }
 
             return Decode(rented.AsSpan(0, length), width, height, bulk);
@@ -250,7 +256,8 @@ internal static class CompiledTiles
             {
                 if (string.Equals(key, Tiles, StringComparison.Ordinal))
                 {
-                    writer.WriteBase64String(Key, layout);
+                    // A JSON writer escapes base64's '+', and no character of the URL-safe alphabet.
+                    writer.WriteString(Key, Base64Url.EncodeToUtf8(layout));
                 }
                 else if (!string.Equals(key, Transforms, StringComparison.Ordinal))
                 {

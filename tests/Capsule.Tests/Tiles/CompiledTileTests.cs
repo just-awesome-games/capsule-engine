@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.Globalization;
 using System.Text;
 using Capsule.Physics;
@@ -34,7 +35,7 @@ public sealed class CompiledTileTests
             }
         }
 
-        // Through the compact JSON the build ships, whose writer escapes base64's '+'.
+        // Through the compact JSON the build ships.
         SceneDocumentEntry compiled = SceneDocument.Parse(CompiledTiles.Compile(SceneDocument.Parse(Document(width, height, tiles, transforms)), [TileMap.Key]).ToJson()).Entries[0];
 
         Assert.False(compiled.Authored!.TryGetValue("tiles", out _) || compiled.Authored.TryGetValue("transforms", out _));
@@ -65,12 +66,33 @@ public sealed class CompiledTileTests
         Assert.Same(authored, CompiledTiles.Compile(authored, [TileMap.Key]));
     }
 
+    // The shipped JSON writes the blocks with no escape. The map is a row of 16 blocks with all but block 8 painted,
+    // a layout whose base64 holds the '+' a JSON writer escapes.
+    [Fact]
+    public void ShippedBlocks_AreWrittenUnescaped()
+    {
+        const int Width = 16 * 16;
+        int[] tiles = new int[Width * 16];
+        for (int block = 0; block < 16; block++)
+        {
+            tiles[block * 16] = block == 8 ? 0 : 1;
+        }
+
+        Assert.Contains("+", Convert.ToBase64String(CompiledTiles.Encode(CellBlocks.FromDense(Width, 16, tiles, null))), StringComparison.Ordinal);
+
+        string shipped = CompiledTiles.Compile(SceneDocument.Parse(Document(Width, 16, tiles, null)), [TileMap.Key]).ToJson();
+
+        Assert.DoesNotContain("\\", shipped, StringComparison.Ordinal);
+        Assert.True(SceneDocument.Parse(shipped).Entries[0].Authored!.TryGetValue(CompiledTiles.Key, out ReadOnlyMemory<byte> blocks));
+        Assert.Equal(15, CompiledTiles.Read(blocks.Span, Width, 16).AllocatedBlocks);
+    }
+
     // Packed blocks of another version, of the wrong length, or painting past the map's edge are refused, each
     // naming the defect and the rebuild that fixes it. The map is 5 by 3, one block.
     [Theory]
-    [InlineData(2, 0, "compiled in format version 2, and this engine reads version 1. Rebuild the assets.")]
-    [InlineData(1, 100, "where 1 blocks, 0 of them turned, take 515")]
-    [InlineData(1, 5, "lies beyond the map's edge")]
+    [InlineData(1, 0, "compiled in format version 1, and this engine reads version 2. Rebuild the assets.")]
+    [InlineData(2, 100, "where 1 blocks, 0 of them turned, take 515")]
+    [InlineData(2, 5, "lies beyond the map's edge")]
     public void PackedBlocksTheBuildDidNotWrite_AreRefused(byte version, int paintedCell, string defect)
     {
         byte[] layout = new byte[3 + (paintedCell == 100 ? 10 : 512)];
@@ -82,7 +104,7 @@ public sealed class CompiledTileTests
         }
 
         ArgumentException error = Assert.Throws<ArgumentException>(
-            () => CompiledTiles.Read(Encoding.UTF8.GetBytes($"\"{Convert.ToBase64String(layout)}\""), 5, 3));
+            () => CompiledTiles.Read(Encoding.UTF8.GetBytes($"\"{Base64Url.EncodeToString(layout)}\""), 5, 3));
 
         Assert.Contains(defect, error.Message, StringComparison.Ordinal);
     }

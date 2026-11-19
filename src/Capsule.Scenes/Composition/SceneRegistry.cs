@@ -94,6 +94,20 @@ public sealed class SceneRegistry
             : type.Name;
     }
 
+    // The class and the document target opens, one pair whether it names a class or the document that class
+    // claims. Either is null when the scene has none.
+    internal (Type? Scene, string? Document) IdentityOf(in SceneTransition target)
+    {
+        if (target.DocumentName is { } document)
+        {
+            return (_byDocumentName.TryGetValue(document, out SceneRegistration claimer) ? claimer.SceneType : null, document);
+        }
+
+        Type? type = target.SceneType;
+
+        return (type, type is not null && _byType.TryGetValue(type, out SceneRegistration registration) ? registration.DocumentName : null);
+    }
+
     // Returns the scene document backing sceneType, or null when none does.
     internal string? DocumentNameOf(Type sceneType) => Find(sceneType).DocumentName;
 

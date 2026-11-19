@@ -16,15 +16,31 @@ internal sealed class SceneHost : ISimulation, IDisposable
 {
     private readonly SceneResolver _resolve;
 
+    // The composer behind the resolver, which reads a prefetch's document ahead. Null for a host whose
+    // resolver reads nothing ahead.
+    private readonly SceneComposer? _composer;
+
     // Null for a run with no medium behind its saves, which keeps them in memory and flushes nothing.
     private readonly ISaveStorage? _saveStorage;
 
     private readonly SceneRegistry? _registry;
+
+    // Lends each scene the host runs the view the scene before it returned, which keeps the capacity the
+    // busiest of them grew.
+    private readonly ViewLender _views = new();
+
     private SceneTransition _target;
     private SceneSimulation _current;
 
     // The prefetch no boundary has consumed yet, which a repeat of it leaves alone.
     private SceneTransition? _prefetched;
+
+    // The prefetch whose document is being read, which the next step's end builds.
+    private SceneTransition? _reading;
+
+    // The prefetch's scene, built and collected but never started, which the boundary naming the same target
+    // starts and any other boundary abandons.
+    private PrefetchedScene? _built;
 
     // The initial scene's collection, taken before it started and held until a device can load it.
     private AssetCollection? _initialPreloads;
@@ -65,12 +81,14 @@ internal sealed class SceneHost : ISimulation, IDisposable
         Run run,
         ISaveStorage? saveStorage = null,
         Action<Run>? onRunStart = null,
-        SceneRegistry? registry = null)
+        SceneRegistry? registry = null,
+        SceneComposer? composer = null)
     {
         ArgumentNullException.ThrowIfNull(resolve);
         ArgumentNullException.ThrowIfNull(run);
 
         _resolve = resolve;
+        _composer = composer;
         _registry = registry;
         Run = run;
         _target = initialTarget;
@@ -87,8 +105,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
         // Collected before the start, as a transition collects its incoming scene.
         Scene initial = resolve(initialTarget);
-        _initialPreloads = Prepare(initial, initialTarget.Payload, prepare: null);
-        _current = new SceneSimulation(initial, initialTarget.Payload, run);
+        _initialPreloads = CollectPreloads(initial, initialTarget.Payload);
+        _current = new SceneSimulation(initial, initialTarget.Payload, run, _views);
     }
 
     public FrameView View => _current.View;
@@ -135,8 +153,9 @@ internal sealed class SceneHost : ISimulation, IDisposable
         Finish(stepped);
     }
 
-    // Resolves what the step asked for. A step that opened a scene leaves a prefetch to the next step,
-    // which keeps the building of a second scene off the frame that pays for the first.
+    // Resolves what the step asked for, then builds the prefetch whose document was read since the last step
+    // or takes a new one. A step that opened a scene leaves a prefetch to the next step, which keeps the
+    // building of a second scene off the frame that pays for the first.
     private void Finish(SceneSimulation stepped)
     {
         Consume();
@@ -173,6 +192,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
                 ExitRequested = true;
                 try
                 {
+                    DropPrefetch();
+
                     // Built before the scene stops. The run's last frame stays readable after it.
                     _ = _current.View;
                     _current.Dispose();
@@ -185,6 +206,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
                 break;
 
             case SceneTransitionKind.Restart:
+                AbandonBuilt();
                 Replace(transition.HasPayload ? _target.WithPayload(transition.Payload) : _target);
                 break;
 
@@ -210,34 +232,77 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
     }
 
-    // The target is built, collected with its payload and abandoned in every mode. A run with a device and
-    // one without construct the same scenes. The same scene under another payload is another prefetch.
+    // Builds the prefetch whose document was read through this step, or takes a new one. The scene is built and
+    // collected with its payload in every mode and held until a boundary. A run with a device and one without
+    // construct the same scenes. One whose document is read first is built at the end of the next step, which
+    // waits for the read. The step it is built on never depends on the read. A prefetch of another scene or
+    // payload abandons the held one.
     private void TakePrefetch()
     {
-        if (ExitRequested || !Run.TryTakePrefetch(out SceneTransition target) || _prefetched == target)
+        if (ExitRequested)
         {
             return;
         }
 
-        Scene throwaway = _resolve(target);
-        AssetCollection preloads;
-        try
+        bool asked = Run.TryTakePrefetch(out SceneTransition target) && !(_prefetched is { } current && Opens(current, target));
+        if (!asked)
         {
-            preloads = throwaway.CollectAssetPreloads(target.Payload);
-        }
-        finally
-        {
-            throwaway.Abandon();
+            if (_reading is { } read)
+            {
+                _reading = null;
+                Build(read);
+            }
+
+            return;
         }
 
         if (_prefetched is { } replaced)
         {
             Log.Debug($"prefetch of {NameOf(replaced)} replaced by {NameOf(target)} before use");
+            AbandonBuilt();
         }
 
         _prefetched = target;
-        PrefetchAssets?.Invoke(preloads);
+        _reading = _composer?.BeginRead(target) == true ? target : null;
+        if (_reading is null)
+        {
+            Build(target);
+        }
     }
+
+    // Builds and collects the prefetch's scene, and holds it.
+    private void Build(in SceneTransition target)
+    {
+        Scene scene = _resolve(target);
+        AssetCollection preloads = CollectPreloads(scene, target.Payload);
+        Prepare(scene, preloads, PrefetchAssets);
+        _built = new PrefetchedScene(target, scene, preloads);
+    }
+
+    // Ends the prefetch's read and abandons its scene, for a host that will open no scene again.
+    private void DropPrefetch()
+    {
+        _reading = null;
+        _composer?.EndRead();
+        AbandonBuilt();
+    }
+
+    // Releases the held prefetch's scene, which never started, through the path a failed transition takes.
+    private void AbandonBuilt()
+    {
+        if (_built is { } built)
+        {
+            _built = null;
+            built.Scene.Abandon();
+        }
+    }
+
+    // Whether two targets open the same scene with equal payloads, whether each names its class or its document.
+    private bool Opens(in SceneTransition target, in SceneTransition other) =>
+        Equals(target.Payload, other.Payload) && IdentityOf(target) == IdentityOf(other);
+
+    private (Type? Scene, string? Document) IdentityOf(in SceneTransition target) =>
+        _registry?.IdentityOf(in target) ?? (target.SceneType, target.DocumentName);
 
     private static string NameOf(in SceneTransition target) => target.SceneType?.Name ?? target.DocumentName ?? "";
 
@@ -345,11 +410,18 @@ internal sealed class SceneHost : ISimulation, IDisposable
         {
             try
             {
-                ReleaseAssets();
+                DropPrefetch();
             }
             finally
             {
-                FlushSaves();
+                try
+                {
+                    ReleaseAssets();
+                }
+                finally
+                {
+                    FlushSaves();
+                }
             }
         }
     }
@@ -391,25 +463,52 @@ internal sealed class SceneHost : ISimulation, IDisposable
     // its simulation.
     private SceneSimulation Bring(in SceneTransition target)
     {
-        // The boundary consumes any prefetch, whether or not it named this scene or its payload, and collects
-        // the scene with the payload it opens with.
+        // The boundary consumes any prefetch. One that built this scene, however it named it, with an equal payload
+        // is started with the collection it took. Any other is released unstarted before the scene is built and
+        // collected with the payload it opens with.
         _prefetched = null;
-        Scene next = _resolve(target);
-        Prepare(next, target.Payload, PrepareAssets);
+        _reading = null;
+        Scene next;
+        AssetCollection preloads;
+        if (_built is { } built && Opens(built.Target, target))
+        {
+            _built = null;
+            (next, preloads) = (built.Scene, built.Preloads);
+        }
+        else
+        {
+            AbandonBuilt();
+            next = _resolve(target);
+            preloads = CollectPreloads(next, target.Payload);
+        }
 
-        return new SceneSimulation(next, target.Payload, Run);
+        Prepare(next, preloads, PrepareAssets);
+
+        return new SceneSimulation(next, target.Payload, Run, _views);
     }
 
-    // Collects a scene's preloads with the payload it opens with under every host and hands them to prepare,
-    // which only a host with a device sets. A failure releases the scene, which never started.
-    private static AssetCollection Prepare(Scene scene, IScenePayload? payload, Action<AssetCollection>? prepare)
+    // Collects a scene's preloads with the payload it opens with, under every host. A failure releases the
+    // scene, which never started.
+    private static AssetCollection CollectPreloads(Scene scene, IScenePayload? payload)
     {
         try
         {
-            AssetCollection preloads = scene.CollectAssetPreloads(payload);
-            prepare?.Invoke(preloads);
+            return scene.CollectAssetPreloads(payload);
+        }
+        catch (Exception failure)
+        {
+            Failure.CleanUp(failure, scene.Abandon, $"Collecting {scene.GetType().Name}'s assets and then releasing it both failed.");
+            throw;
+        }
+    }
 
-            return preloads;
+    // Hands a collected scene's preloads to prepare, which only a host with a device sets. A failure releases
+    // the scene, which never started.
+    private static void Prepare(Scene scene, AssetCollection preloads, Action<AssetCollection>? prepare)
+    {
+        try
+        {
+            prepare?.Invoke(preloads);
         }
         catch (Exception failure)
         {
@@ -425,4 +524,6 @@ internal sealed class SceneHost : ISimulation, IDisposable
         PrefetchAssets = null;
         prepare?.Invoke(new AssetCollection());
     }
+
+    private readonly record struct PrefetchedScene(SceneTransition Target, Scene Scene, AssetCollection Preloads);
 }

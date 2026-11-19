@@ -58,6 +58,12 @@ The `Startup` driver times a load. It prints `bootMs`, from the start of the pro
 artifacts/bench/publish/Capsule.Bench --scene StartSpawns --headless --driver Startup [--scale <n>]
 ```
 
+`LevelPrefetch` and its rows time a scene boundary paced, as a player sees it. The `LevelSwap` driver prints the collections of each generation and the collection pause time from the prefetch step to three steps after the boundary, and the frame CSV holds each frame's `updateMs`:
+
+```text
+artifacts/bench/publish/Capsule.Bench --scene LevelPrefetchHuge --headless --driver LevelSwap --frames artifacts/bench/level-swap.csv --exit-after 4
+```
+
 ## Allocation in a NativeAOT build
 
 The allocation tests and `dotnet run` run JIT-compiled code, and a shipped game runs NativeAOT code. A call that allocates nothing under the JIT can allocate after NativeAOT compilation, and nothing on the JIT side reports it. `Marshal.SizeOf<T>()` allocates 32 bytes a call under NativeAOT and none under the JIT, for any `T`. The other way round, a JIT-compiled run allocates 32 bytes on the frame that first calls each SDL function, as the runtime binds it, and a NativeAOT run does not. A function first called late, such as the staging buffer's release once a load settles, puts those bytes in a measured frame. Measure a published build before a release and after any upgrade of .NET or SDL. Publish the game with the development flags kept, then drive it windowed and headless:

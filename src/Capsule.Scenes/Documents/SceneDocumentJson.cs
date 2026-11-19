@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Numerics;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -170,46 +171,59 @@ internal sealed class SceneDocumentJson
     }
 
     // The undeclared keys of the document and of each entry, or null where there are none: the document's at 0
-    // and entry i's at i + 1. One walk of utf8 collects them as slices of it, and nothing is parsed. The
-    // serializer has already validated the JSON and the shape this walk relies on.
+    // and entry i's at i + 1. One walk of utf8 collects them as slices of it, and nothing is parsed. An entry that
+    // authors the same keys as the one before it shares its array of them. The serializer has already validated
+    // the JSON and the shape this walk relies on, but not that every member name is UTF-8.
     private static AuthoredObject?[] ReadMembers(ReadOnlyMemory<byte> utf8, int entryCount)
     {
         AuthoredObject?[] members = new AuthoredObject?[entryCount + 1];
-        AuthoredObject.Builder scene = default;
+        AuthoredObject.KeyTable scene = new(SceneDocumentKeys.Document.Keys);
+        AuthoredObject.KeyTable entries = new(SceneDocumentKeys.Entry.Keys);
         Utf8JsonReader reader = new(utf8.Span);
-        reader.Read();
-        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+
+        // The place in members of the entry being read, or 0 while the document's own members are.
+        int reading = 0;
+        try
         {
-            if (reader.ValueTextEquals(SceneDocumentKeys.Document.Entities))
+            reader.Read();
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
             {
-                // A repeated key reads its last value, as the serializer does. Only the last value is a list of
-                // entryCount objects.
-                Array.Clear(members, 1, entryCount);
-                reader.Read();
-                if (reader.TokenType == JsonTokenType.StartArray)
+                if (reader.ValueTextEquals(SceneDocumentKeys.Document.Entities))
                 {
-                    for (int i = 1; reader.Read() && reader.TokenType != JsonTokenType.EndArray; i++)
+                    // A repeated key reads its last value, as the serializer does. Only the last value is a list of
+                    // entryCount objects.
+                    Array.Clear(members, 1, entryCount);
+                    reader.Read();
+                    if (reader.TokenType == JsonTokenType.StartArray)
                     {
-                        if (reader.TokenType == JsonTokenType.StartObject && i <= entryCount)
+                        for (int i = 1; reader.Read() && reader.TokenType != JsonTokenType.EndArray; i++)
                         {
-                            members[i] = AuthoredObject.Read(ref reader, utf8, SceneDocumentKeys.Entry.Keys);
-                        }
-                        else
-                        {
-                            reader.Skip();
+                            if (reader.TokenType == JsonTokenType.StartObject && i <= entryCount)
+                            {
+                                reading = i;
+                                members[i] = AuthoredObject.Read(ref reader, utf8, entries);
+                                reading = 0;
+                            }
+                            else
+                            {
+                                reader.Skip();
+                            }
                         }
                     }
                 }
+                else
+                {
+                    scene.Add(ref reader, utf8);
+                }
             }
-            else if (AuthoredObject.Named(ref reader, SceneDocumentKeys.Document.Keys))
-            {
-                reader.Read();
-                reader.Skip();
-            }
-            else
-            {
-                scene.Add(ref reader, utf8);
-            }
+        }
+        catch (InvalidOperationException ex) when (ex.InnerException is DecoderFallbackException)
+        {
+            // The reader refuses a member name that is not UTF-8 as it transcodes it. Any other failure here is a bug,
+            // and passes as it is.
+            throw new SceneDocumentFormatException(
+                $"malformed scene document JSON: {(reading == 0 ? "the document" : $"entities[{reading - 1}]")} has a member name that is not UTF-8. Save the file as UTF-8.",
+                ex);
         }
 
         members[0] = scene.Build();

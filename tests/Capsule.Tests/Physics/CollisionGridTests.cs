@@ -132,6 +132,49 @@ public sealed class CollisionGridTests
             floor.Handle));
     }
 
+    // A grid's build derives its cells row by row, and a refresh derives one cell from its neighbours.
+    // Over every kind of entry and across block and grid edges, both reach the same state.
+    [Fact]
+    public void BuildingAGrid_DerivesEveryCellAsRefreshingItDoes()
+    {
+        CollisionWorld2D world = new();
+        CollisionLayer solid = world.Layer(CollisionFixtures.Solid);
+        CollisionLayer platform = world.Layer(CollisionFixtures.Platform);
+        Shape2D halfHigh = Shape2D.Polygon([new(0f, 8f), new(16f, 8f), new(16f, 16f), new(0f, 16f)]);
+        CellProfile2D[] profiles =
+        [
+            new(null),
+            new(solid),
+            new(solid, CollisionFixtures.SlopeUp),
+            new(solid, CollisionFixtures.SlopeDown),
+            new(solid, halfHigh),
+            new(platform, OneWay: true),
+            new(platform, OneWay: true, SolidSides: true),
+            new(world.Layer(CollisionFixtures.Climb)),
+        ];
+
+        const int width = 37;
+        const int height = 21;
+        Random random = new(11);
+        int[] cells = new int[width * height];
+        for (int index = 0; index < cells.Length; index++)
+        {
+            cells[index] = random.Next(profiles.Length);
+        }
+
+        CollisionGrid2D grid = world.AddGrid(16, width, height, cells, profiles);
+        CellState2D[] built = grid.States.ToArray();
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                grid.Refresh(x, y);
+            }
+        }
+
+        Assert.Equal(built, grid.States.ToArray());
+    }
+
     // A cell shape past four corners has an edge on at most each side of its cell, and only those edges
     // cull. The mound's right side lies flush against solid ground and is culled. Its left side and
     // underside stay surfaces, and its chamfered top lands what falls on it.
@@ -149,5 +192,24 @@ public sealed class CollisionGridTests
         Assert.Equal(25f, top.Distance, 3);
         Assert.True(world.Raycast(new Vector2(8f, 48f), -Vector2.UnitY, 64f, CollisionFilter.Everything, out RayHit2D under));
         Assert.Equal(16f, under.Distance, 3);
+    }
+
+    // A removed collider waits for the next pair search, and a grid added before it takes the freed slot.
+    // The search then meets a grid, which has no proxy, and passes over it.
+    [Fact]
+    public void AGridTakingASlotFreedSinceTheLastPairSearch_IsPassedOverByIt()
+    {
+        CollisionWorld2D world = new();
+        CollisionLayer solid = world.Layer(CollisionFixtures.Solid);
+        ColliderHandle detector = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), new Vector2(64f, 0f), solid);
+        world.SetContactFilter(detector, CollisionFilter.Everything);
+        ColliderHandle freed = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, solid);
+        world.Remove(freed);
+
+        CollisionGrid2D grid = CollisionFixtures.Paint(world, "##");
+
+        Assert.Equal(freed.Index, grid.Handle.Index);
+        Span<Contact2D> contacts = stackalloc Contact2D[4];
+        Assert.Equal(0, world.ContactsOf(detector, contacts));
     }
 }

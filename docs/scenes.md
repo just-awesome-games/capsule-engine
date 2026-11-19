@@ -175,11 +175,15 @@ outside the root namespace claims its kebab-cased name. A type key no class clai
 
 ## Changing scenes
 
-The shell boots the first scene with `RunScene`, and a step asks for the next with `Run.RequestScene` or
-loads its media early with `Run.PrefetchScene`. A request may carry an `IScenePayload`, which the opened
-scene reads as its `EntryPayload` from its `CollectAssets` onward. The payload can choose what the scene preloads,
-and a prefetch takes the payload its request will carry. A test reads the request the host would act on as a
-`SceneTransition`.
+The shell boots the first scene with `RunScene`, and a step asks for the next with `Run.RequestScene` or loads its
+document and media early with `Run.PrefetchScene`. A request may carry an `IScenePayload`, which the opened scene
+reads as its `EntryPayload` from its `CollectAssets` onward. The payload can choose what the scene preloads, and a
+prefetch takes the payload its request will carry. A prefetch constructs its scene and runs its `CollectAssets` once,
+and a request for that scene with an equal payload starts that instance, whether each names the scene by its class or
+by its document's key. Anything else releases it unstarted. A prefetch reads a document not yet loaded on a worker
+thread, and whichever step needs the document waits for the read. The step a scene opens on never depends on when the
+read finishes. The browser and WASI have no worker thread to wait on and read it on the game thread at that step.
+A test reads the request the host would act on as a `SceneTransition`.
 A scene composed from a document reports that document's key as `Scene.DocumentKey`, and a scene built in code
 reports null. A payload names the room it came from by it, and a save keys a record to a room by it.
 

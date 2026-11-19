@@ -28,7 +28,7 @@ public sealed partial class CollisionWorld2D
     /// <summary>How many distinct layers one world may intern.</summary>
     public const int MaxLayers = 64;
 
-    // How many candidates a collider's list holds from registration on. A larger crowd doubles it.
+    // How many candidates a collider's list holds once it reports contacts. A larger crowd doubles it.
     private const int StartingCandidates = 8;
 
     // The longest appended run a merge copies onto the stack, 3 KB of handles. Only a crowd arriving at
@@ -60,6 +60,11 @@ public sealed partial class CollisionWorld2D
     // longest such run. A world whose runs all fit on the stack never allocates it.
     private readonly List<int> _appended = [];
     private ColliderHandle[] _mergeScratch = [];
+
+    // Candidate lists no reporter holds. A collider takes one as its contact filter turns non-empty and
+    // returns it as the filter empties or the collider leaves. _lentLists counts those taken.
+    private readonly Stack<ColliderHandle[]> _spareLists = new();
+    private int _lentLists;
 
     // The slots the running CollidersNear query has met, in the order it met them. It is sized with
     // the slot table, which no gather outgrows.
@@ -209,7 +214,6 @@ public sealed partial class CollisionWorld2D
 
         int index = AllocateSlot();
         ref ColliderSlot slot = ref _slots[index];
-        slot.Candidates ??= new ColliderHandle[StartingCandidates];
         slot.Local = shape;
         slot.Position = position;
         slot.World = placed;
@@ -254,14 +258,15 @@ public sealed partial class CollisionWorld2D
         Remove(grid.Handle);
     }
 
-    // Sizes the slot table, each slot's candidate list, the shove gather and the tree for colliders
-    // held at once, and the grid list for grids held at once. Adding, moving and removing up to that
-    // many then allocates nothing until a collider gathers more contact candidates than its list
-    // holds. Never shrinks.
-    internal void Reserve(int colliders, int grids)
+    // Sizes the slot table, the shove gather and the tree for colliders held at once, the grid list
+    // for grids held at once, and the candidate lists for colliders reporting contacts at once. Adding,
+    // moving and removing up to that many then allocates nothing until a collider gathers more contact
+    // candidates than its list holds. Never shrinks.
+    internal void Reserve(int colliders, int grids, int reporters)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(colliders);
         ArgumentOutOfRangeException.ThrowIfNegative(grids);
+        ArgumentOutOfRangeException.ThrowIfNegative(reporters);
 
         _grids.EnsureCapacity(grids);
         if (colliders > _slots.Length)
@@ -269,9 +274,9 @@ public sealed partial class CollisionWorld2D
             Array.Resize(ref _slots, colliders);
         }
 
-        for (int index = 0; index < colliders; index++)
+        while (_lentLists + _spareLists.Count < reporters)
         {
-            _slots[index].Candidates ??= new ColliderHandle[StartingCandidates];
+            _spareLists.Push(new ColliderHandle[StartingCandidates]);
         }
 
         _freeSlots.EnsureCapacity(_slots.Length);
@@ -779,10 +784,23 @@ public sealed partial class CollisionWorld2D
     internal void SetContactFilter(ColliderHandle handle, CollisionFilter filter)
     {
         int index = RequireShapeSlot(handle);
-        CountDetector(_slots[index].ContactFilter, _slots[index].Layer, -1);
-        _slots[index].ContactFilter = filter;
-        _slots[index].CandidateCount = 0;
-        CountDetector(filter, _slots[index].Layer, 1);
+        ref ColliderSlot slot = ref _slots[index];
+        CountDetector(slot.ContactFilter, slot.Layer, -1);
+        slot.ContactFilter = filter;
+        slot.CandidateCount = 0;
+        CountDetector(filter, slot.Layer, 1);
+
+        if (filter.IsEmpty && slot.Candidates is { } list)
+        {
+            _spareLists.Push(list);
+            _lentLists--;
+            slot.Candidates = null;
+        }
+        else if (!filter.IsEmpty && slot.Candidates is null)
+        {
+            slot.Candidates = _spareLists.TryPop(out ColliderHandle[]? spare) ? spare : new ColliderHandle[StartingCandidates];
+            _lentLists++;
+        }
 
         NoteMoved(index);
     }
@@ -881,6 +899,8 @@ public sealed partial class CollisionWorld2D
         {
             ref ColliderSlot slot = ref _slots[index];
             slot.Moved = false;
+
+            // A removed collider stays listed, and a grid added since may have taken its slot.
             if (!slot.InUse || slot.Grid is not null)
             {
                 continue;
@@ -936,7 +956,9 @@ public sealed partial class CollisionWorld2D
     private void AddCandidate(int index, ColliderHandle handle)
     {
         ref ColliderSlot slot = ref _slots[index];
-        slot.Candidates ??= new ColliderHandle[StartingCandidates];
+
+        // A collider whose filter admits a candidate reports contacts, and holds a list.
+        ColliderHandle[] candidates = slot.Candidates!;
         int count = slot.CandidateCount;
 
         // The first sorted entry past the handle's slot.
@@ -945,7 +967,7 @@ public sealed partial class CollisionWorld2D
         while (position < end)
         {
             int middle = (position + end) >>> 1;
-            if (slot.Candidates[middle].Index > handle.Index)
+            if (candidates[middle].Index > handle.Index)
             {
                 end = middle;
             }
@@ -955,16 +977,17 @@ public sealed partial class CollisionWorld2D
             }
         }
 
-        if (position > 0 && slot.Candidates[position - 1].Index == handle.Index)
+        if (position > 0 && candidates[position - 1].Index == handle.Index)
         {
-            slot.Candidates[position - 1] = handle;
+            candidates[position - 1] = handle;
             return;
         }
 
         int appended = count + slot.AppendedCount;
-        if (appended == slot.Candidates.Length)
+        if (appended == candidates.Length)
         {
-            Array.Resize(ref slot.Candidates, appended * 2);
+            Array.Resize(ref candidates, appended * 2);
+            slot.Candidates = candidates;
         }
 
         if (slot.AppendedCount == 0)
@@ -972,7 +995,7 @@ public sealed partial class CollisionWorld2D
             _appended.Add(index);
         }
 
-        slot.Candidates[appended] = handle;
+        candidates[appended] = handle;
         slot.AppendedCount++;
     }
 
@@ -1299,9 +1322,9 @@ public sealed partial class CollisionWorld2D
         internal bool SolidSides;
 
         // What this collider's settled contacts detect, and the colliders whose fat boxes are within
-        // the skin of its own, sorted by slot. Moved marks the slot as listed in _moved. While
-        // FindNewPairs runs, AppendedCount unsorted candidates follow the sorted ones, and outside it
-        // there are none.
+        // the skin of its own, sorted by slot, in a list held only while the filter is non-empty. Moved
+        // marks the slot as listed in _moved. While FindNewPairs runs, AppendedCount unsorted candidates
+        // follow the sorted ones, and outside it there are none.
         internal CollisionFilter ContactFilter;
         internal ColliderHandle[]? Candidates;
         internal int CandidateCount;

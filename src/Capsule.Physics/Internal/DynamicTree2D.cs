@@ -17,9 +17,16 @@ internal interface IRayVisitor2D
 }
 
 // A dynamic bounding-volume hierarchy over moving colliders. Fat bounds keep a proxy that moves a
-// little from being reinserted, insertion descends on the surface-area heuristic, and rebalancing uses
-// rotations. The tree is never rebuilt wholesale and is deterministic for a given sequence of
-// operations.
+// little from being reinserted. Insertion descends greedily by surface-area cost, and AVL rotations
+// rebalance the branches it passes. The tree is deterministic for a given sequence of operations, and
+// no query's results depend on its arrangement.
+//
+// A layer is indexed, holding a tree, or unindexed. A proxy created on or moved onto an indexed layer
+// is inserted at once. One on an unindexed layer is loose and holds only its fat bounds. Moving it
+// writes them, and removing it unlinks it. The first walk naming an unindexed layer that holds loose
+// proxies builds them top-down into its tree, as when a scene's start makes a crowd at once, and the
+// layer is indexed from then on. A layer stays indexed when it empties, which is deliberate: a layer
+// that churns after its first walk pays one insertion per proxy and never a rebuild.
 //
 // Each layer's proxies form a tree of their own, rooted apart from the others in one shared node
 // pool, and a walk descends only the roots its filter names. Bodies crowding round the surfaces they
@@ -31,6 +38,13 @@ internal sealed class DynamicTree2D
 
     private const int Layers = 64;
 
+    // The height of a loose proxy. A free node's is -1 and a leaf's 0.
+    private const int Loose = -2;
+
+    // The cells a build's curve divides the longer side of its centres' bounds into, the most 16 bits
+    // of each axis hold.
+    private const float CurveCells = ushort.MaxValue;
+
     // World units of slack around a proxy's tight bounds. Ordinary motion then costs a bounds write
     // instead of a reinsertion. The second is world units of lookahead per unit of displacement, and
     // the third caps the lookahead on each axis. A jump far past the cap is a teleport, not travel.
@@ -41,7 +55,7 @@ internal sealed class DynamicTree2D
     private Node[] _nodes = new Node[16];
 
     // A walk holds at most one waiting sibling per level below the root plus the root itself. The
-    // tree's height bounds it. InsertLeaf grows it, and no walk does.
+    // tree's height bounds it. InsertLeaf and BuildLayer grow it, and no walk does.
     private int[] _stack = new int[64];
 
     // Each layer's root, indexed by its bit, and the bits whose trees hold a proxy.
@@ -49,17 +63,48 @@ internal sealed class DynamicTree2D
     private ulong _rooted;
     private int _freeList;
 
+    // How many proxies the tree holds. The node pool keeps room for twice as many, more than their
+    // leaves and branches take, and no build or insertion grows it.
+    private int _proxies;
+
+    // Each unindexed layer's loose proxies, indexed by its bit. A list runs from its head through
+    // Child2, and back through Parent, which a loose proxy otherwise leaves unused.
+    private readonly int[] _loose = new int[Layers];
+
+    // A build's proxies, each its Morton code above its id, sorted through the second array by radix.
+    // Both hold every proxy while any is loose.
+    private ulong[] _order = new ulong[16];
+    private ulong[] _sorting = new ulong[16];
+
+    // The bits of the layers holding a tree, and of those holding a loose proxy.
+    internal ulong IndexedLayers { get; private set; }
+
+    internal ulong LooseLayers { get; private set; }
+
     internal DynamicTree2D()
     {
         Array.Fill(_roots, NullNode);
+        Array.Fill(_loose, NullNode);
         FreeFrom(0);
     }
 
     internal int UserDataOf(int proxyId) => _nodes[proxyId].UserData;
 
+    // Grows the node pool and a build's sort to hold proxies.
+    internal void Reserve(int proxies)
+    {
+        if (_order.Length < proxies)
+        {
+            _order = new ulong[proxies];
+            _sorting = new ulong[proxies];
+        }
+
+        GrowNodes(proxies);
+    }
+
     // Grows the node pool to hold proxies leaves and their branches. The added nodes queue behind the
     // free ones and are handed out in the order growing on demand would hand them out.
-    internal void Reserve(int proxies)
+    private void GrowNodes(int proxies)
     {
         int previous = _nodes.Length;
         int length = previous;
@@ -97,19 +142,22 @@ internal sealed class DynamicTree2D
     {
         RequireLayer(mask);
 
+        _proxies++;
+        GrowNodes(_proxies);
         int proxyId = AllocateNode();
         _nodes[proxyId].Box = tight.Expanded(BoundsMargin);
         _nodes[proxyId].Mask = mask;
         _nodes[proxyId].UserData = userData;
-        InsertLeaf(proxyId);
+        Place(proxyId);
 
         return proxyId;
     }
 
     internal void DestroyProxy(int proxyId)
     {
-        RemoveLeaf(proxyId);
+        Detach(proxyId);
         FreeNode(proxyId);
+        _proxies--;
     }
 
     // Refits the proxy, reinserting it only when its tight bounds escape its fat ones. Returns whether
@@ -121,7 +169,11 @@ internal sealed class DynamicTree2D
             return false;
         }
 
-        RemoveLeaf(proxyId);
+        bool loose = _nodes[proxyId].Height == Loose;
+        if (!loose)
+        {
+            RemoveLeaf(proxyId);
+        }
 
         Aabb2D fat = tight.Expanded(BoundsMargin);
 
@@ -135,12 +187,15 @@ internal sealed class DynamicTree2D
         _nodes[proxyId].Box = new Aabb2D(
             fat.Min + Vector2.Min(predicted, Vector2.Zero),
             fat.Max + Vector2.Max(predicted, Vector2.Zero));
-        InsertLeaf(proxyId);
+        if (!loose)
+        {
+            InsertLeaf(proxyId);
+        }
 
         return true;
     }
 
-    // Moves a leaf to the tree of its new layer, a single bit, keeping its id and its fat bounds.
+    // Moves a proxy to its new layer, a single bit, keeping its id and its fat bounds.
     internal void SetProxyMask(int proxyId, ulong mask)
     {
         RequireLayer(mask);
@@ -149,13 +204,13 @@ internal sealed class DynamicTree2D
             return;
         }
 
-        RemoveLeaf(proxyId);
+        Detach(proxyId);
         _nodes[proxyId].Mask = mask;
-        InsertLeaf(proxyId);
+        Place(proxyId);
     }
 
     // Whether any of the mask's layers has a proxy.
-    internal bool Holds(ulong mask) => (mask & _rooted) != 0;
+    internal bool Holds(ulong mask) => (mask & (_rooted | LooseLayers)) != 0;
 
     // Whether any proxy on the mask's layers has fat bounds that meet the box.
     internal bool Overlaps(in Aabb2D box, ulong mask)
@@ -170,6 +225,11 @@ internal sealed class DynamicTree2D
     internal void Query<TVisitor>(in Aabb2D box, ulong mask, ref TVisitor visitor)
         where TVisitor : struct, ITreeVisitor2D, allows ref struct
     {
+        if ((mask & LooseLayers) != 0)
+        {
+            Build(mask & LooseLayers);
+        }
+
         for (ulong layers = mask & _rooted; layers != 0; layers &= layers - 1)
         {
             int depth = 0;
@@ -204,6 +264,11 @@ internal sealed class DynamicTree2D
     internal void RayCast<TVisitor>(Vector2 origin, Vector2 direction, float maxFraction, ulong mask, ref TVisitor visitor)
         where TVisitor : struct, IRayVisitor2D, allows ref struct
     {
+        if ((mask & LooseLayers) != 0)
+        {
+            Build(mask & LooseLayers);
+        }
+
         for (ulong layers = mask & _rooted; layers != 0; layers &= layers - 1)
         {
             int depth = 0;
@@ -230,6 +295,216 @@ internal sealed class DynamicTree2D
         }
     }
 
+    // Builds each layer of layers, which all hold loose proxies, into its tree and indexes it.
+    private void Build(ulong layers)
+    {
+        for (; layers != 0; layers &= layers - 1)
+        {
+            BuildLayer(BitOperations.TrailingZeroCount(layers));
+        }
+    }
+
+    // Builds the loose proxies of the layer at bit into its tree. The proxies are sorted along a
+    // Z-order curve through their centres, scaled alike on both axes, and each branch splits its run
+    // where the codes first differ. A branch then splits its square of the curve in half across its
+    // longer side, and codes that tie split at the middle of their run.
+    private void BuildLayer(int bit)
+    {
+        Vector2 low = new(float.PositiveInfinity);
+        Vector2 high = new(float.NegativeInfinity);
+        for (int leaf = _loose[bit]; leaf != NullNode; leaf = _nodes[leaf].Child2)
+        {
+            Vector2 centre = Centre(leaf);
+            low = Vector2.Min(low, centre);
+            high = Vector2.Max(high, centre);
+        }
+
+        float span = MathF.Max(high.X - low.X, high.Y - low.Y);
+        float scale = span > 0f ? CurveCells / span : 0f;
+        int count = 0;
+        for (int leaf = _loose[bit]; leaf != NullNode;)
+        {
+            int next = _nodes[leaf].Child2;
+            _nodes[leaf].Child2 = NullNode;
+            _nodes[leaf].Height = 0;
+
+            Vector2 cell = Vector2.Min((Centre(leaf) - low) * scale, new Vector2(CurveCells));
+            ulong code = Interleave((uint)cell.X) | (Interleave((uint)cell.Y) << 1);
+            _order[count++] = (code << 32) | (uint)leaf;
+            leaf = next;
+        }
+
+        SortByCode(count);
+
+        int root = BuildSorted(0, count - 1);
+        _nodes[root].Parent = NullNode;
+        _roots[bit] = root;
+        _loose[bit] = NullNode;
+
+        ulong layer = 1UL << bit;
+        LooseLayers &= ~layer;
+        IndexedLayers |= layer;
+        _rooted |= layer;
+        GrowStack(_nodes[root].Height + 1);
+    }
+
+    // Twice a node's centre, which orders and scales as the centre itself does.
+    private Vector2 Centre(int nodeId) => _nodes[nodeId].Box.Min + _nodes[nodeId].Box.Max;
+
+    // Spreads the low 16 bits of value to the even bits of the result.
+    private static ulong Interleave(uint value)
+    {
+        value = (value | (value << 8)) & 0x00FF00FFu;
+        value = (value | (value << 4)) & 0x0F0F0F0Fu;
+        value = (value | (value << 2)) & 0x33333333u;
+        value = (value | (value << 1)) & 0x55555555u;
+
+        return value;
+    }
+
+    // A stable radix sort of the first count entries of _order by their codes, a byte a pass. The four
+    // passes leave the result back in _order.
+    private void SortByCode(int count)
+    {
+        Span<int> starts = stackalloc int[256];
+        ulong[] from = _order;
+        ulong[] to = _sorting;
+        for (int shift = 32; shift < 64; shift += 8)
+        {
+            starts.Clear();
+            for (int index = 0; index < count; index++)
+            {
+                starts[(int)(from[index] >> shift) & 0xFF]++;
+            }
+
+            int total = 0;
+            for (int bucket = 0; bucket < starts.Length; bucket++)
+            {
+                (starts[bucket], total) = (total, total + starts[bucket]);
+            }
+
+            for (int index = 0; index < count; index++)
+            {
+                ulong entry = from[index];
+                to[starts[(int)(entry >> shift) & 0xFF]++] = entry;
+            }
+
+            (from, to) = (to, from);
+        }
+    }
+
+    // Builds the sorted run from first to last into a subtree and returns its root. The split is the
+    // last entry sharing more leading code bits with the first than the last one does.
+    private int BuildSorted(int first, int last)
+    {
+        if (first == last)
+        {
+            return (int)(uint)_order[first];
+        }
+
+        uint firstCode = (uint)(_order[first] >> 32);
+        int shared = BitOperations.LeadingZeroCount(firstCode ^ (uint)(_order[last] >> 32));
+        int split = (first + last) >>> 1;
+        if (shared < 32)
+        {
+            split = first;
+            for (int step = last - first; step > 1;)
+            {
+                step = (step + 1) >> 1;
+                int candidate = split + step;
+                if (candidate < last && BitOperations.LeadingZeroCount(firstCode ^ (uint)(_order[candidate] >> 32)) > shared)
+                {
+                    split = candidate;
+                }
+            }
+        }
+
+        int child1 = BuildSorted(first, split);
+        int child2 = BuildSorted(split + 1, last);
+
+        int parent = AllocateNode();
+        _nodes[parent].Box = _nodes[child1].Box.Union(_nodes[child2].Box);
+        _nodes[parent].Mask = _nodes[child1].Mask;
+        _nodes[parent].Height = 1 + Math.Max(_nodes[child1].Height, _nodes[child2].Height);
+        _nodes[parent].Child1 = child1;
+        _nodes[parent].Child2 = child2;
+        _nodes[child1].Parent = parent;
+        _nodes[child2].Parent = parent;
+
+        return parent;
+    }
+
+    // Inserts a proxy into its layer's tree when the layer is indexed, and otherwise links it at the
+    // head of the layer's loose list.
+    private void Place(int proxyId)
+    {
+        ref Node node = ref _nodes[proxyId];
+        if ((node.Mask & IndexedLayers) != 0)
+        {
+            node.Height = 0;
+            node.Child2 = NullNode;
+            InsertLeaf(proxyId);
+            return;
+        }
+
+        if (_order.Length < _proxies)
+        {
+            _order = new ulong[_nodes.Length / 2];
+            _sorting = new ulong[_nodes.Length / 2];
+        }
+
+        ref int head = ref _loose[BitOperations.TrailingZeroCount(node.Mask)];
+        node.Height = Loose;
+        node.Parent = NullNode;
+        node.Child2 = head;
+        if (head != NullNode)
+        {
+            _nodes[head].Parent = proxyId;
+        }
+
+        head = proxyId;
+        LooseLayers |= node.Mask;
+    }
+
+    // Takes a proxy out of its layer's tree, or unlinks it from its loose list.
+    private void Detach(int proxyId)
+    {
+        ref Node node = ref _nodes[proxyId];
+        if (node.Height != Loose)
+        {
+            RemoveLeaf(proxyId);
+            return;
+        }
+
+        ref int head = ref _loose[BitOperations.TrailingZeroCount(node.Mask)];
+        if (node.Parent == NullNode)
+        {
+            head = node.Child2;
+        }
+        else
+        {
+            _nodes[node.Parent].Child2 = node.Child2;
+        }
+
+        if (node.Child2 != NullNode)
+        {
+            _nodes[node.Child2].Parent = node.Parent;
+        }
+
+        if (head == NullNode)
+        {
+            LooseLayers &= ~node.Mask;
+        }
+    }
+
+    private void GrowStack(int deepest)
+    {
+        if (deepest > _stack.Length)
+        {
+            Array.Resize(ref _stack, deepest * 2);
+        }
+    }
+
     private static void RequireLayer(ulong mask)
     {
         if (BitOperations.PopCount(mask) != 1)
@@ -251,13 +526,6 @@ internal sealed class DynamicTree2D
 
     private int AllocateNode()
     {
-        if (_freeList == NullNode)
-        {
-            int previous = _nodes.Length;
-            Array.Resize(ref _nodes, previous * 2);
-            FreeFrom(previous);
-        }
-
         int nodeId = _freeList;
         _freeList = _nodes[nodeId].Parent;
         _nodes[nodeId] = new Node
@@ -297,8 +565,9 @@ internal sealed class DynamicTree2D
         _nodes[^1].Height = -1;
     }
 
-    // Branch-and-bound descent on the surface-area heuristic. Descend while that costs less than
-    // pairing the leaf with the node here.
+    // Greedy descent on the surface-area heuristic. At each branch the leaf stops and pairs with it when
+    // that costs less than descending into either child, and otherwise descends into the cheaper one.
+    // Refit then rebalances the branches above the new parent with AVL rotations.
     private void InsertLeaf(int leaf)
     {
         ref int root = ref RootOf(leaf);
@@ -348,12 +617,7 @@ internal sealed class DynamicTree2D
         _nodes[leaf].Parent = newParent;
 
         Refit(_nodes[leaf].Parent);
-
-        int deepest = _nodes[root].Height + 1;
-        if (deepest > _stack.Length)
-        {
-            Array.Resize(ref _stack, deepest * 2);
-        }
+        GrowStack(_nodes[root].Height + 1);
     }
 
     private float DescentCost(int child, in Aabb2D leafBox, float inheritanceCost)

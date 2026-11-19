@@ -66,3 +66,6 @@ publish/
 *.azurePubxml
 *.pubxml
 *.publishproj
+
+## The bench's generated ten-times level (tests/Capsule.Bench.Logic/AuthoredHuge.targets)
+tests/Capsule.Bench.Logic/Assets/Scenes/authored-huge.scene.json

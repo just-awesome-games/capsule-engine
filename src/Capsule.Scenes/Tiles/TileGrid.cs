@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Capsule.Animation;
 using Capsule.Assets;
@@ -19,6 +20,9 @@ public sealed class TileGrid
 
     /// <summary>The plain palette entry every unpainted cell points at, named <see cref="EmptyTileName"/>.</summary>
     public static TileType EmptyTile { get; } = new() { Name = EmptyTileName };
+
+    // What each scene document's palette makes, by the palette array the document's maps share.
+    private static readonly ConditionalWeakTable<TileType[], PaletteCut> Palettes = new();
 
     private readonly TileType[] _tileTypes;
 
@@ -106,18 +110,19 @@ public sealed class TileGrid
         TextureHandle? texture,
         int columns,
         ReadOnlyMemory<int>? transforms)
-        : this(tileSize, width, height, Whole(tileTypes), Whole(tiles), texture, columns, cells: null, transforms: null, authored: transforms)
+        : this(tileSize, width, height, Whole(tileTypes), Whole(tiles), texture, columns, cells: null, transforms: null, authored: transforms, shared: true)
     {
     }
 
     // A grid over a compiled scene document's palette and cells, which it shares and never writes.
     internal TileGrid(int tileSize, int width, int height, ReadOnlyMemory<TileType> tileTypes, CellBlocks cells, TextureHandle? texture, int columns)
-        : this(tileSize, width, height, Whole(tileTypes), tiles: null, texture, columns, cells, transforms: null, authored: null)
+        : this(tileSize, width, height, Whole(tileTypes), tiles: null, texture, columns, cells, transforms: null, authored: null, shared: true)
     {
     }
 
     // The grid takes compiled cells or dense tiles. Dense transforms are listed, authored or neither, and are read
-    // only once the rest of the grid is valid.
+    // only once the rest of the grid is valid. A shared palette is a document's, which every map that authors it
+    // holds.
     private TileGrid(
         int tileSize,
         int width,
@@ -128,7 +133,8 @@ public sealed class TileGrid
         int columns,
         CellBlocks? cells,
         IReadOnlyList<TileTransform>? transforms,
-        ReadOnlyMemory<int>? authored)
+        ReadOnlyMemory<int>? authored,
+        bool shared = false)
     {
         TileSize = tileSize;
         Width = width;
@@ -136,7 +142,16 @@ public sealed class TileGrid
         Texture = texture;
         Columns = columns;
         _tileTypes = tileTypes;
-        _shapes = TileGridValidation.Validate(tileSize, width, height, tileTypes, tiles, texture, columns);
+        TileGridValidation.ValidateSize(tileSize, width, height);
+        PaletteCut palette = Cut(tileTypes, tileSize, texture, columns, shared);
+        _shapes = palette.Shapes;
+        _sprites = palette.Sprites;
+        _animations = palette.Animations;
+        if (tiles is not null)
+        {
+            TileGridValidation.ValidateTiles(tiles, width, height, tileTypes.Length);
+        }
+
         if (cells is not null)
         {
             TileGridValidation.ValidateCells(cells, tileTypes.Length);
@@ -149,9 +164,6 @@ public sealed class TileGrid
                 : transforms is null ? null : [.. transforms.Select(static transform => (byte)transform)];
             _cells = Build(tiles!, facings, width, height);
         }
-
-        _sprites = CutCells();
-        _animations = CutAnimations();
     }
 
     /// <summary>The tile palette. Index 0 is an empty tile like <see cref="EmptyTile"/>, and names are unique.</summary>
@@ -224,45 +236,65 @@ public sealed class TileGrid
             ? segment.Array
             : memory.ToArray();
 
-    // Each sprite pivots on its centre. A mirrored or turned tile then stays inside its cell.
-    private Sprite?[] CutCells()
+    // Checks the palette against the grid's texture and cuts what it draws and collides as. A shared palette's cut
+    // is made once and reused by every grid that holds it at the same size, texture and columns.
+    private static PaletteCut Cut(TileType[] tileTypes, int tileSize, TextureHandle? texture, int columns, bool shared)
     {
-        Sprite?[] sprites = new Sprite?[_tileTypes.Length];
-        if (Texture is not { } texture)
+        if (shared && Palettes.TryGetValue(tileTypes, out PaletteCut? made) && made.Makes(tileSize, texture, columns))
+        {
+            return made;
+        }
+
+        Shape2D?[] shapes = TileGridValidation.ValidatePalette(tileTypes, tileSize);
+        TileGridValidation.ValidateTexture(tileTypes, texture, columns, tileSize);
+        PaletteCut cut = new(tileSize, texture, columns, shapes, CutCells(tileTypes, tileSize, texture, columns), CutAnimations(tileTypes, tileSize, texture, columns));
+        if (shared)
+        {
+            Palettes.AddOrUpdate(tileTypes, cut);
+        }
+
+        return cut;
+    }
+
+    // Each sprite pivots on its centre. A mirrored or turned tile then stays inside its cell.
+    private static Sprite?[] CutCells(TileType[] tileTypes, int tileSize, TextureHandle? texture, int columns)
+    {
+        Sprite?[] sprites = new Sprite?[tileTypes.Length];
+        if (texture is not { } cut)
         {
             return sprites;
         }
 
         for (int i = 0; i < sprites.Length; i++)
         {
-            if (_tileTypes[i].Cell is { } cell)
+            if (tileTypes[i].Cell is { } cell)
             {
-                sprites[i] = CutCell(texture, cell);
+                sprites[i] = CutCell(cut, cell, tileSize, columns);
             }
-            else if (_tileTypes[i].Frames is { } frames)
+            else if (tileTypes[i].Frames is { } frames)
             {
-                sprites[i] = CutCell(texture, frames[0].Cell);
+                sprites[i] = CutCell(cut, frames[0].Cell, tileSize, columns);
             }
         }
 
         return sprites;
     }
 
-    private Animation[] CutAnimations()
+    private static Animation[] CutAnimations(TileType[] tileTypes, int tileSize, TextureHandle? texture, int columns)
     {
-        int count = _tileTypes.Count(static tileType => tileType.Frames is not null);
+        int count = tileTypes.Count(static tileType => tileType.Frames is not null);
         if (count == 0)
         {
             return [];
         }
 
         // Validation refused frames on a grid with no texture.
-        TextureHandle texture = Texture!.Value;
+        TextureHandle cut = texture!.Value;
         Animation[] animations = new Animation[count];
         int next = 0;
-        for (int i = 0; i < _tileTypes.Length; i++)
+        for (int i = 0; i < tileTypes.Length; i++)
         {
-            if (_tileTypes[i].Frames is not { } frames)
+            if (tileTypes[i].Frames is not { } frames)
             {
                 continue;
             }
@@ -271,7 +303,7 @@ public sealed class TileGrid
             int[] ticks = new int[frames.Length];
             for (int frame = 0; frame < sprites.Length; frame++)
             {
-                sprites[frame] = CutCell(texture, frames[frame].Cell);
+                sprites[frame] = CutCell(cut, frames[frame].Cell, tileSize, columns);
                 ticks[frame] = frames[frame].Ticks;
             }
 
@@ -281,11 +313,18 @@ public sealed class TileGrid
         return animations;
     }
 
-    private Sprite CutCell(TextureHandle texture, int cell) => new(
+    private static Sprite CutCell(TextureHandle texture, int cell, int tileSize, int columns) => new(
         texture,
-        new TextureRegion(cell % Columns * TileSize, cell / Columns * TileSize, TileSize, TileSize),
-        new Vector2(TileSize / 2f, TileSize / 2f));
+        new TextureRegion(cell % columns * tileSize, cell / columns * tileSize, tileSize, tileSize),
+        new Vector2(tileSize / 2f, tileSize / 2f));
 
     // One animated palette entry and the looping clip its frames make.
     internal readonly record struct Animation(int Palette, SpriteClip Clip);
+
+    // What a valid palette makes at one tile size, cut from one texture of so many columns. Every grid holding it
+    // reads it and none writes it.
+    private sealed record PaletteCut(int TileSize, TextureHandle? Texture, int Columns, Shape2D?[] Shapes, Sprite?[] Sprites, Animation[] Animations)
+    {
+        internal bool Makes(int tileSize, TextureHandle? texture, int columns) => TileSize == tileSize && Texture == texture && Columns == columns;
+    }
 }

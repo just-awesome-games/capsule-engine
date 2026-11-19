@@ -82,6 +82,34 @@ public sealed class ParticleFinishTests
         Assert.Equal(FirstStep(secondSimulation, secondScene, new Burst()), secondLife);
     }
 
+    // A pooled trail keeps the false its last life ended with. Turning it off at its end changes no value but still
+    // ends its run. Until that write it waits in the scene however long it is left off.
+    [Fact]
+    public void ATrailTurnedOffBeforeItsAdd_WaitsInTheScene_ThenLeavesForItsPoolOnceTurnedOffInIt()
+    {
+        SceneFixtures.HookScene scene = new();
+        using SceneSimulation simulation = new(scene);
+        EntityPool<Burst> pool = new(() => new Burst(), capacity: 1);
+        Burst trail = pool.Take();
+        trail.Emitter.Rate = 60f;
+        trail.Emitter.Emitting = false;
+        scene.Add(trail);
+
+        for (int step = 0; step < 30; step++)
+        {
+            simulation.Step(SceneFixtures.Step(step));
+        }
+
+        Assert.False(trail.Emitter.IsFinished);
+        Assert.Same(scene, trail.SceneOrNull);
+
+        trail.Emitter.Emitting = false;
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Null(trail.SceneOrNull);
+        Assert.Same(trail, pool.Take());
+    }
+
     // Emits before the add, then steps once and reads where the particles drew.
     private static Vector2[] FirstStep(SceneSimulation simulation, Scene scene, Burst burst)
     {

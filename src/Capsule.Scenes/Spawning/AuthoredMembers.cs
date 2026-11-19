@@ -51,12 +51,12 @@ public readonly struct AuthoredMembers
     private readonly ReadOnlyMemory<byte> _element;
     private readonly int _index;
 
-    // Every key a read asked for, shared by each copy, or null when the members carry no key.
-    private readonly List<string>? _asked;
+    // What every read at this level asked for, shared by each copy, or null when the members carry no key.
+    private readonly Level? _level;
 
     // An entry's members. References resolve against placed once every entry is constructed.
     internal AuthoredMembers(SceneDocumentEntry entry, int index, Dictionary<int, Entity>? placed = null, AssetCollection? assets = null, SharedReads? shared = null)
-        : this(new Owner(string.Create(CultureInfo.InvariantCulture, $"entities[{index}] ('{entry.Type}')"), "the entry", placed, assets, shared), entry.Authored, string.Empty)
+        : this(new Owner(index, entry.Type, placed, assets, shared), entry.Authored, string.Empty)
     {
     }
 
@@ -72,10 +72,10 @@ public readonly struct AuthoredMembers
         _members = members;
         _path = path;
         _index = -1;
-        _asked = members is { Keys.Length: > 0 } ? [] : null;
-        if (_asked is not null)
+        _level = members is { Keys.Length: > 0 } ? new Level(owner, members, path) : null;
+        if (_level is not null)
         {
-            owner.Levels.Add(this);
+            owner.Levels.Add(_level);
         }
     }
 
@@ -407,12 +407,12 @@ public readonly struct AuthoredMembers
 
         if (_index >= 0)
         {
-            return new AuthoredMembers(_owner!, AuthoredObject.Parse(value), string.Create(CultureInfo.InvariantCulture, $"{_path}{key}[{_index}]."));
+            return new AuthoredMembers(_owner!, AuthoredObject.Parse(value, _owner!.Keys), string.Create(CultureInfo.InvariantCulture, $"{_path}{key}[{_index}]."));
         }
 
         if (_members!.Kept(key) is not AuthoredObject nested)
         {
-            nested = (AuthoredObject)_members.Keep(key, AuthoredObject.Parse(value));
+            nested = (AuthoredObject)_members.Keep(key, AuthoredObject.Parse(value, _owner!.Keys));
         }
 
         return new AuthoredMembers(_owner!, nested, $"{_path}{key}.");
@@ -451,7 +451,7 @@ public readonly struct AuthoredMembers
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(set);
-        _owner!.Links.Add((target, set, this));
+        (_owner!.Links ??= new(1)).Add((target, set, this));
     }
 
     // Sets every deferred reference, then throws when any level carries a key no read asked for. The keys asked
@@ -463,13 +463,17 @@ public readonly struct AuthoredMembers
             return;
         }
 
-        foreach ((object target, Action<object, AuthoredMembers> set, AuthoredMembers from) in owner.Links)
+        if (owner.Links is { } links)
         {
-            set(target, from);
+            foreach ((object target, Action<object, AuthoredMembers> set, AuthoredMembers from) in links)
+            {
+                set(target, from);
+            }
+
+            links.Clear();
         }
 
-        owner.Links.Clear();
-        foreach (AuthoredMembers level in owner.Levels)
+        foreach (Level level in owner.Levels)
         {
             level.RefuseUnread();
         }
@@ -539,13 +543,11 @@ public readonly struct AuthoredMembers
 
     private bool Find(string key, out ReadOnlyMemory<byte> value)
     {
-        value = default;
-        if (_asked is { } asked && !asked.Contains(key))
-        {
-            asked.Add(key);
-        }
+        int index = _members?.IndexOf(key) ?? -1;
+        _level?.Add(key, index);
+        value = index >= 0 ? _members!.ValueAt(index) : default;
 
-        return _members is { } members && members.TryGetValue(key, out value);
+        return index >= 0;
     }
 
     // The applier reads an optional member only after Has. An absent key here is a required member.
@@ -555,40 +557,6 @@ public readonly struct AuthoredMembers
             ? value
             : throw new SceneDocumentFormatException(
                 $"{OwnerName} omits '{_path}{key}', which its class requires. Add \"{key}\" to {(_path.Length == 0 ? _owner?.Holder : $"'{_path.TrimEnd('.')}'")}.");
-
-    private void RefuseUnread()
-    {
-        List<string> asked = _asked!;
-        string[] keys = _members!.Keys;
-        string path = _path;
-
-        // A valid document reads every key, which this checks without allocating.
-        int read = 0;
-        while (read < keys.Length && asked.Contains(keys[read]))
-        {
-            read++;
-        }
-
-        if (read == keys.Length)
-        {
-            return;
-        }
-
-        string[] unread = [.. keys.Where(name => !asked.Contains(name))];
-
-        // A nested object takes a type only through a member it can be assigned to.
-        if (_path.Length > 0 && unread.Contains(TypeKey))
-        {
-            throw new SceneDocumentFormatException(
-                $"{OwnerName} sets '{_path}{TypeKey}', but '{_path.TrimEnd('.')}' fills the object its member holds and has no setter to take another. Drop the type, or give the member a setter.");
-        }
-
-        string declares = _asked!.Count == 0 ? "none" : string.Join(", ", _asked);
-
-        throw new SceneDocumentFormatException(
-            $"{OwnerName} sets {string.Join(", ", unread.Select(name => $"'{path}{name}'"))}, which no authorable member takes. "
-            + $"{(_path.Length == 0 ? "Its" : $"'{_path.TrimEnd('.')}'s")} authorable members are: {declares}. Correct the key, or mark the member [Authorable].");
-    }
 
     private SceneDocumentFormatException Mismatch(string key, string expected, string form)
     {
@@ -632,27 +600,126 @@ public readonly struct AuthoredMembers
     // What one shared read made of a key's array: the elements, and every asset they named.
     private sealed record SharedRead<T>(T[] Elements, AssetCollection Assets);
 
+    // One level of an owner's values that authors keys: the keys its reads asked for, each once in the order first
+    // asked, and which of its own keys they include. A key the level authors is marked by its place among the
+    // level's keys, and a repeated read of it costs no search. The owner keeps the level to refuse a key no read
+    // asked for.
+    private sealed class Level(Owner owner, AuthoredObject members, string path)
+    {
+        // Bit i marks the level's key i as read: the first 64 here, the rest in _beyond.
+        private readonly ulong[]? _beyond = members.Keys.Length > 64 ? new ulong[(members.Keys.Length - 1) >> 6] : null;
+        private ulong _read;
+
+        // Room for every key the level authors and a few optional members it does not.
+        private string[] _asked = new string[members.Keys.Length + 4];
+        private int _count;
+
+        private ReadOnlySpan<string> Asked => _asked.AsSpan(0, _count);
+
+        // Notes key asked for, where index is its place among the level's keys or -1 when the level does not author it.
+        internal void Add(string key, int index)
+        {
+            if (index >= 0 ? !Mark(index) : Asked.Contains(key))
+            {
+                return;
+            }
+
+            if (_count == _asked.Length)
+            {
+                System.Array.Resize(ref _asked, _count * 2);
+            }
+
+            _asked[_count++] = key;
+        }
+
+        // Throws when a key the level authors was never asked for, naming every key that was.
+        internal void RefuseUnread()
+        {
+            string[] keys = members.Keys;
+
+            // A valid document reads every key, which this checks without allocating.
+            int read = 0;
+            while (read < keys.Length && IsRead(read))
+            {
+                read++;
+            }
+
+            if (read == keys.Length)
+            {
+                return;
+            }
+
+            string[] unread = [.. keys.Where((_, index) => !IsRead(index))];
+
+            // A nested object takes a type only through a member it can be assigned to.
+            if (path.Length > 0 && unread.Contains(TypeKey))
+            {
+                throw new SceneDocumentFormatException(
+                    $"{owner.Name} sets '{path}{TypeKey}', but '{path.TrimEnd('.')}' fills the object its member holds and has no setter to take another. Drop the type, or give the member a setter.");
+            }
+
+            string declares = _count == 0 ? "none" : string.Join(", ", Asked);
+
+            throw new SceneDocumentFormatException(
+                $"{owner.Name} sets {string.Join(", ", unread.Select(name => $"'{path}{name}'"))}, which no authorable member takes. "
+                + $"{(path.Length == 0 ? "Its" : $"'{path.TrimEnd('.')}'s")} authorable members are: {declares}. Correct the key, or mark the member [Authorable].");
+        }
+
+        private bool IsRead(int index) => (Word(index) & (1UL << index)) != 0;
+
+        // Marks the key at index read, and returns false when it already was.
+        private bool Mark(int index)
+        {
+            ref ulong word = ref Word(index);
+            ulong bit = 1UL << index;
+            bool unread = (word & bit) == 0;
+            word |= bit;
+
+            return unread;
+        }
+
+        // The word holding key index's bit. A shift takes its count modulo 64, which is the key's bit within it.
+        private ref ulong Word(int index) => ref index < 64 ? ref _read : ref _beyond![(index >> 6) - 1];
+    }
+
     // What every level of one owner's values shares: how a message names the owner and where a missing key goes,
     // what references resolve against, the preload, the document's shared reads, and every level and deferred
     // reference read so far.
-    private sealed class Owner(string name, string holder, Dictionary<int, Entity>? placed, AssetCollection? assets, SharedReads? shared)
+    private sealed class Owner(string? name, string holder, Dictionary<int, Entity>? placed, AssetCollection? assets, SharedReads? shared)
     {
+        // An entry's index and type key, which name it only once a message needs the name.
+        private readonly int _entry;
+        private readonly string? _type;
+
+        // Where an asset joins in place of Assets while a shared read runs, and null outside one.
+        internal AssetCollection? Sharing { get; set; }
+
+        // Most owners have one level, and grow from one.
+        internal List<Level> Levels { get; } = new(1);
+
+        // Every deferred reference read so far, or null until the first. Most owners have none.
+        internal List<(object Target, Action<object, AuthoredMembers> Set, AuthoredMembers From)>? Links { get; set; }
+
+        // The names of the objects read off the owner's values, which the many elements of one array share.
+        internal AuthoredObject.KeyTable Keys => field ??= new();
+
+        // An entry's members.
+        internal Owner(int entry, string type, Dictionary<int, Entity>? placed, AssetCollection? assets, SharedReads? shared)
+            : this(null, "the entry", placed, assets, shared)
+        {
+            _entry = entry;
+            _type = type;
+        }
+
         // The document's shared reads, or null for members no document holds.
         internal SharedReads? Shared => shared;
 
-        internal string Name => name;
+        internal string Name => name ??= string.Create(CultureInfo.InvariantCulture, $"entities[{_entry}] ('{_type}')");
 
         internal string Holder => holder;
 
         internal Dictionary<int, Entity>? Placed => placed;
 
         internal AssetCollection? Assets => assets;
-
-        // Where an asset joins in place of Assets while a shared read runs, and null outside one.
-        internal AssetCollection? Sharing { get; set; }
-
-        internal List<AuthoredMembers> Levels { get; } = [];
-
-        internal List<(object Target, Action<object, AuthoredMembers> Set, AuthoredMembers From)> Links { get; } = [];
     }
 }

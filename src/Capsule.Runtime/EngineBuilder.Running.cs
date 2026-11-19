@@ -295,13 +295,15 @@ public sealed partial class EngineBuilder
         string? language,
         Recorder? recorder = null)
     {
+        SceneComposer composer = new(Scenes, Platform);
         SceneHost host = new(
             opening,
-            new SceneComposer(Scenes, Platform).Resolve,
+            composer.Resolve,
             new Run(new RandomSource(seed)) { Canvas = Canvas, PixelPerfect = PixelPerfect, Input = Input, Display = Display, RenderResolution = RenderResolution, Strings = _strings },
             storage is null || recorder is null ? storage : new TeeSaveStorage(storage, recorder.Restored),
             RunStart(preferredLanguages, language),
-            Scenes);
+            Scenes,
+            composer);
         recorder?.Attach(host);
 
         return host;

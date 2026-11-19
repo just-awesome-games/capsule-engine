@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text;
 using Capsule.Scenes;
 using static Capsule.Tests.Documents.SceneDocumentFixtures;
 
@@ -44,6 +45,33 @@ public sealed class SceneDocumentParseTests
             () => SceneDocument.Parse(DocumentText(entities)));
 
         Assert.Contains(expected, error.Message, StringComparison.Ordinal);
+    }
+
+    // A member name reads as the name it spells, escaped or not and however long, and an escaped declared field
+    // stays that field.
+    [Fact]
+    public void Parse_ReadsAnEscapedMemberNameAsTheNameItSpells()
+    {
+        string longName = new('k', 200);
+        SceneDocument document = SceneDocument.Parse($$"""{"entities": [{"type": "coin", "\u0078": 8, "sp\u0065ed": 1, "{{longName}}": 2}]}""");
+
+        Assert.Equal(8f, document.Entries[0].Spawn.Position.X);
+        Assert.Equal(["speed", longName], document.Entries[0].Authored!.Keys);
+    }
+
+    // A member name that is not UTF-8, on an entry or on the document, is refused naming where it sits, never read as
+    // a replacement character.
+    [Theory]
+    [InlineData("""{"entities": [{"type": "coin"}, {"type": "coin", "x": 0, "y": 0, "sp?ed": 1}]}""", "entities[1]")]
+    [InlineData("""{"entities": [], "sp?ed": 1}""", "the document")]
+    public void Parse_RefusesAMemberNameThatIsNotUtf8(string json, string holder)
+    {
+        byte[] utf8 = Encoding.UTF8.GetBytes(json);
+        utf8[Array.IndexOf(utf8, (byte)'?')] = 0xFF;
+
+        SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(() => SceneDocumentJson.Read(utf8));
+        Assert.Equal($"malformed scene document JSON: {holder} has a member name that is not UTF-8. Save the file as UTF-8.", error.Message);
+        Assert.IsType<InvalidOperationException>(error.InnerException);
     }
 
     // The document model's refusal reaches an author as the defect and its fix, with no argument name appended.

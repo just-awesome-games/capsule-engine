@@ -1,0 +1,83 @@
+<Project>
+
+  <!-- Assets/Scenes/authored-huge.scene.json is authored-level.scene.json ten times over, too large to
+       commit. A build that finds it missing writes it from that level, and .gitignore keeps it out: ten
+       768 by 192 tile layers sharing the level's palette, three of them colliding, and 20,000 placed
+       sensors. It runs before the asset build, which then ships and keys it like any document. -->
+  <PropertyGroup>
+    <_AuthoredLevel>$(MSBuildThisFileDirectory)Assets/Scenes/authored-level.scene.json</_AuthoredLevel>
+    <_AuthoredHuge>$(MSBuildThisFileDirectory)Assets/Scenes/authored-huge.scene.json</_AuthoredHuge>
+  </PropertyGroup>
+
+  <UsingTask TaskName="WriteAuthoredHuge" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Level ParameterType="System.String" Required="true" />
+      <Huge ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.Globalization" />
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Text" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        const int Width = 768, Height = 192, Layers = 10, Sensors = 20000;
+        CultureInfo invariant = CultureInfo.InvariantCulture;
+
+        // The first map's tileTypes block, from its key's line through the line closing it.
+        string[] lines = File.ReadAllLines(Level);
+        int first = Array.FindIndex(lines, line => line.Contains("\"tileTypes\""));
+        int last = first;
+        while (lines[last].Trim() != "],")
+        {
+            last++;
+        }
+
+        string palette = string.Join("\n", lines, first, last - first + 1);
+        StringBuilder json = new StringBuilder("{\n  \"entities\": [\n");
+        for (int layer = 0; layer < Layers; layer++)
+        {
+            json.Append("    {\n      \"type\": \"tile-map\",\n");
+            json.Append("      \"zIndex\": ").Append(layer - 5).Append(",\n");
+            if (layer == 3 || layer == 5 || layer == 7)
+            {
+                json.Append("      \"collider\": true,\n");
+            }
+
+            json.Append("      \"tileSize\": 32,\n      \"width\": ").Append(Width).Append(",\n      \"height\": ").Append(Height).Append(",\n");
+            json.Append("      \"texture\": \"textures/hd-atlas.png\",\n      \"columns\": 64,\n");
+            json.Append(palette).Append("\n      \"tiles\": [\n");
+            for (int y = 0; y < Height; y++)
+            {
+                json.Append("        ");
+                for (int x = 0; x < Width; x++)
+                {
+                    json.Append(x == 0 ? "" : ", ").Append((((x * 31) + (y * 17) + (layer * 7)) % 1023) + 1);
+                }
+
+                json.Append(y < Height - 1 ? ",\n" : "\n");
+            }
+
+            json.Append("      ]\n    },\n");
+        }
+
+        for (int i = 1; i <= Sensors; i++)
+        {
+            int k = i - 1;
+            long glow = (k * 2654435761L) & 0xFFFFFF;
+            json.Append(string.Format(
+                invariant,
+                "    {{\"type\": \"beacon\", \"id\": {0}, \"x\": {1}, \"y\": {2}, \"size\": [{3}, {4}], \"glow\": \"#{5:x6}\", \"period\": {6}, \"phase\": {7}, \"next\": {8}}}{9}\n",
+                i, (k * 97) % 24000, (k * 61) % 6000, 16 + (k % 32), 16 + ((k * 7) % 32), glow, 30 + (k % 20),
+                Math.Round((k % 17) / 17.0, 3, MidpointRounding.ToEven).ToString("0.0##", invariant), i < Sensors ? i + 1 : 1, i < Sensors ? "," : ""));
+        }
+
+        json.Append("  ]\n}\n");
+        File.WriteAllText(Huge, json.ToString(), new UTF8Encoding(false));
+]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="WriteAuthoredHuge" BeforeTargets="CapsuleRunBuildTool" Condition="!Exists('$(_AuthoredHuge)')">
+    <WriteAuthoredHuge Level="$(_AuthoredLevel)" Huge="$(_AuthoredHuge)" />
+  </Target>
+
+</Project>

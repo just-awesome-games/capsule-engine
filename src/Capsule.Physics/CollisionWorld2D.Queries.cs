@@ -330,16 +330,14 @@ public sealed partial class CollisionWorld2D
         return filter.Admits(layer);
     }
 
-    // The preamble every proxy visit shares. Reports whether the proxy names a live shape collider this
-    // query may hit, and which slot holds it.
+    // The preamble every proxy visit shares. Reports whether this query may hit the proxy's collider,
+    // and which slot holds it. Only a live shape collider holds a proxy.
     private bool TryProxy(int proxyId, CollisionFilter filter, ColliderHandle ignore, out int index)
     {
         index = _tree.UserDataOf(proxyId);
         ref ColliderSlot slot = ref _slots[index];
 
-        return slot.InUse
-            && slot.Grid is null
-            && filter.Admits(slot.Layer)
+        return filter.Admits(slot.Layer)
             && !IsIgnored(ignore, index, slot.Generation)
             && index != _passThrough;
     }

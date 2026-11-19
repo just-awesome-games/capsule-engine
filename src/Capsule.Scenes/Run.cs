@@ -362,15 +362,21 @@ public sealed class Run
         TryRequest(SceneTransition.ToName(scene.Required(nameof(scene)), payload));
 
     /// <summary>
-    /// Starts loading the media <typeparamref name="TScene"/> preloads when it opens with
-    /// <paramref name="payload"/>, after the current step.
+    /// Starts loading the scene document and the media <typeparamref name="TScene"/> preloads when it opens
+    /// with <paramref name="payload"/>, after the current step.
     /// </summary>
     /// <remarks>
-    /// Call it on intent, such as a highlighted menu item, not from a proximity sweep. The scene's
-    /// constructor runs twice. A step that opens a scene starts no prefetch, and one asked for in it
-    /// starts after the next step. At most one scene is prefetched, and a later call replaces an earlier one
-    /// unless it names the same scene and an equal payload. A request opening the scene with another payload
-    /// preloads what that payload declares, and the prefetched media it does not declare is released.
+    /// Call it on intent, such as a highlighted menu item, not from a proximity sweep. A step that opens a
+    /// scene starts no prefetch, and one asked for in it starts after the next step. The prefetch constructs
+    /// the scene and runs its <c>CollectAssets</c> at the end of the step it starts after, or of the step after
+    /// that when the scene's document is first read on a worker thread. Whichever step needs the document waits
+    /// for the read, and how long it takes changes no step. The browser and WASI have no worker thread to wait
+    /// on and read the document on the game thread at that step. At most one scene is prefetched. A request
+    /// for the same scene with an equal payload starts that instance and runs its <c>OnStart</c>, whether each
+    /// names the scene by its class or by its document's key. Any other request, a restart, an exit or a
+    /// prefetch of another scene or payload releases it unstarted. A request opening the scene with another
+    /// payload constructs it again, preloads what that payload declares and releases the prefetched media it
+    /// does not declare.
     /// </remarks>
     /// <param name="payload">The payload the scene's <c>CollectAssets</c> reads as its <c>EntryPayload</c>.</param>
     public void PrefetchScene<TScene>(IScenePayload? payload = null)

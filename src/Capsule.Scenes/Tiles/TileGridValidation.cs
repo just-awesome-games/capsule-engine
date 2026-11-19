@@ -9,16 +9,8 @@ namespace Capsule.Tiles;
 // constructor parameter at fault.
 internal static class TileGridValidation
 {
-    // Checks everything but the transforms, and returns each palette entry's collision polygon, or null
-    // for a whole tile. Compiled cells, passed as null tiles, are checked by ValidateCells.
-    internal static Shape2D?[] Validate(
-        int tileSize,
-        int width,
-        int height,
-        TileType[] tileTypes,
-        int[]? tiles,
-        TextureHandle? texture,
-        int columns)
+    // A grid checks its size, then its palette, then its tiles or compiled cells, then its transforms.
+    internal static void ValidateSize(int tileSize, int width, int height)
     {
         if (tileSize <= 0)
         {
@@ -34,15 +26,6 @@ internal static class TileGridValidation
         {
             throw Malformed($"height must be positive, not {height}.", "height");
         }
-
-        Shape2D?[] shapes = ValidatePalette(tileTypes, tileSize);
-        ValidateTexture(tileTypes, texture, columns, tileSize);
-        if (tiles is not null)
-        {
-            ValidateTiles(tiles, width, height, tileTypes.Length);
-        }
-
-        return shapes;
     }
 
     // Checks every painted cell names a palette entry and a TileTransform, naming it by its index in the dense
@@ -96,7 +79,8 @@ internal static class TileGridValidation
         return facings;
     }
 
-    private static Shape2D?[] ValidatePalette(TileType[] tileTypes, int tileSize)
+    // Returns each palette entry's collision polygon, or null for a whole tile.
+    internal static Shape2D?[] ValidatePalette(TileType[] tileTypes, int tileSize)
     {
         int missing = Array.IndexOf(tileTypes, null);
         if (missing >= 0)
@@ -244,7 +228,7 @@ internal static class TileGridValidation
     }
 
     // Checks both directions. A cell without a texture or a texture without a cell is a half-written grid.
-    private static void ValidateTexture(TileType[] tileTypes, TextureHandle? texture, int columns, int tileSize)
+    internal static void ValidateTexture(TileType[] tileTypes, TextureHandle? texture, int columns, int tileSize)
     {
         bool drawn = false;
         for (int i = 0; i < tileTypes.Length; i++)
@@ -330,7 +314,7 @@ internal static class TileGridValidation
         }
     }
 
-    private static void ValidateTiles(int[] tiles, int width, int height, int paletteLength)
+    internal static void ValidateTiles(int[] tiles, int width, int height, int paletteLength)
     {
         // Computes in long. An int product wraps, and 65536 x 65536 wrapping to 0 would let an empty tiles
         // array pass here and fail later when a cell is read.

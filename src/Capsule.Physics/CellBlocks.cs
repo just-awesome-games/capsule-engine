@@ -157,6 +157,29 @@ internal sealed class CellBlocks
         return (block.Values[cell] * stride) + block.VariantAt(cell);
     }
 
+    // Writes the key KeyAt reads for each cell of row y, from x = 0 on, into keys, which spans the row.
+    internal void KeysInRow(int y, int stride, Span<int> keys)
+    {
+        int blockRow = (y >> BlockShift) * BlocksWide;
+        int first = (y & Mask) << BlockShift;
+        for (int bx = 0; bx < BlocksWide; bx++)
+        {
+            int x = bx << BlockShift;
+            Span<int> part = keys.Slice(x, Math.Min(BlockSize, Width - x));
+            if (_blocks[blockRow + bx] is not { } block)
+            {
+                part.Clear();
+                continue;
+            }
+
+            ReadOnlySpan<ushort> values = block.Values;
+            for (int index = 0; index < part.Length; index++)
+            {
+                part[index] = (values[first + index] * stride) + block.VariantAt(first + index);
+            }
+        }
+    }
+
     // Finds the first cell, block by block, whose value is values or more or whose variant is variants or more.
     internal bool TryFindBeyond(int values, int variants, out int x, out int y)
     {

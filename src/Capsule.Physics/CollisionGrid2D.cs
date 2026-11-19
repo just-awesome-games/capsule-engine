@@ -14,6 +14,13 @@ internal sealed class CollisionGrid2D
     // surface blocks only there.
     internal const float UpFacing = 1e-4f;
 
+    // The profile a derivation reads across a side past the grid's edge, where nothing covers it.
+    private const int OffGrid = -1;
+
+    // How many profiles the derivation's three rows hold on the stack. A wider grid takes them from the
+    // heap once.
+    private const int RowsOnStack = 2048;
+
     // The owner's cells, and the profile each value and variant names at (value * _stride) + variant.
     private readonly int[] _lookup;
     private readonly int _stride;
@@ -31,16 +38,22 @@ internal sealed class CollisionGrid2D
     private readonly int[] _edgeCounts;
     private readonly CellEdge2D[] _edges;
 
-    // The solid polygon of each entry in cell space, read by overlap queries. Default for a box, a
-    // one-way entry and an entry that collides as nothing.
+    // The solid polygons of the entries in cell space, read by overlap queries, and each entry's index
+    // among them. Index 0 holds the default shape, which a box, a one-way entry and an entry that
+    // collides as nothing name.
     private readonly Shape2D[] _polygons;
+    private readonly int[] _polygonOf;
 
     // Four per entry, one per cell side in SideIndex order: the stretch of that side the entry covers
     // with a solid shape. An edge a neighbour lies flush against within a covered stretch is culled.
     private readonly SideSpan2D[] _covers;
 
+    // Per entry, the face bits of the sides its solid shape covers whole, which a box cell's derivation
+    // reads in place of the spans.
+    private readonly CellState2D[] _wholeSides;
+
     // The same for the left and right walls of a solid-sided one-way entry. Only another such entry
-    // culls its own wall against them.
+    // culls its own wall against them, and a palette with none holds no walls.
     private readonly SideSpan2D[] _walls;
 
     // One byte per cell, holding what it collides as and which of its sides or edges a query can
@@ -92,21 +105,42 @@ internal sealed class CollisionGrid2D
         _edgeStarts = new int[count];
         _edgeCounts = new int[count];
         int edgeSlots = 0;
+        int polygons = 1;
+        bool walled = false;
         for (int index = 0; index < count; index++)
         {
             _edgeStarts[index] = edgeSlots;
-            edgeSlots += profiles[index].Shape?.PointCount ?? 4;
+            CellProfile2D profile = profiles[index];
+            if (profile.Layer is null)
+            {
+                continue;
+            }
+
+            // An entry that collides as the solid full cell derives no edges.
+            edgeSlots += profile.Shape?.PointCount ?? (profile.OneWay ? 4 : 0);
+            polygons += profile.Shape is not null && !profile.OneWay ? 1 : 0;
+            walled |= profile.SolidSides;
         }
 
         _edges = new CellEdge2D[edgeSlots];
-        _polygons = new Shape2D[count];
+        _polygons = new Shape2D[polygons];
+        _polygonOf = new int[count];
         _covers = new SideSpan2D[count * 4];
-        _walls = new SideSpan2D[count * 4];
+        _walls = walled ? new SideSpan2D[count * 4] : [];
         Array.Fill(_covers, SideSpan2D.None);
         Array.Fill(_walls, SideSpan2D.None);
+        _wholeSides = new CellState2D[count];
+        polygons = 1;
         for (int index = 0; index < count; index++)
         {
-            DerivePalette(index, profiles[index]);
+            DerivePalette(index, profiles[index], ref polygons);
+            for (int side = 0; side < 4; side++)
+            {
+                if (_covers[(index * 4) + side].Covers(0f, cellSize))
+                {
+                    _wholeSides[index] |= (CellState2D)(2 << side);
+                }
+            }
         }
 
         _state = new CellState2D[Width * Height];
@@ -136,7 +170,7 @@ internal sealed class CollisionGrid2D
 
     // The solid polygon of an edge cell in cell space. A one-way cell has none, and neither has a solid
     // full-cell box, which is a box cell and not an edge cell.
-    internal Shape2D PolygonAt(int x, int y) => _polygons[Profile(x, y)];
+    internal Shape2D PolygonAt(int x, int y) => _polygons[_polygonOf[Profile(x, y)]];
 
     // The world position of a cell's top-left corner, the origin of its cell space.
     internal Vector2 CellCorner(int x, int y) => new(x * (float)CellSize, y * (float)CellSize);
@@ -229,7 +263,7 @@ internal sealed class CollisionGrid2D
     };
 
     // Derives an entry's edges once, each with its outward normal and the cell side it spans, if any.
-    private void DerivePalette(int index, in CellProfile2D profile)
+    private void DerivePalette(int index, in CellProfile2D profile, ref int polygons)
     {
         _layers[index] = profile.Layer;
         _oneWay[index] = profile.OneWay;
@@ -286,7 +320,8 @@ internal sealed class CollisionGrid2D
         _edgeCounts[index] = count;
         if (!profile.OneWay)
         {
-            _polygons[index] = shape;
+            _polygonOf[index] = polygons;
+            _polygons[polygons++] = shape;
         }
     }
 
@@ -309,14 +344,59 @@ internal sealed class CollisionGrid2D
     // A side's slot among an entry's four spans: MinX, MaxX, MinY, MaxY.
     private static int SideIndex(CellState2D face) => BitOperations.TrailingZeroCount((uint)face) - 1;
 
+    // Row by row, reading each cell's key once. Three rows of profiles slide down the grid: the row
+    // above, the row being derived and the row below.
     private void DeriveCells()
     {
+        int width = Width;
+        Span<int> rows = 3 * width <= RowsOnStack ? stackalloc int[3 * width] : new int[3 * width];
+        int above = 0;
+        int at = width;
+        int below = 2 * width;
+        ReadRow(0, rows.Slice(at, width));
+
         for (int y = 0; y < Height; y++)
         {
-            for (int x = 0; x < Width; x++)
+            bool last = y == Height - 1;
+            if (!last)
             {
-                DeriveCell(x, y);
+                ReadRow(y + 1, rows.Slice(below, width));
             }
+
+            for (int x = 0; x < width; x++)
+            {
+                int profile = rows[at + x];
+                CellState2D state = Derive(
+                    profile,
+                    x > 0 ? rows[at + x - 1] : OffGrid,
+                    x < width - 1 ? rows[at + x + 1] : OffGrid,
+                    y > 0 ? rows[above + x] : OffGrid,
+                    last ? OffGrid : rows[below + x]);
+                _state[(y * width) + x] = state;
+
+                if (state == CellState2D.None)
+                {
+                    continue;
+                }
+
+                // With validates the layer, which a crowd of cells on one layer then pays once.
+                CollisionLayer layer = _layers[profile].GetValueOrDefault();
+                if (!Layers.Admits(layer))
+                {
+                    Layers = Layers.With(layer);
+                }
+            }
+
+            (above, at, below) = (at, below, above);
+        }
+    }
+
+    private void ReadRow(int y, Span<int> row)
+    {
+        _cells.KeysInRow(y, _stride, row);
+        foreach (ref int entry in row)
+        {
+            entry = _lookup[entry];
         }
     }
 
@@ -327,44 +407,71 @@ internal sealed class CollisionGrid2D
             return;
         }
 
-        int index = (y * Width) + x;
-        int palette = Profile(x, y);
-        if (_layers[palette] is not { } layer)
+        int profile = Profile(x, y);
+        CellState2D state = Derive(
+            profile,
+            ProfileOrOff(x - 1, y),
+            ProfileOrOff(x + 1, y),
+            ProfileOrOff(x, y - 1),
+            ProfileOrOff(x, y + 1));
+        _state[(y * Width) + x] = state;
+
+        if (state != CellState2D.None)
         {
-            _state[index] = CellState2D.None;
-            return;
+            Layers = Layers.With(_layers[profile].GetValueOrDefault());
+        }
+    }
+
+    // What a cell of the profile collides as, from the profiles across its four sides, each OffGrid
+    // past the grid's edge.
+    private CellState2D Derive(int profile, int minX, int maxX, int minY, int maxY)
+    {
+        if (_layers[profile] is null)
+        {
+            return CellState2D.None;
         }
 
-        CellState2D state;
-        if (_boxes[palette])
+        if (_boxes[profile])
         {
-            state = CellState2D.Solid;
-            state |= Exposed(x, y, CellState2D.FaceMinX);
-            state |= Exposed(x, y, CellState2D.FaceMaxX);
-            state |= Exposed(x, y, CellState2D.FaceMinY);
-            state |= Exposed(x, y, CellState2D.FaceMaxY);
+            return CellState2D.Solid
+                | Exposed(minX, CellState2D.FaceMinX)
+                | Exposed(maxX, CellState2D.FaceMaxX)
+                | Exposed(minY, CellState2D.FaceMinY)
+                | Exposed(maxY, CellState2D.FaceMaxY);
         }
-        else
+
+        bool solidSides = _solidSides[profile];
+        CellState2D state = !_oneWay[profile] ? CellState2D.Edges
+            : solidSides ? CellState2D.Edges | CellState2D.OneWay | CellState2D.SolidSides
+            : CellState2D.Edges | CellState2D.OneWay;
+        foreach (CellEdge2D edge in _edges.AsSpan(_edgeStarts[profile], _edgeCounts[profile]))
         {
-            state = !_oneWay[palette] ? CellState2D.Edges
-                : _solidSides[palette] ? CellState2D.Edges | CellState2D.OneWay | CellState2D.SolidSides
-                : CellState2D.Edges | CellState2D.OneWay;
-            foreach (CellEdge2D edge in _edges.AsSpan(_edgeStarts[palette], _edgeCounts[palette]))
+            if (edge.Side == CellState2D.None)
             {
-                if (edge.Side != CellState2D.None && CoverAcross(x, y, edge.Side, edge.Low, edge.High) is null)
-                {
-                    state |= edge.Side;
-                }
+                continue;
+            }
+
+            int across = edge.Side switch
+            {
+                CellState2D.FaceMinX => minX,
+                CellState2D.FaceMaxX => maxX,
+                CellState2D.FaceMinY => minY,
+                _ => maxY,
+            };
+
+            if (CoverBy(across, edge.Side, edge.Low, edge.High, solidSides) is null)
+            {
+                state |= edge.Side;
             }
         }
 
-        _state[index] = state;
-        Layers = Layers.With(layer);
+        return state;
     }
 
-    // The face itself when no neighbour covers it with a solid shape, and None when one does.
-    private CellState2D Exposed(int x, int y, CellState2D face) =>
-        CoverAcross(x, y, face, 0f, CellSize) is null ? face : CellState2D.None;
+    // A box cell's face itself when the profile across it does not cover it whole with a solid shape,
+    // and None when it does. Only an edge cell can be one-way, and a box cell never counts a wall.
+    private CellState2D Exposed(int across, CellState2D face) =>
+        across != OffGrid && (_wholeSides[across] & Opposite(face)) != 0 ? CellState2D.None : face;
 
     // The layer of the cell across a side when that cell covers the stretch from `low` to `high` of it
     // with a solid shape, or null. Only a colliding entry covers a side. A solid-sided one-way cell also
@@ -372,21 +479,27 @@ internal sealed class CollisionGrid2D
     // ask here.
     private CollisionLayer? CoverAcross(int x, int y, CellState2D face, float low, float high)
     {
-        bool solidSides = _solidSides[Profile(x, y)];
         Vector2 step = FaceNormal(face);
-        x += (int)step.X;
-        y += (int)step.Y;
 
-        if ((uint)x >= (uint)Width || (uint)y >= (uint)Height)
+        return CoverBy(ProfileOrOff(x + (int)step.X, y + (int)step.Y), face, low, high, _solidSides[Profile(x, y)]);
+    }
+
+    // CoverAcross for the profile across the side, OffGrid past the grid's edge. solidSides says
+    // whether the cell asking is a solid-sided one-way cell.
+    private CollisionLayer? CoverBy(int across, CellState2D face, float low, float high, bool solidSides)
+    {
+        if (across == OffGrid)
         {
             return null;
         }
 
-        int cell = Profile(x, y);
-        int slot = (cell * 4) + SideIndex(Opposite(face));
+        int slot = (across * 4) + SideIndex(Opposite(face));
 
-        return _covers[slot].Covers(low, high) || (solidSides && _walls[slot].Covers(low, high)) ? _layers[cell] : null;
+        return _covers[slot].Covers(low, high) || (solidSides && _walls[slot].Covers(low, high)) ? _layers[across] : null;
     }
+
+    private int ProfileOrOff(int x, int y) =>
+        (uint)x < (uint)Width && (uint)y < (uint)Height ? Profile(x, y) : OffGrid;
 
     private int Profile(int x, int y) => _lookup[_cells.KeyAt(x, y, _stride)];
 
