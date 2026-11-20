@@ -146,11 +146,11 @@ internal sealed class FrameDiagnostics : IDisposable
     }
 
     // Ends the frame's sections, leaving its row open for the next frame's start, and returns whether the
-    // run's time budget is spent.
-    internal bool EndDraw()
+    // run's time budget is spent. uploadBytes is what the frame's recording uploaded of its sprite instances.
+    internal bool EndDraw(int uploadBytes = 0)
     {
         long now = _timestamp();
-        Open(_viewMs, Milliseconds(now - _sectionStart));
+        Open(_viewMs, Milliseconds(now - _sectionStart), uploadBytes);
 
         if (_stages[^1] < 0)
         {
@@ -232,12 +232,12 @@ internal sealed class FrameDiagnostics : IDisposable
             _writer.WriteLine(stage.Written);
         }
 
-        _writer.WriteLine("tick,intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes,processBytes,heapBytes");
+        _writer.WriteLine("tick,intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes,processBytes,heapBytes,uploadBytes");
         _writer.Flush();
     }
 
     // Opens the row of the frame in progress, its sections timed.
-    private void Open(double viewMs, double drawMs)
+    private void Open(double viewMs, double drawMs, int uploadBytes)
     {
         _frame = new Row(
             _tick,
@@ -249,7 +249,8 @@ internal sealed class FrameDiagnostics : IDisposable
             GC.CollectionCount(0),
             0,
             0,
-            GC.GetTotalMemory(forceFullCollection: false));
+            GC.GetTotalMemory(forceFullCollection: false),
+            uploadBytes);
         _frameStart = _updateStart;
         _frameAllocated = _updateAllocated;
         _frameProcessAllocated = _updateProcessAllocated;
@@ -269,7 +270,7 @@ internal sealed class FrameDiagnostics : IDisposable
         _updating = false;
         if (_stages[^1] >= 0)
         {
-            Open(0, 0);
+            Open(0, 0, 0);
         }
     }
 
@@ -322,6 +323,8 @@ internal sealed class FrameDiagnostics : IDisposable
             line.Add(row.ProcessBytes);
             line.Add(",");
             line.Add(row.HeapBytes);
+            line.Add(",");
+            line.Add(row.UploadBytes);
             _writer.WriteLine(line.Written);
         }
 
@@ -338,5 +341,6 @@ internal sealed class FrameDiagnostics : IDisposable
         int Gen0,
         long Bytes,
         long ProcessBytes,
-        long HeapBytes);
+        long HeapBytes,
+        int UploadBytes);
 }

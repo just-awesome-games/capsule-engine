@@ -8,8 +8,9 @@ internal sealed class SceneVisibility
     private readonly Scene _scene;
     private readonly SettleList<VisibleOnScreenNotifier2D> _notifiers = new();
 
-    // Notifiers that joined between steps, settled as the next step begins.
-    private readonly List<VisibleOnScreenNotifier2D> _arrivals = [];
+    // Notifiers that joined between steps, settled as the next step begins, each in one slot at most. While the
+    // scene steps, one that settles or leaves blanks its slot, and the next settle closes the blanks.
+    private readonly List<VisibleOnScreenNotifier2D?> _arrivals = [];
 
     // The frame's visible region, held so notifiers settle against it.
     private Rect _region;
@@ -36,29 +37,40 @@ internal sealed class SceneVisibility
     internal void Untrack(VisibleOnScreenNotifier2D notifier)
     {
         _notifiers.Remove(notifier);
-        _arrivals.Remove(notifier);
+        int index = _arrivals.IndexOf(notifier);
+        if (index < 0)
+        {
+            return;
+        }
+
+        if (_scene.Stepping)
+        {
+            _arrivals[index] = null;
+        }
+        else
+        {
+            _arrivals.RemoveAt(index);
+        }
     }
 
     internal void Frame(Rect region) => _region = region;
 
     // Notifiers that joined between steps settle against the last frame before any entity steps. Each first step
     // reads that frame as one landing with a step's deferred adds does. A held one waits for the step its entity
-    // first runs. The walk restarts after each settle, as a handler may detach another.
+    // first runs. Holds change only as a step begins. One pass in joining order then settles every arrival that is
+    // not held and keeps the held ones in order.
     internal void SettleArrivals()
     {
-        for (int index = 0; index < _arrivals.Count;)
+        for (int index = 0; index < _arrivals.Count; index++)
         {
-            VisibleOnScreenNotifier2D notifier = _arrivals[index];
-            if (notifier.Entity!.Held)
+            if (_arrivals[index] is { } notifier && !notifier.Entity!.Held)
             {
-                index++;
-                continue;
+                _arrivals[index] = null;
+                notifier.SettleVisibility(_region);
             }
-
-            _arrivals.RemoveAt(index);
-            notifier.SettleVisibility(_region);
-            index = 0;
         }
+
+        _arrivals.RemoveAll(static notifier => notifier is null);
     }
 
     // Settle registered notifiers against the frame region. One registered during the walk waits

@@ -2,10 +2,11 @@ using System.Runtime.InteropServices;
 
 namespace Capsule.Scenes;
 
-// A scene's held entities in tree order: each root in insertion order, then its subtree depth-first in
-// parenting order. The order itself is a chain through the entities, each carrying a label that rises
-// along it. An entity joins anywhere without moving another, and two labels compare two places in the
-// order. The flat list is what a walk reads, and it catches up with the chain before it is read in order.
+// A scene's held entities in tree order: each root in the order it became one, then its subtree
+// depth-first in parenting order. The order itself is a chain through the entities, each carrying a label
+// that rises along it. An entity joins anywhere without moving another, a parent write moves its subtree
+// as one run, and two labels compare two places in the order. The flat list is what a walk reads, and it
+// catches up with the chain before it is read in order.
 internal sealed class EntityTree(Scene scene)
 {
     // How far past the last label an entity joining the end takes its own.
@@ -17,10 +18,13 @@ internal sealed class EntityTree(Scene scene)
     private const long Step = 1L << 16;
 
     private readonly List<Entity> _entities = [];
-    private readonly List<Entity> _roots = [];
 
     // Where a settle keeps the arrivals that land below the sorted run while it moves that run up.
     private readonly List<Entity> _arrived = [];
+
+    // The entities a parent write moved along the chain whose slots in the list stand where they were.
+    // The step walk reads the list, and they follow once it may change.
+    private readonly List<Entity> _moved = [];
 
     // The ends of the chain.
     private Entity? _first;
@@ -35,11 +39,6 @@ internal sealed class EntityTree(Scene scene)
     private int _holes;
     private int _firstHole;
 
-    // Entries in _roots that no longer name a root, or name one a newer entry also names. A leaving root
-    // costs nothing but this count. They are dropped once they pass half the list. A root joining or
-    // leaving costs O(1) amortized.
-    private int _deadRoots;
-
     // Bumped whenever _entities changes. A walk that sees it change throws.
     private int _version;
 
@@ -47,11 +46,8 @@ internal sealed class EntityTree(Scene scene)
     // none to.
     private int _moves;
 
-    // Bumped whenever a rebuild gives the held entities a new order.
+    // Bumped whenever a parent write gives held entities new labels out of their old order.
     private int _reorders;
-
-    // A parent write moved something and neither the chain nor the list follows the links.
-    private bool _stale;
 
     // Every slot, null where a detach left a hole. A reader that needs tree order calls Settle first.
     internal List<Entity> Slots => _entities;
@@ -74,39 +70,21 @@ internal sealed class EntityTree(Scene scene)
 
     internal int Reorders => _reorders;
 
-    internal bool Stale => _stale;
-
     internal void Reserve(int entities)
     {
         _entities.EnsureCapacity(entities);
-
-        // Dead entries make the root list up to twice the live roots before it compacts.
-        _roots.EnsureCapacity(entities * 2);
+        _moved.EnsureCapacity(entities);
     }
 
     // Joins the chain after the held subtree of its nearest earlier held sibling, else right after its
     // parent. An entity no held parent places is a root and joins the end. No other entity moves.
     internal void Insert(Entity entity)
     {
-        bool placed = PlacedByParent(entity);
-
-        // A stale chain places nothing. The rebuild will.
-        Entity? before = placed && !_stale ? Before(entity) : _last;
-        Entity? after = before is null ? _first : before.OrderNext;
-        if (after is null ? before is not null && before.Order > long.MaxValue - EndGap : after.Order - before!.Order < 2)
-        {
-            Respace();
-            before = placed ? Before(entity) : _last;
-            after = before is null ? _first : before.OrderNext;
-        }
-
-        entity.Order = after is null
-            ? (before?.Order ?? 0) + EndGap
-            : before!.Order + Math.Min(Math.Max((after.Order - before.Order) >> 4, 1), Step);
-        Link(before, entity, after);
+        // The list counts as sorted only where no moved entity stands out of label order in it.
+        Follow();
 
         // An entity joining the end of a settled list leaves it settled.
-        if (after is null && _sorted == _entities.Count)
+        if (Place(entity, entity, 1) && _sorted == _entities.Count)
         {
             _sorted++;
         }
@@ -114,11 +92,6 @@ internal sealed class EntityTree(Scene scene)
         entity.SceneSlot = _entities.Count;
         _entities.Add(entity);
         _version++;
-
-        if (!placed)
-        {
-            AddRoot(entity);
-        }
     }
 
     internal Entity Vacate(int index)
@@ -130,50 +103,63 @@ internal sealed class EntityTree(Scene scene)
         Link(entity.OrderPrev, entity.OrderNext);
         entity.OrderPrev = null;
         entity.OrderNext = null;
-
-        if (!PlacedByParent(entity))
-        {
-            _deadRoots++;
-        }
-
         return entity;
     }
 
-    // A held root written to a parent leaves the roots, and a held entity written to none joins their end.
-    // Either way the order no longer follows the links.
-    internal void Reparented(Entity entity, bool wasRoot)
+    // The entity's subtree, from it through `last`, is one run of the chain. The run moves to where the
+    // links now place it, the end for an entity written to no parent, and takes labels there. No other
+    // entity moves or changes its label unless the labels run out. Its slots in the list wait for Follow.
+    internal void Reparented(Entity entity, Entity last)
     {
-        if (wasRoot)
+        int count = 0;
+        for (Entity at = entity; ; at = at.OrderNext!)
         {
-            _deadRoots++;
+            count++;
+            if (!at.AwaitsSlot)
+            {
+                at.AwaitsSlot = true;
+                _moved.Add(at);
+            }
+
+            if (ReferenceEquals(at, last))
+            {
+                break;
+            }
         }
 
-        if (entity.Parent is null)
-        {
-            AddRoot(entity);
-        }
-
-        _stale = true;
+        Link(entity.OrderPrev, last.OrderNext);
+        Place(entity, last, count);
+        _reorders++;
     }
 
-    // Refills the chain and the list in tree order from the roots and the links.
-    internal void Rebuild()
+    // Moves the slots of the entities a parent write moved past the sorted run, each leaving a hole, and
+    // the next settle merges them in by label.
+    internal void Follow()
     {
-        CompactRoots();
-        _entities.Clear();
-        _first = null;
-        _last = null;
-        foreach (Entity root in CollectionsMarshal.AsSpan(_roots))
+        if (_moved.Count == 0)
         {
-            AppendSubtree(root);
+            return;
         }
 
-        _sorted = _entities.Count;
-        _holes = 0;
-        _stale = false;
+        foreach (Entity entity in CollectionsMarshal.AsSpan(_moved))
+        {
+            // One that left holds no slot, and one already past the sorted run merges by label anyway.
+            entity.AwaitsSlot = false;
+            int slot = entity.SceneSlot;
+            if (!Holds(entity) || slot >= _sorted)
+            {
+                continue;
+            }
+
+            _entities[slot] = null!;
+            _firstHole = _holes++ == 0 ? slot : Math.Min(_firstHole, slot);
+            entity.SceneSlot = _entities.Count;
+            _entities.Add(entity);
+        }
+
+        _moved.Clear();
         _version++;
         _moves++;
-        _reorders++;
     }
 
     // Closes the holes detaches left and merges in the entities that joined since, which leaves the list
@@ -185,6 +171,7 @@ internal sealed class EntityTree(Scene scene)
             return;
         }
 
+        Follow();
         int sorted = _sorted;
         if (_holes > 0)
         {
@@ -206,11 +193,6 @@ internal sealed class EntityTree(Scene scene)
 
             _entities.RemoveRange(kept, _entities.Count - kept);
             _holes = 0;
-
-            if (_deadRoots * 2 > _roots.Count)
-            {
-                CompactRoots();
-            }
         }
 
         if (sorted < _entities.Count)
@@ -225,12 +207,20 @@ internal sealed class EntityTree(Scene scene)
 
     internal void Reset()
     {
-        _roots.Clear();
-        _deadRoots = 0;
-        _stale = false;
+        ForgetMoved();
         _first = null;
         _last = null;
         _sorted = 0;
+    }
+
+    private void ForgetMoved()
+    {
+        foreach (Entity entity in CollectionsMarshal.AsSpan(_moved))
+        {
+            entity.AwaitsSlot = false;
+        }
+
+        _moved.Clear();
     }
 
     // Sorts the entities past `sorted` by label and merges them into the run before it. Each entity of
@@ -303,17 +293,46 @@ internal sealed class EntityTree(Scene scene)
         return low;
     }
 
+    // Chains the run from `first` through `last`, `count` entities out of the chain, where the links place
+    // `first`, and labels it there. Between two neighbours the run takes as little of the gap as an entity
+    // joining there would. Returns whether the run joined the end.
+    private bool Place(Entity first, Entity last, int count)
+    {
+        (Entity? before, Entity? after) = Neighbours(first);
+        if (after is null ? before is not null && (long.MaxValue - before.Order) / EndGap < count : after.Order - before!.Order <= count)
+        {
+            Respace();
+            (before, after) = Neighbours(first);
+        }
+
+        long step = after is null ? EndGap : Math.Min(Math.Max((after.Order - before!.Order) / count >> 4, 1), Step);
+        long order = before?.Order ?? 0;
+        for (Entity at = first; ; at = at.OrderNext!)
+        {
+            at.Order = order += step;
+            if (ReferenceEquals(at, last))
+            {
+                break;
+            }
+        }
+
+        Link(before, first);
+        Link(last, after);
+        return after is null;
+    }
+
+    // The entities the chain holds on either side of where `entity` joins: after its place under a held
+    // parent, else at the end.
+    private (Entity? Before, Entity? After) Neighbours(Entity entity)
+    {
+        Entity? before = PlacedByParent(entity) ? Before(entity) : _last;
+        return (before, before is null ? _first : before.OrderNext);
+    }
+
     // Spreads the labels evenly again, once two neighbours leave no label between them or the last
     // nears the top. The order stands, and nothing sorted by label has to sort again.
     private void Respace()
     {
-        if (_stale)
-        {
-            Rebuild();
-            scene.Drawing.Invalidate();
-            return;
-        }
-
         long order = 0;
         for (Entity? entity = _first; entity is not null; entity = entity.OrderNext)
         {
@@ -321,15 +340,6 @@ internal sealed class EntityTree(Scene scene)
         }
 
         scene.Drawing.Respaced();
-    }
-
-    // Chains `entity` between two neighbours, either of them null at an end of the chain.
-    private void Link(Entity? before, Entity entity, Entity? after)
-    {
-        entity.OrderPrev = before;
-        entity.OrderNext = after;
-        Link(before, entity);
-        Link(entity, after);
     }
 
     // Makes `after` follow `before` in the chain, either of them null at an end of it.
@@ -370,8 +380,9 @@ internal sealed class EntityTree(Scene scene)
         return parent;
     }
 
-    // The last entity of a held entity's held subtree, itself when it holds no child.
-    private Entity LastHeldUnder(Entity entity)
+    // The last entity of a held entity's held subtree, itself when it holds no child. The subtree is the
+    // run of the chain from the entity to this one.
+    internal Entity LastHeldUnder(Entity entity)
     {
         while (true)
         {
@@ -394,94 +405,4 @@ internal sealed class EntityTree(Scene scene)
     private bool Holds(Entity entity) => ReferenceEquals(entity.SceneOrNull, scene);
 
     private bool PlacedByParent(Entity entity) => entity.Parent is { } parent && Holds(parent);
-
-    private void AddRoot(Entity entity)
-    {
-        if (_deadRoots * 2 > _roots.Count)
-        {
-            // An older entry of this entity is dead. The pass drops it, and the new one is its only entry.
-            entity.Marked = true;
-            CompactRoots();
-            entity.Marked = false;
-        }
-
-        _roots.Add(entity);
-    }
-
-    // Keeps the entries that still name a root, once each, in order. Walked from the end so a root that
-    // left and returned keeps its newest entry. Marked entities are the ones already kept.
-    private void CompactRoots()
-    {
-        Span<Entity> roots = CollectionsMarshal.AsSpan(_roots);
-        int first = roots.Length;
-        for (int index = roots.Length - 1; index >= 0; index--)
-        {
-            Entity root = roots[index];
-            if (Holds(root) && !PlacedByParent(root) && !root.Marked)
-            {
-                root.Marked = true;
-                roots[--first] = root;
-            }
-        }
-
-        int kept = roots.Length - first;
-        for (int index = 0; index < kept; index++)
-        {
-            Entity root = roots[first + index];
-            root.Marked = false;
-            roots[index] = root;
-        }
-
-        _roots.RemoveRange(kept, roots.Length - kept);
-        _deadRoots = 0;
-    }
-
-    // Iterative. A deep chain costs no stack.
-    private void AppendSubtree(Entity root)
-    {
-        Entity entity = root;
-        while (true)
-        {
-            entity.SceneSlot = _entities.Count;
-            entity.Order = (_entities.Count + 1) * EndGap;
-            Link(_last, entity, null);
-            _entities.Add(entity);
-
-            if (NextHeld(entity.Children, 0) is { } child)
-            {
-                entity = child;
-                continue;
-            }
-
-            while (!ReferenceEquals(entity, root))
-            {
-                Entity parent = entity.Parent!;
-                if (NextHeld(parent.Children, entity.ChildSlot + 1) is { } sibling)
-                {
-                    entity = sibling;
-                    break;
-                }
-
-                entity = parent;
-            }
-
-            if (ReferenceEquals(entity, root))
-            {
-                return;
-            }
-        }
-    }
-
-    private Entity? NextHeld(ReadOnlySpan<Entity> children, int from)
-    {
-        for (int index = from; index < children.Length; index++)
-        {
-            if (Holds(children[index]))
-            {
-                return children[index];
-            }
-        }
-
-        return null;
-    }
 }

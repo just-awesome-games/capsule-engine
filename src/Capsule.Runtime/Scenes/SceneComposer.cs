@@ -5,13 +5,14 @@ using Capsule.Scenes;
 
 namespace Capsule.Runtime.Scenes;
 
-// Holds only the current parsed document so restarts do not touch disk, and reads the document a prefetch
-// names on the asset decode threads. Every member runs on the game thread, and a read's own work touches
-// nothing here.
+// Holds the parsed document last composed and the running scene's. A restart then touches no disk, even after a
+// prefetch composed another. The two are one document except between a prefetch and its boundary. It reads the
+// document a prefetch names on the asset decode threads. Every member runs on the game thread, and a read's own work
+// touches nothing here.
 internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
 {
-    private string? _heldName;
-    private SceneDocument? _held;
+    private Held? _composed;
+    private Held? _running;
 
     // The read a prefetch began and no scene has composed yet. Which step composes it never depends on
     // whether it has finished.
@@ -57,6 +58,10 @@ internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
     // Ends the read under way. One not yet started never starts, and one under way runs to its end unread.
     internal void EndRead() => EndReadUnless(null);
 
+    // Keeps the document of the scene a boundary opened, which a restart composes again, and lets go of the one
+    // the outgoing scene ran. A scene built in code keeps none.
+    internal void Entered(SceneKey? scene) => _running = scene is { } key ? HeldAs(key.Name) : null;
+
     private string? DocumentNameOf(in SceneTransition target) => target.Kind switch
     {
         SceneTransitionKind.Scene => scenes.DocumentNameOf(target.SceneType!),
@@ -64,7 +69,12 @@ internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
         _ => throw new InvalidOperationException($"'{target.Kind}' names no scene to compose."),
     };
 
-    private bool IsHeld(string name) => _held is not null && string.Equals(_heldName, name, StringComparison.Ordinal);
+    private bool IsHeld(string name) => HeldAs(name) is not null;
+
+    private Held? HeldAs(string name) =>
+        _composed is { } composed && string.Equals(composed.Name, name, StringComparison.Ordinal) ? composed
+        : _running is { } running && string.Equals(running.Name, name, StringComparison.Ordinal) ? running
+        : null;
 
     private void EndReadUnless(string? name)
     {
@@ -118,9 +128,11 @@ internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
     // one document may share it.
     private SceneDocument Hold(string name, string path)
     {
-        if (IsHeld(name))
+        // A held document serves again. The running one becomes the last composed and lets go of a prefetch's.
+        if (HeldAs(name) is { } held)
         {
-            return _held!;
+            _composed = held;
+            return held.Document;
         }
 
         // Resolve ended any read of another document. A read under way is this one's.
@@ -144,11 +156,12 @@ internal sealed class SceneComposer(SceneRegistry scenes, HostPlatform platform)
             document = Load(path);
         }
 
-        _heldName = name;
-        _held = document;
+        _composed = new Held(name, document);
 
         return document;
     }
+
+    private readonly record struct Held(string Name, SceneDocument Document);
 
     private readonly record struct Read(string Name, Task<SceneDocument>? Task, CancellationTokenSource? Cancel)
     {

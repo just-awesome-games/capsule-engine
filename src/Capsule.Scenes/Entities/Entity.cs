@@ -220,6 +220,18 @@ public partial class Entity
     // Whether the entity joined its scene since the draw order was last read, and holds no key in it yet.
     internal bool AwaitsDrawOrder { get; set; }
 
+    // Whether a parent write moved the entity along its scene's tree order and its slot in the list has
+    // not followed yet. The scene keeps one entry for it while this is set.
+    internal bool AwaitsSlot
+    {
+        get => (_traits & Traits.AwaitsSlot) != 0;
+        set => _traits = value ? _traits | Traits.AwaitsSlot : _traits & ~Traits.AwaitsSlot;
+    }
+
+    // Whether a parent write moved the entity's subtree since its scene's last step began, and the next
+    // resolves the subtree's holds again. The scene keeps one entry for it while this is set.
+    internal bool AwaitsHold { get; set; }
+
     /// <summary>
     /// A marker or pivot at <paramref name="parent"/>'s origin. It has a place in the world and no
     /// behaviour of its own.
@@ -494,18 +506,11 @@ public partial class Entity
     // This entity's index in its parent's child list, current once the parent's Children has been read.
     internal int ChildSlot => _childSlot;
 
-    // Scratch for the scene's root compaction, clear outside it.
     // Whether the scene holding this entity keeps an entry for it among the entities waiting to start.
     internal bool WaitsToStart
     {
         get => (_traits & Traits.WaitsToStart) != 0;
         set => _traits = value ? _traits | Traits.WaitsToStart : _traits & ~Traits.WaitsToStart;
-    }
-
-    internal bool Marked
-    {
-        get => (_traits & Traits.Marked) != 0;
-        set => _traits = value ? _traits | Traits.Marked : _traits & ~Traits.Marked;
     }
 
     // The top of this entity's chain, itself for a root.
@@ -1269,7 +1274,6 @@ public partial class Entity
             }
         }
 
-        bool wasRoot = _parent is null;
         Link(parent);
         _local = local;
         _previousLocal = previousLocal;
@@ -1277,7 +1281,7 @@ public partial class Entity
 
         if (held)
         {
-            scene.Reparented(this, wasRoot);
+            scene.Reparented(this);
         }
     }
 
@@ -1414,7 +1418,7 @@ public partial class Entity
         Anchored = 1,
         Screen = 2,
         Leaving = 4,
-        Marked = 8,
+        AwaitsSlot = 8,
         Joined = 16,
         ClipFresh = 32,
         WorldOrder = 64,

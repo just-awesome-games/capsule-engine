@@ -368,8 +368,9 @@ public sealed class Run
     /// <remarks>
     /// Call it on intent, such as a highlighted menu item, not from a proximity sweep. A step that opens a
     /// scene starts no prefetch, and one asked for in it starts after the next step. The prefetch constructs
-    /// the scene and runs its <c>CollectAssets</c> at the end of the step it starts after, or of the step after
-    /// that when the scene's document is first read on a worker thread. Whichever step needs the document waits
+    /// the scene and runs its <c>CollectAssets</c> at the end of the step it starts after. When the scene's
+    /// document is first read on a worker thread, it does so at the end of the step 0.1 seconds of simulated time
+    /// later, or on the step that requests the scene if that comes first. Whichever step needs the document waits
     /// for the read, and how long it takes changes no step. The browser and WASI have no worker thread to wait
     /// on and read the document on the game thread at that step. At most one scene is prefetched. A request
     /// for the same scene with an equal payload starts that instance and runs its <c>OnStart</c>, whether each

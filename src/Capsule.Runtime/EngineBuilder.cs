@@ -465,7 +465,8 @@ public sealed partial class EngineBuilder
     /// from its start to the next frame's, the update, the view's build and the frame's recording in
     /// milliseconds, the fixed steps run, the gen-0 collections so far, the bytes the frame's thread
     /// allocated over the interval, the bytes every thread allocated over it to within each thread's
-    /// allocation quantum, and the managed heap's size once the frame's work is done. A frame that draws
+    /// allocation quantum, the managed heap's size once the frame's work is done, and the bytes of sprite
+    /// instances the frame's recording uploaded to the device, which a headless run writes as 0. A frame that draws
     /// nothing, minimized or exiting, times no view or recording. Its directory is created and an
     /// existing file is overwritten. A headless run paces its frames to the fixed step's rate and submits
     /// nothing, and its trace has no device or media stages. Under <c>--uncapped</c> its frames run back

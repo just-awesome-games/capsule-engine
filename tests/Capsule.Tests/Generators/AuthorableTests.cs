@@ -187,6 +187,15 @@ public sealed class AuthorableTests
             Seen(Composed("""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 1}""")));
     }
 
+    // A colour reads either form in either case, and through any escape JSON allows.
+    [Theory]
+    [InlineData("#0a0b0c")]
+    [InlineData("\\u00230A0B0Cff")]
+    public void AColour_ReadsTheHexItsStringHolds(string shade) =>
+        Assert.EndsWith(
+            "|12|1",
+            Seen(Composed($$"""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 1, "shade": "{{shade}}"}""")));
+
     [Fact]
     public void ABodyWrite_WinsOverTheDocument()
     {
@@ -273,6 +282,8 @@ public sealed class AuthorableTests
     [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": "high"}""", "the member takes float. Write a finite number.")]
     [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "swingTicks": 5}""", "omits 'rise'")]
     [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 1, "tuning": "light"}""", "Write one of: default, heavy.")]
+    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 1, "shade": "#0a0b0"}""", "sets 'shade' to the string \"#0a0b0\", but the member takes ColorRgba. Write \"#rrggbb\" or \"#rrggbbaa\".")]
+    [InlineData("""{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 1, "shade": "#0a0b0c0d0a0b0c0d0a0b0c0d0a0b0c0d0a0b0c0d0a0b0c0d0a0b0c0d0a"}""", "but the member takes ColorRgba.")]
     [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "vault"}""", "Write a route as from>to.")]
     [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": null}""", "to null, which only a nullable member accepts")]
     [InlineData("""{"id": 3, "type": "gate", "x": 0, "y": 0, "route": "a>b", "seal": 1}""", "SealConverter could not read as Seal: The seal registry is closed.")]

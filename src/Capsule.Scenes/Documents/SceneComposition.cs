@@ -16,13 +16,19 @@ internal static class SceneComposition
 
         // References are set once every entry is constructed. A reference may name a later entry.
         ReadOnlySpan<SceneDocumentEntry> entries = content.Document.Entries;
-        Dictionary<int, Entity> placed = [];
-        AuthoredMembers[] spawned = new AuthoredMembers[entries.Length];
+        int ids = 0;
+        foreach (ref readonly SceneDocumentEntry entry in entries)
+        {
+            ids += entry.Id is null ? 0 : 1;
+        }
+
+        Dictionary<int, Entity> placed = new(ids);
         AssetCollection assets = new();
+        AuthoredMembers.Composition composition = new(content.Document, placed, assets);
         for (int i = 0; i < entries.Length; i++)
         {
             SceneDocumentEntry entry = entries[i];
-            AuthoredMembers authored = new(entry, i, placed, assets, content.Document.Shared);
+            AuthoredMembers authored = new(composition, entry, i);
             Entity entity;
             try
             {
@@ -34,7 +40,6 @@ internal static class SceneComposition
             }
 
             scene.Add(entity);
-            spawned[i] = authored;
             if (entry.Id is { } id)
             {
                 placed.Add(id, entity);
@@ -47,10 +52,7 @@ internal static class SceneComposition
             }
         }
 
-        foreach (AuthoredMembers authored in spawned)
-        {
-            authored.Finish();
-        }
+        composition.Finish();
 
         // The scene's own members land once every entry is built, before a subclass constructor body runs.
         AuthoredMembers members = new(content.Document, placed, assets);

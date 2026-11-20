@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Physics;
@@ -32,7 +33,7 @@ public partial class Scene
 
     private bool _stepping;
 
-    // Set once the step's entity walks are over. A parent write after that rebuilds step order at once.
+    // Set once the step's entity walks are over. A parent write after that lays the list out at once.
     private bool _drained;
 
     private bool _started;
@@ -44,11 +45,15 @@ public partial class Scene
 
     // Steps a freeze still holds after the current one. BeginStep settles it with Paused into this
     // step's state, which every entity resolves against. The tree resolves again only when that state
-    // or a StepMode has changed.
+    // or a StepMode has changed, and a subtree a parent write moved resolves again by itself.
     private int _freezeTicks;
     private bool _pausedThisStep;
     private bool _frozenThisStep;
     private bool _holdsStale;
+
+    // The roots of the subtrees parent writes moved since the last step began, empty while the whole
+    // tree resolves again anyway.
+    private readonly List<Entity> _movedHolds = [];
 
     // How many steps have begun, wrapping. A held particle emitter compares it for equality to tell its
     // particles spawned this step from older ones.
@@ -660,6 +665,12 @@ public partial class Scene
         _holdsStale = false;
         _pausedThisStep = paused;
         _frozenThisStep = frozen;
+        if (!resolve && _movedHolds.Count > 0)
+        {
+            ResolveMovedHolds(paused, frozen);
+        }
+
+        ForgetMovedHolds();
 
         Camera.SavePrevious();
 
@@ -677,7 +688,62 @@ public partial class Scene
     }
 
     // Makes the next step resolve every entity's hold again.
-    internal void InvalidateHolds() => _holdsStale = true;
+    internal void InvalidateHolds()
+    {
+        _holdsStale = true;
+        ForgetMovedHolds();
+    }
+
+    // Makes the next step resolve the holds of the entity's subtree again, which follow its new parent.
+    private void MovedHolds(Entity entity)
+    {
+        if (!_holdsStale && !entity.AwaitsHold)
+        {
+            entity.AwaitsHold = true;
+            _movedHolds.Add(entity);
+        }
+    }
+
+    private void ForgetMovedHolds()
+    {
+        foreach (Entity entity in CollectionsMarshal.AsSpan(_movedHolds))
+        {
+            entity.AwaitsHold = false;
+        }
+
+        _movedHolds.Clear();
+    }
+
+    // Resolves each moved subtree that is still held, parent first, in tree order, once where one moved
+    // under another. A parent outside them kept its ancestry, and its resolved mode stands.
+    private void ResolveMovedHolds(bool paused, bool frozen)
+    {
+        Span<Entity> moved = CollectionsMarshal.AsSpan(_movedHolds);
+        moved.Sort(static (left, right) => left.Order.CompareTo(right.Order));
+
+        // A subtree is the run of the tree order from its root to its last entity. One that left keeps a
+        // stale label and is passed by.
+        long reached = long.MinValue;
+        foreach (Entity top in moved)
+        {
+            if (top.Order <= reached || !ReferenceEquals(top.SceneOrNull, this))
+            {
+                continue;
+            }
+
+            Entity last = _tree.LastHeldUnder(top);
+            for (Entity at = top; ; at = at.OrderNext!)
+            {
+                at.ResolveHold(paused, frozen);
+                if (ReferenceEquals(at, last))
+                {
+                    break;
+                }
+            }
+
+            reached = last.Order;
+        }
+    }
 
     internal void RunStep(in StepContext context)
     {

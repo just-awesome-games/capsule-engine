@@ -715,6 +715,7 @@ public sealed partial class KinematicBody2D : Component
         if (rise != 0f)
         {
             Vector2 remaining = Up * rise;
+            SlidePlanes planes = new(remaining);
             for (int pass = 0; pass < MoveSweep.MaxPasses && remaining != Vector2.Zero; pass++)
             {
                 MovePass step = sweep.Pass(remaining);
@@ -730,7 +731,7 @@ public sealed partial class KinematicBody2D : Component
                     break;
                 }
 
-                remaining = MoveSweep.AlongSurface(remaining - step.Moved, step.Normal);
+                remaining = planes.Next(remaining, step);
             }
         }
 

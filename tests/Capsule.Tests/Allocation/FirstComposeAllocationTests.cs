@@ -42,8 +42,9 @@ public sealed class FirstComposeAllocationTests(ITestOutputHelper output)
 
     private static readonly Lazy<SceneRegistry> Registry = new(static () => GeneratorHarness.Registry(GeneratorHarness.Compile(Game)));
 
-    // An entry authoring the same keys as the one before it shares its array of them. What is left is its values,
-    // the list of keys its reads asked for, its entity and its placement.
+    // An entry authoring the same keys as the one before it shares its array of them, and the entries' reads note
+    // what they asked for in tables their composition shares. What is left is its values, its entity, its placement,
+    // and one slot each for its keys and its reference until the composition finishes.
     [Fact]
     public void LoadingADocumentOfAuthoredEntries_AllocatesUnderABudgetAnEntry()
     {
@@ -55,7 +56,7 @@ public sealed class FirstComposeAllocationTests(ITestOutputHelper output)
 
         string document = $$"""{"entities": [{{entries.ToString().TrimEnd(',')}}]}""";
 
-        Report("a document of authored entries", document, Entries, budget: Entries * 1_700);
+        Report("a document of authored entries", document, Entries, budget: Entries * 1_300);
     }
 
     // A palette's entries that author the same keys in a row share one array of them, and a map reads the palette
@@ -66,7 +67,7 @@ public sealed class FirstComposeAllocationTests(ITestOutputHelper output)
         string palette = string.Join(", ", Enumerable.Range(1, TileTypes).Select(static index => $$"""{"name": "t{{index}}", "layer": "solid", "oneWay": true}"""));
         string document = $$"""{"entities": [{"type": "tile-map", "tileSize": 16, "width": 1, "height": 1, "tileTypes": [{"name": "empty"}, {{palette}}], "tiles": [1]}]}""";
 
-        Report("a palette of tile types", document, TileTypes, budget: TileTypes * 1_000);
+        Report("a palette of tile types", document, TileTypes, budget: TileTypes * 750);
     }
 
     // The layers of one level author one palette, which the document reads once. What the palette makes, its

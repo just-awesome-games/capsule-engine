@@ -245,7 +245,9 @@ internal static class Suite
             frames.Sum(static frame => frame.Bytes),
             Percentiles.Of(frames.ConvertAll(static frame => frame.IntervalMs).ToArray()),
             gen0,
-            sha256);
+            sha256,
+            RecordedDraws(frames),
+            frames.Sum(static frame => frame.UploadBytes));
     }
 
     // `--scene X --headless --driver Idle --frames <csv> --exit-after 6`: the host's frame loop with no window, paced to
@@ -290,6 +292,15 @@ internal static class Suite
         Percentiles view = Percentiles.Of(built);
 
         return new StepTiming(view.Median, view.P95);
+    }
+
+    // The draw times of the frames that ran a step, whose draw records the build that step made. The frames that
+    // draw the build again dominate drawMs. Null when no frame ran a step.
+    private static Percentiles? RecordedDraws(List<FrameRow> frames)
+    {
+        double[] recorded = [.. frames.Where(static frame => frame.Steps > 0).Select(static frame => frame.DrawMs)];
+
+        return recorded.Length == 0 ? null : Percentiles.Of(recorded);
     }
 
     // The CSV's frames past the warm-up frames warmUp counts, and the gen-0 collections over them,
@@ -374,14 +385,14 @@ internal static class Suite
 
     private static string Summary(WorkloadRecord workload) => workload switch
     {
-        { Mode: "windowed", DrawMs: { } draw, UpdateMs: { } update, IntervalMs: { } interval } => string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} frames={workload.Frames} drawMs median={draw.Median:F3} p95={draw.P95:F3} max={draw.Max:F3} updateMs p95={update.P95:F3} viewMs p95={workload.ViewMs?.P95:F3} intervalMs max={interval.Max:F3} frameBytes={workload.FrameBytes} gen0={workload.Gen0Collections}"),
+        { Mode: "windowed", DrawMs: { } draw, UpdateMs: { } update, IntervalMs: { } interval } => string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} frames={workload.Frames} drawMs median={draw.Median:F3} p95={draw.P95:F3} max={draw.Max:F3} recordedDrawMs median={workload.RecordedDrawMs?.Median:F3} p95={workload.RecordedDrawMs?.P95:F3} max={workload.RecordedDrawMs?.Max:F3} updateMs p95={update.P95:F3} viewMs p95={workload.ViewMs?.P95:F3} intervalMs max={interval.Max:F3} frameBytes={workload.FrameBytes} uploadBytes={workload.UploadBytes} gen0={workload.Gen0Collections}"),
         { Mode: "mixer", StepMs: { } block } => string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} blocks={workload.Steps} blockMs median={block.Median:F3} p95={block.P95:F3} bytes={workload.StepBytes} gen0={workload.Gen0Collections}"),
         { Mode: "paced", UpdateMs: { } update, IntervalMs: { } interval } => string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} paced frames={workload.Frames} steps={workload.Steps} intervalMs median={interval.Median:F3} p95={interval.P95:F3} max={interval.Max:F3} updateMs max={update.Max:F3} frameBytes={workload.FrameBytes} gen0={workload.Gen0Collections}"),
         _ => string.Create(CultureInfo.InvariantCulture, $"bench: {workload.Name} steps={workload.Steps} stepMs median={workload.StepMs!.Median:F3} p95={workload.StepMs.P95:F3} viewMs median={workload.ViewMs!.Median:F3} p95={workload.ViewMs.P95:F3} stepBytes={workload.StepBytes} viewBytes={workload.ViewBytes} gen0={workload.Gen0Collections}"),
     };
 
     // One row of the CSV FrameDiagnostics writes, after its commented boot trace and header.
-    private readonly record struct FrameRow(double IntervalMs, double UpdateMs, double ViewMs, double DrawMs, int Steps, int Gen0, long Bytes)
+    private readonly record struct FrameRow(double IntervalMs, double UpdateMs, double ViewMs, double DrawMs, int Steps, int Gen0, long Bytes, long UploadBytes)
     {
         internal static List<FrameRow> Read(string path)
         {
@@ -403,7 +414,8 @@ internal static class Suite
                     double.Parse(fields[4], CultureInfo.InvariantCulture),
                     int.Parse(fields[5], CultureInfo.InvariantCulture),
                     int.Parse(fields[6], CultureInfo.InvariantCulture),
-                    long.Parse(fields[7], CultureInfo.InvariantCulture)));
+                    long.Parse(fields[7], CultureInfo.InvariantCulture),
+                    long.Parse(fields[10], CultureInfo.InvariantCulture)));
             }
 
             return rows;

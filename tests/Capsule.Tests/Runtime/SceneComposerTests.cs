@@ -86,15 +86,14 @@ public sealed class SceneComposerTests : IDisposable
         Assert.InRange(allocated, 0, claimed / 4);
     }
 
-    // A prefetch reads its document on a worker. However long the read takes, the prefetch builds its scene at
-    // the end of the step after it, and a request opens the scene at the boundary it asked for, both waiting
-    // for the read. A read finishing early moves nothing earlier. A request after the build starts the built
-    // scene, and one before it builds the scene there.
+    // A prefetch reads its document on a worker and has 0.1 seconds of simulated time, six steps at 60 a second,
+    // before it builds its scene. A request before then builds the scene on its own step, and one after starts the
+    // scene built at step 6. Both wait for the read, and a read finishing early moves nothing earlier.
     [Theory]
     [InlineData(1, 0)]
     [InlineData(1, 300)]
-    [InlineData(2, 0)]
-    [InlineData(2, 300)]
+    [InlineData(7, 0)]
+    [InlineData(7, 300)]
     public void APrefetchedDocument_OpensOnTheSameStepsHoweverLongItsReadTakes(int requestStep, int readMs)
     {
         Write(SceneFixtures.Room(new SceneDocumentEntry("chest", new EntitySpawn(new Vector2(48f, 16f)))));
@@ -103,7 +102,7 @@ public sealed class SceneComposerTests : IDisposable
         SceneComposer composer = new(Registry(log, () => tick, requestStep), new SlowPlatform(readMs));
         using SceneHost host = new(SceneTransition.ToScene(typeof(Lobby), null), composer.Resolve, new Run(), composer: composer);
 
-        for (; tick < 4; tick++)
+        for (; tick < requestStep + 2; tick++)
         {
             host.Step(SceneFixtures.Step(tick));
 
@@ -115,14 +114,14 @@ public sealed class SceneComposerTests : IDisposable
         }
 
         string[] expected = requestStep == 1
-            ? ["lobby step 0", "lobby step 1", "hall built at 1", "hall step 2", "hall step 3"]
-            : ["lobby step 0", "lobby step 1", "hall built at 1", "lobby step 2", "hall step 3"];
+            ? ["lobby step 0", "lobby step 1", "hall built at 1", "hall step 2"]
+            : [.. Enumerable.Range(0, 7).Select(step => "lobby step " + step), "hall built at 6", "lobby step 7", "hall step 8"];
         Assert.Equal(expected, log);
         Assert.IsType<Hall>(host.Scene);
     }
 
     // The worker's failure reaches the step that waits for its read as the type a read on the game thread
-    // raises, naming the file, and the step that started the read raises nothing.
+    // raises, naming the file, and the steps before it raise nothing.
     [Fact]
     public void APrefetchedDocumentThatIsNotGzip_FailsTheStepThatBuildsItsScene()
     {
@@ -131,12 +130,52 @@ public sealed class SceneComposerTests : IDisposable
         SceneComposer composer = new(Registry(), new SlowPlatform(50));
         using SceneHost host = new(SceneTransition.ToScene(typeof(Lobby), null), composer.Resolve, new Run(), composer: composer);
 
-        host.Step(SceneFixtures.Step(0));
+        for (long tick = 0; tick < 6; tick++)
+        {
+            host.Step(SceneFixtures.Step(tick));
+        }
+
         SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(
-            () => host.Step(SceneFixtures.Step(1)));
+            () => host.Step(SceneFixtures.Step(6)));
 
         Assert.Contains(DocumentName + ShippedSceneDocument.Extension, failure.Message, StringComparison.Ordinal);
         Assert.Contains("not valid gzip", failure.Message, StringComparison.Ordinal);
+    }
+
+    // A restart composes the running scene's document again without opening it, after a prefetch read and composed
+    // another one, and lets go of the other, which a later prefetch reads again.
+    [Fact]
+    public void ARestartAfterAPrefetchOfAnotherDocument_ReadsNothingAndKeepsOneDocument()
+    {
+        Write(SceneFixtures.Room());
+        string annexPath = Path.Combine(Path.GetDirectoryName(DocumentPath)!, "annex" + ShippedSceneDocument.Extension);
+        ShippedSceneDocument.Write(SceneFixtures.Room(), annexPath, CompressionLevel.Fastest);
+        try
+        {
+            GatedPlatform platform = new();
+            SceneComposer composer = new(
+                new SceneRegistry(SceneFixtures.Registry(), [SceneRegistration.FromDocument(typeof(Ward), DocumentName, content => new Ward(content!.Value))]),
+                platform);
+            using SceneHost host = new(SceneTransition.ToScene(typeof(Ward), null), composer.Resolve, new Run(), composer: composer);
+
+            Scene first = host.Scene;
+            for (long tick = 0; tick < 10; tick++)
+            {
+                host.Step(SceneFixtures.Step(tick));
+            }
+
+            Assert.Equal(2, platform.Opens);
+            Assert.NotSame(first, Assert.IsType<Ward>(host.Scene));
+            platform.Gated = true;
+            Assert.False(composer.BeginRead(SceneTransition.ToScene(typeof(Ward), null)));
+            Assert.True(composer.BeginRead(SceneTransition.ToName("annex", null)));
+            composer.EndRead();
+            platform.Gate.Set();
+        }
+        finally
+        {
+            File.Delete(annexPath);
+        }
     }
 
     // A later prefetch of another document ends the earlier read. Nothing keeps a superseded read or its document.
@@ -232,6 +271,22 @@ public sealed class SceneComposerTests : IDisposable
         }
 
         protected override void OnStep(in StepContext context) => _log.Add("hall step " + context.Tick);
+    }
+
+    // Prefetches the annex document at step 0 and restarts itself at step 8, once the annex is built.
+    private sealed class Ward(SceneContent content) : Scene(content)
+    {
+        protected override void OnStep(in StepContext context)
+        {
+            if (context.Tick == 0)
+            {
+                Run.PrefetchScene(new SceneKey("annex"));
+            }
+            else if (context.Tick == 8)
+            {
+                Run.RequestRestart();
+            }
+        }
     }
 
     private sealed class Lobby(List<string> log, int requestStep) : Scene

@@ -10,7 +10,7 @@ namespace Capsule.Tests.Scenes;
 public sealed class EntityTreeOrderTests
 {
     [Fact]
-    public void ARootThatLeavesAndReturnsRepeatedly_HoldsOneEntryAtTheEndOfTheRoots()
+    public void ARootThatLeavesAndReturnsRepeatedly_ReturnsToTheEndOfTheRoots()
     {
         Scene scene = new();
         Node first = new(Vector2.Zero);
@@ -133,10 +133,13 @@ public sealed class EntityTreeOrderTests
         Assert.Equal<Entity>([parent, first, second, other, watcher], second.Seen);
     }
 
-    // Children join one after another ahead of the same root until no label is left between two of them.
-    // The tree spreads its labels again, and each key the draw order holds follows its entity.
-    [Fact]
-    public void ChildrenJoiningUntilTheLabelsBetweenTwoRootsRunOut_KeepTreeOrderAndPatchTheDrawOrder()
+    // Children join, or roots are written under a parent, one after another ahead of the same root until
+    // no label is left between two of them. The tree spreads its labels again, and each key the draw order
+    // holds follows its entity.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ChildrenArrivingUntilTheLabelsBetweenTwoRootsRunOut_KeepTreeOrderAndPatchTheDrawOrder(bool reparented)
     {
         List<Entity> drawn = [];
         Scene scene = new();
@@ -155,8 +158,14 @@ public sealed class EntityTreeOrderTests
         List<Entity> expected = [first];
         for (int index = 0; index < 70_000; index++)
         {
-            Node child = new(Vector2.Zero) { Parent = first };
+            Node child = new(Vector2.Zero) { Parent = reparented ? null : first };
             child.Add(new Logging(drawn));
+            if (reparented)
+            {
+                scene.Add(child);
+                child.Parent = first;
+            }
+
             expected.Add(child);
             if (index % 10_000 == 0)
             {
@@ -172,6 +181,116 @@ public sealed class EntityTreeOrderTests
         Assert.Equal(expected, drawn);
         Assert.Equal(rebuilds, scene.Drawing.Rebuilds);
     }
+
+    // A parent write moves only its subtree. After any run of writes between steps or during one, under a
+    // pause now and then, over entities of every StepMode with bands that sum and bands that are absolute,
+    // the scene holds its entities in tree order and draws them by band, patching an order it built once.
+    // It steps them as a scene that resolves every hold again before each step does.
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void AnyRunOfParentWrites_KeepsTreeAndDrawOrder_AndStepsAsResolvingEveryHoldWould(int seed) =>
+        Assert.Equal(WriteParents(seed, resolveAll: true), WriteParents(seed, resolveAll: false));
+
+    // The step log of 40 rounds of random parent writes.
+    private static List<string> WriteParents(int seed, bool resolveAll)
+    {
+        Random random = new(seed);
+        List<string> log = [];
+        Recorder[] held = new Recorder[12];
+        int[] tagZ = new int[held.Length];
+        for (int index = 0; index < held.Length; index++)
+        {
+            held[index] = new($"e{index}", log)
+            {
+                ZIndex = random.Next(-2, 3),
+                ZIndexIsAbsolute = random.Next(3) == 0,
+                StepMode = (StepMode)random.Next(5),
+                Parent = index == 0 || random.Next(3) == 0 ? null : held[random.Next(index)],
+            };
+            tagZ[index] = random.Next(-1, 2);
+            held[index].Add(Tag(index, tagZ[index]));
+        }
+
+        // The roots in the order they joined the end.
+        bool duringStep = false;
+        List<Entity> roots = [];
+        void Write(bool now)
+        {
+            for (int write = now ? random.Next(1, 4) : 0; write > 0; write--)
+            {
+                Recorder target = held[random.Next(held.Length)];
+                Entity? parent = random.Next(3) == 0 ? null : held[random.Next(held.Length)];
+                Entity? above = parent;
+                while (above is not null && !ReferenceEquals(above, target))
+                {
+                    above = above.Parent;
+                }
+
+                if (above is null)
+                {
+                    if (target.Parent is null && parent is not null)
+                    {
+                        roots.Remove(target);
+                    }
+                    else if (target.Parent is not null && parent is null)
+                    {
+                        roots.Add(target);
+                    }
+
+                    target.Parent = parent;
+                }
+            }
+        }
+
+        roots.Add(new Watcher(_ => Write(duringStep)) { StepMode = StepMode.Always });
+        roots.AddRange(held.Where(static entity => entity.Parent is null));
+        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(Vector2.Zero, new Vector2(1000f)));
+        foreach (Entity root in roots)
+        {
+            scene.Add(root);
+        }
+
+        using SceneSimulation simulation = new(scene);
+        for (int round = 0; round < 40; round++)
+        {
+            duringStep = random.Next(2) == 0;
+            scene.Paused = random.Next(4) == 0;
+            Write(!duringStep);
+            if (resolveAll)
+            {
+                scene.InvalidateHolds();
+            }
+
+            simulation.Step(SceneFixtures.Step(tick: round));
+
+            List<Entity> tree = [];
+            foreach (Entity root in roots)
+            {
+                Walk(root, tree);
+            }
+
+            Assert.Equal(tree, scene.Entities.ToArray());
+            int[] drawn = [.. tree.OfType<Recorder>().Select(entity => Array.IndexOf(held, entity)).OrderBy(index => Band(held[index]) + tagZ[index])];
+            Assert.Equal(drawn, Order(simulation));
+        }
+
+        Assert.Equal(1, scene.Drawing.Rebuilds);
+        return log;
+    }
+
+    private static void Walk(Entity entity, List<Entity> tree)
+    {
+        tree.Add(entity);
+        foreach (Entity child in entity.Children)
+        {
+            Walk(child, tree);
+        }
+    }
+
+    private static long Band(Entity entity) => (entity.ZIndexIsAbsolute || entity.Parent is null ? 0 : Band(entity.Parent)) + entity.ZIndex;
 
     private sealed class Logging(List<Entity> drawn) : Renderer
     {

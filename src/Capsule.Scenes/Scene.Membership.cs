@@ -163,15 +163,14 @@ public partial class Scene
         _pendingStarts.EnsureCapacity(entities);
         _pendingRemoves.EnsureCapacity(entities);
         _pendingRemoveSet.EnsureCapacity(entities);
+        _movedHolds.EnsureCapacity(entities);
     }
 
     // Drain queues while lifecycle hooks grow them. Dropped entities are not retried next step.
     private void DrainPending()
     {
-        if (_tree.Stale)
-        {
-            RebuildOrder();
-        }
+        // The step's walks are over. The list takes the places parent writes moved entities to.
+        _tree.Follow();
 
         while (_pendingAdds.Count > 0 || _pendingRemoves.Count > 0 || _pendingStarts.Count > 0)
         {
@@ -190,12 +189,6 @@ public partial class Scene
             finally
             {
                 DropProcessed(_pendingAdds, _pendingAddSet, processed);
-
-                // Before the removals and the starts, which run in tree order.
-                if (_tree.Stale)
-                {
-                    RebuildOrder();
-                }
             }
 
             processed = 0;
@@ -340,7 +333,7 @@ public partial class Scene
                 JoinTree(composed);
 
                 // An entity a hook adds joins past the last slot, and one it removes leaves a hole. Only a
-                // read of the order or a rebuild moves the ones still waiting, perhaps to an earlier slot.
+                // read of the order or a parent write moves the ones still waiting, perhaps to an earlier slot.
                 index = moves == _tree.Moves ? index + 1 : 0;
             }
         }
@@ -414,22 +407,19 @@ public partial class Scene
         }
     }
 
-    // The step walk reads the list. A rebuild during it waits for the drain.
-    internal void Reparented(Entity entity, bool wasRoot)
+    // A parent write moves the entity's subtree as one run of the tree order. Its draw keys and holds are
+    // worked out again for that run alone. The step walk reads the list, which follows at the drain.
+    internal void Reparented(Entity entity)
     {
-        InvalidateHolds();
-        _tree.Reparented(entity, wasRoot);
+        Entity last = _tree.LastHeldUnder(entity);
+        Drawing.Moving(entity, last);
+        MovedHolds(entity);
+        _tree.Reparented(entity, last);
 
         if (!_stepping || _drained)
         {
-            RebuildOrder();
+            _tree.Follow();
         }
-    }
-
-    private void RebuildOrder()
-    {
-        _tree.Rebuild();
-        Drawing.Invalidate();
     }
 
     // OnStart may attach more, and this loop drains those too.
@@ -460,9 +450,9 @@ public partial class Scene
                     Span<Entity> waiting = CollectionsMarshal.AsSpan(_pendingStarts);
                     if (reorders != _tree.Reorders || _waitUnsorted)
                     {
-                        // A rebuild relabels every entity, and one that left the wait and joined again took
-                        // a new label. The starts of the second run change places with the batch still
-                        // waiting, and whatever waits and is still held sorts as one batch again.
+                        // A parent write relabels the subtree it moves, and one that left the wait and
+                        // joined again took a new label. The starts of the second run change places with the
+                        // batch still waiting, and whatever waits and is still held sorts as one batch again.
                         reorders = _tree.Reorders;
                         waiting[first..batch].Reverse();
                         waiting[batch..second].Reverse();
@@ -582,6 +572,9 @@ public partial class Scene
         Entity entity = _tree.Vacate(index);
 
         Drawing.Left(entity);
+
+        // Its entry among the moved holds is skipped. Another scene it joins keeps one of its own.
+        entity.AwaitsHold = false;
         if (entity.WaitsToStart)
         {
             entity.WaitsToStart = false;
@@ -670,6 +663,7 @@ public partial class Scene
         _pendingAddSet.Clear();
         _pendingRemoves.Clear();
         _pendingRemoveSet.Clear();
+        ForgetMovedHolds();
         _tree.Reset();
         Drawing.Clear();
         Physics.ClearContactReporters();

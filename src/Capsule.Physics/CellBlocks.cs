@@ -26,6 +26,11 @@ internal sealed class CellBlocks
     // The storage this one was shared from, whose blocks it reads until it writes them, or null.
     private readonly CellBlocks? _source;
 
+    // The count of writes made when each block was last written or dropped. A copy carries on its source's count,
+    // and the source is never written again. A block's stamp only grows.
+    private readonly int[] _stamps;
+    private int _writes;
+
     // Cells across.
     internal int Width { get; }
 
@@ -46,6 +51,7 @@ internal sealed class CellBlocks
         BlocksWide = ((width - 1) >> BlockShift) + 1;
         BlocksHigh = ((height - 1) >> BlockShift) + 1;
         _blocks = new Block?[BlocksWide * BlocksHigh];
+        _stamps = new int[_blocks.Length];
     }
 
     private CellBlocks(CellBlocks source)
@@ -55,6 +61,8 @@ internal sealed class CellBlocks
         BlocksWide = source.BlocksWide;
         BlocksHigh = source.BlocksHigh;
         _blocks = [.. source._blocks];
+        _stamps = [.. source._stamps];
+        _writes = source._writes;
         _source = source;
     }
 
@@ -138,6 +146,22 @@ internal sealed class CellBlocks
 
     // The block holding the cells of block column bx and block row by, or null where they hold nothing.
     internal Block? BlockAt(int bx, int by) => _blocks[(by * BlocksWide) + bx];
+
+    // The latest stamp of the blocks from block column bx and block row by up to bxEnd and byEnd. It grows with every
+    // write to any of them, and stays put while none is written.
+    internal int StampOf(int bx, int by, int bxEnd, int byEnd)
+    {
+        int stamp = 0;
+        for (int row = by; row < byEnd; row++)
+        {
+            foreach (int written in _stamps.AsSpan((row * BlocksWide) + bx, bxEnd - bx))
+            {
+                stamp = Math.Max(stamp, written);
+            }
+        }
+
+        return stamp;
+    }
 
     // The caller checks the cell lies on the grid.
     internal int ValueAt(int x, int y) => _blocks[BlockIndex(x, y)] is { } block ? block.Values[CellOf(x, y)] : 0;
@@ -237,6 +261,8 @@ internal sealed class CellBlocks
         {
             _blocks[index] = null;
         }
+
+        _stamps[index] = ++_writes;
     }
 
     private int BlockIndex(int x, int y) => ((y >> BlockShift) * BlocksWide) + (x >> BlockShift);

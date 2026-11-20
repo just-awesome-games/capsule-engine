@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Rendering;
@@ -30,6 +31,9 @@ internal sealed partial class FrameRenderer : IDisposable
     // recording to be reused.
     private SpriteDrawList _sprites;
     private SpriteDrawList _overlaySprites;
+
+    // The chunks of tiles a view that retains them names, kept on the device across frames.
+    private readonly TileChunks _tiles = new(checks: Development.IsSupported && TileChunks.ChecksSwitch);
     private readonly ShaderStore _shaders;
     private readonly TextureStore _textures;
 
@@ -122,6 +126,9 @@ internal sealed partial class FrameRenderer : IDisposable
     // The captures Submit has written to their files since the renderer was made.
     internal long CapturesSaved { get; private set; }
 
+    // The sprite instances the last frame Draw recorded uploaded, in bytes, its kept chunks of tiles among them.
+    internal int UploadedBytes { get; private set; }
+
     // renderResolution: A fixed render surface, or null to draw the world in the window pass.
     //
     // textures: The scene texture cache, loading on first use. The caller owns it.
@@ -190,6 +197,7 @@ internal sealed partial class FrameRenderer : IDisposable
 
         GpuCommandBuffer commands = _device.AcquireCommandBuffer();
         _commands = commands;
+        _tiles.BeginFrame();
         _window = commands.AcquireSwapchainTexture();
 
         // A frame that draws the build the last one recorded, on the same output, reuses the recording. The
@@ -209,7 +217,7 @@ internal sealed partial class FrameRenderer : IDisposable
 
         GpuCopyPass copy = commands.BeginCopyPass();
         _textures.Pump(copy);
-        _sprites.Upload(copy);
+        UploadedBytes = _sprites.Upload(copy) + _tiles.Upload(_device, copy);
         copy.End();
         _sprites.Execute(commands);
 
@@ -306,6 +314,9 @@ internal sealed partial class FrameRenderer : IDisposable
 
         return _sprites.Finish();
     }
+
+    // Lets go of everything kept on the device from earlier frames, and of the sources it names, at a scene boundary.
+    internal void ForgetRetained() => _tiles.Forget();
 
     // Submits the frame Draw recorded, with the overlay that joined it, which presents the swapchain
     // texture they drew into. Never waits for the display. A frame with a capture waits for the GPU,
@@ -566,7 +577,7 @@ internal sealed partial class FrameRenderer : IDisposable
         // Drawn through the narrowed world viewport. Presentation bars stay black.
         _sprites.AddWhole(_white, ends.Corner, Vector2.Zero, span, rotation: 0f, view.ClearColor);
 
-        DrawIntents(view.Sprites, view.Polygons, view.PolygonPoints, view.Lines, view.PlacementRuns, view.MaterialRuns, view.ClipRuns, view.ClipLevels, ref pass);
+        DrawIntents(view.Sprites, view.Polygons, view.PolygonPoints, view.TileRuns, view.Lines, view.PlacementRuns, view.MaterialRuns, view.ClipRuns, view.ClipLevels, ref pass);
     }
 
     // The screen layer, in canvas pixels placed by placement. Drawn after the world and across the
@@ -603,11 +614,11 @@ internal sealed partial class FrameRenderer : IDisposable
             Surface = surface,
         };
 
-        DrawIntents(sprites, polygons, view.PolygonPoints, lines, default, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, ref pass);
+        DrawIntents(sprites, polygons, view.PolygonPoints, view.TileRuns, lines, default, view.ScreenMaterialRuns, view.ScreenClipRuns, view.ClipLevels, ref pass);
     }
 
-    // Draws the sprites with the polygons among them, then the lines, each placement run as it opens, each
-    // material run with its material, and each clip run cut to its rect. A polygon draws before the sprite
+    // Draws the sprites with the polygons and the chunks of tiles among them, then the lines, each placement run as it
+    // opens, each material run with its material, and each clip run cut to its rect. A polygon draws before the sprite
     // stored after it. The runs are in list order, and one cursor walks each kind. A run opens at a sprite, a
     // polygon and a line index, and applies to the intent stored after it: a sprite or polygon whose cursors
     // have both reached the run's. The lines walk the placement and clip runs again from the start. Lines draw
@@ -616,6 +627,7 @@ internal sealed partial class FrameRenderer : IDisposable
         ReadOnlySpan<SpriteIntent> sprites,
         ReadOnlySpan<StoredPolygon> polygons,
         ReadOnlySpan<Vector2> points,
+        ReadOnlySpan<TileRun> tiles,
         ReadOnlySpan<LineIntent> lines,
         ReadOnlySpan<PlacementRun> layers,
         ReadOnlySpan<MaterialRun> materials,
@@ -656,7 +668,14 @@ internal sealed partial class FrameRenderer : IDisposable
                     _sprites.Widen(polygons[polygon].Bounds, ReadShift(in pass.Sprites));
                 }
 
-                DrawPolygon(in polygons[polygon], points, in pass);
+                if (polygons[polygon].HoldsTiles)
+                {
+                    DrawTiles(in polygons[polygon], in tiles[polygons[polygon].TileRunIndex], ref pass);
+                }
+                else
+                {
+                    DrawPolygon(in polygons[polygon], points, in pass);
+                }
 
                 polygon++;
                 continue;
@@ -835,6 +854,23 @@ internal sealed partial class FrameRenderer : IDisposable
             line.Color);
     }
 
+    // A chunk of tiles from the instances kept for it, written again where what it draws has changed. A chunk the
+    // frame has no room to keep yet draws the cells it shows among the frame's own quads. The polygon that holds it
+    // carries the style it was stored under.
+    private void DrawTiles(in StoredPolygon stored, in TileRun run, ref Pass pass)
+    {
+        Resolve(ref pass, run.Source.Texture);
+        _sprites.SetPlacement(in pass.Sprites);
+        if (_tiles.Resolve(in run, stored.Color, stored.Flash, in pass.Slice) is not { } chunk)
+        {
+            _sprites.AddFrameRange(pass.Slice.Texture, _tiles.WriteShown(in run, stored.Color, stored.Flash), pass.Slice.OffsetX, pass.Slice.OffsetY);
+        }
+        else if (chunk.Count > 0)
+        {
+            _sprites.AddRetained(pass.Slice.Texture, chunk.Page.Buffer, chunk.First, chunk.Count);
+        }
+    }
+
     // A polygon's fan of triangles from its first point, on the white texel. The vertex stage snaps every
     // triangle by that point, and the fan moves as one shape.
     private void DrawPolygon(in StoredPolygon polygon, ReadOnlySpan<Vector2> points, in Pass pass) =>
@@ -908,11 +944,7 @@ internal sealed partial class FrameRenderer : IDisposable
 
     private void DrawSprite(in SpriteIntent sprite, ref Pass pass, float intensity = 1f)
     {
-        if (pass.Slice.Texture is null || sprite.Sprite.Texture != pass.Resolved)
-        {
-            pass.Resolved = sprite.Sprite.Texture;
-            pass.Slice = Slice(in pass.Resolved);
-        }
+        Resolve(ref pass, sprite.Sprite.Texture);
 
         // A snapped quad puts both edges on the grid, or abutting tiles leave a gap at a fractional
         // scale. The vertex stage snaps a quad at a whole number of quarter turns whole, and any other
@@ -935,14 +967,20 @@ internal sealed partial class FrameRenderer : IDisposable
                 end++;
             }
 
-            if (pass.Slice.Texture is null || handle != pass.Resolved)
-            {
-                pass.Resolved = handle;
-                pass.Slice = Slice(in pass.Resolved);
-            }
-
+            Resolve(ref pass, handle);
             _sprites.AddRange(pass.Slice.Texture, sprites[first..end], pass.Slice.OffsetX, pass.Slice.OffsetY);
             first = end;
+        }
+    }
+
+    // Points the pass's slice at texture, fetched only where the pass holds another.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void Resolve(ref Pass pass, in TextureHandle texture)
+    {
+        if (pass.Slice.Texture is null || texture != pass.Resolved)
+        {
+            pass.Resolved = texture;
+            pass.Slice = Slice(in pass.Resolved);
         }
     }
 
@@ -1076,5 +1114,6 @@ internal sealed partial class FrameRenderer : IDisposable
         _screen?.Dispose();
         _sprites.Dispose();
         _overlaySprites.Dispose();
+        _tiles.Dispose();
     }
 }

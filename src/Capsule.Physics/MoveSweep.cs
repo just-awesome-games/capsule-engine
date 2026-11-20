@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace Capsule.Physics;
 
@@ -61,6 +62,7 @@ internal ref struct MoveSweep(
     // Moves as far along the translation as the shape can go and slides the rest along what stopped it.
     internal void Slide(Vector2 translation)
     {
+        SlidePlanes planes = new(translation);
         for (int pass = 0; pass < MaxPasses && translation != Vector2.Zero; pass++)
         {
             MovePass step = Pass(translation);
@@ -69,7 +71,7 @@ internal ref struct MoveSweep(
                 break;
             }
 
-            translation = AlongSurface(translation - step.Moved, step.Normal);
+            translation = planes.Next(translation, step);
         }
     }
 
@@ -114,3 +116,63 @@ internal ref struct MoveSweep(
 // One sweep of a move: how far it went, whether a surface stopped it and that surface's normal, and
 // how many contacts it wrote into its span and found in all.
 internal readonly record struct MovePass(Vector2 Moved, bool Blocked, Vector2 Normal, int Written, int Found);
+
+// The surfaces one move has met and the share of its translation still to go. Each pass's leftover is the original
+// translation's remaining share slid along one surface met that keeps clear of every other, the newest first. None
+// keeping clear means the move is wedged where surfaces facing into each other meet, and it stops there. Sliding the
+// leftover along the newest surface alone would climb an earlier one and fall back on the next step.
+internal ref struct SlidePlanes(Vector2 wanted)
+{
+    // How far a slide may lean into a surface, as a share of its length, and still count as clear of it. A
+    // projection onto one surface rounds against another square to it by a few units in the last place.
+    private const float Lean = 1e-5f;
+
+    private readonly Vector2 _wanted = wanted;
+    private Normals _met;
+    private int _count;
+
+    // The share of the wanted translation the passes so far have not moved.
+    private float _left = 1f;
+
+    // The translation the next pass sweeps, after translation stopped against step's surface.
+    internal Vector2 Next(Vector2 translation, in MovePass step)
+    {
+        _left *= (translation - step.Moved).Length() / translation.Length();
+        if (_count < MoveSweep.MaxPasses)
+        {
+            _met[_count++] = step.Normal;
+        }
+
+        Vector2 rest = _wanted * _left;
+        for (int index = _count - 1; index >= 0; index--)
+        {
+            Vector2 along = MoveSweep.AlongSurface(rest, _met[index]);
+            if (ClearOfAll(along, index))
+            {
+                return along;
+            }
+        }
+
+        return Vector2.Zero;
+    }
+
+    private readonly bool ClearOfAll(Vector2 along, int except)
+    {
+        float lean = along.Length() * Lean;
+        for (int index = 0; index < _count; index++)
+        {
+            if (index != except && Vector2.Dot(along, _met[index]) < -lean)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    [InlineArray(MoveSweep.MaxPasses)]
+    private struct Normals
+    {
+        private Vector2 _element0;
+    }
+}

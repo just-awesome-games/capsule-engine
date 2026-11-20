@@ -312,9 +312,6 @@ internal sealed class SceneDrawing
         return CollectionsMarshal.AsSpan(_renderers);
     }
 
-    // The next read rebuilds the whole order.
-    internal void Invalidate() => _renderersStale = true;
-
     // An entity's band or renderers are about to change. Its keys leave as they stand, and it enters the
     // order again as an arrival, read as it then stands. One still waiting to enter is read as it
     // enters anyway. A band also moves every descendant's, and the order rebuilds unless they all wait
@@ -346,6 +343,21 @@ internal sealed class SceneDrawing
         Left(entity);
         entity.AwaitsDrawOrder = true;
         _arrived.Add(entity);
+    }
+
+    // A parent write is about to move the subtree from the entity through `last` in tree order. Each of
+    // its entities takes a new label and perhaps a new band. Each leaves the order and arrives again,
+    // which reaches every descendant without the rebuild a band change alone would need.
+    internal void Moving(Entity entity, Entity last)
+    {
+        for (Entity at = entity; ; at = at.OrderNext!)
+        {
+            Changing(at, band: false);
+            if (ReferenceEquals(at, last))
+            {
+                return;
+            }
+        }
     }
 
     // The entity joined the tree, and every entity already held kept its label.
@@ -434,11 +446,13 @@ internal sealed class SceneDrawing
     }
 
     // Sizes the order for renderers held at once and the entities that hold them. A read after pooled
-    // entities attach then grows nothing.
+    // entities attach or move then grows nothing, and the patch sorts their keys in the spare lists.
     internal void Reserve(int renderers, int entities)
     {
         _renderers.EnsureCapacity(renderers);
         _keys.EnsureCapacity(renderers);
+        _spareRenderers.EnsureCapacity(renderers);
+        _spareKeys.EnsureCapacity(renderers);
         _arrived.EnsureCapacity(entities);
     }
 
@@ -476,7 +490,7 @@ internal sealed class SceneDrawing
         {
             long band = entity.SumDrawBand();
 
-            // An entity takes another root only by a parent write, which rebuilds the order. The key can hold it.
+            // An entity takes another root only by a parent write, which rebuilds a Y-sorted order. The key can hold it.
             Entity? root = ySort && entity.Space == RenderSpace.World ? entity.Root : null;
             entity.AwaitsDrawOrder = false;
             int ordinal = 0;

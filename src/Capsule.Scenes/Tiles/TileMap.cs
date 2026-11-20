@@ -313,14 +313,16 @@ public class TileMap : Entity
         }
 
         ReadOnlyMemory<Sprite?> sprites = grid.Sprites;
+        TileAnimator? animator = null;
         if (!grid.Animations.IsEmpty)
         {
             Sprite?[] own = grid.Sprites.ToArray();
             sprites = own;
-            Add(new TileAnimator(grid.Animations, own));
+            animator = new TileAnimator(grid.Animations, own);
+            Add(animator);
         }
 
-        _tiles = new VisibleTiles(this, grid, sprites);
+        _tiles = new VisibleTiles(this, grid, sprites, animator);
         Add(_tiles);
     }
 
@@ -360,81 +362,206 @@ public class TileMap : Entity
     {
         private readonly AnimationPlayback[] _cursors = new AnimationPlayback[animations.Length];
 
+        // How many steps have shown some entry another frame.
+        internal int Frames { get; private set; }
+
         protected internal override void OnStep(in StepContext context)
         {
             ReadOnlySpan<TileGrid.Animation> entries = animations.Span;
+            bool changed = false;
             for (int i = 0; i < entries.Length; i++)
             {
                 SpriteClip clip = entries[i].Clip;
                 _cursors[i].Step(clip.FrameTicks, loop: true);
-                sprites[entries[i].Palette] = clip.Frames[_cursors[i].FrameIndex];
+                Sprite frame = clip.Frames[_cursors[i].FrameIndex];
+                ref Sprite? shown = ref sprites[entries[i].Palette];
+                if (shown != frame)
+                {
+                    shown = frame;
+                    changed = true;
+                }
             }
+
+            Frames += changed ? 1 : 0;
         }
     }
 
     // The sprite table is indexed by palette. The map's cells are read on each draw, since an edit replaces them.
-    private sealed class VisibleTiles(TileMap map, TileGrid grid, ReadOnlyMemory<Sprite?> sprites)
-        : Renderer
+    private sealed class VisibleTiles(TileMap map, TileGrid grid, ReadOnlyMemory<Sprite?> sprites, TileAnimator? animator)
+        : Renderer, ITileSource
     {
+        // How many cell blocks run along one side of a chunk.
+        private const int BlocksPerChunk = 1 << (TileRun.ChunkShift - CellBlocks.BlockShift);
+
+        // Whether each palette entry animates, or null for a map with no animated entry.
+        private readonly bool[]? _animates = Animates(grid);
+
+        // The tint and flash the map was last drawn under.
+        private (ColorRgba Tint, ColorRgba Flash) _style = (ColorRgba.White, default);
+
         internal override bool Steps => false;
+
+        TextureHandle ITileSource.Texture => grid.Texture!.Value;
 
         // Draws only the cells the camera's swept bounds reach, row by row, and skips each stretch of a row whose
         // block holds nothing. Every cell drawn meets the bounds the view culls against, and the view's own test
-        // is skipped. A row is written straight into the view's list, which is sized for it once.
+        // is skipped. A row is written straight into the view's list, which is sized for it once. A view that
+        // retains tiles takes the chunks those cells lie in instead, while the map's tint and flash hold from its
+        // last draw. A changing style writes the cells, as a chunk styled one way serves no other.
         protected internal override void Draw(FrameView view)
         {
             ArgumentNullException.ThrowIfNull(view);
 
+            (ColorRgba, ColorRgba) style = view.Style;
+            bool steady = style == _style;
+            _style = style;
             (int minX, int minY, int maxX, int maxY) = VisibleBounds(view.Camera);
             if (minX >= maxX)
             {
                 return;
             }
 
+            if (view.RetainsDrawState && steady)
+            {
+                DrawChunks(view, minX, minY, maxX, maxY);
+                return;
+            }
+
             CellBlocks cells = map._cells;
             ReadOnlySpan<Sprite?> table = sprites.Span;
-            Vector2 size = new(grid.TileSize, grid.TileSize);
-            int firstBlock = minX >> CellBlocks.BlockShift;
-            int lastBlock = (maxX - 1) >> CellBlocks.BlockShift;
             for (int y = minY; y < maxY; y++)
             {
                 Span<SpriteIntent> row = view.Reserve(maxX - minX);
-                int written = 0;
-                for (int bx = firstBlock; bx <= lastBlock; bx++)
+                view.Keep(maxX - minX, WriteRow(cells, table, y, minX, maxX, row));
+            }
+        }
+
+        int ITileSource.Write(int minX, int minY, int maxX, int maxY, Span<SpriteIntent> written, out bool animated)
+        {
+            CellBlocks cells = map._cells;
+            ReadOnlySpan<Sprite?> table = sprites.Span;
+            int count = 0;
+            animated = false;
+            maxX = Math.Min(maxX, cells.Width);
+            maxY = Math.Min(maxY, cells.Height);
+            for (int y = minY; y < maxY; y++)
+            {
+                count += WriteRow(cells, table, y, minX, maxX, written[count..]);
+                for (int x = minX; _animates is not null && x < maxX; x++)
                 {
-                    if (cells.BlockAt(bx, y >> CellBlocks.BlockShift) is not { } block)
+                    animated |= _animates[cells.ValueAt(x, y)];
+                }
+            }
+
+            return count;
+        }
+
+        private static bool[]? Animates(TileGrid grid)
+        {
+            if (grid.Animations.IsEmpty)
+            {
+                return null;
+            }
+
+            bool[] animates = new bool[grid.TileTypes.Length];
+            foreach (TileGrid.Animation animation in grid.Animations.Span)
+            {
+                animates[animation.Palette] = true;
+            }
+
+            return animates;
+        }
+
+        // Names each chunk the bounds reach that holds a block, with the stamps of its blocks and of the map's frames.
+        private void DrawChunks(FrameView view, int minX, int minY, int maxX, int maxY)
+        {
+            CellBlocks cells = map._cells;
+            int frames = animator?.Frames ?? 0;
+            float span = TileRun.ChunkSize * (float)grid.TileSize;
+            for (int y = minY >> TileRun.ChunkShift; y <= (maxY - 1) >> TileRun.ChunkShift; y++)
+            {
+                int by = y * BlocksPerChunk;
+                int byEnd = Math.Min(cells.BlocksHigh, by + BlocksPerChunk);
+                for (int x = minX >> TileRun.ChunkShift; x <= (maxX - 1) >> TileRun.ChunkShift; x++)
+                {
+                    int bx = x * BlocksPerChunk;
+                    int bxEnd = Math.Min(cells.BlocksWide, bx + BlocksPerChunk);
+                    if (Holds(cells, bx, by, bxEnd, byEnd))
+                    {
+                        int left = x << TileRun.ChunkShift;
+                        int top = y << TileRun.ChunkShift;
+                        TileRun run = new(
+                            this,
+                            x,
+                            y,
+                            cells.StampOf(bx, by, bxEnd, byEnd),
+                            frames,
+                            Math.Max(minX, left),
+                            Math.Max(minY, top),
+                            Math.Min(maxX, left + TileRun.ChunkSize),
+                            Math.Min(maxY, top + TileRun.ChunkSize));
+                        view.AddTiles(in run, Rect.FromEdges(x * span, y * span, (x + 1) * span, (y + 1) * span));
+                    }
+                }
+            }
+        }
+
+        private static bool Holds(CellBlocks cells, int bx, int by, int bxEnd, int byEnd)
+        {
+            for (int row = by; row < byEnd; row++)
+            {
+                for (int column = bx; column < bxEnd; column++)
+                {
+                    if (cells.BlockAt(column, row) is not null)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        // Writes the sprite of each drawn cell of row y from minX up to maxX to the front of row, skipping each block
+        // that holds nothing, and returns how many it wrote.
+        private int WriteRow(CellBlocks cells, ReadOnlySpan<Sprite?> table, int y, int minX, int maxX, Span<SpriteIntent> row)
+        {
+            Vector2 size = new(grid.TileSize, grid.TileSize);
+            int written = 0;
+            for (int bx = minX >> CellBlocks.BlockShift; bx <= (maxX - 1) >> CellBlocks.BlockShift; bx++)
+            {
+                if (cells.BlockAt(bx, y >> CellBlocks.BlockShift) is not { } block)
+                {
+                    continue;
+                }
+
+                int end = Math.Min(maxX, (bx + 1) << CellBlocks.BlockShift);
+                for (int x = Math.Max(minX, bx << CellBlocks.BlockShift); x < end; x++)
+                {
+                    int cell = CellBlocks.CellOf(x, y);
+                    if (table[block.Values[cell]] is not { } sprite)
                     {
                         continue;
                     }
 
-                    int end = Math.Min(maxX, (bx + 1) << CellBlocks.BlockShift);
-                    for (int x = Math.Max(minX, bx << CellBlocks.BlockShift); x < end; x++)
-                    {
-                        int cell = CellBlocks.CellOf(x, y);
-                        if (table[block.Values[cell]] is not { } sprite)
-                        {
-                            continue;
-                        }
-
-                        // Terrain never moves, and its frames pivot on their centre. The cell's centre serves
-                        // as both ends of the interpolation, and a mirror or turn stays inside the cell.
-                        Vector2 centre = map.CellCenter(x, y);
-                        ref readonly TileTransforms.Pose pose = ref TileTransforms.PoseOf((TileTransform)block.VariantAt(cell));
-                        row[written++] = new SpriteIntent(
-                            sprite,
-                            centre,
-                            centre,
-                            pose.Rotation,
-                            pose.Rotation,
-                            size,
-                            pose.FlipX,
-                            pose.FlipY,
-                            ColorRgba.White);
-                    }
+                    // Terrain never moves, and its frames pivot on their centre. The cell's centre serves
+                    // as both ends of the interpolation, and a mirror or turn stays inside the cell.
+                    Vector2 centre = map.CellCenter(x, y);
+                    ref readonly TileTransforms.Pose pose = ref TileTransforms.PoseOf((TileTransform)block.VariantAt(cell));
+                    row[written++] = new SpriteIntent(
+                        sprite,
+                        centre,
+                        centre,
+                        pose.Rotation,
+                        pose.Rotation,
+                        size,
+                        pose.FlipX,
+                        pose.FlipY,
+                        ColorRgba.White);
                 }
-
-                view.Keep(maxX - minX, written);
             }
+
+            return written;
         }
 
         // Uses the camera's swept bounds instead of its settled region, because the renderer interpolates

@@ -115,6 +115,9 @@ internal sealed class ScenePools
                 assets.Add(authored);
             }
 
+            // The walk reaches every held and pooled entity, and a large scene would grow the set to them by
+            // doubling.
+            _collected.EnsureCapacity(_scene.Entities.Length + PooledEntityCount());
             foreach (Entity entity in _scene.Entities)
             {
                 entity.CollectAssetPreloads(assets);

@@ -10,6 +10,9 @@ namespace Capsule.Runtime.DevTools.Overlay;
 // and a polygon anywhere inside its outline.
 internal static class Picker
 {
+    // The tiles of the chunk a pick reads, written as a frame that expands them would.
+    private static SpriteIntent[]? Chunk;
+
     // Fills stack with the entities drawn at point, topmost first. Each comes after those of its ancestors
     // not yet listed, root first. A click takes the whole before its parts. parallax is the frame's
     // ScrollLayout.Parallax, which moves point into each scrolled layer. A screen root sorted with the world
@@ -50,7 +53,7 @@ internal static class Picker
             Vector2 factor = layer >= 0 ? layers[layer].ScrollFactor : Vector2.One;
             Vector2 within = ScrollLayout.InLayer(point, parallax, factor);
             bool canvas = layer >= 0 && layers[layer].Canvas;
-            if (!canvas && (isPolygon ? Covers(polygons[polygon], frame.PolygonPoints, within) : Covers(sprites[sprite], within)))
+            if (!canvas && (isPolygon ? Covers(polygons[polygon], frame, within) : Covers(sprites[sprite], within)))
             {
                 Add(stack, runs[run].Entity);
 
@@ -71,11 +74,16 @@ internal static class Picker
         }
     }
 
-    // The outline's fan from its first point, where the step left it, holds point. A triangle with no area draws
-    // nothing and holds nothing.
-    private static bool Covers(in StoredPolygon polygon, ReadOnlySpan<Vector2> points, Vector2 point)
+    // The outline's fan from its first point, where the step left it, holds point, or one of the tiles of the chunk
+    // the polygon holds in its place does. A triangle with no area draws nothing and holds nothing.
+    private static bool Covers(in StoredPolygon polygon, FrameView frame, Vector2 point)
     {
-        ReadOnlySpan<Vector2> outline = points.Slice(polygon.FirstPoint + polygon.Count, polygon.Count);
+        if (polygon.HoldsTiles)
+        {
+            return Covers(frame.TileRuns[polygon.TileRunIndex], point);
+        }
+
+        ReadOnlySpan<Vector2> outline = frame.PolygonPoints.Slice(polygon.FirstPoint + polygon.Count, polygon.Count);
         for (int corner = 1; corner < outline.Length - 1; corner++)
         {
             if (Cross(outline[corner] - outline[0], outline[corner + 1] - outline[0]) == 0f)
@@ -96,6 +104,24 @@ internal static class Picker
     }
 
     private static float Cross(Vector2 a, Vector2 b) => (a.X * b.Y) - (a.Y * b.X);
+
+    // One of the chunk's tiles holds point.
+    private static bool Covers(in TileRun run, Vector2 point)
+    {
+        SpriteIntent[] tiles = Chunk ??= new SpriteIntent[TileRun.ChunkArea];
+        int x = run.X << TileRun.ChunkShift;
+        int y = run.Y << TileRun.ChunkShift;
+        int count = run.Source.Write(x, y, x + TileRun.ChunkSize, y + TileRun.ChunkSize, tiles, out _);
+        foreach (SpriteIntent tile in tiles.AsSpan(0, count))
+        {
+            if (Covers(tile, point))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     // The drawn rect, turned about the pivot by the sprite's settled rotation, holds point.
     private static bool Covers(in SpriteIntent sprite, Vector2 point)

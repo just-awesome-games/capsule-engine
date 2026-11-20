@@ -181,7 +181,8 @@ reads as its `EntryPayload` from its `CollectAssets` onward. The payload can cho
 prefetch takes the payload its request will carry. A prefetch constructs its scene and runs its `CollectAssets` once,
 and a request for that scene with an equal payload starts that instance, whether each names the scene by its class or
 by its document's key. Anything else releases it unstarted. A prefetch reads a document not yet loaded on a worker
-thread, and whichever step needs the document waits for the read. The step a scene opens on never depends on when the
+thread and builds its scene 0.1 seconds of simulated time later, or on the step that requests it if that comes first.
+Whichever step needs the document waits for the read. The step a scene opens on never depends on when the
 read finishes. The browser and WASI have no worker thread to wait on and read it on the game thread at that step.
 A test reads the request the host would act on as a `SceneTransition`.
 A scene composed from a document reports that document's key as `Scene.DocumentKey`, and a scene built in code

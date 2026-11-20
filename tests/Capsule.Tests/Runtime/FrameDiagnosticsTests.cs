@@ -8,7 +8,7 @@ namespace Capsule.Tests.Runtime;
 // Nothing here needs a window or a device.
 public sealed class FrameDiagnosticsTests
 {
-    internal const string Header = "tick,intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes,processBytes,heapBytes";
+    internal const string Header = "tick,intervalMs,updateMs,viewMs,drawMs,steps,gen0,bytes,processBytes,heapBytes,uploadBytes";
 
     private static readonly string[] BootStages =
         ["builderEntered", "hostConstructed", "deviceReady", "sceneAssetsLoaded", "firstUpdate", "firstDraw"];
@@ -84,14 +84,14 @@ public sealed class FrameDiagnosticsTests
 
     // A row times the update, the view's build and the submission apart. Its interval and its
     // allocations run from its frame's start to the next frame's. A frame's row holds what it allocated
-    // after its draw, and the last row closes when the capture does.
+    // after its draw, and the last row closes when the capture does. It carries the bytes its recording uploaded.
     [Fact]
     public void ARow_TimesEachSectionApartAndCountsTheBytesAllocatedUntilTheNextFrame()
     {
         ManualClock clock = new();
         using Capture capture = new(clock: clock);
 
-        capture.Frame(updateSeconds: 0.001, viewSeconds: 0.002, drawSeconds: 0.004);
+        capture.Frame(updateSeconds: 0.001, viewSeconds: 0.002, drawSeconds: 0.004, uploadBytes: 4096);
         byte[] allocated = new byte[100_000];
         capture.Frame();
         GC.KeepAlive(allocated);
@@ -102,6 +102,7 @@ public sealed class FrameDiagnosticsTests
         Assert.InRange(long.Parse(rows[0][7], CultureInfo.InvariantCulture), allocated.Length, long.MaxValue);
         Assert.InRange(long.Parse(rows[0][8], CultureInfo.InvariantCulture), allocated.Length, long.MaxValue);
         Assert.InRange(long.Parse(rows[0][9], CultureInfo.InvariantCulture), 1, long.MaxValue);
+        Assert.Equal("4096", rows[0][10]);
         Assert.Equal("0.000", rows[1][1]);
         Assert.InRange(long.Parse(rows[1][7], CultureInfo.InvariantCulture), 0, allocated.Length - 1);
     }
@@ -196,9 +197,9 @@ public sealed class FrameDiagnosticsTests
 
         /// <summary>
         /// Runs one frame that stepped <paramref name="steps"/> times, spending the given seconds of a manual clock in
-        /// each section, and returns whether the run's time budget is spent.
+        /// each section, with <paramref name="uploadBytes"/> uploaded, and returns whether the run's time budget is spent.
         /// </summary>
-        internal bool Frame(int steps = 1, double updateSeconds = 0, double viewSeconds = 0, double drawSeconds = 0)
+        internal bool Frame(int steps = 1, double updateSeconds = 0, double viewSeconds = 0, double drawSeconds = 0, int uploadBytes = 0)
         {
             FrameDiagnostics diagnostics = _diagnostics ?? throw new InvalidOperationException("The capture is closed.");
 
@@ -211,7 +212,7 @@ public sealed class FrameDiagnosticsTests
             diagnostics.BeginDraw();
             _clock?.Advance(drawSeconds);
 
-            return diagnostics.EndDraw();
+            return diagnostics.EndDraw(uploadBytes);
         }
 
         /// <summary>Runs one frame that stepped <paramref name="steps"/> times and drew nothing, as a minimized window's does.</summary>

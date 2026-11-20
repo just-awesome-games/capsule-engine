@@ -138,6 +138,10 @@ internal sealed unsafe class WindowHost
         _builder = builder;
         _diagnostics = diagnostics;
         _scenes = scenes;
+
+        // The renderer keeps what it drew on the device and writes it again only where it changed.
+        scenes.RetainsDrawState = true;
+
         _scheduler = new FixedStepScheduler(
             builder.StepSeconds,
             builder.MaxStepsPerFrame,
@@ -668,7 +672,7 @@ internal sealed unsafe class WindowHost
 
         // The diagnostics cover the game frame's recording, a capture's download included. The
         // overlay and the submission, which presents and writes a capture, are excluded.
-        bool budgetSpent = _diagnostics?.EndDraw() ?? false;
+        bool budgetSpent = _diagnostics?.EndDraw(_renderer.UploadedBytes) ?? false;
 
         _drawOverlay?.Invoke(_renderer);
         _renderer.Submit();
@@ -766,6 +770,9 @@ internal sealed unsafe class WindowHost
     private void EnterScene()
     {
         _leaveOverlayScene?.Invoke();
+
+        // What the renderer kept for the outgoing scene is collected with it.
+        _renderer.ForgetRetained();
         CollectAtBoundary();
     }
 

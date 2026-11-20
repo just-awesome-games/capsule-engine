@@ -20,6 +20,7 @@ namespace Capsule.Runtime.Rendering;
 // uploads none of the kept instances. Each run of them it adds must match the run the recording logged in
 // the same place, or the reuse has diverged and the frame records again. The quads placed from the frame's
 // own corners, such as the world's clear and every line, are written every frame into a buffer of their own.
+// A retained buffer, such as a chunk of tiles, is drawn from its owner's buffer and written by its owner.
 internal sealed class SpriteDrawList : IDisposable
 {
     // Whether each reuse that matched its recording records the frame too and throws where any kept instance
@@ -43,12 +44,12 @@ internal sealed class SpriteDrawList : IDisposable
     private int _drawCount;
     private Pass[] _passes = new Pass[8];
     private int _passCount;
-    private GpuBuffer? _buffer;
+    private readonly InstanceBuffer _buffer = new();
 
     // The quads the frame writes every time, which draws read from their own buffer.
     private SpriteInstance[] _frameInstances = new SpriteInstance[64];
     private int _frameCount;
-    private GpuBuffer? _frameBuffer;
+    private readonly InstanceBuffer _frameBuffer = new();
 
     // The runs of kept instances the last recording added, one per texture and page offset, and whether
     // there is a recording to reuse.
@@ -318,7 +319,12 @@ internal sealed class SpriteDrawList : IDisposable
             return;
         }
 
-        Span<SpriteInstance> instances = _instances.AsSpan(_count - sprites.Length, sprites.Length);
+        Write(sprites, _instances.AsSpan(_count - sprites.Length, sprites.Length), offsetX, offsetY);
+    }
+
+    // Writes an instance for each sprite, as AddRange records them.
+    internal static void Write(ReadOnlySpan<SpriteIntent> sprites, Span<SpriteInstance> instances, int offsetX, int offsetY)
+    {
         ColorRgba color = default;
         BlendMode blend = BlendMode.Alpha;
         uint tint = 0;
@@ -347,6 +353,32 @@ internal sealed class SpriteDrawList : IDisposable
             instance.Flags = FlagsOf(in sprite);
             instance.Intensity = 1f;
         }
+    }
+
+    // Sprites whose regions sit at offsetX, offsetY on texture, written this frame among the frame's own quads.
+    internal void AddFrameRange(SampledTexture texture, ReadOnlySpan<SpriteIntent> sprites, int offsetX, int offsetY)
+    {
+        if (sprites.IsEmpty)
+        {
+            return;
+        }
+
+        Join(texture, _frameBuffer, _frameCount).Count += sprites.Length;
+        if (_frameCount + sprites.Length > _frameInstances.Length)
+        {
+            Array.Resize(ref _frameInstances, Math.Max(_frameInstances.Length * 2, _frameCount + sprites.Length));
+        }
+
+        Write(sprites, _frameInstances.AsSpan(_frameCount, sprites.Length), offsetX, offsetY);
+        _frameCount += sprites.Length;
+    }
+
+    // Count instances from first in buffer, whose regions sit on texture. The draw is its own, and joins no other.
+    internal void AddRetained(SampledTexture texture, InstanceBuffer buffer, int first, int count)
+    {
+        Grow(ref _draws, _drawCount);
+        _draws[_drawCount++] = new Draw(_state, texture, first, buffer) { Count = count };
+        _open = false;
     }
 
     // The way the texels read: the intent's flips over the frame's own.
@@ -398,31 +430,22 @@ internal sealed class SpriteDrawList : IDisposable
     }
 
     // Uploads the frame's own quads in the frame's copy pass, and the kept instances unless the frame reuses
-    // them. Each upload cycles its buffer, and draws recorded before it keep reading the instances they were
-    // recorded with.
-    internal void Upload(GpuCopyPass copy)
+    // them, and returns the bytes it uploaded. Each upload cycles its buffer, and draws recorded before it keep
+    // reading the instances they were recorded with.
+    internal int Upload(GpuCopyPass copy)
     {
+        int bytes = 0;
         if (!_reusing && _count > 0)
         {
-            Upload(copy, ref _buffer, _instances, _count);
+            bytes += _buffer.Upload(_device, copy, _instances.AsSpan(0, _count), _instances.Length);
         }
 
         if (_frameCount > 0)
         {
-            Upload(copy, ref _frameBuffer, _frameInstances, _frameCount);
-        }
-    }
-
-    private void Upload(GpuCopyPass copy, ref GpuBuffer? buffer, SpriteInstance[] instances, int count)
-    {
-        int bytes = count * Unsafe.SizeOf<SpriteInstance>();
-        if (buffer is null || buffer.Size < bytes)
-        {
-            buffer?.Dispose();
-            buffer = _device.CreateBuffer(GpuBufferUsage.GraphicsStorageRead, instances.Length * Unsafe.SizeOf<SpriteInstance>());
+            bytes += _frameBuffer.Upload(_device, copy, _frameInstances.AsSpan(0, _frameCount), _frameInstances.Length);
         }
 
-        copy.UploadToBuffer(buffer, 0, MemoryMarshal.AsBytes(instances.AsSpan(0, count)), cycle: true);
+        return bytes;
     }
 
     // Records each pass into commands.
@@ -465,8 +488,8 @@ internal sealed class SpriteDrawList : IDisposable
 
     public void Dispose()
     {
-        _buffer?.Dispose();
-        _frameBuffer?.Dispose();
+        _buffer.Dispose();
+        _frameBuffer.Dispose();
     }
 
     // The product a then b, summed in a fixed order, which keeps a transform the same to the bit
@@ -513,7 +536,7 @@ internal sealed class SpriteDrawList : IDisposable
                 continue;
             }
 
-            GpuBuffer instances = (draw.Frame ? _frameBuffer : _buffer)!;
+            GpuBuffer instances = draw.Buffer.Gpu!;
             if (!ReferenceEquals(instances, bound))
             {
                 pass.BindVertexStorageBuffer(0, instances);
@@ -652,7 +675,7 @@ internal sealed class SpriteDrawList : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool Reserve(SampledTexture texture, int offsetX, int offsetY, int count)
     {
-        Join(texture, frame: false, _count).Count += count;
+        Join(texture, _buffer, _count).Count += count;
         _count += count;
         if (_reusing)
         {
@@ -710,7 +733,7 @@ internal sealed class SpriteDrawList : IDisposable
     // The instance the next frame quad writes, in the open draw if it shares texture and buffer, or in a new one.
     private ref SpriteInstance OpenFrame(SampledTexture texture)
     {
-        Join(texture, frame: true, _frameCount).Count++;
+        Join(texture, _frameBuffer, _frameCount).Count++;
         Grow(ref _frameInstances, _frameCount);
 
         return ref _frameInstances[_frameCount++];
@@ -718,12 +741,12 @@ internal sealed class SpriteDrawList : IDisposable
 
     // The open draw where it shares texture and buffer, or a new one whose instances start at first.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref Draw Join(SampledTexture texture, bool frame, int first)
+    private ref Draw Join(SampledTexture texture, InstanceBuffer buffer, int first)
     {
-        if (!_open || !ReferenceEquals(_draws[_drawCount - 1].Texture, texture) || _draws[_drawCount - 1].Frame != frame)
+        if (!_open || !ReferenceEquals(_draws[_drawCount - 1].Texture, texture) || !ReferenceEquals(_draws[_drawCount - 1].Buffer, buffer))
         {
             Grow(ref _draws, _drawCount);
-            _draws[_drawCount++] = new Draw(_state, texture, first, frame);
+            _draws[_drawCount++] = new Draw(_state, texture, first, buffer);
             _open = true;
         }
 
@@ -746,14 +769,13 @@ internal sealed class SpriteDrawList : IDisposable
         internal bool Lit;
     }
 
-    // Count instances from First, drawn with Texture under State, from the frame's own buffer where Frame
-    // is set and the kept one otherwise.
-    private struct Draw(State state, SampledTexture texture, int first, bool frame)
+    // Count instances from First in Buffer, drawn with Texture under State.
+    private struct Draw(State state, SampledTexture texture, int first, InstanceBuffer buffer)
     {
         internal readonly State State = state;
         internal readonly SampledTexture Texture = texture;
         internal readonly int First = first;
-        internal readonly bool Frame = frame;
+        internal readonly InstanceBuffer Buffer = buffer;
         internal int Count;
     }
 
@@ -768,5 +790,46 @@ internal sealed class SpriteDrawList : IDisposable
     private record struct Pass(GpuTexture Target, ColorRgba? Clear, int FirstDraw, SampledTexture? Screen = null)
     {
         internal Area Copied;
+    }
+}
+
+// A device buffer of sprite instances, created at the first upload and grown to hold the largest. A draw names the
+// buffer and reads whatever the upload before it wrote.
+internal sealed class InstanceBuffer : IDisposable
+{
+    internal GpuBuffer? Gpu { get; private set; }
+
+    // Writes instances from the buffer's front, growing it to capacity instances where they do not fit, and returns
+    // the bytes it uploaded. The upload cycles the buffer, and draws recorded before it keep reading the instances
+    // they were recorded with.
+    internal int Upload(GpuDevice device, GpuCopyPass copy, ReadOnlySpan<SpriteInstance> instances, int capacity)
+    {
+        int bytes = instances.Length * Unsafe.SizeOf<SpriteInstance>();
+        if (Gpu is null || Gpu.Size < bytes)
+        {
+            Gpu?.Dispose();
+            Gpu = device.CreateBuffer(GpuBufferUsage.GraphicsStorageRead, Math.Max(capacity, instances.Length) * Unsafe.SizeOf<SpriteInstance>());
+        }
+
+        copy.UploadToBuffer(Gpu, 0, MemoryMarshal.AsBytes(instances), cycle: true);
+
+        return bytes;
+    }
+
+    // Writes instances in place from first, in a buffer of capacity instances created at the first write, and
+    // returns the bytes it uploaded. The rest of the buffer keeps what it held, and the device orders the write after
+    // the frames drawn before it.
+    internal int Write(GpuDevice device, GpuCopyPass copy, int first, ReadOnlySpan<SpriteInstance> instances, int capacity)
+    {
+        Gpu ??= device.CreateBuffer(GpuBufferUsage.GraphicsStorageRead, capacity * Unsafe.SizeOf<SpriteInstance>());
+        copy.UploadToBuffer(Gpu, first * Unsafe.SizeOf<SpriteInstance>(), MemoryMarshal.AsBytes(instances), cycle: false);
+
+        return instances.Length * Unsafe.SizeOf<SpriteInstance>();
+    }
+
+    public void Dispose()
+    {
+        Gpu?.Dispose();
+        Gpu = null;
     }
 }

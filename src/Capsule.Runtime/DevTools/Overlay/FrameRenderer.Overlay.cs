@@ -73,6 +73,6 @@ internal sealed partial class FrameRenderer
         pass.Scale = pixelsPerUnit;
         pass.Sprites = game with { Grids = game.Grids * present.Scale, Shift = game.Shift * present.Scale, Grid = pixelsPerUnit };
 
-        DrawIntents(view.Sprites, view.Polygons, view.PolygonPoints, view.Lines, default, default, default, default, ref pass);
+        DrawIntents(view.Sprites, view.Polygons, view.PolygonPoints, view.TileRuns, view.Lines, default, default, default, default, ref pass);
     }
 }

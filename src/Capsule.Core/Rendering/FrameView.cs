@@ -40,6 +40,9 @@ public sealed class FrameView
     // Every level of every clip set this frame, which both lists' clip runs name.
     private readonly List<ClipRegion> _clipLevels = [];
 
+    // The tile chunks both lists' polygons that hold tiles name.
+    private readonly List<TileRun> _tileRuns = [];
+
     // Where each space's intent lands, each from its own list. Each is rewritten as the state behind it
     // changes, never per store.
     private readonly Route _worldRoute = new(new Layer(Unclipped), Unclipped);
@@ -272,7 +275,8 @@ public sealed class FrameView
 
     /// <summary>The world layer's sprites to draw, in the order added, under the screen sprites. Invalidated by the next mutation.</summary>
     /// <remarks>
-    /// Those a screen root that sorts with the world draws are in canvas pixels, and the rest in world units.
+    /// Those a screen root that sorts with the world draws are in canvas pixels, and the rest in world units. In a
+    /// window, a tile map's tiles are kept on the device in chunks and are not among them.
     /// </remarks>
     public ReadOnlySpan<SpriteIntent> Sprites => CollectionsMarshal.AsSpan(WorldList.Sprites);
 
@@ -302,10 +306,18 @@ public sealed class FrameView
     public ReadOnlySpan<LineIntent> ScreenLines => CollectionsMarshal.AsSpan(ScreenList.Lines);
 
     // The world layer's polygons in the order added, each drawn among Sprites before the sprite its Before
-    // names. Invalidated by the next mutation.
+    // names, and the tile chunks stored among them. Invalidated by the next mutation.
     internal ReadOnlySpan<StoredPolygon> Polygons => CollectionsMarshal.AsSpan(WorldList.Polygons);
 
     internal ReadOnlySpan<StoredPolygon> ScreenPolygons => CollectionsMarshal.AsSpan(ScreenList.Polygons);
+
+    // The tile chunks both lists' polygons that hold tiles name, in the order added. Invalidated by the next mutation.
+    internal ReadOnlySpan<TileRun> TileRuns => CollectionsMarshal.AsSpan(_tileRuns);
+
+    // Whether the host drawing this view keeps what it drew on the device from frame to frame, which a presenting
+    // host sets. A source that can be kept then names what it shows in place of writing its sprites, as a tile map
+    // names its chunks. False by default, and every tile is then a sprite of Sprites. It outlives Clear.
+    internal bool RetainsDrawState { get; set; }
 
     // The polygon lights, in the order added. Invalidated by the next mutation.
     internal ReadOnlySpan<StoredLightPolygon> LightPolygons => CollectionsMarshal.AsSpan(_lightPolygons);
@@ -369,6 +381,9 @@ public sealed class FrameView
         _flashing = flash.A != 0;
         _styled = _tinted || _flashing;
     }
+
+    // The running renderer's tint and flash, as SetStyle last set them.
+    internal (ColorRgba Tint, ColorRgba Flash) Style => (_tint, _flash);
 
     // How many times the frame has been cleared to be rewritten. A host that draws one build on several
     // display frames knows by it that the intent has not changed since it last read it.
@@ -491,6 +506,20 @@ public sealed class FrameView
                 sprite = Styled(in sprite);
             }
         }
+    }
+
+    // Adds a chunk of tiles with no bounds test, placed among the sprites as a polygon is and styled by the running
+    // tint and flash. bounds is the world rect the chunk covers. It counts as one sprite added does.
+    internal void AddTiles(in TileRun run, in Rect bounds)
+    {
+        _submitted++;
+        Route route = RouteOf(Space);
+        Layer layer = route.List;
+        OpenMaterialRun(layer);
+        Enter(route);
+        _stores++;
+        layer.Polygons.Add(new StoredPolygon(layer.Sprites.Count, _tileRuns.Count, 0, _tint, BlendMode.Alpha, _flash, bounds));
+        _tileRuns.Add(run);
     }
 
     /// <summary>Adds a sprite. An unset camera or canvas disables culling.</summary>
@@ -985,10 +1014,14 @@ public sealed class FrameView
         WorldList.RunKey = (WorldList.RunKey & ~1) | (canvas ? 1 : 0);
     }
 
-    private SpriteIntent Styled(in SpriteIntent sprite) => sprite with
+    private SpriteIntent Styled(in SpriteIntent sprite) => Styled(in sprite, _tint, _flash);
+
+    // A sprite as a renderer styled by tint and flash stores it. A host writing a chunk of tiles styles each as the
+    // frame would have.
+    internal static SpriteIntent Styled(in SpriteIntent sprite, ColorRgba tint, ColorRgba flash) => sprite with
     {
-        Color = _tinted ? ColorRgba.Multiply(sprite.Color, _tint) : sprite.Color,
-        Flash = _flashing ? _flash : sprite.Flash,
+        Color = tint != ColorRgba.White ? ColorRgba.Multiply(sprite.Color, tint) : sprite.Color,
+        Flash = flash.A != 0 ? flash : sprite.Flash,
     };
 
     // Drops the ordered intent, resets Metrics and returns the space, style, material, scroll factor, lighting,
@@ -1004,6 +1037,7 @@ public sealed class FrameView
         _lightPolygons.Clear();
         _points.Clear();
         _clipLevels.Clear();
+        _tileRuns.Clear();
         _clipStart = 0;
         _clipCount = 0;
         _screenRoute.ClipSerial = 0;

@@ -171,6 +171,69 @@ public sealed class SceneVisibilityTests
         Assert.Equal(["entered"], thirdLog);
     }
 
+    // Arrivals joining between steps settle in joining order and a held one keeps its place. A handler that detaches a held arrival the
+    // walk has passed leaves every later arrival to settle on time, and a later held one settles on the step its hold lifts.
+    [Fact]
+    public void ArrivalsSettleInJoiningOrder_AndAHeldOneWaitsThroughADetachAheadOfIt()
+    {
+        List<string> order = [];
+        Watched first = new(Vector2.Zero, []);
+        Watched detached = new(Vector2.Zero, []) { StepMode = StepMode.Never };
+        Watched detaching = new(Vector2.Zero, []);
+        Watched next = new(Vector2.Zero, []);
+        Watched waiting = new(Vector2.Zero, []) { StepMode = StepMode.Never };
+        Watched last = new(Vector2.Zero, []);
+        foreach ((Watched watched, string name) in new[] { (first, "first"), (detached, "detached"), (detaching, "detaching"), (next, "next"), (waiting, "waiting"), (last, "last") })
+        {
+            watched.Notifier.ScreenEntered += () => order.Add(name);
+        }
+
+        detaching.Notifier.ScreenEntered += () => detached.Remove(detached.Notifier);
+
+        SceneSimulation simulation = Framing();
+        simulation.Step(SceneFixtures.Step());
+        foreach (Watched watched in new[] { first, detached, detaching, next, waiting, last })
+        {
+            simulation.Scene.Add(watched);
+        }
+
+        simulation.Step(SceneFixtures.Step());
+        Assert.Equal(["first", "detaching", "next", "last"], order);
+
+        waiting.StepMode = StepMode.Pausable;
+        simulation.Step(SceneFixtures.Step());
+        Assert.Equal(["first", "detaching", "next", "last", "waiting"], order);
+        Assert.False(detached.Notifier.IsOnScreen);
+    }
+
+    // A handler that detaches a held arrival the walk has kept, attaches it again and detaches it once more leaves
+    // nothing of it waiting, and the walk reads no notifier that has left its entity.
+    [Fact]
+    public void AHeldArrivalDetachedAttachedAndDetachedByAHandler_LeavesNothingWaiting()
+    {
+        Watched first = new(Vector2.Zero, []);
+        Watched held = new(Vector2.Zero, []) { StepMode = StepMode.Never };
+        Watched churning = new(Vector2.Zero, []);
+        churning.Notifier.ScreenEntered += () =>
+        {
+            held.Remove(held.Notifier);
+            held.Add(held.Notifier);
+            held.Remove(held.Notifier);
+        };
+
+        SceneSimulation simulation = Framing();
+        simulation.Step(SceneFixtures.Step());
+        simulation.Scene.Add(first);
+        simulation.Scene.Add(held);
+        simulation.Scene.Add(churning);
+        simulation.Step(SceneFixtures.Step());
+        held.StepMode = StepMode.Pausable;
+        simulation.Step(SceneFixtures.Step());
+
+        Assert.Null(held.Notifier.Entity);
+        Assert.False(held.Notifier.IsOnScreen);
+    }
+
     // A handler sees the new state and may not reconfigure the notifier it is running for.
     [Fact]
     public void AHandlerThatChangesItsOwnNotifier_IsRefused()

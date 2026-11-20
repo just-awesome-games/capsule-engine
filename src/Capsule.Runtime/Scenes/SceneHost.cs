@@ -35,8 +35,13 @@ internal sealed class SceneHost : ISimulation, IDisposable
     // The prefetch no boundary has consumed yet, which a repeat of it leaves alone.
     private SceneTransition? _prefetched;
 
-    // The prefetch whose document is being read, which the next step's end builds.
+    // The prefetch whose document is being read, which the end of the step at _buildsAt builds.
     private SceneTransition? _reading;
+    private long _buildsAt;
+
+    // The simulated time a prefetch's document read is given before its scene is built. A 10 MB document parses in
+    // about 35 ms on a fast desktop, and this leaves room for a machine a few times slower.
+    private const double ReadLead = 0.1;
 
     // The prefetch's scene, built and collected but never started, which the boundary naming the same target
     // starts and any other boundary abandons.
@@ -107,9 +112,17 @@ internal sealed class SceneHost : ISimulation, IDisposable
         Scene initial = resolve(initialTarget);
         _initialPreloads = CollectPreloads(initial, initialTarget.Payload);
         _current = new SceneSimulation(initial, initialTarget.Payload, run, _views);
+        composer?.Entered(initial.DocumentKey);
     }
 
     public FrameView View => _current.View;
+
+    // Whether the host keeps what the scenes' views drew on the device from frame to frame, set before the first is drawn.
+    internal bool RetainsDrawState
+    {
+        get => _views.RetainsDrawState;
+        set => _views.RetainsDrawState = value;
+    }
 
     internal Scene Scene => _current.Scene;
 
@@ -136,7 +149,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
         SceneSimulation stepped = _current;
         stepped.Step(context);
-        Finish(stepped);
+        Finish(stepped, context);
     }
 
     // Step with the host's before-step act inside the current scene's step. A scene the act asks for
@@ -150,18 +163,18 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
         SceneSimulation stepped = _current;
         ((ISimulation)stepped).Step(context, before);
-        Finish(stepped);
+        Finish(stepped, context);
     }
 
-    // Resolves what the step asked for, then builds the prefetch whose document was read since the last step
-    // or takes a new one. A step that opened a scene leaves a prefetch to the next step, which keeps the
-    // building of a second scene off the frame that pays for the first.
-    private void Finish(SceneSimulation stepped)
+    // Resolves what the step asked for, then builds the prefetch whose document has had its lead or takes a new
+    // one. A step that opened a scene leaves a prefetch to the next step, which keeps the building of a second
+    // scene off the frame that pays for the first.
+    private void Finish(SceneSimulation stepped, in StepContext context)
     {
         Consume();
         if (ReferenceEquals(_current, stepped))
         {
-            TakePrefetch();
+            TakePrefetch(context);
         }
     }
 
@@ -232,12 +245,12 @@ internal sealed class SceneHost : ISimulation, IDisposable
         }
     }
 
-    // Builds the prefetch whose document was read through this step, or takes a new one. The scene is built and
-    // collected with its payload in every mode and held until a boundary. A run with a device and one without
-    // construct the same scenes. One whose document is read first is built at the end of the next step, which
-    // waits for the read. The step it is built on never depends on the read. A prefetch of another scene or
-    // payload abandons the held one.
-    private void TakePrefetch()
+    // Builds the prefetch whose document has had its lead, or takes a new one. The scene is built and collected
+    // with its payload in every mode and held until a boundary. A run with a device and one without construct the
+    // same scenes. One whose document is read first is built at the end of the step ReadLead of simulated time
+    // later, which waits for any read still running. A request before then builds it on the request's step. The
+    // step it is built on never depends on the read. A prefetch of another scene or payload abandons the held one.
+    private void TakePrefetch(in StepContext context)
     {
         if (ExitRequested)
         {
@@ -247,7 +260,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
         bool asked = Run.TryTakePrefetch(out SceneTransition target) && !(_prefetched is { } current && Opens(current, target));
         if (!asked)
         {
-            if (_reading is { } read)
+            if (_reading is { } read && context.Tick >= _buildsAt)
             {
                 _reading = null;
                 Build(read);
@@ -264,6 +277,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
 
         _prefetched = target;
         _reading = _composer?.BeginRead(target) == true ? target : null;
+        _buildsAt = context.Tick + Math.Max(1L, (long)Math.Round(ReadLead / context.DeltaSeconds, MidpointRounding.AwayFromZero));
         if (_reading is null)
         {
             Build(target);
@@ -455,6 +469,7 @@ internal sealed class SceneHost : ISimulation, IDisposable
         _current = incoming;
         _target = target;
         SceneKey = KeyOf(target);
+        _composer?.Entered(incoming.Scene.DocumentKey);
         SceneEntered?.Invoke();
     }
 

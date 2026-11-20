@@ -32,7 +32,9 @@ internal sealed record WorkloadRecord(
     long? FrameBytes,
     Percentiles? IntervalMs,
     int Gen0Collections,
-    string? CaptureSha256);
+    string? CaptureSha256,
+    Percentiles? RecordedDrawMs = null,
+    long? UploadBytes = null);
 
 // Milliseconds per fixed step, or per frame built after one, each timed on its own.
 internal sealed record StepTiming(double Median, double P95);

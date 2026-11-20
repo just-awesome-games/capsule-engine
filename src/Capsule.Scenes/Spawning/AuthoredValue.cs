@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Capsule.Rendering;
 
 namespace Capsule.Scenes;
 
@@ -70,6 +71,25 @@ internal static class AuthoredValue
         reader.Read();
 
         return reader.GetString();
+    }
+
+    // A string ColorRgba.FromHex reads, unescaped onto the stack.
+    internal static bool TryColor(ReadOnlySpan<byte> utf8, out ColorRgba read)
+    {
+        read = default;
+        if (Kind(utf8) != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        Utf8JsonReader reader = new(utf8);
+        reader.Read();
+
+        // The longest colour is nine characters, and an escape writes one in at most six bytes. A string longer
+        // than that is no colour, and a shorter one unescapes to no more characters than it has bytes.
+        Span<char> text = stackalloc char[54];
+
+        return reader.ValueSpan.Length <= text.Length && ColorRgba.TryReadHex(text[..reader.CopyString(text)], out read);
     }
 
     internal static int Count(ReadOnlyMemory<byte> array)

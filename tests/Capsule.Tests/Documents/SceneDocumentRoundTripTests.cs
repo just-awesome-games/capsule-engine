@@ -1,4 +1,5 @@
 using System.Numerics;
+using Capsule.Assets;
 using Capsule.Rendering;
 using Capsule.Scenes;
 
@@ -87,7 +88,7 @@ public sealed class SceneDocumentRoundTripTests
         SceneDocumentEntry coin = Assert.Single(document.Entries.ToArray());
 
         Assert.Equal(3, document.Members?.GetProperty("size").GetInt32());
-        Assert.Equal(2, new AuthoredMembers(coin, 0).Int("value"));
+        Assert.Equal(2, new AuthoredMembers(new AuthoredMembers.Composition(document, [], new AssetCollection()), coin, 0).Int("value"));
         Assert.Equal("""{"value":2}""", coin.Members?.GetRawText());
         Assert.Equal("""{"size":3,"music":"a","entities":[{"type":"coin","value":2}]}""", document.ToJson());
     }

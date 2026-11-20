@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
 using System.Reflection;
@@ -39,8 +40,8 @@ public readonly struct AuthoredMembers
     // Plain options with no reflection-based resolver, which a trimmed or ahead-of-time build keeps.
     private static readonly JsonSerializerOptions ConverterOptions = new();
 
-    // What every level of one owner's values shares, or null for a spawn built in code.
-    private readonly Owner? _owner;
+    // What every owner of one composition shares, or null for a spawn built in code.
+    private readonly Composition? _owner;
 
     private readonly AuthoredObject? _members;
 
@@ -51,32 +52,33 @@ public readonly struct AuthoredMembers
     private readonly ReadOnlyMemory<byte> _element;
     private readonly int _index;
 
-    // What every read at this level asked for, shared by each copy, or null when the members carry no key.
-    private readonly Level? _level;
+    // The owner's index among the document's entries, or -1 for the document itself.
+    private readonly int _entry;
 
-    // An entry's members. References resolve against placed once every entry is constructed.
-    internal AuthoredMembers(SceneDocumentEntry entry, int index, Dictionary<int, Entity>? placed = null, AssetCollection? assets = null, SharedReads? shared = null)
-        : this(new Owner(index, entry.Type, placed, assets, shared), entry.Authored, string.Empty)
+    // Where the composition notes what every read at this level asked for, or -1 when the members carry no key. A
+    // spawn built in code has no composition and reads no level.
+    private readonly int _level;
+
+    // An entry's members within composition, whose Finish reads them once every entry is constructed.
+    internal AuthoredMembers(Composition composition, SceneDocumentEntry entry, int index)
+        : this(composition, index, entry.Authored, string.Empty)
     {
     }
 
     // The scene document's own members, read once every entry is constructed.
     internal AuthoredMembers(SceneDocument scene, Dictionary<int, Entity> placed, AssetCollection assets)
-        : this(new Owner("the scene document", "the document", placed, assets, scene.Shared), scene.Authored, string.Empty)
+        : this(new Composition(scene, placed, assets), -1, scene.Authored, string.Empty)
     {
     }
 
-    private AuthoredMembers(Owner owner, AuthoredObject? members, string path)
+    private AuthoredMembers(Composition owner, int entry, AuthoredObject? members, string path)
     {
         _owner = owner;
         _members = members;
         _path = path;
         _index = -1;
-        _level = members is { Keys.Length: > 0 } ? new Level(owner, members, path) : null;
-        if (_level is not null)
-        {
-            owner.Levels.Add(_level);
-        }
+        _entry = entry;
+        _level = members is { Keys.Length: > 0 } ? owner.AddLevel(entry, members, path) : -1;
     }
 
     // One element of an authored array, read by the array's key.
@@ -162,23 +164,10 @@ public readonly struct AuthoredMembers
     }
 
     /// <summary>Reads a <see cref="ColorRgba"/>, written <c>"#rrggbb"</c> or <c>"#rrggbbaa"</c>.</summary>
-    public ColorRgba Color(string key)
-    {
-        const string Form = "\"#rrggbb\" or \"#rrggbbaa\"";
-        if (AuthoredValue.String(Authored(key).Span) is not { } value)
-        {
-            throw Mismatch(key, "ColorRgba", Form);
-        }
-
-        try
-        {
-            return ColorRgba.FromHex(value);
-        }
-        catch (FormatException)
-        {
-            throw Mismatch(key, "ColorRgba", Form);
-        }
-    }
+    public ColorRgba Color(string key) =>
+        AuthoredValue.TryColor(Authored(key).Span, out ColorRgba read)
+            ? read
+            : throw Mismatch(key, "ColorRgba", "\"#rrggbb\" or \"#rrggbbaa\"");
 
     /// <summary>Reads the enum member or definition the members name, which the applier then matches.</summary>
     public string Name(string key) =>
@@ -326,16 +315,15 @@ public readonly struct AuthoredMembers
 
         if (_members!.Kept(key) is not SharedRead<T> read)
         {
-            if (owner.Shared?.Kept(array, element) is not SharedRead<T> same)
+            if (owner.Shared.Kept(array, element) is not SharedRead<T> same)
             {
-                same = ReadShared(owner, key, element);
-                same = (SharedRead<T>?)owner.Shared?.Keep(array, element, same) ?? same;
+                same = (SharedRead<T>)owner.Shared.Keep(array, element, ReadShared(owner, key, element));
             }
 
             read = (SharedRead<T>)_members.Keep(key, same);
         }
 
-        (owner.Sharing ?? owner.Assets)?.Add(read.Assets);
+        (owner.Sharing ?? owner.Assets).Add(read.Assets);
 
         return read.Elements;
     }
@@ -407,7 +395,7 @@ public readonly struct AuthoredMembers
 
         if (_index >= 0)
         {
-            return new AuthoredMembers(_owner!, AuthoredObject.Parse(value, _owner!.Keys), string.Create(CultureInfo.InvariantCulture, $"{_path}{key}[{_index}]."));
+            return new AuthoredMembers(_owner!, _entry, AuthoredObject.Parse(value, _owner!.Keys), string.Create(CultureInfo.InvariantCulture, $"{_path}{key}[{_index}]."));
         }
 
         if (_members!.Kept(key) is not AuthoredObject nested)
@@ -415,7 +403,7 @@ public readonly struct AuthoredMembers
             nested = (AuthoredObject)_members.Keep(key, AuthoredObject.Parse(value, _owner!.Keys));
         }
 
-        return new AuthoredMembers(_owner!, nested, $"{_path}{key}.");
+        return new AuthoredMembers(_owner!, _entry, nested, $"{_path}{key}.");
     }
 
     /// <summary>The key of the class an object's <c>type</c> names, or null when it names none.</summary>
@@ -451,35 +439,16 @@ public readonly struct AuthoredMembers
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(set);
-        (_owner!.Links ??= new(1)).Add((target, set, this));
+        _owner!.Defer(target, set, this);
     }
 
-    // Sets every deferred reference, then throws when any level carries a key no read asked for. The keys asked
-    // for are every authorable member the class declares, since the applier asks for each one.
-    internal void Finish()
-    {
-        if (_owner is not { } owner)
-        {
-            return;
-        }
+    // Finishes the composition these members belong to.
+    internal void Finish() => _owner?.Finish();
 
-        if (owner.Links is { } links)
-        {
-            foreach ((object target, Action<object, AuthoredMembers> set, AuthoredMembers from) in links)
-            {
-                set(target, from);
-            }
+    private string OwnerName => _owner?.Name(_entry) ?? "the spawn";
 
-            links.Clear();
-        }
-
-        foreach (Level level in owner.Levels)
-        {
-            level.RefuseUnread();
-        }
-    }
-
-    private string OwnerName => _owner?.Name ?? "the spawn";
+    // Where a missing key of the owner's own values goes.
+    private string? Holder => _owner is null ? null : _entry < 0 ? "the document" : "the entry";
 
     // Whether these are an owner's own members, not a nested object's or an array element's.
     private bool IsOwn => _members is not null && _index < 0 && _path.Length == 0;
@@ -513,21 +482,16 @@ public readonly struct AuthoredMembers
 
     // Reads key's array for every scene and every member that shares it. The elements' assets are gathered apart
     // from this scene's, and their levels are checked here, since no later read visits them again.
-    private SharedRead<T> ReadShared<T>(Owner owner, string key, Func<AuthoredMembers, T> element)
+    private SharedRead<T> ReadShared<T>(Composition owner, string key, Func<AuthoredMembers, T> element)
     {
         AssetCollection? outer = owner.Sharing;
         AssetCollection named = new();
-        int levels = owner.Levels.Count;
+        int levels = owner.LevelCount;
         owner.Sharing = named;
         try
         {
             T[] elements = Array(key, element);
-            for (int level = levels; level < owner.Levels.Count; level++)
-            {
-                owner.Levels[level].RefuseUnread();
-            }
-
-            owner.Levels.RemoveRange(levels, owner.Levels.Count - levels);
+            owner.RefuseLevelsFrom(levels);
 
             return new SharedRead<T>(elements, named);
         }
@@ -544,7 +508,11 @@ public readonly struct AuthoredMembers
     private bool Find(string key, out ReadOnlyMemory<byte> value)
     {
         int index = _members?.IndexOf(key) ?? -1;
-        _level?.Add(key, index);
+        if (_level >= 0)
+        {
+            _owner?.Ask(_level, key, index);
+        }
+
         value = index >= 0 ? _members!.ValueAt(index) : default;
 
         return index >= 0;
@@ -556,7 +524,7 @@ public readonly struct AuthoredMembers
         : Find(key, out ReadOnlyMemory<byte> value)
             ? value
             : throw new SceneDocumentFormatException(
-                $"{OwnerName} omits '{_path}{key}', which its class requires. Add \"{key}\" to {(_path.Length == 0 ? _owner?.Holder : $"'{_path.TrimEnd('.')}'")}.");
+                $"{OwnerName} omits '{_path}{key}', which its class requires. Add \"{key}\" to {(_path.Length == 0 ? Holder : $"'{_path.TrimEnd('.')}'")}.");
 
     private SceneDocumentFormatException Mismatch(string key, string expected, string form)
     {
@@ -600,40 +568,34 @@ public readonly struct AuthoredMembers
     // What one shared read made of a key's array: the elements, and every asset they named.
     private sealed record SharedRead<T>(T[] Elements, AssetCollection Assets);
 
-    // One level of an owner's values that authors keys: the keys its reads asked for, each once in the order first
-    // asked, and which of its own keys they include. A key the level authors is marked by its place among the
-    // level's keys, and a repeated read of it costs no search. The owner keeps the level to refuse a key no read
-    // asked for.
-    private sealed class Level(Owner owner, AuthoredObject members, string path)
+    // A deferred reference: the object whose member Set assigns, and the values it reads the reference from.
+    private readonly record struct Deferred(object Target, Action<object, AuthoredMembers> Set, AuthoredMembers From);
+
+    // One level of an owner's values that authors keys: which of its own keys a read asked for, and every key asked,
+    // each once in the order first asked. A key the level authors is marked by its place among the level's keys, and
+    // a repeated read of it costs no search. The composition keeps the level to refuse a key no read asked for.
+    private struct Level(int entry, AuthoredObject members, string path, AskedKey none)
     {
+        internal readonly int Entry = entry;
+
         // Bit i marks the level's key i as read: the first 64 here, the rest in _beyond.
         private readonly ulong[]? _beyond = members.Keys.Length > 64 ? new ulong[(members.Keys.Length - 1) >> 6] : null;
         private ulong _read;
 
-        // Room for every key the level authors and a few optional members it does not.
-        private string[] _asked = new string[members.Keys.Length + 4];
-        private int _count;
-
-        private ReadOnlySpan<string> Asked => _asked.AsSpan(0, _count);
+        // The last key asked for, which leads back through every key asked before it.
+        private AskedKey _asked = none;
 
         // Notes key asked for, where index is its place among the level's keys or -1 when the level does not author it.
         internal void Add(string key, int index)
         {
-            if (index >= 0 ? !Mark(index) : Asked.Contains(key))
+            if (index >= 0 ? Mark(index) : !_asked.Holds(key))
             {
-                return;
+                _asked = _asked.Then(key);
             }
-
-            if (_count == _asked.Length)
-            {
-                System.Array.Resize(ref _asked, _count * 2);
-            }
-
-            _asked[_count++] = key;
         }
 
         // Throws when a key the level authors was never asked for, naming every key that was.
-        internal void RefuseUnread()
+        internal void RefuseUnread(Composition owner)
         {
             string[] keys = members.Keys;
 
@@ -649,19 +611,28 @@ public readonly struct AuthoredMembers
                 return;
             }
 
-            string[] unread = [.. keys.Where((_, index) => !IsRead(index))];
-
-            // A nested object takes a type only through a member it can be assigned to.
-            if (path.Length > 0 && unread.Contains(TypeKey))
+            List<string> unread = [];
+            bool typed = false;
+            for (int index = read; index < keys.Length; index++)
             {
-                throw new SceneDocumentFormatException(
-                    $"{owner.Name} sets '{path}{TypeKey}', but '{path.TrimEnd('.')}' fills the object its member holds and has no setter to take another. Drop the type, or give the member a setter.");
+                if (!IsRead(index))
+                {
+                    unread.Add($"'{path}{keys[index]}'");
+                    typed |= keys[index] == TypeKey;
+                }
             }
 
-            string declares = _count == 0 ? "none" : string.Join(", ", Asked);
+            // A nested object takes a type only through a member it can be assigned to.
+            if (typed && path.Length > 0)
+            {
+                throw new SceneDocumentFormatException(
+                    $"{owner.Name(Entry)} sets '{path}{TypeKey}', but '{path.TrimEnd('.')}' fills the object its member holds and has no setter to take another. Drop the type, or give the member a setter.");
+            }
+
+            string declares = _asked.Key is null ? "none" : string.Join(", ", _asked.Keys());
 
             throw new SceneDocumentFormatException(
-                $"{owner.Name} sets {string.Join(", ", unread.Select(name => $"'{path}{name}'"))}, which no authorable member takes. "
+                $"{owner.Name(Entry)} sets {string.Join(", ", unread)}, which no authorable member takes. "
                 + $"{(path.Length == 0 ? "Its" : $"'{path.TrimEnd('.')}'s")} authorable members are: {declares}. Correct the key, or mark the member [Authorable].");
         }
 
@@ -679,47 +650,177 @@ public readonly struct AuthoredMembers
         }
 
         // The word holding key index's bit. A shift takes its count modulo 64, which is the key's bit within it.
+        [UnscopedRef]
         private ref ulong Word(int index) => ref index < 64 ? ref _read : ref _beyond![(index >> 6) - 1];
     }
 
-    // What every level of one owner's values shares: how a message names the owner and where a missing key goes,
-    // what references resolve against, the preload, the document's shared reads, and every level and deferred
-    // reference read so far.
-    private sealed class Owner(string? name, string holder, Dictionary<int, Entity>? placed, AssetCollection? assets, SharedReads? shared)
+    // A key a level asked for after the keys of the node before it, where the composition's first node stands for
+    // none. Levels that ask the same keys in the same order share every node. The many entries of one class note
+    // their keys once between them.
+    private sealed class AskedKey(string? key, AskedKey? previous)
     {
-        // An entry's index and type key, which name it only once a message needs the name.
-        private readonly int _entry;
-        private readonly string? _type;
+        internal readonly string? Key = key;
+        private readonly AskedKey? _previous = previous;
+
+        // The first key asked after this one, and the next key asked after the node before this one in its place.
+        private AskedKey? _then;
+        private AskedKey? _sibling;
+
+        // The node for key asked after this one.
+        internal AskedKey Then(string asked)
+        {
+            for (AskedKey? next = _then; next is not null; next = next._sibling)
+            {
+                if (next.Key == asked)
+                {
+                    return next;
+                }
+            }
+
+            return _then = new AskedKey(asked, this) { _sibling = _then };
+        }
+
+        // Whether this node or one before it asked for asked.
+        internal bool Holds(string asked)
+        {
+            for (AskedKey? node = this; node?.Key is { } held; node = node._previous)
+            {
+                if (held == asked)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Every key asked through this node, in the order asked.
+        internal List<string> Keys()
+        {
+            List<string> keys = [];
+            for (AskedKey? node = this; node?.Key is { } held; node = node._previous)
+            {
+                keys.Add(held);
+            }
+
+            keys.Reverse();
+            return keys;
+        }
+    }
+
+    // A list that grows a block at a time and never copies what it holds once past its first block, which a large
+    // composition fills with no doubled array.
+    private sealed class Table<T>
+    {
+        private const int BlockBits = 8;
+        private const int Block = 1 << BlockBits;
+
+        // Every block holds Block items but the first, which doubles from a few up to Block.
+        private readonly List<T[]> _blocks = [];
+
+        internal int Count { get; private set; }
+
+        internal ref T this[int index] => ref _blocks[index >> BlockBits][index & (Block - 1)];
+
+        // Appends item and returns its index.
+        internal int Add(in T item)
+        {
+            int block = Count >> BlockBits;
+            if (block == _blocks.Count)
+            {
+                _blocks.Add(new T[block == 0 ? 4 : Block]);
+            }
+            else if (block == 0 && Count == _blocks[0].Length)
+            {
+                T[] first = _blocks[0];
+                System.Array.Resize(ref first, Count * 2);
+                _blocks[0] = first;
+            }
+
+            this[Count] = item;
+
+            return Count++;
+        }
+    }
+
+    // What every owner of one composition shares: how a message names an owner, what references resolve against, the
+    // preload, the document's shared reads, and every level and deferred reference read so far. Finish reads the
+    // levels and references once every owner is constructed.
+    internal sealed class Composition
+    {
+        // The document whose entries own the values.
+        private readonly SceneDocument _document;
+
+        private readonly AskedKey _none = new(null, null);
+        private readonly Table<Level> _levels = new();
+        private readonly Table<Deferred> _links = new();
 
         // Where an asset joins in place of Assets while a shared read runs, and null outside one.
         internal AssetCollection? Sharing { get; set; }
 
-        // Most owners have one level, and grow from one.
-        internal List<Level> Levels { get; } = new(1);
-
-        // Every deferred reference read so far, or null until the first. Most owners have none.
-        internal List<(object Target, Action<object, AuthoredMembers> Set, AuthoredMembers From)>? Links { get; set; }
-
-        // The names of the objects read off the owner's values, which the many elements of one array share.
+        // The names of the objects read off the owners' values, which the many elements of one array share.
         internal AuthoredObject.KeyTable Keys => field ??= new();
 
-        // An entry's members.
-        internal Owner(int entry, string type, Dictionary<int, Entity>? placed, AssetCollection? assets, SharedReads? shared)
-            : this(null, "the entry", placed, assets, shared)
+        // The document's shared reads.
+        internal SharedReads Shared { get; }
+
+        internal Dictionary<int, Entity> Placed { get; }
+
+        internal AssetCollection Assets { get; }
+
+        // The document's entries, or its own members. References resolve against placed.
+        internal Composition(SceneDocument document, Dictionary<int, Entity> placed, AssetCollection assets)
         {
-            _entry = entry;
-            _type = type;
+            _document = document;
+            Placed = placed;
+            Assets = assets;
+            Shared = document.Shared;
         }
 
-        // The document's shared reads, or null for members no document holds.
-        internal SharedReads? Shared => shared;
+        internal int LevelCount => _levels.Count;
 
-        internal string Name => name ??= string.Create(CultureInfo.InvariantCulture, $"entities[{_entry}] ('{_type}')");
+        // How a message names the owner of entry's values, where an entry of -1 is the document itself.
+        internal string Name(int entry) =>
+            entry < 0 ? "the scene document" : string.Create(CultureInfo.InvariantCulture, $"entities[{entry}] ('{_document.Entries[entry].Type}')");
 
-        internal string Holder => holder;
+        internal int AddLevel(int entry, AuthoredObject members, string path) => _levels.Add(new Level(entry, members, path, _none));
 
-        internal Dictionary<int, Entity>? Placed => placed;
+        internal void Ask(int level, string key, int index) => _levels[level].Add(key, index);
 
-        internal AssetCollection? Assets => assets;
+        internal void Defer(object target, Action<object, AuthoredMembers> set, AuthoredMembers from) => _links.Add(new Deferred(target, set, from));
+
+        // Refuses every level from first on, which no later read visits. Finish checks them again and finds nothing new.
+        internal void RefuseLevelsFrom(int first)
+        {
+            for (int index = first; index < _levels.Count; index++)
+            {
+                _levels[index].RefuseUnread(this);
+            }
+        }
+
+        // Sets every deferred reference, then throws when any level carries a key no read asked for, one owner at a
+        // time in document order. The keys asked for are every authorable member the class declares, since the
+        // applier asks for each one.
+        internal void Finish()
+        {
+            int link = 0;
+            int level = 0;
+            while (link < _links.Count || level < _levels.Count)
+            {
+                int entry = Math.Min(
+                    link < _links.Count ? _links[link].From._entry : int.MaxValue,
+                    level < _levels.Count ? _levels[level].Entry : int.MaxValue);
+                for (; link < _links.Count && _links[link].From._entry == entry; link++)
+                {
+                    Deferred next = _links[link];
+                    next.Set(next.Target, next.From);
+                }
+
+                for (; level < _levels.Count && _levels[level].Entry == entry; level++)
+                {
+                    _levels[level].RefuseUnread(this);
+                }
+            }
+        }
     }
 }
