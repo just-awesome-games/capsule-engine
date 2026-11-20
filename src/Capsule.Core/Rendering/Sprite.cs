@@ -41,4 +41,72 @@ public readonly record struct Sprite(
     /// centre. A <see cref="LightIntent"/> with no other sprite draws this one.
     /// </summary>
     public static Sprite Light => new(TextureHandle.Light, new TextureRegion(0, 0, 128, 128), new Vector2(64f, 64f));
+
+    /// <summary>
+    /// Returns the rect of the box named <paramref name="name"/> on this frame, measured from its
+    /// <see cref="Pivot"/>: where the box sits about the position the frame is drawn at.
+    /// </summary>
+    /// <remarks>
+    /// The rect is this one frame's, read once. Nothing mirrors or offsets it as a renderer would, and it
+    /// does not follow an animation. A collider that covers the box on whichever frame is drawn is
+    /// <c>SpriteRenderer.Box</c>'s.
+    /// </remarks>
+    /// <example>
+    /// A hitbox sized to the box a sheet set on its frame:
+    /// <code>
+    /// Rect punch = PunchFrame.Box(CapsuleAssets.Sprites.Enemies.BruteSheet.Boxes.Punch);
+    /// </code>
+    /// </example>
+    /// <param name="name">The box's name as the sheet declared it. The sheet's generated <c>Boxes</c> class lists them.</param>
+    /// <exception cref="ArgumentException">This frame carries no box named <paramref name="name"/>.</exception>
+    public Rect Box(string name)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
+        ReadOnlySpan<SpriteBox> boxes = Marks is { } marks ? marks.Boxes : default;
+        foreach (SpriteBox box in boxes)
+        {
+            if (box.Name == name)
+            {
+                return new Rect(box.Area.Position - Pivot, box.Area.Size);
+            }
+        }
+
+        string carried = boxes.IsEmpty ? "none" : string.Join(", ", boxes.ToArray().Select(static box => box.Name));
+        throw new ArgumentException($"This frame carries no box named \"{name}\". Its boxes: {carried}.", nameof(name));
+    }
+
+    /// <summary>
+    /// Returns the point of the socket named <paramref name="name"/> on this frame, measured from its
+    /// <see cref="Pivot"/>: where the socket sits about the position the frame is drawn at.
+    /// </summary>
+    /// <remarks>
+    /// The point is this one frame's, read once. Nothing mirrors or offsets it as a renderer would, and it
+    /// does not follow an animation. An entity placed at the socket on whichever frame is drawn is
+    /// <c>SpriteRenderer.Socket</c>'s.
+    /// </remarks>
+    /// <example>
+    /// A menu figure lined up by where its muzzle sits on its firing frame:
+    /// <code>
+    /// Vector2 muzzle = ShootFrame.Socket(CapsuleAssets.Sprites.Actors.HeroSheet.Sockets.Muzzle);
+    /// </code>
+    /// </example>
+    /// <param name="name">The socket's name as the sheet declared it. The sheet's generated <c>Sockets</c> class lists them.</param>
+    /// <exception cref="ArgumentException">This frame carries no socket named <paramref name="name"/>.</exception>
+    public Vector2 Socket(string name)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
+        ReadOnlySpan<SpriteSocket> sockets = Marks is { } marks ? marks.Sockets : default;
+        foreach (SpriteSocket socket in sockets)
+        {
+            if (socket.Name == name)
+            {
+                return socket.Point - Pivot;
+            }
+        }
+
+        string carried = sockets.IsEmpty ? "none" : string.Join(", ", sockets.ToArray().Select(static socket => socket.Name));
+        throw new ArgumentException($"This frame carries no socket named \"{name}\". Its sockets: {carried}.", nameof(name));
+    }
 }

@@ -48,6 +48,21 @@ public sealed class SpriteBoxTests
         Assert.Equal(["+", "-", "+"], log);
     }
 
+    // A frame's own box is read from its pivot, as an unflipped renderer at no offset places it.
+    [Fact]
+    public void AFramesBox_IsItsRectFromThePivot()
+    {
+        Assert.Equal(Rect.FromEdges(-3f, -6f, -1f, -2f), FrameSmall.Box(Hurt));
+    }
+
+    [Fact]
+    public void AFramesBox_ItDoesNotCarry_IsRefusedNamingTheBoxesItDoes()
+    {
+        ArgumentException missing = Assert.Throws<ArgumentException>(() => FrameSmall.Box("guard"));
+        Assert.Contains(Hurt, missing.Message);
+        Assert.Throws<ArgumentException>(() => FrameBare.Box(Hurt));
+    }
+
     // The rect is measured from the pivot in the entity's own space, and a flip mirrors it about the
     // pivot as it mirrors the drawn frame.
     [Theory]

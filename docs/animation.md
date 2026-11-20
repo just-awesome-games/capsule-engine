@@ -18,6 +18,7 @@ the default rate.
 | A clip playing on a sprite | `SpriteAnimator` on a `SpriteRenderer` |
 | One clip, then another when it ends | `SpriteAnimator.Play(clip, then: next)` |
 | A point or a collider the drawn frame places | `SpriteRenderer.Socket` and `SpriteRenderer.Box` |
+| One frame's box or socket from its pivot, such as to size a hitbox | `Sprite.Box` and `Sprite.Socket` |
 | Another drawing of a sheet's frames, such as a hat | A `"variantOf"` sheet's `Variant`, set on `SpriteRenderer.Variant` |
 | Layers showing the frame an animator plays | `new SpriteAnimator(avatar, hat)` |
 | A moment in a clip, such as a sound cue | The sheet's `events`, read with `SpriteAnimator.Reached` |

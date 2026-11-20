@@ -24,6 +24,21 @@ public sealed class SpriteSocketTests
     private static readonly Sprite FrameLow = SceneFixtures.Frame(2, Low);
     private static readonly Sprite FrameBare = SceneFixtures.Frame(3, null);
 
+    // A frame's own socket is read from its pivot, as an unflipped renderer at no offset places it.
+    [Fact]
+    public void AFramesSocket_IsItsPointFromThePivot()
+    {
+        Assert.Equal(new Vector2(4f, -4f), FrameMid.Socket(Muzzle));
+    }
+
+    [Fact]
+    public void AFramesSocket_ItDoesNotCarry_IsRefusedNamingTheSocketsItDoes()
+    {
+        ArgumentException missing = Assert.Throws<ArgumentException>(() => FrameMid.Socket("hand"));
+        Assert.Contains(Muzzle, missing.Message);
+        Assert.Throws<ArgumentException>(() => FrameBare.Socket(Muzzle));
+    }
+
     [Fact]
     public void ABoundSocket_IsOneChildOfTheRenderersEntityNamedForIt()
     {

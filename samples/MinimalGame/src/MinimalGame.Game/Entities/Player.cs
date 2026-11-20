@@ -22,6 +22,10 @@ public sealed class Player : Entity
     // its feet on the floor.
     private static readonly Vector2 FramePivot = CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Idle0.Pivot;
 
+    // Drawn in from the body's edges on the art. A hazard has to reach the drawing to hurt. One box serves every frame,
+    // read from the idle frame, whose pivot sits at the body's bottom centre.
+    private static readonly Rect Hurt = CapsuleAssets.Sprites.Actors.PlayerSheet.Frames.Idle0.Box(CapsuleAssets.Sprites.Actors.PlayerSheet.Boxes.Hurt);
+
     private readonly PlayerVisual _visual;
     private readonly KinematicBody2D _body;
     private readonly BoxCollider2D _hurtbox;
@@ -100,10 +104,9 @@ public sealed class Player : Entity
         _body.Crushed += OnCrushed;
         Add(_body);
 
-        float hurtboxEdge = BodyPixels - (_tuning.HurtboxInset * 2);
-        _hurtbox = new BoxCollider2D(new Vector2(hurtboxEdge, hurtboxEdge))
+        _hurtbox = new BoxCollider2D(Hurt.Size)
         {
-            Offset = new Vector2(_tuning.HurtboxInset, _tuning.HurtboxInset),
+            Offset = FramePivot + Hurt.Position,
             ReportsContacts = true,
             Detects = new(CollisionLayers.Hazard),
         };

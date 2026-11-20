@@ -246,6 +246,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
     /// </remarks>
     /// <param name="name">The socket's name as the sheet declared it. The sheet's generated <c>Sockets</c> class lists them.</param>
     /// <exception cref="InvalidOperationException">The renderer is attached to no entity. Attach it first.</exception>
+    /// <seealso cref="Sprite.Socket(string)"/>
     public Entity Socket(string name)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
@@ -304,6 +305,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
     /// </example>
     /// <param name="name">The box's name as the sheet declared it. The sheet's generated <c>Boxes</c> class lists them.</param>
     /// <exception cref="InvalidOperationException">The renderer is attached to no entity. Attach it first.</exception>
+    /// <seealso cref="Sprite.Box(string)"/>
     public BoxCollider2D Box(string name)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);

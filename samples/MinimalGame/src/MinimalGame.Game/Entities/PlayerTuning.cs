@@ -17,7 +17,6 @@ namespace MinimalGame.Game.Entities;
 /// <param name="LandSquash">The scale the sprite snaps to on landing.</param>
 /// <param name="ScaleRecovery">Scale units per second each axis walks back towards 1 after an impulse.</param>
 /// <param name="MaxHealth">Hazard contacts the player survives, and the health it starts a room with.</param>
-/// <param name="HurtboxInset">How far the hurtbox is drawn in from each of the body's edges, in world units.</param>
 /// <param name="LandRumbleLow">The low-frequency motor's amplitude on landing, in [0, 1].</param>
 /// <param name="LandRumbleHigh">The high-frequency motor's amplitude on landing, in [0, 1].</param>
 /// <param name="LandRumbleSeconds">How long the landing pulse decays over.</param>
@@ -45,7 +44,6 @@ public sealed record class PlayerTuning(
     Vector2 LandSquash,
     float ScaleRecovery,
     int MaxHealth,
-    int HurtboxInset,
     float LandRumbleLow,
     float LandRumbleHigh,
     float LandRumbleSeconds,
@@ -75,7 +73,6 @@ public sealed record class PlayerTuning(
         LandSquash: new Vector2(1.4f, 0.6f),
         ScaleRecovery: 1.6f,
         MaxHealth: 4,
-        HurtboxInset: 1,
         LandRumbleLow: 0.5f,
         LandRumbleHigh: 0.15f,
         LandRumbleSeconds: 0.12f,
