@@ -22,7 +22,7 @@ public sealed class ViewCapacityAllocationTests(ITestOutputHelper output)
         host.Step(SceneFixtures.Step(1));
         Assert.IsType<Quiet>(host.Scene);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         int drawn = host.View.Sprites.Length;
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 

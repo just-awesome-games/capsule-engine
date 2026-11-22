@@ -41,7 +41,7 @@ public sealed class VorbisAllocationTests
 
         ReadFrames(loop, scratch, source.Channels, frameCount, warmupFrames);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
 
         int wraps = ReadFrames(loop, scratch, source.Channels, frameCount, measuredFrames);
 

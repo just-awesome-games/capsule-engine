@@ -10,6 +10,7 @@ the prose marks a scan can find and packaging, and none of them is repeated here
 - A feature is admitted by a consuming game's need or by what any developer expects of a 2D engine. It ships complete, for developers beyond JAG, or it is absent.
 - A new public member reads fluently to a developer arriving from any established engine: the common case is one call taking the plain thing, the composed case its own type.
 - Peak performance is the bar at authoring time. No heap allocation in hot paths or per-frame loops, value types for frequently created data, pooling for what the runtime spawns.
+- A cost a game can pay up front, at construction or load, is never deferred to a first use during play, even when deferring saves memory.
 - Authoring formats are plain data that people and agents write by hand. A new format needs no tool.
 - [`samples/MinimalGame/`](samples/MinimalGame/) is the review surface. An engine change lands with the sample call site that lets it be played, and migrates any break it causes there. The sample stays a small game, not a feature gallery. The sample's README says what it is, how to run it and how to play it, and the code says the rest.
 - A run is driven by an input driver, not by asking a person to play it. The standard command line is the engine's: a game opts in with `WithCommandLine(args)` and re-implements no flag.

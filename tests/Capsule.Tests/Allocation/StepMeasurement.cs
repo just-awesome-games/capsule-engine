@@ -19,6 +19,20 @@ internal static class StepMeasurement
     /// <summary>The length of one step at the engine's default rate, in seconds.</summary>
     internal const double StepSeconds = 1.0 / StepContext.DefaultStepHertz;
 
+    /// <summary>Collects the heap, then reads the thread's allocation counter, opening a measured window.</summary>
+    /// <remarks>
+    /// Every window in the suite opens here. While other tests run in parallel, the counter can rise by up to about 8 KB
+    /// with nothing allocated. A full collection first keeps that rise out of the window.
+    /// </remarks>
+    internal static long Start()
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        return GC.GetAllocatedBytesForCurrentThread();
+    }
+
     /// <summary>
     /// Runs <paramref name="step"/> <paramref name="warmup"/> times, then <paramref name="measured"/> times more,
     /// and returns the bytes the measured calls allocated.
@@ -31,7 +45,7 @@ internal static class StepMeasurement
             step(index);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = Start();
         for (int index = warmup; index < warmup + measured; index++)
         {
             step(index);
@@ -64,7 +78,7 @@ internal static class StepMeasurement
 
         for (int step = 0; step < warmupSteps + measuredSteps; step++)
         {
-            long startBytes = GC.GetAllocatedBytesForCurrentThread();
+            long startBytes = step == warmupSteps ? Start() : GC.GetAllocatedBytesForCurrentThread();
 
             input.Advance(DeviceSnapshot.Empty);
             simulation.Step(new StepContext(StepSeconds, input, step));

@@ -4,6 +4,7 @@ using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
+using Capsule.Tests.Allocation;
 using Capsule.Tests.DevTools;
 
 namespace Capsule.Tests.Diagnostics;
@@ -223,13 +224,13 @@ public sealed class DebugDrawTests
         DebugDraw.UseBuffer(null);
         Span<Vector2> corners = [Vector2.Zero, Vector2.UnitX, Vector2.One];
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         DebugDraw.Line(Hitboxes, Vector2.Zero, Vector2.One, ColorRgba.White);
         DebugDraw.Polygon(Hitboxes, corners, ColorRgba.White);
         DebugDraw.Text(Labels, Vector2.Zero, "hi", ColorRgba.White);
-        long after = GC.GetAllocatedBytesForCurrentThread();
+        long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        Assert.Equal(before, after);
+        Assert.Equal(0, bytes);
 
         using OverlayRig rig = new();
 

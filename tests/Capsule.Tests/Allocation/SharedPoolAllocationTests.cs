@@ -41,7 +41,7 @@ public sealed class SharedPoolAllocationTests
         running.Dispose();
 
         using SceneSimulation next = new(incoming);
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         for (int index = 0; index < Pooled; index++)
         {
             incoming.Add(crates.Take());

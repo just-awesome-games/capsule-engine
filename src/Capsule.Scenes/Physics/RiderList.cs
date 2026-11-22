@@ -1,18 +1,17 @@
 namespace Capsule.Physics;
 
-// The bodies riding a collider or a map's cells, grown on the first rider and never shrunk. An owner nothing
-// rides holds no slots. While its owner carries, a removed rider's slot empties to null, and Compact closes
-// the gaps once the carry is done.
+// The bodies riding a collider or a map's cells, grown once and never shrunk. While its owner carries,
+// a removed rider's slot empties to null, and Compact closes the gaps once the carry is done.
 internal struct RiderList
 {
-    // How many riders the list holds from its first on. A larger crowd doubles it.
+    // How many riders the list holds from construction on. A larger crowd doubles it.
     private const int StartingRiders = 4;
 
     private KinematicBody2D?[] _riders;
     private int _count;
     private bool _emptied;
 
-    public RiderList() => _riders = [];
+    public RiderList() => _riders = new KinematicBody2D?[StartingRiders];
 
     // How many slots are in use, emptied ones included.
     internal readonly int Count => _count;
@@ -24,7 +23,7 @@ internal struct RiderList
     {
         if (_count == _riders.Length)
         {
-            Array.Resize(ref _riders, Math.Max(StartingRiders, _riders.Length * 2));
+            Array.Resize(ref _riders, _riders.Length * 2);
         }
 
         _riders[_count++] = body;

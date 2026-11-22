@@ -1,3 +1,4 @@
+using System.Numerics;
 using Capsule.Audio;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
@@ -83,6 +84,25 @@ public sealed class SceneHostRunStateTests
         Assert.Same(arrival, host.Scene);
         Assert.True(host.TryTakeFrameCapture(out string path));
         Assert.Equal("shot.png", path);
+    }
+
+    // A host lends its views and clears each it takes back. The scene the run exits on keeps its last frame,
+    // which a headless run reports.
+    [Fact]
+    public void TheSceneTheRunExitsOn_KeepsItsLastFrameReadable()
+    {
+        static void Leaves(Scene scene, in StepContext context) => scene.Run.RequestExit();
+
+        HookScene exiting = new(start: Opens(Vector2.Zero), step: Leaves);
+        Drifter drifter = new(Vector2.Zero);
+        drifter.Add(new CountingRenderer());
+        exiting.Add(drifter);
+
+        using SceneHost host = new(ToScene<HookScene>(), (in SceneTransition _) => exiting, new Run());
+        host.Step(Step(0));
+
+        Assert.True(host.ExitRequested);
+        Assert.Equal(1, host.View.Metrics.Submitted);
     }
 
     private static object Owned(Run run, Service service) => service switch

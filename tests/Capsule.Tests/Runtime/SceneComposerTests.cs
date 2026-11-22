@@ -77,7 +77,7 @@ public sealed class SceneComposerTests : IDisposable
         File.WriteAllBytes(DocumentPath, shipped);
         SceneComposer composer = new(Registry(), new HostPlatform());
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(
             () => composer.Resolve(SceneTransition.ToName(DocumentName, null)));
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;

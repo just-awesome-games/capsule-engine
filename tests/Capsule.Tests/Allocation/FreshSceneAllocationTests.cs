@@ -45,6 +45,32 @@ public sealed class FreshSceneAllocationTests(ITestOutputHelper output)
         Assert.True(crate.Position.X > lift.Position.X);
     }
 
+    // A lift joins a running scene under a falling body, which lands on it and rides. Every collider holds room for its
+    // riders from construction. A first ride then costs nothing in the step it lands in.
+    [Fact]
+    public void ABodyFirstRidingAColliderJoiningARunningScene_RidesWithoutAllocating()
+    {
+        Scene scene = CollisionWorkload.Room();
+        scene.Add(new CollisionWorkload.Lift(new Vector2(96f, 632f)));
+        scene.Add(new CollisionWorkload.Hauled(new Vector2(96f, 620f), walk: 0f));
+
+        using SceneSimulation simulation = new(scene, run: StageWorkload.Defaults);
+        InputState input = new(new ActionBindings());
+        for (int step = 0; step < StepMeasurement.WarmupSteps; step++)
+        {
+            simulation.Step(new StepContext(StepMeasurement.StepSeconds, input, step));
+        }
+
+        scene.Add(new CollisionWorkload.Lift(new Vector2(996f, 632f)));
+        CollisionWorkload.Hauled rider = scene.Add(new CollisionWorkload.Hauled(new Vector2(996f, 620f), walk: 0f));
+        long bytes = StepMeasurement.Bytes(
+            step => simulation.Step(new StepContext(StepMeasurement.StepSeconds, input, StepMeasurement.WarmupSteps + step)),
+            warmup: 0);
+
+        StepMeasurement.Report(output, "a first ride on a collider joining mid-run", bytes);
+        Assert.True(rider.Position.X != 996f, $"the body never rode the lift, and stayed at {rider.Position.X}");
+    }
+
     // A reporter's sorted candidates name the slot after it. A collider in the slot before it then
     // arrives, which a fresh world merges in ahead of the sorted entry.
     [Fact]
@@ -54,7 +80,7 @@ public sealed class FreshSceneAllocationTests(ITestOutputHelper output)
         _ = SettleArrival(MergeWorld(out ColliderHandle warmEarly, out ColliderHandle warmReporter), warmEarly, warmReporter, contacts);
 
         CollisionWorld2D world = MergeWorld(out ColliderHandle early, out ColliderHandle reporter);
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         int found = SettleArrival(world, early, reporter, contacts);
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
@@ -91,7 +117,7 @@ public sealed class FreshSceneAllocationTests(ITestOutputHelper output)
         pusher.Position += new Vector2(-20f, 0f);
         AssertTrainsAt(trains, 32f);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         pusher.Position += new Vector2(-20f, 0f);
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 

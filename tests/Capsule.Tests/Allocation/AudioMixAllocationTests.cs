@@ -105,7 +105,7 @@ public sealed class AudioMixAllocationTests
         player.Update();
         Assert.True(SpinWait.SpinUntil(pooled, Patience), "the stream did not return to the pool in time");
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         player.Apply(resident);
         player.Apply(streamed);
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;

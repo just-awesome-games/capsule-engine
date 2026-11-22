@@ -17,6 +17,9 @@ public sealed class SceneSimulation : ISimulation, IDisposable
     private FrameView? _view;
 
     private bool _disposed;
+
+    // Set by a disposal that keeps the view out of the lender, which clears what it takes back.
+    private bool _keepsView;
     private bool _warnedOnUndrawnWorldLayer;
 
     // Whether the scene has changed since View was last built. A new simulation has built nothing.
@@ -265,11 +268,20 @@ public sealed class SceneSimulation : ISimulation, IDisposable
         }
         finally
         {
-            if (_view is not null)
+            if (_view is not null && !_keepsView)
             {
                 _lender?.Return(_view);
             }
         }
+    }
+
+    // Builds View, then disposes and keeps the frame out of the lender, for a run that ends on this scene and
+    // reads its last frame after. Nothing borrows the view again.
+    internal void DisposeKeepingLastFrame()
+    {
+        _ = View;
+        _keepsView = true;
+        Dispose();
     }
 
     // Rebuilds View from the scene as it stands, without taking a step.

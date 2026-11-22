@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Capsule.Animation;
+using Capsule.Tests.Allocation;
 
 namespace Capsule.Tests.Animation;
 
@@ -312,7 +313,7 @@ public sealed class SequenceTests
             sequence.Step();
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         for (int i = 0; i < 1000; i++)
         {
             sequence.Step();
@@ -338,7 +339,7 @@ public sealed class SequenceTests
         Sequence sequence = new();
         RunAndStop();
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         for (int i = 0; i < 100; i++)
         {
             RunAndStop();

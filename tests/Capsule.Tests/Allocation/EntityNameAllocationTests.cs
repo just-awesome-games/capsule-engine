@@ -21,11 +21,8 @@ public sealed class EntityNameAllocationTests
         long bytes = 0;
         for (int round = 0; round < WarmupRounds + MeasuredRounds; round++)
         {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
-
-            long before = GC.GetAllocatedBytesForCurrentThread();
+            // Each round opens after a full collection.
+            long before = StepMeasurement.Start();
             Pooled entity = pool.Take();
             scene.Add(entity);
             host.Step();

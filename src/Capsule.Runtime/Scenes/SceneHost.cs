@@ -207,9 +207,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
                 {
                     DropPrefetch();
 
-                    // Built before the scene stops. The run's last frame stays readable after it.
-                    _ = _current.View;
-                    _current.Dispose();
+                    // The run's last frame stays readable after the scene stops.
+                    _current.DisposeKeepingLastFrame();
                 }
                 finally
                 {

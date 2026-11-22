@@ -94,7 +94,7 @@ public sealed class FirstComposeAllocationTests(ITestOutputHelper output)
         _ = Load(document);
 
         byte[] utf8 = Encoding.UTF8.GetBytes(document);
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         _ = Registry.Value.Create(new SceneKey("scenes/level"), SceneDocument.ParseUtf8(utf8));
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 

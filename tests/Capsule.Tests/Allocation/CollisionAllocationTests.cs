@@ -129,7 +129,7 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         _ = LandingWorld(out _).MoveBox(box, new Vector2(0f, 24f), CollisionFilter.Everything, contacts);
 
         CollisionWorld2D world = LandingWorld(out CollisionGrid2D floor);
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         MoveResult2D result = world.MoveBox(box, new Vector2(0f, 24f), CollisionFilter.Everything, contacts);
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
@@ -281,7 +281,7 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
         }
 
         using SceneSimulation simulation = RampScene(cells, out TileMap terrain, out Sensor sensor);
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         Ramp(simulation, terrain, input, cells);
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 

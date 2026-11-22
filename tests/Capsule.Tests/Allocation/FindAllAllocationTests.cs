@@ -33,7 +33,7 @@ public sealed class FindAllAllocationTests
         Assert.Same(first, scene.FindFirst<IMarked>(nameof(Marked)));
 
         int count = 0;
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         foreach (IMarked _ in scene.FindAll<IMarked>())
         {
             count++;

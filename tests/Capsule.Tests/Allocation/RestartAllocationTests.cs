@@ -21,7 +21,7 @@ public sealed class RestartAllocationTests(ITestOutputHelper output)
         SceneDocument document = SceneDocument.Parse(TerrainDocument());
         Compose(registry, document);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         Compose(registry, document);
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 

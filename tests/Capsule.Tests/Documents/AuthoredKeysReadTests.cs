@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Capsule.Assets;
 using Capsule.Scenes;
+using Capsule.Tests.Allocation;
 
 namespace Capsule.Tests.Documents;
 
@@ -100,7 +101,7 @@ public sealed class AuthoredKeysReadTests
         _ = read.Has("a");
         _ = read.Has("b");
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         composition.Finish();
 
         return GC.GetAllocatedBytesForCurrentThread() - before;

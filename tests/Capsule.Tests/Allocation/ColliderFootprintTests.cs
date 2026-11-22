@@ -22,7 +22,7 @@ public sealed class ColliderFootprintTests(ITestOutputHelper output)
         _ = new BoxCollider2D(new Vector2(16f, 16f));
         BoxCollider2D[] made = new BoxCollider2D[Colliders];
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         for (int index = 0; index < Colliders; index++)
         {
             made[index] = new BoxCollider2D(new Vector2(16f, 16f));
@@ -46,7 +46,7 @@ public sealed class ColliderFootprintTests(ITestOutputHelper output)
         const long BytesPerReserved = 384;
         CollisionWorld2D world = new();
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         world.Reserve(Reserved, 0, 0);
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
@@ -69,7 +69,7 @@ public sealed class ColliderFootprintTests(ITestOutputHelper output)
         int[] lookup = [.. Enumerable.Range(0, Entries)];
         CellBlocks cells = CellBlocks.FromDense(16, 16, new int[16 * 16], default);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         world.AddGrid(CollisionFixtures.TileSize, cells, lookup, 1, profiles);
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 

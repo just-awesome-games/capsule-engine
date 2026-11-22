@@ -1,6 +1,7 @@
 using System.Numerics;
 using Capsule.Physics;
 using Capsule.Physics.Internal;
+using Capsule.Tests.Allocation;
 
 namespace Capsule.Tests.Physics;
 
@@ -165,7 +166,7 @@ public sealed class Shape2DTests
         Assert.Equal(stored, HullStore2D.Add([.. outline]));
         Assert.NotEqual(stored, HullStore2D.Add(outline.AsSpan(1)));
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = StepMeasurement.Start();
         int again = HullStore2D.Add(outline);
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
         Assert.Equal(stored, again);
