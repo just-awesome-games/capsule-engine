@@ -191,7 +191,14 @@ Scene.Remove(this);
 
 An emitter built from a sheet's clip plays it on every particle, each frame for its authored steps, and a
 clip that does not loop ends its particle. `FrameMode` stretches the clip over each particle's life instead,
-or picks one frame at spawn. `FlipX` mirrors each new particle as a negative X scale on the entity would,
+or picks one frame at spawn. An emitter built from loose pictures picks one at random for each
+particle by default, and `FrameMode.InOrderAtSpawn` deals them in turn instead:
+
+```csharp
+Add(new ParticleEmitter([shardLarge, shardSmall, shardSmall], capacity: 12) { Speed = (40f, 90f), Spread = 360f });
+```
+
+`FlipX` mirrors each new particle as a negative X scale on the entity would,
 and a particle keeps that mirror for its life:
 
 ```csharp

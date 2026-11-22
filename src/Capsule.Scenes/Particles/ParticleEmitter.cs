@@ -271,7 +271,10 @@ public sealed class ParticleEmitter : Renderer
     /// <summary>The tint read at the particle's age fraction from 0 to 1. White by default.</summary>
     public Gradient Color { get; set; }
 
-    /// <summary>How a particle plays the constructor's clip, <see cref="Particles.FrameMode.Clip"/> by default.</summary>
+    /// <summary>
+    /// How a particle plays the constructor's clip, <see cref="Particles.FrameMode.Clip"/> by default and
+    /// <see cref="Particles.FrameMode.RandomAtSpawn"/> for an emitter built from pictures.
+    /// </summary>
     /// <remarks>A new value reaches live particles on their next draw. A particle's life is fixed at its spawn.</remarks>
     public FrameMode FrameMode { get; set; }
 
@@ -385,6 +388,16 @@ public sealed class ParticleEmitter : Renderer
         : this(new SpriteClip([sprite], [1], loop: true), capacity)
     {
     }
+
+    /// <summary>
+    /// Creates an emitter whose particles each draw one of <paramref name="pictures"/> for their whole life, picked at
+    /// random at spawn unless <see cref="FrameMode"/> deals them in turn.
+    /// </summary>
+    /// <param name="pictures">The frames a particle picks from. A clip's frames passed here lose its timing.</param>
+    /// <param name="capacity">The pool's fixed size, the most particles alive at once.</param>
+    public ParticleEmitter(ReadOnlySpan<Sprite> pictures, int capacity)
+        : this(capacity, Pictures(pictures)) =>
+        FrameMode = FrameMode.RandomAtSpawn;
 
     /// <summary>Creates an emitter whose particles draw no sprite and only add their <see cref="Light"/>.</summary>
     /// <param name="capacity">The pool's fixed size, the most particles alive at once.</param>
@@ -1174,6 +1187,21 @@ public sealed class ParticleEmitter : Renderer
         float sin = DeterministicMath.Sin(radians);
 
         return new Vector2((v.X * cos) - (v.Y * sin), (v.X * sin) + (v.Y * cos));
+    }
+
+    // Pictures as a looping clip a step a frame. The pick modes read neither, and a loop keeps one picture from ending
+    // its particle after a step.
+    private static SpriteClip Pictures(ReadOnlySpan<Sprite> pictures)
+    {
+        if (pictures.IsEmpty)
+        {
+            throw new ArgumentException("Expected at least one picture. Pass the frames a particle picks from.", nameof(pictures));
+        }
+
+        int[] ticks = new int[pictures.Length];
+        Array.Fill(ticks, 1);
+
+        return new SpriteClip(pictures, ticks, loop: true);
     }
 
     private static bool Contains(Rect outer, Rect inner) =>

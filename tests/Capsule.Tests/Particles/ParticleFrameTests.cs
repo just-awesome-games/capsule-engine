@@ -34,11 +34,16 @@ public sealed class ParticleFrameTests
         Assert.Equal([0, 0, 1, 1, 1, 1, 1, 1], Cells(emitter));
     }
 
-    [Fact]
-    public void RandomAtSpawn_KeepsEachParticlesFrameForItsLife()
+    // An emitter built from pictures picks by default.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RandomAtSpawn_KeepsEachParticlesFrameForItsLife(bool fromPictures)
     {
-        SpriteClip clip = new([SceneFixtures.Frame(0), SceneFixtures.Frame(1), SceneFixtures.Frame(2)], [1, 1, 1]);
-        ParticleEmitter emitter = new(clip, capacity: 16) { FrameMode = FrameMode.RandomAtSpawn };
+        Sprite[] frames = [SceneFixtures.Frame(0), SceneFixtures.Frame(1), SceneFixtures.Frame(2)];
+        ParticleEmitter emitter = fromPictures
+            ? new(frames, capacity: 16)
+            : new(new SpriteClip(frames, [1, 1, 1]), capacity: 16) { FrameMode = FrameMode.RandomAtSpawn };
         SimulationHost host = ParticleEmitterTests.Host(emitter, new EntityHierarchyFixtures.Node(Vector2.Zero));
 
         emitter.Emit(16);
@@ -49,6 +54,19 @@ public sealed class ParticleFrameTests
         Assert.Equal(first, host.Simulation.View.Sprites.ToArray().Select(intent => Cell(intent)));
         Assert.True(first.Distinct().Count() > 1, "every particle drew one frame");
     }
+
+    // A picture carries no timing. One alone lives its particle's whole lifetime.
+    [Fact]
+    public void ALonePicture_LivesItsParticlesLifetime()
+    {
+        ParticleEmitter emitter = new([SceneFixtures.Frame(0)], capacity: 1) { Lifetime = (0.05f, 0.05f) };
+
+        Assert.Equal([0, 0, 0], Cells(emitter));
+    }
+
+    [Fact]
+    public void APictureSet_RefusesNone() =>
+        Assert.Throws<ArgumentException>("pictures", () => new ParticleEmitter(ReadOnlySpan<Sprite>.Empty, capacity: 1));
 
     // InOrderAtSpawn deals the frames in turn and wraps after the last, and a new scene life deals from the first again.
     [Fact]

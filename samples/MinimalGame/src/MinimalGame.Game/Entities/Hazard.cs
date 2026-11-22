@@ -98,6 +98,9 @@ public sealed class Hazard : Entity
 
         private static readonly Sprite SparkFrame = new(CapsuleAssets.Textures.HazardTexture, new TextureRegion(6, 10, 4, 4), new Vector2(2f, 2f));
 
+        // The spark's middle, a smaller ember its trail mixes in.
+        private static readonly Sprite EmberFrame = new(CapsuleAssets.Textures.HazardTexture, new TextureRegion(7, 11, 2, 2), new Vector2(1f, 1f));
+
         // The trail's colour: a warm orange fading to nothing.
         private static readonly ColorRgba SparkOrange = new(255, 150, 40);
 
@@ -112,7 +115,7 @@ public sealed class Hazard : Entity
             Unlit = true;
 
             // The trail draws under the spark because it is added before the frame.
-            Add(new ParticleEmitter(SparkFrame, capacity: 48)
+            Add(new ParticleEmitter([SparkFrame, EmberFrame], capacity: 48)
             {
                 // Emits as the spark moves, half a particle per unit. Emitting is on by default.
                 RateOverDistance = 0.5f,
