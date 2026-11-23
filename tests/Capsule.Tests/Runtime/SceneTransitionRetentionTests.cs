@@ -22,9 +22,6 @@ public sealed class SceneTransitionRetentionTests
     [Fact]
     public void ASceneTransition_RetainsNothingOfTheSceneItReplaced()
     {
-        static Scene Resolve(in SceneTransition target) =>
-            target.SceneType == typeof(Lobby) ? new Lobby() : new Arena();
-
         using SceneHost host = new(SceneTransition.ToScene(typeof(Lobby), null), Resolve, new Run());
 
         List<WeakReference> replaced = [];
@@ -35,6 +32,39 @@ public sealed class SceneTransitionRetentionTests
 
         Reachability.AssertReleased(replaced);
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ASceneTransition_TheOutgoingSceneCanBeCollectedAtSceneEntry(bool withAct)
+    {
+        using SceneHost host = new(SceneTransition.ToScene(typeof(Lobby), null), Resolve, new Run());
+        WeakReference outgoing = WatchScene(host);
+        int boundaries = 0;
+        host.SceneEntered = () =>
+        {
+            Assert.IsType<Arena>(host.Scene);
+            Reachability.AssertReleased([outgoing]);
+            boundaries++;
+        };
+
+        if (withAct)
+        {
+            ((ISimulation)host).Step(SceneFixtures.Step(0), static () => { });
+        }
+        else
+        {
+            host.Step(SceneFixtures.Step(0));
+        }
+
+        Assert.Equal(1, boundaries);
+    }
+
+    private static Scene Resolve(in SceneTransition target) =>
+        target.SceneType == typeof(Lobby) ? new Lobby() : new Arena();
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference WatchScene(SceneHost host) => new(host.Scene);
 
     // Steps once, which swaps in the other scene, and records the outgoing scene, its entities and
     // their components. Nothing on this stack outlives the call to keep them alive.

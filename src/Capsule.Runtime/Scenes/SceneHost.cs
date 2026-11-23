@@ -147,9 +147,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
             return;
         }
 
-        SceneSimulation stepped = _current;
-        stepped.Step(context);
-        Finish(stepped, context);
+        _current.Step(context);
+        Finish(context);
     }
 
     // Step with the host's before-step act inside the current scene's step. A scene the act asks for
@@ -161,20 +160,21 @@ internal sealed class SceneHost : ISimulation, IDisposable
             return;
         }
 
-        SceneSimulation stepped = _current;
-        ((ISimulation)stepped).Step(context, before);
-        Finish(stepped, context);
+        ((ISimulation)_current).Step(context, before);
+        Finish(context);
     }
 
-    // Resolves what the step asked for, then builds the prefetch whose document has had its lead or takes a new
-    // one. A step that opened a scene leaves a prefetch to the next step, which keeps the building of a second
-    // scene off the frame that pays for the first.
-    private void Finish(SceneSimulation stepped, in StepContext context)
+    // Scene entry runs after the replacement returns so the boundary collection can reclaim the outgoing
+    // scene. The incoming scene's prefetch waits until the next step so the host builds at most one scene per step.
+    private void Finish(in StepContext context)
     {
-        Consume();
-        if (ReferenceEquals(_current, stepped))
+        if (!Consume())
         {
             TakePrefetch(context);
+        }
+        else if (!ExitRequested)
+        {
+            SceneEntered?.Invoke();
         }
     }
 
@@ -189,12 +189,12 @@ internal sealed class SceneHost : ISimulation, IDisposable
         return !ExitRequested;
     }
 
-    // The transition the step just taken asked for, resolved at the host boundary.
-    private void Consume()
+    // Returns whether the step requested a transition and resolves it at the host boundary.
+    private bool Consume()
     {
         if (!_current.TryTakeTransition(out SceneTransition transition))
         {
-            return;
+            return false;
         }
 
         BoundaryReached?.Invoke();
@@ -230,6 +230,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
             default:
                 throw new InvalidOperationException($"Unknown scene transition kind '{transition.Kind}'.");
         }
+
+        return true;
     }
 
     // Loads the initial scene's pre-start collection through PrepareAssets, once. The initial scene
@@ -469,7 +471,6 @@ internal sealed class SceneHost : ISimulation, IDisposable
         _target = target;
         SceneKey = KeyOf(target);
         _composer?.Entered(incoming.Scene.DocumentKey);
-        SceneEntered?.Invoke();
     }
 
     // Resolves, prepares and starts the incoming scene ahead of the outgoing one's teardown. A
