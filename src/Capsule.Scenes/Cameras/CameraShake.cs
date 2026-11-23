@@ -13,7 +13,10 @@ namespace Capsule.Scenes;
 /// A short vertical jolt that alternates every step at 60 steps a second:
 /// <code>Scene.Camera.Shake(new CameraShake(new Vector2(0f, 3f), 0.1f) { Wave = ShakeWave.Sine, Frequency = 30f });</code>
 /// </example>
-/// <param name="Amplitude">The farthest the view moves on each axis at full strength, in world units.</param>
+/// <param name="Amplitude">
+/// The farthest the view moves on each axis at full strength, in world units. A component's sign sets the side
+/// a <see cref="ShakeWave.Pulse"/> moves to and a <see cref="ShakeWave.Sine"/> starts on.
+/// </param>
 /// <param name="Seconds">How long the shake lasts, greater than zero and finite.</param>
 public readonly record struct CameraShake(Vector2 Amplitude, float Seconds)
 {

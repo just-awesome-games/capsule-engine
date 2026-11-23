@@ -106,6 +106,27 @@ public sealed class CameraShakeTests
         Assert.Equal(OneScreen, regions[9]);
     }
 
+    // A pulse at half the step rate lands on its peak and on rest by turns. The view never passes the
+    // place it rests.
+    // A negative component moves that axis the other way.
+    [Theory]
+    [InlineData(3f, 4f)]
+    [InlineData(-3f, -4f)]
+    public void APulseAtHalfTheStepRate_AlternatesItsAmplitudeAndRest_AndNeverPassesRest(float x, float y)
+    {
+        (SceneSimulation simulation, Camera camera) = SceneFixtures.Pinned();
+        camera.Shake(new CameraShake(new Vector2(x, y), 9f / 60f) { Wave = ShakeWave.Pulse, Frequency = 30f, Sustain = 1f });
+
+        Rect[] regions = Steps(simulation, camera, 10);
+
+        for (int step = 0; step < 9; step++)
+        {
+            Assert.Equal(step % 2 == 0 ? new Vector2(x, y) : Vector2.Zero, regions[step].Position);
+        }
+
+        Assert.Equal(OneScreen, regions[9]);
+    }
+
     // A shake held to its end draws every step that starts inside its seconds, at full strength, and
     // nothing after. 0.14 seconds is 8.4 steps, and its ninth step starts inside it. A minute holds
     // 3600 steps, where a subtracted envelope would drift by several.
@@ -183,12 +204,13 @@ public sealed class CameraShakeTests
     }
 
     [Theory]
-    [InlineData(-1f, 1f, 15f, 0f, ShakeWave.Noise)]
+    [InlineData(float.NaN, 1f, 15f, 0f, ShakeWave.Noise)]
+    [InlineData(float.PositiveInfinity, 1f, 15f, 0f, ShakeWave.Noise)]
     [InlineData(1f, 0f, 15f, 0f, ShakeWave.Noise)]
     [InlineData(1f, 1f, -1f, 0f, ShakeWave.Noise)]
     [InlineData(1f, 1f, 15f, -0.1f, ShakeWave.Noise)]
     [InlineData(1f, 1f, 15f, 1.1f, ShakeWave.Noise)]
-    [InlineData(1f, 1f, 15f, 0f, (ShakeWave)2)]
+    [InlineData(1f, 1f, 15f, 0f, (ShakeWave)(-1))]
     public void AProfileOutOfRange_IsRefused(float amplitude, float seconds, float frequency, float sustain, ShakeWave wave)
     {
         (_, Camera camera) = SceneFixtures.Pinned();

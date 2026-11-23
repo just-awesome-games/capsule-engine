@@ -120,13 +120,13 @@ public partial class Camera
     /// </remarks>
     public void Shake(in CameraShake shake)
     {
-        Guard.NonNegative(shake.Amplitude, nameof(shake));
+        Guard.Finite(shake.Amplitude, nameof(shake));
         Guard.Positive(shake.Seconds, nameof(shake));
         Guard.NonNegative(shake.Frequency, nameof(shake));
         Guard.InUnit(shake.Sustain, nameof(shake));
-        if (shake.Wave is not (ShakeWave.Noise or ShakeWave.Sine))
+        if (!Enum.IsDefined(shake.Wave))
         {
-            throw new ArgumentOutOfRangeException(nameof(shake), shake.Wave, "Expected a ShakeWave member. Use Noise or Sine.");
+            throw new ArgumentOutOfRangeException(nameof(shake), shake.Wave, "Expected a declared ShakeWave member.");
         }
 
         float fall = Fall;
@@ -177,9 +177,12 @@ public partial class Camera
 
         long cell = _isProfile ? _profileCell : _shakeCell;
         float fraction = _isProfile ? _profileFraction : _shakeFraction;
-        Vector2 wave = _wave == ShakeWave.Sine
-            ? new Vector2(DeterministicMath.Cos(MathF.Tau * fraction))
-            : new Vector2(ValueNoise.Sample(0, cell, fraction), ValueNoise.Sample(1, cell, fraction));
+        Vector2 wave = _wave switch
+        {
+            ShakeWave.Sine => new Vector2(DeterministicMath.Cos(MathF.Tau * fraction)),
+            ShakeWave.Pulse => new Vector2(0.5f + (0.5f * DeterministicMath.Cos(MathF.Tau * fraction))),
+            _ => new Vector2(ValueNoise.Sample(0, cell, fraction), ValueNoise.Sample(1, cell, fraction)),
+        };
         Vector2 amplitude = _isProfile ? _profileAmplitude : ShakeAmplitude;
         float fall = Fall;
         float strength = _scene?.RunOrNull?.Display.ShakeStrength ?? 1f;

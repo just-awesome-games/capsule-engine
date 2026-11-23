@@ -84,6 +84,6 @@ public sealed record class PlayerTuning(
         HurtFreezeTicks: 6,
         HurtShake: 0.6f,
         HardLandingSpeed: 300f,
-        HardLandingShake: new CameraShake(new Vector2(0f, 2f), 0.15f) { Wave = ShakeWave.Sine, Frequency = 30f },
+        HardLandingShake: new CameraShake(new Vector2(0f, 2f), 0.15f) { Wave = ShakeWave.Pulse, Frequency = 30f },
         ArrivalRevealSeconds: 0.4f);
 }
