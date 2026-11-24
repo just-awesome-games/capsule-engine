@@ -4,10 +4,13 @@ namespace MinimalGame.Game.UI;
 /// One menu item as wide as its slot, holding a focus box, a caption, a highlight bar and an optional
 /// <see cref="ActionPrompt"/>, which says it was pressed and never what pressing means.
 /// </summary>
-public sealed class MenuItem : ScreenEntity
+/// <remarks>
+/// The item fits its caption and prompt as they show now, and a column of items is as wide as the widest.
+/// </remarks>
+public sealed class MenuItem : BoxContainer
 {
     /// <summary>Canvas pixels between neighbouring items in a column.</summary>
-    public const float Spacing = 4f;
+    public const float RowSpacing = 4f;
 
     /// <summary>The box's narrowest width in canvas pixels, whatever the caption measures.</summary>
     public const float MinWidth = 88f;
@@ -27,6 +30,9 @@ public sealed class MenuItem : ScreenEntity
     private readonly ColorRect _bar;
     private readonly ActionPrompt? _prompt;
 
+    // The rect the prompt draws in, as wide as the prompt and the gap before it.
+    private readonly ScreenEntity? _promptSlot;
+
     // Handed to the menu's navigator, which is the only thing that may move this item's focus.
     internal Focusable Focusable { get; }
 
@@ -38,29 +44,27 @@ public sealed class MenuItem : ScreenEntity
     /// <summary>An item whose caption is set once it starts, as a row showing a setting's value is.</summary>
     /// <param name="prompt">The action whose button is shown after the caption, or null for none.</param>
     public MenuItem(InputAction? prompt = null)
-        : base(Anchor.TopWide, Vector2.Zero)
+        : base(Axis.Vertical, Anchor.TopWide, Vector2.Zero)
     {
         // Everything is attached here, where the font and the prompt art join the scene's preload.
         // Spanning the slot makes a column's items all as wide as the widest.
+        Size = new Vector2(MinWidth, BoxHeight);
+        Padding = new Insets(HorizontalPadding, 0f, HorizontalPadding, 0f);
+
         _bar = new ColorRect { Visible = false };
-
-        _caption = new Label(CapsuleAssets.Fonts.MenuFont)
-        {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Middle,
-            Color = RestingInk,
-        };
-
+        _caption = new Label(CapsuleAssets.Fonts.MenuFont) { Color = RestingInk };
         Focusable = new Focusable();
-
-        // The caption draws over the bar attached before it.
         Add(_bar);
-        Add(_caption);
         Add(Focusable);
+
+        // The caption and the prompt sit side by side, centred together in the item.
+        BoxContainer line = new(Axis.Horizontal, Anchor.Top, Vector2.Zero) { Parent = this, Size = new Vector2(0f, BoxHeight) };
+        new ScreenEntity(Anchor.Left, Vector2.Zero) { Parent = line }.Add(_caption);
 
         if (prompt is { } action)
         {
-            _prompt = new ActionPrompt(this, action);
+            _promptSlot = new ScreenEntity(Anchor.Left, Vector2.Zero) { Parent = line };
+            _prompt = new ActionPrompt(_promptSlot, action) { Position = new Vector2(PromptGap, 0f) };
         }
 
         Highlight(Focusable, _caption, _bar, _prompt);
@@ -80,15 +84,6 @@ public sealed class MenuItem : ScreenEntity
         remove => Focusable.SecondaryPressed -= value;
     }
 
-    /// <summary>
-    /// The width in canvas pixels the caption and the prompt take as they show now, in the run's language,
-    /// and never less than <see cref="MinWidth"/>.
-    /// </summary>
-    public float ContentWidth => Math.Max(MinWidth, _caption.ContentSize.X + Trail + (2f * HorizontalPadding));
-
-    // The gap and the prompt after the caption, or nothing while the prompt shows nothing.
-    private float Trail => _prompt is { Visible: true, Width: > 0f } shown ? PromptGap + shown.Width : 0f;
-
     /// <summary>The caption as it shows now, in the run's language.</summary>
     public string Caption => _caption.Text;
 
@@ -101,8 +96,8 @@ public sealed class MenuItem : ScreenEntity
     /// <summary>Whether the prompt after the caption shows. An item built with no prompt shows none.</summary>
     public bool ShowsPrompt
     {
-        get => _prompt is { Visible: true };
-        set => _prompt?.Visible = value;
+        get => _promptSlot is { Visible: true };
+        set => _promptSlot?.Visible = value;
     }
 
     // Inks a row's caption, and its prompt when it has one, and shows its bar while the row holds the focus.
@@ -119,31 +114,13 @@ public sealed class MenuItem : ScreenEntity
         }
     }
 
-    // The caption resolves against the run's language from here. Sizing here sizes the first frame.
-    /// <inheritdoc/>
-    protected override void OnStart() => Size = new Vector2(ContentWidth, BoxHeight);
-
-    // The caption and its prompt are centred together, and the box grows to hold both. Focused ink never
-    // runs off the bar. The prompt has stepped by now, and its width is this step's.
+    // A sprite sizes no rect. The prompt has stepped by now, and its width is this step's.
     /// <inheritdoc/>
     protected override void OnLateStep(in StepContext context)
     {
-        float caption = _caption.ContentSize.X;
-        float trail = Trail;
-        float width = ContentWidth;
-        if (Size.X != width)
+        if (_prompt is not null)
         {
-            Size = new Vector2(width, BoxHeight);
+            _promptSlot!.Size = new Vector2(_prompt.Width > 0f ? PromptGap + _prompt.Width : 0f, ActionPrompt.Height);
         }
-
-        if (_prompt is null)
-        {
-            return;
-        }
-
-        // The caption fills the item. Its bounds are the slot the item was given, which may be wider.
-        float slot = _caption.Bounds.Size.X;
-        _caption.Offset = new Vector2(-trail / 2f, 0f);
-        _prompt.Position = new Vector2(((slot + caption - trail) / 2f) + PromptGap, (BoxHeight - ActionPrompt.Height) / 2f);
     }
 }

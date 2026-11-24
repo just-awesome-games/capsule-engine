@@ -11,8 +11,9 @@ namespace Capsule.UI;
 /// </summary>
 /// <remarks>
 /// On each axis a child's slot is the larger of the padded inside and the child's preferred extent, moved back
-/// by <see cref="ScrollOffset"/>. An axis scrolls only where its content overflows. The container never grows to
-/// fit its children, and it clips with a <see cref="ClipRect"/> of its own.
+/// by <see cref="ScrollOffset"/>. The container grows to fit its children up to <see cref="ScreenEntity.MaxSize"/>,
+/// and an axis scrolls only where its content overflows that or a span. It clips with a <see cref="ClipRect"/> of
+/// its own.
 /// <para>
 /// The wheel scrolls the innermost container under the pointer, each axis by its own wheel axis, and never
 /// chains to the one above at a limit. A focused <see cref="Focusable"/> under the pointer keeps the wheel axes
@@ -28,7 +29,7 @@ namespace Capsule.UI;
 /// <example>
 /// A list of rows in a frame that shows five of them and scrolls the rest:
 /// <code>
-/// ScrollContainer frame = new(Anchor.Center, Vector2.Zero) { Size = new Vector2(104f, 80f) };
+/// ScrollContainer frame = new(Anchor.Center, Vector2.Zero) { Size = new Vector2(104f, 0f), MaxSize = new Vector2(104f, 80f) };
 /// BoxContainer rows = new(Axis.Vertical, Anchor.TopWide, Vector2.Zero) { Parent = frame, Spacing = 2f };
 /// for (int i = 0; i &lt; 12; i++)
 /// {
@@ -78,7 +79,15 @@ public class ScrollContainer : ScreenEntity
     /// How far the content can scroll on each axis, in canvas pixels: how much of the tallest and widest
     /// visible child lies past the padded inside. Zero on an axis whose content fits.
     /// </summary>
-    public Vector2 MaxScrollOffset => MaxFor(Padding.Inside(Extent));
+    public Vector2 MaxScrollOffset
+    {
+        get
+        {
+            Vector2 extent = Measure(out float given);
+
+            return MaxFor(Padding.Inside(extent), Inner(given));
+        }
+    }
 
     /// <summary>
     /// The canvas pixels one wheel notch scrolls, where zero, the default, scrolls an eighth of the padded
@@ -99,14 +108,51 @@ public class ScrollContainer : ScreenEntity
         Add(new ScrollWheel());
     }
 
-    // The corner of `child`'s slot and its extent. The offset is clamped to what the content allows now.
-    internal Vector2 Place(ScreenEntity child, Vector2 extent, bool previous, out Vector2 slot)
+    // The corner of `child`'s slot and its extent, under the width cap `cap` this container hands its
+    // children. The offset is clamped to what the content allows now.
+    internal Vector2 Place(ScreenEntity child, Vector2 extent, float cap, bool previous, out Vector2 slot)
     {
         Vector2 inside = Padding.Inside(extent);
-        Vector2 offset = Vector2.Clamp(previous ? PreviousOffset : _offset, Vector2.Zero, MaxFor(inside));
-        slot = Vector2.Max(inside, child.Preferred);
+        Vector2 offset = Vector2.Clamp(previous ? PreviousOffset : _offset, Vector2.Zero, MaxFor(inside, cap));
+        slot = Grown(child, inside, cap);
 
         return new Vector2(Padding.Left, Padding.Top) - offset;
+    }
+
+    // A child's slot: the padded inside grown to the child on each axis.
+    internal static Vector2 Grown(ScreenEntity child, Vector2 inside, float cap) =>
+        new(Math.Max(inside.X, child.PreferredWidth(cap)), Math.Max(inside.Y, Height(child, inside.X, cap)));
+
+    // The widest visible child's preferred width.
+    internal float ContentWidth(float cap)
+    {
+        float content = 0f;
+
+        foreach (Entity entity in Children)
+        {
+            if (entity is ScreenEntity { Visible: true } child)
+            {
+                content = Math.Max(content, child.PreferredWidth(cap));
+            }
+        }
+
+        return content;
+    }
+
+    // The tallest visible child's preferred height in a padded inside `inside` wide.
+    internal float ContentHeight(float inside, float cap)
+    {
+        float content = 0f;
+
+        foreach (Entity entity in Children)
+        {
+            if (entity is ScreenEntity { Visible: true } child)
+            {
+                content = Math.Max(content, Height(child, inside, cap));
+            }
+        }
+
+        return content;
     }
 
     // Scrolls by the least that brings `item`, in canvas pixels, inside the padded inside. An item larger
@@ -171,20 +217,12 @@ public class ScrollContainer : ScreenEntity
     }
 
     // How much of the largest visible child lies past `inside`, per axis.
-    private Vector2 MaxFor(Vector2 inside)
-    {
-        Vector2 content = Vector2.Zero;
+    private Vector2 MaxFor(Vector2 inside, float cap) =>
+        Vector2.Max(new Vector2(ContentWidth(cap), ContentHeight(inside.X, cap)) - inside, Vector2.Zero);
 
-        foreach (Entity entity in Children)
-        {
-            if (entity is ScreenEntity { Visible: true } child)
-            {
-                content = Vector2.Max(content, child.Preferred);
-            }
-        }
-
-        return Vector2.Max(content - inside, Vector2.Zero);
-    }
+    // A child's preferred height at the width its slot, the inside grown to the child, gives it.
+    private static float Height(ScreenEntity child, float inside, float cap) =>
+        child.PreferredHeight(child.WidthIn(Math.Max(inside, child.PreferredWidth(cap)), cap), cap);
 
     private bool Contains(Vector2 point) =>
         ClipRect.OuterRect(this, previous: false).Contains(point) && ClipRect.Admits(this, point);

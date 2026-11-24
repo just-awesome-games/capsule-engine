@@ -132,6 +132,27 @@ public sealed class Run
     // Counts every applied language request. A keyed label re-resolves when it changes.
     internal int LanguageVersion { get; private set; }
 
+    // Counts changes to anything keyed text resolves against: the language, and the input a button's name
+    // reads. A container's cached solve compares it, since a label's text can change with no write. It starts
+    // above zero, the version a solve outside any run reads.
+    internal int TextVersion
+    {
+        get
+        {
+            InputState input = InputState;
+            (int, InputDevice, PadFamily, int, int) sources = (LanguageVersion, input.ActiveDevice, input.PadFamily, Input.Bindings.Version, input.KeyLayoutVersion);
+            if (sources != _textSources)
+            {
+                _textSources = sources;
+                field++;
+            }
+
+            return field;
+        }
+    } = 1;
+
+    private (int Language, InputDevice Device, PadFamily Family, int Bindings, int Layout) _textSources;
+
     // The input state every step of the run advances, which a label naming a button reads between steps too.
     // Built on first use over the run's bindings. The host advances this instance.
     internal InputState InputState => field ??= new InputState(Input.Bindings);

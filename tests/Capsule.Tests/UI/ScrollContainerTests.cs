@@ -160,6 +160,7 @@ public sealed class ScrollContainerTests
 
         menu.Pointer(new Vector2(10f, 5f)).Wheel(-1f);
         nested.Outer.Size = new Vector2(20f, 20f);
+        nested.Outer.MaxSize = new Vector2(20f, 20f);
 
         Assert.Equal(new Vector2(0f, 30f), nested.Outer.ScrollOffset);
     }
@@ -196,7 +197,7 @@ public sealed class ScrollContainerTests
 
         internal Rig()
         {
-            Frame = new ScrollContainer(Anchor.TopLeft, Vector2.Zero) { Size = new Vector2(20f, 40f), Padding = new Insets(0f, PaddedTop, 0f, 3f) };
+            Frame = new ScrollContainer(Anchor.TopLeft, Vector2.Zero) { Size = new Vector2(20f, 40f), MaxSize = new Vector2(20f, 40f), Padding = new Insets(0f, PaddedTop, 0f, 3f) };
             Rows = new BoxContainer(Axis.Vertical, Anchor.TopWide, Vector2.Zero) { Parent = Frame };
 
             for (int i = 0; i < 6; i++)
@@ -225,9 +226,9 @@ public sealed class ScrollContainerTests
 
         internal Nested(float outerHeight)
         {
-            Outer = new ScrollContainer(Anchor.TopLeft, Vector2.Zero) { Size = new Vector2(20f, outerHeight) };
+            Outer = new ScrollContainer(Anchor.TopLeft, Vector2.Zero) { Size = new Vector2(20f, outerHeight), MaxSize = new Vector2(20f, outerHeight) };
             BoxContainer column = new(Axis.Vertical, Anchor.TopWide, Vector2.Zero) { Parent = Outer };
-            Inner = new ScrollContainer(Anchor.TopWide, Vector2.Zero) { Parent = column, Size = new Vector2(0f, 20f) };
+            Inner = new ScrollContainer(Anchor.TopWide, Vector2.Zero) { Parent = column, Size = new Vector2(0f, 20f), MaxSize = new Vector2(float.PositiveInfinity, 20f) };
             BoxContainer innerRows = new(Axis.Vertical, Anchor.TopWide, Vector2.Zero) { Parent = Inner };
 
             Fill(innerRows, 6);

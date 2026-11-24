@@ -7,7 +7,7 @@ namespace MinimalGame.Game.UI;
 /// rebinding, the music, effects, screen shake and rumble levels, the display settings, the language and
 /// Back, with a <see cref="ScrollBar"/> beside it, over one <see cref="FocusNavigator"/>.
 /// </summary>
-public sealed class OptionsMenu : ScreenEntity
+public sealed class OptionsMenu : BoxContainer
 {
     // Canvas pixels between the list and its scroll bar.
     private const float BarGap = 4f;
@@ -37,9 +37,6 @@ public sealed class OptionsMenu : ScreenEntity
 
     private readonly MenuItem _back = new(CapsuleStrings.Menu.Back);
 
-    // Every row but the sliders, which the panel's width fits with them.
-    private readonly MenuItem[] _items;
-
     private readonly FocusNavigator _navigator;
 
     // Read once at start and kept: every change mutates this object, writes it and applies its one
@@ -50,12 +47,14 @@ public sealed class OptionsMenu : ScreenEntity
     private MenuItem? _listening;
 
     public OptionsMenu()
-        : base(Anchor.Center, Vector2.Zero)
+        : base(Axis.Horizontal, Anchor.Center, Vector2.Zero)
     {
-        _items = [_jump, _shoot, _fullscreen, _windowSize, _vsync, _frameCap, _lowLatency, _integerScaling, _language, _back];
+        Spacing = BarGap;
 
-        ScrollContainer list = new(Anchor.Fill, Vector2.Zero) { Parent = this, Padding = new Insets(0f, 0f, ScrollBar.Width + BarGap, 0f) };
-        BoxContainer column = new(Axis.Vertical, Anchor.TopWide, Vector2.Zero) { Parent = list, Spacing = MenuItem.Spacing };
+        // As wide as the widest row, and tall enough that only half of the fourth row shows, which tells the
+        // player there is more below.
+        ScrollContainer list = new(Anchor.TopLeft, Vector2.Zero) { Parent = this, MaxSize = new Vector2(float.PositiveInfinity, 3.5f * (MenuItem.BoxHeight + MenuItem.RowSpacing)) };
+        BoxContainer column = new(Axis.Vertical, Anchor.TopWide, Vector2.Zero) { Parent = list, Spacing = MenuItem.RowSpacing };
 
         _jump.Parent = column;
         _shoot.Parent = column;
@@ -112,13 +111,8 @@ public sealed class OptionsMenu : ScreenEntity
         _shake.Value = _settings.ShakeStrength;
         _rumble.Value = _settings.RumbleVolume;
         ShowDisplay();
-        Fit();
         Run.Game.Music.Play(CapsuleAssets.Audio.Music.TitleSound);
     }
-
-    // The rows' captions follow the language, and a capture's caption is wider than the row at rest.
-    /// <inheritdoc/>
-    protected override void OnLateStep(in StepContext context) => Fit();
 
     // Back cancels a capture here. The navigator reads nothing while a capture listens or on the step
     // it turns back on, and the same press never also leaves the screen.
@@ -255,25 +249,6 @@ public sealed class OptionsMenu : ScreenEntity
 
         _lowLatency.SetCaption(CapsuleStrings.Options.LowLatency, _settings.LowLatency ? CapsuleStrings.Options.On : CapsuleStrings.Options.Off);
         _integerScaling.SetCaption(CapsuleStrings.Options.IntegerScaling, _settings.IntegerScaling ? CapsuleStrings.Options.On : CapsuleStrings.Options.Off);
-    }
-
-    // As wide as the widest row shows now, and tall enough that only half of the fourth row shows, which
-    // tells the player there is more below.
-    private void Fit()
-    {
-        float widest = Math.Max(
-            Math.Max(_music.ContentWidth, _effects.ContentWidth),
-            Math.Max(_shake.ContentWidth, _rumble.ContentWidth));
-        foreach (MenuItem item in _items)
-        {
-            widest = Math.Max(widest, item.ContentWidth);
-        }
-
-        Vector2 size = new(widest + BarGap + ScrollBar.Width, 3.5f * (MenuItem.BoxHeight + MenuItem.Spacing));
-        if (Size != size)
-        {
-            Size = size;
-        }
     }
 
     private void Leave() => Run.RequestScene<MainMenu>();

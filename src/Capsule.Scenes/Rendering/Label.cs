@@ -26,6 +26,11 @@ namespace Capsule.Rendering;
 /// <see cref="ScreenEntity"/> holding it, or else the measured run.
 /// </para>
 /// <para>
+/// A <see cref="ScreenEntity"/>'s rect fits the label: the measured run, or <see cref="Size"/> on an axis
+/// that sets one. Wrapped text takes the width the rect is given and asks for none, or under a
+/// <see cref="ScreenEntity.MaxSize"/> its unwrapped width up to that bound. Its height follows from the width.
+/// </para>
+/// <para>
 /// A label given a <see cref="TextKey"/> shows that text in its run's active language, and shows the
 /// new one from the step a <see cref="Run.Language"/> request applies. A label given a button or an
 /// action shows its name as the run's input stands when it is read, after a device or pad switch, a
@@ -45,6 +50,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         {
             ArgumentNullException.ThrowIfNull(value);
             field = value;
+            ScreenEntity.Remeasure(Entity);
         }
     } = font ?? throw new ArgumentNullException(nameof(font));
 
@@ -55,8 +61,15 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     private ReadOnlyMemory<char> _memory = text.AsMemory();
     private char[] _buffer = [];
 
-    // Counts every write to the text. The cached layout reads it to tell the characters changed.
+    // The buffer a keyed text decodes into, which swaps with _buffer when the decoded text differs.
+    private char[] _spare = [];
+
+    // Counts every change to the characters. The cached layout and measure read it.
     private int _textVersion;
+
+    // The unwrapped run's width in font pixels, as of the key it was measured under.
+    private (int Version, BitmapFont Font, bool Rich, int FirstLine, int? MaxLines) _naturalKey;
+    private int _natural = -1;
 
     // The key and arguments the text resolves from while _keyed, built on the first keyed write and kept
     // for the next. A language change decodes them again.
@@ -93,10 +106,11 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         {
             ArgumentNullException.ThrowIfNull(value);
 
+            bool same = !_keyed && _memory.Span.SequenceEqual(value);
             _keyed = false;
             _text = value;
             _memory = value.AsMemory();
-            _textVersion++;
+            Changed(same);
         }
     }
 
@@ -109,16 +123,22 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// </remarks>
     public void SetText(ReadOnlySpan<char> text)
     {
+        if (!_keyed && _memory.Span.SequenceEqual(text))
+        {
+            return;
+        }
+
+        _keyed = false;
+
         if (_buffer.Length < text.Length)
         {
             _buffer = new char[Math.Max(text.Length, _buffer.Length * 2)];
         }
 
-        _keyed = false;
         text.CopyTo(_buffer);
         _memory = _buffer.AsMemory(0, text.Length);
         _text = null;
-        _textVersion++;
+        Changed(same: false);
     }
 
     /// <summary>Shows <paramref name="text"/> in the run's active language, in place of any text or key before it.</summary>
@@ -230,6 +250,10 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// The point on the box that sits at the entity's position plus <see cref="Offset"/>. Defaults to
     /// <see cref="Capsule.Rendering.Pivot.TopLeft"/>.
     /// </summary>
+    /// <remarks>
+    /// A label on a <see cref="ScreenEntity"/> draws from the rect's top-left corner whatever this holds. The
+    /// entity's <see cref="ScreenEntity.Anchor"/> places the rect the label fits.
+    /// </remarks>
     public Pivot Pivot { get; set; }
 
     /// <summary>
@@ -238,16 +262,33 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// </summary>
     /// <remarks>
     /// A zero axis on a <see cref="ScreenEntity"/> takes the entity's rect extent first, and the measured
-    /// run where that extent is zero too. On an axis the rect fills, <see cref="Pivot"/> reads zero and the
-    /// box is the rect itself. <see cref="Wrap"/> wraps inside a positive X.
+    /// run where that extent is zero too. <see cref="Wrap"/> wraps inside a positive X.
     /// </remarks>
-    public Vector2 Size { get; set; }
+    public Vector2 Size
+    {
+        get;
+
+        set
+        {
+            field = value;
+            ScreenEntity.Remeasure(Entity);
+        }
+    }
 
     /// <summary>
     /// Whether a line wider than <see cref="Size"/> breaks inside the box. Defaults to
     /// <see cref="TextWrap.None"/>.
     /// </summary>
-    public TextWrap Wrap { get; set; }
+    public TextWrap Wrap
+    {
+        get;
+
+        set
+        {
+            field = value;
+            ScreenEntity.Remeasure(Entity);
+        }
+    }
 
     /// <summary>
     /// Where each line sits between the box's left and right edges. Defaults to
@@ -259,7 +300,16 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// Where the run sits between the box's top and bottom edges. Defaults to
     /// <see cref="Capsule.Rendering.VerticalAlignment.Top"/>.
     /// </summary>
-    public VerticalAlignment VerticalAlignment { get; set; }
+    public VerticalAlignment VerticalAlignment
+    {
+        get;
+
+        set
+        {
+            field = value;
+            ScreenEntity.Remeasure(Entity);
+        }
+    }
 
     /// <summary>
     /// How many of <see cref="Text"/>'s leading codepoints are drawn, or null, the default, to draw
@@ -298,6 +348,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         {
             ArgumentOutOfRangeException.ThrowIfNegative(value);
             field = value;
+            ScreenEntity.Remeasure(Entity);
         }
     }
 
@@ -313,6 +364,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
             }
 
             field = value;
+            ScreenEntity.Remeasure(Entity);
         }
     }
 
@@ -328,6 +380,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         {
             ArgumentOutOfRangeException.ThrowIfNegative(value);
             field = value;
+            ScreenEntity.Remeasure(Entity);
         }
     }
 
@@ -368,6 +421,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
             }
 
             field = value;
+            ScreenEntity.Remeasure(Entity);
         }
     } = [];
 
@@ -411,7 +465,16 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// new Label(font, "Press [color=#ffd060]Start[/color]") { RichText = true };
     /// </code>
     /// </example>
-    public bool RichText { get; set; }
+    public bool RichText
+    {
+        get;
+
+        set
+        {
+            field = value;
+            ScreenEntity.Remeasure(Entity);
+        }
+    }
 
     /// <summary>A tint multiplied into every texel. White by default, which draws the font pages unchanged.</summary>
     public ColorRgba Color { get; set; } = ColorRgba.White;
@@ -428,6 +491,47 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     internal override bool Steps => false;
 
     internal override TransformSupport Supports => TransformSupport.Scale;
+
+    // A wrapping label with no width of its own takes the width it is given, and under a cap prefers its
+    // unwrapped width up to the cap. A negative width lays the run out unwrapped, as the draw does.
+    internal override float MeasureWidth(float cap)
+    {
+        if (Size.X > 0f)
+        {
+            return Size.X;
+        }
+
+        if (Unresolvable)
+        {
+            return 0f;
+        }
+
+        if (Wrap == TextWrap.Word && Size.X == 0f)
+        {
+            return float.IsFinite(cap) ? Math.Min(Natural(), cap) : 0f;
+        }
+
+        return Natural();
+    }
+
+    // Lays the run out at the width the next draw gives it, which the draw then reuses.
+    internal override float MeasureHeight(float width)
+    {
+        if (Size.Y > 0f)
+        {
+            return Size.Y;
+        }
+
+        if (Unresolvable)
+        {
+            return 0f;
+        }
+
+        // The world scale is the drawn one. The render transform adds the screen origin, which reads this measure.
+        LabelLayout layout = Laid(Vector2.Abs(Entity!.World.Scale), new Vector2(Size.X != 0f ? Size.X : width, 0f), out _);
+
+        return layout.IsEmpty ? 0f : layout.Height;
+    }
 
     /// <summary>
     /// The box this label lays its text out in. It uses <see cref="Size"/> on each axis where that
@@ -550,8 +654,14 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     // its own units, and size the same in the drawn space's.
     private LabelLayout Laid(Vector2 scale, out Vector2 box, out Vector2 size)
     {
-        Resolve();
         box = ScreenEntity.Fill(Entity, Size);
+
+        return Laid(scale, box, out size);
+    }
+
+    private LabelLayout Laid(Vector2 scale, Vector2 box, out Vector2 size)
+    {
+        Resolve();
         size = box * scale;
 
         LabelLayoutKey key = new(
@@ -598,10 +708,47 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         _resolvedRun = run;
         _resolvedVersion = run.LanguageVersion;
         _resolvedInputs = inputs;
-        int length = keyed.Decode(run.ActiveLanguage, run.InputState, run.Strings, ref _buffer);
+        int length = keyed.Decode(run.ActiveLanguage, run.InputState, run.Strings, ref _spare);
+        if (_memory.Span.SequenceEqual(_spare.AsSpan(0, length)))
+        {
+            return;
+        }
+
+        (_buffer, _spare) = (_spare, _buffer);
         _memory = _buffer.AsMemory(0, length);
         _text = null;
         _textVersion++;
+    }
+
+    // Moves the text on to a new version unless it is the same as before, and reflows what fits this label. A
+    // write that ends a keyed text is never the same, since a keyed text measured nothing outside a running scene.
+    private void Changed(bool same)
+    {
+        if (!same)
+        {
+            _textVersion++;
+            ScreenEntity.Remeasure(Entity);
+        }
+    }
+
+    // Whether the text is keyed and its entity in no running scene, where it cannot resolve. It measures
+    // nothing until then, and the run's text version moves on from the one a solve outside it read.
+    private bool Unresolvable => _keyed && Entity?.SceneOrNull?.RunOrNull is null;
+
+    // The unwrapped run's width in font pixels, measured apart from the drawn layout so a measure never
+    // evicts it. A wrapped run's lines exist only once it wraps, and it measures every line of its text.
+    private int Natural()
+    {
+        Resolve();
+        bool wraps = Wrap == TextWrap.Word && Size.X == 0f;
+        (int Version, BitmapFont Font, bool Rich, int FirstLine, int? MaxLines) key = (_textVersion, Font, RichText, wraps ? 0 : FirstLine, wraps ? null : MaxLines);
+        if (_natural < 0 || key != _naturalKey)
+        {
+            _naturalKey = key;
+            _natural = (_layout ??= new LabelLayout()).Natural(_memory.Span, Font, RichText, key.FirstLine, key.MaxLines);
+        }
+
+        return _natural;
     }
 
     // Shows _keyedText from the next read, once a keyed write has filled it. A refused write never gets here
@@ -610,6 +757,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     {
         _keyed = true;
         _resolvedRun = null;
+        ScreenEntity.Remeasure(Entity);
     }
 
     // The scale a line query lays the run out at, which is the one the next draw uses.
@@ -637,7 +785,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         Vector2 measured = new Vector2(layout.Width, layout.Height) * scale;
 
         // An axis the fill changed is the screen entity's rect, which starts at the entity's position.
-        Pivot pivot = new(box.X != Size.X ? 0f : Pivot.X, box.Y != Size.Y ? 0f : Pivot.Y);
+        Pivot pivot = Entity is ScreenEntity ? default : Pivot;
 
         return TextBox.Place(position, pivot, TextBox.Extent(size, measured), measured, VerticalAlignment, out origin);
     }

@@ -104,6 +104,14 @@ public readonly record struct Anchor
         ? string.Create(CultureInfo.InvariantCulture, $"({_minX}, {_minY})")
         : string.Create(CultureInfo.InvariantCulture, $"({_minX}, {_minY})-({_maxX}, {_maxY})");
 
+    // Whether the anchor spans its slot on X, where the rect takes its share of the slot's width and not its own.
+    internal bool SpansX => _minX != _maxX;
+
+    // The share of a slot's width a span on X takes.
+    internal float ShareX => _maxX - _minX;
+
+    internal bool SpansY => _minY != _maxY;
+
     // Places a rect of `size` inside the rect from `min` spanning `extent`. Returns the anchor point,
     // which is a spanned axis's near edge, and writes the rect's extent.
     internal Vector2 Place(Vector2 min, Vector2 extent, Vector2 size, out Vector2 placed)

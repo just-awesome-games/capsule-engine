@@ -32,6 +32,8 @@ internal sealed class Replay
     private double _refreshRate;
     private int _checkpoint;
     private long? _matched;
+    private string?[]? _keyLayout;
+    private bool _keyLayoutRead;
 
     internal bool HoldsAtEnd { get; }
 
@@ -108,6 +110,10 @@ internal sealed class Replay
                 case RecordingFormat.Act:
                     act += Apply(in read.Act, tick);
                     break;
+                case RecordingFormat.KeyLayout:
+                    _keyLayout = read.KeyLayout;
+                    _keyLayoutRead = true;
+                    break;
             }
         }
 
@@ -117,6 +123,17 @@ internal sealed class Replay
         snapshot = _snapshot;
 
         return true;
+    }
+
+    // The layout a KeyLayout record set before the step TryNext just supplied, or false when it set none.
+    internal bool TakeKeyLayout(out string?[]? layout)
+    {
+        layout = _keyLayout;
+        bool read = _keyLayoutRead;
+        _keyLayout = null;
+        _keyLayoutRead = false;
+
+        return read;
     }
 
     // After the step that brought the run to tick. A run that exits before the recording's end, or whose

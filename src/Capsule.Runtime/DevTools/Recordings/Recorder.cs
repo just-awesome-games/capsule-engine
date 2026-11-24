@@ -25,6 +25,9 @@ internal sealed class Recorder
     private DeviceSnapshot _previous;
     private long _repeats;
 
+    // The layout the steps so far read, compared by reference: the run installs a new array to change it.
+    private string?[]? _layout;
+
     // NaN until the first step writes the run's.
     private Vector2 _output = new(float.NaN);
     private double _refreshRate = double.NaN;
@@ -56,13 +59,21 @@ internal sealed class Recorder
     }
 
     // The step about to run on snapshot, before the input state advances to it. The first step takes the
-    // run's initial device and key layout.
+    // run's initial device and key layout, and a later one records the layout it reads when that changed.
     internal void Step(in DeviceSnapshot snapshot, Vector2 output, InputState input)
     {
         if (Ticks == 0)
         {
             _header.Device = input.ActiveDevice;
             _header.KeyLayout = input.KeyLayout is { } layout ? [.. layout] : null;
+            _layout = input.KeyLayout;
+        }
+        else if (!ReferenceEquals(input.KeyLayout, _layout))
+        {
+            Flush();
+            _layout = input.KeyLayout;
+            _body.WriteByte(RecordingFormat.KeyLayout);
+            RecordingHeader.WriteKeyLayout(_body, _layout);
         }
 
         if (!RecordingBody.SameBits(output, _output))

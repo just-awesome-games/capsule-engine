@@ -55,7 +55,7 @@ public sealed class KeyCharacterTests
     public void AnInstalledLayout_GivesTheCharactersItPrints()
     {
         InputState input = new(new ActionBindings());
-        input.UseKeyLayout(Azerty());
+        input.UseKeyLayout(InputFixtures.Azerty());
 
         Assert.Equal("Z", input.KeyCharacter(Key.W));
         Assert.Equal("A", input.KeyCharacter(Key.Q));
@@ -72,20 +72,11 @@ public sealed class KeyCharacterTests
         using SceneHost host = new(SceneTransition.ToScene(typeof(CharacterRecorder), null), (in SceneTransition _) => scene, new Run());
         IInputDriver? driver = driven ? new InputScript().Wait(1).Build() : null;
         FixedStepScheduler scheduler = new(0.1, 1, new InputState(new ActionBindings()), driver, host);
-        scheduler.UseKeyLayout(Azerty());
+        scheduler.UseKeyLayout(InputFixtures.Azerty());
 
         scheduler.Advance(0.1, DeviceSnapshot.Empty, host);
 
         Assert.Equal([expected], scene.Characters);
-    }
-
-    private static string?[] Azerty()
-    {
-        string?[] layout = new string?[(int)Key.NumpadDecimal + 1];
-        layout[(int)Key.W] = "Z";
-        layout[(int)Key.Q] = "A";
-
-        return layout;
     }
 
     private sealed class CharacterRecorder : Scene

@@ -129,9 +129,7 @@ internal sealed class FramePane : ScreenEntity
 
         const int padding = OverlayScene.Padding;
         Vector2 measured = OverlayScene.Font.Measure(text);
-        float width = (int)measured.X + (padding * 2);
-        _backdrop.Offset = new Vector2(-width, 0f);
-        _backdrop.Size = new Vector2(width, measured.Y + (padding * 2));
-        _label.Offset = new Vector2(padding - width, padding);
+        _backdrop.Size = new Vector2((int)measured.X + (padding * 2), measured.Y + (padding * 2));
+        _label.Offset = new Vector2(padding, padding);
     }
 }

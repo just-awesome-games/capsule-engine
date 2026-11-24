@@ -124,9 +124,9 @@ internal sealed class OverlayScene : Scene
     internal string Status => _status.Text;
 
     // Both are empty while the page fits its window.
-    internal Rect ScrollTrack => _track.Bounds;
+    internal Rect ScrollTrack => _track.Visible ? _track.Bounds : default;
 
-    internal Rect ScrollThumb => _thumb.Bounds;
+    internal Rect ScrollThumb => _thumb.Visible ? _thumb.Bounds : default;
 
     internal string[] ShownRows()
     {
@@ -296,8 +296,10 @@ internal sealed class OverlayScene : Scene
         bool scrolls = rows.Count > MaxRows;
         float height = MaxRows * Font.LineHeight;
         _track.Offset = new Vector2(_width - Padding + ((Padding - ScrollbarWidth) / 2f), RowTop(_rowsAbove));
-        _track.Size = scrolls ? new Vector2(ScrollbarWidth, height) : Vector2.Zero;
-        _thumb.Size = scrolls ? new Vector2(ScrollbarWidth, height * _shown / rows.Count) : Vector2.Zero;
+        _track.Size = new Vector2(ScrollbarWidth, height);
+        _thumb.Size = new Vector2(ScrollbarWidth, height * _shown / rows.Count);
+        _track.Visible = scrolls;
+        _thumb.Visible = scrolls;
 
         // No window is shown yet.
         _top = -1;
@@ -318,7 +320,8 @@ internal sealed class OverlayScene : Scene
         int focusedRow = focus - top;
         bool focused = focusedRow >= 0 && focusedRow < _shown && _page[focus].Activate is not null;
         _highlight.Offset = new Vector2(0f, RowTop(_rowsAbove + Math.Max(focusedRow, 0)));
-        _highlight.Size = focused ? new Vector2(_width, Font.LineHeight) : Vector2.Zero;
+        _highlight.Size = new Vector2(_width, Font.LineHeight);
+        _highlight.Visible = focused;
 
         if (_page.Count > MaxRows)
         {

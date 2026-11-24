@@ -3,18 +3,18 @@ namespace MinimalGame.Game.UI;
 /// <summary>One row of a menu holding a level from 0 to 1 in tenths.</summary>
 /// <remarks>
 /// It draws its caption, a <see cref="Meter"/> showing the level, and the same highlight a
-/// <see cref="MenuItem"/> takes. It spans its slot's width and its meter sits on its right edge. A
-/// column's meters then line up. Left and right step the level while it has the focus, and up and down
+/// <see cref="MenuItem"/> takes. It spans its slot's width, fits its caption and meter, and sets both
+/// against its right edge. A column's meters then line up. Left and right step the level while it has the focus, and up and down
 /// move on. Dragging the meter or turning the wheel over the focused row sets the level too.
 /// </remarks>
-public sealed class VolumeSlider : ScreenEntity
+public sealed class VolumeSlider : BoxContainer
 {
     private const float HorizontalPadding = 8f;
     private const float Gap = 8f;
 
     private readonly Label _caption;
     private readonly ColorRect _bar;
-    private readonly Meter _meter = new(Anchor.Right, Vector2.Zero);
+    private readonly Meter _meter = new(Anchor.Left, Vector2.Zero);
 
     /// <summary>Raised with the new level when the player changes it, and never when <see cref="Value"/> is set.</summary>
     public event Action<float>? Changed;
@@ -28,21 +28,17 @@ public sealed class VolumeSlider : ScreenEntity
 
     /// <param name="text">The caption drawn before the meter.</param>
     public VolumeSlider(TextKey text)
-        : base(Anchor.TopWide, Vector2.Zero)
+        : base(Axis.Vertical, Anchor.TopWide, Vector2.Zero)
     {
+        Size = new Vector2(0f, MenuItem.BoxHeight);
         Padding = new Insets(HorizontalPadding, 0f, HorizontalPadding, 0f);
 
         _bar = new ColorRect { Visible = false };
+        _caption = new Label(CapsuleAssets.Fonts.MenuFont, text) { Color = MenuItem.RestingInk };
 
-        // Components fill the outer rect. The caption is moved in by the padding itself.
-        _caption = new Label(CapsuleAssets.Fonts.MenuFont, text)
-        {
-            Offset = new Vector2(HorizontalPadding, 0f),
-            VerticalAlignment = VerticalAlignment.Middle,
-            Color = MenuItem.RestingInk,
-        };
-
-        _meter.Parent = this;
+        BoxContainer line = new(Axis.Horizontal, Anchor.TopRight, Vector2.Zero) { Parent = this, Size = new Vector2(0f, MenuItem.BoxHeight), Spacing = Gap };
+        new ScreenEntity(Anchor.Left, Vector2.Zero) { Parent = line }.Add(_caption);
+        _meter.Parent = line;
 
         // The menu's navigator gathers this row, and nothing else needs to hold it.
         Focusable focus = new() { Adjusts = Axis.Horizontal };
@@ -58,24 +54,7 @@ public sealed class VolumeSlider : ScreenEntity
         };
 
         Add(_bar);
-        Add(_caption);
         Add(focus);
-    }
-
-    /// <summary>The narrowest width in canvas pixels that holds the caption, the gap and the meter inside the padding.</summary>
-    public float ContentWidth => _caption.ContentSize.X + Gap + _meter.Size.X + (2f * HorizontalPadding);
-
-    // Sized from the caption in the run's language, and again whenever the language changes it.
-    /// <inheritdoc/>
-    protected override void OnStart() => Size = new Vector2(ContentWidth, MenuItem.BoxHeight);
-
-    /// <inheritdoc/>
-    protected override void OnLateStep(in StepContext context)
-    {
-        if (Size.X != ContentWidth)
-        {
-            Size = new Vector2(ContentWidth, MenuItem.BoxHeight);
-        }
     }
 
     // Rounded to tenths, where a drag and the arrows land on the same levels.

@@ -41,7 +41,7 @@ public sealed class TitleMenu : ScreenEntity
             HorizontalAlignment = HorizontalAlignment.Center,
         });
 
-        BoxContainer column = new(Axis.Vertical, Anchor.Center, Vector2.Zero) { Parent = this, Spacing = MenuItem.Spacing };
+        BoxContainer column = new(Axis.Vertical, Anchor.Center, Vector2.Zero) { Parent = this, Spacing = MenuItem.RowSpacing };
         _start.Parent = column;
         _options.Parent = column;
         _exit.Parent = column;

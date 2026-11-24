@@ -36,7 +36,7 @@ public sealed class PauseMenu : ScreenEntity
         {
             Parent = this,
             Padding = new Insets(PanelPadding),
-            Spacing = MenuItem.Spacing,
+            Spacing = MenuItem.RowSpacing,
         };
         panel.Add(new ColorRect { Color = PanelColor });
 

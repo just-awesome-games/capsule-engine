@@ -14,6 +14,7 @@ internal struct RecordingEvent
     internal HostAct Act;
     internal long Tick;
     internal ulong Checksum;
+    internal string?[]? KeyLayout;
 }
 
 // Decodes the body's records in order, each Step against the snapshot before it, and the End record.
@@ -51,6 +52,9 @@ internal sealed class RecordingBody(RecordingReader reader)
             case RecordingFormat.Checkpoint:
                 read.Tick = (long)reader.ReadVarint();
                 read.Checksum = reader.ReadUInt64();
+                break;
+            case RecordingFormat.KeyLayout:
+                read.KeyLayout = RecordingHeader.ReadKeyLayout(reader);
                 break;
             case RecordingFormat.End:
                 long finalTick = (long)reader.ReadVarint();

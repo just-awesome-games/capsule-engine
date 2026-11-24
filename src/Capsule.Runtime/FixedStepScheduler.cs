@@ -28,6 +28,9 @@ internal sealed class FixedStepScheduler
     // The scene a driver is shown. A transition replaces it under the driver.
     private readonly SceneHost? _scenes;
 
+    // Whether the player's layout reaches the run: a played run, not a driven one or a replay.
+    private readonly bool _readsHostLayout;
+
     private double _accumulatorSeconds;
     private double _timeScale = 1;
     private bool _driverFinished;
@@ -35,6 +38,10 @@ internal sealed class FixedStepScheduler
 
     // Set by EndFrame during a step, and taken once that step completes.
     private bool _frameEnded;
+
+    // A layout change waiting for the top of the next step, or a replay's recorded one.
+    private string?[]? _pendingKeyLayout;
+    private bool _keyLayoutPending;
 
     internal long Tick { get; private set; }
 
@@ -93,6 +100,7 @@ internal sealed class FixedStepScheduler
         _input = input;
         _driver = driver;
         _scenes = scenes;
+        _readsHostLayout = driver is null && replay is null;
         if (Development.IsSupported)
         {
             Recorder = recorder;
@@ -163,14 +171,26 @@ internal sealed class FixedStepScheduler
         }
     }
 
-    // Reads key characters from the player's keyboard layout, which the host rewrites in place on a
-    // change. A driven run ignores it and reads a US layout's, as a headless run does. A replay reads the
-    // recorded layout, and keeps it after handing over to live input.
+    // Reads key characters from the player's keyboard layout, copied as it stands. A driven run ignores
+    // it and reads a US layout's, as a headless run does. A replay reads the recorded layout, and keeps
+    // it after handing over to live input.
     internal void UseKeyLayout(string?[] characters)
     {
-        if (_driver is null && Replay is null)
+        if (_readsHostLayout)
         {
-            _input.UseKeyLayout(characters);
+            _input.UseKeyLayout([.. characters]);
+        }
+    }
+
+    // The player changed keyboard layout. The change is copied now and read from the top of the next
+    // step, never half way through one. The recorder writes it as input, and a replay reads it back at
+    // the same step.
+    internal void ChangeKeyLayout(string?[] characters)
+    {
+        if (_readsHostLayout)
+        {
+            _pendingKeyLayout = [.. characters];
+            _keyLayoutPending = true;
         }
     }
 
@@ -358,6 +378,11 @@ internal sealed class FixedStepScheduler
             Vector2 output = Output;
             bool more = replay.TryNext(Tick, ref output, out stepped, out act);
             Output = output;
+            if (more && replay.TakeKeyLayout(out string?[]? layout))
+            {
+                _pendingKeyLayout = layout;
+                _keyLayoutPending = true;
+            }
 
             return more;
         }
@@ -391,6 +416,13 @@ internal sealed class FixedStepScheduler
 
     private void RunStep(in DeviceSnapshot stepped, ISimulation simulation, Action? before)
     {
+        if (_keyLayoutPending)
+        {
+            _keyLayoutPending = false;
+            _input.UseKeyLayout(_pendingKeyLayout);
+            _pendingKeyLayout = null;
+        }
+
         if (Development.IsSupported)
         {
             Recorder?.Step(in stepped, Output, _input);

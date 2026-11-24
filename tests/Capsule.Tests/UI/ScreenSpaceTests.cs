@@ -52,10 +52,11 @@ public sealed class ScreenSpaceTests
 
         FrameView view = run.Simulation.View;
 
-        // The canvas's far corner, then the entity's own (-10, -20), then the rect's offset.
+        // The rect sizes its entity, whose far corner sits (-10, -20) from the canvas's. The rect then draws
+        // its offset from the entity's top-left corner.
         Assert.Empty(view.Sprites.ToArray());
-        Assert.Equal([new Vector2(90f, 30f), new Vector2(80f, 30f)], view.ScreenSprites.ToArray().Select(static drawn => drawn.Position));
-        Assert.Equal(Rect.FromEdges(80f, 30f, 84f, 34f), rect.Bounds);
+        Assert.Equal([new Vector2(86f, 26f), new Vector2(76f, 26f)], view.ScreenSprites.ToArray().Select(static drawn => drawn.Position));
+        Assert.Equal(Rect.FromEdges(76f, 26f, 80f, 30f), rect.Bounds);
     }
 
     [Theory]
@@ -224,7 +225,8 @@ public sealed class ScreenSpaceTests
 
     private static SimulationHost Run(Entity holder) => SceneFixtures.Simulate(new Run { Canvas = Canvas }, holder);
 
-    private static ColorRect Square() => new(new Vector2(8f, 8f));
+    // A sprite draws by its own pivot and sizes no rect, which leaves its entity a point.
+    private static SpriteRenderer Square() => new(SceneFixtures.Frame(8, 8));
 
     private sealed class Mover() : ScreenEntity(Anchor.TopLeft, Vector2.Zero)
     {

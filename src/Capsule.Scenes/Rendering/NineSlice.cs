@@ -37,9 +37,18 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
     /// <remarks>
     /// A size smaller than the insets on an axis keeps both edge slices at their own size and
     /// overlaps them. A zero axis on a <see cref="ScreenEntity"/> takes the entity's rect extent on that
-    /// axis.
+    /// axis, and any other is the least extent the rect fits.
     /// </remarks>
-    public Vector2 Size { get; set; } = size;
+    public Vector2 Size
+    {
+        get;
+
+        set
+        {
+            field = value;
+            ScreenEntity.Remeasure(Entity);
+        }
+    } = size;
 
     /// <summary>
     /// The point in the entity's own space where the panel's top-left corner lands, placed by the entity's
@@ -59,6 +68,10 @@ public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) :
     }
 
     internal override bool Steps => false;
+
+    internal override float MeasureWidth(float cap) => Extent(Size.X);
+
+    internal override float MeasureHeight(float width) => Extent(Size.Y);
 
     internal override TransformSupport Supports => TransformSupport.Scale;
 

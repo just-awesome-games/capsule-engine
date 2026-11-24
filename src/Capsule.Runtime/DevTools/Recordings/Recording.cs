@@ -188,16 +188,7 @@ internal sealed class RecordingHeader
             saves[index] = new RecordedSave(name, json, new SaveMetadata(created, ReadTime(reader)));
         }
 
-        string?[]? layout = null;
-        if (reader.ReadByte() != 0)
-        {
-            layout = new string?[reader.ReadCount(1024)];
-            for (int index = 0; index < layout.Length; index++)
-            {
-                layout[index] = ReadOptional(reader);
-            }
-        }
-
+        string?[]? layout = ReadKeyLayout(reader);
         byte device = reader.ReadByte();
         if (device > (byte)InputDevice.Gamepad)
         {
@@ -260,8 +251,15 @@ internal sealed class RecordingHeader
             WriteTime(writer, save.Metadata.UpdatedAt);
         }
 
-        writer.WriteByte(KeyLayout is null ? (byte)0 : (byte)1);
-        if (KeyLayout is { } layout)
+        WriteKeyLayout(writer, KeyLayout);
+        writer.WriteByte((byte)Device);
+    }
+
+    // A layout as the header and a KeyLayout record hold it: a flag, then each key's character.
+    internal static void WriteKeyLayout(ChunkedBuffer writer, string?[]? layout)
+    {
+        writer.WriteByte(layout is null ? (byte)0 : (byte)1);
+        if (layout is not null)
         {
             writer.WriteVarint((ulong)layout.Length);
             foreach (string? character in layout)
@@ -269,8 +267,22 @@ internal sealed class RecordingHeader
                 WriteOptional(writer, character);
             }
         }
+    }
 
-        writer.WriteByte((byte)Device);
+    internal static string?[]? ReadKeyLayout(RecordingReader reader)
+    {
+        if (reader.ReadByte() == 0)
+        {
+            return null;
+        }
+
+        string?[] layout = new string?[reader.ReadCount(1024)];
+        for (int index = 0; index < layout.Length; index++)
+        {
+            layout[index] = ReadOptional(reader);
+        }
+
+        return layout;
     }
 
     private static void WriteOptional(ChunkedBuffer writer, string? value)

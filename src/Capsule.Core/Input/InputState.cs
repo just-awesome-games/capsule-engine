@@ -20,11 +20,11 @@ public sealed class InputState
     private bool _activeDeviceChanged;
 
     // The characters the player's keyboard layout prints, indexed by key, or null for a US layout's.
-    // A null entry is a key the layout prints no character on. The host owns the array and rewrites it
-    // when the layout changes.
+    // A null entry is a key the layout prints no character on. The array is never rewritten, a change
+    // installs a new one.
     private string?[]? _keyLayout;
 
-    // Counts every layout installed or rewritten in place. A label naming a button follows it.
+    // Counts every layout installed. A label naming a button follows it.
     internal int KeyLayoutVersion { get; private set; }
 
     internal InputState(ActionBindings bindings) => _bindings = bindings;
@@ -165,22 +165,13 @@ public sealed class InputState
         _activeDevice = device;
     }
 
-    // Reads key characters from the player's keyboard layout from now on, or from a US layout's when
-    // null. Only a played run installs one, and a driven or headless run keeps the US characters it
-    // replays with.
+    // Reads key characters from the array, which the caller no longer changes, from now on, or from a US
+    // layout's when null. The scheduler installs one at the top of a step, and a driven or headless run
+    // keeps the US characters it replays with.
     internal void UseKeyLayout(string?[]? characters)
     {
         _keyLayout = characters;
         KeyLayoutVersion++;
-    }
-
-    // Reads that the host rewrote layout in place. Only the layout in use counts.
-    internal void KeyLayoutRewritten(string?[] layout)
-    {
-        if (ReferenceEquals(layout, _keyLayout))
-        {
-            KeyLayoutVersion++;
-        }
     }
 
     // The layout key characters are read from, null for a US layout's.

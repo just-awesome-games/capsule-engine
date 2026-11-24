@@ -23,8 +23,20 @@ public sealed class ColorRect(Vector2 size) : Renderer
     /// The extent the rectangle covers, in the entity's units. A negative axis swings the rectangle to the
     /// other side of its corner, and a zero or non-finite axis draws nothing.
     /// </summary>
-    /// <remarks>A zero axis on a <see cref="ScreenEntity"/> takes the entity's rect extent on that axis.</remarks>
-    public Vector2 Size { get; set; } = size;
+    /// <remarks>
+    /// A zero axis on a <see cref="ScreenEntity"/> takes the entity's rect extent on that axis, and any other
+    /// is the least extent the rect fits.
+    /// </remarks>
+    public Vector2 Size
+    {
+        get;
+
+        set
+        {
+            field = value;
+            ScreenEntity.Remeasure(Entity);
+        }
+    } = size;
 
     /// <summary>
     /// The point in the entity's own space where the rectangle's top-left corner lands, placed by the
@@ -45,6 +57,10 @@ public sealed class ColorRect(Vector2 size) : Renderer
     }
 
     internal override bool Steps => false;
+
+    internal override float MeasureWidth(float cap) => Extent(Size.X);
+
+    internal override float MeasureHeight(float width) => Extent(Size.Y);
 
     /// <summary>
     /// The rect the rectangle covers, under the rules <see cref="Renderer.Bounds"/> states. With a

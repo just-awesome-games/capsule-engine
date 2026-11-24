@@ -95,6 +95,21 @@ internal sealed class LabelLayout
         }
     }
 
+    // The unwrapped run's width in font pixels, which no glyph placement or line walk reads. A rich text is
+    // parsed into the same buffers a rebuild fills, and the same text parses to the same contents. Any other
+    // text carries another version, which rebuilds before its next read.
+    internal int Natural(ReadOnlySpan<char> text, BitmapFont font, bool rich, int firstLine, int? maxLines)
+    {
+        ReadOnlySpan<char> shown = text;
+        if (rich)
+        {
+            Parse(text);
+            shown = _chars.AsSpan(0, _length);
+        }
+
+        return GlyphRun.Extent(font, shown, 0, TextWrap.Word, firstLine, maxLines, null).Width;
+    }
+
     private void Rebuild(ReadOnlySpan<char> text, in LabelLayoutKey key)
     {
         _built = true;
@@ -292,6 +307,7 @@ internal sealed class LabelLayout
     // Strips the markup into _chars and records the colour runs it asked for.
     private void Parse(ReadOnlySpan<char> source)
     {
+        _runCount = 0;
         _length = 0;
         _codepoints = 0;
         _depth = 0;

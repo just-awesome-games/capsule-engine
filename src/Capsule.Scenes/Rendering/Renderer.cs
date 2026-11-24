@@ -64,10 +64,22 @@ public abstract class Renderer : Component
 
     /// <summary>Whether this renderer draws, true by default.</summary>
     /// <remarks>
-    /// Hiding it changes nothing else. An entity or ancestor hidden through
-    /// <see cref="Entity.Visible"/> also stops it drawing.
+    /// A hidden renderer gives its <see cref="ScreenEntity"/> nothing to fit, and changes nothing else. An
+    /// entity or ancestor hidden through <see cref="Entity.Visible"/> also stops it drawing.
     /// </remarks>
-    public bool Visible { get; set; } = true;
+    public bool Visible
+    {
+        get;
+
+        set
+        {
+            if (field != value)
+            {
+                field = value;
+                ScreenEntity.Remeasure(Entity);
+            }
+        }
+    } = true;
 
     /// <summary>
     /// The material this renderer draws with, and null for its entity's <see cref="Entity.Material"/>, the
@@ -136,6 +148,29 @@ public abstract class Renderer : Component
     }
 
     internal bool Resting => _rest > Dropped;
+
+    // The width this renderer asks of the screen entity it fills, where a renderer that wraps prefers no more
+    // than `cap`. One that draws by its own pivot asks for nothing.
+    internal virtual float MeasureWidth(float cap) => 0f;
+
+    // The height it asks once its entity is `width` wide.
+    internal virtual float MeasureHeight(float width) => 0f;
+
+    // The extent a drawn size axis asks for, which a mirrored axis asks for too and a non-finite one does not.
+    private protected static float Extent(float axis) => float.IsFinite(axis) ? Math.Abs(axis) : 0f;
+
+    // A renderer joining or leaving an entity changes what the entity fits.
+    internal override void OnAttachedTo(Entity entity)
+    {
+        base.OnAttachedTo(entity);
+        ScreenEntity.Remeasure(entity);
+    }
+
+    internal override void OnDetachingFrom(Entity entity)
+    {
+        base.OnDetachingFrom(entity);
+        ScreenEntity.Remeasure(entity);
+    }
 
     // Whether the scene asks this renderer to draw each frame and has no rest in sight for it.
     private protected bool Awake => _rest == 0;

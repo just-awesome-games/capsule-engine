@@ -92,10 +92,9 @@ public sealed class UiPrimitiveTests
         Assert.Equal(Rect.FromEdges(4f, 5f, 34f, 10f), rect.Bounds);
         Assert.Equal(Rect.FromEdges(4f, 5f, 34f, 5f + BitmapFont.Default.Measure("Hi").Y), label.Bounds);
 
-        // A centre pivot keeps the filled X on the rect and centres only the measured Y.
+        // The rect fits the text, and the anchor places it whatever the label's pivot.
         label.Pivot = Pivot.Center;
-        float half = BitmapFont.Default.Measure("Hi").Y / 2f;
-        Assert.Equal(Rect.FromEdges(4f, 5f - half, 34f, 5f + half), label.Bounds);
+        Assert.Equal(Rect.FromEdges(4f, 5f, 34f, 5f + BitmapFont.Default.Measure("Hi").Y), label.Bounds);
     }
 
     [Fact]

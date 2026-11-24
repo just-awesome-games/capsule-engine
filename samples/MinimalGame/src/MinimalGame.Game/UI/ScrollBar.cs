@@ -35,7 +35,7 @@ public sealed class ScrollBar : ScreenEntity
         // The menu's navigator gathers this bar. Nothing else needs to hold it.
         _focus.Focused += () => _thumbFill.Color = ColorRgba.White;
         _focus.Unfocused += () => _thumbFill.Color = ThumbColor;
-        _focus.Adjusted += step => ScrollTo(_list.ScrollOffset.Y - (step * (MenuItem.BoxHeight + MenuItem.Spacing)));
+        _focus.Adjusted += step => ScrollTo(_list.ScrollOffset.Y - (step * (MenuItem.BoxHeight + MenuItem.RowSpacing)));
         _focus.Dragged += drag =>
         {
             Rect track = _focus.Bounds;

@@ -101,6 +101,11 @@ internal static class RecordingFixtures
 
         internal bool ThrowsOnStart { get; init; }
 
+        // When set, each step adds the character W's key reads, after AtStep runs.
+        internal List<string?>? Characters { get; init; }
+
+        internal Action<long>? AtStep { get; init; }
+
         internal Reading()
         {
             Camera.ViewportSize = new Vector2(320f, 180f);
@@ -128,6 +133,8 @@ internal static class RecordingFixtures
             }
 
             InputState input = context.Input;
+            AtStep?.Invoke(context.Tick);
+            Characters?.Add(input.KeyCharacter(Key.W));
             if (input.PointerMoved)
             {
                 Walker.Position += input.PointerDelta * 0.25f;

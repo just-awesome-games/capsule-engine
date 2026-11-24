@@ -5,8 +5,10 @@ namespace Capsule.UI;
 
 // The one track solver both containers place their children with. A grid fills rows of Columns cells,
 // and each column is as wide as its widest cell and each row as tall as its tallest. A box is a grid of
-// one column or one unbounded row whose single cross track spans the padded inside. The solve is cached
-// and runs again on the first read after an invalidation. Its storage grows only with the child count.
+// one column or one unbounded row whose single cross track spans the padded inside. The columns solve
+// first, under the width cap from above, and the rows then solve for the owner's width, since a child's
+// height can depend on its width. Each solve is cached against what it read, and its storage grows only
+// with the child count.
 internal sealed class Tracks
 {
     // Offset from the padded inside's near edge and size of each column, then of each row.
@@ -15,7 +17,15 @@ internal sealed class Tracks
     private float[] _rowOffsets = [];
     private float[] _rowSizes = [];
 
-    private Vector2 _preferred;
+    // The tracks' total extents with the owner's padding.
+    private float _width;
+    private float _height;
+
+    // What the cached solves read: the width cap and the run's text version the columns solved under, and
+    // the owner width the rows solved at, which is NaN until they solve again.
+    private float _cap;
+    private int _text;
+    private float _rowsAt = float.NaN;
 
     // Invariant: while this is true, a container parent the owner takes a cell in is stale too, and so on
     // up. A parent's solve reads every visible child's fit, and a hidden child takes no cell until its
@@ -43,24 +53,27 @@ internal sealed class Tracks
         return true;
     }
 
-    internal Vector2 Preferred(ScreenEntity owner)
+    // The columns' extent with the padding, under the width cap `given` from above.
+    internal float Width(ScreenEntity owner, float given)
     {
-        if (_stale)
-        {
-            Solve(owner);
-        }
+        SolveColumns(owner, given);
 
-        return _preferred;
+        return _width;
+    }
+
+    // The rows' extent with the padding, once the owner is `width` wide.
+    internal float Height(ScreenEntity owner, float width, float given)
+    {
+        SolveRows(owner, width, given);
+
+        return _height;
     }
 
     // The cell's corner in the owner's units, and its extent. A hidden child takes an empty slot at the
     // padded inside's corner.
-    internal Vector2 Slot(ScreenEntity owner, ScreenEntity child, Vector2 extent, out Vector2 slot)
+    internal Vector2 Slot(ScreenEntity owner, ScreenEntity child, Vector2 extent, float given, out Vector2 slot)
     {
-        if (_stale)
-        {
-            Solve(owner);
-        }
+        SolveRows(owner, extent.X, given);
 
         Insets padding = owner.Padding;
         Vector2 corner = new(padding.Left, padding.Top);
@@ -89,11 +102,18 @@ internal sealed class Tracks
         return corner + new Vector2(_columnOffsets[column], _rowOffsets[row]);
     }
 
-    private void Solve(ScreenEntity owner)
+    private void SolveColumns(ScreenEntity owner, float given)
     {
+        int text = owner.SceneOrNull?.RunOrNull?.TextVersion ?? 0;
+        if (!_stale && given == _cap && text == _text)
+        {
+            return;
+        }
+
         int cells = 0;
         int columns = 0;
         int rows = 0;
+        float cap = owner.Inner(given);
 
         foreach (Entity entity in owner.Children)
         {
@@ -123,15 +143,51 @@ internal sealed class Tracks
                 Open(ref _rowOffsets, ref _rowSizes, rows++);
             }
 
-            Vector2 preferred = child.Preferred;
-            _columnSizes[column] = Math.Max(_columnSizes[column], preferred.X);
-            _rowSizes[row] = Math.Max(_rowSizes[row], preferred.Y);
+            _columnSizes[column] = Math.Max(_columnSizes[column], child.PreferredWidth(cap));
         }
 
-        Vector2 content = new(Lay(_columnOffsets, _columnSizes, columns, Spacing.X), Lay(_rowOffsets, _rowSizes, rows, Spacing.Y));
         Insets padding = owner.Padding;
-        _preferred = Vector2.Max(owner.Size, content + new Vector2(padding.Left + padding.Right, padding.Top + padding.Bottom));
+        _width = Lay(_columnOffsets, _columnSizes, columns, Spacing.X) + padding.Left + padding.Right;
+        _cap = given;
+        _text = text;
+        _rowsAt = float.NaN;
         _stale = false;
+    }
+
+    // A child's width in its cell is its share of the slot on an axis it spans, and its own otherwise. The
+    // slot is the padded inside across a box that spans it, and the column in any other.
+    private void SolveRows(ScreenEntity owner, float width, float given)
+    {
+        SolveColumns(owner, given);
+        if (width == _rowsAt)
+        {
+            return;
+        }
+
+        int rows = 0;
+        float cap = owner.Inner(given);
+        Insets padding = owner.Padding;
+        float inside = Math.Max(width - padding.Left - padding.Right, 0f);
+
+        foreach (Entity entity in owner.Children)
+        {
+            if (entity is not ScreenEntity { Cell: >= 0 } child)
+            {
+                continue;
+            }
+
+            int row = child.Cell / Columns;
+            if (row == rows)
+            {
+                _rowSizes[rows++] = 0f;
+            }
+
+            float slot = Spans == Axis.Horizontal ? inside : _columnSizes[child.Cell % Columns];
+            _rowSizes[row] = Math.Max(_rowSizes[row], child.PreferredHeight(child.WidthIn(slot, cap), cap));
+        }
+
+        _height = Lay(_rowOffsets, _rowSizes, rows, Spacing.Y) + padding.Top + padding.Bottom;
+        _rowsAt = width;
     }
 
     // Zeroes track `index`, growing the storage when it is full.

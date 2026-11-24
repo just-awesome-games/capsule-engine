@@ -8,19 +8,22 @@ namespace Capsule.Runtime.DevTools.Recordings;
 // records and the End record. A varint is LEB128. A string is its UTF-8 length as a varint, then the bytes.
 internal static class RecordingFormat
 {
-    internal const int Version = 1;
+    internal const int Version = 2;
 
     // The body's records. A Step record is the next step's snapshot as a change mask and the changed
     // fields, and a Repeat record is a count of steps whose snapshot did not change. The events before a
-    // step apply to that step. A Checkpoint follows the step it was taken after.
+    // step apply to that step. A Checkpoint follows the step it was taken after. A KeyLayout record, from
+    // version 2, is the key layout from the next step on, in the header's form. A recording without one
+    // holds the header's layout throughout.
     internal const byte Repeat = 0x00;
     internal const byte Step = 0x01;
     internal const byte Output = 0x10;
     internal const byte RefreshRate = 0x11;
     internal const byte Act = 0x12;
     internal const byte Checkpoint = 0x13;
+    internal const byte KeyLayout = 0x14;
 
-    // 0x14 to 0xFE are reserved for later event kinds, such as platform-service replies and typed text,
+    // 0x15 to 0xFE are reserved for later event kinds, such as platform-service replies and typed text,
     // each added under a version bump. A reader refuses a tag it does not know.
     internal const byte End = 0xFF;
 
