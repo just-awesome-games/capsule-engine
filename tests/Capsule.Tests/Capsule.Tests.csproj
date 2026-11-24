@@ -78,6 +78,8 @@
     <!-- alpha-ramp.png carries every alpha from 0 to 255 over six colours. hd-atlas.png is a copy
          of the bench's RGB atlas, the only colour type the shipped PNGs add. -->
     <None Include="Runtime/Fixtures/*.png" CopyToOutputDirectory="PreserveNewest" />
+    <!-- DejaVu Sans 2.37, a proportional face that kerns, and DejaVu Sans Mono 2.37, a monospaced one. -->
+    <None Include="Build/Fixtures/*.ttf" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

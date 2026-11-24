@@ -63,8 +63,9 @@ public ref struct GlyphRun
     private int _pen;
     private int _line;
 
-    // The last codepoint drawn on this line, or -1 at the start of a line. A codepoint the font has no
-    // glyph for leaves it alone. The pair either side of it still kerns.
+    // The last codepoint drawn on this line, or -1 at the start of a line: a replacement drawn for a
+    // codepoint the font lacks, as itself. A control or format character leaves it alone, and the pair either
+    // side of it still kerns.
     private int _previous;
 
     /// <summary>The glyph this enumerator has reached.</summary>
@@ -79,8 +80,8 @@ public ref struct GlyphRun
     /// <summary>Lays <paramref name="text"/> out inside a box of <paramref name="boxWidth"/>.</summary>
     /// <param name="font">The font the run is laid out in.</param>
     /// <param name="text">
-    /// The text to lay out. <c>\n</c> starts a new line, <c>\r</c> is ignored, and a codepoint the
-    /// font carries no glyph for draws nothing and advances nothing.
+    /// The text to lay out. <c>\n</c> starts a new line, <c>\r</c> and any other control character
+    /// draw nothing, and a codepoint the font lacks draws its replacement glyph.
     /// </param>
     /// <param name="boxWidth">
     /// The box's width in font pixels, which lines wrap inside and are aligned within. Zero or less
@@ -322,8 +323,8 @@ public ref struct GlyphRun
     }
 
     // The codepoint at cursor and the UTF-16 units it spans. ASCII, which covers most runs, is answered
-    // without decoding. Malformed UTF-16 decodes to the replacement character over one unit. A lone
-    // surrogate reads as a codepoint the font has no glyph for and throws nothing.
+    // without decoding. Malformed UTF-16, as a lone surrogate, decodes to the replacement character over
+    // one unit and throws nothing.
     private readonly int CodepointAt(int cursor, out int consumed)
     {
         char unit = _text[cursor];
@@ -340,17 +341,20 @@ public ref struct GlyphRun
     }
 
     // The step both walks take over a codepoint: read it, find its glyph, and kern the pen against the
-    // codepoint drawn before it. Returns false for a break, a \r, or a codepoint the font has no glyph
-    // for, and then leaves pen where it was so the pair either side still kerns. codepoint and consumed
-    // are set either way.
+    // codepoint drawn before it. A codepoint the font lacks takes its replacement glyph and kerns as it.
+    // Returns false for a break, a \r, or a codepoint that draws nothing, and then leaves pen where it was
+    // so the pair either side still kerns. codepoint and consumed are set either way.
     private readonly bool TryAdvance(int cursor, int previous, ref int pen, out int codepoint, out Glyph glyph, out int consumed)
     {
         codepoint = CodepointAt(cursor, out consumed);
-        glyph = default;
-
-        if (codepoint is '\n' or '\r' || !_font.TryGetGlyph(codepoint, out glyph))
+        if (!_font.TryGetGlyph(codepoint, out glyph))
         {
-            return false;
+            if (!_font.TryReplace(codepoint, out glyph))
+            {
+                return false;
+            }
+
+            codepoint = glyph.Codepoint;
         }
 
         if (previous >= 0)

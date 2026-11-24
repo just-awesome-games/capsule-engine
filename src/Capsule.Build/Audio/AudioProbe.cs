@@ -23,18 +23,18 @@ internal static class AudioProbe
 
         using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
 
-        if (string.Equals(extension, WavProbe.Extension, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(extension, AssetType.Wav, StringComparison.OrdinalIgnoreCase))
         {
             return WavProbe.Measure(stream);
         }
 
-        if (string.Equals(extension, OggProbe.Extension, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(extension, AssetType.Ogg, StringComparison.OrdinalIgnoreCase))
         {
             return OggProbe.Measure(stream);
         }
 
         throw new FormatException(
-            $"carries extension \"{extension}\". Audio ships as {WavProbe.Extension} or {OggProbe.Extension}. Re-encode it as one of them.");
+            $"carries extension \"{extension}\". Audio ships as {AssetType.Wav} or {AssetType.Ogg}. Re-encode it as one of them.");
     }
 
     // The rule a region obeys under every convention: 0 <= start < end <= the clip's length.

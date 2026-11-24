@@ -82,7 +82,7 @@ with a `"$schema"` key at its root, and an editor then completes and documents e
 ```
 
 A sidecar names `texture.config.schema.json`, an atlas file `atlas.schema.json`, a sprite sheet
-`sheet.schema.json`, a value clip `clip.schema.json`, a scene document `scene.schema.json` and a string
-table `strings.schema.json` at the same address. The build ignores the
+`sheet.schema.json`, a value clip `clip.schema.json`, a baked font `font.schema.json`, a scene document
+`scene.schema.json` and a string table `strings.schema.json` at the same address. The build ignores the
 value. Copies to read are staged beside Capsule's API reference
 ([Consuming Capsule](build-and-publish.md#consuming-capsule)).

@@ -10,6 +10,7 @@ using System.Text.Json.Serialization.Metadata;
 using Capsule.Assets;
 using Capsule.Build.Clips;
 using Capsule.Build.Configuration;
+using Capsule.Build.Fonts;
 using Capsule.Build.Sheets;
 using Capsule.Build.Strings;
 using Capsule.Build.Textures;
@@ -50,6 +51,7 @@ internal static class FormatSchemas
         ("atlas.schema.json", "Capsule atlas", AssetConfigJsonContext.Default.AtlasConfigJson),
         ("sheet.schema.json", "Capsule sprite sheet", SheetJsonContext.Default.SheetJson),
         ("clip.schema.json", "Capsule value clip", ClipJsonContext.Default.ClipJson),
+        ("font.schema.json", "Capsule baked font", FontBakeJsonContext.Default.FontBakeJson),
         ("scene.schema.json", "Capsule scene document", SceneDocumentJsonContext.Default.SceneDocumentJson),
         ("strings.schema.json", "Capsule string table", null),
     ];

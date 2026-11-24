@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/font.schema.json",
+  "$comment": "Generated from Capsule.Build.Fonts.FontBakeJson.",
+  "title": "Capsule baked font",
+  "description": "A font baked at one size from a TrueType or OpenType face: printable ASCII, Latin-1, every character the game's string tables use, and any further characters.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The URL of this file's JSON Schema, which gives an editor completion and hover. The build ignores its value.",
+      "type": "string"
+    },
+    "face": {
+      "description": "The face, a .ttf or .otf file, relative to this file. The face itself never ships.",
+      "type": "string"
+    },
+    "size": {
+      "description": "The em in canvas pixels, the size a pixel font is drawn on its grid at.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 512
+    },
+    "fallback": {
+      "description": "Faces relative to this file, in order, each supplying the characters the faces before it lack. Line spacing is the first face's.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "characters": {
+      "description": "Further characters to bake, for text the string tables do not hold.",
+      "type": "string"
+    },
+    "antialias": {
+      "description": "Whether glyph edges blend. False keeps every pixel whole, as a pixel font drawn at its design size wants.",
+      "default": true,
+      "type": "boolean"
+    },
+    "tables": {
+      "description": "Whether every character the game's string tables use is baked. False bakes printable ASCII, Latin-1 and \"characters\" alone, as a display font wants.",
+      "default": true,
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "face",
+    "size"
+  ],
+  "additionalProperties": false
+}

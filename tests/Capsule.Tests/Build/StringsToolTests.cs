@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Reflection;
 using System.Text;
+using Capsule.Build;
 using Capsule.Build.Strings;
 using Capsule.Localization;
 using Capsule.Rendering;
@@ -247,7 +248,7 @@ public sealed class StringsToolTests
 
     // Each pair is a file's path under Assets/ without .strings.json, then its JSON.
     private static ToolWorkspace Authored(params string[] files) =>
-        ToolWorkspace.Authored(files.Chunk(2).Select(static pair => (pair[0] + StringFile.Extension, (string?)pair[1])));
+        ToolWorkspace.Authored(files.Chunk(2).Select(static pair => (pair[0] + AssetType.StringTable, (string?)pair[1])));
 
     // The generated table as the game runs it, beside the attribute CapsuleAssets declares for its members.
     private static Assembly Loaded(ToolWorkspace workspace) =>

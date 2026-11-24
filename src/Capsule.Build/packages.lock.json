@@ -8,6 +8,12 @@
         "resolved": "2.30.16",
         "contentHash": "qg1i+NHihXVKLKYacGKrauhSQIGL31eBWcTC4Vc7jnGmBFj87LkRuCdXB5aDZisWMRnB6x2mcfwYXQxMWEG/lw=="
       },
+      "StbTrueTypeSharp": {
+        "type": "Direct",
+        "requested": "[1.26.12, )",
+        "resolved": "1.26.12",
+        "contentHash": "hCc6/OsfcPa5VsLECcEU2m78WOshBrKwK42nAodSm9Z5wH68f7n66SoiRLCdGCkDaqbWz2TlX4zYHIjogj1HJA=="
+      },
       "JAG.Capsule.ShaderTools": {
         "type": "Transitive",
         "resolved": "1.0.1",

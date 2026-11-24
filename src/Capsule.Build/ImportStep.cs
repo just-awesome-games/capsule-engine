@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Capsule.Build.Caching;
+using Capsule.Build.Fonts;
 
 namespace Capsule.Build;
 
@@ -19,21 +20,51 @@ internal static class ImportStep
 
     internal static void Run(PipelinePass pass)
     {
-        string requestedRoot = BuildRequests.Relative(pass.Imported.Root);
         List<Request> native = [];
         List<(Request Source, IAssetImporter Importer)> claimed = [];
+        List<Request> fonts = [];
         foreach (Request request in pass.Requests.Sources)
         {
-            if (pass.Configuration.ImporterOf(request.Path) is not { } importer)
+            bool font = request.Path.EndsWith(AssetType.BakedFont, StringComparison.OrdinalIgnoreCase);
+            IAssetImporter? importer = font ? null : pass.Configuration.ImporterOf(request.Path);
+            if (!font && importer is null)
             {
                 native.Add(request);
             }
             else if (!Keys.IsUnder(pass.DevelopmentOnly, Keys.Below(request.Root ?? pass.Requests.AssetRoot, request.Path)))
             {
-                claimed.Add((request, importer));
+                if (font)
+                {
+                    fonts.Add(request);
+                }
+                else
+                {
+                    claimed.Add((request, importer!));
+                }
             }
         }
 
+        // Fonts bake last, from every string table the strings step reads, imported ones too.
+        List<Request> imported = Imported(pass, claimed);
+        if (fonts.Count > 0)
+        {
+            FontBaker baker = new(FontBaker.TableCodepoints(
+                [.. native.Concat(imported)
+                    .Where(request => AssetType.Strings.Extension(request.Path) is not null
+                        && !Keys.IsUnder(pass.DevelopmentOnly, Keys.Below(request.Root ?? pass.Requests.AssetRoot, request.Path)))
+                    .Select(static request => request.Path)]));
+            imported.AddRange(Imported(pass, [.. fonts.Select(font => (font, (IAssetImporter)baker))]));
+        }
+
+        pass.Imported.Prune();
+        pass.Cache.Hashes.Found(imported);
+        pass.Requests = pass.Requests with { Sources = [.. native, .. imported] };
+    }
+
+    // Imports each claim, or reuses its last import, and requests every output in its place.
+    private static List<Request> Imported(PipelinePass pass, List<(Request Source, IAssetImporter Importer)> claimed)
+    {
+        string requestedRoot = BuildRequests.Relative(pass.Imported.Root);
         List<Request> imported = [];
         foreach ((_, Dictionary<string, FileRecordJson> outputs) in pass.Each(
             Step,
@@ -41,7 +72,7 @@ internal static class ImportStep
             claim => new Derivation(
                 claim.Source.Path,
                 [claim.Source.Path],
-                $"importer={claim.Importer.GetType().FullName}; root={pass.Requests.AssetRoot}; tileSize={pass.Configuration.TileSize}",
+                $"importer={claim.Importer.GetType().FullName}; root={pass.Requests.AssetRoot}; tileSize={pass.Configuration.TileSize}; text={(claim.Importer as FontBaker)?.Stamp}",
                 claim.Importer.GetType().Assembly),
             (claim, files) => Import(pass, claim.Source, claim.Importer, files),
             DerivationCacheJsonContext.Default.DictionaryStringFileRecordJson,
@@ -58,9 +89,7 @@ internal static class ImportStep
             }
         }
 
-        pass.Imported.Prune();
-        pass.Cache.Hashes.Found(imported);
-        pass.Requests = pass.Requests with { Sources = [.. native, .. imported] };
+        return imported;
     }
 
     // Every output by its path below the asset root, with the hash of the bytes written. A reused

@@ -76,10 +76,10 @@ public sealed class BitmapFontTests
         Assert.Equal(Placements("AB"), Placements("A\rB"));
     }
 
-    // A codepoint the font has no glyph for is drawn as nothing and advances nothing. The pair
-    // either side of it still kerns.
+    // In a font with no replacement character or question mark, a codepoint it lacks draws nothing and
+    // advances nothing. The pair either side of it still kerns.
     [Fact]
-    public void ACodepointTheFontDoesNotCarry_DrawsNothingAndAdvancesNothing()
+    public void ACodepointAFontWithNoReplacementLacks_DrawsNothingAndAdvancesNothing()
     {
         Assert.Equal(Placements("AB"), Placements("A§B"));
     }

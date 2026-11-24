@@ -11,6 +11,8 @@
     <Description>The build a Capsule game's build project runs through CapsuleBuild, and the IAssetImporter contract an importer package implements: asset naming, scene document validation, sprite sheet, font, audio and shader compilation, and atlas packing.</Description>
     <!-- An internal member documents only the parameters that need it. -->
     <NoWarn>$(NoWarn);CS1573</NoWarn>
+    <!-- The font rasterizer takes pointers, and FontRasterizer alone holds them. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Local, never global, with TreatAsLocalProperty on the Project element. A consumer's
          NativeAOT publish passes these globally, and the build always runs in a framework-dependent
          process. -->
@@ -54,6 +56,7 @@
        build stays a plain framework-dependent process on every build host. -->
   <ItemGroup>
     <PackageReference Include="StbImageSharp" Version="2.30.16" />
+    <PackageReference Include="StbTrueTypeSharp" Version="1.26.12" />
   </ItemGroup>
 
   <!-- The pure modules arrive through their pack root, which makes JAG.Capsule this package's

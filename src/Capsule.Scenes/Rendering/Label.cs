@@ -87,8 +87,8 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
 
     /// <summary>The text to draw. Empty draws nothing.</summary>
     /// <remarks>
-    /// A <c>\n</c> starts a new line, and a codepoint <see cref="Font"/> has no glyph for draws
-    /// nothing and advances nothing. After <see cref="SetText(ReadOnlySpan{char})"/> the getter returns the same
+    /// A <c>\n</c> starts a new line, and a codepoint <see cref="Font"/> lacks draws its replacement
+    /// glyph, U+FFFD or else '?', with a warning in a development build. After <see cref="SetText(ReadOnlySpan{char})"/> the getter returns the same
     /// characters as a string, built on the first read after each write. A keyed label reads back its
     /// text in the run's active language, and writing a string replaces the key.
     /// </remarks>

@@ -1,5 +1,3 @@
-using Capsule.Build.Audio;
-
 namespace Capsule.Build;
 
 /// <summary>One type of authored source, admitted by its extension wherever it sits under <c>Assets/</c>.</summary>
@@ -7,11 +5,20 @@ namespace Capsule.Build;
 /// <param name="extensions">The extensions it admits, matched without regard to case.</param>
 internal sealed class AssetType(string suffix, params string[] extensions)
 {
+    // The extensions code names one at a time. Every other is spelled in its type below.
+    internal const string Ogg = ".ogg";
+
+    internal const string Wav = ".wav";
+
+    internal const string BakedFont = ".font.json";
+
+    internal const string StringTable = ".strings.json";
+
     internal static readonly AssetType Textures = new("Texture", ".png");
 
-    internal static readonly AssetType Audio = new("Sound", OggProbe.Extension, WavProbe.Extension);
+    internal static readonly AssetType Audio = new("Sound", Ogg, Wav);
 
-    internal static readonly AssetType Fonts = new("Font", ".fnt");
+    internal static readonly AssetType Fonts = new("Font", ".fnt", BakedFont);
 
     internal static readonly AssetType Shaders = new("Shader", ".fx");
 
@@ -22,7 +29,7 @@ internal sealed class AssetType(string suffix, params string[] extensions)
     internal static readonly AssetType Clips = new("Clip", ".clip.json");
 
     /// <summary>A <c>&lt;tag&gt;.strings.json</c>, one language's texts, which <c>CapsuleStrings</c> declares and never <c>CapsuleAssets</c>.</summary>
-    internal static readonly AssetType Strings = new("Strings", Build.Strings.StringFile.Extension);
+    internal static readonly AssetType Strings = new("Strings", StringTable);
 
     /// <summary>A <c>&lt;name&gt;.atlas.json</c>, which declares an atlas and is never an asset itself.</summary>
     internal static readonly AssetType Atlases = new("Atlas", ".atlas.json");

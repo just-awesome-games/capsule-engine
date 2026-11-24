@@ -6,12 +6,13 @@ namespace Capsule.Tests.Rendering;
 
 public sealed class DefaultBitmapFontTests
 {
-    // Printable ASCII and the Latin-1 Supplement, 191 glyphs, and no other codepoint.
+    // Printable ASCII and the Latin-1 Supplement, 190 glyphs, and no other codepoint. The soft hyphen, a
+    // format character, never draws, and the font drops it.
     [Fact]
     public void Default_CarriesExactlyAsciiAndLatin1SupplementGlyphs()
     {
         BitmapFont font = BitmapFont.Default;
-        int[] expected = [.. Enumerable.Range(32, 95).Concat(Enumerable.Range(160, 96))];
+        int[] expected = [.. Enumerable.Range(32, 95).Concat(Enumerable.Range(160, 96)).Where(static codepoint => codepoint != 173)];
         List<int> carried = [];
 
         for (int codepoint = 0; codepoint <= 0x10FFFF; codepoint++)

@@ -79,6 +79,10 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## StbTrueTypeSharp
+
+StbTrueTypeSharp version 1.26.12, a C# port of `stb_truetype.h`, is used by `JAG.Capsule.Build` to bake TrueType and OpenType faces into bitmap fonts. Its authors release it into the public domain, as Sean Barrett releases `stb_truetype.h`.
+
 ## Unicode CLDR plural rules
 
 `JAG.Capsule.Build` carries the cardinal plural rules of the Unicode Common Locale Data Repository (CLDR), release 49.0.0 of `unicode-org/cldr-json`, as `src/Capsule.Build/Strings/plurals.json`, to select plural forms. They are distributed by Unicode, Inc. under the Unicode License v3.

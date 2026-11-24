@@ -1,0 +1,6 @@
+{
+  "$schema": "https://raw.githubusercontent.com/just-awesome-games/capsule-engine/main/schemas/font.schema.json",
+  "face": "PressStart2P-Regular.ttf",
+  "size": 8,
+  "antialias": false
+}

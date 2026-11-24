@@ -68,7 +68,7 @@ internal static class StringsStep
         {
             pass.Fail(
                 pass.Requests.AssetRoot,
-                $"has no string table in the fallback language \"{fallback}\". Add {fallback}{StringFile.Extension}, or set WithFallbackLanguage to one of: {found}.");
+                $"has no string table in the fallback language \"{fallback}\". Add {fallback}{AssetType.StringTable}, or set WithFallbackLanguage to one of: {found}.");
 
             return null;
         }

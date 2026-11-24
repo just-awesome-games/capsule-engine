@@ -18,9 +18,13 @@ internal static class StrictJson
     /// The JSON is malformed, holds a refused null, has a member the format does not declare, or has a value
     /// its member does not take.
     /// </exception>
-    internal static T Read<T>(string path, JsonTypeInfo<T> type, string members, string? nullFix, string shape)
+    internal static T Read<T>(string path, JsonTypeInfo<T> type, string members, string? nullFix, string shape) =>
+        Read(File.ReadAllBytes(path), type, members, nullFix, shape);
+
+    /// <summary>Reads <paramref name="json"/> as one <typeparamref name="T"/>, as <see cref="Read{T}(string, JsonTypeInfo{T}, string, string?, string)"/> reads a file.</summary>
+    /// <exception cref="FormatException">The JSON is refused, as a file's is.</exception>
+    internal static T Read<T>(byte[] json, JsonTypeInfo<T> type, string members, string? nullFix, string shape)
     {
-        byte[] json = File.ReadAllBytes(path);
         JsonDocument document;
         try
         {

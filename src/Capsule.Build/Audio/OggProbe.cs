@@ -8,9 +8,6 @@ namespace Capsule.Build.Audio;
 /// <summary>Measures an Ogg Vorbis source: its length from the last granule position and its loop from the comment header's tags.</summary>
 internal static class OggProbe
 {
-    /// <summary>The extension an Ogg Vorbis source is admitted by, lower-case and dotted.</summary>
-    internal const string Extension = ".ogg";
-
     // The fixed bytes of a page header, before its segment table.
     private const int PageHeader = 27;
 

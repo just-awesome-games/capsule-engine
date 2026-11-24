@@ -48,11 +48,13 @@ internal static class FontStep
         pass.FontPages = pages;
     }
 
-    // The texture a page file names, resolved beside the font.
+    // The texture a page file names, resolved beside the font, below the root the font was read from: the
+    // asset root, or the imports' for a baked font.
     private static Source Page(PipelinePass pass, Source font, string file)
     {
         string path = Path.Combine(Path.GetDirectoryName(font.Path)!, file).Replace('\\', '/');
-        string below = Keys.Below(pass.Requests.AssetRoot, path);
+        string imported = BuildRequests.Relative(pass.Imported.Root);
+        string below = Keys.Below(path.StartsWith(imported + "/", StringComparison.Ordinal) ? imported : pass.Requests.AssetRoot, path);
         string subject = $"names page \"{file}\"";
 
         return pass.Textures.TryGetValue(Keys.Of(below[..^Path.GetExtension(below).Length], subject), out Source texture)

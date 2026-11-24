@@ -1,6 +1,9 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Numerics;
+using System.Text;
 using Capsule.Assets;
+using Capsule.Diagnostics;
 
 namespace Capsule.Rendering;
 
@@ -33,6 +36,15 @@ public sealed partial class BitmapFont
     // Index into _glyphs per codepoint below DenseLimit, and -1 where the font has no glyph.
     private readonly int[] _dense;
 
+    // U+FFFD, which a font draws in place of a codepoint it lacks.
+    private const int ReplacementCharacter = 65533;
+
+    // Index into _glyphs of what a lacking codepoint draws: U+FFFD, else '?', else -1 for nothing.
+    private readonly int _replacement;
+
+    // Each lacking codepoint a development build has warned of, once per font.
+    private readonly HashSet<int> _warned = [];
+
     /// <summary>Font pixels from one line's top edge to the next. Always positive.</summary>
     public int LineHeight { get; }
 
@@ -47,7 +59,7 @@ public sealed partial class BitmapFont
     /// <param name="lineHeight">Font pixels from one line's top edge to the next. Must be positive.</param>
     /// <param name="baseline">Font pixels from a line's top edge down to the baseline.</param>
     /// <param name="pages">The texture pages glyphs are cut from, in the order the font declares them. At least one.</param>
-    /// <param name="glyphs">Every glyph the font carries, in any order. Each names a page this font declares, and no codepoint appears twice.</param>
+    /// <param name="glyphs">Every glyph the font carries, in any order. Each names a page this font declares, and no codepoint appears twice. A glyph for a control or format character is dropped, since text never draws one.</param>
     /// <param name="kernings">The kerning pairs the font carries, in any order. May be empty.</param>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public BitmapFont(int lineHeight, int baseline, TextureHandle[] pages, Glyph[] glyphs, KerningPair[] kernings)
@@ -65,7 +77,7 @@ public sealed partial class BitmapFont
         LineHeight = lineHeight;
         Baseline = baseline;
         _pages = [.. pages];
-        _glyphs = [.. glyphs];
+        _glyphs = [.. glyphs.Where(static glyph => !DrawsNothing(glyph.Codepoint))];
         _kernings = [.. kernings];
 
         _codepoints = new int[_glyphs.Length];
@@ -113,6 +125,9 @@ public sealed partial class BitmapFont
                 Math.Max(-glyph.XOffset, glyph.XOffset + glyph.Region.Width - glyph.XAdvance),
                 Math.Max(-glyph.YOffset, glyph.YOffset + glyph.Region.Height - lineHeight)));
         }
+
+        int replacement = _codepoints.AsSpan().BinarySearch(ReplacementCharacter);
+        _replacement = replacement >= 0 ? replacement : _dense['?'];
     }
 
     /// <summary>
@@ -142,6 +157,35 @@ public sealed partial class BitmapFont
         glyph = _glyphs[found];
 
         return true;
+    }
+
+    // Whether a codepoint never draws: a control or format character, a line break among them. ASCII is
+    // answered without a lookup: below the space, and delete.
+    internal static bool DrawsNothing(int codepoint) =>
+        codepoint < 128
+            ? codepoint is < ' ' or 127
+            : !Rune.IsValid(codepoint) || Rune.GetUnicodeCategory(new Rune(codepoint)) is UnicodeCategory.Control or UnicodeCategory.Format;
+
+    // The glyph a codepoint this font lacks draws: its replacement character, else its question mark, else
+    // nothing. A control or format character draws nothing. A development build warns once per other
+    // codepoint the font lacks.
+    internal bool TryReplace(int codepoint, out Glyph glyph)
+    {
+        if (DrawsNothing(codepoint))
+        {
+            glyph = default;
+
+            return false;
+        }
+
+        if (Development.IsSupported)
+        {
+            Warn(codepoint);
+        }
+
+        glyph = _replacement < 0 ? default : _glyphs[_replacement];
+
+        return _replacement >= 0;
     }
 
     /// <summary>
@@ -186,4 +230,20 @@ public sealed partial class BitmapFont
     // second codepoint is biased into the unsigned half it occupies. The key then orders by
     // (first, second) as signed integers.
     private static long Pair(int first, int second) => ((long)first << 32) | ((uint)second ^ 0x8000_0000u);
+
+    private void Warn(int codepoint)
+    {
+        lock (_warned)
+        {
+            if (!_warned.Add(codepoint))
+            {
+                return;
+            }
+        }
+
+        string drawn = _replacement < 0 ? "nothing" : char.ConvertFromUtf32(_glyphs[_replacement].Codepoint);
+        Log.Warning(string.Create(
+            CultureInfo.InvariantCulture,
+            $"The font on page {_pages[0].Name} has no glyph for U+{codepoint:X4} and draws {drawn} in its place. Bake the character into the font, or keep it out of the text."));
+    }
 }

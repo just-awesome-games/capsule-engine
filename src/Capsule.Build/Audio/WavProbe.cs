@@ -6,9 +6,6 @@ namespace Capsule.Build.Audio;
 /// <summary>Measures a RIFF/WAVE source: its length from the 'data' chunk and its loop from the first 'smpl' loop.</summary>
 internal static class WavProbe
 {
-    /// <summary>The extension a WAVE source is admitted by, lower-case and dotted.</summary>
-    internal const string Extension = ".wav";
-
     // WAVE_FORMAT_EXTENSIBLE, whose sub-format GUID opens with the real format tag.
     private const int Extensible = 0xFFFE;
 

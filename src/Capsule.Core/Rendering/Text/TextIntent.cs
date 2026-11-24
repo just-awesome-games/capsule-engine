@@ -14,7 +14,7 @@ namespace Capsule.Rendering;
 /// <param name="Text">
 /// The text drawn, where empty draws nothing. It is read only while the intent is laid out, and a
 /// caller may reuse the buffer next frame. <c>\n</c> starts a new line, <c>\r</c>
-/// is ignored, and a codepoint the font carries no glyph for draws and advances nothing.
+/// and any other control character draw nothing, and a codepoint the font lacks draws its replacement glyph.
 /// </param>
 /// <param name="PreviousPosition">Where the box's <see cref="Pivot"/> sat at the end of the previous step, in the drawn space's units.</param>
 /// <param name="Position">Where the box's <see cref="Pivot"/> sits now, in the drawn space's units.</param>

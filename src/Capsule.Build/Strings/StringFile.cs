@@ -13,8 +13,6 @@ namespace Capsule.Build.Strings;
 /// </remarks>
 internal static class StringFile
 {
-    internal const string Extension = ".strings.json";
-
     /// <summary>Reads and validates the string table at <paramref name="path"/>.</summary>
     /// <exception cref="FormatException">The file name is no canonical language tag, or the JSON breaks the format.</exception>
     internal static StringDocument Read(string path)
@@ -45,18 +43,18 @@ internal static class StringFile
     internal static string Language(string path)
     {
         string name = Path.GetFileName(path);
-        string tag = name[..^Extension.Length];
+        string tag = name[..^AssetType.StringTable.Length];
         string canonical = CanonicalTag(tag);
 
         if (canonical.Length == 0)
         {
             throw new FormatException(
-                $"is named for \"{tag}\", which is no language tag. Name a string table for its language's BCP 47 tag, as de{Extension} or pt-BR{Extension}.");
+                $"is named for \"{tag}\", which is no language tag. Name a string table for its language's BCP 47 tag, as de{AssetType.StringTable} or pt-BR{AssetType.StringTable}.");
         }
 
         return string.Equals(tag, canonical, StringComparison.Ordinal)
             ? tag
-            : throw new FormatException($"is named for \"{tag}\", which BCP 47 spells \"{canonical}\". Rename it {canonical}{Extension}.");
+            : throw new FormatException($"is named for \"{tag}\", which BCP 47 spells \"{canonical}\". Rename it {canonical}{AssetType.StringTable}.");
     }
 
     /// <summary>How .NET spells <paramref name="tag"/> as a predefined culture, or empty when it knows no such tag.</summary>

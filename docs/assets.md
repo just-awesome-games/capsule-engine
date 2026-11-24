@@ -12,7 +12,7 @@ An asset is a file under the logic project's `Assets/`. The build names each one
 | `.sheet.json` | A sprite sheet | `Sprites/lamp.sheet.json` is `CapsuleAssets.Sprites.LampSheet`, a class of frames, clips and sockets |
 | `.clip.json` | A [value clip](animation.md#value-clips) | `Clips/pulse.clip.json` is `CapsuleAssets.Clips.PulseClip`, a `ValueClip<float>` |
 | `.wav`, `.ogg` | A sound | `Audio/click.wav` is `CapsuleAssets.Audio.ClickSound`, an `AudioClip` |
-| `.fnt` | A bitmap font | `Fonts/menu.fnt` is `CapsuleAssets.Fonts.MenuFont`, a `BitmapFont` |
+| `.font.json`, `.fnt` | A [font](#fonts) | `Fonts/menu.font.json` is `CapsuleAssets.Fonts.MenuFont`, a `BitmapFont` |
 | `.fx` | A shader | `Shaders/fade.fx` is `CapsuleAssets.Shaders.FadeShader`, a `Shader` |
 | `.scene.json` | A scene document | `Scenes/hall.scene.json` is `CapsuleAssets.Scenes.HallScene`, a `SceneKey` |
 | `.strings.json` | One language's [texts](localization.md) | Each key of the source language is a `CapsuleStrings` member, a `TextKey` |
@@ -69,9 +69,25 @@ clip loads. A `.wav` of float samples, which FLAC cannot carry, ships as authore
 
 ## Fonts
 
-A bitmap font is a BMFont `.fnt` description, text flavour, and the `.png` pages it names beside it. Its
-metrics, glyphs and kerning compile into the logic assembly as a `BitmapFont`, and the description does
-not ship. A page is an ordinary texture that no atlas packs. Drawing text is [`rendering.md`](rendering.md#text).
+A font is baked at one size from a TrueType or OpenType face, named by a `<name>.font.json`:
+
+```json
+{ "face": "PressStart2P-Regular.ttf", "size": 8, "antialias": false }
+```
+
+`size` is the em in canvas pixels. A pixel-art game bakes a pixel font at its design size, or a whole
+multiple of it, with `antialias` set to `false`, and every edge then lands on a whole pixel. A smooth face
+baked a few pixels tall rounds its strokes into blur or broken stems, and suits a high-resolution canvas. A
+font carries printable ASCII, Latin-1 and every character the string tables use, in every language. A
+display font sets `tables` to `false`. `characters` adds text no table holds, and `fallback` lists faces
+that supply what the face lacks. Each size is a file of its own over the same face, and the face never
+ships. A character a font lacks draws its replacement glyph, U+FFFD else `?`, with a warning in a
+development build.
+
+A font drawn by hand is a BMFont `.fnt` description, text flavour, and the `.png` pages it names beside it.
+Either way, the metrics, glyphs and kerning compile into the logic assembly as a `BitmapFont`, and a page
+is an ordinary texture that no atlas packs, sampled as its folder's settings say. Drawing text is
+[`rendering.md`](rendering.md#text).
 
 ## Shaders
 

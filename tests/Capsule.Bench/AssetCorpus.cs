@@ -111,11 +111,10 @@ internal sealed class AssetCorpus
         }
 
         string fonts = Path.Combine(_engineRoot, "samples", "MinimalGame", "src", "MinimalGame.Game", "Assets", "Fonts");
-        string description = File.ReadAllText(Path.Combine(fonts, "menu.fnt"));
-        foreach (string font in (string[])["menu", "hud"])
+        CopySample(Path.Combine(fonts, "PressStart2P-Regular.ttf"), "Fonts/PressStart2P-Regular.ttf");
+        foreach ((string font, int size) in ((string, int)[])[("menu", 8), ("hud", 16)])
         {
-            WriteText($"Fonts/{font}.fnt", description.Replace("file=\"menu.png\"", $"file=\"{font}.png\"", StringComparison.Ordinal));
-            CopySample(Path.Combine(fonts, "menu.png"), $"Fonts/{font}.png");
+            WriteText($"Fonts/{font}.font.json", $$"""{ "face": "PressStart2P-Regular.ttf", "size": {{size}}, "antialias": false }""");
         }
     }
 
