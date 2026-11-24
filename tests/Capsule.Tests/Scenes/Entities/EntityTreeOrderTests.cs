@@ -207,7 +207,7 @@ public sealed class EntityTreeOrderTests
             {
                 ZIndex = random.Next(-2, 3),
                 ZIndexIsAbsolute = random.Next(3) == 0,
-                StepMode = (StepMode)random.Next(5),
+                StepMode = (StepMode)random.Next(6),
                 Parent = index == 0 || random.Next(3) == 0 ? null : held[random.Next(index)],
             };
             tagZ[index] = random.Next(-1, 2);

@@ -167,6 +167,31 @@ public partial class Camera
     /// </example>
     public Entity? Listener { get; set; }
 
+    /// <summary>
+    /// When this camera steps against its scene's <see cref="Scene.Paused"/> and
+    /// <see cref="Scene.Freeze"/>, defaulting to <see cref="StepMode.UnlessPaused"/>: a pause holds the
+    /// framing and a freeze shakes on. A write takes effect from the next step.
+    /// </summary>
+    /// <remarks>
+    /// A held step skips <see cref="OnLateStep"/>, and the follow, the bounds' transition and the shake
+    /// stand still. A <see cref="Teleport"/> or a write to <see cref="Center"/> or <see cref="Offset"/>
+    /// still lands.
+    /// </remarks>
+    public StepMode StepMode
+    {
+        get;
+
+        set
+        {
+            if ((uint)value > (uint)StepMode.UnlessPaused)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "The value names no StepMode. Pass one of its declared members.");
+            }
+
+            field = value;
+        }
+    } = StepMode.UnlessPaused;
+
     // Where this step hears positional sound from.
     internal Vector2 ListenerPosition =>
         Listener is { } listener && ReferenceEquals(listener.SceneOrNull, _scene) ? listener.WorldPosition : VisibleRegion.Center;
@@ -284,6 +309,7 @@ public partial class Camera
     /// after every entity and component has stepped, after contacts settle and after the scene's own
     /// <see cref="Scene.OnLateStep"/>, before the step's deferred adds and removes land.
     /// </summary>
+    /// <remarks>A step this camera's <see cref="StepMode"/> holds skips it.</remarks>
     protected internal virtual void OnLateStep(in StepContext context)
     {
     }
@@ -341,6 +367,7 @@ public partial class Camera
         panel.Field("VisibleRegion", VisibleRegion);
         panel.Field("Subject", Subject);
         panel.Field("Listener", Listener);
+        panel.Field("StepMode", StepMode);
 
         if (_started)
         {
@@ -368,13 +395,22 @@ public partial class Camera
     };
 
     // The engine's half of the late step: the follow, the bounds, the shake, then the region the frame
-    // will use, measured against the step's output. An empty output measures the declared span.
-    internal void Settle(in StepContext context)
+    // will use, measured against the step's output. An empty output measures the declared span. A held
+    // step keeps the follow's and the shake's state for the step that resumes, and its bounds take no time
+    // but still confine a write or a snap.
+    internal void Settle(in StepContext context, bool held)
     {
         CutToSubject();
-        StepFollow(context.DeltaSeconds, context.Output);
-        StepBounds(context.DeltaSeconds, context.Output);
-        StepShake(context.DeltaSeconds);
+        if (held)
+        {
+            StepBounds(0f, context.Output);
+        }
+        else
+        {
+            StepFollow(context.DeltaSeconds, context.Output);
+            StepBounds(context.DeltaSeconds, context.Output);
+            StepShake(context.DeltaSeconds);
+        }
 
         if (_cut)
         {

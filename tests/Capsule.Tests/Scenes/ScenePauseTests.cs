@@ -21,6 +21,7 @@ public sealed class ScenePauseTests
         Recorder always = new("always", log) { StepMode = StepMode.Always };
         Recorder never = new("never", log) { StepMode = StepMode.Never };
         Recorder menu = new("menu", log) { StepMode = StepMode.WhenPaused };
+        Recorder unlessPaused = new("unlessPaused", log) { StepMode = StepMode.UnlessPaused };
         inheriting.Parent = pausable;
         never.Parent = always;
 
@@ -31,15 +32,15 @@ public sealed class ScenePauseTests
                 s.Paused = true;
             }
         });
-        using SceneSimulation simulation = Simulation(scene, pausable, always, menu);
+        using SceneSimulation simulation = Simulation(scene, pausable, always, menu, unlessPaused);
         log.Clear();
 
         simulation.Step(Step(0));
-        Assert.Equal(Stepped("pausable", "inheriting", "always"), log);
+        Assert.Equal(Stepped("pausable", "inheriting", "always", "unlessPaused"), log);
 
         log.Clear();
         simulation.Step(Step(1));
-        Assert.Equal(Stepped("pausable", "inheriting", "always"), log);
+        Assert.Equal(Stepped("pausable", "inheriting", "always", "unlessPaused"), log);
 
         log.Clear();
         simulation.Step(Step(2));
@@ -75,11 +76,13 @@ public sealed class ScenePauseTests
     }
 
     // Freeze(3) during step 0 holds steps 1 to 3. Freeze(1) during step 1, with two steps still owed,
-    // changes nothing: a sum would hold step 4 too and a replacement would release step 3.
+    // changes nothing: a sum would hold step 4 too and a replacement would release step 3. An entity
+    // stepping unless paused steps through it.
     [Fact]
-    public void Freeze_HoldsExactlyItsSteps_KeepsTheLongerOfTwo_AndNeverStepsWhenPaused()
+    public void Freeze_HoldsExactlyItsSteps_KeepsTheLongerOfTwo_AndNeverStepsWhenPausedOrUnlessPaused()
     {
         Drifter drifter = new();
+        Drifter unlessPaused = new() { StepMode = StepMode.UnlessPaused };
         List<string> log = [];
         Recorder menu = new("menu", log) { StepMode = StepMode.WhenPaused };
 
@@ -94,7 +97,7 @@ public sealed class ScenePauseTests
                 s.Freeze(1);
             }
         });
-        using SceneSimulation simulation = Simulation(scene, drifter, menu);
+        using SceneSimulation simulation = Simulation(scene, drifter, menu, unlessPaused);
         log.Clear();
 
         List<float> positions = [];
@@ -105,7 +108,36 @@ public sealed class ScenePauseTests
         }
 
         Assert.Equal([1f, 1f, 1f, 1f, 2f], positions);
+        Assert.Equal(5f, unlessPaused.Position.X);
         Assert.Empty(log);
+    }
+
+    // A pause or a freeze over steps 4 to 7 holds the camera by its StepMode, where null leaves the
+    // default. A held camera skips its late step and draws step 3's shake still, and the shake then
+    // resumes where it stopped.
+    [Theory]
+    [InlineData(null, true, true)]
+    [InlineData(null, false, false)]
+    [InlineData(StepMode.Pausable, false, true)]
+    [InlineData(StepMode.Always, true, false)]
+    public void ACamera_HoldsItsLateStepAndShake_WhereItsStepModeHoldsAPauseOrAFreeze(StepMode? mode, bool pause, bool holds)
+    {
+        (Rect[] twin, _) = Shaken(null, pause: false, freeze: false);
+        (Rect[] regions, int lateSteps) = Shaken(mode, pause, freeze: !pause);
+
+        if (holds)
+        {
+            Assert.All(regions[4..8], region => Assert.Equal(twin[3], region));
+            Assert.Equal(twin[4..8], regions[8..]);
+            Assert.Equal(8, lateSteps);
+        }
+        else
+        {
+            Assert.Equal(twin, regions);
+            Assert.Equal(12, lateSteps);
+        }
+
+        Assert.NotEqual(twin[3], twin[4]);
     }
 
     // Freeze(2) during step 0, stretched by Freeze(3) during step 1, holds steps 1 to 4. The wait the
@@ -225,6 +257,126 @@ public sealed class ScenePauseTests
         Assert.All(simulation.View.Sprites.ToArray(), AssertStill);
     }
 
+    // A camera's hold settles at the top of a step, as an entity's does. A mode written during step 0
+    // waits for step 1, and so does one written during step 1 before the camera cuts by reinstalling
+    // itself. A camera installed during step 2 holds by its own mode on that step.
+    [Fact]
+    public void ACameraModeWrittenMidStep_WaitsForTheNextStep_AndACameraInstalledMidStepHoldsByItsOwn()
+    {
+        CountingCamera first = new();
+        CountingCamera second = new() { StepMode = StepMode.Always };
+        HookScene scene = new(start: s => ((HookScene)s).Install(first), step: (Scene s, in StepContext context) =>
+        {
+            if (context.Tick == 0)
+            {
+                first.StepMode = StepMode.Never;
+            }
+            else if (context.Tick == 1)
+            {
+                first.StepMode = StepMode.Always;
+                ((HookScene)s).Install(first);
+            }
+            else if (context.Tick == 2)
+            {
+                ((HookScene)s).Install(second);
+            }
+        });
+        using SceneSimulation simulation = new(scene);
+
+        for (int step = 0; step < 3; step++)
+        {
+            simulation.Step(Step(step));
+        }
+
+        Assert.Equal(1, first.LateSteps);
+        Assert.Equal(1, second.LateSteps);
+    }
+
+    // A camera follows a drifter into bounds opening ahead of it from step 1, by an ease or a chase
+    // slower than the follow, and the view rides the opening edge. Paused over steps 4 to 7, it draws
+    // step 3's view still and then each view its unpaused twin drew.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void APausedFollowThroughABoundsChange_ResumesAsItsUnpausedTwin(bool chase)
+    {
+        Rect[] twin = Followed(chase, pause: false);
+        Rect[] regions = Followed(chase, pause: true);
+
+        Assert.All(regions[4..8], region => Assert.Equal(twin[3], region));
+        Assert.Equal(twin[4..12], regions[8..]);
+        Assert.NotEqual(twin[3], twin[4]);
+    }
+
+    private static Rect[] Followed(bool chase, bool pause)
+    {
+        Drifter drifter = new(Viewport / 2f, new Vector2(4f, 0f));
+        (SceneSimulation simulation, Camera camera) = Following(drifter, c =>
+        {
+            c.Bounds = OneScreen;
+            c.SmoothTime = 0.1f;
+        });
+        using (simulation)
+        {
+            camera.Shake(1f);
+
+            Rect[] regions = new Rect[pause ? 16 : 12];
+            for (int step = 0; step < regions.Length; step++)
+            {
+                if (step == 1)
+                {
+                    camera.SetBounds(
+                        new Rect(Vector2.Zero, Viewport + new Vector2(64f, 0f)),
+                        chase ? BoundsTransition.Smooth(0.25f, maxSpeed: 30f) : BoundsTransition.Eased(1f, Ease.Linear));
+                }
+
+                simulation.Scene.Paused = pause && step is >= 4 and < 8;
+                simulation.Step(Step(step));
+                regions[step] = camera.VisibleRegion;
+            }
+
+            return regions;
+        }
+    }
+
+    // Twelve steps of a camera shaking from the start, held by a pause or a four-step freeze from step 4.
+    private static (Rect[] Regions, int LateSteps) Shaken(StepMode? mode, bool pause, bool freeze)
+    {
+        CountingCamera camera = new();
+        if (mode is { } set)
+        {
+            camera.StepMode = set;
+        }
+
+        HookScene scene = new(start: s =>
+        {
+            ((HookScene)s).Install(camera);
+            Open(s, Viewport / 2f, Viewport);
+            s.Camera.Bounds = OneScreen;
+        });
+        using SceneSimulation simulation = new(scene);
+        camera.Shake(1f);
+
+        Rect[] regions = new Rect[12];
+        for (int step = 0; step < regions.Length; step++)
+        {
+            if (step == 4)
+            {
+                scene.Paused = pause;
+                scene.Freeze(freeze ? 4 : 0);
+            }
+            else if (step == 8)
+            {
+                scene.Paused = false;
+            }
+
+            simulation.Step(Step(step));
+            regions[step] = camera.VisibleRegion;
+        }
+
+        return (regions, camera.LateSteps);
+    }
+
     private static void AssertStill(SpriteIntent intent)
     {
         Assert.Equal(intent.Position, intent.PreviousPosition);
@@ -232,4 +384,11 @@ public sealed class ScenePauseTests
     }
 
     private static List<string> Stepped(params string[] names) => [.. names, .. names.Select(name => $"{name}.late")];
+
+    private sealed class CountingCamera : Camera
+    {
+        internal int LateSteps { get; private set; }
+
+        protected internal override void OnLateStep(in StepContext context) => LateSteps++;
+    }
 }

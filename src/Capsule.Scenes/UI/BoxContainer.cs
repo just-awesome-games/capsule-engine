@@ -35,7 +35,7 @@ public class BoxContainer : ScreenEntity
 
         set
         {
-            if (!Enum.IsDefined(value))
+            if ((uint)value > (uint)Axis.Vertical)
             {
                 throw new ArgumentOutOfRangeException(nameof(value), value, "Expected Axis.Horizontal or Axis.Vertical.");
             }

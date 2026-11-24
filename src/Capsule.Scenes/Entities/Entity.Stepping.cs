@@ -16,7 +16,7 @@ public partial class Entity
 
         set
         {
-            if ((uint)value > (uint)StepMode.Never)
+            if ((uint)value > (uint)StepMode.UnlessPaused)
             {
                 throw new ArgumentOutOfRangeException(nameof(value), value, "The value names no StepMode. Pass one of its declared members.");
             }
@@ -38,12 +38,6 @@ public partial class Entity
             ? _parent?._resolvedStepMode ?? StepMode.Pausable
             : StepMode;
 
-        Held = _resolvedStepMode switch
-        {
-            StepMode.Pausable => paused || frozen,
-            StepMode.WhenPaused => !paused,
-            StepMode.Never => true,
-            _ => false,
-        };
+        Held = _resolvedStepMode.Holds(paused, frozen);
     }
 }

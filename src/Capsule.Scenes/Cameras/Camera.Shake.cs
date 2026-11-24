@@ -124,7 +124,7 @@ public partial class Camera
         Guard.Positive(shake.Seconds, nameof(shake));
         Guard.NonNegative(shake.Frequency, nameof(shake));
         Guard.InUnit(shake.Sustain, nameof(shake));
-        if (!Enum.IsDefined(shake.Wave))
+        if ((uint)shake.Wave > (uint)ShakeWave.Pulse)
         {
             throw new ArgumentOutOfRangeException(nameof(shake), shake.Wave, "Expected a declared ShakeWave member.");
         }

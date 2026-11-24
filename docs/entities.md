@@ -71,6 +71,9 @@ Scene.Paused = true;               // the pause menu opening
 StepMode = StepMode.WhenPaused;    // in the pause menu's constructor: it steps only while paused
 ```
 
+`StepMode.UnlessPaused` steps through a freeze but not a pause. It is the camera's default: a pause holds its
+follow, bounds and shake, and a freeze shakes on.
+
 ## Pooling
 
 A game that spawns and despawns entities at play rate takes a ready one from its scene's pool of the type. The

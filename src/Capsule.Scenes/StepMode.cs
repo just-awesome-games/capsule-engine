@@ -1,9 +1,12 @@
 namespace Capsule.Scenes;
 
-/// <summary>When an entity steps against its scene's <see cref="Scene.Paused"/> and <see cref="Scene.Freeze"/>.</summary>
+/// <summary>
+/// When an entity or a <see cref="Camera"/> steps against its scene's <see cref="Scene.Paused"/> and
+/// <see cref="Scene.Freeze"/>.
+/// </summary>
 public enum StepMode
 {
-    /// <summary>Takes the parent's mode. A root that inherits is <see cref="Pausable"/>.</summary>
+    /// <summary>Takes the parent's mode. A root or a camera that inherits is <see cref="Pausable"/>.</summary>
     Inherit,
 
     /// <summary>Steps while the scene is neither paused nor frozen.</summary>
@@ -17,4 +20,7 @@ public enum StepMode
 
     /// <summary>Never steps, and still draws and collides.</summary>
     Never,
+
+    /// <summary>Steps while the scene is not paused, through a freeze.</summary>
+    UnlessPaused,
 }

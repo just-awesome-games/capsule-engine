@@ -141,18 +141,22 @@ public partial class Camera
         bool moves = _settled && !_cut;
         if (Bounds is { } target && moves && _easing)
         {
-            Rect from = _easeFrom ??= Start(_confine ?? Unbounded, target, standing, Vector2.Zero);
-            _easeElapsed += seconds;
+            // A step of no time moves the ease nowhere. An ease of no length would otherwise sample 0/0.
+            if (seconds > 0f)
+            {
+                Rect from = _easeFrom ??= Start(_confine ?? Unbounded, target, standing, Vector2.Zero);
+                _easeElapsed += seconds;
 
-            // The step ending within half a step of the length lands. Float drift in the sum adds no step.
-            if (_carry.Seconds - _easeElapsed < seconds / 2f)
-            {
-                _easing = false;
-                _confine = target;
-            }
-            else
-            {
-                _confine = Along(from, target, Easing.Apply(_carry.Ease, _easeElapsed / _carry.Seconds));
+                // The step ending within half a step of the length lands. Float drift in the sum adds no step.
+                if (_carry.Seconds - _easeElapsed < seconds / 2f)
+                {
+                    _easing = false;
+                    _confine = target;
+                }
+                else
+                {
+                    _confine = Along(from, target, Easing.Apply(_carry.Ease, _easeElapsed / _carry.Seconds));
+                }
             }
         }
         else if (Bounds is { } chased && moves && _carry.IsChase)

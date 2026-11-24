@@ -49,6 +49,7 @@ public partial class Scene
     private int _freezeTicks;
     private bool _pausedThisStep;
     private bool _frozenThisStep;
+    private bool _cameraHeldThisStep;
     private bool _holdsStale;
 
     // The roots of the subtrees parent writes moved since the last step began, empty while the whole
@@ -102,6 +103,14 @@ public partial class Scene
             {
                 outgoing.SceneOrNull = null;
                 Install(value);
+            }
+
+            // A camera installed during a step holds by its own mode against the step's pause and freeze.
+            // Reinstalling the same camera keeps the hold its step began with. The current camera is read
+            // after the install, whose start hook may have installed another.
+            if (!ReferenceEquals(outgoing, _camera))
+            {
+                _cameraHeldThisStep = _camera.StepMode.Holds(_pausedThisStep, _frozenThisStep);
             }
 
             _camera.SavePrevious();
@@ -168,15 +177,17 @@ public partial class Scene
     }
 
     /// <summary>
-    /// Whether the scene holds the entities whose <see cref="Entity.StepMode"/> resolves to
-    /// <see cref="StepMode.Pausable"/>, from the next step until it is cleared.
+    /// Whether the scene holds the entities and the camera whose <see cref="StepMode"/> a pause holds,
+    /// from the next step until it is cleared.
     /// </summary>
     /// <remarks>
-    /// The scene and its camera always step, and <see cref="StepContext.Tick"/> and
-    /// <see cref="StepContext.TotalSeconds"/> keep counting. A timer that should hold counts its own
-    /// steps, as <see cref="Capsule.Animation.Countdown"/> does. A held entity skips its and its
-    /// components' steps and late steps, and its colliders and screen notifiers settle nothing until it
-    /// resumes. It still draws, collides with others, keeps its sounds and runs its structural hooks.
+    /// The scene itself always steps, and <see cref="StepContext.Tick"/> and
+    /// <see cref="StepContext.TotalSeconds"/> keep counting. A held camera skips its
+    /// <see cref="Scenes.Camera.OnLateStep"/>, and its follow, bounds and shake stand still. A timer
+    /// that should hold counts its own steps, as <see cref="Capsule.Animation.Countdown"/> does. A held
+    /// entity skips its and its components' steps and late steps, and its colliders and screen notifiers
+    /// settle nothing until it resumes. It still draws, collides with others, keeps its sounds and runs
+    /// its structural hooks.
     /// Removing it, or disabling or detaching its collider or notifier, still raises the exits it owes.
     /// </remarks>
     public bool Paused { get; set; }
@@ -295,8 +306,8 @@ public partial class Scene
     }
 
     /// <summary>
-    /// Holds the entities <see cref="Paused"/> would hold for the next <paramref name="ticks"/> steps,
-    /// then resumes them by itself.
+    /// Holds the entities and the camera whose <see cref="StepMode"/> a freeze holds for the next
+    /// <paramref name="ticks"/> steps, then resumes them by itself.
     /// </summary>
     /// <remarks>
     /// The count starts at the next step. A call made during a step, from a step, a late step or a
@@ -490,7 +501,8 @@ public partial class Scene
     /// </summary>
     /// <remarks>
     /// Set the scene's camera policy here. The camera's own <see cref="Scenes.Camera.OnLateStep"/>
-    /// and its follow run afterwards and frame the result.
+    /// and its follow run afterwards and frame the result, unless its <see cref="Scenes.Camera.StepMode"/>
+    /// holds the step.
     /// </remarks>
     protected virtual void OnLateStep(in StepContext context)
     {
@@ -665,6 +677,7 @@ public partial class Scene
         _holdsStale = false;
         _pausedThisStep = paused;
         _frozenThisStep = frozen;
+        _cameraHeldThisStep = Camera.StepMode.Holds(paused, frozen);
         if (!resolve && _movedHolds.Count > 0)
         {
             ResolveMovedHolds(paused, frozen);
@@ -771,10 +784,14 @@ public partial class Scene
     internal void RunLateStep(in StepContext context)
     {
         OnLateStep(context);
-        Camera.OnLateStep(context);
+
+        if (!_cameraHeldThisStep)
+        {
+            Camera.OnLateStep(context);
+        }
 
         // The frame's visible region is final. Notifiers settle against it after deferred adds land.
-        Camera.Settle(context);
+        Camera.Settle(context, _cameraHeldThisStep);
         Visibility.Frame(Camera.VisibleRegion);
     }
 
