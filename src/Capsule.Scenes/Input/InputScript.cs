@@ -6,7 +6,7 @@ namespace Capsule.Input;
 /// <summary>
 /// Builds an <see cref="IInputDriver"/> from a fixed snapshot sequence, the way a device produces
 /// one. It keeps a held state that <see cref="Down"/>, <see cref="Up"/>, <see cref="Axis"/>,
-/// <see cref="MoveTo"/>, <see cref="WindowFocus"/>, <see cref="PadFamily"/> and <see cref="PadLacking"/>
+/// <see cref="MoveTo"/>, <see cref="WindowFocus"/>, <see cref="Pad"/>, <see cref="PadFamily"/> and <see cref="PadLacking"/>
 /// edit, and <see cref="Wait"/>, <see cref="Tap"/> and <see cref="Scroll"/> emit steps of that state.
 /// </summary>
 /// <remarks>
@@ -56,6 +56,13 @@ public sealed class InputScript
     public InputScript WindowFocus(bool focused)
     {
         _held = _held.WithWindowFocus(focused);
+        return this;
+    }
+
+    /// <summary>Connects the player's pad or disconnects it from the next emitted step on. A script starts with it connected.</summary>
+    public InputScript Pad(bool connected)
+    {
+        _held = _held.WithPad(connected);
         return this;
     }
 

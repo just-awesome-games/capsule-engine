@@ -39,6 +39,17 @@ public sealed class HeadlessRunTests
         Assert.True(result.ExitRequested, "the window focus loss did not open the pause menu");
     }
 
+    // A player who confirmed Start on the pad and then lost it is paused, and quits from the menu on the keyboard.
+    [Fact]
+    public void LosingThePadInPlay_OpensThePauseMenu()
+    {
+        StartThenQuit driver = new(DeviceSnapshot.Empty.WithPad(false), confirm: DeviceSnapshot.Empty.With(PadButton.South));
+
+        HeadlessRunResult result = Boot().RunHeadless<MainMenu>(driver);
+
+        Assert.True(result.ExitRequested, "losing the pad did not open the pause menu");
+    }
+
     // The shell's own driver, handed to the same run the shell boots. It ends on the pause menu's Quit,
     // and a run that only ran out of script would report no exit. The room is a document naming a base
     // scene and a camera, with no class of its own.
@@ -105,7 +116,7 @@ public sealed class HeadlessRunTests
 
     // Presses Confirm on the menu, which opens focused on Start, and asks QuitsFrom each step in play
     // until it says to quit. The budget is a floor under a transition that never comes.
-    private class StartThenQuit(DeviceSnapshot? pause = null, int budget = 60) : IInputDriver
+    private class StartThenQuit(DeviceSnapshot? pause = null, int budget = 60, DeviceSnapshot? confirm = null) : IInputDriver
     {
         private int _presses;
 
@@ -118,7 +129,7 @@ public sealed class HeadlessRunTests
             snapshot = DeviceSnapshot.Empty;
             if (scene is MainMenu menu && ConfirmsOn(menu, tick))
             {
-                snapshot = DeviceSnapshot.Of(Key.Enter);
+                snapshot = confirm ?? DeviceSnapshot.Of(Key.Enter);
             }
             else if (scene is PlayableScene play)
             {
@@ -127,7 +138,8 @@ public sealed class HeadlessRunTests
                 {
                     snapshot = NextQuitPress();
 
-                    return true;
+                    // A menu that never opened takes the presses in play, and the run ends after the third.
+                    return _presses <= 3;
                 }
             }
 

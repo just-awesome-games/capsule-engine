@@ -30,6 +30,18 @@ public sealed class RecordingBodyTests
         AssertRoundTrips(steps);
     }
 
+    // A replay loses the pad in play where the live run did. A recording made before the flag never sets
+    // it and replays a pad connected throughout.
+    [Fact]
+    public void ThePadsConnection_RoundTripsAndAStepWithoutItReadsAPad()
+    {
+        DeviceSnapshot pressed = DeviceSnapshot.Empty.With(PadButton.South);
+        DeviceSnapshot gone = pressed.Without(PadButton.South).WithPad(false);
+        DeviceSnapshot[] steps = [pressed, gone, gone, gone.WithPad(true)];
+
+        AssertRoundTrips(steps);
+    }
+
     private static void AssertRoundTrips(DeviceSnapshot[] steps)
     {
         ChunkedBuffer writer = new(256);

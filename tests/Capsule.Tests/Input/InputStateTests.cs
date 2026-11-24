@@ -87,6 +87,46 @@ public sealed class InputStateTests
         Assert.False(input.WindowFocusGained);
     }
 
+    // The edge reads the device in play before the step. It sets once while the pad stays gone, a key
+    // pressed on the step the pad goes still reports it, and a keyboard player whose idle pad switches off
+    // never sees it.
+    [Fact]
+    public void ThePadInPlayDisconnecting_IsLostOnce_AndAnIdlePadNever()
+    {
+        InputState input = Bound(Key.Space);
+        DeviceSnapshot gone = DeviceSnapshot.Empty.WithPad(false);
+
+        input.Advance(DeviceSnapshot.Empty.With(PadButton.South));
+        Assert.True(input.HasPad);
+        input.Advance(gone);
+        Assert.False(input.HasPad);
+        Assert.True(input.PadLost);
+
+        input.Advance(gone);
+        Assert.False(input.PadLost);
+        Assert.Equal(InputDevice.Gamepad, input.ActiveDevice);
+
+        input.Advance(DeviceSnapshot.Empty);
+        Assert.True(input.HasPad);
+        Assert.False(input.PadLost);
+
+        input.Advance(gone.With(Key.Space));
+        Assert.True(input.PadLost);
+        Assert.Equal(InputDevice.KeyboardMouse, input.ActiveDevice);
+
+        // The keyboard is in play now, and the pad going again is no loss.
+        input.Advance(DeviceSnapshot.Empty);
+        input.Advance(gone);
+        Assert.False(input.PadLost);
+
+        // A run that starts on the keyboard with no pad reads none from its first step and loses none.
+        InputState booted = Bound(Key.Space);
+        booted.Seed(InputDevice.KeyboardMouse);
+        booted.Advance(gone);
+        Assert.False(booted.HasPad);
+        Assert.False(booted.PadLost);
+    }
+
     [Fact]
     public void Axis_ReadsTheCurrentStepOnly()
     {

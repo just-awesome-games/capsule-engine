@@ -56,6 +56,18 @@ public sealed class SnapshotLatchTests
         Assert.True(latch.Consume().HasWindowFocus);
     }
 
+    // A pad gone and back between two steps is the driver finding it again, and the step reads it connected.
+    [Fact]
+    public void APadGoneAndBackBetweenSteps_ReadsConnected()
+    {
+        SnapshotLatch latch = new();
+
+        latch.Observe(DeviceSnapshot.Empty.WithPad(false));
+        latch.Observe(DeviceSnapshot.Empty);
+
+        Assert.True(latch.Consume().HasPad);
+    }
+
     // A remap is a delta like a notch: the next step reads it and a second step in the frame does not.
     [Fact]
     public void ARemapBetweenSteps_SurvivesToTheNextStepAndIsSpentThere()

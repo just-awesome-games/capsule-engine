@@ -8,14 +8,15 @@ internal readonly record struct Pad(uint Id, nint Handle, string Name, PadFamily
 
 // The open pads in connection order and the active one, the pad last used. SDL numbers joystick
 // instances in increasing order as it detects them and lists them per driver. Connection order is id
-// order. The active pad is the earliest connected until another is used, and the earliest left
-// when it goes.
+// order. The active pad is the earliest connected until another is used. When it goes, none is active
+// until a pad is used or one connects in a later sync. A pad left open may be an idle or virtual one
+// nobody holds.
 internal sealed class PadRoster
 {
     private readonly List<Pad> _pads = new(InputEvents.MaxPressingPads);
     private uint _active;
 
-    // The active pad's SDL joystick id, or 0 with none open.
+    // The active pad's SDL joystick id, or 0 with none active.
     internal uint ActiveId => _active;
 
     internal bool TryGetActive(out Pad pad)
@@ -39,6 +40,7 @@ internal sealed class PadRoster
     // lists them in. open returns null for a pad that could not be opened.
     internal void Sync(ReadOnlySpan<uint> connected, Func<uint, Pad?> open, Action<Pad> close)
     {
+        bool hadActive = IndexOf(_active) >= 0;
         for (int index = _pads.Count - 1; index >= 0; index--)
         {
             if (!connected.Contains(_pads[index].Id))
@@ -62,18 +64,22 @@ internal sealed class PadRoster
 
         // A sort given no comparison allocates on every call in a NativeAOT build.
         found.Sort(static (left, right) => left.CompareTo(right));
+
+        // The earliest pad this sync opened, which a roster with none active takes.
+        uint opened = 0;
         foreach (uint id in found)
         {
             if (open(id) is { } pad)
             {
                 int at = _pads.FindIndex(existing => existing.Id > id);
                 _pads.Insert(at < 0 ? _pads.Count : at, pad);
+                opened = opened == 0 ? id : opened;
             }
         }
 
         if (IndexOf(_active) < 0)
         {
-            _active = _pads.Count > 0 ? _pads[0].Id : 0;
+            _active = hadActive ? 0 : opened;
         }
     }
 

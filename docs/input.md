@@ -5,7 +5,11 @@ nobody at the keyboard. Each type's XML docs hold its rules.
 
 A game reads actions, never keys or pad buttons. Capsule samples one keyboard, one mouse and one gamepad,
 and turns them into action state once per fixed step. What each action means is the game's. The gamepad
-is the connected pad last pressed, and a press shorter than a frame still reaches a step. Capsule
+is the earliest connected at boot, then the pad last pressed, and a press shorter than a frame still reaches a step.
+`InputState.PadLost` is set on the step the pad in play disconnects, where a game holds play as it
+does on `WindowFocusLost`. `InputState.HasPad` reads whether a pad is in use again. A pad left
+connected, or found in the frame of the loss, takes over only once pressed. One connecting later, as
+the lost one plugged back in, takes over by itself. Capsule
 ships the community controller database. A `gamecontrollerdb.txt` beside the game adds or replaces
 mappings, and the log names each connected joystick that no mapping makes a gamepad, with its GUID.
 Each line is in SDL's mapping format, which SDL_GameControllerDB documents and whose community tools
@@ -57,7 +61,7 @@ protected override void OnStep(in StepContext context)
 {
     Position += new Vector2(context.Input.Axis(GameInput.Move) * Speed * context.DeltaSeconds, 0f);
 
-    if (context.Input.WasPressed(GameInput.Pause) || context.Input.WindowFocusLost)
+    if (context.Input.WasPressed(GameInput.Pause) || context.Input.WindowFocusLost || context.Input.PadLost)
     {
         _pauseMenu.Open();
     }

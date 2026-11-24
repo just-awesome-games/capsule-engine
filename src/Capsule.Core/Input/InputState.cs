@@ -18,6 +18,7 @@ public sealed class InputState
     private DeviceSnapshot _current;
     private InputDevice _activeDevice;
     private bool _activeDeviceChanged;
+    private bool _padLost;
 
     // The characters the player's keyboard layout prints, indexed by key, or null for a US layout's.
     // A null entry is a key the layout prints no character on. The array is never rewritten, a change
@@ -73,6 +74,26 @@ public sealed class InputState
 
     /// <summary>Whether the window regained focus on the edge into this step.</summary>
     public bool WindowFocusGained => _current.HasWindowFocus && !_previous.HasWindowFocus;
+
+    /// <summary>Whether a pad is in use this step, which a prompt to connect one reads.</summary>
+    /// <remarks>
+    /// False for a player with no pad connected. A game holds play on <see cref="PadLost"/> and not on this.
+    /// The pad in use is the earliest connected at boot, then the one last pressed. It goes when that pad
+    /// disconnects, and the next press on another pad, or a pad connecting while none is in use, brings one
+    /// back. A driven or headless run has a pad unless its driver takes it away.
+    /// </remarks>
+    public bool HasPad => _current.HasPad;
+
+    /// <summary>
+    /// Whether the pad the player was playing with disconnected on the edge into this step, where a game holds play.
+    /// </summary>
+    /// <remarks>
+    /// Set only while <see cref="ActiveDevice"/> was <see cref="InputDevice.Gamepad"/> before this step. An
+    /// idle pad switching itself off never stops a keyboard player. A loss after a step where the mouse moved
+    /// the device to <see cref="InputDevice.KeyboardMouse"/> is not reported either. The loss itself leaves
+    /// <see cref="ActiveDevice"/> where this step's input puts it.
+    /// </remarks>
+    public bool PadLost => _padLost;
 
     /// <summary>The device the player last used, which a button prompt reads.</summary>
     /// <remarks>
@@ -161,6 +182,7 @@ public sealed class InputState
         _current = snapshot;
 
         InputDevice device = DeviceUsed(in _current, in _previous) ?? _activeDevice;
+        _padLost = _activeDevice == InputDevice.Gamepad && _previous.HasPad && !_current.HasPad;
         _activeDeviceChanged = device != _activeDevice;
         _activeDevice = device;
     }

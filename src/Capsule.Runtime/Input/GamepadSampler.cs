@@ -8,9 +8,9 @@ namespace Capsule.Runtime.Input;
 // Folds the active gamepad into a DeviceSnapshot. The only place pad hardware enters the engine. Every
 // connected pad is opened, and PadRoster keeps the active one: a button or trigger going down on
 // another pad makes that pad active and counts as its press. One instance per windowed host, which
-// holds SDL's gamepad subsystem open for its lifetime. An unfocused window folds none of it but the
-// active pad's family and the buttons it lacks, which every sample carries and which outlast the pad's
-// disconnection.
+// holds SDL's gamepad subsystem open for its lifetime. An unfocused window folds none of it but whether
+// a pad is active, the active pad's family and the buttons it lacks, which every sample carries. The
+// family and the buttons outlast the pad's disconnection.
 internal sealed class GamepadSampler : IDisposable
 {
     private static readonly (PadButton Button, Sdl3.GamepadButton Sdl)[] Mappings = BuildLookup();
@@ -53,7 +53,7 @@ internal sealed class GamepadSampler : IDisposable
         Reconcile();
     }
 
-    // The SDL joystick id of the active pad, or 0 with none connected. The rumble applier drives it.
+    // The SDL joystick id of the active pad, or 0 with none active. The rumble applier drives it.
     internal uint ActivePad => _pads.ActiveId;
 
     // A raw SDL axis reading in [-1, 1], scaled by 32768 below centre and 32767 above.
@@ -141,9 +141,9 @@ internal sealed class GamepadSampler : IDisposable
         return lacking | (rightTrigger ? 0 : 1u << (int)PadButton.RightTrigger);
     }
 
-    // snapshot with the active pad's family, the buttons it has, held buttons and those that went down
-    // since the last sample, and its axes set through filter. With no pad connected or the window
-    // inactive it gains only the last active pad's family and buttons.
+    // snapshot with whether a pad is active, the active pad's family, the buttons it has, held buttons and
+    // those that went down since the last sample, and its axes set through filter. With no pad active or
+    // the window inactive it gains only the first three. An inactive window is no unplug.
     internal DeviceSnapshot SampleOnto(in DeviceSnapshot snapshot, PadFilter filter, bool windowActive, InputEvents events)
     {
         if (events.PadsChanged)
@@ -168,7 +168,7 @@ internal sealed class GamepadSampler : IDisposable
             _lacking = active.Lacking;
         }
 
-        DeviceSnapshot sampled = snapshot.WithPadFamily(_family).WithPadLackingBits(_lacking);
+        DeviceSnapshot sampled = snapshot.WithPad(connected).WithPadFamily(_family).WithPadLackingBits(_lacking);
         if (!windowActive || !connected)
         {
             return sampled;

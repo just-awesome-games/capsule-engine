@@ -28,8 +28,9 @@ internal static class RecordingFormat
     internal const byte End = 0xFF;
 
     // A Step record's mask bits. An axis bit is its slot's, from AxisBit up, and LackingBit follows the
-    // axes. A recording that never sets LackingBit replays a full pad. FocusBit and RemappedBit carry no
-    // field and flip the flag, and a recording that never sets RemappedBit replays no remap.
+    // axes. A recording that never sets LackingBit replays a full pad. FocusBit, RemappedBit and
+    // PadMissingBit carry no field and flip the flag. A recording that never sets RemappedBit replays no
+    // remap, and one that never sets PadMissingBit a pad connected throughout.
     internal const int KeysBit = 1 << 0;
     internal const int PadBit = 1 << 1;
     internal const int MouseBit = 1 << 2;
@@ -40,6 +41,7 @@ internal static class RecordingFormat
     internal const int AxisBit = 7;
     internal const int LackingBit = 1 << 13;
     internal const int RemappedBit = 1 << 14;
+    internal const int PadMissingBit = 1 << 15;
 
     internal static ReadOnlySpan<byte> Magic => "CAPSREC\0"u8;
 }

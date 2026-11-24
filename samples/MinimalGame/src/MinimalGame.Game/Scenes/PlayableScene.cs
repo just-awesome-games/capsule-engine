@@ -54,11 +54,11 @@ public abstract class PlayableScene : Scene
     }
 
     // The scene steps through its own pause and owns the key that opens and closes it. Losing window
-    // focus opens it too, and regaining window focus leaves it open.
+    // focus or the pad in play opens it too, and getting either back leaves it open.
     /// <inheritdoc/>
     protected override void OnStep(in StepContext context)
     {
-        if (context.Input.WindowFocusLost && !Paused)
+        if ((context.Input.WindowFocusLost || context.Input.PadLost) && !Paused)
         {
             _pauseMenu.Open();
         }

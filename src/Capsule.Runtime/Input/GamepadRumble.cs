@@ -53,8 +53,8 @@ internal sealed class GamepadRumble(GamepadRumble.Writer write)
         }
     }
 
-    // Called once per frame after the steps have run. pad is the active pad, 0 with none connected.
-    // The target is the level while the window has focus, a pad is connected, the pad is the active
+    // Called once per frame after the steps have run. pad is the active pad, 0 with none active.
+    // The target is the level while the window has focus, a pad is active, the pad is the active
     // device and the run is not held, and Zero otherwise. A write goes out when the target changes, or
     // when a non-zero level has stood for RefreshSeconds. Nothing here reaches the simulation.
     internal void Apply(RumbleLevel level, bool focused, bool padActive, bool runHeld, uint pad, double elapsedSeconds)
