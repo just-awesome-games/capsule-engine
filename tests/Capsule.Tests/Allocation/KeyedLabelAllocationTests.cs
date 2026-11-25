@@ -10,8 +10,9 @@ namespace Capsule.Tests.Allocation;
 [Collection(StageAllocationCollection.Name)]
 public sealed class KeyedLabelAllocationTests
 {
-    // Every step switches the language, and each draw resolves the texts again with their kept arguments,
-    // selecting the plural form anew and resolving a key argument in the new language. The buffers grown on the first passes serve the rest.
+    // Every step switches the language, the pseudo-language among them, and each draw resolves the texts again
+    // with their kept arguments, selecting the plural form anew and resolving a key argument in the new language.
+    // The buffers grown on the first passes serve the rest.
     [Fact]
     public void AKeyedLabel_ResolvesAndReResolvesAllocatingNothingOnceWarm()
     {
@@ -41,10 +42,11 @@ public sealed class KeyedLabelAllocationTests
         protected internal override void OnStep(in StepContext context)
         {
             _step++;
-            Run.Language = (_step % 3) switch
+            Run.Language = (_step % 4) switch
             {
                 0 => "de",
                 1 => "pl",
+                2 => "qps-ploc",
                 _ => "pt-BR",
             };
         }

@@ -69,19 +69,40 @@ public sealed class FocusGeometryTests
         Assert.Equal(2, menu.Rest().Tap(Key.Up).FocusedIndex);
     }
 
-    // Alignment and closeness trade against each other: dot(direction, delta) / |delta|² ranks a
-    // squarely placed item over a diagonal that is barely nearer, and a close diagonal over an aligned
-    // item far away.
+    // An item overlapping the focused one across the direction wins over any that does not, and the
+    // nearest edge wins among them. Left-aligned rows of uneven width step row by row, though the wide
+    // row's centre lies farther than the next one's.
     [Fact]
-    public void ADirection_RanksByAlignmentTradedAgainstCloseness()
+    public void ADirection_TakesTheNearestItemInLine()
     {
-        using Menu aligned = new(Item(Vector2.Zero), Item(new Vector2(40f, 0f)), Item(new Vector2(25f, 25f)));
+        using Menu rows = new(
+            Item(Vector2.Zero, new Vector2(32f, 10f)),
+            Item(new Vector2(0f, 12f), new Vector2(104f, 10f)),
+            Item(new Vector2(0f, 24f), new Vector2(36f, 10f)));
 
-        Assert.Equal(1, aligned.Open().Tap(Key.Right).FocusedIndex);
+        Assert.Equal(1, rows.Open().Tap(Key.Down).FocusedIndex);
+
+        // The tall item listed last starts nearer, though its centre lies farther than the short one's.
+        using Menu gaps = new(Item(Vector2.Zero), Item(new Vector2(0f, 30f), new Vector2(20f, 4f)), Item(new Vector2(0f, 20f), new Vector2(20f, 40f)));
+
+        Assert.Equal(2, gaps.Open().Tap(Key.Down).FocusedIndex);
 
         using Menu diagonal = new(Item(Vector2.Zero), Item(new Vector2(40f, 0f)), Item(new Vector2(10f, 10f)));
 
-        Assert.Equal(2, diagonal.Open().Tap(Key.Right).FocusedIndex);
+        Assert.Equal(1, diagonal.Open().Tap(Key.Right).FocusedIndex);
+    }
+
+    // With nothing in line, alignment and closeness trade against each other: dot(direction, delta) /
+    // |delta|² ranks a squarely placed item over a diagonal that is barely nearer, and a close diagonal
+    // over a farther item.
+    [Theory]
+    [InlineData(40f, 11f, 1)]
+    [InlineData(60f, 12f, 2)]
+    public void ADirectionWithNothingInLine_RanksByAlignmentTradedAgainstCloseness(float x, float y, int reached)
+    {
+        using Menu menu = new(Item(Vector2.Zero), Item(new Vector2(x, y)), Item(new Vector2(25f, 25f)));
+
+        Assert.Equal(reached, menu.Open().Tap(Key.Right).FocusedIndex);
     }
 
     [Fact]

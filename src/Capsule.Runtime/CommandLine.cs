@@ -15,7 +15,7 @@ internal sealed class CommandLine
           --scene <Name>             boot the scene of that class name, else of that document key
           --payload <Name>           boot the opening scene with a new payload of that class name
           --seed <number>            start the random source from that seed, which a windowed run logs
-          --language <tag>           start in the shipped language closest to that BCP 47 tag
+          --language <tag>           start in the shipped language closest to that BCP 47 tag, or the pseudo-language qps-ploc
           --driver <Name>            drive the run from the input driver of that class name
           --headless                 run with no window, playing a driver or a replay
 

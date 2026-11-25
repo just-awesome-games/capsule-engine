@@ -19,9 +19,12 @@ namespace Capsule.UI;
 /// directions, the pointer and the press.
 /// <para>
 /// A direction first takes the neighbour the focused item names for that side. When the item names
-/// none, the focus moves to the item lying that way with the highest
-/// <c>dot(direction, delta) / |delta|²</c> from the focused item's <see cref="Focusable.Bounds"/>
-/// centre, with ties to list order. When nothing lies that way, the focus wraps to the item farthest
+/// none, the focus moves to an item lying that way whose <see cref="Focusable.Bounds"/> overlap the
+/// focused item's across the direction. Among those, the smallest gap between edges along the
+/// direction wins, with touching or overlapping edges a gap of zero, then the centre nearest along the
+/// direction. A column of rows of uneven width steps row by row. When no item lying that way overlaps,
+/// the focus moves to the one with the highest <c>dot(direction, delta) / |delta|²</c> between their
+/// centres. Ties go to list order. When nothing lies that way, the focus wraps to the item farthest
 /// the other way. An item that names itself blocks that direction. A named item that is not live
 /// passes the move on to the item it names in the same direction. A chain that names nothing
 /// further, returns to an item it already visited, or reaches an item this navigator does not hold
@@ -726,14 +729,19 @@ public sealed class FocusNavigator : Component
         };
 
     // Returns the live item `direction` reaches from `from`, or the wrap target when nothing lies that
-    // way. Items lying that way rank by dot(direction, delta) / |delta|², which lets a near diagonal beat
-    // a far aligned item. Ties go to list order, and the wrap target is the item farthest the other way.
+    // way. An item lying that way and overlapping `from` across it ranks first, by the gap between their
+    // edges, then by the nearer centre. Others rank by dot(direction, delta) / |delta|² between centres, which lets a near diagonal
+    // beat a far aligned item. Ties go to list order, and the wrap target is the item farthest the other way.
     private Focusable? Neighbour(Focusable from, Vector2 direction)
     {
-        Vector2 origin = from.Bounds.Center;
+        Rect origin = from.Bounds;
+        Vector2 axis = Vector2.Abs(direction);
+        Vector2 across = new(axis.Y, axis.X);
 
         Focusable? best = null;
-        float bestScore = 0f;
+        bool bestInLine = false;
+        float bestRank = 0f;
+        float bestAlong = 0f;
         Focusable? wrap = null;
         float wrapDistance = 0f;
 
@@ -744,17 +752,27 @@ public sealed class FocusNavigator : Component
                 continue;
             }
 
-            Vector2 delta = item.Bounds.Center - origin;
+            Rect bounds = item.Bounds;
+            Vector2 delta = bounds.Center - origin.Center;
             float along = Vector2.Dot(direction, delta);
 
             if (along > 0f)
             {
-                float score = along / delta.LengthSquared();
+                Vector2 extents = origin.Size + bounds.Size;
+                bool inLine = MathF.Abs(Vector2.Dot(across, delta)) * 2f < Vector2.Dot(across, extents);
 
-                if (best is null || score > bestScore)
+                // Higher ranks first. In line, the rank is the negated gap between edges, which overlapping items
+                // share at zero and the nearer centre breaks. Out of line, it is the alignment score.
+                float gap = along - (Vector2.Dot(axis, extents) * 0.5f);
+                float rank = inLine ? -MathF.Max(0f, gap) : along / delta.LengthSquared();
+                bool nearer = rank > bestRank || (inLine && rank == bestRank && along < bestAlong);
+
+                if (best is null || (inLine && !bestInLine) || (inLine == bestInLine && nearer))
                 {
                     best = item;
-                    bestScore = score;
+                    bestInLine = inLine;
+                    bestRank = rank;
+                    bestAlong = along;
                 }
             }
             else if (along < 0f && (wrap is null || -along > wrapDistance))

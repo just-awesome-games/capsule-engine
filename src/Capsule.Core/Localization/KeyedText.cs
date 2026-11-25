@@ -1,7 +1,9 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Unicode;
+using Capsule.Diagnostics;
 using Capsule.Input;
+using Capsule.Rendering;
 
 namespace Capsule.Localization;
 
@@ -22,6 +24,20 @@ internal sealed class KeyedText
     private ArgumentCounts _counts;
     private int _negatives;
     private int _argumentCount;
+
+    // The pseudo-language's state through one decode: each literal's text before it is rewritten, the font
+    // whose glyphs decide its accents, and whether a [..] span runs on from the literal before.
+    private char[] _literal = [];
+    private BitmapFont? _font;
+    private bool _inTag;
+
+    // How the pseudo-language rewrites a literal: not at all, as words, or as a lone caption that may double.
+    private enum Pseudo
+    {
+        None,
+        Words,
+        Caption,
+    }
 
     // The key the text resolves from. Default until the first Set, and for a bare button or action.
     internal TextKey Key { get; private set; }
@@ -70,18 +86,27 @@ internal sealed class KeyedText
 
     // Decodes the text in the shipped language closest to tag into buffer from its start, growing it while
     // it is too short, and returns the length written. A button argument reads input, and takes the game's
-    // own names from names, the run's table, else from the text's own table, else the engine's English.
-    internal int Decode(string? tag, InputState input, StringTable? names, ref char[] buffer)
+    // own names from names, the run's table, else from the text's own table, else the engine's English. Font is
+    // the one the text draws in. The pseudo-language accents a letter only where it carries the accented form,
+    // or always when it is null.
+    internal int Decode(string? tag, InputState input, StringTable? names, BitmapFont? font, ref char[] buffer)
     {
         if (Key.IsDefault)
         {
-            return DecodeArgument(0, tag, input, names, ref buffer, length: 0);
+            return DecodeArgument(0, tag, Pseudo.None, input, names, ref buffer, length: 0);
         }
 
         names ??= Key.Table;
         ReadOnlySpan<byte> template = Template(Key, tag, out int language);
+        Pseudo pseudo = Pseudo.None;
+        if (PseudoLanguage.Shows(tag))
+        {
+            _font = font;
+            _inTag = false;
+            pseudo = template.IndexOfAny(StringTable.Placeholder, StringTable.PluralOpen) < 0 ? Pseudo.Caption : Pseudo.Words;
+        }
 
-        return DecodeTemplate(Key.Table, language, template, tag, counted: -1, input, names, ref buffer, length: 0);
+        return DecodeTemplate(Key.Table, language, template, tag, pseudo, counted: -1, input, names, ref buffer, length: 0);
     }
 
     // 1 << index when T is an integer type a plural form selects on, else 0. The JIT folds it to a constant.
@@ -260,7 +285,7 @@ internal sealed class KeyedText
         : Unsafe.As<T, InputButton>(ref value);
 
     // Grows buffer to at least length, keeping what it holds.
-    private static void Reserve(ref char[] buffer, int length)
+    internal static void Reserve(ref char[] buffer, int length)
     {
         if (buffer.Length < length)
         {
@@ -268,11 +293,12 @@ internal sealed class KeyedText
         }
     }
 
-    // The key's encoded text in the shipped language closest to tag, and the language whose plural rules it takes.
+    // The key's encoded text in the shipped language closest to tag, and the language whose plural rules it
+    // takes. The pseudo-language shows the fallback even where a table ships a tag it matches.
     private static ReadOnlySpan<byte> Template(TextKey key, string? tag, out int language)
     {
         StringTable table = key.Table;
-        language = table.Resolve(tag);
+        language = PseudoLanguage.Matches(tag) ? table.Fallback : table.Resolve(tag);
         ReadOnlySpan<byte> template = table.Template(language, key.Index);
 
         // A slot the language lacks holds the source text, whose plurals take the source language's rules.
@@ -286,12 +312,14 @@ internal sealed class KeyedText
     }
 
     // Decodes template into buffer from length on, and returns the new length. A plural block writes the
-    // branch its count selects, in which each count mark writes the text of argument counted.
+    // branch its count selects, in which each count mark writes the text of argument counted. The
+    // pseudo-language rewrites each literal, and a key argument's text as words.
     private int DecodeTemplate(
         StringTable table,
         int language,
         ReadOnlySpan<byte> template,
         string? tag,
+        Pseudo pseudo,
         int counted,
         InputState input,
         StringTable? names,
@@ -303,10 +331,20 @@ internal sealed class KeyedText
             int marker = template.IndexOfAny(StringTable.Placeholder, StringTable.PluralOpen, StringTable.Count);
             ReadOnlySpan<byte> literal = marker < 0 ? template : template[..marker];
 
-            // A UTF-8 byte decodes to at most one char.
-            Reserve(ref buffer, length + literal.Length);
-            _ = Utf8.ToUtf16(literal, buffer.AsSpan(length), out _, out int decoded);
-            length += decoded;
+            // A UTF-8 byte decodes to at most one char. The build check lets a shipping publish trim the rewrite.
+            if (!Development.IsSupported || pseudo == Pseudo.None)
+            {
+                Reserve(ref buffer, length + literal.Length);
+                _ = Utf8.ToUtf16(literal, buffer.AsSpan(length), out _, out int decoded);
+                length += decoded;
+            }
+            else
+            {
+                Reserve(ref _literal, literal.Length);
+                _ = Utf8.ToUtf16(literal, _literal, out _, out int decoded);
+                length = PseudoLanguage.Write(_literal.AsSpan(0, decoded), pseudo == Pseudo.Caption, _font, ref _inTag, ref buffer, length);
+            }
+
             if (marker < 0)
             {
                 return length;
@@ -315,7 +353,7 @@ internal sealed class KeyedText
             byte code = template[marker];
             if (code == StringTable.Count)
             {
-                length = DecodeArgument(counted, tag, input, names, ref buffer, length);
+                length = DecodeArgument(counted, tag, pseudo, input, names, ref buffer, length);
                 template = template[(marker + 1)..];
                 continue;
             }
@@ -324,7 +362,7 @@ internal sealed class KeyedText
             template = template[(marker + 2)..];
             if (code == StringTable.Placeholder)
             {
-                length = DecodeArgument(argument, tag, input, names, ref buffer, length);
+                length = DecodeArgument(argument, tag, pseudo, input, names, ref buffer, length);
                 continue;
             }
 
@@ -332,22 +370,23 @@ internal sealed class KeyedText
             ulong magnitude = _counts[argument];
             ReadOnlySpan<byte> branch = StringTable.Branch(
                 template[..close], magnitude, (_negatives & (1 << argument)) != 0, table.Category(language, magnitude));
-            length = DecodeTemplate(table, language, branch, tag, argument, input, names, ref buffer, length);
+            length = DecodeTemplate(table, language, branch, tag, pseudo, argument, input, names, ref buffer, length);
             template = template[(close + 1)..];
         }
     }
 
     // Copies argument's formatted text into buffer at length, or decodes a key argument's text in the
     // shipped language closest to tag, or names a button or action argument's button, and returns the new length.
-    private int DecodeArgument(int argument, string? tag, InputState input, StringTable? names, ref char[] buffer, int length)
+    private int DecodeArgument(int argument, string? tag, Pseudo pseudo, InputState input, StringTable? names, ref char[] buffer, int length)
     {
         int bit = 1 << argument;
         if ((_keyArguments & bit) != 0)
         {
             TextKey key = _argumentKeys[argument];
             ReadOnlySpan<byte> template = Template(key, tag, out int language);
+            pseudo = pseudo == Pseudo.None ? Pseudo.None : Pseudo.Words;
 
-            return DecodeTemplate(key.Table, language, template, tag, counted: -1, input, names, ref buffer, length);
+            return DecodeTemplate(key.Table, language, template, tag, pseudo, counted: -1, input, names, ref buffer, length);
         }
 
         if ((_buttonArguments & bit) != 0)
@@ -378,7 +417,7 @@ internal sealed class KeyedText
             {
                 ReadOnlySpan<byte> template = Template(key, tag, out int language);
 
-                return DecodeTemplate(names, language, template, tag, counted: -1, input, names, ref buffer, length);
+                return DecodeTemplate(names, language, template, tag, Pseudo.None, counted: -1, input, names, ref buffer, length);
             }
         }
 

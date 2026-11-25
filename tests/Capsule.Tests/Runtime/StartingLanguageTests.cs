@@ -48,23 +48,25 @@ public sealed class StartingLanguageTests
         Assert.Equal(0, platform.Asked);
     }
 
-    // The flag names a shipped language by its closest tag and wins over the game object's choice, played or not.
+    // The flag names a shipped language by its closest tag, or the pseudo-language, and wins over the game
+    // object's choice, played or not.
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void TheLanguageFlag_WinsOverTheGameObjectsChoice(bool played)
+    [InlineData(true, "fr", "fr-FR")]
+    [InlineData(false, "fr", "fr-FR")]
+    [InlineData(false, "QPS_ploc", "qps-ploc")]
+    public void TheLanguageFlag_WinsOverTheGameObjectsChoice(bool played, string flag, string expected)
     {
         EngineBuilder builder = Builder(new Preferring("en"))
             .WithGame(CallbackGame.Starting(static run => run.Language = "en"))
-            .WithCommandLine(["--language", "fr"]);
+            .WithCommandLine(["--language", flag]);
 
         using SceneHost host = builder.CreateHost(Opening, null, 0, played);
 
-        Assert.Equal("fr-FR", _seen);
+        Assert.Equal(expected, _seen);
     }
 
     [Theory]
-    [InlineData(true, "no shipped language matches 'de'. Shipped: en, fr-FR.")]
+    [InlineData(true, "no shipped language matches 'de'. Shipped: en, fr-FR, and qps-ploc.")]
     [InlineData(false, "ships no string tables")]
     public void TheLanguageFlag_IsRefused_WhenNoShippedLanguageMatches(bool tables, string defect)
     {

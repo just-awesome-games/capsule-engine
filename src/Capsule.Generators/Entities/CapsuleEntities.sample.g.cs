@@ -105,6 +105,12 @@ namespace Capsule.Generated
             _ => throw members.NotAType(""),
         };
 
+        private static global::Capsule.Tiles.TileRule Object_Capsule_Tiles_TileRule(global::Capsule.Tiles.TileRule? held, global::Capsule.Scenes.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
+        {
+            null => Fill_Capsule_Tiles_TileRule(held ?? new global::Capsule.Tiles.TileRule(), members),
+            _ => throw members.NotAType(""),
+        };
+
         private static global::Capsule.Tiles.TileType Object_Capsule_Tiles_TileType(global::Capsule.Tiles.TileType? held, global::Capsule.Scenes.AuthoredMembers members, bool replaces) => (replaces ? members.Type() : null) switch
         {
             null => held switch
@@ -130,6 +136,28 @@ namespace Capsule.Generated
             return target;
         }
 
+        private static global::Capsule.Tiles.TileRule Fill_Capsule_Tiles_TileRule(global::Capsule.Tiles.TileRule target, global::Capsule.Scenes.AuthoredMembers members)
+        {
+            SetCell(target, members.Int("cell"));
+            if (members.Has("joined"))
+            {
+                SetJoined(target, unchecked((global::Capsule.Tiles.TileSides)members.Flags("joined", static name => name switch
+                {
+                    "none" => (ulong)global::Capsule.Tiles.TileSides.None,
+                    "up" => (ulong)global::Capsule.Tiles.TileSides.Up,
+                    "right" => (ulong)global::Capsule.Tiles.TileSides.Right,
+                    "down" => (ulong)global::Capsule.Tiles.TileSides.Down,
+                    "left" => (ulong)global::Capsule.Tiles.TileSides.Left,
+                    "upRight" => (ulong)global::Capsule.Tiles.TileSides.UpRight,
+                    "downRight" => (ulong)global::Capsule.Tiles.TileSides.DownRight,
+                    "downLeft" => (ulong)global::Capsule.Tiles.TileSides.DownLeft,
+                    "upLeft" => (ulong)global::Capsule.Tiles.TileSides.UpLeft,
+                    _ => (ulong?)null,
+                }, "none, up, right, down, left, upRight, downRight, downLeft, upLeft")));
+            }
+            return target;
+        }
+
         private static global::Capsule.Tiles.TileType Fill_Capsule_Tiles_TileType(global::Capsule.Tiles.TileType target, global::Capsule.Scenes.AuthoredMembers members)
         {
             SetName(target, members.String("name"));
@@ -140,6 +168,18 @@ namespace Capsule.Generated
             if (members.Has("frames"))
             {
                 SetFrames(target, members.IsNull("frames") ? null : members.Array<global::Capsule.Tiles.TileFrame>("frames", static element => Object_Capsule_Tiles_TileFrame(null, element.Object("frames"), replaces: true)));
+            }
+            if (members.Has("rules"))
+            {
+                SetRules(target, members.IsNull("rules") ? null : members.Array<global::Capsule.Tiles.TileRule>("rules", static element => Object_Capsule_Tiles_TileRule(null, element.Object("rules"), replaces: true)));
+            }
+            if (members.Has("terrain"))
+            {
+                SetTerrain(target, members.IsNull("terrain") ? null : members.String("terrain"));
+            }
+            if (members.Has("joins"))
+            {
+                SetJoins(target, members.IsNull("joins") ? null : members.String("joins"));
             }
             if (members.Has("layer"))
             {
@@ -219,6 +259,12 @@ namespace Capsule.Generated
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Ticks")]
         private static extern void SetTicks(global::Capsule.Tiles.TileFrame owner, int value);
 
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Cell")]
+        private static extern void SetCell(global::Capsule.Tiles.TileRule owner, int value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Joined")]
+        private static extern void SetJoined(global::Capsule.Tiles.TileRule owner, global::Capsule.Tiles.TileSides value);
+
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Name")]
         private static extern void SetName(global::Capsule.Tiles.TileType owner, string value);
 
@@ -227,6 +273,15 @@ namespace Capsule.Generated
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Frames")]
         private static extern void SetFrames(global::Capsule.Tiles.TileType owner, global::Capsule.Tiles.TileFrame[]? value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Rules")]
+        private static extern void SetRules(global::Capsule.Tiles.TileType owner, global::Capsule.Tiles.TileRule[]? value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Terrain")]
+        private static extern void SetTerrain(global::Capsule.Tiles.TileType owner, string? value);
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Joins")]
+        private static extern void SetJoins(global::Capsule.Tiles.TileType owner, string? value);
 
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "set_Layer")]
         private static extern void SetLayer(global::Capsule.Tiles.TileType owner, string? value);

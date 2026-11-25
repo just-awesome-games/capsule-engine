@@ -613,7 +613,7 @@ public sealed partial class EngineBuilder
         return this;
     }
 
-    // The shipped tag --language names, refused when no shipped language matches it.
+    // The shipped tag --language names, or the pseudo-language's, refused when no shipped language matches it.
     private string ShippedLanguage(string tag)
     {
         if (_strings is not { } strings)
@@ -621,10 +621,15 @@ public sealed partial class EngineBuilder
             throw CommandLine.Refuse(_gameName, "--language has nothing to choose, because this game ships no string tables.");
         }
 
+        if (PseudoLanguage.Shows(tag))
+        {
+            return PseudoLanguage.Tag;
+        }
+
         int matched = LanguageMatcher.Match(strings.Languages, new ReadOnlySpan<string>(in tag));
 
         return matched >= 0
             ? strings.Languages[matched]
-            : throw CommandLine.Refuse(_gameName, $"no shipped language matches '{tag}'. Shipped: {string.Join(", ", strings.Languages.ToArray())}.");
+            : throw CommandLine.Refuse(_gameName, $"no shipped language matches '{tag}'. Shipped: {string.Join(", ", strings.Languages.ToArray())}, and {PseudoLanguage.Tag}.");
     }
 }

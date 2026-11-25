@@ -342,7 +342,8 @@ public sealed partial class EngineBuilder
             if (preferredLanguages is not null)
             {
                 string preferred = preferredLanguages.Length == 0 ? "none" : string.Join(", ", preferredLanguages);
-                Log.Info($"language {strings.Languages[strings.Resolve(run.Language)]} from preferred {preferred}");
+                string shown = PseudoLanguage.Shows(run.Language) ? PseudoLanguage.Tag : strings.Languages[strings.Resolve(run.Language)];
+                Log.Info($"language {shown} from preferred {preferred}");
             }
         };
     }

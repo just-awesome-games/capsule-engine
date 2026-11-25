@@ -76,10 +76,12 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     private KeyedText? _keyedText;
     private bool _keyed;
 
-    // The run, its language version and, while the text names a button, the input a button's name depends
-    // on, as the keyed text was resolved under them. A null run resolves on the next read.
+    // What the keyed text was resolved under: the run, its language version, the font, and the input a
+    // button's name depends on while the text names one. The pseudo-language's accents follow the font. A null
+    // run resolves on the next read.
     private Run? _resolvedRun;
     private int _resolvedVersion;
+    private BitmapFont? _resolvedFont;
     private (InputDevice Device, PadFamily Family, int Bindings, int Layout) _resolvedInputs;
 
     // The run laid out, built on the first draw or bounds read and kept until something it depends on changes.
@@ -700,15 +702,17 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         (InputDevice, PadFamily, int, int) inputs = keyed.NamesButtons
             ? (input.ActiveDevice, input.PadFamily, run.Input.Bindings.Version, input.KeyLayoutVersion)
             : default;
-        if (run == _resolvedRun && run.LanguageVersion == _resolvedVersion && inputs == _resolvedInputs)
+        bool sameFont = Font == _resolvedFont || !PseudoLanguage.Shows(run.ActiveLanguage);
+        if (run == _resolvedRun && run.LanguageVersion == _resolvedVersion && sameFont && inputs == _resolvedInputs)
         {
             return;
         }
 
         _resolvedRun = run;
         _resolvedVersion = run.LanguageVersion;
+        _resolvedFont = Font;
         _resolvedInputs = inputs;
-        int length = keyed.Decode(run.ActiveLanguage, run.InputState, run.Strings, ref _spare);
+        int length = keyed.Decode(run.ActiveLanguage, run.InputState, run.Strings, Font, ref _spare);
         if (_memory.Span.SequenceEqual(_spare.AsSpan(0, length)))
         {
             return;

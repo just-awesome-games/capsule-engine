@@ -64,7 +64,7 @@ internal static class LanguageMatcher
         tag.IndexOfAny('-', '_') is >= 0 and int end ? tag[..end] : tag;
 
     // Equal ignoring ASCII case, with '_' read as '-'.
-    private static bool SameTag(ReadOnlySpan<char> first, ReadOnlySpan<char> second)
+    internal static bool SameTag(ReadOnlySpan<char> first, ReadOnlySpan<char> second)
     {
         if (first.Length != second.Length)
         {

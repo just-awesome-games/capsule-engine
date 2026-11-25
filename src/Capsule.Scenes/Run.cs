@@ -96,7 +96,8 @@ public sealed class Run
     /// first step applies at once, and one made after it applies from the start of the next step. A tag no table ships
     /// shows the closest shipped language, else the fallback, and never throws. A windowed run no driver
     /// plays starts in the shipped language closest to the player's preference. A headless or driven run
-    /// starts in the fallback language, and a test shows the same text on every machine.
+    /// starts in the fallback language, and a test shows the same text on every machine. <c>qps-ploc</c> shows
+    /// the fallback accented and lengthened in a development build, and as it is in a shipping one.
     /// </remarks>
     public string? Language
     {
@@ -649,7 +650,7 @@ public sealed class Run
     private string KeepAndDecode(KeyedText keyed)
     {
         _keyedText = keyed;
-        int length = keyed.Decode(ActiveLanguage, InputState, Strings, ref _textBuffer);
+        int length = keyed.Decode(ActiveLanguage, InputState, Strings, font: null, ref _textBuffer);
 
         return new string(_textBuffer, 0, length);
     }

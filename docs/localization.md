@@ -86,3 +86,15 @@ if (settings.Language is { } chosen) { run.Language = chosen; }
 
 A later request shows from the next step. `CapsuleStrings.Languages` lists the shipped tags for an options
 row that cycles them. `--language <tag>` starts a development build in one, over a saved choice.
+
+## Pseudo-language
+
+`--language qps-ploc`, or `Run.Language = "qps-ploc"`, shows the fallback language's text accented and
+lengthened in a development build. A layout's room for a translation is then checked before one exists. Each
+word gains 40% of its letters, rounded up, by repeating its vowels, and a text that is one word of ten letters
+or fewer doubles, as short captions grow most in translation. `Screen shake` shows as `Sçréééééñ shååkéé`. A
+key passed as an argument lengthens as words, and other arguments, button names and `[`..`]` spans show as
+written. Text set as a plain string is untouched and stands out as
+text no table holds. A letter takes its accent only where the label's font carries the accented form. A
+baked font carries all of Latin-1, and a hand-authored `.fnt` may carry none. A recording replays in it, and a
+shipping build shows the fallback as it is.
