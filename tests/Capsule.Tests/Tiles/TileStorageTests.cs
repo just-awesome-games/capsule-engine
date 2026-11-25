@@ -60,8 +60,8 @@ public sealed class TileStorageTests
         Assert.Equal(0, new TileGrid(SceneFixtures.TileSize, Wide, High, Palette, new int[Wide * High], SceneFixtures.TerrainAtlas, 4).Cells.AllocatedBlocks);
     }
 
-    // Painting an empty block reads and collides as painted, and clearing a block's last cell releases it. The grid
-    // the map was built from reads as authored throughout.
+    // Painting an empty block reads and collides as painted, and clearing a block's last cell keeps it for the next
+    // paint while it reads as holding nothing. The grid the map was built from reads as authored throughout.
     [Fact]
     public void SetTile_IntoAnEmptyBlock_AndRemoveTile_OfABlocksLastCell_EditOnlyTheMap()
     {
@@ -76,7 +76,8 @@ public sealed class TileStorageTests
         map.RemoveTile(0, 2);
 
         Assert.Equal(("solid", TileGrid.EmptyTileName), (map.TileAt(19, 17).Name, map.TileAt(0, 2).Name));
-        Assert.Equal(1, map.Cells.AllocatedBlocks);
+        Assert.Equal(2, map.Cells.AllocatedBlocks);
+        Assert.Null(map.Cells.BlockAt(0, 0));
         Assert.True(scene.Collision.Raycast(new Vector2(312f, 260f), Vector2.UnitY, 32f, CollisionFilter.Everything, out _));
         Assert.False(scene.Collision.Raycast(new Vector2(8f, 0f), Vector2.UnitY, 64f, CollisionFilter.Everything, out _));
         Assert.Equal(("solid", TileGrid.EmptyTileName), (grid.TileAt(0, 2).Name, grid.TileAt(19, 17).Name));

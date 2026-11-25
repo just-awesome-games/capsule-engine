@@ -5,9 +5,9 @@ using System.Runtime.InteropServices;
 namespace Capsule.Physics;
 
 // A grid's cells, each a value and a variant, kept in square blocks of BlockSize cells a side. Every cell
-// outside a block holds value 0 with variant 0. A write that empties a block drops it, and a written
-// block holds its variants once one of them is nonzero. A loaded block keeps what its file gave it,
-// empty cells and zero variants included.
+// outside a block holds value 0 with variant 0. A block emptied by writes stays allocated for the next paint and
+// reads as absent, and a written block holds its variants once one of them is nonzero. A loaded block keeps what
+// its file gave it, empty cells and zero variants included.
 // A copy made by Share reads its source's blocks until it writes one, and the source is never written.
 internal sealed class CellBlocks
 {
@@ -20,13 +20,13 @@ internal sealed class CellBlocks
 
     private const int Mask = BlockSize - 1;
 
-    // Row-major, BlocksWide per row, null where a block holds nothing.
+    // Row-major, BlocksWide per row, null where no block was ever written.
     private readonly Block?[] _blocks;
 
     // The storage this one was shared from, whose blocks it reads until it writes them, or null.
     private readonly CellBlocks? _source;
 
-    // The count of writes made when each block was last written or dropped. A copy carries on its source's count,
+    // The count of writes made when each block was last written. A copy carries on its source's count,
     // and the source is never written again. A block's stamp only grows.
     private readonly int[] _stamps;
     private int _writes;
@@ -66,7 +66,7 @@ internal sealed class CellBlocks
         _source = source;
     }
 
-    // How many blocks hold a cell.
+    // How many blocks are allocated, emptied ones included.
     internal int AllocatedBlocks
     {
         get
@@ -145,7 +145,7 @@ internal sealed class CellBlocks
     internal Block Add(int bx, int by) => _blocks[(by * BlocksWide) + bx] = new Block();
 
     // The block holding the cells of block column bx and block row by, or null where they hold nothing.
-    internal Block? BlockAt(int bx, int by) => _blocks[(by * BlocksWide) + bx];
+    internal Block? BlockAt(int bx, int by) => _blocks[(by * BlocksWide) + bx] is { Empty: false } block ? block : null;
 
     // The latest stamp of the blocks from block column bx and block row by up to bxEnd and byEnd. It grows with every
     // write to any of them, and stays put while none is written.
@@ -238,7 +238,7 @@ internal sealed class CellBlocks
     }
 
     // Writes a cell the caller checked lies on the grid, with a value in 0..MaxValue. A block is allocated on
-    // its first nonzero cell and released when its last one clears.
+    // its first nonzero cell and kept when its last one clears.
     internal void Set(int x, int y, int value, int variant)
     {
         int index = BlockIndex(x, y);
@@ -257,11 +257,7 @@ internal sealed class CellBlocks
             block = _blocks[index] = block.Clone();
         }
 
-        if (block.Write(CellOf(x, y), (ushort)value, (byte)variant) == 0)
-        {
-            _blocks[index] = null;
-        }
-
+        block.Write(CellOf(x, y), (ushort)value, (byte)variant);
         _stamps[index] = ++_writes;
     }
 
@@ -277,6 +273,9 @@ internal sealed class CellBlocks
 
         // How many cells hold a nonzero value or variant.
         private int _painted;
+
+        // Whether every cell holds value 0 with variant 0.
+        internal bool Empty => _painted == 0;
 
         // Whether the block has allocated its variants.
         internal bool HoldsVariants => _variants is not null;
@@ -314,8 +313,7 @@ internal sealed class CellBlocks
             }
         }
 
-        // Returns how many cells still hold something.
-        internal int Write(int cell, ushort value, byte variant)
+        internal void Write(int cell, ushort value, byte variant)
         {
             bool was = Values[cell] != 0 || VariantAt(cell) != 0;
             Values[cell] = value;
@@ -326,8 +324,6 @@ internal sealed class CellBlocks
             }
 
             _painted += (value != 0 || variant != 0 ? 1 : 0) - (was ? 1 : 0);
-
-            return _painted;
         }
     }
 

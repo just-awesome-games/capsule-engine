@@ -73,8 +73,26 @@
         {
           "name": "brick",
           "type": "brick",
-          "cell": 0,
-          "layer": "solid"
+          "layer": "solid",
+          "terrain": "brick",
+          "rules": [
+            { "cell": 16 },
+            { "cell": 17, "joined": "up" },
+            { "cell": 18, "joined": "right" },
+            { "cell": 19, "joined": "up, right" },
+            { "cell": 20, "joined": "down" },
+            { "cell": 21, "joined": "up, down" },
+            { "cell": 22, "joined": "right, down" },
+            { "cell": 23, "joined": "up, right, down" },
+            { "cell": 24, "joined": "left" },
+            { "cell": 25, "joined": "up, left" },
+            { "cell": 26, "joined": "right, left" },
+            { "cell": 27, "joined": "up, right, left" },
+            { "cell": 28, "joined": "down, left" },
+            { "cell": 29, "joined": "up, down, left" },
+            { "cell": 30, "joined": "right, down, left" },
+            { "cell": 31, "joined": "up, right, down, left" }
+          ]
         },
         {
           "name": "slope",

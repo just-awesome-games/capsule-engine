@@ -17,7 +17,7 @@ namespace Capsule.Tiles;
 /// <see cref="Entity.ScrollFactor"/>. A map whose grid has no texture draws nothing and adds no draw
 /// work. The map collides only through a <see cref="TileMapCollider2D"/> added to it.
 /// <para>
-/// The map shares its grid's cells, and an edit copies only the block of 16 by 16 tiles it changes. The
+/// The map shares its grid's cells, and an edit copies only the blocks of 16 by 16 tiles it changes. The
 /// <see cref="TileGrid"/> is never written, and every scene composed from one document holds the grid its first
 /// composition built.
 /// </para>
@@ -162,7 +162,7 @@ public class TileMap : Entity
     {
         _cells.RequireOnGrid(x, y);
 
-        return _grid.TileTypes[_cells.ValueAt(x, y)];
+        return _grid.Slots[_cells.ValueAt(x, y)];
     }
 
     /// <summary>
@@ -178,7 +178,7 @@ public class TileMap : Entity
     {
         (int x, int y) = CellAt(position);
 
-        return (uint)x < (uint)Width && (uint)y < (uint)Height ? _grid.TileTypes[_cells.ValueAt(x, y)] : null;
+        return (uint)x < (uint)Width && (uint)y < (uint)Height ? _grid.Slots[_cells.ValueAt(x, y)] : null;
     }
 
     /// <summary>Returns how the tile at a tile coordinate is mirrored or turned.</summary>
@@ -195,7 +195,7 @@ public class TileMap : Entity
         _cells.RequireOnGrid(x, y);
 
         // A direction maps as a point in a tile of size 0, where each flip negates its axis.
-        return TileTransforms.Apply(_grid.TileTypes[_cells.ValueAt(x, y)].SurfaceVelocity, 0f, (TileTransform)_cells.VariantAt(x, y));
+        return TileTransforms.Apply(_grid.Slots[_cells.ValueAt(x, y)].SurfaceVelocity, 0f, (TileTransform)_cells.VariantAt(x, y));
     }
 
     /// <summary>
@@ -242,6 +242,10 @@ public class TileMap : Entity
     /// Changes the tile at a tile coordinate to the palette entry named <paramref name="name"/>, facing
     /// the way <paramref name="transform"/> says. This sets what the cell draws and collides as.
     /// </summary>
+    /// <remarks>
+    /// A tile type with <see cref="TileType.Rules"/> picks the cell's look from its neighbours, and a paint that
+    /// changes a cell's <see cref="TileType.Terrain"/> repicks the looks of the rule tiles around it.
+    /// </remarks>
     /// <param name="x">The tile column.</param>
     /// <param name="y">The tile row.</param>
     /// <param name="name">
@@ -251,7 +255,9 @@ public class TileMap : Entity
     /// How the tile is mirrored or turned. The default paints it as authored, whichever way the cell
     /// faced before.
     /// </param>
-    /// <exception cref="ArgumentException">The palette has no tile type named <paramref name="name"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// The palette has no tile type named <paramref name="name"/>, or it names a rule tile with a transform.
+    /// </exception>
     /// <example>
     /// <code>
     /// map.SetTile(x, y, "slope", TileTransform.FlipX);
@@ -270,20 +276,49 @@ public class TileMap : Entity
 
         _cells.RequireOnGrid(x, y);
         int palette = PaletteIndexOf(name);
-        if (_cells.ValueAt(x, y) == palette && _cells.VariantAt(x, y) == (int)transform)
+        if (_grid.Rules is not { } rules)
+        {
+            if (Write(x, y, palette, (int)transform))
+            {
+                AttachedCollider?.Refresh(x, y);
+            }
+
+            return;
+        }
+
+        int before = _cells.ValueAt(x, y);
+        int value = rules.Pick(_cells, x, y, palette);
+        if (value != palette && transform != TileTransform.None)
+        {
+            throw new ArgumentException($"\"{name}\" is a rule tile, which picks its own look. Paint it without a transform.", nameof(transform));
+        }
+
+        if (!Write(x, y, value, (int)transform))
         {
             return;
         }
 
-        // The map edits its own copy of the cells, never the grid's. The collider's grid reads the copy from then on.
-        if (_cells == _grid.Cells)
+        AttachedCollider?.Refresh(x, y);
+        if (rules.TerrainOf(value) == rules.TerrainOf(before))
         {
-            _cells = _grid.Cells.Share();
-            AttachedCollider?.Rebind(_cells);
+            return;
         }
 
-        _cells.Set(x, y, palette, (int)transform);
-        AttachedCollider?.Refresh(x, y);
+        // Every look of an entry collides as the entry does. A repicked neighbour leaves the collider as it was.
+        for (int side = 0; side < 8; side++)
+        {
+            (int nx, int ny) = TileRules.Beside(x, y, side);
+            if ((uint)nx >= (uint)Width || (uint)ny >= (uint)Height)
+            {
+                continue;
+            }
+
+            int held = _cells.ValueAt(nx, ny);
+            if (rules.Reads(held, side))
+            {
+                Write(nx, ny, rules.Pick(_cells, nx, ny, held), 0);
+            }
+        }
     }
 
     /// <inheritdoc/>
@@ -345,6 +380,26 @@ public class TileMap : Entity
         return members.Built(CompiledTiles.Key, blocks => CompiledTiles.Read(blocks.Span, width, height));
     }
 
+    // Writes a cell unless it already holds value and variant, and says whether it wrote. The map edits its own copy
+    // of the cells, never the grid's, and the collider's grid reads the copy from then on.
+    private bool Write(int x, int y, int value, int variant)
+    {
+        if (_cells.ValueAt(x, y) == value && _cells.VariantAt(x, y) == variant)
+        {
+            return false;
+        }
+
+        if (_cells == _grid.Cells)
+        {
+            _cells = _grid.Cells.Share();
+            AttachedCollider?.Rebind(_cells);
+        }
+
+        _cells.Set(x, y, value, variant);
+
+        return true;
+    }
+
     private int PaletteIndexOf(string name)
     {
         int index = _grid.IndexOf(name);
@@ -386,7 +441,7 @@ public class TileMap : Entity
         }
     }
 
-    // The sprite table is indexed by palette. The map's cells are read on each draw, since an edit replaces them.
+    // The sprite table is indexed by slot. The map's cells are read on each draw, since an edit replaces them.
     private sealed class VisibleTiles(TileMap map, TileGrid grid, ReadOnlyMemory<Sprite?> sprites, TileAnimator? animator)
         : Renderer, ITileSource
     {
@@ -463,7 +518,7 @@ public class TileMap : Entity
                 return null;
             }
 
-            bool[] animates = new bool[grid.TileTypes.Length];
+            bool[] animates = new bool[grid.Slots.Length];
             foreach (TileGrid.Animation animation in grid.Animations.Span)
             {
                 animates[animation.Palette] = true;

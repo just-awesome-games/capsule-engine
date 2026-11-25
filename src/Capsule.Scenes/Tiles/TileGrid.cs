@@ -26,13 +26,20 @@ public sealed class TileGrid
 
     private readonly TileType[] _tileTypes;
 
+    // Every slot a cell can hold: the palette, then a slot per look of each rule entry. It is the palette itself when
+    // no entry has rules.
+    private readonly TileType[] _slots;
+
+    // What the palette's rule entries pick between, or null when none has rules.
+    private readonly TileRules? _rules;
+
     // Each palette entry's index by its name, built the first time a map sets a tile by name.
     private Dictionary<string, int>? _indexByName;
 
     // The palette index and TileTransform of every painted cell, never written.
     private readonly CellBlocks _cells;
 
-    // One sprite per palette entry, cut once so drawing a cell is a table lookup instead of arithmetic
+    // One sprite per slot, cut once so drawing a cell is a table lookup instead of arithmetic
     // per tile. An entry is null when its tile type draws nothing. An animated entry holds its first
     // frame, and a map steps its own copy from there.
     private readonly Sprite?[] _sprites;
@@ -144,6 +151,8 @@ public sealed class TileGrid
         _tileTypes = tileTypes;
         TileGridValidation.ValidateSize(tileSize, width, height);
         PaletteCut palette = Cut(tileTypes, tileSize, texture, columns, shared);
+        _rules = palette.Rules;
+        _slots = _rules?.Slots ?? tileTypes;
         _shapes = palette.Shapes;
         _sprites = palette.Sprites;
         _animations = palette.Animations;
@@ -155,7 +164,9 @@ public sealed class TileGrid
         if (cells is not null)
         {
             TileGridValidation.ValidateCells(cells, tileTypes.Length);
-            _cells = cells;
+
+            // Decoded cells are kept with the document for every composition of it. Looks settle into a copy.
+            _cells = _rules is null ? cells : cells.Share();
         }
         else
         {
@@ -164,6 +175,8 @@ public sealed class TileGrid
                 : transforms is null ? null : [.. transforms.Select(static transform => (byte)transform)];
             _cells = Build(tiles!, facings, width, height);
         }
+
+        _rules?.Settle(_cells);
     }
 
     /// <summary>The tile palette. Index 0 is an empty tile like <see cref="EmptyTile"/>, and names are unique.</summary>
@@ -189,6 +202,11 @@ public sealed class TileGrid
         return _indexByName.GetValueOrDefault(name, -1);
     }
 
+    // Every slot a cell can hold, each the palette entry it draws for.
+    internal ReadOnlySpan<TileType> Slots => _slots;
+
+    internal TileRules? Rules => _rules;
+
     // Whether any palette entry is on a layer. A grid with none needs no collider.
     internal bool Collides => Array.Exists(_tileTypes, static tileType => tileType.Layer is not null);
 
@@ -208,7 +226,7 @@ public sealed class TileGrid
     {
         _cells.RequireOnGrid(x, y);
 
-        return _tileTypes[_cells.ValueAt(x, y)];
+        return _slots[_cells.ValueAt(x, y)];
     }
 
     /// <summary>Returns how the tile at a tile coordinate is mirrored or turned.</summary>
@@ -246,8 +264,16 @@ public sealed class TileGrid
         }
 
         Shape2D?[] shapes = TileGridValidation.ValidatePalette(tileTypes, tileSize);
+        TileRules? rules = TileRules.Of(tileTypes);
         TileGridValidation.ValidateTexture(tileTypes, texture, columns, tileSize);
-        PaletteCut cut = new(tileSize, texture, columns, shapes, CutCells(tileTypes, tileSize, texture, columns), CutAnimations(tileTypes, tileSize, texture, columns));
+        PaletteCut cut = new(
+            tileSize,
+            texture,
+            columns,
+            rules,
+            shapes,
+            CutCells(tileTypes, rules, tileSize, texture, columns),
+            CutAnimations(tileTypes, tileSize, texture, columns));
         if (shared)
         {
             Palettes.AddOrUpdate(tileTypes, cut);
@@ -256,16 +282,17 @@ public sealed class TileGrid
         return cut;
     }
 
-    // Each sprite pivots on its centre. A mirrored or turned tile then stays inside its cell.
-    private static Sprite?[] CutCells(TileType[] tileTypes, int tileSize, TextureHandle? texture, int columns)
+    // Each sprite pivots on its centre. A mirrored or turned tile then stays inside its cell. A rule entry's own slot
+    // draws nothing, since every cell painted with it holds one of its looks.
+    private static Sprite?[] CutCells(TileType[] tileTypes, TileRules? rules, int tileSize, TextureHandle? texture, int columns)
     {
-        Sprite?[] sprites = new Sprite?[tileTypes.Length];
+        Sprite?[] sprites = new Sprite?[rules?.Slots.Length ?? tileTypes.Length];
         if (texture is not { } cut)
         {
             return sprites;
         }
 
-        for (int i = 0; i < sprites.Length; i++)
+        for (int i = 0; i < tileTypes.Length; i++)
         {
             if (tileTypes[i].Cell is { } cell)
             {
@@ -275,6 +302,11 @@ public sealed class TileGrid
             {
                 sprites[i] = CutCell(cut, frames[0].Cell, tileSize, columns);
             }
+        }
+
+        for (int slot = tileTypes.Length; slot < sprites.Length; slot++)
+        {
+            sprites[slot] = CutCell(cut, rules!.LookCell(slot), tileSize, columns);
         }
 
         return sprites;
@@ -323,7 +355,7 @@ public sealed class TileGrid
 
     // What a valid palette makes at one tile size, cut from one texture of so many columns. Every grid holding it
     // reads it and none writes it.
-    private sealed record PaletteCut(int TileSize, TextureHandle? Texture, int Columns, Shape2D?[] Shapes, Sprite?[] Sprites, Animation[] Animations)
+    private sealed record PaletteCut(int TileSize, TextureHandle? Texture, int Columns, TileRules? Rules, Shape2D?[] Shapes, Sprite?[] Sprites, Animation[] Animations)
     {
         internal bool Makes(int tileSize, TextureHandle? texture, int columns) => TileSize == tileSize && Texture == texture && Columns == columns;
     }

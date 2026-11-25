@@ -12,8 +12,8 @@ namespace Capsule.Tiles;
 /// too. A scene document's palette is read once, and every scene composed from that document holds the same
 /// instances. A tile type therefore keeps no state that changes while a scene runs: a subclass declares each
 /// authorable member with an <c>init</c> accessor, which the build checks, and state that belongs to one cell
-/// lives on an entity. A tile type with no cell and no frames draws
-/// nothing, and one does not collide until it names a layer.
+/// lives on an entity. A tile type with no cell, frames or rules draws nothing, and one does not collide until it
+/// names a layer.
 /// </remarks>
 public class TileType
 {
@@ -23,8 +23,8 @@ public class TileType
 
     /// <summary>
     /// The cell of the grid's texture this tile type draws, counted from cell 0 left to right then top to
-    /// bottom, or null for a tile type that animates through <see cref="Frames"/> or draws nothing. The
-    /// grid's <c>Columns</c> and tile size turn it into a source region.
+    /// bottom, or null for a tile type that animates through <see cref="Frames"/>, picks a look by
+    /// <see cref="Rules"/> or draws nothing. The grid's <c>Columns</c> and tile size turn it into a source region.
     /// </summary>
     [Authorable]
     public int? Cell { get; init; }
@@ -46,6 +46,41 @@ public class TileType
     /// </example>
     [Authorable]
     public TileFrame[]? Frames { get; init; }
+
+    /// <summary>
+    /// The looks this tile type picks from by its neighbours, in place of <see cref="Cell"/> or <see cref="Frames"/>,
+    /// or null for a tile type that draws one look.
+    /// </summary>
+    /// <remarks>
+    /// Each cell draws the rule whose <see cref="TileRule.Joined"/> names exactly the sides whose neighbour's
+    /// <see cref="Terrain"/> is <see cref="Joins"/>. Only the sides some rule names are read, a corner joins only
+    /// where both its sides do, and a neighbour past the map's edge joins. A grid rejects rules that leave a
+    /// combination of those sides without a look. Several rules for one combination are picked between by the
+    /// cell's position, the same way every run. The map picks a cell's look when it is painted and again whenever
+    /// a neighbour's terrain changes, and collision and <c>TileAt</c> follow the tile type and never the look.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// TileType ledge = new()
+    /// {
+    ///     Name = "ledge",
+    ///     Terrain = "ledge",
+    ///     Rules = [new(8), new(9, TileSides.Right), new(10, TileSides.Left | TileSides.Right), new(11, TileSides.Left)],
+    /// };
+    /// </code>
+    /// </example>
+    [Authorable]
+    public TileRule[]? Rules { get; init; }
+
+    /// <summary>
+    /// What a cell of this tile type counts as to its neighbours' <see cref="Rules"/>, or null for nothing they join.
+    /// </summary>
+    [Authorable]
+    public string? Terrain { get; init; }
+
+    /// <summary>The terrain this tile type's <see cref="Rules"/> join, or null for its own <see cref="Terrain"/>.</summary>
+    [Authorable]
+    public string? Joins { get; init; }
 
     /// <summary>The collision layer this tile type is on. Null means it does not collide.</summary>
     [Authorable]

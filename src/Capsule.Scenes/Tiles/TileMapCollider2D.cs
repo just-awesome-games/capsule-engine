@@ -213,7 +213,7 @@ public sealed class TileMapCollider2D : Component
     }
 
     // Builds the grid over the map's current cells, which it reads in place. A cell's profile is the lookup
-    // entry its palette index and facing name.
+    // entry its slot and facing name.
     private void Register()
     {
         TileMap map = _map!;
@@ -231,7 +231,7 @@ public sealed class TileMapCollider2D : Component
         // index. Each shaped entry then appends one profile per other transform. Only the shape turns,
         // and a one-way tile still passes bodies from below.
         CellProfile2D[] profiles = new CellProfile2D[palette.Length + (shaped * (TileTransforms.Count - 1))];
-        int[] lookup = new int[palette.Length * TileTransforms.Count];
+        int[] lookup = new int[tiles.Slots.Length * TileTransforms.Count];
         int next = palette.Length;
         for (int index = 0; index < palette.Length; index++)
         {
@@ -254,6 +254,15 @@ public sealed class TileMapCollider2D : Component
 
                 profiles[next] = profile with { Shape = TileTransforms.Apply(shape, tiles.TileSize, (TileTransform)transform) };
                 lookup[slot] = next++;
+            }
+        }
+
+        // A rule entry's looks share its profiles. Repicking a look never changes how a cell collides.
+        if (tiles.Rules is { } rules)
+        {
+            for (int slot = palette.Length; slot < tiles.Slots.Length; slot++)
+            {
+                lookup.AsSpan(rules.EntryOf(slot) * TileTransforms.Count, TileTransforms.Count).CopyTo(lookup.AsSpan(slot * TileTransforms.Count));
             }
         }
 

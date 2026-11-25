@@ -43,5 +43,5 @@ Delete, Backspace, the north pad button or a right-click on a binding's row puts
 Options also sets the music, effects, screen shake and rumble levels, where 0 turns each off, and switches the
 language between English and German, fullscreen, the window's size, vertical sync, a frame cap that includes the
 display's own refresh rate, low latency and integer scaling, which shows on a window resized off a whole multiple of the
-view, and the game opens as they were left. It starts in the system's language, and
-`-- --language de` starts it in German.
+view, and the game opens as they were left. It starts in the system's language. `-- --language de` starts it in
+German, and `-- --language qps-ploc` in the pseudo-language, which checks that the menus have room for a translation.

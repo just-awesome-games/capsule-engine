@@ -102,7 +102,7 @@ internal static class TileGridValidation
                 ? "an empty palette"
                 : $"\"{tileTypes[0].Name}\" with cell {tileTypes[0].Cell?.ToString() ?? "none"} and layer {tileTypes[0].Layer ?? "none"}";
             throw Malformed(
-                $"tileTypes[0] is {actual}. Make it a plain TileType named \"{TileGrid.EmptyTileName}\" with no cell, frames, layer, shape, oneWay, solidSides or surfaceVelocity.",
+                $"tileTypes[0] is {actual}. Make it a plain TileType named \"{TileGrid.EmptyTileName}\" with no cell, frames, rules, terrain, joins, layer, shape, oneWay, solidSides or surfaceVelocity.",
                 "tileTypes");
         }
 
@@ -234,7 +234,7 @@ internal static class TileGridValidation
         for (int i = 0; i < tileTypes.Length; i++)
         {
             TileType tileType = tileTypes[i];
-            if (tileType.Cell is null && tileType.Frames is null)
+            if (tileType.Cell is null && tileType.Frames is null && tileType.Rules is null)
             {
                 continue;
             }
@@ -243,7 +243,7 @@ internal static class TileGridValidation
 
             if (texture is null)
             {
-                string draws = tileType.Cell is { } cell ? $"cell {cell}" : "frames";
+                string draws = tileType.Cell is { } cell ? $"cell {cell}" : tileType.Frames is null ? "rules" : "frames";
                 throw Malformed(
                     $"{Palette(tileType, i)} draws {draws} but the grid names no texture. Give the grid a texture to cut from.",
                     "tileTypes");
@@ -265,7 +265,7 @@ internal static class TileGridValidation
         if (!drawn)
         {
             throw Malformed(
-                $"the grid names texture \"{named.Name}\" but no tile type draws a cell of it. Give a tile type a cell or frames, or drop the texture.",
+                $"the grid names texture \"{named.Name}\" but no tile type draws a cell of it. Give a tile type a cell, frames or rules, or drop the texture.",
                 "texture");
         }
 
@@ -294,6 +294,14 @@ internal static class TileGridValidation
                 for (int frame = 0; frame < frames.Length; frame++)
                 {
                     ValidateCellRegion(tileTypes, frames[frame].Cell, i, $".frames[{frame}]", columns, tileSize);
+                }
+            }
+
+            if (tileTypes[i].Rules is { } rules)
+            {
+                for (int rule = 0; rule < rules.Length; rule++)
+                {
+                    ValidateCellRegion(tileTypes, rules[rule].Cell, i, $".rules[{rule}]", columns, tileSize);
                 }
             }
         }
@@ -339,12 +347,12 @@ internal static class TileGridValidation
 
     // The empty entry draws, collides and authors nothing. A subclass would fill every unpainted cell.
     private static bool IsEmpty(TileType tileType) =>
-        tileType is { Name: TileGrid.EmptyTileName, Cell: null, Frames: null, Layer: null, Shape: null, OneWay: false, SolidSides: false, SurfaceVelocity: { X: 0f, Y: 0f } }
+        tileType is { Name: TileGrid.EmptyTileName, Cell: null, Frames: null, Rules: null, Terrain: null, Joins: null, Layer: null, Shape: null, OneWay: false, SolidSides: false, SurfaceVelocity: { X: 0f, Y: 0f } }
         && tileType.GetType() == typeof(TileType);
 
     // How a message names a palette entry: its index, and the name an author finds it by.
-    private static string Palette(TileType tileType, int index) =>
+    internal static string Palette(TileType tileType, int index) =>
         string.Create(CultureInfo.InvariantCulture, $"tileTypes[{index}] (\"{tileType.Name}\")");
 
-    private static ArgumentException Malformed(string message, string parameterName) => new(message, parameterName);
+    internal static ArgumentException Malformed(string message, string parameterName) => new(message, parameterName);
 }

@@ -149,6 +149,48 @@ A map's `tiles` and `transforms` are authored dense, one per cell. The build shi
 class is or derives from `TileMap` packed into blocks of 16 by 16, holding only the blocks with a painted cell, and
 a map reads them without parsing a cell. A document composed without the build reads its dense cells.
 
+A tile type with `rules` picks each cell's look from its neighbours. This wall draws a rim on every side no other
+wall joins. Knocking one out with `RemoveTile` repaints the walls around the hole:
+
+```csharp
+TileType wall = new()
+{
+    Name = "wall",
+    Layer = "solid",
+    Terrain = "wall",
+    Rules =
+    [
+        new(16),
+        new(17, TileSides.Up),
+        new(18, TileSides.Right),
+        new(19, TileSides.Up | TileSides.Right),
+        …
+        new(31, TileSides.Up | TileSides.Right | TileSides.Down | TileSides.Left),
+    ],
+};
+```
+
+A document's `tileTypes` author the same wall:
+
+```json
+{
+  "name": "wall",
+  "layer": "solid",
+  "terrain": "wall",
+  "rules": [
+    { "cell": 16 },
+    { "cell": 17, "joined": "up" },
+    { "cell": 18, "joined": "right" },
+    { "cell": 19, "joined": "up, right" },
+    …
+    { "cell": 31, "joined": "up, right, down, left" }
+  ]
+}
+```
+
+A neighbour joins when its tile type's `terrain` is the rule tile's `joins`, its own `terrain` unless it names
+another. A cell is painted with the rule tile's name, and `TileType.Rules` holds how its look is picked.
+
 ### Entries and composition
 
 Every `type` names an entity class: the engine's `tile-map`, or one in the game's logic assembly. A concrete

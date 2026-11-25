@@ -1,0 +1,140 @@
+{
+  "timestamp": "2026-11-24T22:45:20Z",
+  "label": "rule-tiles",
+  "lane": "simulation",
+  "uncapped": false,
+  "commit": "a1ee9702",
+  "configuration": "Release",
+  "nativeAot": true,
+  "os": "Microsoft Windows 10.0.26200",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+  "gpu": "AMD Radeon RX 9070 XT",
+  "engineVersion": "0.0.0+a1ee97020e91574df9a7ee6bd6709a41579265a6",
+  "workloads": [
+    {
+      "name": "Dig64",
+      "mode": "headless",
+      "surface": "640x360-pixel-perfect",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "updateMs": null,
+      "stepMs": {
+        "median": 0.006,
+        "p95": 0.008
+      },
+      "viewMs": {
+        "median": 0.01,
+        "p95": 0.015
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "frameBytes": null,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "TileLayers",
+      "mode": "headless",
+      "surface": "640x360-pixel-perfect",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "updateMs": null,
+      "stepMs": {
+        "median": 0.001,
+        "p95": 0.004
+      },
+      "viewMs": {
+        "median": 0.532,
+        "p95": 0.714
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "frameBytes": null,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "TileLayersEdited",
+      "mode": "headless",
+      "surface": "640x360-pixel-perfect",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "updateMs": null,
+      "stepMs": {
+        "median": 0.001,
+        "p95": 0.004
+      },
+      "viewMs": {
+        "median": 0.518,
+        "p95": 0.587
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "frameBytes": null,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "TileReveal",
+      "mode": "headless",
+      "surface": "640x360-pixel-perfect",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "updateMs": null,
+      "stepMs": {
+        "median": 0,
+        "p95": 0.001
+      },
+      "viewMs": {
+        "median": 0.17,
+        "p95": 0.232
+      },
+      "stepBytes": 0,
+      "viewBytes": 3413928,
+      "frameBytes": null,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "AuthoredLevel",
+      "mode": "headless",
+      "surface": "640x360-pixel-perfect",
+      "steps": 600,
+      "frames": null,
+      "drawMs": null,
+      "updateMs": null,
+      "stepMs": {
+        "median": 0.013,
+        "p95": 0.013
+      },
+      "viewMs": {
+        "median": 0.012,
+        "p95": 0.012
+      },
+      "stepBytes": 0,
+      "viewBytes": 0,
+      "frameBytes": null,
+      "intervalMs": null,
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    }
+  ]
+}
