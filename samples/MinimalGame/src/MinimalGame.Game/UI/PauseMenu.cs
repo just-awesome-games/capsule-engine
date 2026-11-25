@@ -5,13 +5,19 @@ namespace MinimalGame.Game.UI;
 /// Resume and Quit over one <see cref="FocusNavigator"/>. The scene opens and closes it, and the menu owns what
 /// pausing means: the world, the sound effects and the rumble all stop, and the music sinks behind a low-pass.
 /// </summary>
+/// <remarks>
+/// The music sinks on the bus it plays on, under the one the volume slider sets. A slider moved while paused
+/// keeps the dip.
+/// </remarks>
 public sealed class PauseMenu : ScreenEntity
 {
     // Canvas pixels between the panel's edge and its items.
     private const float PanelPadding = 8f;
 
-    // The music heard behind the menu: muffled as through a wall, sliding there and back in a fifth of a second.
+    // The music heard behind the menu: muffled as through a wall and quieter, sliding there and back in a fifth
+    // of a second.
     private const float MuffledHertz = 900f;
+    private const float MuffledVolume = 0.5f;
     private const float MuffleSeconds = 0.2f;
 
     private static readonly ColorRgba PanelColor = new(24, 24, 32);
@@ -59,7 +65,7 @@ public sealed class PauseMenu : ScreenEntity
     {
         Scene.Paused = true;
         Run.Audio.Pause(AudioBuses.Sfx);
-        Muffle(MuffledHertz);
+        Muffle(MuffledHertz, MuffledVolume);
         Run.Rumble.Stop();
         _roomCursor = Run.Cursor.Image;
         Run.Cursor.Image = null;
@@ -74,13 +80,16 @@ public sealed class PauseMenu : ScreenEntity
     {
         Scene.Paused = false;
         Run.Audio.Resume(AudioBuses.Sfx);
-        Muffle(null);
+        Muffle(null, 1f);
         Run.Cursor.Image = _roomCursor;
         Visible = false;
     }
 
-    private void Muffle(float? hertz) =>
-        Run.Audio.FadeEffects(AudioBuses.Music, Run.Audio.GetEffects(AudioBuses.Music) with { LowPassHertz = hertz }, MuffleSeconds);
+    private void Muffle(float? hertz, float volume)
+    {
+        Run.Audio.FadeEffects(AudioBuses.Score, Run.Audio.GetEffects(AudioBuses.Score) with { LowPassHertz = hertz }, MuffleSeconds);
+        Run.Audio.FadeVolume(AudioBuses.Score, volume, MuffleSeconds);
+    }
 
     private void Quit() => Run.RequestExit();
 }

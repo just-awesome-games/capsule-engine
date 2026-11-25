@@ -4,6 +4,7 @@ using Capsule.Assets;
 using Capsule.Diagnostics;
 using Capsule.Physics;
 using Capsule.Scenes;
+using Capsule.UI;
 
 namespace Capsule.Rendering;
 
@@ -20,7 +21,12 @@ namespace Capsule.Rendering;
 /// sockets are placed the same way, as child entities bound through <see cref="Socket"/>, and its
 /// boxes as colliders bound through <see cref="Box"/>. Detaching the renderer disables its boxes, and
 /// attaching it to the same entity again re-places them. Attaching a renderer with bound boxes to any
-/// other entity throws <see cref="InvalidOperationException"/>.
+/// other entity throws <see cref="InvalidOperationException"/>. On a <see cref="ScreenEntity"/>, the
+/// entity's rect fits from its top-left corner to the far corner of the rect the frame covers, as placed
+/// by its pivot at <see cref="Offset"/>, mirrored by its flips and extended by a finite
+/// <see cref="Tiling"/>. An axis tiled without bound or by a negative or NaN extent asks for nothing, as
+/// does a frame that draws nothing. An unflipped, untiled frame pivoted at its top-left corner with no
+/// offset sizes the rect to itself.
 /// </remarks>
 /// <param name="sprite">The frame to draw.</param>
 public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: true)
@@ -48,22 +54,15 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
 
         set
         {
-            if (Awake)
+            // An animation whose frames share a size and a pivot covers the same rect on each of them. A sprite
+            // at rest stays there, and a screen rect keeps its fit.
+            Sprite? drawn = DrawnFrame;
+            _sprite = value;
+            Resolve();
+            if (!SameCover(drawn, DrawnFrame))
             {
-                _sprite = value;
-                Resolve();
-            }
-            else
-            {
-                // An animation whose frames share a size and a pivot covers the same rect on each of them,
-                // and a sprite at rest stays there.
-                Sprite? drawn = DrawnFrame;
-                _sprite = value;
-                Resolve();
-                if (!SameCover(drawn, DrawnFrame))
-                {
-                    Wake();
-                }
+                Wake();
+                ScreenEntity.Remeasure(Entity);
             }
 
             Place(frameChanged: true);
@@ -116,6 +115,8 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
             {
                 extras.Look = null;
             }
+
+            ScreenEntity.Remeasure(Entity);
         }
     }
 
@@ -132,6 +133,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
         {
             _offset = value;
             Wake();
+            ScreenEntity.Remeasure(Entity);
             Place(frameChanged: false);
         }
     }
@@ -155,6 +157,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
         {
             field = value;
             Wake();
+            ScreenEntity.Remeasure(Entity);
         }
     }
 
@@ -167,6 +170,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
         {
             _flipX = value;
             Wake();
+            ScreenEntity.Remeasure(Entity);
             Place(frameChanged: false);
         }
     }
@@ -180,6 +184,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
         {
             _flipY = value;
             Wake();
+            ScreenEntity.Remeasure(Entity);
             Place(frameChanged: false);
         }
     }
@@ -191,6 +196,10 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
     public BlendMode Blend { get; set; }
 
     internal override bool Steps => false;
+
+    internal override float MeasureWidth(float cap) => Reach.X;
+
+    internal override float MeasureHeight(float width) => Reach.Y;
 
     /// <summary>
     /// The rect the frame covers: its region at the entity's world scale, placed by the mirrored
@@ -367,6 +376,29 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
         }
 
         view.Add(Intent(PreviousRenderTransform, RenderTransform), Tiling);
+    }
+
+    // The far corner of the rect the frame covers in its entity's own space, which a screen rect fits from its
+    // top-left corner. A frame tiled without bound, or drawn nowhere, asks for nothing on that axis.
+    private Vector2 Reach
+    {
+        get
+        {
+            Transform2D at = Transform2D.Identity;
+            if (DrawnFrame is null || !Intent(at, at).TryGetSweptBounds(out Rect frame))
+            {
+                return Vector2.Zero;
+            }
+
+            return new Vector2(Far(frame.Left, frame.Right, Tiling.X), Far(frame.Top, frame.Bottom, Tiling.Y));
+
+            static float Far(float low, float high, float tiling) => tiling switch
+            {
+                0f => Math.Max(high, 0f),
+                > 0f and < float.PositiveInfinity => Math.Max(low + tiling, 0f),
+                _ => 0f,
+            };
+        }
     }
 
     // The frame drawn: the held one, or what Variant maps it to, and null where that is nothing.

@@ -24,6 +24,7 @@ public sealed class HintZone : Entity
 
     private readonly Label _hint;
     private readonly ActionPrompt? _prompt;
+    private readonly Entity? _promptHolder;
     private readonly Sequence _typing = new();
 
     /// <summary>The area's width and height in world units.</summary>
@@ -54,7 +55,8 @@ public sealed class HintZone : Entity
 
         if (Prompt.Length > 0)
         {
-            _prompt = new ActionPrompt(this, new InputAction(Prompt));
+            _promptHolder = new Entity(this);
+            _prompt = new ActionPrompt(_promptHolder, new InputAction(Prompt));
         }
 
         Show(false);
@@ -88,7 +90,7 @@ public sealed class HintZone : Entity
         _hint.Size = new Vector2(Size.X - lead, ActionPrompt.Height);
         float left = (Size.X - lead - _hint.ContentSize.X) / 2f;
 
-        _prompt?.Position = new Vector2(left, Top);
+        _promptHolder?.Position = new Vector2(left, Top);
         _hint.Offset = new Vector2(left + lead, Top);
     }
 
@@ -109,7 +111,7 @@ public sealed class HintZone : Entity
         _hint.Visible = shown;
         _hint.FirstLine = 0;
         _hint.VisibleCharacters = 0;
-        _prompt?.Visible = shown;
+        _promptHolder?.Visible = shown;
     }
 
     // Types the shown line, holds it, and turns to the next, back to the first after the last. A hint of one

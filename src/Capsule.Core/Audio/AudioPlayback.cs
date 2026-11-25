@@ -10,7 +10,7 @@ namespace Capsule.Audio;
 public readonly record struct AudioPlayback(AudioClip Clip)
 {
     /// <summary>The bus this voice mixes and pauses through. <see cref="AudioBus.Master"/> by default.</summary>
-    public AudioBus Bus { get; init; }
+    public AudioBus Bus { get; init; } = AudioBus.Master;
 
     /// <summary>
     /// This voice's own linear amplitude in [0, 1], and 1 by default. Its bus's volume and the master

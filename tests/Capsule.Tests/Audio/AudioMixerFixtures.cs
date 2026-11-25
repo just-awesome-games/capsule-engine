@@ -26,7 +26,7 @@ internal static class AudioMixerFixtures
 
     // The bus and gain of every SetBusGain the last step raised, in order.
     internal static (AudioBus Bus, float Gain)[] BusGains(AudioMixer mixer) =>
-        [.. mixer.Commands.ToArray().Where(static command => command.Kind == AudioCommandKind.SetBusGain).Select(static command => (command.Bus, command.Gain))];
+        [.. mixer.Commands.ToArray().Where(static command => command.Kind == AudioCommandKind.SetBusGain).Select(static command => (command.Bus!, command.Gain))];
 
     // The kind and voice of every command the last step raised, in order.
     internal static (AudioCommandKind Kind, Voice Voice)[] Raised(AudioMixer mixer) =>

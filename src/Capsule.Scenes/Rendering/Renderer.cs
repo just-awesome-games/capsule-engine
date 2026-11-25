@@ -150,7 +150,7 @@ public abstract class Renderer : Component
     internal bool Resting => _rest > Dropped;
 
     // The width this renderer asks of the screen entity it fills, where a renderer that wraps prefers no more
-    // than `cap`. One that draws by its own pivot asks for nothing.
+    // than `cap`. One that draws nothing of a size asks for nothing.
     internal virtual float MeasureWidth(float cap) => 0f;
 
     // The height it asks once its entity is `width` wide.

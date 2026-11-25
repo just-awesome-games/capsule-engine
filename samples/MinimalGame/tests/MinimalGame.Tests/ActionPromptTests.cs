@@ -101,7 +101,7 @@ public sealed class ActionPromptTests
         return new SimulationHost(scene, run: run);
     }
 
-    private static string Shown(ActionPrompt prompt) => prompt.Get<Label>().Text;
+    private static string Shown(ActionPrompt prompt) => prompt.Entity!.Get<Label>().Text;
 
     private static Sprite Drawn(SimulationHost host) => Assert.Single(host.Simulation.View.Sprites.ToArray()).Sprite;
 

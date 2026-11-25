@@ -12,7 +12,7 @@ headphone processing.
 | Need | Piece |
 | --- | --- |
 | A sound file | An `AudioClip` member of `CapsuleAssets` ([`assets.md`](assets.md#audio)) |
-| A group of voices mixed and paused together | `AudioBus`, under `AudioBus.Master` |
+| A group of voices mixed and paused together | `AudioBus`, under `AudioBus.Master` or a parent bus |
 | A sound that belongs to an entity | `AudioSource` |
 | A sound heard louder the nearer it is | `AudioRange`, on an `AudioSource` or an `AudioPlayback` |
 | Hearing positional sound from an entity | `Camera.Listener` |
@@ -28,8 +28,11 @@ A game declares its buses at its assembly root:
 ```csharp
 public static class AudioBuses
 {
-    /// <summary>The bus that plays the game's music.</summary>
+    /// <summary>The bus the player's music volume is set on.</summary>
     public static readonly AudioBus Music = new AudioBus("music");
+
+    /// <summary>The bus the music plays on, under <see cref="Music"/>.</summary>
+    public static readonly AudioBus Score = new AudioBus("score", Music);
 
     /// <summary>The bus that plays the game's sound effects.</summary>
     public static readonly AudioBus Sfx = new AudioBus("sfx");
@@ -43,6 +46,13 @@ settings screen writes them:
 Run.Audio.SetVolume(AudioBuses.Music, volume);
 Run.Audio.Pause(AudioBuses.Sfx);
 ```
+
+A bus adds into the master unless it is declared under a parent. A child runs its own effects and volume,
+then adds into its parent. The two volumes multiply. Pausing the parent holds every voice under it. A
+parent is declared above its children, since a static field below is still null as the child is made.
+
+Each owner of a level gets its own bus. A settings slider sets the parent's volume, and the game fades
+the child's for a moment such as a pause. Neither overwrites the other.
 
 ## A sound from an entity
 
@@ -106,7 +116,7 @@ A voice started through `Run.Audio` survives a scene transition. The game keeps 
 `GameInstance`, which every scene reads as `Run.State<T>()`:
 
 ```csharp
-_music = Run.Audio.Play(new AudioPlayback(CapsuleAssets.Music.MenuThemeSound) { Bus = AudioBuses.Music, Loop = true });
+_music = Run.Audio.Play(new AudioPlayback(CapsuleAssets.Music.MenuThemeSound) { Bus = AudioBuses.Score, Loop = true });
 ```
 
 A crossfade eases the incoming voice in while the outgoing one eases out:
@@ -114,15 +124,16 @@ A crossfade eases the incoming voice in while the outgoing one eases out:
 ```csharp
 _music = Run.Audio.CrossFade(
     _music,
-    new AudioPlayback(CapsuleAssets.Music.FieldThemeSound) { Bus = AudioBuses.Music, Loop = true },
+    new AudioPlayback(CapsuleAssets.Music.FieldThemeSound) { Bus = AudioBuses.Score, Loop = true },
     seconds: 2f);
 ```
 
 A fade is a ramp the mixer steps on its own tick, and it runs through a pause and past the scene that
-started it. A bus fade ducks music under dialogue, and a fade-out lets the old sound clear the mix:
+started it. A fade on a child bus ducks music under dialogue while its parent keeps the player's
+volume, and a fade-out lets the old sound clear the mix:
 
 ```csharp
-Run.Audio.FadeVolume(AudioBuses.Music, 0.2f, seconds: 0.3f);
+Run.Audio.FadeVolume(AudioBuses.Score, 0.2f, seconds: 0.3f);
 Run.Audio.Stop(_music, seconds: 0.5f);
 ```
 
@@ -143,8 +154,8 @@ Run.Audio.SetEffects(AudioBuses.Sfx, new AudioEffects
 
 A bus sums its voices, then runs the echo, the high-pass and the low-pass in that order, then applies its
 volume. A filter therefore muffles the echo's repeats too, and the bus's volume silences them. A voice
-stopped on an echoing bus leaves its repeats ringing, as does a paused bus. The master bus takes the
-voices on it and every other bus's output, then runs its own effects and volume.
+stopped on an echoing bus leaves its repeats ringing, as does a paused bus. A parent takes the voices on
+it and its children's output, then runs its own effects and volume, and the master does the same last.
 
 `FadeEffects` ramps only the settings whose target it changes, and leaves any other ramp running.
 Cutoffs move in octaves, and a cutoff faded to null slides to the end of the range and turns off. An
@@ -152,7 +163,7 @@ echo fades its volume in as it turns on and out as it turns off. Building the fa
 changes one setting and keeps the rest:
 
 ```csharp
-Run.Audio.FadeEffects(AudioBuses.Music, Run.Audio.GetEffects(AudioBuses.Music) with { LowPassHertz = 900f }, 0.2f);
+Run.Audio.FadeEffects(AudioBuses.Score, Run.Audio.GetEffects(AudioBuses.Score) with { LowPassHertz = 900f }, 0.2f);
 ```
 
 An echo's `DelaySeconds` and `InvertLeft` never fade. A changed delay takes effect on the call and cuts the repeats

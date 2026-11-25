@@ -263,25 +263,26 @@ internal sealed class AudioPlayer
         return new MixCommand(MixCommandKind.SetBusEffects, 0, 0) { Bus = bus, Effects = levels, Line = line };
     }
 
-    // The mixer's index for bus. A bus heard for the first time hands the mixer a larger set of buses.
-    private int Bus(in AudioBus bus)
+    // The mixer's index for bus, null being the master. A bus heard for the first time hands the mixer a
+    // larger set of buses, after its parent's.
+    private int Bus(AudioBus? bus)
     {
-        if (string.IsNullOrEmpty(bus.Name))
+        if (bus?.Parent is null)
         {
             return 0;
         }
 
-        if (_buses.TryGetValue(bus.Name, out int index))
-        {
-            return index;
-        }
+        return _buses.TryGetValue(bus.Name, out int index) ? index : Register(bus.Name, Bus(bus.Parent));
+    }
 
-        MixBus[] buses = [.. _mixBuses, new MixBus()];
+    private int Register(string name, int parent)
+    {
+        MixBus[] buses = [.. _mixBuses, new MixBus(parent)];
         _mixBuses = buses;
         Array.Resize(ref _lineDelays, buses.Length + 1);
 
         Post(new MixCommand(MixCommandKind.Buses, 0, 0) { Buses = buses });
-        _buses.Add(bus.Name, buses.Length);
+        _buses.Add(name, buses.Length);
 
         return buses.Length;
     }

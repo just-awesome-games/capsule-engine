@@ -28,7 +28,7 @@ internal static class AudioPlaybackFixtures
         float pan = 0f,
         bool loop = false,
         double startSeconds = 0.0,
-        AudioBus bus = default) => new(kind, voice, clip, bus, gain, pitch, pan, loop, startSeconds);
+        AudioBus? bus = null) => new(kind, voice, clip, bus, gain, pitch, pan, loop, startSeconds);
 
     // A mixer and the two rings it talks through, with nothing on the other end. A test posts what the
     // game thread would and reads what the mixer reports.

@@ -6,12 +6,13 @@ namespace MinimalGame.Game.UI;
 /// and a rebind by itself.
 /// </summary>
 /// <remarks>
-/// The art draws Xbox pad buttons, and a pad of another family shows its own button names instead. The
-/// parent places the prompt from its late step, once the prompt has stepped.
+/// The art draws Xbox pad buttons, and a pad of another family shows its own button names instead. A
+/// screen entity holding the prompt fits it as it shows. A world entity holding it places it from a late
+/// step, once the prompt has stepped.
 /// </remarks>
-public sealed class ActionPrompt : Entity
+public sealed class ActionPrompt : Component
 {
-    /// <summary>The prompt's height, which is the art's, with its top-left corner on the entity.</summary>
+    /// <summary>The prompt's height, which is the art's, with its top-left corner on its holder.</summary>
     public const float Height = 16f;
 
     private readonly InputAction _action;
@@ -28,17 +29,17 @@ public sealed class ActionPrompt : Entity
     // Whether the label names the action's button, set the first time the art does not draw it.
     private bool _named;
 
-    /// <param name="parent">The entity that places the prompt.</param>
+    /// <param name="holder">The entity the prompt draws on.</param>
     /// <param name="action">The action whose button is shown.</param>
-    public ActionPrompt(Entity parent, InputAction action)
-        : base(parent)
+    public ActionPrompt(Entity holder, InputAction action)
     {
         _action = action;
-        Add(_art);
-        Add(_name);
+        holder.Add(_art);
+        holder.Add(_name);
+        holder.Add(this);
     }
 
-    /// <summary>The width the prompt draws, for its parent to place what sits beside it.</summary>
+    /// <summary>The width the prompt draws, for a world holder to place what sits beside it.</summary>
     public float Width => _art.Visible ? _art.Sprite.Region.Width : _name.ContentSize.X;
 
     /// <summary>The colour a button's name draws in. Art keeps its own colours.</summary>

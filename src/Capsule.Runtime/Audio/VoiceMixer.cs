@@ -3,9 +3,9 @@ using Capsule.Audio;
 namespace Capsule.Runtime.Audio;
 
 // The host's mix: every voice the game has sounding, resampled to the output's rate and summed into
-// its bus's buffer. Each bus runs its effects and gain on its buffer and adds it into the output.
-// Voices on the master bus write to the output directly, and the master's effects and gain run on the
-// output last. A voice whose bus is muted keeps its time unheard.
+// its bus's buffer. Each bus runs its effects and gain on its buffer and adds it into its parent's,
+// children before parents. Voices on the master bus write to the output directly, and the master's
+// effects and gain run on the output last. A voice whose bus is muted keeps its time unheard.
 //
 // Mix is pure. It opens no device and starts no thread, and the suite calls it directly. The thread
 // that calls it in a run is host policy (MixThread). On that thread Mix takes no lock and allocates
@@ -83,12 +83,13 @@ internal sealed class VoiceMixer
         master.Clear();
         int samples = frames * Channels;
         _master.Quiet = _master.Muted;
+        // A parent comes before its children. It has settled by the time they read it.
         foreach (MixBus bus in _buses)
         {
             bus.Buffer.AsSpan(0, samples).Clear();
 
-            // Under a muted master a bus's sound goes unheard, unless its echo has repeats to keep.
-            bus.Quiet = bus.Muted || (_master.Quiet && !bus.Ringing);
+            // Under a muted bus above it a bus's sound goes unheard, unless its echo has repeats to keep.
+            bus.Quiet = bus.Muted || (ParentOf(bus).Quiet && !bus.Ringing);
         }
 
         foreach (MixVoice voice in _slots)
@@ -114,15 +115,18 @@ internal sealed class VoiceMixer
             }
         }
 
-        foreach (MixBus bus in _buses)
+        // Children run first. A parent then processes the sum of everything under it.
+        for (int b = _buses.Length - 1; b >= 0; b--)
         {
+            MixBus bus = _buses[b];
             Span<float> sum = bus.Buffer.AsSpan(0, samples);
             bus.Process(sum, frames);
             if (!bus.Quiet)
             {
+                Span<float> into = bus.Parent == 0 ? master : _buses[bus.Parent - 1].Buffer.AsSpan(0, samples);
                 for (int i = 0; i < samples; i++)
                 {
-                    master[i] += sum[i];
+                    into[i] += sum[i];
                 }
             }
         }
@@ -238,6 +242,8 @@ internal sealed class VoiceMixer
         _fading[_fadingCount++] = voice;
         _slots[slot] = _spare[--_spareCount];
     }
+
+    private MixBus ParentOf(MixBus bus) => bus.Parent == 0 ? _master : _buses[bus.Parent - 1];
 
     private MixBus? BusAt(int index) => index == 0 ? _master : (uint)(index - 1) < (uint)_buses.Length ? _buses[index - 1] : null;
 

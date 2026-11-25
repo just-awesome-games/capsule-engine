@@ -6,8 +6,8 @@ namespace Capsule.Audio;
 /// </summary>
 /// <remarks>
 /// A bus sums its voices, echoes the sum, high-passes it, low-passes it and then applies its volume. A
-/// filter muffles the echo's repeats too. The master bus takes the voices on it and every other bus's
-/// output, runs its own effects and applies its volume last. An echo rings on after the voice that fed it
+/// filter muffles the echo's repeats too. A parent bus takes the voices on it and its children's
+/// output, then runs its own effects and volume, and the master does the same last. An echo rings on after the voice that fed it
 /// stops and while its bus is paused, and its bus's volume silences it.
 /// </remarks>
 /// <example>

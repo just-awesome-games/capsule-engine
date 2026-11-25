@@ -25,7 +25,7 @@ public sealed class Music(AudioMixer mixer)
 
         // After Stop the old voice is still fading on its own tail. The new track fades in beside it.
         Voice from = _clip == default ? Voice.None : _voice;
-        _voice = mixer.CrossFade(from, new AudioPlayback(clip) { Bus = AudioBuses.Music, Loop = true }, seconds);
+        _voice = mixer.CrossFade(from, new AudioPlayback(clip) { Bus = AudioBuses.Score, Loop = true }, seconds);
         _clip = clip;
     }
 

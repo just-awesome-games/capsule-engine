@@ -37,7 +37,7 @@ public sealed partial class AudioMixer
 
     // Index 0 is the master bus. It sits in the table like any other bus, and a voice reaches its bus by
     // index with no name comparison.
-    private readonly List<Bus> _buses = [new Bus(string.Empty)];
+    private readonly List<Bus> _buses = [new Bus(AudioBus.Master)];
 
     private readonly Slot[] _slots = new Slot[MaxVoices];
 
@@ -187,7 +187,7 @@ public sealed partial class AudioMixer
 
     /// <summary>
     /// Resumes this bus, registering it if it is new. A voice still held by its own pause, its bus
-    /// or the master stays paused.
+    /// or a bus above it stays paused.
     /// </summary>
     /// <remarks>Every other voice the bus held continues from where it was held.</remarks>
     public void Resume(AudioBus bus) => SetBusPaused(bus, paused: false);
@@ -225,13 +225,19 @@ public sealed partial class AudioMixer
         RequireStart(playback.StartSeconds, playback.Clip.DurationSeconds, nameof(playback));
         RequireRegion(playback.Clip, nameof(playback));
 
+        // The bus is checked first. A refused declaration then steals no voice, and a play with no slot free
+        // registers nothing.
+        int bus = Find(playback.Bus);
         int index = Allocate();
         if (index < 0)
         {
             return Voice.None;
         }
 
-        int bus = Register(playback.Bus);
+        if (bus < 0)
+        {
+            bus = Register(playback.Bus);
+        }
         double start = StartOf(in playback);
 
         ref Slot slot = ref _slots[index];
@@ -842,8 +848,7 @@ public sealed partial class AudioMixer
             Pitch: pitch,
             Pan: kind == AudioCommandKind.SetPan ? PanOf(in slot) : 0f));
 
-    // The master row is keyed by the empty string, not by the name AudioBus.Master carries.
-    private AudioBus BusOf(int index) => index == 0 ? AudioBus.Master : new AudioBus(_buses[index].Name);
+    private AudioBus BusOf(int index) => _buses[index].Value;
 
     // Whether this slot holds nothing addressable, freeing it if it holds a one-shot that has run out. An
     // expired slot keeps Live until something reaches it. Walks over the table ask this instead of Live.
@@ -931,8 +936,27 @@ public sealed partial class AudioMixer
 
     private bool Expired(in Slot slot) => !slot.Loop && !slot.Paused && slot.EndTick <= _tick;
 
-    private bool EffectivelyPaused(in Slot slot) =>
-        slot.SelfPaused || _buses[0].Paused || _buses[slot.Bus].Paused;
+    private bool EffectivelyPaused(in Slot slot)
+    {
+        if (slot.SelfPaused)
+        {
+            return true;
+        }
+
+        // A parent is registered before its child. The walk up only falls in index and ends at the master.
+        for (int bus = slot.Bus; ; bus = _buses[bus].Parent)
+        {
+            if (_buses[bus].Paused)
+            {
+                return true;
+            }
+
+            if (bus == 0)
+            {
+                return false;
+            }
+        }
+    }
 
     // A voice's own share of its gain. Its bus's volume and the master's apply on the bus, after effects.
     private static float Gain(in Slot slot) => slot.Volume * slot.Attenuation;
@@ -1002,35 +1026,87 @@ public sealed partial class AudioMixer
         _commands.Add(new AudioCommand(AudioCommandKind.SetBusGain, Voice.None, Bus: BusOf(index), Gain: gain));
     }
 
-    private int Find(AudioBus bus)
+    // Throws as Play would for a declaration that conflicts, without changing anything.
+    internal void RequireBus(AudioBus bus) => Find(bus);
+
+    // The row of a bus already met, or -1. A declaration that conflicts with a row or repeats a name in its own
+    // chain throws, and nothing is registered.
+    private int Find(AudioBus? bus) => Resolve(bus, register: false);
+
+    // The row of bus, registered with the parents above it if new. The whole chain passes Find first. A refused
+    // declaration adds no row.
+    private int Register(AudioBus? bus)
     {
-        if (string.IsNullOrEmpty(bus.Name))
+        int index = Find(bus);
+
+        return index >= 0 ? index : Resolve(bus, register: true);
+    }
+
+    // The row of bus, registering it and the parents above it when asked, or -1 for one unmet. A null bus is the
+    // master, as a default AudioPlayback's is.
+    private int Resolve(AudioBus? bus, bool register)
+    {
+        if (bus?.Parent is null)
         {
             return 0;
         }
 
+        // The instance a row was registered from had its chain checked then.
+        int index = RowNamed(bus.Name);
+        if (index > 0 && ReferenceEquals(_buses[index].Value, bus))
+        {
+            return index;
+        }
+
+        if (!register)
+        {
+            RequireDistinctNames(bus);
+        }
+
+        int parent = Resolve(bus.Parent, register);
+
+        // The parent's chain may have just taken this name.
+        index = RowNamed(bus.Name);
+        if (index > 0 && _buses[index].Parent != parent)
+        {
+            throw new InvalidOperationException(
+                $"Two buses named '{bus.Name}' add into different parents. Declare each bus once, under one parent.");
+        }
+
+        if (index > 0 || !register)
+        {
+            return index;
+        }
+
+        // A parent is registered before its child. Its index is always below its children's.
+        _buses.Add(new Bus(bus) { Parent = parent });
+
+        return _buses.Count - 1;
+    }
+
+    private static void RequireDistinctNames(AudioBus bus)
+    {
+        for (AudioBus? above = bus.Parent; above?.Parent is not null; above = above.Parent)
+        {
+            if (string.Equals(above.Name, bus.Name, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Bus '{bus.Name}' is declared under a bus of the same name. Give each bus in a chain its own name.");
+            }
+        }
+    }
+
+    private int RowNamed(string name)
+    {
         for (int i = 1; i < _buses.Count; i++)
         {
-            if (string.Equals(_buses[i].Name, bus.Name, StringComparison.Ordinal))
+            if (string.Equals(_buses[i].Value.Name, name, StringComparison.Ordinal))
             {
                 return i;
             }
         }
 
         return -1;
-    }
-
-    private int Register(AudioBus bus)
-    {
-        int index = Find(bus);
-        if (index >= 0)
-        {
-            return index;
-        }
-
-        _buses.Add(new Bus(bus.Name));
-
-        return _buses.Count - 1;
     }
 
     private long TicksFor(double seconds) => TicksAt(seconds, _stepSeconds);
@@ -1082,9 +1158,12 @@ public sealed partial class AudioMixer
         }
     }
 
-    private struct Bus(string name)
+    private struct Bus(AudioBus value)
     {
-        internal string Name = name;
+        internal AudioBus Value = value;
+
+        // The index of the bus this one adds into, 0 for the master. The master's own is 0 too.
+        internal int Parent;
 
         internal float Volume = 1f;
 

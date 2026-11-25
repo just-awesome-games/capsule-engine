@@ -52,17 +52,17 @@ public sealed class ScreenSpaceTests
 
         FrameView view = run.Simulation.View;
 
-        // The rect sizes its entity, whose far corner sits (-10, -20) from the canvas's. The rect then draws
+        // The square sizes its entity, whose far corner sits (-10, -20) from the canvas's. The rect then draws
         // its offset from the entity's top-left corner.
         Assert.Empty(view.Sprites.ToArray());
-        Assert.Equal([new Vector2(86f, 26f), new Vector2(76f, 26f)], view.ScreenSprites.ToArray().Select(static drawn => drawn.Position));
-        Assert.Equal(Rect.FromEdges(76f, 26f, 80f, 30f), rect.Bounds);
+        Assert.Equal([new Vector2(82f, 22f), new Vector2(72f, 22f)], view.ScreenSprites.ToArray().Select(static drawn => drawn.Position));
+        Assert.Equal(Rect.FromEdges(72f, 22f, 76f, 26f), rect.Bounds);
     }
 
     [Theory]
     [InlineData(0f, 0f, 10f, 10f)]
-    [InlineData(0.5f, 0.5f, 60f, 35f)]
-    [InlineData(1f, 1f, 80f, 30f)]
+    [InlineData(0.5f, 0.5f, 56f, 31f)]
+    [InlineData(1f, 1f, 72f, 22f)]
     public void EveryAnchor_IsThatFractionOfTheCanvas(float x, float y, float left, float top)
     {
         // Measured from the anchor. A far-edge anchor is reached by a negative offset.
@@ -81,12 +81,12 @@ public sealed class ScreenSpaceTests
     {
         using SimulationHost run = Run(new ScreenHolder(Anchor.BottomRight, new Vector2(-10f, -20f), Square()));
         run.Step();
-        Assert.Equal(new Vector2(90f, 30f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
+        Assert.Equal(new Vector2(82f, 22f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
 
         run.Simulation.Run.Canvas = new Vector2(200f, 100f);
         run.Step();
 
-        Assert.Equal(new Vector2(190f, 80f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
+        Assert.Equal(new Vector2(182f, 72f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
     }
 
     // Anchors resolve on every read. A nested element follows a new canvas and a resized parent.
@@ -99,18 +99,19 @@ public sealed class ScreenSpaceTests
         using SimulationHost run = Run(panel);
         run.Step();
 
-        // The child's bottom-right corner sits (-2, -3) from the panel's, which spans (30, 15) to (70, 35).
-        Assert.Equal(new Vector2(64f, 28f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
+        // The child's bottom-right corner sits (-2, -3) from the panel's, which spans (30, 15) to (70, 35). The
+        // square outgrows the child's Size.
+        Assert.Equal(new Vector2(60f, 24f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
 
         run.Simulation.Run.Canvas = new Vector2(200f, 100f);
         run.Step();
 
-        Assert.Equal(new Vector2(114f, 53f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
+        Assert.Equal(new Vector2(110f, 49f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
 
         panel.Size = new Vector2(60f, 30f);
         run.Step();
 
-        Assert.Equal(new Vector2(124f, 58f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
+        Assert.Equal(new Vector2(120f, 54f), Assert.Single(run.Simulation.View.ScreenSprites.ToArray()).Position);
     }
 
     [Fact]
@@ -225,7 +226,7 @@ public sealed class ScreenSpaceTests
 
     private static SimulationHost Run(Entity holder) => SceneFixtures.Simulate(new Run { Canvas = Canvas }, holder);
 
-    // A sprite draws by its own pivot and sizes no rect, which leaves its entity a point.
+    // Pivoted at its top-left corner, the square sizes its entity's rect to 8 by 8.
     private static SpriteRenderer Square() => new(SceneFixtures.Frame(8, 8));
 
     private sealed class Mover() : ScreenEntity(Anchor.TopLeft, Vector2.Zero)

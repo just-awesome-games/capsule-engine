@@ -177,6 +177,20 @@ public sealed class AudioSourceTests
         Assert.True(source.IsPlaying);
     }
 
+    // A replay on a bus the mixer refuses throws before it stops the voice the source holds.
+    [Fact]
+    public void Play_OnARefusedBus_KeepsTheVoiceItHolds()
+    {
+        AudioSource source = new(Step) { AutoPlay = true, Loop = true, Bus = Sfx };
+        using SimulationHost run = Run(source);
+        Voice first = FirstVoice(run.Scene);
+
+        source.Bus = new AudioBus("sfx", Music);
+
+        Assert.Throws<InvalidOperationException>(source.Play);
+        Assert.True(run.Run.Audio.IsPlaying(first));
+    }
+
     [Fact]
     public void PlayOneShot_StartsASeparateVoiceTheSourceDoesNotHold()
     {

@@ -30,7 +30,7 @@ public sealed class MenuItem : BoxContainer
     private readonly ColorRect _bar;
     private readonly ActionPrompt? _prompt;
 
-    // The rect the prompt draws in, as wide as the prompt and the gap before it.
+    // The rect the prompt draws in, which fits it as it shows.
     private readonly ScreenEntity? _promptSlot;
 
     // Handed to the menu's navigator, which is the only thing that may move this item's focus.
@@ -58,13 +58,13 @@ public sealed class MenuItem : BoxContainer
         Add(Focusable);
 
         // The caption and the prompt sit side by side, centred together in the item.
-        BoxContainer line = new(Axis.Horizontal, Anchor.Top, Vector2.Zero) { Parent = this, Size = new Vector2(0f, BoxHeight) };
+        BoxContainer line = new(Axis.Horizontal, Anchor.Top, Vector2.Zero) { Parent = this, Size = new Vector2(0f, BoxHeight), Spacing = PromptGap };
         new ScreenEntity(Anchor.Left, Vector2.Zero) { Parent = line }.Add(_caption);
 
         if (prompt is { } action)
         {
             _promptSlot = new ScreenEntity(Anchor.Left, Vector2.Zero) { Parent = line };
-            _prompt = new ActionPrompt(_promptSlot, action) { Position = new Vector2(PromptGap, 0f) };
+            _prompt = new ActionPrompt(_promptSlot, action);
         }
 
         Highlight(Focusable, _caption, _bar, _prompt);
@@ -111,16 +111,6 @@ public sealed class MenuItem : BoxContainer
             caption.Color = ink;
             prompt?.NameColor = ink;
             bar.Visible = focused;
-        }
-    }
-
-    // A sprite sizes no rect. The prompt has stepped by now, and its width is this step's.
-    /// <inheritdoc/>
-    protected override void OnLateStep(in StepContext context)
-    {
-        if (_prompt is not null)
-        {
-            _promptSlot!.Size = new Vector2(_prompt.Width > 0f ? PromptGap + _prompt.Width : 0f, ActionPrompt.Height);
         }
     }
 }

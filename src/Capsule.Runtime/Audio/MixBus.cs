@@ -9,7 +9,7 @@ namespace Capsule.Runtime.Audio;
 // A block runs the echo, the high-pass, the low-pass and the gain, in that order. Whatever a command
 // changes ramps across the next block from where the last block ended: the gain and the echo's volume
 // and feedback linearly, a cutoff through its filter's coefficient.
-internal sealed class MixBus
+internal sealed class MixBus(int parent = 0)
 {
     // A recursive value below this, some 300 dB under full scale, is set to exactly 0. Left alone it would
     // decay into the denormal range, where arithmetic runs many times slower, or hold a limit cycle that
@@ -29,6 +29,9 @@ internal sealed class MixBus
     // The gain the last block ended on, and the one the next block ramps to.
     private float _blockGain = 1f;
     private float _gain = 1f;
+
+    // The index of the bus this one adds into, 0 for the master. A parent's index is always below its child's.
+    internal int Parent { get; } = parent;
 
     internal float[] Buffer { get; } = new float[VoiceMixer.BlockFrames * VoiceMixer.Channels];
 

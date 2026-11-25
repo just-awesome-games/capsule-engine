@@ -21,6 +21,7 @@ meter, a slider or a scroll bar is a few sprites the game sizes from a value, an
 | A menu | `FocusNavigator`, driven by the game's `FocusActions` |
 | A slider dragged by the pointer | `Focusable.Dragged`, which hands a `PointerDrag` |
 | A held direction that repeats | `FocusNavigator.RepeatDelay` and `RepeatInterval` |
+| A panel that fades or slides in and out | A `Tween` the panel steps ([`animation.md`](animation.md#tweens-and-timers)) |
 
 ## Layout
 
@@ -33,7 +34,8 @@ rebind, with no game code. Its `Label`, and a `ColorRect` or `NineSlice` given a
 extent, and a container's rect also fits its children. `Size` is the least extent and `MaxSize` the most,
 and `Size` wins where they disagree. An axis the `Anchor` spans takes the span instead. A `ColorRect`,
 `NineSlice`, `Label` or `Focusable` built without a size fills its entity's rect. A sprite draws by its own
-pivot and sizes nothing.
+pivot, and the rect fits it from its top-left corner to the far corner of the frame as drawn. An unflipped,
+untiled frame pivoted at its top-left corner with no offset sizes the rect to itself.
 
 Wrapped text takes the width its rect is given and asks for none. Under a `MaxSize` it asks for its
 unwrapped width up to that bound, less the padding of the rects between. A tooltip then shrinks to a

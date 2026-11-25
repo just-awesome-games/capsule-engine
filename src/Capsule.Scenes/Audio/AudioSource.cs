@@ -41,7 +41,7 @@ public sealed class AudioSource(AudioClip clip) : Component, IAudioAnchor
     public AudioClip Clip { get; set; } = clip;
 
     /// <summary>The bus this source's voices mix and pause through. <see cref="AudioBus.Master"/> by default, and read at each play.</summary>
-    public AudioBus Bus { get; set; }
+    public AudioBus Bus { get; set; } = AudioBus.Master;
 
     /// <summary>
     /// This source's linear amplitude in [0, 1], 1 by default. It applies to the live voice immediately
@@ -194,6 +194,8 @@ public sealed class AudioSource(AudioClip clip) : Component, IAudioAnchor
     {
         AudioMixer mixer = Mixer();
 
+        // A refused bus keeps the voice already playing.
+        mixer.RequireBus(Bus);
         _playing?.Stop(_voice);
         _playing = mixer;
         _voice = mixer.Play(new AudioPlayback(Clip)

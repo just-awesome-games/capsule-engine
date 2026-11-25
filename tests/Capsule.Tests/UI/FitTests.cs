@@ -94,18 +94,44 @@ public sealed class FitTests
         Assert.Equal(new Vector2(20f, (2f * FontFixtures.LineHeight) + 2f), frame.Bounds.Size);
     }
 
-    // A sprite draws by its own pivot, and a renderer given no size fills the rect rather than sizing it.
+    // A sprite fits its rect from the rect's corner to the far corner of the frame it draws by its pivot, and the
+    // container above refits whenever the frame reaches further or less far. A renderer given no size fills the
+    // rect rather than sizing it.
     [Fact]
-    public void ASpriteOrAnUnsizedFill_GivesItsRectNoExtent()
+    public void ASprite_FitsItsRectToTheFarCornerOfItsFrame_AndAnUnsizedFillGivesNone()
     {
-        ScreenEntity holder = new(Anchor.Center, Vector2.Zero);
-        holder.Add(new SpriteRenderer(SceneFixtures.Frame(8, 8)));
-        holder.Add(new ColorRect());
-        holder.Add(new NineSlice(SceneFixtures.Frame(8, 8), new SliceInsets(2, 2, 2, 2)));
+        ScreenEntity fills = new(Anchor.Center, Vector2.Zero);
+        fills.Add(new ColorRect());
+        fills.Add(new NineSlice(SceneFixtures.Frame(8, 8), new SliceInsets(2, 2, 2, 2)));
+        BoxContainer row = new(Axis.Horizontal, Anchor.TopLeft, Vector2.Zero);
+        SpriteRenderer sprite = new(SceneFixtures.Frame(8, 6));
+        new ScreenEntity(Anchor.TopLeft, Vector2.Zero) { Parent = row }.Add(sprite);
 
-        using SimulationHost run = Run(holder);
+        using SimulationHost run = Run(fills, row);
 
-        Assert.Equal(Vector2.Zero, holder.Extent);
+        Assert.Equal(Vector2.Zero, fills.Extent);
+        Assert.Equal(new Vector2(8f, 6f), row.Extent);
+
+        sprite.Offset = new Vector2(2f, 1f);
+        Assert.Equal(new Vector2(10f, 7f), row.Extent);
+
+        // Pivoted 2 in from its left edge, the frame spans 0 to 8 from the offset's 2, and mirrored about the
+        // pivot it spans -4 to 4.
+        sprite.Sprite = new Sprite(SceneFixtures.Atlas, new TextureRegion(0, 0, 8, 6), new Vector2(2f, 0f));
+        Assert.Equal(new Vector2(8f, 7f), row.Extent);
+
+        sprite.FlipX = true;
+        Assert.Equal(new Vector2(4f, 7f), row.Extent);
+
+        // A finite tiling reaches from the frame's low edge, and an unbounded or negative one asks for nothing.
+        sprite.Tiling = new Vector2(20f, float.PositiveInfinity);
+        Assert.Equal(new Vector2(16f, 0f), row.Extent);
+
+        sprite.Tiling = new Vector2(-1f, 0f);
+        Assert.Equal(new Vector2(0f, 7f), row.Extent);
+
+        sprite.Visible = false;
+        Assert.Equal(Vector2.Zero, row.Extent);
     }
 
     // A button's name changes with the device and no write to the label, and the container still refits.

@@ -45,7 +45,7 @@ public sealed class AudioLevelTests
         Advance(mixer, 1);
         mixer.SetVolume(sfx, 0.5f);
 
-        Assert.Equal(AudioBus.Master, Assert.Single(mixer.Commands.ToArray()).Bus);
+        Assert.Null(Assert.Single(mixer.Commands.ToArray()).Bus);
     }
 
     // Levelling a bus after playing into it within one step levels the bus and leaves the voice at
@@ -159,7 +159,7 @@ public sealed class AudioLevelTests
     {
         AudioCommand command = mixer.Commands[^1];
 
-        return (command.Kind, command.Bus, command.Gain);
+        return (command.Kind, command.Bus!, command.Gain);
     }
 
     private sealed class LevellingScene : Scene
