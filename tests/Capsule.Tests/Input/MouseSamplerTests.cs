@@ -86,6 +86,25 @@ public sealed class MouseSamplerTests
         Assert.False(sampler.Resume(none, still, fitted, Vector2.Zero, [], []).PointerRemapped);
     }
 
+    // The OS can report a still mouse's place in a moved window a sample after the placement changed.
+    [Fact]
+    public void AStillMouse_ThatTheWindowReportsASampleLate_IsRemapped()
+    {
+        MouseSampler sampler = new();
+        DeviceSnapshot none = DeviceSnapshot.Empty;
+        ScreenPlacement windowed = ScreenPlacement.Identity;
+        ScreenPlacement fullscreen = new(new Vector2(-1000f, 0f), 2f);
+        sampler.Resume(none, new Vector2(500f, 300f), windowed, Vector2.Zero, [], []);
+
+        Assert.True(sampler.Resume(none, new Vector2(500f, 300f), fullscreen, Vector2.Zero, [], []).PointerRemapped);
+        DeviceSnapshot late = sampler.Resume(none, new Vector2(1700f, 700f), fullscreen, Vector2.Zero, [], []);
+        Assert.True(late.PointerRemapped);
+        Assert.Equal(fullscreen.ToCanvas(new Vector2(1700f, 700f)), late.Pointer);
+
+        // From the sample after that, the pointer moving is the mouse moving.
+        Assert.False(sampler.Resume(none, new Vector2(1710f, 700f), fullscreen, Vector2.Zero, [], []).PointerRemapped);
+    }
+
     [Fact]
     public void TheWheelTurnedBeforeTheFirstSampleOrWhileUnfocused_IsNoNotch()
     {

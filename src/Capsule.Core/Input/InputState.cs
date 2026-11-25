@@ -43,15 +43,14 @@ public sealed class InputState
     /// <summary>Whether the player moved the pointer into this step.</summary>
     /// <remarks>
     /// False on a step the canvas moved under the pointer, as when the window is resized or the screen
-    /// layer is placed anew, even where the hand moved the mouse too. Motion reads again from the
-    /// next step.
+    /// layer is placed anew, even where the hand moved the mouse too. The OS can report a still mouse's
+    /// place in a changed window a sample late, and the step that sample reaches reads no motion either.
     /// </remarks>
     public bool PointerMoved => !_current.PointerRemapped && _current.Pointer != _previous.Pointer;
 
     /// <summary>How far the player moved the pointer into this step, in canvas pixels. Zero while it rests.</summary>
     /// <remarks>
-    /// Zero on a step the canvas moved under the pointer, as when the window is resized or the screen
-    /// layer is placed anew, even where the hand moved the mouse too.
+    /// Zero on each step <see cref="PointerMoved"/> reads false for a moved canvas.
     /// </remarks>
     public Vector2 PointerDelta => _current.PointerRemapped ? Vector2.Zero : _current.Pointer - _previous.Pointer;
 
