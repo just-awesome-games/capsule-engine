@@ -14,6 +14,7 @@ meter, a slider or a scroll bar is a few sprites the game sizes from a value, an
 | --- | --- |
 | A rect placed on the canvas or in a parent | `ScreenEntity`, with `Anchor`, `Size` and `Padding` as `Insets` |
 | Children in a row, a column or a grid | `BoxContainer`, `GridContainer` |
+| Children in rows that wrap, such as button prompts | `FlowContainer` |
 | A list longer than its frame | `ScrollContainer` |
 | A frame nothing draws or points past | `ClipRect` |
 | A panel, a fill or a caption | `NineSlice`, `ColorRect`, `Label` |
@@ -27,7 +28,7 @@ meter, a slider or a scroll bar is a few sprites the game sizes from a value, an
 
 A `ScreenEntity` sits at its `Anchor` and offset in the slot its parent gives it, or in the canvas for a
 root. A resized canvas or parent moves everything under it. A plain parent's slot is its rect inset by
-its `Padding`. A `BoxContainer` or `GridContainer` gives each child a cell.
+its `Padding`. A `BoxContainer`, `GridContainer` or `FlowContainer` gives each child a cell.
 
 A rect fits what it holds. A caption sizes its button in any language, on any device and after any
 rebind, with no game code. Its `Label`, and a `ColorRect` or `NineSlice` given a size, set the rect's
@@ -40,7 +41,9 @@ untiled frame pivoted at its top-left corner with no offset sizes the rect to it
 Wrapped text takes the width its rect is given and asks for none. Under a `MaxSize` it asks for its
 unwrapped width up to that bound, less the padding of the rects between. A tooltip then shrinks to a
 short line and wraps a long one. The bound is the whole inside of the capped rect, which fits text alone
-on its row. A rect's height is read at its width in the same step.
+on its row. A rect's height is read at its width in the same step. A `FlowContainer` wraps its children
+the same way: under a `MaxSize` or a capped ancestor it asks for its widest row, and its rows break again at
+the width it takes.
 
 A `ScrollContainer` grows the same way up to its `MaxSize`, clips its children, and moves them back by
 `ScrollOffset` on each axis their content overflows.

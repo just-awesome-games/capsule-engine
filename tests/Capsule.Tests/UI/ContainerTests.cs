@@ -81,7 +81,74 @@ public sealed class ContainerTests
         Assert.Equal(new Rect(Vector2.Zero, new Vector2(15f, 15f)), frame.Bounds);
     }
 
-    private static ColorRect Leaf(ScreenEntity parent, Anchor anchor, Vector2 size)
+    // The cap leaves an inside 28 wide. The rows are 24, 11 and 40 wide, the last one child that overflows.
+    [Theory]
+    [InlineData(HorizontalAlignment.Left, 0f, 0f, 0f)]
+    [InlineData(HorizontalAlignment.Center, 2f, 8f, -6f)]
+    [InlineData(HorizontalAlignment.Right, 4f, 17f, -12f)]
+    public void AFlow_BreaksItsRowsUnderItsWidthCap_AndItsAlignmentPlacesEachRow(
+        HorizontalAlignment alignment, float first, float second, float third)
+    {
+        FlowContainer flow = new(Anchor.TopLeft, Vector2.Zero)
+        {
+            MaxSize = new Vector2(30f, float.PositiveInfinity),
+            Spacing = new Vector2(2f, 1f),
+            Padding = new Insets(1f),
+            Alignment = alignment,
+        };
+        ColorRect frame = new();
+        flow.Add(frame);
+
+        ColorRect lead = Leaf(flow, Anchor.TopLeft, new Vector2(10f, 4f));
+        Leaf(flow, Anchor.TopLeft, new Vector2(30f, 6f)).Entity!.Visible = false;
+        ColorRect low = Leaf(flow, Anchor.BottomLeft, new Vector2(12f, 3f));
+        ColorRect broken = Leaf(flow, Anchor.TopLeft, new Vector2(11f, 2f));
+        ColorRect over = Leaf(flow, Anchor.TopLeft, new Vector2(40f, 2f));
+
+        using SimulationHost run = Run(flow);
+
+        // The hidden child takes no cell. A cell is as tall as its row, and an odd pixel of a centred row's
+        // slack goes to the right.
+        Assert.Equal(new Rect(1f + first, 1f, 10f, 4f), lead.Bounds);
+        Assert.Equal(new Rect(13f + first, 2f, 12f, 3f), low.Bounds);
+        Assert.Equal(new Rect(1f + second, 6f, 11f, 2f), broken.Bounds);
+        Assert.Equal(new Rect(1f + third, 9f, 40f, 2f), over.Bounds);
+        Assert.Equal(new Rect(0f, 0f, 30f, 12f), frame.Bounds);
+    }
+
+    // Taking back the padding from the width a fractional row and its padding sum to rounds the slack, which
+    // must not move the row a pixel.
+    [Fact]
+    public void AFlowAtTheWidthItPrefers_LeavesItsRowWhereItsOwnSumPutIt()
+    {
+        FlowContainer flow = new(Anchor.TopLeft, Vector2.Zero) { Padding = new Insets(8f), Alignment = HorizontalAlignment.Center };
+        ColorRect cell = Leaf(flow, Anchor.TopLeft, new Vector2(20.1f, 4f));
+
+        using SimulationHost run = Run(flow);
+
+        Assert.Equal(8f, cell.Bounds.Left);
+    }
+
+    // A flow spanning the canvas prefers one row, and breaks at the width the span gives it.
+    [Fact]
+    public void AFlow_BreaksAgainWhenTheWidthItTakesChanges()
+    {
+        FlowContainer flow = new(Anchor.TopWide, Vector2.Zero) { Spacing = new Vector2(4f, 0f) };
+        ColorRect[] cells = [.. Enumerable.Range(0, 4).Select(_ => Leaf(flow, Anchor.TopLeft, new Vector2(30f, 5f)))];
+
+        using SimulationHost run = Run(flow);
+
+        Assert.Equal([0f, 34f, 68f, 0f], cells.Select(static cell => cell.Bounds.Left));
+        Assert.Equal(5f, cells[3].Bounds.Top);
+
+        run.Run.Canvas = new Vector2(70f, 50f);
+        run.Step();
+
+        Assert.Equal([0f, 34f, 0f, 34f], cells.Select(static cell => cell.Bounds.Left));
+        Assert.Equal(5f, cells[3].Bounds.Top);
+    }
+
+    internal static ColorRect Leaf(ScreenEntity parent, Anchor anchor, Vector2 size)
     {
         ColorRect rect = new();
         ScreenEntity leaf = new(anchor, Vector2.Zero) { Parent = parent, Size = size };

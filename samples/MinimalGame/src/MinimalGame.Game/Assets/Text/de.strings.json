@@ -29,6 +29,10 @@
     "mailbox": "Mailbox",
     "off": "Aus"
   },
+  "prompts": {
+    "select": "Auswählen",
+    "reset": "Zurücksetzen"
+  },
   "tips": [
     "Unten + Springen: durch Kanten fallen",
     "Belege Springen und Schießen in Optionen",

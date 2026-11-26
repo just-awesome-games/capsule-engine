@@ -29,6 +29,10 @@
     "mailbox": "Mailbox",
     "off": "Off"
   },
+  "prompts": {
+    "select": "Select",
+    "reset": "Reset"
+  },
   "tips": [
     "Down + Jump: drop through a ledge",
     "Rebind Jump and Shoot in Options",
