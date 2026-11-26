@@ -72,6 +72,9 @@ member of `Key`, `MouseButton`, `StickDirection` or `PadButton` with its first l
 fails on a name that is no button, and on a placeholder, a plural or a list under `buttons`. A
 translation that lacks a button's name shows the source's, with no warning, in a shipping build too.
 
+A game set in capitals needs no copy of each name for that. A `Label` with `Case = TextCase.Upper` shows the
+engine's names in capitals in every language.
+
 ## Switching
 
 `Run.Language` takes a BCP 47 tag and shows the closest shipped language, else the fallback, which is the

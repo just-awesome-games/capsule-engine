@@ -1,10 +1,12 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using Capsule.Assets;
 using Capsule.Physics;
 
 namespace Capsule.Rendering;
 
-// What a Label's layout depends on besides the text itself. Box is the box width in font pixels where the
+// What a Label's layout depends on besides the text itself. Casing is the language's rules for Case, and null for
+// a text drawn as written. Box is the box width in font pixels where the
 // label's X extent is positive, and -1 where the run sets its own width. Exclusions are the shapes the lines
 // flow around, in font pixels from the box's top-left, and default wherever the label's settings leave them no
 // effect. The array compares by reference, one compare however many shapes it holds.
@@ -15,6 +17,8 @@ internal readonly record struct LabelLayoutKey(
     TextWrap Wrap,
     HorizontalAlignment Alignment,
     bool Rich,
+    TextCase Case,
+    TextInfo? Casing,
     int FirstLine,
     int? MaxLines,
     int LineSpacing,
@@ -95,16 +99,16 @@ internal sealed class LabelLayout
         }
     }
 
-    // The unwrapped run's width in font pixels, which no glyph placement or line walk reads. A rich text is
-    // parsed into the same buffers a rebuild fills, and the same text parses to the same contents. Any other
-    // text carries another version, which rebuilds before its next read.
-    internal int Natural(ReadOnlySpan<char> text, BitmapFont font, bool rich, int firstLine, int? maxLines)
+    // The unwrapped run's width in font pixels, which no glyph placement or line walk reads. A rich or cased
+    // text is shown into the same buffers a rebuild fills, and the same text shown the same way fills the same
+    // contents. Any other text carries another version, which rebuilds before its next read. A text shown another
+    // way than the layout's leaves the buffers out of step with it, and the next read rebuilds.
+    internal int Natural(ReadOnlySpan<char> text, BitmapFont font, bool rich, TextCase textCase, TextInfo? casing, int firstLine, int? maxLines)
     {
-        ReadOnlySpan<char> shown = text;
-        if (rich)
+        ReadOnlySpan<char> shown = Shown(text, rich, textCase, casing);
+        if (rich != _key.Rich || textCase != _key.Case || !Equals(casing, _key.Casing))
         {
-            Parse(text);
-            shown = _chars.AsSpan(0, _length);
+            _built = false;
         }
 
         return GlyphRun.Extent(font, shown, 0, TextWrap.Word, firstLine, maxLines, null).Width;
@@ -118,12 +122,7 @@ internal sealed class LabelLayout
         _runCount = 0;
         _linesWalked = false;
 
-        ReadOnlySpan<char> shown = text;
-        if (key.Rich)
-        {
-            Parse(text);
-            shown = _chars.AsSpan(0, _length);
-        }
+        ReadOnlySpan<char> shown = Shown(text, key.Rich, key.Case, key.Casing);
 
         BitmapFont font = key.Font;
         _exclusion = key.Exclusions.IsDefaultOrEmpty || key.Box <= 0 ? null : Exclude(in key, shown.Length);
@@ -183,7 +182,7 @@ internal sealed class LabelLayout
         _linesWalked = true;
         _lineCount = 0;
 
-        ReadOnlySpan<char> shown = _key.Rich ? _chars.AsSpan(0, _length) : text;
+        ReadOnlySpan<char> shown = _key.Rich || _key.Case != TextCase.AsWritten ? _chars.AsSpan(0, _length) : text;
         int box = Math.Max(_key.Box, 0);
         GlyphRun run = new(_key.Font, shown, box, _key.Wrap, HorizontalAlignment.Left, 0, null, _exclusion);
 
@@ -304,6 +303,42 @@ internal sealed class LabelLayout
         return new TextSpan(from, Math.Max((int)MathF.Floor(end) - from, 0));
     }
 
+    // The text as it draws. A rich text's markup is stripped into _chars, a plain one is copied there to be cased,
+    // and the case applies to what _chars holds. Casing one character at a time keeps every index a tag or a line
+    // start recorded. A plain text drawn as written is read in place.
+    private ReadOnlySpan<char> Shown(ReadOnlySpan<char> text, bool rich, TextCase textCase, TextInfo? casing)
+    {
+        if (rich)
+        {
+            Parse(text);
+        }
+        else if (textCase == TextCase.AsWritten)
+        {
+            return text;
+        }
+        else
+        {
+            if (_chars.Length < text.Length)
+            {
+                _chars = new char[Math.Max(text.Length, _chars.Length * 2)];
+            }
+
+            text.CopyTo(_chars);
+            _length = text.Length;
+        }
+
+        Span<char> chars = _chars.AsSpan(0, _length);
+        if (casing is not null)
+        {
+            for (int index = 0; index < chars.Length; index++)
+            {
+                chars[index] = textCase == TextCase.Upper ? casing.ToUpper(chars[index]) : casing.ToLower(chars[index]);
+            }
+        }
+
+        return chars;
+    }
+
     // Strips the markup into _chars and records the colour runs it asked for.
     private void Parse(ReadOnlySpan<char> source)
     {
@@ -325,14 +360,14 @@ internal sealed class LabelLayout
                 continue;
             }
 
-            // A tag Apply refuses draws as written, read on from the char after its '[' so a tag inside it
+            // A tag Apply refuses draws as its own characters, read on from the char after its '[' so a tag inside it
             // still applies.
             Put(rest[0]);
             at += LabelMarkup.IsEscape(rest) ? 2 : 1;
         }
     }
 
-    // Every tag RichText reads. A handler that returns false leaves its tag drawn as written.
+    // Every tag RichText reads. A handler that returns false leaves its tag drawn as its own characters.
     private bool Apply(MarkupTag tag) => tag.Name switch
     {
         "color" => tag.Closing ? PopColor() : PushColor(tag.Value),

@@ -251,7 +251,8 @@ deep over the same pixels pays the read at every layer.
 A `Label` draws text from a bitmap font baked to texture pages. A run is laid out left to right, one
 glyph per codepoint, with the kerning the font declares. There is no shaping, no bidirectional layout and
 no distance field. `FirstLine` and `MaxLines` page a long text through a fixed box, and `Exclusions` flows
-its lines around any number of `Shape2D` shapes, such as a portrait in the box's corner.
+its lines around any number of `Shape2D` shapes, such as a portrait in the box's corner. `Case` draws a run
+in capitals or small letters by the rules of the run's language, and `Text` stays as written.
 
 `BitmapFont.Default` ships inside the runtime and needs no asset. Other fonts are authored under `Assets/`
 ([`assets.md`](assets.md#fonts)). `GlyphRun` is the layout every placement comes from, for code that

@@ -68,7 +68,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     private int _textVersion;
 
     // The unwrapped run's width in font pixels, as of the key it was measured under.
-    private (int Version, BitmapFont Font, bool Rich, int FirstLine, int? MaxLines) _naturalKey;
+    private (int Version, BitmapFont Font, bool Rich, TextCase Case, TextInfo? Casing, int FirstLine, int? MaxLines) _naturalKey;
     private int _natural = -1;
 
     // The key and arguments the text resolves from while _keyed, built on the first keyed write and kept
@@ -83,6 +83,10 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     private int _resolvedVersion;
     private BitmapFont? _resolvedFont;
     private (InputDevice Device, PadFamily Family, int Bindings, int Layout) _resolvedInputs;
+
+    // The casing rules last looked up, and the language they are for.
+    private string? _casingLanguage;
+    private TextInfo? _casing;
 
     // The run laid out, built on the first draw or bounds read and kept until something it depends on changes.
     private LabelLayout? _layout;
@@ -299,6 +303,33 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     public HorizontalAlignment HorizontalAlignment { get; set; }
 
     /// <summary>
+    /// Whether the run draws as written, in capitals or in small letters. Defaults to <see cref="TextCase.AsWritten"/>.
+    /// </summary>
+    /// <remarks>
+    /// It changes what draws and measures, and never <see cref="Text"/>. Keyed text and a button's name take it,
+    /// and a rich text's tags keep their own. Each character is cased by the rules of the run's active language,
+    /// as a Turkish <c>i</c> drawing as <c>İ</c>. The invariant rules apply outside a running scene and for a
+    /// language .NET has no rules for. A character whose other case is two, as German <c>ß</c>, and a letter
+    /// beyond the Basic Multilingual Plane draw as written.
+    /// </remarks>
+    /// <example>
+    /// A game whose menus are set in capitals shows the engine's button names in them:
+    /// <code>
+    /// new Label(font) { Case = TextCase.Upper }.SetText(Key.LeftShift); // LEFT SHIFT
+    /// </code>
+    /// </example>
+    public TextCase Case
+    {
+        get;
+
+        set
+        {
+            field = value;
+            ScreenEntity.Remeasure(Entity);
+        }
+    }
+
+    /// <summary>
     /// Where the run sits between the box's top and bottom edges. Defaults to
     /// <see cref="Capsule.Rendering.VerticalAlignment.Top"/>.
     /// </summary>
@@ -454,13 +485,14 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         return Laid(LayoutScale, out _, out _).LineStart(_memory.Span, line);
     }
 
-    /// <summary>Whether <see cref="Text"/> is read as markup, defaulting to false to draw it exactly as written.</summary>
+    /// <summary>Whether <see cref="Text"/> is read as markup, defaulting to false to draw every character of it.</summary>
     /// <remarks>
     /// <c>[color=#rrggbb]...[/color]</c> tints the glyphs between the tags, and <c>#rrggbbaa</c> adds an
     /// alpha. Spans nest, the innermost wins, and an unclosed span runs to the end. A glyph's colour is its
     /// span's multiplied by <see cref="Color"/>. <c>[[</c> draws one <c>[</c>. Any other bracketed text
-    /// draws as written, including an unknown tag, a malformed colour and a stray <c>[/color]</c>.
-    /// <see cref="VisibleCharacters"/> counts no tag.
+    /// draws as its own characters, including an unknown tag, a malformed colour and a stray <c>[/color]</c>.
+    /// <see cref="VisibleCharacters"/> counts no tag. A tag keeps its own case under <see cref="Case"/>, and
+    /// every character drawn takes it.
     /// </remarks>
     /// <example>
     /// <code>
@@ -542,7 +574,8 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// </summary>
     /// <remarks>
     /// The layout is kept until the text, the font, the box width, <see cref="Wrap"/>,
-    /// <see cref="HorizontalAlignment"/>, <see cref="RichText"/>, the line window,
+    /// <see cref="HorizontalAlignment"/>, <see cref="RichText"/>, <see cref="Case"/> or the casing rules it
+    /// reads, the line window,
     /// <see cref="LineSpacing"/> or <see cref="Exclusions"/> changes, in the space and under the rules <see cref="Renderer.Bounds"/>
     /// states.
     /// </remarks>
@@ -673,6 +706,8 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
             Wrap,
             HorizontalAlignment,
             RichText,
+            Case,
+            Casing(),
             FirstLine,
             MaxLines,
             LineSpacing,
@@ -745,14 +780,51 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     {
         Resolve();
         bool wraps = Wrap == TextWrap.Word && Size.X == 0f;
-        (int Version, BitmapFont Font, bool Rich, int FirstLine, int? MaxLines) key = (_textVersion, Font, RichText, wraps ? 0 : FirstLine, wraps ? null : MaxLines);
+        (int Version, BitmapFont Font, bool Rich, TextCase Case, TextInfo? Casing, int FirstLine, int? MaxLines) key =
+            (_textVersion, Font, RichText, Case, Casing(), wraps ? 0 : FirstLine, wraps ? null : MaxLines);
         if (_natural < 0 || key != _naturalKey)
         {
             _naturalKey = key;
-            _natural = (_layout ??= new LabelLayout()).Natural(_memory.Span, Font, RichText, key.FirstLine, key.MaxLines);
+            _natural = (_layout ??= new LabelLayout()).Natural(_memory.Span, Font, RichText, Case, key.Casing, key.FirstLine, key.MaxLines);
         }
 
         return _natural;
+    }
+
+    // The active language's casing rules while Case changes the text, and null while it draws as written. Outside a
+    // running scene, or for a language .NET has no rules for, the invariant rules apply.
+    private TextInfo? Casing()
+    {
+        if (Case == TextCase.AsWritten)
+        {
+            return null;
+        }
+
+        string? language = Entity?.SceneOrNull?.RunOrNull?.ActiveLanguage;
+        if (_casing is null || language != _casingLanguage)
+        {
+            _casingLanguage = language;
+            _casing = CultureOf(language).TextInfo;
+        }
+
+        return _casing;
+    }
+
+    private static CultureInfo CultureOf(string? language)
+    {
+        if (language is null)
+        {
+            return CultureInfo.InvariantCulture;
+        }
+
+        try
+        {
+            return CultureInfo.GetCultureInfo(language);
+        }
+        catch (CultureNotFoundException)
+        {
+            return CultureInfo.InvariantCulture;
+        }
     }
 
     // Shows _keyedText from the next read, once a keyed write has filled it. A refused write never gets here
@@ -800,6 +872,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
         base.OnDebugPanel(panel);
         panel.Field("Text", Text);
         panel.Field("RichText", RichText);
+        panel.Field("Case", Case);
         panel.Field("Font", string.Create(CultureInfo.InvariantCulture, $"{Font.LineHeight}px line"));
         panel.Field("Pivot", new Vector2(Pivot.X, Pivot.Y));
         panel.Field("Offset", Offset);

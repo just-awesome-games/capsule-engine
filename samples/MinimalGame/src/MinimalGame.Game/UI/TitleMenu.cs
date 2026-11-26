@@ -39,6 +39,7 @@ public sealed class TitleMenu : ScreenEntity
         {
             Offset = new Vector2(0f, TitleMargin),
             HorizontalAlignment = HorizontalAlignment.Center,
+            Case = TextCase.Upper,
         });
 
         BoxContainer column = new(Axis.Vertical, Anchor.Center, Vector2.Zero) { Parent = this, Spacing = MenuItem.RowSpacing };

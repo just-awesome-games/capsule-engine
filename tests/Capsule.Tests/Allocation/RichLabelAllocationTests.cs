@@ -26,6 +26,25 @@ public sealed class RichLabelAllocationTests
         Assert.True(samples[^1].Render.Visible > 0);
     }
 
+    // A cased label rewritten every step from a span, in a language with its own casing rules, cases each
+    // rebuild into the buffers it grew on the first passes.
+    [Fact]
+    public void ACasedLabel_RebuildsItsLayoutAllocatingNothingOnceWarm()
+    {
+        Label steady = new(FontFixtures.Font(), "ab [color=#ff0000]ba[/color]") { RichText = true, Case = TextCase.Upper };
+        Label rewritten = new(FontFixtures.Font(), string.Empty) { Case = TextCase.Upper };
+
+        Scene scene = new();
+        scene.Add(new Rewriter(steady, rewritten));
+        using SceneSimulation simulation = new(scene, null, new Run { Language = "tr" });
+
+        StepSample[] samples = StepMeasurement.Measure(simulation, warmupSteps: 100, measuredSteps: 400);
+
+        Assert.All(samples, sample => Assert.Equal(0, sample.ViewBytes));
+        Assert.All(samples, sample => Assert.Equal(0, sample.StepBytes));
+        Assert.True(samples[^1].Render.Visible > 0);
+    }
+
     private sealed class Rewriter : Entity
     {
         private readonly Label _rewritten;
