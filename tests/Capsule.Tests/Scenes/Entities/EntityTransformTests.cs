@@ -92,6 +92,23 @@ public sealed class EntityTransformTests
         Assert.Equal(2.1f, settled.PreviousRotation, Tolerance);
     }
 
+    // A turned frame that tiles reports the box of its whole run's bounding circle about the pivot. The run
+    // reaches the whole texels its last copy keeps.
+    [Theory]
+    [InlineData(16, 39.75f, 40f)]
+    [InlineData(3, 4.5f, 5f)]
+    public void ATurnedTiledFrame_ReportsItsRunsBoundingCircle(int width, float tiling, float run)
+    {
+        Node holder = new(new Vector2(100, 100)) { Rotation = 0.5f };
+        SpriteRenderer renderer = holder.Add(new SpriteRenderer(SceneFixtures.Frame(width, 8)) { Tiling = new Vector2(tiling, 0) });
+
+        Rect bounds = renderer.Bounds;
+
+        float radius = MathF.Sqrt((run * run) + (8f * 8f));
+        Assert.Equal(new Vector2(100, 100), bounds.Position + (bounds.Size / 2f));
+        Assert.Equal(2f * radius, bounds.Size.X, 1e-3f);
+    }
+
     [Fact]
     public void AScrollFactor_IsTheRootsAlone()
     {

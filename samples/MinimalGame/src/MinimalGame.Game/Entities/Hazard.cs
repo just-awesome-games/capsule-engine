@@ -2,7 +2,8 @@ namespace MinimalGame.Game.Entities;
 
 /// <summary>
 /// A box on the <c>hazard</c> layer that the <see cref="Player"/> reports and walks through, with a spark
-/// circling it that the first touch breaks loose along its orbit's tangent. The box keeps hurting.
+/// circling it on a tether that the first touch breaks, sending the spark along its orbit's tangent. The box
+/// keeps hurting.
 /// </summary>
 public sealed class Hazard : Entity
 {
@@ -39,6 +40,7 @@ public sealed class Hazard : Entity
         }
 
         Vector2 heading = orbit.Tangent;
+        orbit.Tether.Visible = false;
         _spark.Parent = null;
         _spark.Fly(heading);
     }
@@ -58,17 +60,29 @@ public sealed class Hazard : Entity
             Rotation = (Rotation + (SpinSpeed * context.DeltaSeconds)) % MathF.Tau;
     }
 
-    /// <summary>A child at <c>centre</c> that turns itself each step, carrying the spark at the orbit radius.</summary>
+    /// <summary>A child at <c>centre</c> that turns itself each step, carrying the spark on a tether at the orbit radius.</summary>
     private sealed class Orbit : Entity
     {
+        /// <summary>World units from the centre: where the orbit carries <see cref="Spark"/>.</summary>
+        internal const float Radius = 20f;
+
         /// <summary>Radians per second: one orbit every three seconds, against the spin.</summary>
         private const float OrbitSpeed = -MathF.Tau / 3f;
 
+        // The spark's 2x2 ember, repeated along the tether.
+        private static readonly Sprite Link = new(CapsuleAssets.Textures.HazardTexture, new TextureRegion(7, 11, 2, 2));
+
         internal Spark Spark { get; }
 
+        internal SpriteRenderer Tether { get; }
+
         internal Orbit(Entity parent, Vector2 centre)
-            : base(parent, centre) =>
+            : base(parent, centre)
+        {
+            // Tiled from the spark in to the centre, and turned with the orbit as one piece.
+            Tether = Add(new SpriteRenderer(Link) { Offset = new Vector2(-1f, -Radius), Tiling = new Vector2(0f, Radius) });
             Spark = new Spark(this);
+        }
 
         /// <summary>The unit direction <see cref="Spark"/> is moving in now: its offset from the centre, turned a quarter the way the orbit turns.</summary>
         internal Vector2 Tangent
@@ -91,9 +105,6 @@ public sealed class Hazard : Entity
         /// <summary>World units per second once loose.</summary>
         private const float FlySpeed = 90f;
 
-        /// <summary>World units from the centre: where <see cref="Orbit"/> carries <see cref="Spark"/>.</summary>
-        private const float OrbitRadius = 20f;
-
         private const int OverPlayer = 5;
 
         private static readonly Sprite SparkFrame = new(CapsuleAssets.Textures.HazardTexture, new TextureRegion(6, 10, 4, 4), new Vector2(2f, 2f));
@@ -107,7 +118,7 @@ public sealed class Hazard : Entity
         private Vector2 _velocity;
 
         internal Spark(Entity parent)
-            : base(parent, new Vector2(0f, -OrbitRadius))
+            : base(parent, new Vector2(0f, -Orbit.Radius))
         {
             // Over the player, in orbit and loose alike, whatever band its hazard is placed in, and glowing.
             ZIndex = OverPlayer;

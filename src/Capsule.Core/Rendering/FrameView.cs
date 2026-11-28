@@ -642,8 +642,8 @@ public sealed class FrameView
     /// Zero draws the frame once. A finite extent covers that many units from the frame's low edge
     /// towards +X or +Y and crops the copy at the far edge. <see cref="float.PositiveInfinity"/>
     /// repeats without bound, and draws the frame once when culling is disabled. A negative or NaN
-    /// extent draws nothing. A tiled sprite does not turn, and one with a non-zero rotation at
-    /// either end draws nothing.
+    /// extent draws nothing. A turned sprite tiles in its own frame, and the whole run turns about
+    /// its pivot.
     /// <para>
     /// At most 1024 copies are emitted per axis. An extent far larger than the period covers only
     /// what those copies reach.
@@ -665,17 +665,20 @@ public sealed class FrameView
 
     private void AddTiled(in SpriteIntent sprite, Vector2 tiling, RenderSpace space)
     {
-        // Negated comparisons refuse a NaN extent along with the negative ones. A turned sprite is refused
-        // outright, because turning each copy about its own pivot is not tiling.
-        if (!(tiling.X >= 0f) || !(tiling.Y >= 0f) ||
-            sprite.PreviousRotation != 0f || sprite.Rotation != 0f ||
-            !sprite.TryGetSweptBounds(out Rect swept))
+        // Negated comparisons refuse a NaN extent along with the negative ones.
+        if (!(tiling.X >= 0f) || !(tiling.Y >= 0f) || !sprite.TryGetSweptBounds(out Rect swept))
         {
             return;
         }
 
         // Only the copies that reach the region are offered, and the rest have no account here.
         _offerUnbounded = true;
+
+        if (sprite.PreviousRotation != 0f || sprite.Rotation != 0f)
+        {
+            AddTurnedTiled(in sprite, tiling, space);
+            return;
+        }
 
         Route route = RouteOf(space);
         bool culls = route.Culls;
@@ -730,6 +733,135 @@ public sealed class FrameView
                     space);
             }
         }
+    }
+
+    // Tiles a turned sprite in its own frame, with the pivot at the origin, and turns the run about the pivot.
+    // Every copy shares the sprite's positions and rotations and carries its own pivot. The run then turns as one
+    // rigid piece at every point of the step. The copies are culled together, in the frame's own axes.
+    private void AddTurnedTiled(in SpriteIntent sprite, Vector2 tiling, RenderSpace space)
+    {
+        Route route = RouteOf(space);
+        if (!route.Culls)
+        {
+            EmitTurned(in sprite, route, TurnedRanges(in sprite, tiling, culls: false, default));
+            return;
+        }
+
+        Transform2D start = new(sprite.PreviousPosition, sprite.PreviousRotation, Vector2.One);
+        Transform2D end = new(sprite.Position, sprite.Rotation, Vector2.One);
+        float turn = MathF.Abs(StepInterpolation.Interpolate(sprite.PreviousRotation, sprite.Rotation, 1f) - sprite.PreviousRotation);
+        (TileRange Columns, TileRange Rows) swept = TurnedRanges(in sprite, tiling, culls: true, LocalCullBox(route.Bounds, start, end, turn));
+        if (!swept.Columns.Truncated && !swept.Rows.Truncated)
+        {
+            EmitTurned(in sprite, route, swept);
+            return;
+        }
+
+        // A fast turn seen from far along the run can sweep more copies than the cap holds, and the cap keeps
+        // the low ones whether seen or not. The copies seen at either end of the step are kept instead, and a
+        // frame between the ends may miss some.
+        (TileRange Columns, TileRange Rows) atStart = TurnedRanges(in sprite, tiling, culls: true, LocalCullBox(route.Bounds, start, start, 0f));
+        EmitTurned(in sprite, route, atStart);
+        EmitTurned(in sprite, route, TurnedRanges(in sprite, tiling, culls: true, LocalCullBox(route.Bounds, end, end, 0f)), skip: atStart);
+    }
+
+    private static (TileRange Columns, TileRange Rows) TurnedRanges(in SpriteIntent sprite, Vector2 tiling, bool culls, Rect cull)
+    {
+        Vector2 size = sprite.Size;
+        Vector2 corner = sprite.DrawOrigin * new Vector2(size.X / sprite.Sprite.Region.Width, size.Y / sprite.Sprite.Region.Height);
+
+        return (
+            Axis(tiling.X, size.X, -corner.X, culls, cull.Left, cull.Right),
+            Axis(tiling.Y, size.Y, -corner.Y, culls, cull.Top, cull.Bottom));
+
+        // An untiled axis is culled here too, since the copies are stored without a cull of their own.
+        static TileRange Axis(float extent, float period, float low, bool culls, float cullLow, float cullHigh) =>
+            extent == 0f && culls && !(low + period > cullLow && low < cullHigh)
+                ? new TileRange(1, 0, period, period)
+                : TileRange.ForAxis(extent, period, low, low + period, culls, cullLow, cullHigh);
+    }
+
+    // Stores the copies in ranges, passing over those skip already stored.
+    private void EmitTurned(in SpriteIntent sprite, Route route, (TileRange Columns, TileRange Rows) ranges, (TileRange Columns, TileRange Rows)? skip = null)
+    {
+        TextureRegion region = sprite.Sprite.Region;
+        Vector2 texelSize = new(sprite.Size.X / region.Width, sprite.Size.Y / region.Height);
+        (TileRange columns, TileRange rows) = ranges;
+
+        for (int row = rows.First; row <= rows.Last; row++)
+        {
+            (int sourceY, int sourceHeight) = rows.Crop(row, region.Y, region.Height, texelSize.Y, sprite.MirrorsY);
+            if (sourceHeight <= 0)
+            {
+                continue;
+            }
+
+            for (int column = columns.First; column <= columns.Last; column++)
+            {
+                if (skip is { } stored && stored.Rows.Holds(row) && stored.Columns.Holds(column))
+                {
+                    continue;
+                }
+
+                (int sourceX, int sourceWidth) = columns.Crop(column, region.X, region.Width, texelSize.X, sprite.MirrorsX);
+                if (sourceWidth <= 0)
+                {
+                    continue;
+                }
+
+                // Where the shared pivot falls in this copy's drawn rect, in texels. A copy drawn mirrored
+                // measures its pivot from the far side, and the anchor is mirrored back to land there.
+                Vector2 origin = sprite.DrawOrigin - new Vector2(column * (float)region.Width, row * (float)region.Height);
+                Sprite copy = new(
+                    sprite.Sprite.Texture,
+                    new TextureRegion(sourceX, sourceY, sourceWidth, sourceHeight),
+                    new Vector2(sprite.MirrorsX ? sourceWidth - origin.X : origin.X, sprite.MirrorsY ? sourceHeight - origin.Y : origin.Y));
+
+                _submitted++;
+                Store(
+                    route,
+                    new SpriteIntent(
+                        copy,
+                        sprite.PreviousPosition,
+                        sprite.Position,
+                        sprite.PreviousRotation,
+                        sprite.Rotation,
+                        new Vector2(sourceWidth * texelSize.X, sourceHeight * texelSize.Y),
+                        sprite.MirrorsX,
+                        sprite.MirrorsY,
+                        sprite.Color,
+                        sprite.Blend));
+            }
+        }
+    }
+
+    // The cull region in a turned sprite's own frame, with its pivot at the origin: the box of the region's
+    // corners placed by from and by to. Between the two a corner strays from the straight line joining them by
+    // at most its distance from the pivot times half the turn, and the box grows by that much.
+    private static Rect LocalCullBox(Rect region, Transform2D from, Transform2D to, float turn)
+    {
+        Vector2 low = new(float.PositiveInfinity);
+        Vector2 high = new(float.NegativeInfinity);
+        float reach = 0f;
+        ReadOnlySpan<Vector2> corners =
+        [
+            new(region.Left, region.Top),
+            new(region.Right, region.Top),
+            new(region.Left, region.Bottom),
+            new(region.Right, region.Bottom),
+        ];
+        foreach (Vector2 point in corners)
+        {
+            Vector2 before = from.InverseTransformPoint(point);
+            Vector2 after = to.InverseTransformPoint(point);
+            low = Vector2.Min(low, Vector2.Min(before, after));
+            high = Vector2.Max(high, Vector2.Max(before, after));
+            reach = MathF.Max(reach, MathF.Max(before.Length(), after.Length()));
+        }
+
+        float pad = reach * turn * 0.5f;
+
+        return Rect.FromEdges(low.X - pad, low.Y - pad, high.X + pad, high.Y + pad);
     }
 
     /// <summary>Adds a line, culled by the rect it covers as a sprite is.</summary>

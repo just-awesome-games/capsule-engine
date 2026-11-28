@@ -83,20 +83,6 @@ public sealed class SpriteRotationTests
         Assert.Equal(cornered, Assert.Single(view.Sprites.ToArray()));
     }
 
-    [Fact]
-    public void AView_DrawsNothingForATiledSpriteThatIsTurned()
-    {
-        FrameView view = new();
-        SpriteIntent turned = Centred(new Vector2(4, 4)) with { Rotation = 0.25f };
-
-        view.Add(turned, new Vector2(64, 0));
-
-        Assert.Empty(view.Sprites.ToArray());
-
-        // A tiling counts the copies it expands to, and this one expands to none.
-        Assert.Equal(new RenderMetrics(Submitted: 0, Visible: 0), view.Metrics);
-    }
-
     // Refused as a scale that is not a scale is: by the cull. A frame with no camera to cull
     // against is the host's to refuse.
     [Fact]

@@ -160,6 +160,106 @@ public sealed class TilingTests
         Assert.All(copies, copy => Assert.Equal(new Vector2(16, 8), copy.Size));
     }
 
+    // A turned run is the unturned run turned about the frame's pivot as one piece: each copy keeps its region,
+    // size and drawn corner, and shares the frame's positions and turns at both ends.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ATurnedRun_IsTheUnturnedRunTurnedAboutThePivot(bool mirrored)
+    {
+        SpriteIntent flat = new(
+            Frame with { Pivot = new Vector2(5, 3) },
+            new Vector2(10, 10),
+            new Vector2(12, 10),
+            PreviousRotation: 0f,
+            Rotation: 0f,
+            new Vector2(16, 8),
+            FlipX: mirrored,
+            FlipY: false,
+            ColorRgba.White);
+        SpriteIntent turned = flat with { PreviousRotation = 0.3f, Rotation = 0.5f };
+        FrameView flatView = new();
+        FrameView turnedView = new();
+
+        flatView.Add(flat, new Vector2(40, 0));
+        turnedView.Add(turned, new Vector2(40, 0));
+
+        SpriteIntent[] expected = flatView.Sprites.ToArray();
+        SpriteIntent[] copies = turnedView.Sprites.ToArray();
+        Assert.Equal(expected.Length, copies.Length);
+        for (int i = 0; i < copies.Length; i++)
+        {
+            Assert.Equal(expected[i].Sprite.Region, copies[i].Sprite.Region);
+            Assert.Equal(expected[i].Size, copies[i].Size);
+            Assert.Equal(expected[i].Position - expected[i].DrawOrigin, copies[i].Position - copies[i].DrawOrigin);
+            Assert.Equal((turned.PreviousPosition, turned.Position), (copies[i].PreviousPosition, copies[i].Position));
+            Assert.Equal((0.3f, 0.5f), (copies[i].PreviousRotation, copies[i].Rotation));
+        }
+
+        Assert.Equal(new RenderMetrics(Submitted: 3, Visible: 3), turnedView.Metrics);
+    }
+
+    // A turned run is culled along its own axes. A long run with only its start in view emits only the copies
+    // near the start.
+    [Fact]
+    public void ATurnedRun_IsCulledAlongItsOwnAxes()
+    {
+        FrameView view = new() { Camera = new CameraView(Vector2.Zero, new Vector2(40, 40)) };
+
+        view.Add(At(Vector2.Zero) with { Rotation = MathF.PI / 2f, PreviousRotation = MathF.PI / 2f }, new Vector2(1600, 0));
+
+        Assert.Equal(2, view.Sprites.ToArray().Length);
+    }
+
+    // A quarter turn in one step, seen from far along the run, sweeps more copies than the cap holds. The
+    // copies seen at either end of the step are the ones kept, the run lying along X at the start and Y at the end.
+    [Theory]
+    [InlineData(4096f, 4f)]
+    [InlineData(4f, 4096f)]
+    public void AFastTurnSeenFromFar_KeepsTheCopiesSeenAtEitherEnd(float x, float y)
+    {
+        FrameView view = new() { Camera = new CameraView(new Vector2(x, y), new Vector2(40, 40)) };
+
+        view.Add(Strip(Vector2.Zero, Vector2.Zero, previousRotation: 0f), new Vector2(float.PositiveInfinity, 0));
+
+        int[] columns = view.Sprites.ToArray().Select(copy => (int)(-copy.Sprite.Pivot.X / 2f)).ToArray();
+        Assert.Equal(Enumerable.Range(2038, 20), columns);
+    }
+
+    // A sweep that fits the cap exactly is kept whole: here a quarter-turned run sliding past a still camera.
+    [Fact]
+    public void ASweepThatFitsTheCap_IsKeptWhole()
+    {
+        FrameView view = new() { Camera = new CameraView(Vector2.Zero, new Vector2(32, 32)) };
+
+        view.Add(Strip(new Vector2(0, 2016), Vector2.Zero, previousRotation: MathF.PI / 2f), new Vector2(float.PositiveInfinity, 0));
+
+        Assert.Equal(1024, view.Sprites.ToArray().Length);
+    }
+
+    // A tiny period against a far region would place the copies past int.MaxValue. The range stops short of
+    // it, and stepping past its last copy can't wrap.
+    [Fact]
+    public void AFarRegionOverATinyPeriod_StopsShortOfTheIntLimit()
+    {
+        TileRange range = TileRange.ForAxis(float.PositiveInfinity, 1f / 1024f, 0f, 1f / 1024f, culled: true, 3e6f, 3e6f + 40f);
+
+        Assert.True(range.Last < int.MaxValue);
+    }
+
+    // A 2x8 frame at its corner, turned to a quarter by the step's end.
+    private static SpriteIntent Strip(Vector2 previous, Vector2 position, float previousRotation) =>
+        new(
+            new Sprite(Atlas, new TextureRegion(4, 2, 2, 8)),
+            previous,
+            position,
+            previousRotation,
+            Rotation: MathF.PI / 2f,
+            new Vector2(2, 8),
+            FlipX: false,
+            FlipY: false,
+            ColorRgba.White);
+
     private static SpriteIntent At(Vector2 corner) =>
         new(
             Frame,

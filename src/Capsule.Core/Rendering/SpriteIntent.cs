@@ -97,4 +97,35 @@ public readonly record struct SpriteIntent(
         // that the extent rounds away.
         return !swept.IsEmpty;
     }
+
+    // The rect a turned run of copies covers at rest, tiled to tiling from the frame's low edges: the box of
+    // the run's bounding circle about the pivot, as a turned frame's is. An unbounded axis keeps the frame's
+    // own extent.
+    internal Rect TurnedRunBounds(Vector2 tiling)
+    {
+        TextureRegion region = Sprite.Region;
+        Vector2 texelSize = new(Size.X / region.Width, Size.Y / region.Height);
+        Vector2 corner = DrawOrigin * texelSize;
+        Vector2 run = new(Run(tiling.X, Size.X, texelSize.X, region.Width), Run(tiling.Y, Size.Y, texelSize.Y, region.Height));
+        float reachX = MathF.Max(corner.X, run.X - corner.X);
+        float reachY = MathF.Max(corner.Y, run.Y - corner.Y);
+        float radius = MathF.Sqrt((reachX * reachX) + (reachY * reachY));
+
+        return Rect.Sweep(Position, Position, new Vector2(radius, radius));
+    }
+
+    // How far a finite extent's copies reach: the whole copies before the last, and the whole texels the last
+    // keeps, rounded as TileRange.Crop rounds them.
+    private static float Run(float extent, float period, float texel, int texels)
+    {
+        if (!(extent > 0f) || !float.IsFinite(extent))
+        {
+            return period;
+        }
+
+        int count = (int)Math.Clamp(Math.Ceiling(extent / period), 1, int.MaxValue);
+        float whole = (count - 1) * period;
+
+        return whole + (Math.Clamp((int)MathF.Round((extent - whole) / texel), 0, texels) * texel);
+    }
 }

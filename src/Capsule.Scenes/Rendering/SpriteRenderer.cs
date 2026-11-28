@@ -146,8 +146,8 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
     /// A finite extent covers that distance from the frame's low edge towards +X or +Y, repeating
     /// at the frame's drawn size and cropping the last copy at the far edge.
     /// <see cref="float.PositiveInfinity"/> repeats without bound on both sides. A negative or NaN
-    /// component draws nothing, as does a non-zero tiling on an entity whose
-    /// <see cref="Entity.WorldTransform"/> is turned.
+    /// component draws nothing. On a turned entity the frame tiles in its own axes and the whole run
+    /// turns about the pivot.
     /// </remarks>
     public Vector2 Tiling
     {
@@ -209,9 +209,9 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
     /// <remarks>
     /// On an entity with a non-zero world rotation this reports the box of the frame's bounding
     /// circle about the pivot, which covers it at every angle, instead of the tighter rect it
-    /// draws. It measures the frame drawn, which <see cref="Variant"/> may replace. Reads empty
-    /// whenever the frame draws nothing: a variant mapping it to nothing, a region with no texels,
-    /// an invalid tiling, a world scale with a zero axis, or a turned frame that tiles.
+    /// draws, and a tiled frame reports the circle around its whole run. It measures the frame drawn,
+    /// which <see cref="Variant"/> may replace. Reads empty whenever the frame draws nothing: a variant
+    /// mapping it to nothing, a region with no texels, an invalid tiling, or a world scale with a zero axis.
     /// </remarks>
     public override Rect Bounds
     {
@@ -224,9 +224,15 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
 
             // Bounds describe the entity's current transform. This is the rect at rest, not the swept one.
             Transform2D at = RenderTransform;
-            if ((Tiling != Vector2.Zero && at.Rotation != 0f) || !Intent(at, at).TryGetSweptBounds(out Rect frame))
+            SpriteIntent intent = Intent(at, at);
+            if (!intent.TryGetSweptBounds(out Rect frame))
             {
                 return default;
+            }
+
+            if (at.Rotation != 0f && Tiling != Vector2.Zero)
+            {
+                return intent.TurnedRunBounds(Tiling);
             }
 
             return Rect.FromEdges(

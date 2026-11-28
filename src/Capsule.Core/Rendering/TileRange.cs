@@ -1,8 +1,9 @@
 namespace Capsule.Rendering;
 
 // One axis of a tiled sprite: the copies to emit, as indices from the authored frame at 0, and how far
-// the copy at Last reaches. LastExtent is a full Period, or less where the extent cuts it short.
-internal readonly record struct TileRange(int First, int Last, float Period, float LastExtent)
+// the copy at Last reaches. LastExtent is a full Period, or less where the extent cuts it short. Truncated
+// marks a range the cap stopped short of the copies it asked for.
+internal readonly record struct TileRange(int First, int Last, float Period, float LastExtent, bool Truncated = false)
 {
     // The cap on copies emitted per axis, whatever the extent and cull region ask for. Without it, a large
     // finite extent over a small period yields a copy count no frame can hold.
@@ -27,13 +28,14 @@ internal readonly record struct TileRange(int First, int Last, float Period, flo
 
         // Copy k sweeps [low + k period, high + k period], and touches the cull region on the open overlap
         // the sprite cull uses. Clamped to int before the cast, because a tiny period against a far region
-        // divides past what an int holds.
+        // divides past what an int holds. The top stops one short of int.MaxValue, where a loop's step
+        // past Last would wrap.
         int first = int.MinValue;
         int last = int.MaxValue;
         if (culled)
         {
-            first = (int)Math.Clamp(Math.Floor((cullLow - high) / period) + 1, int.MinValue, int.MaxValue);
-            last = (int)Math.Clamp(Math.Ceiling((cullHigh - low) / period) - 1, int.MinValue, int.MaxValue);
+            first = (int)Math.Clamp(Math.Floor((cullLow - high) / period) + 1, int.MinValue, int.MaxValue - 1);
+            last = (int)Math.Clamp(Math.Ceiling((cullHigh - low) / period) - 1, int.MinValue, int.MaxValue - 1);
         }
 
         if (float.IsPositiveInfinity(extent))
@@ -68,6 +70,8 @@ internal readonly record struct TileRange(int First, int Last, float Period, flo
     {
         int bounded = (int)Math.Min((long)last, (long)first + MaxCopies - 1);
 
-        return new TileRange(first, bounded, period, bounded == final ? lastExtent : period);
+        return new TileRange(first, bounded, period, bounded == final ? lastExtent : period, bounded < last);
     }
+
+    internal bool Holds(int index) => index >= First && index <= Last;
 }
