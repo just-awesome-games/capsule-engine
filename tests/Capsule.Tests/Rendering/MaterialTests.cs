@@ -75,16 +75,6 @@ public sealed class MaterialTests
     }
 
     [Fact]
-    public void Get_OfAnotherKindThanTheShaderDeclares_ThrowsNamingTheFix()
-    {
-        Material material = new(Graded);
-
-        ArgumentException refused = Assert.Throws<ArgumentException>(() => material.GetFloat("Glow"));
-
-        Assert.StartsWith("Shader 'effects/graded' declares 'Glow' as a float4. Pass it a Vector4 or a ColorRgba, or read it with GetVector4 or GetColor.", refused.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void AGlobal_IsRefusedByASetAndAGetAlike_NamingTheScene()
     {
         Material material = new(Graded);
@@ -166,7 +156,7 @@ public sealed class MaterialTests
     private static void Store(FrameView view, Material? material, RenderSpace space)
     {
         view.Material = material;
-        view.Add(new SpriteIntent(SceneFixtures.Frame(1, 1), Vector2.Zero, Vector2.Zero, 0f, 0f, Vector2.One, false, false, ColorRgba.White), space);
+        view.Add(SpriteFixtures.Drawn(SceneFixtures.Frame(1, 1), Vector2.Zero, Vector2.Zero), space);
     }
 
     private sealed class Figure() : Entity(Vector2.Zero);

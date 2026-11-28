@@ -18,9 +18,6 @@ public sealed class OverlaySelectionTests
     // One frame of a flight. A handful of them cross the longest flight.
     private const double FlightFrameMs = 100;
 
-    // Over the world, clear of the menu.
-    private static readonly Vector2 WorldPoint = new(700f, 300f);
-
     private static readonly ColorRgba ColliderColor = DebugDraw.ColorOf(DebugDraw.Colliders);
     private static readonly ColorRgba OriginColor = DebugDraw.ColorOf(DebugDraw.Origins);
 
@@ -240,13 +237,6 @@ public sealed class OverlaySelectionTests
         Assert.Contains(
             view.Lines.ToArray(),
             line => line.Color == color && line.A == new Vector2(bounds.Right, bounds.Bottom) && line.B == new Vector2(bounds.Left, bounds.Bottom));
-    }
-
-    // Opens the panel of the entity named name from the scene page.
-    private static void OpenPanel(OverlayRig rig, string name)
-    {
-        rig.OpenEntityPanel(name);
-        rig.PlaceWorld();
     }
 
     // A hero in a hat, a piece beside them to tell their draws from, a giant far away, a spot with

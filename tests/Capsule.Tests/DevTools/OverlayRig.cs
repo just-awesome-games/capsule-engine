@@ -11,9 +11,9 @@ using Capsule.Scenes;
 
 namespace Capsule.Tests.DevTools;
 
-// The overlay specs' host: one frame is intercept, advance the game, update the overlay, the order
-// WindowHost runs them in, and a press is the key's frame followed by its release. The instance owns
-// the clock. A frame pane spec can say how long each frame took.
+// The overlay specs' host: one frame begins the clock's update, intercepts, advances the game, updates
+// the overlay and ends the update, the order WindowHost runs them in, and a press is the key's frame
+// followed by its release. The instance owns the clock. A frame pane spec can say how long each frame took.
 internal sealed class OverlayRig : IDisposable
 {
     internal const double StepSeconds = 0.1;
@@ -28,6 +28,8 @@ internal sealed class OverlayRig : IDisposable
     internal DebugOverlay Overlay { get; }
 
     internal FixedStepScheduler Scheduler { get; }
+
+    internal FrameClock Clock { get; }
 
     internal SceneHost Host { get; }
 
@@ -49,7 +51,8 @@ internal sealed class OverlayRig : IDisposable
     {
         Host = host ?? RecordingHost();
         Scheduler = scheduler ?? (recordings is null ? CreateScheduler() : RecordingScheduler(Host));
-        Overlay = new DebugOverlay(toggle ?? Key.Grave, Scheduler, Host, registry, () => _ticks, recordings);
+        Clock = new FrameClock(() => _ticks);
+        Overlay = new DebugOverlay(toggle ?? Key.Grave, Scheduler, Host, Clock, registry, recordings);
         Host.SceneEntered = Overlay.LeaveScene;
     }
 
@@ -126,10 +129,12 @@ internal sealed class OverlayRig : IDisposable
     {
         _frameStart += Ticks(intervalMs);
         _ticks = _frameStart;
+        Clock.BeginUpdate(DrawMs);
         DeviceSnapshot stripped = Overlay.Intercept(sampled, world: World);
-        _ticks += Ticks(updateMs);
         Scheduler.Advance(elapsedSeconds, stripped, Host);
-        Overlay.Update(lastFrameMs: DrawMs);
+        Overlay.Update();
+        _ticks += Ticks(updateMs);
+        Clock.EndUpdate(Scheduler.StepsThisFrame);
 
         return stripped;
     }

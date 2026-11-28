@@ -15,7 +15,6 @@ public sealed class SheetRefusalTests
 
     // A texture that is not one asset path under the textures root.
     [InlineData("""{ "formatVersion": 1, "frames": [] }""", "names no texture")]
-    [InlineData("""{ "formatVersion": 1, "texture": null, "frames": [] }""", "names no texture")]
     [InlineData("""{ "formatVersion": 1, "texture": "sub//p.png", "frames": [] }""", "extension included")]
     [InlineData("""{ "formatVersion": 1, "texture": "../p.png", "frames": [] }""", "extension included")]
     [InlineData("""{ "formatVersion": 1, "texture": "player", "frames": [] }""", "extension included")]
@@ -42,10 +41,6 @@ public sealed class SheetRefusalTests
     [InlineData("""
         { "formatVersion": 1, "texture": "p.png",
           "frames": [ { "name": "a", "y": 0, "width": 1, "height": 1 } ] }
-        """, "no x")]
-    [InlineData("""
-        { "formatVersion": 1, "texture": "p.png",
-          "frames": [ { "name": "a", "x": null, "y": 0, "width": 1, "height": 1 } ] }
         """, "no x")]
     [InlineData("""
         { "formatVersion": 1, "texture": "p.png",

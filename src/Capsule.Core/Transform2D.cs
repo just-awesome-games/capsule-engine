@@ -13,12 +13,8 @@ namespace Capsule;
 /// turns add, the scales multiply per axis, and the inner position passes through the outer as a
 /// point. A mirror, meaning one negative scale axis, conjugates the inner turn. The parts of a
 /// flipped figure keep turning the way they were drawn. Equality compares position, rotation and
-/// scale.
-/// <para>
-/// The cosine and sine of the turn are evaluated once through <see cref="DeterministicMath"/> and
-/// stored with it. Composition is then only multiply-adds and gives the same result on every
-/// platform.
-/// </para>
+/// scale. The turn's cosine and sine are evaluated once, through <see cref="DeterministicMath"/>, and
+/// composition gives the same result on every platform.
 /// </remarks>
 public readonly record struct Transform2D
 {
@@ -40,10 +36,7 @@ public readonly record struct Transform2D
     {
     }
 
-    /// <summary>A place, a turn and a size.</summary>
-    /// <param name="position">The offset, in the units of the space this transform sits in.</param>
-    /// <param name="rotation">The turn, in radians, clockwise positive in the Y-down plane.</param>
-    /// <param name="scale">The size per axis. Zero and negative axes are allowed.</param>
+    /// <summary>A place, a turn and a size, where a zero or negative scale axis is allowed.</summary>
     public Transform2D(Vector2 position, float rotation, Vector2 scale)
         : this(position, rotation, scale, rotation == 0f ? 1f : DeterministicMath.Cos(rotation), rotation == 0f ? 0f : DeterministicMath.Sin(rotation))
     {

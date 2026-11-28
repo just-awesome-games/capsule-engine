@@ -19,19 +19,11 @@ public sealed class RecordingReplayTests
     public void ARecordedRun_ReplaysHeadlessWithoutDiverging()
     {
         using RecordedRun run = new(Builder());
-        for (int step = 0; step < Steps; step++)
-        {
-            run.Step(Varied(run, step));
-        }
+        run.Play(Steps);
 
-        Vector2 recorded = ((Reading)run.Host.Scene).Walker.Position;
-        Vector2 replayed = default;
+        HeadlessRunResult result = AssertReplaysTheWalker(run);
 
-        HeadlessRunResult result = Builder().RunHeadless(run.Saved(), (scene, _) => replayed = ((Reading)scene).Walker.Position);
-
-        Assert.Null(result.DivergedAt);
         Assert.Equal(Steps, result.Steps);
-        Assert.Equal(recorded, replayed);
     }
 
     // The extra draw lands in the step of tick 25. The checkpoint at 20 still matches, the one at 30 is
@@ -40,10 +32,7 @@ public sealed class RecordingReplayTests
     public void AReplayAgainstPerturbedBehaviour_DivergesByTheFirstCheckpointAfterIt()
     {
         using RecordedRun run = new(Builder());
-        for (int step = 0; step < Steps; step++)
-        {
-            run.Step(Varied(run, step));
-        }
+        run.Play(Steps);
 
         HeadlessRunResult result = Builder(() => new Reading { ExtraDrawAt = 25 }).RunHeadless(run.Saved());
 
@@ -56,10 +45,7 @@ public sealed class RecordingReplayTests
     public void AReplayWhoseGameExitsEarly_DivergesAtTheExit()
     {
         using RecordedRun run = new(Builder());
-        for (int step = 0; step < Steps; step++)
-        {
-            run.Step(Varied(run, step));
-        }
+        run.Play(Steps);
 
         HeadlessRunResult result = Builder(() => new Reading { ExitAt = 15 }).RunHeadless(run.Saved());
 
@@ -91,10 +77,7 @@ public sealed class RecordingReplayTests
     public void ACommandAtAFinishedReplaysHold_HandsOverAndReplaysInTheSavedRun()
     {
         using RecordedRun first = new(Builder());
-        for (int step = 0; step < 25; step++)
-        {
-            first.Step(Varied(first, step));
-        }
+        first.Play(25);
 
         using RecordedRun second = new(Builder(), first.Saved());
         using OverlayRig rig = new(second.Host, scheduler: second.Scheduler);
@@ -112,14 +95,10 @@ public sealed class RecordingReplayTests
 
         rig.Press(Key.Grave);
         rig.Frame();
-        Vector2 recorded = ((Reading)second.Host.Scene).Walker.Position;
-        Vector2 replayed = default;
 
-        HeadlessRunResult result = Builder().RunHeadless(second.Saved(), (scene, _) => replayed = ((Reading)scene).Walker.Position);
+        HeadlessRunResult result = AssertReplaysTheWalker(second);
 
-        Assert.Null(result.DivergedAt);
         Assert.Equal(second.Scheduler.Tick, result.Steps);
-        Assert.Equal(recorded, replayed);
     }
 
     // A replay finds a recorded command in a panel it builds for the purpose. Once the replayed run has
@@ -176,7 +155,7 @@ public sealed class RecordingReplayTests
             .WithCommandLine(["--recordings", workspace.Root]);
 
         Assert.Throws<InvalidOperationException>(
-            () => builder.RunRecorded(SceneTransition.ToScene(typeof(Reading), null), replayed: null, static (_, _, _) => { }));
+            () => builder.RunRecorded(SceneTransition.ToScene(typeof(Reading), null), replayed: null, static (_, _, _, _) => { }));
 
         string saved = Assert.Single(Directory.GetFiles(Path.Combine(workspace.Root, "Recent")));
         Assert.StartsWith("Reading ", Path.GetFileName(saved), StringComparison.Ordinal);
@@ -204,24 +183,10 @@ public sealed class RecordingReplayTests
     {
         using RecordedRun run = new(Builder());
         using OverlayRig rig = new(run.Host, scheduler: run.Scheduler);
-        rig.Scheduler.Output = OverlayFixtures.Output;
-        rig.Frame();
-        rig.OpenEntityPanel("Walker");
-        rig.SelectRow("Nudge");
-        rig.PlaceWorld();
-        rig.Frame(DeviceSnapshot.Of(Key.G).WithPointer(new Vector2(700f, 300f)));
-        rig.Frame(DeviceSnapshot.Empty.WithPointer(new Vector2(700f, 300f)));
-        Assert.Contains("Moved Walker", rig.Overlay.Scene.Status, StringComparison.Ordinal);
-        rig.Press(Key.Grave);
-        rig.Frame();
 
-        Vector2 recorded = ((Reading)run.Host.Scene).Walker.Position;
-        Vector2 replayed = default;
+        ActThroughOverlay(rig);
 
-        HeadlessRunResult result = Builder().RunHeadless(run.Saved(), (replaying, _) => replayed = ((Reading)replaying).Walker.Position);
-
-        Assert.Null(result.DivergedAt);
-        Assert.Equal(recorded, replayed);
+        AssertReplaysTheWalker(run);
     }
 
     // W writes the run so far beside Recent, never into it, and the status line says where.
@@ -268,5 +233,19 @@ public sealed class RecordingReplayTests
         Assert.DoesNotContain("Old 05.recording", kept);
         Assert.Contains("Old 06.recording", kept);
         Assert.True(File.Exists(mine));
+    }
+
+    // Replays the run as saved so far and asserts it ends without diverging, its walker where the run left it.
+    private static HeadlessRunResult AssertReplaysTheWalker(RecordedRun run)
+    {
+        Vector2 recorded = run.WalkerPosition;
+        Vector2 replayed = default;
+
+        HeadlessRunResult result = Builder().RunHeadless(run.Saved(), (scene, _) => replayed = ((Reading)scene).Walker.Position);
+
+        Assert.Null(result.DivergedAt);
+        Assert.Equal(recorded, replayed);
+
+        return result;
     }
 }

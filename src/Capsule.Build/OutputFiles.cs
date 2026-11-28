@@ -4,11 +4,7 @@ namespace Capsule.Build;
 /// The files a run writes under one directory. A run claims every file it writes or keeps there, and
 /// what it did not claim is left over from an earlier run and deleted.
 /// </summary>
-/// <remarks>
-/// <c>assets/</c> holds everything the game ships, laid out exactly as it lands beside the executable,
-/// and the targets ship it whole. <c>imported/</c> holds what the importers wrote. Every member but
-/// <see cref="Prune"/> is safe to call concurrently.
-/// </remarks>
+/// <remarks>Every member but <see cref="Prune"/> is safe to call concurrently.</remarks>
 internal sealed class OutputFiles(string root)
 {
     // Each claimed path below the root, and every owner that claimed it in the order claimed. Every

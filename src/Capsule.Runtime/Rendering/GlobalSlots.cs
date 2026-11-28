@@ -45,7 +45,6 @@ internal sealed class GlobalSlots
     // The shader's parameter table index of global g.
     internal int Parameter(int g) => _declared[g];
 
-    // The kind global g is declared as.
     internal ShaderParameterKind Kind(int g) => _shader.Parameters[_declared[g]].Kind;
 
     // Each global's index in globals' values, or -1 where it set none. A mismatch is not cached.

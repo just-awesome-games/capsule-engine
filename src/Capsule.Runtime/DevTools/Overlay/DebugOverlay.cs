@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -33,7 +32,9 @@ internal sealed class DebugOverlay : IDisposable
 
     private readonly FixedStepScheduler _scheduler;
     private readonly SceneHost _scenes;
-    private readonly Func<long> _timestamp;
+
+    // The host's frame times, which the frame pane shows and a flight spends.
+    private readonly FrameClock _clock;
 
     // Where Save Recording writes, null when the run records nothing.
     private readonly string? _recordings;
@@ -88,12 +89,8 @@ internal sealed class DebugOverlay : IDisposable
     // False after a build or a status change, until the scene has laid the page out again.
     private bool _pageShown;
 
-    // Ticks stepped by hand run after the frame is sampled. They count toward the next sample.
-    private int _ticksSteppedByHand;
-
-    // Intercept stamps the frame's start. Negative while no frame is in progress.
-    private long _frameStart = -1;
-    private long _previousFrameStart = -1;
+    // The clock's frames the overlay has sampled.
+    private long _sampledFrames;
 
     // Set on the frame a Hide press shows the menu again. The Hide row skips that press.
     private bool _shownByHide;
@@ -117,10 +114,8 @@ internal sealed class DebugOverlay : IDisposable
     private Vector2? _click;
     private Vector2? _lastPick;
 
-    private double _lastFrameMs;
-
     // Wall-clock seconds from the previous frame's start to this one's. A flight spends them. They are zero
-    // for a first frame and for an Update that no Intercept preceded.
+    // for a first frame and for an Update in a frame the clock did not begin.
     private double _frameSeconds;
     private bool _exited;
     private bool _disposed;
@@ -134,13 +129,13 @@ internal sealed class DebugOverlay : IDisposable
         InputButton button,
         FixedStepScheduler scheduler,
         SceneHost scenes,
+        FrameClock clock,
         SceneRegistry? registry = null,
-        Func<long>? timestamp = null,
         string? recordings = null)
     {
         _scheduler = scheduler;
         _scenes = scenes;
-        _timestamp = timestamp ?? Stopwatch.GetTimestamp;
+        _clock = clock;
         _recordings = scheduler.Recorder is null ? null : recordings;
         _toggle = button;
         _cursor = new RowCursor(_rows);
@@ -234,8 +229,6 @@ internal sealed class DebugOverlay : IDisposable
         int overlayScale = 1,
         WorldPlacement? world = null)
     {
-        _frameStart = _timestamp();
-
         // The toggle's leading edge takes closed to open, open to closed and hidden to open. It is read raw
         // because the game configures it and it acts before the overlay holds anything.
         bool wasOpen = _state == OverlayState.Open;
@@ -324,11 +317,9 @@ internal sealed class DebugOverlay : IDisposable
         return game;
     }
 
-    // Runs after the game's scheduler. lastFrameMs is the last frame's draw cost, which the frame pane shows.
-    internal void Update(FrameRenderer? renderer = null, double lastFrameMs = 0)
+    // Runs after the game's scheduler.
+    internal void Update(FrameRenderer? renderer = null)
     {
-        long gameEnd = _timestamp();
-
         _draws.Settle();
 
         if (_exited)
@@ -341,7 +332,6 @@ internal sealed class DebugOverlay : IDisposable
             _scenes.DrawRuns = null;
         }
 
-        _lastFrameMs = lastFrameMs;
         if (renderer is not null)
         {
             (int width, int height) = renderer.WindowSize;
@@ -356,7 +346,7 @@ internal sealed class DebugOverlay : IDisposable
             _draws.TextScale = pixelsPerUnit > 0f ? scale / pixelsPerUnit : 1f;
         }
 
-        SampleFrame(gameEnd);
+        SampleFrame();
 
         // A flight places the view for this frame, and the renderer reads the zoom it reached.
         if (_state != OverlayState.Closed)
@@ -980,7 +970,6 @@ internal sealed class DebugOverlay : IDisposable
     private void StepGame(Action? before)
     {
         _exited = _scheduler.StepOnce(in _gameInput, _scenes, before);
-        _ticksSteppedByHand += _scheduler.StepsThisFrame;
         _draws.Settle();
         _pageStale = true;
     }
@@ -998,39 +987,29 @@ internal sealed class DebugOverlay : IDisposable
         _pageShown = false;
     }
 
-    // The first frame has no interval. An Update with no Intercept before it is not a frame.
-    private void SampleFrame(long gameEnd)
+    // Takes the frame the clock closed as this one began, once. The first frame closes none, and an Update
+    // in a frame the clock did not begin takes nothing. Steps taken by hand count toward their own frame.
+    private void SampleFrame()
     {
         _frameSeconds = 0;
-        long frameStart = _frameStart;
-        if (frameStart < 0)
+        if (_clock.Frames == _sampledFrames)
         {
             return;
         }
 
-        _frameStart = -1;
-        long previous = _previousFrameStart;
-        _previousFrameStart = frameStart;
-        if (previous >= 0)
-        {
-            _frameSeconds = (frameStart - previous) / (double)Stopwatch.Frequency;
-        }
-
-        int steps = _scheduler.StepsThisFrame + _ticksSteppedByHand;
-        _ticksSteppedByHand = 0;
-        if (!_framePaneOn || previous < 0)
+        _sampledFrames = _clock.Frames;
+        if (_sampledFrames < 2)
         {
             return;
         }
 
-        Scene.Pane.Push(new FrameSample(
-            Milliseconds(frameStart - previous),
-            Milliseconds(gameEnd - frameStart),
-            _lastFrameMs,
-            steps));
+        FrameSample last = _clock.Last;
+        _frameSeconds = last.IntervalMs / 1000.0;
+        if (_framePaneOn)
+        {
+            Scene.Pane.Push(in last);
+        }
     }
-
-    private static double Milliseconds(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
 
     // ReturnFocus is the row that opened the page. Name is an entity's name when opened.
     private readonly record struct Page(PageKind Kind, Entity? Subject, int ReturnFocus, string? Name);

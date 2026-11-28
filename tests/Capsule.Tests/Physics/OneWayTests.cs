@@ -121,8 +121,9 @@ public sealed class OneWayTests
             [0, 0, 0, 0, 1, 0, 0, 0, 0],
             [new CellProfile2D(null), new CellProfile2D(world.Layer(CollisionFixtures.Ledge), CollisionFixtures.SlopeUp, OneWay: true)]);
 
-        MoveResult2D result = world.MoveBox(
-            CollisionFixtures.Box(8f, 28f, 4f, 12f),
+        MoveResult2D result = world.Move(
+            Shape2D.Box(CollisionFixtures.Box(8f, 28f, 4f, 12f)),
+            Vector2.Zero,
             new Vector2(12f, 0f),
             CollisionFilter.Everything,
             default);

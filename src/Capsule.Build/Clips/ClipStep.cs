@@ -15,7 +15,7 @@ internal static class ClipStep
         foreach ((Source clip, Clip document) in pass.Each(
             Step,
             pass.Of(AssetType.Clips),
-            source => Derivation.Of(source),
+            Derivation.Of,
             (source, _) => ClipFile.Read(source.Path),
             DerivationCacheJsonContext.Default.Clip))
         {

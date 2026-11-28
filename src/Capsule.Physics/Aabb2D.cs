@@ -11,8 +11,6 @@ namespace Capsule.Physics;
 public readonly record struct Aabb2D(Vector2 Min, Vector2 Max)
 {
     /// <summary>A box of <paramref name="size"/> whose lower corner is <paramref name="corner"/>.</summary>
-    /// <param name="corner">The lower corner on both axes, the top left in a Y-down world.</param>
-    /// <param name="size">Extent on each axis. Neither component may be negative.</param>
     public static Aabb2D FromCorner(Vector2 corner, Vector2 size)
     {
         Guard.Finite(size, nameof(size));
@@ -26,8 +24,6 @@ public readonly record struct Aabb2D(Vector2 Min, Vector2 Max)
     }
 
     /// <summary>A box of <paramref name="size"/> centred on <paramref name="center"/>.</summary>
-    /// <param name="center">The box's midpoint.</param>
-    /// <param name="size">Extent on each axis. Neither component may be negative.</param>
     public static Aabb2D FromCenter(Vector2 center, Vector2 size)
     {
         Vector2 half = FromCorner(Vector2.Zero, size).Max * 0.5f;

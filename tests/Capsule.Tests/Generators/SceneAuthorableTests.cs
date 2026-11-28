@@ -4,6 +4,7 @@ using System.Reflection;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Microsoft.CodeAnalysis;
+using static Capsule.Tests.Generators.GeneratorHarness;
 
 namespace Capsule.Tests.Generators;
 
@@ -165,6 +166,4 @@ public sealed class SceneAuthorableTests
 
     private static Scene Composed(string members, string path = Hall) =>
         GeneratorHarness.Composed(Registry.Value, Document(members), path[..^".scene.json".Length]);
-
-    private static object? Member(Scene scene, string name) => GeneratorHarness.Member(scene, name);
 }

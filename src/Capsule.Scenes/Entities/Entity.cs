@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Capsule.Assets;
 using Capsule.Diagnostics;
@@ -13,8 +12,7 @@ namespace Capsule.Scenes;
 
 /// <summary>One object in a scene, in world units with Y-down.</summary>
 /// <remarks>
-/// <see cref="Position"/> anchors differ by subclass. A subclass carries the behaviour, and shared
-/// capabilities attach as <see cref="Component"/>.
+/// What <see cref="Position"/> anchors differs by subclass.
 /// <para>
 /// Under a <see cref="Parent"/>, local <see cref="Position"/>, <see cref="Rotation"/> and
 /// <see cref="Scale"/> combine to <see cref="WorldTransform"/>. Rotation and scale reach
@@ -84,8 +82,7 @@ public partial class Entity
     /// <para>
     /// Joining a scene numbers the name when the scene has held it before: the first <c>Avatar</c> stays
     /// <c>Avatar</c>, and later ones are <c>Avatar (1)</c>, <c>Avatar (2)</c> and on. A number is never
-    /// reused in that scene, and an entity keeps its name while others come and go. The number records that
-    /// the scene held the name before. A lone <c>Avatar (1)</c> can be the only entity of that name. A
+    /// reused in that scene, and an entity keeps its name while others come and go. A
     /// pooled entity taken again joins as a new one with a new number. Setting another name while in a scene
     /// numbers it the same way at once, and setting the name it already asks for changes nothing. A number
     /// in parentheses ending a name is the scene's to give, and setting a name that ends in one throws.
@@ -154,9 +151,10 @@ public partial class Entity
     /// </summary>
     /// <remarks>
     /// A child that sets it keeps one band while its parent changes its own. Its descendants sum from
-    /// it, and each renderer's <see cref="Rendering.Renderer.ZIndex"/> still adds. The band is absolute within the entity's layer, which is its root's. A root's band is its
-    /// own already, and the flag changes nothing until the entity takes a parent. Among equal bands it
-    /// keeps its place in tree order, under its parent.
+    /// it, and each renderer's <see cref="Rendering.Renderer.ZIndex"/> still adds. The band is absolute
+    /// within the entity's layer, which is its root's. A root's band is its own already, and the flag
+    /// changes nothing until the entity takes a parent. Among equal bands it keeps its place in tree order,
+    /// under its parent.
     /// </remarks>
     /// <example>
     /// <code>
@@ -237,18 +235,12 @@ public partial class Entity
     /// behaviour of its own.
     /// </summary>
     /// <remarks>It joins the parent's scene as <see cref="Parent"/> describes.</remarks>
-    /// <param name="parent">The entity this one is placed by.</param>
     public Entity(Entity parent)
         : this(parent, Vector2.Zero)
     {
     }
 
-    /// <summary>
-    /// A marker or pivot under <paramref name="parent"/> at <paramref name="position"/> in parent
-    /// space. A child with its own behaviour is a nested subclass on its parent.
-    /// </summary>
-    /// <param name="parent">The entity this one is placed by.</param>
-    /// <param name="position">The starting position, local to the parent.</param>
+    /// <summary>A marker or pivot under <paramref name="parent"/> at <paramref name="position"/> in parent space.</summary>
     public Entity(Entity parent, Vector2 position)
         : this(position)
     {
@@ -490,10 +482,7 @@ public partial class Entity
         ? scene.Run
         : throw new InvalidOperationException($"{GetType().Name} is in no scene and has no run yet. {Scenes.Scene.NoRunYet}");
 
-    /// <summary>
-    /// The run's default deterministic random stream. A domain whose draws must not move another's
-    /// takes its own, as <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
-    /// </summary>
+    /// <summary>The run's deterministic random source, <see cref="Capsule.Run.Random"/>.</summary>
     public RandomSource Random => Run.Random;
 
     // Set while the scene runs this entity's removal hooks, after it has stopped being held.
@@ -564,179 +553,6 @@ public partial class Entity
         init => _traits = value ? _traits | Traits.Anchored : _traits & ~Traits.Anchored;
     }
 
-    internal ReadOnlySpan<Component> Components => CollectionsMarshal.AsSpan(_components);
-
-    // Walks the component list. A hook may detach components, and the walk still visits each one after
-    // the one it last visited. A component attached once that one and every later one have gone may be
-    // skipped until the next walk.
-    private ComponentWalk LiveComponents => new(_components);
-
-    /// <summary>Attaches <paramref name="component"/>, which no entity may already own, and returns it.</summary>
-    /// <typeparam name="T">The component's type, which the call site keeps.</typeparam>
-    /// <exception cref="InvalidOperationException">
-    /// The component is already attached to an entity, or this entity refuses it. An entity refuses
-    /// a second <see cref="Physics.KinematicBody2D"/>, a collider, body, tile-map collider or notifier
-    /// when its <see cref="ScrollFactor"/> is not one or anything in its ancestry is scaled, and a
-    /// component that cannot rotate when anything in its ancestry is rotated. Only a
-    /// <see cref="Tiles.TileMap"/> whose palette names a layer takes one
-    /// <see cref="Tiles.TileMapCollider2D"/>. A refused component stays unattached, as does one whose own
-    /// <see cref="Component.OnAttached"/> throws. It is also thrown inside a
-    /// <see cref="Rendering.Renderer.Draw"/>.
-    /// </exception>
-    /// <remarks>
-    /// The component takes the next place in attachment order before its <see cref="Component.OnAttached"/>
-    /// runs. A component that attaches its parts there steps before them.
-    /// </remarks>
-    public T Add<T>(T component)
-        where T : Component
-    {
-        ArgumentNullException.ThrowIfNull(component);
-        SceneOrNull?.Drawing.ThrowIfDrawing("attached a component");
-
-        if (component.Entity is not null)
-        {
-            throw new InvalidOperationException(
-                $"A {component.GetType().Name} is already attached to a {component.Entity.GetType().Name}. Detach it before attaching it elsewhere.");
-        }
-
-        TransformSupport supports = component.Supports;
-        if ((supports & TransformSupport.Scroll) == 0 && ScrollFactor != Vector2.One)
-        {
-            throw Unscrollable(component);
-        }
-
-        for (Entity? above = this; above is not null; above = above._parent)
-        {
-            if ((supports & TransformSupport.Rotation) == 0 && above._local.Rotation != 0f)
-            {
-                throw Turned(component, this, above, above._local.Rotation);
-            }
-
-            if ((supports & TransformSupport.Resize) == 0 && above._local.Scale != Vector2.One)
-            {
-                throw Scaled(component, this, above, above._local.Scale);
-            }
-        }
-
-        // Before the hooks, since one may remove this entity and the draw order must know what it now holds.
-        NoteRendererChange(component);
-        component.Entity = this;
-        component.AttachStamp = _components.Count == 0 ? 1 : _components[^1].AttachStamp + 1;
-        _components.Add(component);
-        if (component.Steps)
-        {
-            _steppers++;
-        }
-
-        bool registered = false;
-        try
-        {
-            component.OnAttachedTo(this);
-            registered = true;
-            component.OnAttached(this);
-        }
-        catch
-        {
-            // The attach leaves no trace. A component that detached itself before throwing is already
-            // gone, and one refusing its entity in OnAttachedTo registered nothing.
-            if (ReferenceEquals(component.Entity, this))
-            {
-                if (registered)
-                {
-                    component.OnDetachingFrom(this);
-                }
-
-                Unlist(component);
-            }
-
-            throw;
-        }
-
-        // OnAttached may have detached the component, which must then not enter the scene. An entity
-        // composed by a scene that has not started enters its components when it joins.
-        if (Joined && ReferenceEquals(component.Entity, this))
-        {
-            component.EnterScene();
-        }
-
-        // The hooks above may have detached the component or removed this entity. An entity queued to
-        // leave, by itself or with an ancestor, still steps until the drain. Its new component waits for
-        // the next add before it starts. A scene that has not started starts it as the entity joins.
-        if (_started && Joined && SceneOrNull?.Contains(this) == true && ReferenceEquals(component.Entity, this))
-        {
-            component.RunStart();
-        }
-
-        return component;
-    }
-
-    /// <summary>Detaches <paramref name="component"/> so it may be attached elsewhere.</summary>
-    /// <exception cref="InvalidOperationException">
-    /// The component is not attached to this entity, or it is called inside a <see cref="Rendering.Renderer.Draw"/>.
-    /// </exception>
-    public void Remove(Component component)
-    {
-        ArgumentNullException.ThrowIfNull(component);
-        SceneOrNull?.Drawing.ThrowIfDrawing("detached a component");
-
-        if (!ReferenceEquals(component.Entity, this))
-        {
-            throw new InvalidOperationException(
-                $"This entity does not hold the {component.GetType().Name} being removed.");
-        }
-
-        // Before the hooks run, which then cannot observe the component still attached.
-        Unlist(component);
-
-        // Every hook runs and the engine's own release always follows. A throwing hook then leaves no
-        // detached component registered or drawn. Failures propagate once detachment finishes.
-        List<Exception>? failures = null;
-        try
-        {
-            component.LeaveScene();
-        }
-        catch (Exception exception)
-        {
-            (failures ??= []).Add(exception);
-        }
-
-        try
-        {
-            component.OnDetached(this);
-        }
-        catch (Exception exception)
-        {
-            (failures ??= []).Add(exception);
-        }
-
-        component.OnDetachingFrom(this);
-        Scenes.Scene.ThrowCleanupFailures(failures);
-    }
-
-    // Takes the component out of this entity's list and clears its owner. A hook may have read the draw order
-    // while a renderer was attached, and the order learns it has gone.
-    private void Unlist(Component component)
-    {
-        NoteRendererChange(component);
-        _components.RemoveAt(IndexOf(_components, component));
-        if (component.Steps)
-        {
-            _steppers--;
-        }
-
-        component.Entity = null;
-    }
-
-    // A renderer about to join or leave an entity a scene already holds changes that scene's draw order.
-    private void NoteRendererChange(Component component)
-    {
-        if (component is Renderer renderer)
-        {
-            renderer.Wake();
-            SceneOrNull?.Drawing.Changing(this, band: false);
-        }
-    }
-
     // A renderer here went to rest. Its world transform and its appearance are both fresh, and whatever
     // stales either reaches this entity.
     internal void HoldRest() => _holdsRest = true;
@@ -778,88 +594,6 @@ public partial class Entity
         {
             child.WakeTree();
         }
-    }
-
-    /// <summary>Finds the first attached component assignable to <typeparamref name="T"/>.</summary>
-    public bool TryGet<T>([NotNullWhen(true)] out T? component)
-        where T : Component
-    {
-        foreach (Component candidate in Components)
-        {
-            if (candidate is T found)
-            {
-                component = found;
-                return true;
-            }
-        }
-
-        component = null;
-        return false;
-    }
-
-    /// <summary>Whether a component assignable to <typeparamref name="T"/> is attached.</summary>
-    public bool Has<T>()
-        where T : Component =>
-        TryGet<T>(out _);
-
-    /// <summary>Gets the first attached component assignable to <typeparamref name="T"/>.</summary>
-    /// <exception cref="InvalidOperationException">No attached component is assignable to that type.</exception>
-    public T Get<T>()
-        where T : Component =>
-        TryGet<T>(out T? component)
-            ? component
-            : throw new InvalidOperationException(
-                $"A {GetType().Name} has no component assignable to {typeof(T).Name}.");
-
-    /// <summary>
-    /// Finds the first component assignable to <typeparamref name="T"/> on this entity, then on its parent, then on each
-    /// ancestor up to the root.
-    /// </summary>
-    /// <remarks>The nearest match wins. The search does not visit siblings or <see cref="Children"/>.</remarks>
-    public bool TryGetInParent<T>([NotNullWhen(true)] out T? component)
-        where T : Component
-    {
-        for (Entity? entity = this; entity is not null; entity = entity.Parent)
-        {
-            if (entity.TryGet(out component))
-            {
-                return true;
-            }
-        }
-
-        component = null;
-        return false;
-    }
-
-    /// <summary>
-    /// Gets the first component assignable to <typeparamref name="T"/> on this entity, then on its parent, then on each
-    /// ancestor up to the root.
-    /// </summary>
-    /// <remarks>The nearest match wins. The search does not visit siblings or <see cref="Children"/>.</remarks>
-    /// <exception cref="InvalidOperationException">No component on this entity or an ancestor is assignable to that type.</exception>
-    public T GetInParent<T>()
-        where T : Component =>
-        TryGetInParent<T>(out T? component)
-            ? component
-            : throw new InvalidOperationException(
-                $"A {GetType().Name} and its ancestors have no component assignable to {typeof(T).Name}.");
-
-    /// <summary>
-    /// This entity, its parent or the nearest ancestor assignable to <typeparamref name="T"/>, or null when there is none.
-    /// </summary>
-    /// <remarks>The search does not visit siblings or <see cref="Children"/>.</remarks>
-    public T? FindInParent<T>()
-        where T : class
-    {
-        for (Entity? entity = this; entity is not null; entity = entity.Parent)
-        {
-            if (entity is T found)
-            {
-                return found;
-            }
-        }
-
-        return null;
     }
 
     /// <summary>
@@ -1013,14 +747,6 @@ public partial class Entity
         {
             entity._movementTrackers += delta;
         }
-    }
-
-    // Clears the parent, skipping the checks a public parent write makes.
-    internal void Unparent()
-    {
-        Unlink();
-        _parent = null;
-        Invalidate(previous: true);
     }
 
     // Starts the entity once. Rejoining a scene does not restart it or its components.
@@ -1199,208 +925,6 @@ public partial class Entity
         }
     }
 
-    private void Link(Entity? parent)
-    {
-        Unlink();
-        _parent = parent;
-
-        if (parent is not null)
-        {
-            // Children that come and go unread would otherwise grow the parent's list by a slot each time.
-            if (parent._firstChildHole >= 0)
-            {
-                parent.CompactChildren();
-            }
-
-            List<Entity> siblings = parent._children ??= [];
-            _childSlot = siblings.Count;
-            siblings.Add(this);
-            parent.TrackMovement(_movementTrackers);
-
-            if (OnScreen)
-            {
-                ScreenEntity.Reflow(parent);
-            }
-        }
-    }
-
-    // Every refusal comes before the first link.
-    private void Reparent(Scene scene, Entity? parent)
-    {
-        scene.Drawing.ThrowIfDrawing("reparented an entity");
-
-        // A removal asked of an ancestor refuses only once it lands. Until then the write takes this entity out of it.
-        if (scene.IsRemovalRequested(this))
-        {
-            throw new InvalidOperationException(
-                $"This {GetType().Name} cannot be reparented after Scene.Remove was called on it. Reparent it before requesting its removal, or let the removal take it.");
-        }
-
-        if (scene.IsDetaching(this))
-        {
-            throw new InvalidOperationException(
-                $"The removal that takes this {GetType().Name} is already landing and would detach it. Reparent it before the step's removals land, or let the removal take it.");
-        }
-
-        if (parent is not null)
-        {
-            if (!ReferenceEquals(parent.SceneOrNull, scene))
-            {
-                throw new InvalidOperationException(parent.SceneOrNull is null
-                    ? $"A {GetType().Name} is in a scene and cannot be placed by a {parent.GetType().Name} that is in none. Parent it once the {parent.GetType().Name} has joined this scene, or set the parent to null."
-                    : $"A {GetType().Name} is in one scene and cannot be placed by a {parent.GetType().Name} in another. Parent it under an entity of its own scene, or set the parent to null.");
-            }
-
-            if (scene.IsRemovalPending(parent) || scene.IsDetaching(parent))
-            {
-                throw new InvalidOperationException(
-                    $"A {parent.GetType().Name} is being removed and would take a {GetType().Name} placed by it along. Parent it under an entity that stays, or set the parent to null.");
-            }
-
-            RequireParentable(parent);
-        }
-
-        Transform2D local = _local;
-        Transform2D previousLocal = _previousLocal;
-        bool held = SceneOrNull is not null;
-        if (held)
-        {
-            local = Beneath(parent, previous: false, World);
-            previousLocal = Beneath(parent, previous: true, _previousWorld);
-            if (!IsFinite(local) || !IsFinite(previousLocal))
-            {
-                throw new InvalidOperationException(
-                    $"A {GetType().Name} cannot keep its world transform under that parent: a world scale has a zero axis, or a value is too large. Give the parent a scale on both axes, reduce the scales or positions in its ancestry, or set the parent to null.");
-            }
-        }
-
-        Link(parent);
-        _local = local;
-        _previousLocal = previousLocal;
-        Invalidate(previous: true);
-
-        if (held)
-        {
-            scene.Reparented(this);
-        }
-    }
-
-    // The local transform that composes under `parent`, or under none, into `world`.
-    private static Transform2D Beneath(Entity? parent, bool previous, in Transform2D world) =>
-        parent is null ? world : Within(previous ? parent._previousWorld : parent.World, world);
-
-    private static bool IsFinite(in Transform2D transform) =>
-        float.IsFinite(transform.Position.X) && float.IsFinite(transform.Position.Y)
-        && float.IsFinite(transform.Rotation) && float.IsFinite(transform.Scale.X) && float.IsFinite(transform.Scale.Y);
-
-    // Checks every reason a parent write can fail, before any link is made.
-    private void RequireParentable(Entity parent)
-    {
-        if (Anchored)
-        {
-            throw new InvalidOperationException(
-                $"A {GetType().Name} is anchored at the world origin and cannot be placed by a parent.");
-        }
-
-        if (OwnSpace == RenderSpace.Screen && parent is not ScreenEntity)
-        {
-            throw new InvalidOperationException(
-                $"A {GetType().Name} is on the screen layer and cannot be placed by the plain {parent.GetType().Name}. Make the parent a ScreenEntity, or parent a plain entity under this one instead.");
-        }
-
-        if (_scrollFactor != Vector2.One)
-        {
-            throw new InvalidOperationException(
-                $"A {GetType().Name} carrying a scroll factor cannot be placed by a parent. Set the scroll factor on the root instead.");
-        }
-
-        if (SortedWithWorld)
-        {
-            throw new InvalidOperationException(
-                $"A {GetType().Name} that sorts with the world cannot be placed by a parent. Set SortsWithWorld on the root instead.");
-        }
-
-        if (parent.ScrollFactor != Vector2.One)
-        {
-            RequireScrollable();
-        }
-
-        for (Entity? above = parent; above is not null; above = above._parent)
-        {
-            if (ReferenceEquals(above, this))
-            {
-                throw new InvalidOperationException(
-                    $"A {GetType().Name} cannot be placed by itself or by one of its own descendants.");
-            }
-
-            RequireTurnable(above, above._local.Rotation);
-            RequireScalable(above, above._local.Scale);
-        }
-    }
-
-    // Throws if anything in this subtree forbids a scroll factor other than one.
-    private void RequireScrollable()
-    {
-        if (FirstRefuser(TransformSupport.Scroll) is var (component, _))
-        {
-            throw Unscrollable(component);
-        }
-    }
-
-    // Removes this entity from its parent's child list. Does not clear _parent.
-    private void Unlink()
-    {
-        if (_parent is { } parent)
-        {
-            parent._children![_childSlot] = null!;
-            parent._firstChildHole = parent._firstChildHole < 0 ? _childSlot : Math.Min(parent._firstChildHole, _childSlot);
-            parent.TrackMovement(-_movementTrackers);
-
-            if (OnScreen)
-            {
-                ScreenEntity.Reflow(parent);
-            }
-        }
-    }
-
-    // Closes the holes unlinks left, keeping parenting order, and renumbers what moved.
-    private void CompactChildren()
-    {
-        Span<Entity> children = CollectionsMarshal.AsSpan(_children);
-        int kept = _firstChildHole;
-        for (int index = kept + 1; index < children.Length; index++)
-        {
-            Entity child = children[index];
-            if (child is not null)
-            {
-                child._childSlot = kept;
-                children[kept++] = child;
-            }
-        }
-
-        _children!.RemoveRange(kept, _children.Count - kept);
-        _firstChildHole = -1;
-    }
-
-    // Compares by reference, because a subclass may override Equals and two equal instances are still
-    // two separate entities here.
-    private static int IndexOf<T>(List<T> items, T item)
-        where T : class
-    {
-        for (int index = 0; index < items.Count; index++)
-        {
-            if (ReferenceEquals(items[index], item))
-            {
-                return index;
-            }
-        }
-
-        return -1;
-    }
-
-    private InvalidOperationException Unscrollable(Component component) =>
-        new($"A {component.GetType().Name} answers at its authored position while a scroll factor draws this {GetType().Name} elsewhere. Remove the {component.GetType().Name}, or set the scroll factor to one.");
-
     // Draws a cross at the entity's world position on the Origins channel, carrying this step's
     // motion. The driver calls it, and an override cannot lose it.
     private void DrawOrigin()
@@ -1423,60 +947,5 @@ public partial class Entity
         ClipFresh = 32,
         WorldOrder = 64,
         WaitsToStart = 128,
-    }
-
-    private struct ComponentWalk(List<Component> components)
-    {
-        private Component? _visited;
-        private int _visitedStamp;
-        private int _index;
-
-        // Public because foreach only binds to public members. The type itself is private.
-        public readonly Component Current => components[_index];
-
-        public readonly ComponentWalk GetEnumerator() => this;
-
-        // Inlined into every step loop, which keeps the walk's fields in registers.
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool MoveNext()
-        {
-            if (_visited is not null)
-            {
-                // The same attachment, not only the same component. One attached again carries a new stamp.
-                if (_index < components.Count && ReferenceEquals(components[_index], _visited) &&
-                    _visited.AttachStamp == _visitedStamp)
-                {
-                    _index++;
-                }
-                else
-                {
-                    _index = Resume(components, _index, _visitedStamp);
-                }
-            }
-
-            if (_index >= components.Count)
-            {
-                return false;
-            }
-
-            _visited = components[_index];
-            _visitedStamp = _visited.AttachStamp;
-            return true;
-        }
-
-        // Stamps rise along the list and a detach only removes. When the visited attachment is gone from the
-        // cursor, the cursor steps back over every component stamped after it, to the first the walk has not visited.
-        // Static and out of line, which keeps the rare recovery out of the inlined walk.
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int Resume(List<Component> components, int index, int visitedStamp)
-        {
-            index = Math.Min(index, components.Count);
-            while (index > 0 && components[index - 1].AttachStamp > visitedStamp)
-            {
-                index--;
-            }
-
-            return index;
-        }
     }
 }

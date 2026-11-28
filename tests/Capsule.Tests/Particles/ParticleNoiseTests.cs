@@ -4,6 +4,7 @@ using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 using static Capsule.Tests.Particles.ParticleCollisionTests;
+using static Capsule.Tests.Particles.ParticleFixtures;
 
 namespace Capsule.Tests.Particles;
 
@@ -36,7 +37,7 @@ public sealed class ParticleNoiseTests
     public void TwoEmittersOnOnePoint_SwirlApart_NeverFasterThanTheStrengthOnEitherAxis()
     {
         const float Strength = 30f;
-        ParticleEmitter first = Swirling(SceneFixtures.Frame(4, 4), Strength);
+        ParticleEmitter first = Swirling(Tile, Strength);
         ParticleEmitter second = Swirling(SceneFixtures.Frame(2, 2), Strength);
         SceneFixtures.HookScene scene = new();
         scene.Add(Holding(first, new Vector2(8f, 8f)));

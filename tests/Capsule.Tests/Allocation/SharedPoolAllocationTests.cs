@@ -2,6 +2,7 @@ using System.Numerics;
 using Capsule.Assets;
 using Capsule.Physics;
 using Capsule.Scenes;
+using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Allocation;
 
@@ -27,7 +28,7 @@ public sealed class SharedPoolAllocationTests
     {
         EntityPool<Crate> crates = new(static () => new Crate(), Pooled);
         Scene outgoing = new();
-        outgoing.Add(new PoolOwner(crates));
+        outgoing.Add(new SceneFixtures.PoolForwarder<Crate>(crates));
         SceneSimulation running = new(outgoing);
         for (int index = 0; index < Pooled; index++)
         {
@@ -36,7 +37,7 @@ public sealed class SharedPoolAllocationTests
 
         // The host collects the incoming scene's preloads before the outgoing one stops.
         Scene incoming = new();
-        incoming.Add(new PoolOwner(crates));
+        incoming.Add(new SceneFixtures.PoolForwarder<Crate>(crates));
         incoming.CollectAssetPreloads(entryPayload: null);
         running.Dispose();
 
@@ -48,11 +49,6 @@ public sealed class SharedPoolAllocationTests
         }
 
         return GC.GetAllocatedBytesForCurrentThread() - before;
-    }
-
-    private sealed class PoolOwner(EntityPool<Crate> crates) : Entity(Vector2.Zero)
-    {
-        protected internal override void CollectAssets(AssetCollection assets) => crates.CollectAssets(assets);
     }
 
     private sealed class Crate : Entity

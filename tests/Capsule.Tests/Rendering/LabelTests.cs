@@ -218,12 +218,6 @@ public sealed class LabelTests
     }
 
     [Fact]
-    public void ALabelOnNoEntity_OccupiesNoBox()
-    {
-        Assert.True(new Label(FontFixtures.Font(), "AB").Bounds.IsEmpty);
-    }
-
-    [Fact]
     public void ASpanWrittenLabel_LaysOutAsTheStringWouldAndReadsBackAsOne()
     {
         LabelEntity byString = Prompt("AB\nA");

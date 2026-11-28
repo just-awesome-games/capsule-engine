@@ -112,14 +112,12 @@ public readonly struct Shape2D : IEquatable<Shape2D>
     /// <exception cref="ArgumentException">The box it describes is one <see cref="Box(in Aabb2D)"/> refuses.</exception>
     public static Shape2D Box(Vector2 corner, Vector2 size) => Box(Aabb2D.FromCorner(corner, size));
 
-    /// <summary>A convex polygon of three to <see cref="MaxPoints"/> points, rounded by <paramref name="radius"/> when one is given.</summary>
+    /// <summary>A convex polygon of three to <see cref="MaxPoints"/> points in either winding order, rounded by <paramref name="radius"/> when one is given.</summary>
     /// <remarks>
     /// Four points on the corners of an axis-aligned rectangle with a zero radius return a shape of
     /// kind <see cref="ShapeKind2D.Box"/>. The points of a polygon past four are kept once per distinct
     /// polygon for the life of the process. Build a changing polygon once, not every step.
     /// </remarks>
-    /// <param name="points">The hull's corners, convex and in either winding order.</param>
-    /// <param name="radius">How far the polygon extends beyond that hull. Zero for a plain polygon.</param>
     /// <exception cref="ArgumentException">There are fewer than three points or more than <see cref="MaxPoints"/>, two of them nearly coincide, they are not strictly convex, or the bounds they and the radius describe are not a box a float can measure.</exception>
     public static Shape2D Polygon(ReadOnlySpan<Vector2> points, float radius = 0f)
     {

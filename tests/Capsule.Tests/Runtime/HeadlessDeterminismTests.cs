@@ -39,15 +39,8 @@ public sealed class HeadlessDeterminismTests
         {
             for (int index = 0; index < 3; index++)
             {
-                Add(new Wanderer());
+                Add(new Wanderer(Nudge));
             }
         }
-    }
-
-    // Steps by a draw from the run's source. A position holds only if the whole run replays.
-    private sealed class Wanderer() : Entity(Vector2.Zero)
-    {
-        protected internal override void OnStep(in StepContext context) =>
-            Teleport(Position + new Vector2(Random.Range(-1f, 1f), context.Input.WasPressed(Nudge) ? 1f : 0f));
     }
 }

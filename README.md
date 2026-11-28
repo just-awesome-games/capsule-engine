@@ -56,7 +56,7 @@ Three packages ship, and [`PACKAGE.md`](PACKAGE.md) says what each holds. Every 
 - [`docs/build-and-publish.md`](docs/build-and-publish.md): project wiring, consuming Capsule, commands, development builds, publishing, build properties.
 - [`docs/packages.md`](docs/packages.md): writing a package, the build project, importers, porting.
 - [`docs/testing.md`](docs/testing.md): testing a game headless at the right boundary.
-- [`docs/debugging.md`](docs/debugging.md): the debug overlay, debug draw, panels, logging.
+- [`docs/debugging.md`](docs/debugging.md): the debug overlay, recording and replay, traces and frame captures, debug draw, panels, logging.
 
 ### Reference
 

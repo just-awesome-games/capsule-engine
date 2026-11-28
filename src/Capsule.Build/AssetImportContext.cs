@@ -51,7 +51,6 @@ public sealed class AssetImportContext
     public IReadOnlyList<string> Inputs => _inputs;
 
     /// <summary>Every output written through this context, by its path below the asset root, in the order written.</summary>
-    /// <remarks>The context writes nothing to disk. The build writes these after <see cref="IAssetImporter.Import"/> returns.</remarks>
     public IReadOnlyList<(string AssetPath, byte[] Contents)> Outputs => _outputs;
 
     /// <summary>Reads the whole file at <paramref name="path"/> and makes it an input of this import.</summary>

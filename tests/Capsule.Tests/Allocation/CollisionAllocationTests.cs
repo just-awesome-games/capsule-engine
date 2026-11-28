@@ -27,7 +27,7 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
 
         long bytes = StepMeasurement.Bytes(_ =>
         {
-            MoveResult2D result = world.MoveBox(box, new Vector2(direction * 2f, 4f), filter, contacts);
+            MoveResult2D result = world.Move(Shape2D.Box(box), Vector2.Zero, new Vector2(direction * 2f, 4f), filter, contacts);
             box = box.Translated(result.Translation);
 
             if (MathF.Abs(result.Translation.X) < 1f)
@@ -126,11 +126,11 @@ public sealed class CollisionAllocationTests(ITestOutputHelper output)
     {
         Contact2D[] contacts = new Contact2D[128];
         Aabb2D box = Aabb2D.FromCorner(new Vector2(0f, -4f), new Vector2(80f * CollisionFixtures.TileSize, 8f));
-        _ = LandingWorld(out _).MoveBox(box, new Vector2(0f, 24f), CollisionFilter.Everything, contacts);
+        _ = LandingWorld(out _).Move(Shape2D.Box(box), Vector2.Zero, new Vector2(0f, 24f), CollisionFilter.Everything, contacts);
 
         CollisionWorld2D world = LandingWorld(out CollisionGrid2D floor);
         long before = StepMeasurement.Start();
-        MoveResult2D result = world.MoveBox(box, new Vector2(0f, 24f), CollisionFilter.Everything, contacts);
+        MoveResult2D result = world.Move(Shape2D.Box(box), Vector2.Zero, new Vector2(0f, 24f), CollisionFilter.Everything, contacts);
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
         Assert.Equal(0, bytes);

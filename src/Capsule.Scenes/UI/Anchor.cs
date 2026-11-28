@@ -10,7 +10,8 @@ namespace Capsule.UI;
 /// <remarks>
 /// The slot is the parent's padded rect, or the child's cell in a container. In the point form, the same
 /// point of the entity's own rect sits <see cref="Capsule.Scenes.Entity.Position"/> from the anchor. In the
-/// span form, the rect stretches over that share of the slot from the span's near edge. A fraction outside [0, 1] names a point outside the rect and is allowed.
+/// span form, the rect stretches over that share of the slot from the span's near edge. A fraction outside
+/// [0, 1] names a point outside the rect and is allowed.
 /// </remarks>
 public readonly record struct Anchor
 {

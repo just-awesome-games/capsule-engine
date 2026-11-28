@@ -21,12 +21,15 @@ public sealed class FontBuildTests
 
     private const string Kerning = "kerning first=65 second=66 amount=-2";
 
+    // A whole font of two glyphs that kern, on one page "menu.png".
+    internal static readonly string Menu = Source(Info, Common, Page, "chars count=2", CharA, CharB, "kernings count=1", Kerning);
+
     [Fact]
     public void AFont_CompilesIntoAMemberCarryingItsMetricsGlyphsAndKerning()
     {
         BitmapFont font = Font(
             Compiled(
-                ("Fonts/menu.fnt", Source(Info, Common, Page, "chars count=2", CharA, CharB, "kernings count=1", Kerning)),
+                ("Fonts/menu.fnt", Menu),
                 ("Fonts/menu.png", null)),
             "Fonts",
             "MenuFont");
@@ -125,7 +128,7 @@ public sealed class FontBuildTests
     public void APageTheGameDoesNotAuthor_FailsTheBuild(string page) =>
         Assert.Contains(
             $"Assets/Fonts/menu.fnt: names page \"{page}\"",
-            Refused(("Fonts/menu.fnt", Source(Info, Common, $"page id=0 file=\"{page}\"", CharA))),
+            ToolWorkspace.Refused(("Fonts/menu.fnt", Source(Info, Common, $"page id=0 file=\"{page}\"", CharA))),
             StringComparison.Ordinal);
 
     // Text the build cannot decode is a defect, not a replacement character in a skipped line.
@@ -184,7 +187,7 @@ public sealed class FontBuildTests
     [InlineData("@common|@page|@a|@b|kerning first=65 second=66", "amount")]
     public void AFontTheBuildCannotRead_FailsTheBuildNamingTheDefect(string lines, string defect)
     {
-        string refused = Refused(("Fonts/menu.fnt", Malformed(lines)), ("Fonts/menu.png", null));
+        string refused = ToolWorkspace.Refused(("Fonts/menu.fnt", Malformed(lines)), ("Fonts/menu.png", null));
 
         Assert.Contains("Assets/Fonts/menu.fnt: ", refused, StringComparison.Ordinal);
         Assert.Contains(defect, refused, StringComparison.Ordinal);
@@ -200,7 +203,7 @@ public sealed class FontBuildTests
     public void ADefectOnOneLine_NamesThatLine(string lines, int line) =>
         Assert.Contains(
             $"Assets/Fonts/menu.fnt: line {line} ",
-            Refused(("Fonts/menu.fnt", Malformed(lines)), ("Fonts/menu.png", null)),
+            ToolWorkspace.Refused(("Fonts/menu.fnt", Malformed(lines)), ("Fonts/menu.png", null)),
             StringComparison.Ordinal);
 
     private static string Source(params string[] lines) => string.Join("\r\n", lines) + "\r\n";
@@ -225,15 +228,8 @@ public sealed class FontBuildTests
         return ToolWorkspace.Loaded(workspace.Generated);
     }
 
-    private static string Refused(params (string Path, string? Content)[] files)
-    {
-        using ToolWorkspace workspace = ToolWorkspace.Authored(files);
-
-        return workspace.Fail();
-    }
-
     // CapsuleAssets.<path>, as the game names it.
-    private static BitmapFont Font(Assembly game, params string[] path)
+    internal static BitmapFont Font(Assembly game, params string[] path)
     {
         Type declaring = game.GetType("Capsule.Generated.CapsuleAssets")!;
 

@@ -92,7 +92,6 @@ internal sealed class PadRoster
         }
     }
 
-    // Closes every open pad.
     internal void Clear(Action<Pad> close)
     {
         foreach (Pad pad in _pads)

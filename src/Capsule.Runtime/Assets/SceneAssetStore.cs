@@ -349,6 +349,9 @@ internal static class AssetDecodes
                 await Turns.WaitAsync(cancel).ConfigureAwait(false);
                 try
                 {
+                    // A turn freed while a cancellation is still on its way to the queue goes to the cancelled
+                    // waiter, whose wait then returns as granted.
+                    cancel.ThrowIfCancellationRequested();
                     return decode();
                 }
                 finally

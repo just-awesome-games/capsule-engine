@@ -75,7 +75,7 @@ internal static class ShippedSceneDocument
                 exception);
         }
 
-        return SceneDocument.ParseUtf8(json);
+        return SceneDocumentJson.Read(json);
     }
 
     // The inflated length a gzip trailer's last four bytes record, read without moving the stream. One

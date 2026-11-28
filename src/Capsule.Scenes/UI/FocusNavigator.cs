@@ -12,27 +12,21 @@ namespace Capsule.UI;
 /// Moves a focus between <see cref="Focusable"/> items and presses the focused one.
 /// </summary>
 /// <remarks>
-/// It steps itself and draws nothing. The items supply the focus visuals and decide what pressing
-/// means, and they need not sit on this component's entity. An item is live while its
+/// The items need not sit on this component's entity. An item is live while its
 /// <see cref="Component.Entity"/> is in a scene, or queued to join one and not queued to leave, and
 /// is shown by <see cref="Entity.Visible"/> up its ancestry. Only live items take part in
 /// directions, the pointer and the press.
 /// <para>
 /// A direction first takes the neighbour the focused item names for that side. When the item names
 /// none, the focus moves to an item lying that way whose <see cref="Focusable.Bounds"/> overlap the
-/// focused item's across the direction. Among those, the smallest gap between edges along the
-/// direction wins, with touching or overlapping edges a gap of zero, then the centre nearest along the
-/// direction. A column of rows of uneven width steps row by row. When no item lying that way overlaps,
+/// focused item's across the direction, the smallest gap between edges first (zero where they touch or
+/// overlap), then the nearest centre. When no item lying that way overlaps,
 /// the focus moves to the one with the highest <c>dot(direction, delta) / |delta|²</c> between their
 /// centres. Ties go to list order. When nothing lies that way, the focus wraps to the item farthest
 /// the other way. An item that names itself blocks that direction. A named item that is not live
 /// passes the move on to the item it names in the same direction. A chain that names nothing
 /// further, returns to an item it already visited, or reaches an item this navigator does not hold
 /// moves nothing.
-/// </para>
-/// <para>
-/// A focus that lands on an item by a direction, a <see cref="Focus"/> call, the start or a repair scrolls the
-/// item into view in each <see cref="ScrollContainer"/> above it. A pointer hover or click does not.
 /// </para>
 /// <para>
 /// A focus change applies immediately, and handlers read the new focus. Calling <see cref="Add"/>,
@@ -109,10 +103,7 @@ public sealed class FocusNavigator : Component
     /// Whether this navigator reads input, true by default. False holds the focus where it is and
     /// ignores every action and the pointer, as a menu does while a rebinding prompt owns the input.
     /// </summary>
-    /// <remarks>
-    /// The step on which it turns true reads nothing either. The press that ended the prompt never
-    /// lands on the menu.
-    /// </remarks>
+    /// <remarks>The step on which it turns true reads nothing either.</remarks>
     public bool Interactable
     {
         get;
@@ -127,7 +118,6 @@ public sealed class FocusNavigator : Component
     /// How many steps a direction must be held after its press before it first repeats. Defaults to
     /// 30, half a second at sixty steps.
     /// </summary>
-    /// <remarks>Read on each step, and a new value takes effect next step.</remarks>
     public int RepeatDelay
     {
         get;
@@ -142,10 +132,7 @@ public sealed class FocusNavigator : Component
     /// How many steps pass between repeats of a held direction. Defaults to 6, a tenth of a second
     /// at sixty steps.
     /// </summary>
-    /// <remarks>
-    /// Zero makes a held direction move once on its press. Read on each step, and a new value takes
-    /// effect next step.
-    /// </remarks>
+    /// <remarks>Zero makes a held direction move once on its press.</remarks>
     public int RepeatInterval
     {
         get;
@@ -164,9 +151,8 @@ public sealed class FocusNavigator : Component
     /// At start it gathers every <see cref="Focusable"/> under its entity in tree order: the entity, its
     /// components in attachment order, then each child's subtree in child order. A subtree under an
     /// entity holding another gathering navigator belongs to that navigator. After start, an item that
-    /// joins the scene under it is appended, and one that leaves its scene drops out. A focus on the item
-    /// that left moves on at this navigator's next step. <see cref="Add"/> and <see cref="Remove"/> still
-    /// work.
+    /// joins the scene under it is appended, and one that leaves its scene drops out. <see cref="Add"/> and
+    /// <see cref="Remove"/> still work.
     /// </remarks>
     /// <param name="actions">The actions that drive this navigator for its whole life.</param>
     /// <exception cref="ArgumentException"><see cref="FocusActions.Secondary"/> holds confirm.</exception>
@@ -182,9 +168,8 @@ public sealed class FocusNavigator : Component
     /// starts. It gathers nothing.
     /// </summary>
     /// <remarks>
-    /// Directions come from where the items sit, not from list order. One call serves a column, a
-    /// row or a grid. Named neighbours are checked once every item is held, and the items may
-    /// already name each other in a ring.
+    /// Directions come from where the items sit, not from list order. Named neighbours are checked once
+    /// every item is held, and the items may already name each other in a ring.
     /// </remarks>
     /// <param name="actions">The actions that drive this navigator for its whole life.</param>
     /// <param name="items">The items the focus moves between. Each must be non-null and listed once.</param>
@@ -266,7 +251,6 @@ public sealed class FocusNavigator : Component
     /// An item that is not live passes the focus to the first live item in list order. Called
     /// before this navigator starts, it sets the starting item and raises nothing.
     /// </remarks>
-    /// <param name="item">The item to focus. This navigator must already hold it.</param>
     /// <exception cref="ArgumentException">The item is not in <see cref="Items"/>.</exception>
     public void Focus(Focusable item)
     {
@@ -285,8 +269,7 @@ public sealed class FocusNavigator : Component
     /// <summary>Gives the starting item the focus.</summary>
     /// <remarks>
     /// Liveness is read here for the first time. A starting item that is not live passes the focus
-    /// to the first live item in list order, or leaves this navigator holding no focus. The
-    /// navigator raises nothing before this call.
+    /// to the first live item in list order, or leaves this navigator holding no focus.
     /// </remarks>
     protected internal override void OnStart()
     {
@@ -321,9 +304,7 @@ public sealed class FocusNavigator : Component
     /// </summary>
     /// <remarks>
     /// One repeat counter serves every direction. A step holding two directions uses the first of up,
-    /// down, left and right. A direction on the focused item's <see cref="Focusable.Adjusts"/> axis
-    /// adjusts that item in place of moving the focus. The press actions are read on their press edge
-    /// only.
+    /// down, left and right. The press actions are read on their press edge only.
     /// <para>
     /// A pointer that moved this step focuses the first item in list order whose bounds contain it.
     /// The pointer and its buttons reach only items on a <see cref="ScreenEntity"/>, and only where its
@@ -334,16 +315,6 @@ public sealed class FocusNavigator : Component
     /// A step that finds no live focus moves to one and reads nothing else but
     /// <see cref="FocusActions.Cancel"/>. A handler that takes the landing item out of its scene drops
     /// the press.
-    /// </para>
-    /// <para>
-    /// A mouse button bound to confirm that presses an item captures the pointer for it until the
-    /// button is released or the focus leaves the item. While captured, the pointer focuses nothing and
-    /// the item raises <see cref="Focusable.Dragged"/> on the press and on each move.
-    /// </para>
-    /// <para>
-    /// The wheel adjusts the focused item when that item has an <see cref="Focusable.Adjusts"/> axis and
-    /// the pointer is over it. Each whole notch raises one adjust. The vertical wheel always counts, and
-    /// the horizontal wheel counts only on a horizontal item.
     /// </para>
     /// </remarks>
     protected internal override void OnStep(in StepContext context)

@@ -3,6 +3,7 @@ using Capsule.Input;
 using Capsule.Runtime;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
+using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Input;
 
@@ -85,19 +86,10 @@ public sealed class ActiveDeviceTests
     [Fact]
     public void ADrivenRun_MovesTheActiveDeviceFromTheScriptsPadPress()
     {
-        DeviceRecorder scene = new();
-        using SceneHost host = new(SceneTransition.ToScene(typeof(DeviceRecorder), null), (in SceneTransition _) => scene, new Run());
-        IInputDriver driver = new InputScript().Wait(1).Tap(PadButton.South).Wait(1).Build();
-        FixedStepScheduler scheduler = new(0.1, 32, new InputState(new ActionBindings()), driver, host);
+        List<(InputDevice Device, bool Changed, PadFamily Family)> steps = Driven(new InputScript().Wait(1).Tap(PadButton.South).Wait(1).Build());
 
-        while (!scheduler.Advance(0.1, DeviceSnapshot.Empty, host))
-        {
-        }
-
-        Assert.Equal(
-            [InputDevice.KeyboardMouse, InputDevice.Gamepad, InputDevice.Gamepad],
-            scene.Devices);
-        Assert.Equal([false, true, false], scene.Changes);
+        Assert.Equal([InputDevice.KeyboardMouse, InputDevice.Gamepad, InputDevice.Gamepad], steps.Select(static step => step.Device));
+        Assert.Equal([false, true, false], steps.Select(static step => step.Changed));
     }
 
     // A driver records the pad's family as it records window focus, and a step reads it back. A change
@@ -105,18 +97,11 @@ public sealed class ActiveDeviceTests
     [Fact]
     public void ADriversPadFamily_ReachesTheStepWithoutMovingTheActiveDevice()
     {
-        DeviceRecorder scene = new();
-        using SceneHost host = new(SceneTransition.ToScene(typeof(DeviceRecorder), null), (in SceneTransition _) => scene, new Run());
         DeviceSnapshot playStation = DeviceSnapshot.Empty.WithPadFamily(PadFamily.PlayStation);
-        IInputDriver driver = new ScriptedInputDriver([DeviceSnapshot.Empty, playStation, playStation.With(PadButton.South)]);
-        FixedStepScheduler scheduler = new(0.1, 32, new InputState(new ActionBindings()), driver, host);
+        List<(InputDevice Device, bool Changed, PadFamily Family)> steps = Driven(new ScriptedInputDriver([DeviceSnapshot.Empty, playStation, playStation.With(PadButton.South)]));
 
-        while (!scheduler.Advance(0.1, DeviceSnapshot.Empty, host))
-        {
-        }
-
-        Assert.Equal([PadFamily.Generic, PadFamily.PlayStation, PadFamily.PlayStation], scene.Families);
-        Assert.Equal([InputDevice.KeyboardMouse, InputDevice.KeyboardMouse, InputDevice.Gamepad], scene.Devices);
+        Assert.Equal([PadFamily.Generic, PadFamily.PlayStation, PadFamily.PlayStation], steps.Select(static step => step.Family));
+        Assert.Equal([InputDevice.KeyboardMouse, InputDevice.KeyboardMouse, InputDevice.Gamepad], steps.Select(static step => step.Device));
     }
 
     // A pad found on the second step lacks its triggers, and its replacement on the fourth has them.
@@ -138,19 +123,19 @@ public sealed class ActiveDeviceTests
         Assert.Equal([(true, false), (false, true), (false, false), (true, true)], steps);
     }
 
-    private sealed class DeviceRecorder : Scene
+    // What each step of a run the driver plays reads: the active device, whether it changed and the pad's family.
+    private static List<(InputDevice Device, bool Changed, PadFamily Family)> Driven(IInputDriver driver)
     {
-        internal List<InputDevice> Devices { get; } = [];
+        List<(InputDevice, bool, PadFamily)> steps = [];
+        SceneFixtures.HookScene scene = new(step: (Scene _, in StepContext context) =>
+            steps.Add((context.Input.ActiveDevice, context.Input.ActiveDeviceChanged, context.Input.PadFamily)));
+        using SceneHost host = new(SceneTransition.ToScene(typeof(SceneFixtures.HookScene), null), (in SceneTransition _) => scene, new Run());
+        FixedStepScheduler scheduler = new(0.1, 32, new InputState(new ActionBindings()), driver, host);
 
-        internal List<bool> Changes { get; } = [];
-
-        internal List<PadFamily> Families { get; } = [];
-
-        protected override void OnStep(in StepContext context)
+        while (!scheduler.Advance(0.1, DeviceSnapshot.Empty, host))
         {
-            Devices.Add(context.Input.ActiveDevice);
-            Changes.Add(context.Input.ActiveDeviceChanged);
-            Families.Add(context.Input.PadFamily);
         }
+
+        return steps;
     }
 }

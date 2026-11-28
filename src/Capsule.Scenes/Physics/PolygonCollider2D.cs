@@ -6,11 +6,6 @@ namespace Capsule.Physics;
 /// A convex polygon collider, optionally rounded, whose corners are relative to the entity's position plus
 /// <see cref="Collider2D.Offset"/> and readable through <see cref="Collider2D.Shape"/>.
 /// </summary>
-/// <remarks>
-/// <see cref="SetPoints"/> replaces the corners at run time and keeps the radius. An outline that narrows
-/// below twice <see cref="CollisionTolerance.LinearSlop"/> takes the collider out of the collision world
-/// until one spans again, and <see cref="Collider2D.Enabled"/> keeps its value.
-/// </remarks>
 public sealed class PolygonCollider2D : Collider2D
 {
     private const int ReshapeMaxPoints = 4;

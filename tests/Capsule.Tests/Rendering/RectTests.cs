@@ -10,14 +10,9 @@ public sealed class RectTests
     private static readonly Rect Box = Rect.FromEdges(10f, 20f, 30f, 40f);
 
     [Fact]
-    public void EdgesAndACornerWithAnExtent_BuildTheSameRect()
+    public void EveryBuilder_MatchesTheEdgesItNames()
     {
         Assert.Equal(Box, new Rect(10f, 20f, 20f, 20f));
-    }
-
-    [Fact]
-    public void TheShorthandBuilders_MatchTheEdgesTheyName()
-    {
         Assert.Equal(Rect.FromEdges(4f, 4f, 4f, 4f), Rect.FromEdges(4f));
         Assert.Equal(Box, Rect.FromCorners(new Vector2(10f, 20f), new Vector2(30f, 40f)));
         Assert.Equal(Box, Rect.FromCenter(new Vector2(20f, 30f), new Vector2(20f, 20f)));

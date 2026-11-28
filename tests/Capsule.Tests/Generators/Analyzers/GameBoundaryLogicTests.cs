@@ -11,39 +11,6 @@ public sealed class GameBoundaryLogicTests
     private const string PlainMath = "Write it as plain arithmetic, which every machine rounds the same";
 
     [Fact]
-    public async Task Logic_RejectsExternalIoConcurrencyTimeAndAmbientRandomness()
-    {
-        const string source = """
-            using System;
-            using System.IO;
-            using System.Security.Cryptography;
-            using System.Threading.Tasks;
-
-            public static class Logic
-            {
-                public static async Task Run()
-                {
-                    _ = File.Exists("save.dat");
-                    Console.WriteLine(Environment.MachineName);
-                    await Task.Delay(1);
-                    _ = DateTime.UtcNow;
-                    _ = TimeProvider.System.GetUtcNow();
-                    _ = Guid.NewGuid();
-                    _ = new Random();
-                    _ = RandomNumberGenerator.GetInt32(100);
-                }
-            }
-            """;
-
-        ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true);
-
-        Assert.True(diagnostics.Count(diagnostic => diagnostic.Id == "CAP102") >= 2);
-        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "CAP103");
-        Assert.Equal(2, diagnostics.Count(diagnostic => diagnostic.Id == "CAP104"));
-        Assert.Equal(3, diagnostics.Count(diagnostic => diagnostic.Id == "CAP105"));
-    }
-
-    [Fact]
     public async Task Logic_RejectsLocksNativeImportsAndPropertyBasedIo()
     {
         const string source = """
@@ -320,11 +287,7 @@ public sealed class GameBoundaryLogicTests
         MetadataReference core = MetadataReference.CreateFromFile(typeof(Log).Assembly.Location);
 
         ImmutableArray<Diagnostic> diagnostics = await Analyze(source, logic: true, extraReferences: [core]);
-        CSharpCompilation compilation = CSharpCompilation.Create(
-            "AnalyzerSpecs",
-            [CSharpSyntaxTree.ParseText(source)],
-            References.Add(core),
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        CSharpCompilation compilation = GeneratorHarness.Created("AnalyzerSpecs", source, References.Add(core));
 
         Assert.Empty(GeneratorHarness.Errors(compilation.GetDiagnostics()));
         Assert.Empty(diagnostics);
@@ -354,7 +317,8 @@ public sealed class GameBoundaryLogicTests
         Assert.Single(diagnostics, diagnostic => diagnostic.Id == "CAP103");
     }
 
-    // CAP102 and CAP103 name what replaces the refused call, chosen by what the call does.
+    // External IO, concurrency, ambient time and ambient randomness are each refused once, naming what
+    // replaces the call, chosen by what the call does.
     [Theory]
     [InlineData("System.Console.WriteLine(1);", "CAP102", "Write through Capsule.Diagnostics.Log")]
     [InlineData("_ = System.IO.File.Exists(\"save.dat\");", "CAP102", "Persist through Run.Saves")]
@@ -362,7 +326,12 @@ public sealed class GameBoundaryLogicTests
     [InlineData("_ = System.Threading.Tasks.Task.Delay(1);", "CAP103", "Wait with a Countdown")]
     [InlineData("System.Threading.Thread.Sleep(1);", "CAP103", "Wait with a Countdown")]
     [InlineData("_ = new System.Threading.Thread(() => { });", "CAP103", "Do the work inside the step")]
-    public async Task Logic_RejectsIoAndConcurrencyAndNamesTheReplacement(string statement, string id, string fix)
+    [InlineData("_ = System.DateTime.UtcNow;", "CAP104", "Use the simulation time the step is given")]
+    [InlineData("_ = System.TimeProvider.System.GetUtcNow();", "CAP104", "Use the simulation time the step is given")]
+    [InlineData("_ = System.Guid.NewGuid();", "CAP105", "Draw from the run's seeded source")]
+    [InlineData("_ = new System.Random();", "CAP105", "Draw from the run's seeded source")]
+    [InlineData("_ = System.Security.Cryptography.RandomNumberGenerator.GetInt32(100);", "CAP105", "Draw from the run's seeded source")]
+    public async Task Logic_RejectsIoConcurrencyTimeAndRandomness_NamingTheReplacement(string statement, string id, string fix)
     {
         string source = $$"""
             public static class Logic

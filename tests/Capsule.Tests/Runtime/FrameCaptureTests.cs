@@ -4,6 +4,7 @@ using Capsule.Runtime.Rendering;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
+using static Capsule.Tests.Runtime.SceneHostFixtures;
 
 namespace Capsule.Tests.Runtime;
 
@@ -116,10 +117,6 @@ public sealed class FrameCaptureTests : IDisposable
         Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(path));
         Assert.Equal("an unrelated file", File.ReadAllText(staging));
     }
-
-    private static SceneTransition ToScene<TScene>()
-        where TScene : Scene
-        => SceneTransition.ToScene(typeof(TScene), null);
 
     private sealed class CapturingScene(string path) : Scene
     {

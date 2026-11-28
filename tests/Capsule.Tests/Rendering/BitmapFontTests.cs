@@ -110,15 +110,5 @@ public sealed class BitmapFontTests
         Assert.Equal(Vector2.Zero, font.Measure("§"));
     }
 
-    private static (Glyph Glyph, int PenX, int Line)[] Placements(string text)
-    {
-        List<(Glyph, int, int)> placed = [];
-
-        foreach (GlyphPlacement placement in new GlyphRun(FontFixtures.Font(), text))
-        {
-            placed.Add((placement.Glyph, placement.PenX, placement.Line));
-        }
-
-        return [.. placed];
-    }
+    private static (Glyph Glyph, int PenX, int Line)[] Placements(string text) => FontFixtures.Placements(FontFixtures.Font(), text);
 }

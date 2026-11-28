@@ -18,11 +18,12 @@ public sealed class EntityStartOrderTests
         SceneFixtures.HookScene scene = new();
         if (nestedInRunningScene)
         {
+            // A child the parent's join hook adds and one it builds by a parent write both start after it.
             using SceneSimulation running = new(scene);
             running.Step(SceneFixtures.Step());
-            Adopter outer = new(null, log) { Spawns = new Joiner(log) };
+            Adopter outer = new(new Recorder("built", log, logsStart: true), log) { Spawns = new Joiner(log) };
             scene.Add(outer);
-            Assert.Equal(["parent!", "child!"], log);
+            Assert.Equal(["parent!", "child!", "built!"], log.Where(static entry => entry.EndsWith('!')));
             return;
         }
 
@@ -58,8 +59,8 @@ public sealed class EntityStartOrderTests
         Recorder b = new("b", log, logsStart: true);
         Recorder c = new("c", log, logsStart: true);
         Recorder d = new("d", log, logsStart: true);
-        Starter? first = null;
-        first = new Starter(() =>
+        SceneFixtures.Starter? first = null;
+        first = new SceneFixtures.Starter(_ =>
         {
             switch (rejoins)
             {
@@ -90,50 +91,6 @@ public sealed class EntityStartOrderTests
         Assert.Equal(expected, log.Where(static entry => entry.EndsWith('!')));
     }
 
-    [Fact]
-    public void AReparentOfQueuedEntities_StartsThemInTreeOrder_NotQueueOrder()
-    {
-        List<string> log = [];
-        SceneFixtures.HookScene scene = new();
-        Node first = new(Vector2.Zero);
-        Node second = new(Vector2.Zero);
-        Recorder x = new("x", log, logsStart: true);
-        Recorder y = new("y", log, logsStart: true);
-        int steps = 0;
-        scene.Add(first);
-        scene.Add(second);
-        scene.Add(new Watcher(_ =>
-        {
-            if (++steps == 2)
-            {
-                scene.Add(x);
-                scene.Add(y);
-                x.Parent = second;
-                y.Parent = first;
-            }
-        }));
-
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step());
-        log.Clear();
-        simulation.Step(SceneFixtures.Step(tick: 1));
-
-        Assert.Equal(["y!", "x!"], log.Where(static entry => entry.EndsWith('!')));
-    }
-
-    [Fact]
-    public void AChildBuiltInItsParentsJoinHook_StartsAfterTheParent()
-    {
-        List<string> log = [];
-        SceneFixtures.HookScene scene = new();
-        using SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step());
-
-        scene.Add(new Builder(log));
-
-        Assert.Equal(["parent!", "child!"], log.Where(static entry => entry.EndsWith('!')));
-    }
-
     private sealed class Joiner(List<string> log) : Entity(Vector2.Zero)
     {
         internal Entity? Adopter { get; set; }
@@ -141,13 +98,6 @@ public sealed class EntityStartOrderTests
         protected internal override void OnAddedToScene() => Parent = Adopter;
 
         protected internal override void OnStart() => log.Add("child!");
-    }
-
-    private sealed class Builder(List<string> log) : Entity(Vector2.Zero)
-    {
-        protected internal override void OnAddedToScene() => _ = new Recorder("child", log, logsStart: true) { Parent = this };
-
-        protected internal override void OnStart() => log.Add("parent!");
     }
 
     private sealed class Adopter(Entity? child, List<string> log) : Entity(Vector2.Zero)
@@ -169,10 +119,5 @@ public sealed class EntityStartOrderTests
         }
 
         protected internal override void OnStart() => log.Add("parent!");
-    }
-
-    private sealed class Starter(Action start) : Entity(Vector2.Zero)
-    {
-        protected internal override void OnStart() => start();
     }
 }

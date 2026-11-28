@@ -89,12 +89,10 @@ Scene.Add(Scene.Pool<Ripple>().Take().At(Position));
 
 The engine returns the entity to its pool when it leaves and resets its own components' per-life state.
 
-A pooled type builds with no arguments. Each kind of pooled entity is a type of its own, which the scene's
-pool is found by and preloads. Two effects that differ only in their clip are two small types. A spawner
-holds its own `new EntityPool<T>(create, capacity)` only where a type cannot name the pool: its entities take
-constructor arguments, or one pool of a base type is filled by several factories. It forwards that pool from
-its `CollectAssets`. A pool that must span scenes lives on `Run.State<T>()` and builds its entities where it
-lives. An effect that never moves is better off as one long-lived `ParticleEmitter` fed by `Emit(count, at)`.
+Each kind of pooled entity is a type of its own, which the scene's pool is found by. Two effects that
+differ only in their clip are two small types. `EntityPool<T>` states when a spawner holds a pool of its
+own. A pool that must span scenes lives on `Run.State<T>()` and builds its entities where it lives. An
+effect that never moves is better off as one long-lived `ParticleEmitter` fed by `Emit(count, at)`.
 
 ## Finding entities
 

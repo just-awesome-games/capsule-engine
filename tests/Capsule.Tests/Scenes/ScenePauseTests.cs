@@ -263,8 +263,9 @@ public sealed class ScenePauseTests
     [Fact]
     public void ACameraModeWrittenMidStep_WaitsForTheNextStep_AndACameraInstalledMidStepHoldsByItsOwn()
     {
-        CountingCamera first = new();
-        CountingCamera second = new() { StepMode = StepMode.Always };
+        List<string> log = [];
+        RecordingCamera first = new(log, "first");
+        RecordingCamera second = new(log, "second") { StepMode = StepMode.Always };
         HookScene scene = new(start: s => ((HookScene)s).Install(first), step: (Scene s, in StepContext context) =>
         {
             if (context.Tick == 0)
@@ -288,8 +289,7 @@ public sealed class ScenePauseTests
             simulation.Step(Step(step));
         }
 
-        Assert.Equal(1, first.LateSteps);
-        Assert.Equal(1, second.LateSteps);
+        Assert.Equal(["first", "second"], log);
     }
 
     // A camera follows a drifter into bounds opening ahead of it from step 1, by an ease or a chase
@@ -342,7 +342,8 @@ public sealed class ScenePauseTests
     // Twelve steps of a camera shaking from the start, held by a pause or a four-step freeze from step 4.
     private static (Rect[] Regions, int LateSteps) Shaken(StepMode? mode, bool pause, bool freeze)
     {
-        CountingCamera camera = new();
+        List<string> log = [];
+        RecordingCamera camera = new(log);
         if (mode is { } set)
         {
             camera.StepMode = set;
@@ -374,7 +375,7 @@ public sealed class ScenePauseTests
             regions[step] = camera.VisibleRegion;
         }
 
-        return (regions, camera.LateSteps);
+        return (regions, log.Count);
     }
 
     private static void AssertStill(SpriteIntent intent)
@@ -384,11 +385,4 @@ public sealed class ScenePauseTests
     }
 
     private static List<string> Stepped(params string[] names) => [.. names, .. names.Select(name => $"{name}.late")];
-
-    private sealed class CountingCamera : Camera
-    {
-        internal int LateSteps { get; private set; }
-
-        protected internal override void OnLateStep(in StepContext context) => LateSteps++;
-    }
 }

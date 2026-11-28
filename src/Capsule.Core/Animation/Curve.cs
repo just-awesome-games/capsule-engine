@@ -11,7 +11,7 @@ public readonly record struct CurveKey(float Time, float Value);
 /// A value over a normalised time in [0, 1], eased between adjacent keys by one <see cref="Ease"/>.
 /// It holds the first key's value before that key and the last key's value after it.
 /// </summary>
-/// <remarks>A curve stores up to eight keys inline and allocates nothing.</remarks>
+/// <remarks>A curve stores up to eight keys inline, in non-decreasing time, and allocates nothing.</remarks>
 public readonly struct Curve
 {
     private readonly KeyBuffer _keys;
@@ -60,12 +60,9 @@ public readonly struct Curve
     public static Curve Eased(float from, float to, Ease ease) => FromKeys([new CurveKey(0f, from), new CurveKey(1f, to)], ease);
 
     /// <summary>A curve through <paramref name="keys"/>, linear between them.</summary>
-    /// <param name="keys">One to eight keys, with non-decreasing <see cref="CurveKey.Time"/> each in [0, 1].</param>
     public static Curve FromKeys(params ReadOnlySpan<CurveKey> keys) => FromKeys(keys, Ease.Linear);
 
     /// <summary>A curve through <paramref name="keys"/>, bent by <paramref name="ease"/> between them.</summary>
-    /// <param name="keys">One to eight keys, with non-decreasing <see cref="CurveKey.Time"/> each in [0, 1].</param>
-    /// <param name="ease">The bend applied to the fraction between two adjacent keys.</param>
     public static Curve FromKeys(ReadOnlySpan<CurveKey> keys, Ease ease)
     {
         if (keys.Length is < 1 or > 8)

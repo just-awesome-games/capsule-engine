@@ -32,13 +32,7 @@ internal static class ShaderTemplate
 
     private const string ScreenDeclarations = "static float2 CapsuleScreenPixel;\ncbuffer " + ScreenBlock + " { float4 CapsuleScreenArea; float CapsuleScreenScale; };\n";
 
-    /// <summary>
-    /// The prefix of every name the template and the host introduce.
-    /// </summary>
-    /// <remarks>
-    /// A game parameter or texture carrying it could be bound as the engine's. The build rejects
-    /// one.
-    /// </remarks>
+    /// <summary>The prefix of every name the template and the host introduce, which the build rejects on a game's parameter or texture.</summary>
     internal const string ReservedPrefix = "Capsule";
 
     /// <summary>The one sampler the reflected prelude reads every texture through. No shipped stage declares it.</summary>
@@ -48,9 +42,6 @@ internal static class ShaderTemplate
     /// The one constant buffer a fragment may declare. Every parameter in it is a scene global, set on
     /// the scene and shared by every material of the shader.
     /// </summary>
-    /// <remarks>
-    /// Parameters outside it are the material's.
-    /// </remarks>
     internal const string SceneGlobalsBlock = "SceneGlobals";
 
     /// <summary>The pixel stage's entry point.</summary>

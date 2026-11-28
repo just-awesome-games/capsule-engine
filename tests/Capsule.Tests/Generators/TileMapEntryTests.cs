@@ -115,16 +115,16 @@ public sealed class TileMapEntryTests
 
         for (int composition = 0; composition < 2; composition++)
         {
-            SceneDocumentFormatException refused = Assert.Throws<SceneDocumentFormatException>(
-                () => Registry.Value.Create(new SceneKey("scenes/rink"), document));
-            Assert.Contains("sets 'tileTypes[1].grip', which no authorable member takes", refused.Message, StringComparison.Ordinal);
+            GeneratorHarness.AssertLoadRefused(
+                () => Registry.Value.Create(new SceneKey("scenes/rink"), document),
+                "scene document 'scenes/rink': entities[0] ('tile-map'",
+                "sets 'tileTypes[1].grip', which no authorable member takes");
         }
     }
 
     // Every defect fails the load naming the entry, whichever of the reader, the palette or the grid finds it.
     [Theory]
     [InlineData(""", "type": "lava" """, "sets 'tileTypes[1].type' to \"lava\"")]
-    [InlineData(""", "grip": 1 """, "sets 'tileTypes[1].grip', which no authorable member takes")]
     [InlineData("", "tiles has 1 entries but width 2 x height 1 requires 2", "[1, 0]", "[1]")]
     [InlineData("", "tiles[1] is 7", "[1, 0]", "[1, 7]")]
     [InlineData("", "transforms[1] is 8", "[1, 2]", "[1, 8]")]

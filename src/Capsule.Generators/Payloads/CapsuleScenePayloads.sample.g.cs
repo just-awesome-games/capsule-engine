@@ -8,10 +8,10 @@ namespace Capsule.Generated
     [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     internal static class CapsuleScenePayloads
     {
-        internal static global::Capsule.Scenes.ScenePayloadRegistration[] Registrations { get; } =
-            new global::Capsule.Scenes.ScenePayloadRegistration[]
+        internal static global::Capsule.Scenes.FactoryRegistration<global::Capsule.Scenes.IScenePayload>[] Registrations { get; } =
+            new global::Capsule.Scenes.FactoryRegistration<global::Capsule.Scenes.IScenePayload>[]
             {
-                new global::Capsule.Scenes.ScenePayloadRegistration("WestArrival", static () => new global::Game.WestArrival()),
+                new global::Capsule.Scenes.FactoryRegistration<global::Capsule.Scenes.IScenePayload>("WestArrival", static () => new global::Game.WestArrival()),
             };
     }
 }

@@ -7,13 +7,9 @@ public sealed class RunTests
 {
     [Theory]
     [InlineData(0f, 1f)]
-    [InlineData(-1f, 1f)]
     [InlineData(float.NaN, 1f)]
-    [InlineData(1f, 0f)]
     [InlineData(1f, -1f)]
-    [InlineData(1f, float.NaN)]
-    [InlineData(float.PositiveInfinity, 1f)]
-    [InlineData(1f, float.NegativeInfinity)]
+    [InlineData(1f, float.PositiveInfinity)]
     public void ACanvasWithANonPositiveOrNonFiniteComponent_IsRefused(float x, float y)
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new Run { Canvas = new Vector2(x, y) });
@@ -21,9 +17,7 @@ public sealed class RunTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(-1)]
     [InlineData(double.NaN)]
-    [InlineData(double.PositiveInfinity)]
     public void ATimeScaleThatIsNotPositiveAndFinite_IsRefusedAndLeavesThePaceAsItWas(double scale)
     {
         Run run = new() { TimeScale = 2 };

@@ -7,7 +7,6 @@ namespace Capsule.Scenes;
 /// Hosts one <see cref="SceneSimulation"/> with no platform behind it, owning its tick, input state
 /// and disposal. The tick starts at zero and advances across calls.
 /// </summary>
-/// <remarks>One input state holds buttons and detects press edges for the whole run.</remarks>
 public sealed class SimulationHost : IDisposable
 {
     /// <summary>The simulation being advanced, for the lifetime of this host.</summary>

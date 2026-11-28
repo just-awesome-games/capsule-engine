@@ -173,7 +173,6 @@ public sealed class SceneRegistry
     /// </remarks>
     /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
     /// <param name="document">The parsed document, as <see cref="SceneDocument.Parse(string)"/> returns it.</param>
-    /// <returns>The composed scene.</returns>
     /// <exception cref="SceneDocumentFormatException">An entry's or the scene's members do not fit what their class declares.</exception>
     /// <exception cref="SpawnException">The document places a type the registry cannot construct.</exception>
     /// <example>
@@ -206,7 +205,6 @@ public sealed class SceneRegistry
     /// </summary>
     /// <remarks>Performs file I/O. A run composes through the host's content instead. The scene is returned unstarted.</remarks>
     /// <param name="scene">The document's key, a <c>CapsuleAssets.Scenes</c> member.</param>
-    /// <returns>The composed scene.</returns>
     /// <exception cref="SceneDocumentFormatException">The document is malformed, or its members do not fit what their class declares.</exception>
     /// <exception cref="SpawnException">The document places a type the registry cannot construct.</exception>
     /// <exception cref="IOException">No shipped document is beside the assembly. Reference the logic project from the test project.</exception>
@@ -263,12 +261,9 @@ public sealed class SceneRegistry
     /// </summary>
     /// <remarks>
     /// The content carries the entity registry, the tile types and the applier of <typeparamref name="TScene"/>'s
-    /// authorable members, inherited ones included. The caller constructs the scene from it, typically a test
-    /// subclass of an abstract scene.
+    /// authorable members, inherited ones included. The caller constructs the scene from it.
     /// </remarks>
     /// <typeparam name="TScene">The scene class whose authorable members the document's top-level keys set.</typeparam>
-    /// <param name="document">The document to compose, parsed or built by hand.</param>
-    /// <returns>The content to pass to <typeparamref name="TScene"/>'s constructor.</returns>
     /// <example>
     /// A test subclass of an abstract scene gets the scene properties its document authors:
     /// <code>

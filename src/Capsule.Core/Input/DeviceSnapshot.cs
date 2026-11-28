@@ -113,7 +113,6 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// Where the pointer sits at this instant, in canvas pixels from the canvas's top-left corner.
     /// Unclamped.
     /// </summary>
-    /// <remarks>A pointer outside the window reads outside the canvas.</remarks>
     public Vector2 Pointer { get; private init; }
 
     /// <summary>
@@ -229,21 +228,15 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// This snapshot with <paramref name="button"/> additionally held. A stick direction is held by
     /// pushing its axis fully in that direction.
     /// </summary>
-    /// <param name="button">The key, pad button, mouse button or stick direction to hold.</param>
     public DeviceSnapshot With(InputButton button) => button.AddTo(this);
 
     /// <summary>
     /// This snapshot with <paramref name="button"/> released. A stick direction is removed by
     /// moving its axis just inside the direction's press point.
     /// </summary>
-    /// <param name="button">The key, pad button, mouse button or stick direction to release.</param>
     public DeviceSnapshot Without(InputButton button) => button.RemoveFrom(this);
 
-    /// <summary>This snapshot with the pointer at <paramref name="position"/>.</summary>
-    /// <param name="position">
-    /// Canvas pixels from the canvas's top-left corner, unclamped. A position outside the canvas puts
-    /// the pointer outside it.
-    /// </param>
+    /// <summary>This snapshot with the pointer at <paramref name="position"/>, in canvas pixels from the canvas's top-left corner and unclamped.</summary>
     public DeviceSnapshot WithPointer(Vector2 position)
     {
         Guard.Finite(position, nameof(position));
@@ -284,7 +277,6 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     /// This snapshot with the player's pad lacking <paramref name="buttons"/> and having every other
     /// <see cref="PadButton"/>, which replaces the buttons any earlier call set.
     /// </summary>
-    /// <param name="buttons">The buttons the pad lacks. None lacked is a full pad.</param>
     /// <example>
     /// A pad with no triggers:
     /// <code>
@@ -308,9 +300,7 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
     // The pad buttons as a mask whose bit n is the button of value n the pad lacks.
     internal DeviceSnapshot WithPadLackingBits(uint lacking) => this with { PadLackingBits = lacking };
 
-    /// <summary>This snapshot with <paramref name="axis"/> at <paramref name="value"/>.</summary>
-    /// <param name="axis">The axis to place. Must not be <see cref="PadAxis.None"/>.</param>
-    /// <param name="value">In [-1, 1] for a stick, [0, 1] for a trigger.</param>
+    /// <summary>This snapshot with <paramref name="axis"/> at <paramref name="value"/>, in [-1, 1] for a stick and [0, 1] for a trigger.</summary>
     public DeviceSnapshot WithAxis(PadAxis axis, float value)
     {
         int index = AxisIndex(axis);
@@ -386,10 +376,10 @@ public readonly struct DeviceSnapshot : IEquatable<DeviceSnapshot>
         return hash.ToHashCode();
     }
 
-    /// <summary>Whether the two snapshots read the same in window focus, the pad's connection, family and buttons, everything held, every axis, the wheel, the pointer and whether the canvas moved under it.</summary>
+    /// <summary>Whether the two snapshots are equal as <see cref="Equals(DeviceSnapshot)"/> compares them.</summary>
     public static bool operator ==(DeviceSnapshot left, DeviceSnapshot right) => left.Equals(right);
 
-    /// <summary>Whether the two snapshots differ in window focus, the pad's connection, family or buttons, anything held, any axis, the wheel, the pointer or whether the canvas moved under it.</summary>
+    /// <summary>Whether the two snapshots differ as <see cref="Equals(DeviceSnapshot)"/> compares them.</summary>
     public static bool operator !=(DeviceSnapshot left, DeviceSnapshot right) => !left.Equals(right);
 
     // A None value is the empty set. Bit 0 is unused in all three masks.

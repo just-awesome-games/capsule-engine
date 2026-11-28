@@ -23,9 +23,7 @@ public sealed class AudioProbeWavTests
         double expected)
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        File.WriteAllBytes("clip.wav", Wav(channels, bits, rate, frames));
-
-        AudioProbe.Measurement measured = AudioProbe.Measure("clip.wav");
+        AudioProbe.Measurement measured = Measure(".wav", Wav(channels, bits, rate, frames));
 
         Assert.Equal(expected, measured.DurationSeconds, 9);
         Assert.Equal(AudioLoopRegion.None, measured.Loop);
@@ -36,9 +34,7 @@ public sealed class AudioProbeWavTests
     public void AWavCarryingOtherChunks_IsMeasuredFromTheOnesThatMatter()
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        File.WriteAllBytes("clip.wav", Wav(1, 16, 22050, 1764, padded: true));
-
-        Assert.Equal(0.08, AudioProbe.Measure("clip.wav").DurationSeconds, 9);
+        Assert.Equal(0.08, Measure(".wav", Wav(1, 16, 22050, 1764, padded: true)).DurationSeconds, 9);
     }
 
     // A sampler chunk's loop end is the last sample sounded. The region ends one past it.
@@ -46,9 +42,7 @@ public sealed class AudioProbeWavTests
     public void AWavsLoopRegion_IsTheFirstSampleLoopOfItsSamplerChunk()
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        File.WriteAllBytes("clip.wav", Wav(1, 16, 22050, 1764, loop: (441, 881)));
-
-        AudioLoopRegion region = AudioProbe.Measure("clip.wav").Loop;
+        AudioLoopRegion region = Measure(".wav", Wav(1, 16, 22050, 1764, loop: (441, 881))).Loop;
 
         Assert.Equal(441 / 22050.0, region.StartSeconds, 12);
         Assert.Equal(882 / 22050.0, region.EndSeconds, 12);
@@ -63,15 +57,15 @@ public sealed class AudioProbeWavTests
     public void AnExtensibleWav_IsReadByItsSubFormat(int subFormat, string? refused)
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        File.WriteAllBytes("clip.wav", Wav(2, subFormat == 3 ? 32 : 16, 22050, 1764, formatTag: subFormat, extensible: true));
+        byte[] file = Wav(2, subFormat == 3 ? 32 : 16, 22050, 1764, formatTag: subFormat, extensible: true);
 
         if (refused is null)
         {
-            Assert.Equal(0.08, AudioProbe.Measure("clip.wav").DurationSeconds, 9);
+            Assert.Equal(0.08, Measure(".wav", file).DurationSeconds, 9);
         }
         else
         {
-            Assert.EndsWith(refused, Assert.Throws<FormatException>(() => AudioProbe.Measure("clip.wav")).Message, StringComparison.Ordinal);
+            Assert.EndsWith(refused, Assert.Throws<FormatException>(() => Measure(".wav", file)).Message, StringComparison.Ordinal);
         }
     }
 }

@@ -12,6 +12,22 @@ internal static class EntityHierarchyFixtures
     internal static SpriteRenderer Tag(int tag, int zIndex = 0) =>
         new(SceneFixtures.Frame(1, 1)) { Offset = new Vector2(tag, 0f), ZIndex = zIndex };
 
+    /// <summary>A host that has stepped a scene of <paramref name="nodes"/> and built its draw order once, which a change then patches.</summary>
+    internal static SimulationHost DrawnOnce(out Scene scene, params Node[] nodes)
+    {
+        scene = new SceneFixtures.HookScene();
+        foreach (Node node in nodes)
+        {
+            scene.Add(node);
+        }
+
+        SimulationHost run = new(scene);
+        run.Step();
+        scene.Drawing.DrawFrame(new FrameView());
+
+        return run;
+    }
+
     internal static int[] Order(SceneSimulation simulation) => Order(simulation.View.Sprites);
 
     internal static int[] Order(ReadOnlySpan<SpriteIntent> sprites)

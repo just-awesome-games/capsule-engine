@@ -154,7 +154,7 @@ public sealed class CollisionGuardTests
         Assert.Throws<ArgumentException>(() => second.OverlapBoxAll(probe, foreign, default));
         Assert.Throws<ArgumentException>(() => second.OverlapColliderAll(handle, foreign, default));
         Assert.Throws<ArgumentException>(() => second.Move(box, Vector2.Zero, new Vector2(10f, 0f), foreign, default));
-        Assert.Throws<ArgumentException>(() => second.MoveBox(probe, new Vector2(10f, 0f), foreign, default));
+        Assert.Throws<ArgumentException>(() => second.Move(Shape2D.Box(probe), Vector2.Zero, new Vector2(10f, 0f), foreign, default));
     }
 
     // One NaN bound does not stay in its own proxy: the tree unions boxes as it balances. It would
@@ -182,7 +182,7 @@ public sealed class CollisionGuardTests
         Assert.Throws<ArgumentOutOfRangeException>(
             () => world.Move(box, new Vector2(float.NaN, 0f), Vector2.UnitX, CollisionFilter.Everything, default));
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => world.MoveBox(CollisionFixtures.Box(0f, 0f, 8f, 8f), new Vector2(0f, float.NegativeInfinity), CollisionFilter.Everything, default));
+            () => world.Move(Shape2D.Box(CollisionFixtures.Box(0f, 0f, 8f, 8f)), Vector2.Zero, new Vector2(0f, float.NegativeInfinity), CollisionFilter.Everything, default));
 
         // The collider that was already there is untouched, still where it was, and still found.
         Assert.Equal(1, world.ColliderCount);
@@ -250,7 +250,7 @@ public sealed class CollisionGuardTests
         Assert.Throws<ArgumentException>(
             () => world.Move(box, Vector2.Zero, new Vector2(10f, 0f), CollisionFilter.Everything, default, removed));
         Assert.Throws<ArgumentException>(
-            () => world.MoveBox(probe, new Vector2(10f, 0f), CollisionFilter.Everything, default, removed));
+            () => world.Move(Shape2D.Box(probe), Vector2.Zero, new Vector2(10f, 0f), CollisionFilter.Everything, default, removed));
 
         // The collider that took the slot is a collider like any other, and its own handle still
         // ignores it.

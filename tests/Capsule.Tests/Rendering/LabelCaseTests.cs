@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Numerics;
-using System.Text;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -20,10 +18,10 @@ public sealed class LabelCaseTests
     {
         Label label = new(Font(), "aB") { Case = textCase };
 
-        using SimulationHost host = Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
         host.Step();
 
-        Assert.Equal(drawn, Describe(host));
+        Assert.Equal(drawn, FontFixtures.Describe(host, Font(), Alphabet));
         Assert.Equal("aB", label.Text);
     }
 
@@ -33,8 +31,8 @@ public sealed class LabelCaseTests
         Label cased = new(Font(), "ab") { Case = TextCase.Upper };
         Label written = new(Font(), "AB");
 
-        using SimulationHost host = Host(cased);
-        using SimulationHost other = Host(written);
+        using SimulationHost host = FontFixtures.Shown(cased);
+        using SimulationHost other = FontFixtures.Shown(written);
 
         Assert.Equal(written.ContentSize, cased.ContentSize);
     }
@@ -44,10 +42,10 @@ public sealed class LabelCaseTests
     {
         Label label = new(Font(), "[color=#ff0000]a[/color]b") { RichText = true, Case = TextCase.Upper };
 
-        using SimulationHost host = Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
         host.Step();
 
-        Assert.Equal("AB", Describe(host));
+        Assert.Equal("AB", FontFixtures.Describe(host, Font(), Alphabet));
         Assert.Equal(new ColorRgba(255, 0, 0), host.Simulation.View.Sprites[0].Color);
     }
 
@@ -58,10 +56,10 @@ public sealed class LabelCaseTests
     {
         Label label = new(Font(), "i") { Case = TextCase.Upper };
 
-        using SimulationHost host = Host(label, new Run { Language = language });
+        using SimulationHost host = FontFixtures.Shown(label, new Run { Language = language });
         host.Step();
 
-        Assert.Equal(drawn, Describe(host));
+        Assert.Equal(drawn, FontFixtures.Describe(host, Font(), Alphabet));
     }
 
     [Fact]
@@ -70,10 +68,10 @@ public sealed class LabelCaseTests
         Label label = new(Font()) { Case = TextCase.Upper };
         label.SetText(Key.LeftShift);
 
-        using SimulationHost host = Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
         host.Step();
 
-        Assert.Equal("LEFT SHIFT", Describe(host));
+        Assert.Equal("LEFT SHIFT", FontFixtures.Describe(host, Font(), Alphabet));
     }
 
     [Fact]
@@ -81,12 +79,12 @@ public sealed class LabelCaseTests
     {
         Label label = new(Font(), "aB");
 
-        using SimulationHost host = Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
         host.Step();
         label.Case = TextCase.Lower;
         host.Step();
 
-        Assert.Equal("ab", Describe(host));
+        Assert.Equal("ab", FontFixtures.Describe(host, Font(), Alphabet));
     }
 
     // "AB AB" is 53 pixels wide and "ab ab" 49. The 50-pixel box wraps only the capitals. A width measured in
@@ -112,34 +110,5 @@ public sealed class LabelCaseTests
         Glyph[] glyphs = [.. Alphabet.Select((c, index) => new Glyph(c, 0, new TextureRegion(index * 8, 0, 4 + (index % 3), 6), 0, 2, 5 + index))];
 
         return new BitmapFont(FontFixtures.LineHeight, 8, [FontFixtures.Page], glyphs, []);
-    }
-
-    private static SimulationHost Host(Label label, Run? run = null)
-    {
-        Entity entity = new();
-        entity.Add(label);
-        Scene scene = new();
-        scene.Add(entity);
-
-        return new SimulationHost(scene, run: run);
-    }
-
-    // The characters drawn, read back from each glyph's region.
-    private static string Describe(SimulationHost host)
-    {
-        BitmapFont font = Font();
-        StringBuilder text = new();
-        foreach (SpriteIntent drawn in host.Simulation.View.Sprites.ToArray())
-        {
-            foreach (char c in Alphabet)
-            {
-                if (font.TryGetGlyph(c, out Glyph glyph) && glyph.Region == drawn.Sprite.Region)
-                {
-                    text.Append(c);
-                }
-            }
-        }
-
-        return text.ToString();
     }
 }

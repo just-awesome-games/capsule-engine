@@ -11,7 +11,7 @@ public sealed class CreaseTests
     // A floor meeting a 45 degree slope is a 135 degree crease. A box pressed into it from between the two normals
     // comes to rest at the foot and stays there, rather than climbing the slope and falling back each step.
     [Fact]
-    public void MoveBox_PressedIntoAnObtuseCrease_ComesToRest()
+    public void Move_PressedIntoAnObtuseCrease_ComesToRest()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "......", "......", "...../", "######");
@@ -19,7 +19,7 @@ public sealed class CreaseTests
         Aabb2D box = CollisionFixtures.Box(40f, 30f, 8f, 8f);
         for (int step = 0; step < 300; step++)
         {
-            box = box.Translated(world.MoveBox(box, velocity, CollisionFilter.Everything, default).Translation);
+            box = box.Translated(world.Move(Shape2D.Box(box), Vector2.Zero, velocity, CollisionFilter.Everything, default).Translation);
         }
 
         Assert.Equal(72f, box.Min.X, 0.02f);

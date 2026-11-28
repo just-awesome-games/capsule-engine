@@ -26,8 +26,6 @@ public readonly record struct Rect
     public float Bottom { get; init; }
 
     /// <summary>The rect spanning <paramref name="size"/> from the corner at <paramref name="position"/>.</summary>
-    /// <param name="position">The top-left corner, which is the low edge on both axes.</param>
-    /// <param name="size">The extent spanned from that corner. A non-positive axis encloses nothing.</param>
     public Rect(Vector2 position, Vector2 size)
     {
         Left = position.X;
@@ -37,10 +35,6 @@ public readonly record struct Rect
     }
 
     /// <summary>The rect spanning <paramref name="width"/> and <paramref name="height"/> from the corner at (<paramref name="x"/>, <paramref name="y"/>).</summary>
-    /// <param name="x">The low edge on X.</param>
-    /// <param name="y">The low edge on Y, the upper one on screen.</param>
-    /// <param name="width">The extent spanned on X. A non-positive width encloses nothing.</param>
-    /// <param name="height">The extent spanned on Y. A non-positive height encloses nothing.</param>
     public Rect(float x, float y, float width, float height)
         : this(new Vector2(x, y), new Vector2(width, height))
     {
@@ -84,15 +78,10 @@ public readonly record struct Rect
         point.Y < Bottom;
 
     /// <summary>The rect bounded by four edges, each a coordinate rather than an extent.</summary>
-    /// <param name="left">The low edge on X.</param>
-    /// <param name="top">The low edge on Y, the upper one on screen.</param>
-    /// <param name="right">The high edge on X, not a width.</param>
-    /// <param name="bottom">The high edge on Y, not a height.</param>
     public static Rect FromEdges(float left, float top, float right, float bottom) =>
         new() { Left = left, Top = top, Right = right, Bottom = bottom };
 
     /// <summary>The rect with every edge at <paramref name="all"/>, which reads as the same margin on each side.</summary>
-    /// <param name="all">The value of each edge.</param>
     /// <example>
     /// <code>
     /// Add(new VisibleOnScreenNotifier2D { Margin = Rect.FromEdges(32f) });
@@ -101,14 +90,10 @@ public readonly record struct Rect
     public static Rect FromEdges(float all) => FromEdges(all, all, all, all);
 
     /// <summary>The rect between two opposite corners.</summary>
-    /// <param name="topLeft">The corner at the low edge on both axes.</param>
-    /// <param name="bottomRight">The corner at the high edge on both axes.</param>
     public static Rect FromCorners(Vector2 topLeft, Vector2 bottomRight) =>
         FromEdges(topLeft.X, topLeft.Y, bottomRight.X, bottomRight.Y);
 
     /// <summary>The rect spanning <paramref name="size"/> centred on <paramref name="center"/>.</summary>
-    /// <param name="center">The point midway between the edges on each axis.</param>
-    /// <param name="size">The extent between the edges. A non-positive axis encloses nothing.</param>
     public static Rect FromCenter(Vector2 center, Vector2 size) =>
         FromCorners(center - (size * 0.5f), center + (size * 0.5f));
 

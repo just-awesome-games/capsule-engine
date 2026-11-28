@@ -328,20 +328,17 @@ internal static partial class SceneFixtures
             Add(held);
     }
 
-    internal sealed class Meddler(Action<Scene> onAdded) : Entity(Vector2.Zero)
+    /// <summary>An entity holding <paramref name="pool"/>, which it forwards to its scene's preloads unless told not to.</summary>
+    internal sealed class PoolForwarder<T>(EntityPool<T> pool, bool forwards = true) : Entity(Vector2.Zero)
+        where T : Entity
     {
-        protected internal override void OnAddedToScene() => onAdded(Scene!);
-    }
-
-    /// <summary>Runs a hook the moment time begins for it, when the scene is fully composed.</summary>
-    internal sealed class Starter(Action<Scene> onStart) : Entity(Vector2.Zero)
-    {
-        protected internal override void OnStart() => onStart(Scene!);
-    }
-
-    internal sealed class Watcher(Action<Scene> observe) : Entity(Vector2.Zero)
-    {
-        protected internal override void OnStep(in StepContext context) => observe(Scene!);
+        protected internal override void CollectAssets(AssetCollection assets)
+        {
+            if (forwards)
+            {
+                pool.CollectAssets(assets);
+            }
+        }
     }
 
     internal sealed class Placed(EntitySpawn spawn) : Entity(spawn)

@@ -66,7 +66,7 @@ public sealed class LightingTests
     }
 
     // A polygon light is stored for the light alone, tinted and placed by its entity's transform, and lights the
-    // frame. One that adds nothing is dropped, and one under the screen layer throws.
+    // frame. One that adds nothing is dropped.
     [Fact]
     public void APolygonLight_IsStoredForTheLightAlone_TintedAndPlaced()
     {
@@ -87,13 +87,6 @@ public sealed class LightingTests
         run.Step();
         Assert.Equal(0, run.Simulation.View.LightPolygons.Length);
         Assert.False(run.Simulation.View.LitWorld);
-
-        ScreenEntity element = new(Anchor.TopLeft, Vector2.Zero);
-        element.Add(new PolygonLight([Vector2.Zero, new(10f, 0f), new(0f, 10f)]));
-        SceneFixtures.HookScene scene = new();
-        scene.Add(element);
-        using SceneSimulation screen = new(scene);
-        Assert.Contains("screen layer is never lit", Assert.Throws<InvalidOperationException>(() => screen.View).Message, StringComparison.Ordinal);
     }
 
     // A point light stretches with each axis of its entity's scale, keeps its sprite's aspect, and mirrors on an

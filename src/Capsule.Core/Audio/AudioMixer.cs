@@ -60,11 +60,7 @@ public sealed partial class AudioMixer
     /// The linear amplitude the whole mix is scaled by while the run's input reads unfocused, in [0, 1].
     /// Defaults to 0, which silences an unfocused game.
     /// </summary>
-    /// <remarks>
-    /// It follows <see cref="Input.InputState.HasWindowFocus"/>, and a headless run reaches the same gains. To
-    /// pause music instead of ducking it, set this to 1 and pause the bus on
-    /// <see cref="Input.InputState.WindowFocusLost"/>.
-    /// </remarks>
+    /// <remarks>It follows <see cref="Input.InputState.HasWindowFocus"/>.</remarks>
     public float UnfocusedVolume
     {
         get;
@@ -205,11 +201,8 @@ public sealed partial class AudioMixer
     /// Pitch / step)</c> steps and a loop plays until it is stopped.
     /// </summary>
     /// <remarks>
-    /// A voice played onto a paused bus starts held.
-    /// <para>
-    /// With no slot free the oldest live one-shot is stopped and its slot reused. If every live
-    /// voice loops, nothing is stolen.
-    /// </para>
+    /// A voice played onto a paused bus starts held. With no slot free the oldest live one-shot is
+    /// stopped and its slot reused. If every live voice loops, nothing is stolen.
     /// </remarks>
     /// <returns>The voice started, or <see cref="Voice.None"/> when every voice is a live loop.</returns>
     public Voice Play(in AudioPlayback playback) => Play(in playback, null);
@@ -436,9 +429,7 @@ public sealed partial class AudioMixer
     /// </summary>
     public float GetPitch(Voice voice) => TryResolve(voice, out int index) ? _slots[index].Pitch : 0f;
 
-    /// <summary>Sets where this voice sits between the speakers.</summary>
-    /// <param name="pan">Stereo position in [-1, 1]: -1 hard left, 0 centred, 1 hard right.</param>
-    /// <param name="voice">The voice to move.</param>
+    /// <summary>Sets where this voice sits between the speakers, in [-1, 1] from hard left through centred to hard right.</summary>
     public void SetPan(Voice voice, float pan)
     {
         Guard.InRange(pan, -1f, 1f, nameof(pan));
@@ -553,10 +544,7 @@ public sealed partial class AudioMixer
     /// Whether this voice still owns its slot: sounding, or held by its own pause or its bus's. It
     /// reports ownership, not audibility.
     /// </summary>
-    /// <remarks>
-    /// Ask it before restarting a sound that may already be going. <see cref="IsPlaying"/> and
-    /// <see cref="IsPaused(Voice)"/> partition it.
-    /// </remarks>
+    /// <remarks><see cref="IsPlaying"/> and <see cref="IsPaused(Voice)"/> partition it.</remarks>
     public bool IsLive(Voice voice) => TryResolve(voice, out _);
 
     /// <summary>Whether this voice is live and sounding: not held, and either looping or not yet finished.</summary>

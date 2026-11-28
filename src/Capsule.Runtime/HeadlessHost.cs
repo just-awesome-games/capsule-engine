@@ -10,12 +10,11 @@ namespace Capsule.Runtime;
 // The host with no window or media, which plays a driver or a recording through the scenes a windowed
 // run would host. Transitions, the seed and the run settings behave as they do in a window. It steps as
 // fast as its input allows, or in real-time frames when frame diagnostics are on, unless uncapped. It
-// records nothing. It
-// takes exactly one of driver and replay, and watch runs after each step with the scene and the tick the
-// step ran at. A trace and a capture write the overlay's ticks, one past the step's, from tick 0, the
-// opening scene before its first step. An exiting step tears its scene down and leaves no tick to write.
-// Either one halts the run at the first tick past its ceiling. A capture draws on its own device, and with
-// none the host draws nothing.
+// records nothing. It takes exactly one of driver and replay, and watch runs after each step with the
+// scene and the tick the step ran at. A trace and a capture write the overlay's ticks, one past the
+// step's, from tick 0, the opening scene before its first step. An exiting step tears its scene down and
+// leaves no tick to write. Either one halts the run at the first tick past its ceiling. A capture draws
+// on its own device, and with none the host draws nothing.
 internal sealed class HeadlessHost(
     EngineBuilder builder,
     SceneHost scenes,
@@ -105,11 +104,13 @@ internal sealed class HeadlessHost(
     private void PaceFrames(FrameDiagnostics diagnostics)
     {
         Func<long> timestamp = builder.Timestamp;
+        FrameClock clock = diagnostics.Clock;
         long period = builder.Uncapped ? 0 : (long)(builder.StepSeconds * Stopwatch.Frequency);
         long previous = timestamp();
         while (true)
         {
-            long start = timestamp();
+            clock.BeginUpdate(lastDrawMs: 0);
+            long start = clock.Start;
             diagnostics.BeginUpdate();
             bool exiting;
             if (builder.Uncapped)
@@ -123,7 +124,8 @@ internal sealed class HeadlessHost(
             }
 
             previous = start;
-            diagnostics.EndUpdate(_scheduler.StepsThisFrame, _scheduler.Tick);
+            clock.EndUpdate(_scheduler.StepsThisFrame);
+            diagnostics.EndUpdate(_scheduler.Tick);
 
             diagnostics.BeginView();
             _ = scenes.View;

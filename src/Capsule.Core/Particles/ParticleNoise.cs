@@ -35,8 +35,6 @@ public readonly record struct ParticleNoise
     }
 
     /// <summary>Creates a still field.</summary>
-    /// <param name="strength">The most the field pushes along either axis, in units per second.</param>
-    /// <param name="size">How wide one swirl is, in world units.</param>
     public ParticleNoise(float strength, float size)
     {
         Strength = Guard.NonNegative(strength, nameof(strength));

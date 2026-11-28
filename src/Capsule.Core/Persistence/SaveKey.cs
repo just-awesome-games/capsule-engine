@@ -57,8 +57,6 @@ public sealed class SaveKey<T> : SaveKey
     internal string? FallbackJson { get; }
 
     /// <summary>A key with no fallback. <see cref="SaveStore.Read{T}"/> of its absent document throws.</summary>
-    /// <param name="name">One safe file name.</param>
-    /// <param name="typeInfo">The game context's entry for <typeparamref name="T"/>.</param>
     public SaveKey(string name, JsonTypeInfo<T> typeInfo)
         : base(name)
     {
@@ -71,9 +69,6 @@ public sealed class SaveKey<T> : SaveKey
     /// A key whose absent document reads as <paramref name="fallback"/>. The fallback is serialized
     /// once here, and each such read deserializes a fresh copy.
     /// </summary>
-    /// <param name="name">One safe file name.</param>
-    /// <param name="typeInfo">The game context's entry for <typeparamref name="T"/>.</param>
-    /// <param name="fallback">What an absent document reads as.</param>
     /// <exception cref="JsonException">The fallback cannot be serialized through the type info.</exception>
     public SaveKey(string name, JsonTypeInfo<T> typeInfo, T fallback)
         : this(name, typeInfo)

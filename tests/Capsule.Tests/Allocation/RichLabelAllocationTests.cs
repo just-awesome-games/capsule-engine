@@ -21,8 +21,7 @@ public sealed class RichLabelAllocationTests
 
         StepSample[] samples = StepMeasurement.Measure(simulation, warmupSteps: 100, measuredSteps: 400);
 
-        Assert.All(samples, sample => Assert.Equal(0, sample.ViewBytes));
-        Assert.All(samples, sample => Assert.Equal(0, sample.StepBytes));
+        StepMeasurement.AssertNoAllocation(samples);
         Assert.True(samples[^1].Render.Visible > 0);
     }
 
@@ -40,8 +39,7 @@ public sealed class RichLabelAllocationTests
 
         StepSample[] samples = StepMeasurement.Measure(simulation, warmupSteps: 100, measuredSteps: 400);
 
-        Assert.All(samples, sample => Assert.Equal(0, sample.ViewBytes));
-        Assert.All(samples, sample => Assert.Equal(0, sample.StepBytes));
+        StepMeasurement.AssertNoAllocation(samples);
         Assert.True(samples[^1].Render.Visible > 0);
     }
 

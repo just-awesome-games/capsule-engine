@@ -69,14 +69,30 @@ public sealed class SceneDocumentRoundTripTests
         Assert.Equal(Json, SceneDocument.Parse(Json.Replace("#484c68", "#484C68FF", StringComparison.Ordinal)).ToJson());
     }
 
-    // Entry fields are recognised only inside the entities array, never in the scene's own members.
+    // The band and the factor sit after the scale.
     [Fact]
-    public void SceneMembers_ShapedLikeAnEntry_RoundTrip()
+    public void BandAndScrollFactor_RoundTrip()
     {
-        const string Json = """{"metadata":{"type":1},"entities":[]}""";
+        const string Json = """{"entities":[{"type":"sky","x":8,"scrollFactor":[0,0]},{"type":"coin","scale":[2,2],"zIndex":0,"scrollFactor":[1,1]},{"type":"coin"}]}""";
 
-        Assert.Equal(Json, SceneDocument.Parse(Json).ToJson());
+        SceneDocument document = SceneDocument.Parse(Json);
+
+        Assert.Equal(new SceneDocumentEntry("sky", new EntitySpawn(new Vector2(8f, 0f)) { ScrollFactor = Vector2.Zero }), document.Entries[0]);
+
+        // An authored identity is a value, an absent field is none, and the two survive the round trip
+        // as the different documents they are.
+        Assert.Equal((0, Vector2.One), (document.Entries[1].Spawn.ZIndex, document.Entries[1].Spawn.ScrollFactor));
+        Assert.Equal((null, null), (document.Entries[2].Spawn.ZIndex, document.Entries[2].Spawn.ScrollFactor));
+        Assert.Equal(Json, document.ToJson());
     }
+
+    // A game entry's members are its class's to read, and the writer keeps their values as authored. Entry fields
+    // are recognised only inside the entities array, never in the scene's own members.
+    [Theory]
+    [InlineData("""{"entities":[{"id":1,"type":"lift","x":8,"rise":96.5,"tiles":[1,2],"shape":["["],"path":[[0,0],[48,-1.5]],"label":null}]}""")]
+    [InlineData("""{"metadata":{"type":1},"entities":[]}""")]
+    public void MembersTheFormatDoesNotRead_RoundTripAsAuthored(string json) =>
+        Assert.Equal(json, SceneDocument.Parse(json).ToJson());
 
     // A key written twice keeps its first place and its last value, for the document, its entry list and each
     // entry alike. The public members, the applier's read and the written document all see it once.

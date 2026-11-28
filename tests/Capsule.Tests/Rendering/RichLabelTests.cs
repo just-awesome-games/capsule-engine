@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Text;
 using Capsule.Rendering;
 using Capsule.Scenes;
 
@@ -27,10 +26,10 @@ public sealed class RichLabelTests
         Label label = RichLabel(markup);
         label.Color = new ColorRgba(128, 128, 128);
 
-        using SimulationHost host = Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
         host.Step();
 
-        Assert.Equal(drawn, Describe(host, new ColorRgba(128, 128, 128)));
+        Assert.Equal(drawn, FontFixtures.Describe(host, Font(), Alphabet, new ColorRgba(128, 128, 128)));
     }
 
     [Fact]
@@ -39,10 +38,10 @@ public sealed class RichLabelTests
         Label label = RichLabel("[color=#ff0000]A[/color]B");
         label.VisibleCharacters = 1;
 
-        using SimulationHost host = Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
         host.Step();
 
-        Assert.Equal("<ff0000ff>A", Describe(host, ColorRgba.White));
+        Assert.Equal("<ff0000ff>A", FontFixtures.Describe(host, Font(), Alphabet, ColorRgba.White));
     }
 
     // The text reads "AB AB\nA\n" once stripped, wrapped after the first space. The trailing blank line is not
@@ -54,7 +53,7 @@ public sealed class RichLabelTests
         label.Size = new Vector2(15f, 0f);
         label.Wrap = TextWrap.Word;
 
-        using SimulationHost host = Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
 
         Assert.Equal(3, label.LineCount);
         Assert.Equal([0, 3, 6, 8], Enumerable.Range(0, 4).Select(label.LineStart));
@@ -64,7 +63,7 @@ public sealed class RichLabelTests
         label.VisibleCharacters = label.LineStart(1) + 1;
         host.Step();
 
-        Assert.Equal("A", Describe(host, ColorRgba.White));
+        Assert.Equal("A", FontFixtures.Describe(host, Font(), Alphabet, ColorRgba.White));
     }
 
     // Each change alters what the base label draws. A layout cached across it would fail.
@@ -80,7 +79,7 @@ public sealed class RichLabelTests
     public void AWarmLayout_DrawsAsAFreshLabelAfterAnythingItDependsOnChanges(string change)
     {
         Label warm = Wrapped();
-        using SimulationHost host = Host(warm);
+        using SimulationHost host = FontFixtures.Shown(warm);
         host.Step();
 
         // The frame is drawn on its first read, which lays the run out.
@@ -90,7 +89,7 @@ public sealed class RichLabelTests
 
         Label fresh = Wrapped();
         Change(fresh, change);
-        using SimulationHost freshHost = Host(fresh);
+        using SimulationHost freshHost = FontFixtures.Shown(fresh);
         freshHost.Step();
 
         Assert.Equal(freshHost.Simulation.View.Sprites.ToArray(), host.Simulation.View.Sprites.ToArray());
@@ -143,7 +142,7 @@ public sealed class RichLabelTests
         Label label = RichLabel("AB");
         label.Size = new Vector2(200f, 50f);
 
-        using SimulationHost host = Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
         host.Step();
 
         Assert.Equal(label.Font.Measure("AB"), label.ContentSize);
@@ -158,43 +157,5 @@ public sealed class RichLabelTests
             .Select((c, index) => new Glyph(c, 0, new TextureRegion(100 + (index * 4), 0, 4, 6), 0, 2, 5))];
 
         return new BitmapFont(lineHeight, 8, [FontFixtures.Page], glyphs, [FontFixtures.AgainstB]);
-    }
-
-    // A label on an entity at the origin, alone in a scene.
-    internal static SimulationHost Host(Label label)
-    {
-        Entity entity = new();
-        entity.Add(label);
-        Scene scene = new();
-        scene.Add(entity);
-
-        return new SimulationHost(scene);
-    }
-
-    // The glyphs drawn, with a colour in angle brackets wherever it differs from the one before.
-    private static string Describe(SimulationHost host, ColorRgba baseline)
-    {
-        BitmapFont font = Font();
-        StringBuilder text = new();
-        ColorRgba last = baseline;
-
-        foreach (SpriteIntent drawn in host.Simulation.View.Sprites.ToArray())
-        {
-            if (drawn.Color != last)
-            {
-                last = drawn.Color;
-                text.Append($"<{last.R:x2}{last.G:x2}{last.B:x2}{last.A:x2}>");
-            }
-
-            foreach (char c in Alphabet)
-            {
-                if (font.TryGetGlyph(c, out Glyph glyph) && glyph.Region == drawn.Sprite.Region)
-                {
-                    text.Append(c);
-                }
-            }
-        }
-
-        return text.ToString();
     }
 }

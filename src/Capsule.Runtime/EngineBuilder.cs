@@ -22,8 +22,8 @@ public sealed partial class EngineBuilder
 
     // The boot trace's first stage, taken before any configuration runs.
     private readonly long _builderEntered = Stopwatch.GetTimestamp();
-    private readonly InputDriverRegistry _drivers;
-    private readonly ScenePayloadRegistry _payloads;
+    private readonly FactoryRegistry<IInputDriver> _drivers;
+    private readonly FactoryRegistry<IScenePayload> _payloads;
     private readonly string _gameName;
     // The game's generated string table, null for a game with none.
     private readonly StringTable? _strings;
@@ -112,8 +112,8 @@ public sealed partial class EngineBuilder
     internal EngineBuilder(
         string gameName,
         SceneRegistry scenes,
-        InputDriverRegistry drivers,
-        ScenePayloadRegistry payloads,
+        FactoryRegistry<IInputDriver> drivers,
+        FactoryRegistry<IScenePayload> payloads,
         StringTable? strings = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(gameName);
@@ -133,14 +133,8 @@ public sealed partial class EngineBuilder
                 nameof(gameName));
     }
 
-    /// <summary>
-    /// The scene class name or scene document key <c>--scene</c> resolved to, or null.
-    /// </summary>
-    /// <remarks>
-    /// <see cref="WithCommandLine"/> sets it. A shell reads it to choose boot options before it
-    /// boots.
-    /// </remarks>
-    public string? SceneOverride => _commandLineScene?.Name ?? _commandLineDocument;
+    // The scene class name or scene document key --scene resolved to, or null.
+    internal string? SceneOverride => _commandLineScene?.Name ?? _commandLineDocument;
 
     // The canvas the run's screen layer is laid out in: the declared canvas, else the declared render
     // resolution, else the window size the run was configured with.
@@ -438,7 +432,7 @@ public sealed partial class EngineBuilder
     /// </summary>
     /// <remarks>
     /// A windowed run logs the seed it starts from, and <c>--seed</c> starts a development build from
-    /// it again. A headless or driven run with no seed configured replays identically.
+    /// it again.
     /// </remarks>
     public EngineBuilder WithRandomSeed(ulong seed)
     {

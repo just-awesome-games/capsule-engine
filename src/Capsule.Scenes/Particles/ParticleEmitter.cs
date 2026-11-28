@@ -14,8 +14,7 @@ namespace Capsule.Particles;
 /// <see cref="SpriteIntent"/> when the emitter has a sprite and a <see cref="LightIntent"/> when <see cref="Light"/> is set.
 /// </summary>
 /// <remarks>
-/// Positions are in world units under a world root and canvas pixels under a screen root. In
-/// <see cref="ParticleSpace.World"/> a particle moves on its own once spawned and does not follow the
+/// In <see cref="ParticleSpace.World"/> a particle moves on its own once spawned and does not follow the
 /// entity. In <see cref="ParticleSpace.Local"/> it rides the entity's position, turn and mirror.
 /// Neither space applies the entity's scale to a particle's motion or size.
 /// <para>
@@ -370,9 +369,8 @@ public sealed class ParticleEmitter : Renderer
     /// </summary>
     /// <remarks>
     /// The emitter calls <see cref="Scene.Remove(Entity)"/> on its own entity in the step that finds
-    /// <see cref="IsFinished"/>, and the removal lands at that step's end. A pooled entity returns to its
-    /// <see cref="EntityPool{T}"/> as any removal returns it, and starts unfinished when reused. The
-    /// setting survives removal.
+    /// <see cref="IsFinished"/>, and the removal lands at that step's end. A pooled entity starts
+    /// unfinished when reused. The setting survives removal.
     /// <para>
     /// An emitter that spawns on its own never removes its entity while <see cref="Emitting"/>. A hold by
     /// <see cref="Scene.Freeze(int)"/> or <see cref="Scene.Paused"/> delays the removal by as many steps as
@@ -477,11 +475,7 @@ public sealed class ParticleEmitter : Renderer
     /// Spawns <paramref name="count"/> particles now, at <see cref="Shape"/> about <see cref="Offset"/>,
     /// placed by the entity's transform at this call.
     /// </summary>
-    /// <remarks>
-    /// Before the emitter has started, or while it is out of a scene, the spawn waits and is placed when it
-    /// starts or joins a scene.
-    /// <para>On a ring <see cref="Shape"/> the particles spread evenly round the rim from one drawn start, and on an arc evenly across it.</para>
-    /// </remarks>
+    /// <remarks>It waits and spreads as <see cref="Emit(int, Vector2)"/> describes.</remarks>
     /// <param name="count">How many to spawn. Zero or fewer spawns nothing.</param>
     public void Emit(int count) => Emit(count, Offset);
 
@@ -724,8 +718,13 @@ public sealed class ParticleEmitter : Renderer
             float t = (float)particle.Age / particle.Lifetime;
             float scale = particle.Scale * scaleOverLifetime.Evaluate(t);
             ColorRgba tint = color.Evaluate(t);
-            bool flipX = particle.FlipX != frameFlipX;
-            bool flipY = particle.FlipY != frameFlipY;
+
+            // A negative scale mirrors the sprite and its light about the pivot. It folds into the flips, and both
+            // intents carry its magnitude.
+            bool mirrored = scale < 0f;
+            scale = MathF.Abs(scale);
+            bool flipX = particle.FlipX ^ frameFlipX ^ mirrored;
+            bool flipY = particle.FlipY ^ frameFlipY ^ mirrored;
 
             float previousRotation = still ? particle.Rotation : particle.PreviousRotation;
             float rotation = particle.Rotation;
@@ -765,21 +764,10 @@ public sealed class ParticleEmitter : Renderer
                 }
             }
 
-            // A negative scale mirrors the light as it mirrors the sprite. The view culls each light on its own.
+            // The view culls each light on its own.
             if (lights)
             {
-                Vector2 lightSize = lightExtent * scale;
-                view.Add(new LightIntent(
-                    lit.Sprite,
-                    previousPosition,
-                    position,
-                    previousRotation,
-                    rotation,
-                    Vector2.Abs(lightSize),
-                    flipX != lightSize.X < 0f,
-                    flipY != lightSize.Y < 0f,
-                    tint,
-                    lit.Intensity));
+                view.Add(new LightIntent(lit.Sprite, previousPosition, position, previousRotation, rotation, lightExtent * scale, flipX, flipY, tint, lit.Intensity));
             }
         }
     }

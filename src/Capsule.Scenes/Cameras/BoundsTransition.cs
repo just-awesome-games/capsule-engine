@@ -5,10 +5,7 @@ namespace Capsule.Scenes;
 
 /// <summary>How a <see cref="Camera"/> carries a change of its <see cref="Camera.Bounds"/> into the view.</summary>
 /// <remarks>
-/// Pick <see cref="Snap"/> for a cut, <see cref="Smooth"/> for a soft settle, <see cref="AtSpeed"/> for
-/// the fixed-rate scroll of a retro scroller and <see cref="Eased"/> to land in step with a tween. A
-/// change keeps the transition it was made with until it lands or another change replaces it. An edge
-/// opening to infinity, null bounds, <see cref="Camera.Teleport"/> and the camera's first step in a
+/// An edge opening to infinity, null bounds, <see cref="Camera.Teleport"/> and the camera's first step in a
 /// scene take effect at once whatever the transition.
 /// </remarks>
 public readonly record struct BoundsTransition

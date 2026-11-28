@@ -39,9 +39,6 @@ public struct AnimationPlayback
     /// <remarks>
     /// A non-looping run clamps a tick past its total to the last frame and finishes.
     /// </remarks>
-    /// <param name="frameTicks">How many steps each frame is held for, in frame order. Every duration positive.</param>
-    /// <param name="loop">Whether the last frame wraps back to frame 0 instead of finishing.</param>
-    /// <param name="tick">Ticks elapsed since the run began. Must not be negative.</param>
     public void Seek(ReadOnlySpan<int> frameTicks, bool loop, int tick)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(tick);
@@ -108,8 +105,7 @@ public struct AnimationPlayback
     /// Advances the cursor by one fixed step over <paramref name="frameTicks"/>. It does nothing once
     /// a non-looping run has finished.
     /// </summary>
-    /// <param name="frameTicks">How many steps each frame is held for, with every duration positive. Pass the same run on every step.</param>
-    /// <param name="loop">Whether the last frame wraps back to frame 0 instead of finishing.</param>
+    /// <remarks>Pass the same run on every step.</remarks>
     public void Step(ReadOnlySpan<int> frameTicks, bool loop)
     {
         if (IsFinished)

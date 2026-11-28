@@ -401,8 +401,8 @@ internal sealed class SceneHost : ISimulation, IDisposable
         Run.EndGame();
     }
 
-    // End, then the saves written at once, for a process the operating system ends as soon as the host
-    // returns. The host's end and Dispose after it write nothing more.
+    // End, then the saves written at once, while a window still stands: the operating system may end the
+    // process as soon as it closes. Dispose after it writes nothing more.
     internal void EndAndPersist()
     {
         End();

@@ -4,52 +4,9 @@ using Capsule.Build.Registry;
 namespace Capsule.Build.Fonts;
 
 /// <summary>Writes a font's member: a <c>BitmapFont</c> carrying the metrics, glyphs and kerning its <c>.fnt</c> declares.</summary>
-/// <remarks>
-/// Glyphs and kerning pairs are constant data that a loop builds into the font once. Building each
-/// glyph in code of its own compiled to code growing with every glyph a font carries.
-/// </remarks>
+/// <remarks>Glyphs and kerning pairs are constant data a loop builds into the font once, and the code does not grow per glyph.</remarks>
 internal static class FontMembers
 {
-    /// <summary>The class beside <c>CapsuleAssets</c> that builds every font from its data.</summary>
-    internal const string BuilderClass = "CapsuleFontTables";
-
-    /// <summary>The declaration of <see cref="BuilderClass"/>, which every font member calls.</summary>
-    internal const string BuilderDeclaration = $$"""
-            /// <summary>Builds each font from the constant data the build wrote. Generated code.</summary>
-            [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
-            internal static class {{BuilderClass}}
-            {
-                /// <summary>
-                /// A font over pages, from each glyph's codepoint, page, region as x, y, width and height, offsets
-                /// and advance, and each kerning pair's first and second codepoints and amount.
-                /// </summary>
-                internal static {{GeneratedTypes.BitmapFont}} Font(int lineHeight, int baseline, {{GeneratedTypes.TextureHandle}}[] pages, global::System.ReadOnlySpan<int> glyphs, global::System.ReadOnlySpan<int> kernings)
-                {
-                    {{GeneratedTypes.Glyph}}[] cut = new {{GeneratedTypes.Glyph}}[glyphs.Length / 9];
-                    for (int i = 0; i < cut.Length; i++)
-                    {
-                        global::System.ReadOnlySpan<int> glyph = glyphs.Slice(i * 9, 9);
-                        cut[i] = new {{GeneratedTypes.Glyph}}(
-                            glyph[0],
-                            glyph[1],
-                            new {{GeneratedTypes.TextureRegion}}(glyph[2], glyph[3], glyph[4], glyph[5]),
-                            glyph[6],
-                            glyph[7],
-                            glyph[8]);
-                    }
-
-                    {{GeneratedTypes.KerningPair}}[] pairs = new {{GeneratedTypes.KerningPair}}[kernings.Length / 3];
-                    for (int i = 0; i < pairs.Length; i++)
-                    {
-                        pairs[i] = new {{GeneratedTypes.KerningPair}}(kernings[i * 3], kernings[(i * 3) + 1], kernings[(i * 3) + 2]);
-                    }
-
-                    return new {{GeneratedTypes.BitmapFont}}(lineHeight, baseline, pages, cut, pairs);
-                }
-            }
-
-        """;
-
     // A font is a class. The member hands back a single instance built once, instead of rebuilding its
     // tables per call.
     internal static void Write(StringBuilder code, string indent, string identifier, Source authored, (BmFontDescription Described, Source[] Pages) font)
@@ -59,7 +16,7 @@ internal static class FontMembers
         string body = indent + "    ";
 
         code.Append(indent).Append("private static readonly ").Append(GeneratedTypes.BitmapFont).Append(' ').Append(field)
-            .Append(" = global::Capsule.Generated.").Append(BuilderClass).AppendLine(".Font(");
+            .Append(" = ").Append(GeneratedTypes.BitmapFont).AppendLine(".FromRows(");
         code.Append(body).Append(Literal.Of(described.LineHeight)).AppendLine(",");
         code.Append(body).Append(Literal.Of(described.Base)).AppendLine(",");
         code.Append(body).Append("new ").Append(GeneratedTypes.TextureHandle).Append("[] { ")

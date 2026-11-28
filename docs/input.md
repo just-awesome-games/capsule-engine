@@ -185,14 +185,12 @@ parser of its own:
 dotnet run --project src/MyGame.Shell -- --scene PlayField --driver MenuTour --headless
 ```
 
-`EngineBuilder.WithCommandLine` documents the flags and the ones a shipping build keeps. The shell reports
-`--help` and a refused flag through `CommandLineException`, as
-[`getting-started.md`](getting-started.md#the-shell) shows. A driver that takes constructor arguments
-reaches a run through `EngineBuilder.WithInputDriver` or `EngineBuilder.RunHeadless`.
-
-`--payload <Name>` boots the opening scene with a new instance of that `IScenePayload` class in place of
-the `RunScene` call's payload. The build registers each payload class with a public parameterless
-constructor, as it registers drivers.
+`--help` prints the flags, and `EngineBuilder.WithCommandLine` names the ones a shipping build keeps. The
+shell reports `--help` and a refused flag through `CommandLineException`, as
+[`getting-started.md`](getting-started.md#the-shell) shows. The build registers each driver and each
+`IScenePayload` class with a public parameterless constructor for `--driver` and `--payload`. A driver
+that takes constructor arguments reaches a run through `EngineBuilder.WithInputDriver` or
+`EngineBuilder.RunHeadless`.
 
 From a test, the same driver plays under `SimulationHost.Play` or `EngineBuilder.RunHeadless`
 ([`testing.md`](testing.md)).

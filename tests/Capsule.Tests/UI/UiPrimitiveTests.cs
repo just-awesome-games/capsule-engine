@@ -102,6 +102,7 @@ public sealed class UiPrimitiveTests
     {
         Assert.True(new ColorRect(new Vector2(30f, 10f)).Bounds.IsEmpty);
         Assert.True(new NineSlice(Panel, new SliceInsets(3), new Vector2(40f, 30f)).Bounds.IsEmpty);
+        Assert.True(new Label(BitmapFont.Default, "AB").Bounds.IsEmpty);
     }
 
     private sealed class Drifter : ScreenEntity

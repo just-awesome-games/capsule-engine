@@ -153,17 +153,6 @@ public sealed class ColorPolygonTests
         new SceneFixtures.Holder(new Vector2(160f, 90f), new SpriteRenderer(SceneFixtures.Frame(8, 8))) { ZIndex = zIndex };
 
     // One step of a scene viewed one screen wide around the centre of the first screen.
-    private static SceneSimulation Simulated(params Entity[] entities)
-    {
-        SceneFixtures.HookScene scene = new(SceneFixtures.Opens(new Vector2(160f, 90f)));
-        foreach (Entity entity in entities)
-        {
-            scene.Add(entity);
-        }
-
-        SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step());
-
-        return simulation;
-    }
+    private static SceneSimulation Simulated(params Entity[] entities) =>
+        SpriteFixtures.Stepped(new SceneFixtures.HookScene(SceneFixtures.Opens(new Vector2(160f, 90f))), entities);
 }

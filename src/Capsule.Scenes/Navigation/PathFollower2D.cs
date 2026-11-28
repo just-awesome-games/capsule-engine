@@ -7,15 +7,14 @@ namespace Capsule.Navigation;
 
 /// <summary>Moves its entity along a <see cref="Path2D"/> at <see cref="Speed"/> by writing the entity's position each fixed step.</summary>
 /// <remarks>
-/// A collider on the entity carries what rides it, as it does for any write of the entity's position. The
-/// path and <see cref="Speed"/> are in the space of the entity's <see cref="Entity.Position"/>, its parent's,
+/// The path and <see cref="Speed"/> are in the space of the entity's <see cref="Entity.Position"/>, its parent's,
 /// and the points are relative to that position as the follower starts. Starting places the entity at
 /// <see cref="Offset"/> with no motion drawn between. The follower keeps its origin and <see cref="Offset"/> while
 /// its entity is out of a scene, and carries on from them when it returns. Code writing the entity's position
 /// elsewhere is overwritten on the follower's next move.
 /// <para>
 /// <see cref="LoopMode.Repeat"/> on a path that is not <see cref="Path2D.Closed"/> jumps from the last point to
-/// the first. The jump is drawn with no motion between, and a collider on the entity drags its riders along it.
+/// the first. The jump is drawn with no motion between.
 /// </para>
 /// </remarks>
 /// <example>

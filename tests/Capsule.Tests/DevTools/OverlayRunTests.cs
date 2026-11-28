@@ -6,6 +6,7 @@ using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using static Capsule.Tests.DevTools.OverlayFixtures;
 using static Capsule.Tests.DevTools.OverlayRig;
+using HookScene = Capsule.Tests.Scenes.SceneFixtures.HookScene;
 
 namespace Capsule.Tests.DevTools;
 
@@ -100,8 +101,8 @@ public sealed class OverlayRunTests
     {
         Log.UseSink(null);
         using OverlayRig rig = new(new SceneHost(
-            SceneTransition.ToScene(typeof(ExitOnStartScene), null),
-            static (in SceneTransition _) => new ExitOnStartScene(),
+            SceneTransition.ToScene(typeof(HookScene), null),
+            static (in SceneTransition _) => new HookScene(start: static scene => scene.Run.RequestExit()),
             new Run()));
 
         rig.Open();
@@ -118,9 +119,9 @@ public sealed class OverlayRunTests
     public void RestartWhileATransitionIsAlreadyPending_ShowsTheRefusalAndDoesNotStep()
     {
         using OverlayRig rig = new(new SceneHost(
-            SceneTransition.ToScene(typeof(RequestOnStartScene), null),
-            static (in SceneTransition target) => target.SceneType == typeof(RequestOnStartScene)
-                ? new RequestOnStartScene()
+            SceneTransition.ToScene(typeof(HookScene), null),
+            static (in SceneTransition target) => target.SceneType == typeof(HookScene)
+                ? new HookScene(start: static scene => scene.Run.RequestScene<PlainScene>())
                 : new PlainScene(),
             new Run()));
         Scene before = rig.Host.Scene;

@@ -26,8 +26,7 @@ public readonly record struct GlyphPlacement(Glyph Glyph, int PenX, int Line, in
 /// <remarks>
 /// <see cref="BitmapFont.Measure(ReadOnlySpan{char})"/> and
 /// <see cref="FrameView.Add(in TextIntent)"/> both enumerate it, and a measure matches what is
-/// drawn. Enumerating it allocates nothing and throws nothing. A consumer that draws its own glyphs
-/// lays the run out here and adds its own sprites to a <see cref="FrameView"/>.
+/// drawn. Enumerating it allocates nothing and throws nothing.
 /// </remarks>
 public ref struct GlyphRun
 {
@@ -77,18 +76,13 @@ public ref struct GlyphRun
     {
     }
 
-    /// <summary>Lays <paramref name="text"/> out inside a box of <paramref name="boxWidth"/>.</summary>
-    /// <param name="font">The font the run is laid out in.</param>
-    /// <param name="text">
-    /// The text to lay out. <c>\n</c> starts a new line, <c>\r</c> and any other control character
-    /// draw nothing, and a codepoint the font lacks draws its replacement glyph.
-    /// </param>
-    /// <param name="boxWidth">
-    /// The box's width in font pixels, which lines wrap inside and are aligned within. Zero or less
-    /// means no box, and lines then neither wrap nor shift whatever the other two arguments say.
-    /// </param>
-    /// <param name="wrap">Whether a line too wide for the box breaks inside it.</param>
-    /// <param name="alignment">Where each line sits between the box's edges.</param>
+    /// <summary>Lays <paramref name="text"/> out inside a box <paramref name="boxWidth"/> font pixels wide.</summary>
+    /// <remarks>
+    /// <c>\n</c> starts a new line, <c>\r</c> and any other control character draw nothing, and a
+    /// codepoint the font lacks draws its replacement glyph. A box width of zero or less means no box,
+    /// and lines then neither wrap nor shift whatever <paramref name="wrap"/> and
+    /// <paramref name="alignment"/> say.
+    /// </remarks>
     public GlyphRun(BitmapFont font, ReadOnlySpan<char> text, int boxWidth, TextWrap wrap, HorizontalAlignment alignment)
         : this(font, text, boxWidth, wrap, alignment, 0, null)
     {

@@ -27,10 +27,12 @@ internal sealed class SdlAudioOutput : AudioOutput
 
     private readonly nint _stream;
 
-    private SdlAudioOutput(nint stream) => _stream = stream;
+    // Tests open one on a stream SDL rejects.
+    internal SdlAudioOutput(nint stream) => _stream = stream;
 
-    // A failed query reads -1 bytes, which truncates to no frames.
-    protected internal override int QueuedFrames => Sdl3.SDL_GetAudioStreamQueued(_stream) / (sizeof(float) * Channels);
+    // A failed query throws rather than reading as an empty queue, which the mix would top up forever.
+    protected internal override int QueuedFrames =>
+        Sdl3.SDL_GetAudioStreamQueued(_stream) is var bytes and >= 0 ? bytes / (sizeof(float) * Channels) : throw Failed("read its queue");
 
     // Opens the system's default output, or logs why it could not and returns null.
     internal static unsafe SdlAudioOutput? TryOpen(int leadFrames)
@@ -92,8 +94,14 @@ internal sealed class SdlAudioOutput : AudioOutput
     // A failure leaves the thread at the host's own priority.
     protected internal override void RaiseMixThreadPriority() => Sdl3.SDL_SetCurrentThreadPriority(Sdl3.ThreadPriorityTimeCritical);
 
-    protected internal override void Submit(ReadOnlySpan<float> frames) =>
-        Sdl3.SDL_PutAudioStreamData(_stream, in MemoryMarshal.GetReference(frames), frames.Length * sizeof(float));
+    // A refused put throws rather than leaving the queue short, which the mix would top up forever.
+    protected internal override void Submit(ReadOnlySpan<float> frames)
+    {
+        if (!Sdl3.SDL_PutAudioStreamData(_stream, in MemoryMarshal.GetReference(frames), frames.Length * sizeof(float)))
+        {
+            throw Failed("take the mix");
+        }
+    }
 
     private static unsafe string DefaultName() =>
         Marshal.PtrToStringUTF8((nint)Sdl3.SDL_GetAudioDeviceName(Sdl3.DefaultPlayback)) is { Length: > 0 } name
@@ -102,4 +110,6 @@ internal sealed class SdlAudioOutput : AudioOutput
 
     private static void Unavailable() =>
         Log.Warning($"audio output unavailable and the game runs silent. {Sdl3.Error()}");
+
+    private static InvalidOperationException Failed(string action) => new($"SDL's audio stream could not {action}: {Sdl3.Error()}");
 }

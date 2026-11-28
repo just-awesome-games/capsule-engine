@@ -117,10 +117,7 @@ public partial class Entity
     /// Moves the entity to <paramref name="position"/>, local to its <see cref="Parent"/>, with no
     /// interpolation from the old position.
     /// </summary>
-    /// <remarks>
-    /// The write follows the rules <see cref="Transform"/> describes. The frame after it draws the entity
-    /// at the new position with no motion between.
-    /// </remarks>
+    /// <remarks>The write follows the rules <see cref="Transform"/> describes.</remarks>
     public void Teleport(Vector2 position)
     {
         Position = position;

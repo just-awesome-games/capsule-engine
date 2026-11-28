@@ -86,19 +86,27 @@ public sealed class SceneStartTests
 
     // An entity queued to leave still names its scene but has no step left. A component starts once
     // in its life, and one attached there waits for the add that steps it. The removal may come from a
-    // peer's start in the drain or from the scene's own step.
+    // peer's start in the drain or from the scene's own step, and it may take the entity's root.
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void AComponentAttachedToAnEntityQueuedForRemoval_WaitsForTheNextAddToStart(bool fromAStart)
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    public void AComponentAttachedToAnEntityQueuedForRemoval_WaitsForTheNextAddToStart(bool fromAStart, bool beneathTheRoot)
     {
         List<string> log = [];
         SceneFixtures.Drifter host = new();
+        Entity root = host;
+        if (beneathTheRoot)
+        {
+            root = new SceneFixtures.Drifter();
+            host.Parent = root;
+        }
+
         RecordingComponent late = new("late", log, StartAndStep);
 
         void Queue(Scene scene)
         {
-            scene.Remove(host);
+            scene.Remove(root);
             host.Add(late);
         }
 
@@ -119,7 +127,7 @@ public sealed class SceneStartTests
             }
         }
 
-        using SimulationHost run = new(Simulation(new SceneFixtures.HookScene(step: Hook), host));
+        using SimulationHost run = new(Simulation(new SceneFixtures.HookScene(step: Hook), root));
 
         run.Step();
 
@@ -130,7 +138,7 @@ public sealed class SceneStartTests
 
         Assert.Empty(log);
 
-        run.Scene.Add(host);
+        run.Scene.Add(root);
         run.Step();
 
         Assert.Equal(["late!", "late"], log);
@@ -197,7 +205,7 @@ public sealed class SceneStartTests
         {
             if (context.Tick == 0)
             {
-                scene.Add(new Thrower());
+                scene.Add(new SceneFixtures.Starter(static _ => throw new InvalidOperationException("This entity refuses to start.")));
                 scene.Add(stranded);
             }
         }
@@ -241,12 +249,6 @@ public sealed class SceneStartTests
     {
         protected internal override void OnStart() =>
             found.Add(Scene!.FindSingle<SceneFixtures.Placed>().Spawn.Type!);
-    }
-
-    private sealed class Thrower() : Entity(Vector2.Zero)
-    {
-        protected internal override void OnStart() =>
-            throw new InvalidOperationException("This entity refuses to start.");
     }
 
     private sealed class SiblingRemover(Component sibling, List<string> log) : Component

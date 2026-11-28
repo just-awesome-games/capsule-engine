@@ -48,7 +48,10 @@ public sealed class BusRoutingTests
         }
 
         looping.Play(Step, new AudioBus("unheard", Sfx));
+
+        // Had the slotless play registered its bus under Sfx, this declaration under the master would be refused.
         looping.SetVolume(new AudioBus("unheard"), 0.5f);
+        Assert.Equal(0.5f, looping.GetVolume(new AudioBus("unheard")));
     }
 
     // A pause holds every voice under the bus, and the child's own pause state stays its own.

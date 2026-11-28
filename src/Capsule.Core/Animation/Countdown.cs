@@ -51,7 +51,6 @@ public struct Countdown
     /// Arms the countdown for <paramref name="ticks"/> steps, discarding whatever it was counting.
     /// Zero ticks is finished at once and no step reports it.
     /// </summary>
-    /// <param name="ticks">Fixed steps to count. Must not be negative.</param>
     public void Start(int ticks)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(ticks);

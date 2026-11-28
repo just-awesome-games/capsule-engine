@@ -1,11 +1,20 @@
 using System.Buffers.Binary;
 using System.Text;
+using Capsule.Build.Audio;
 using Capsule.Tests.Audio;
 
 namespace Capsule.Tests.Build;
 
 internal static class AudioProbeFixtures
 {
+    // Writes file as a clip ending in extension in the current workspace, and measures it.
+    internal static AudioProbe.Measurement Measure(string extension, byte[] file)
+    {
+        File.WriteAllBytes("clip" + extension, file);
+
+        return AudioProbe.Measure("clip" + extension);
+    }
+
     internal static byte[] Malformed(string defect)
     {
         switch (defect)

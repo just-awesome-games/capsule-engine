@@ -13,7 +13,7 @@ public readonly record struct GradientStop(float Time, ColorRgba Color);
 /// <see cref="ColorRgba.Lerp"/>. It holds the first stop's colour before that stop and the last
 /// stop's colour after it.
 /// </summary>
-/// <remarks>A gradient stores up to eight stops inline and allocates nothing.</remarks>
+/// <remarks>A gradient stores up to eight stops inline, in non-decreasing time, and allocates nothing.</remarks>
 public readonly struct Gradient
 {
     private readonly StopBuffer _stops;
@@ -38,7 +38,6 @@ public readonly struct Gradient
     public static Gradient Linear(ColorRgba a, ColorRgba b) => FromKeys([new GradientStop(0f, a), new GradientStop(1f, b)]);
 
     /// <summary>A gradient through <paramref name="stops"/>, lerped between them.</summary>
-    /// <param name="stops">One to eight stops, with non-decreasing <see cref="GradientStop.Time"/> each in [0, 1].</param>
     public static Gradient FromKeys(params ReadOnlySpan<GradientStop> stops)
     {
         if (stops.Length is < 1 or > 8)

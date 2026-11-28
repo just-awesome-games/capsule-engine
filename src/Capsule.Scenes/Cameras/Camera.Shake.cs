@@ -10,55 +10,32 @@ public partial class Camera
     // of a step and of the length, such as 1/60f against 8/60f.
     private const double HeldEndTolerance = 1e-6;
 
+    // The amplitude and length of a shorthand shake at intensity 1.
+    private const float ShorthandReach = 8f;
+    private const float ShorthandSeconds = 0.5f;
+
+    // The cycles a second of the camera-wide noise phase.
+    private const float PhaseFrequency = 15f;
+
     // The shake on screen: its peak, and the envelope that falls from 1 to 0 across its seconds. The
     // strength holds at 1 while the envelope is at or above _hold, then falls as the square of the
-    // envelope's share of _hold. A shorthand shake holds from 1. Its strength is the envelope squared.
-    private float _intensity;
+    // envelope's share of _hold.
+    private Vector2 _amplitude;
     private float _envelope;
     private float _hold = 1f;
     private float _shakeSeconds = 1f;
+    private float _frequency;
+    private ShakeWave _wave;
+    private long _cell;
+    private float _fraction;
 
     // The seconds a shake held to its end has drawn.
     private double _heldSeconds;
 
-    // A profile shake carries its own amplitude, frequency and phase. A shorthand shake reads the
-    // camera-wide amplitude and noise phase live.
-    private bool _isProfile;
-    private Vector2 _profileAmplitude;
-    private float _profileFrequency;
-    private ShakeWave _wave;
-    private long _profileCell;
-    private float _profileFraction;
-
-    // The camera-wide noise phase, as a whole lattice cell plus a fraction in [0, 1).
-    private long _shakeCell;
-    private float _shakeFraction;
-
-    /// <summary>
-    /// How far a shake of intensity 1 reaches, in world units on each axis, defaulting to (8, 8).
-    /// </summary>
-    public Vector2 ShakeAmplitude
-    {
-        get;
-        set => field = Guard.NonNegative(value, nameof(value));
-    } = new(8f, 8f);
-
-    /// <summary>How fast the shake moves, defaulting to 15 hertz.</summary>
-    /// <remarks>A frequency above half the step rate aliases.</remarks>
-    public float ShakeFrequency
-    {
-        get;
-        set => field = Guard.NonNegative(value, nameof(value));
-    } = 15f;
-
-    /// <summary>
-    /// How long a <see cref="Shake(float)"/> lasts whatever its intensity, defaulting to 0.5 seconds.
-    /// </summary>
-    public float ShakeDuration
-    {
-        get;
-        set => field = Guard.Positive(value, nameof(value));
-    } = 0.5f;
+    // The camera-wide noise phase, as a whole lattice cell plus a fraction in [0, 1). It runs between
+    // shakes so a noise shake's noise depends only on the step it starts.
+    private long _phaseCell;
+    private float _phaseFraction;
 
     /// <summary>
     /// Whether the shake moves <see cref="VisibleRegion"/> as it moves the drawn view, true by default.
@@ -77,37 +54,19 @@ public partial class Camera
     private float Fall => _envelope >= _hold ? 1f : _envelope / _hold;
 
     /// <summary>
-    /// Shakes the view for <see cref="ShakeDuration"/> at <see cref="ShakeAmplitude"/> times
-    /// <paramref name="intensity"/>, as <see cref="Shake(float, float)"/> does.
+    /// Shakes the view for half a second, as <see cref="Shake(float, float)"/> does.
     /// </summary>
-    public void Shake(float intensity) => Shake(intensity, ShakeDuration);
+    public void Shake(float intensity) => Shake(intensity, ShorthandSeconds);
 
     /// <summary>
-    /// Shakes the view for <paramref name="seconds"/> at <see cref="ShakeAmplitude"/> times
-    /// <paramref name="intensity"/>, capped at 1. A call weaker than the shake on screen changes
-    /// nothing.
+    /// Shakes the view for <paramref name="seconds"/> with a default <see cref="CameraShake"/> reaching 8
+    /// world units on each axis times <paramref name="intensity"/>, capped at 1, as
+    /// <see cref="Shake(in CameraShake)"/> does.
     /// </summary>
-    /// <remarks>
-    /// The shake moves as <see cref="ShakeWave.Noise"/> at <see cref="ShakeFrequency"/> and fades from
-    /// its first step. It draws nothing from <see cref="Run.Random"/>, and
-    /// <see cref="Capsule.Rendering.Display.ShakeStrength"/> scales the offset it draws.
-    /// </remarks>
     public void Shake(float intensity, float seconds)
     {
-        Guard.NonNegative(intensity, nameof(intensity));
         Guard.Positive(seconds, nameof(seconds));
-        intensity = MathF.Min(1f, intensity);
-
-        float fall = Fall;
-        bool stronger = _isProfile
-            ? ShakeAmplitude.Length() * intensity >= _profileAmplitude.Length() * fall * fall
-            : intensity >= _intensity * fall * fall;
-        if (stronger)
-        {
-            Begin(intensity, seconds, 1f);
-            _isProfile = false;
-            _wave = ShakeWave.Noise;
-        }
+        Shake(new CameraShake(new Vector2(ShorthandReach * MathF.Min(1f, Guard.NonNegative(intensity, nameof(intensity)))), seconds));
     }
 
     /// <summary>
@@ -130,18 +89,18 @@ public partial class Camera
         }
 
         float fall = Fall;
-        float peak = _isProfile ? _profileAmplitude.Length() : ShakeAmplitude.Length() * _intensity;
-        if (shake.Amplitude.Length() >= peak * fall * fall)
+        if (shake.Amplitude.Length() >= _amplitude.Length() * fall * fall)
         {
-            Begin(1f, shake.Seconds, 1f - shake.Sustain);
-            _isProfile = true;
-            _profileAmplitude = shake.Amplitude;
-            _profileFrequency = shake.Frequency;
+            _amplitude = shake.Amplitude;
+            _envelope = 1f;
+            _hold = 1f - shake.Sustain;
+            _shakeSeconds = shake.Seconds;
+            _heldSeconds = 0d;
+            _frequency = shake.Frequency;
             _wave = shake.Wave;
 
-            // A noise profile picks up the camera-wide phase. Its noise depends only on the step it
-            // starts. A sine starts at its peak.
-            (_profileCell, _profileFraction) = shake.Wave == ShakeWave.Noise ? (_shakeCell, _shakeFraction) : (0L, 0f);
+            // A noise shake picks up the camera-wide phase. A sine starts at its peak.
+            (_cell, _fraction) = shake.Wave == ShakeWave.Noise ? (_phaseCell, _phaseFraction) : (0L, 0f);
         }
     }
 
@@ -153,21 +112,12 @@ public partial class Camera
         fraction -= whole;
     }
 
-    private void Begin(float intensity, float seconds, float hold)
-    {
-        _intensity = intensity;
-        _envelope = 1f;
-        _hold = hold;
-        _shakeSeconds = seconds;
-        _heldSeconds = 0d;
-    }
-
-    // The camera-wide phase advances ShakeFrequency cells a second and runs between shakes too. The
-    // offset is taken before the envelope falls, and a spent shake gives exactly zero without sampling.
-    // The run's shake strength scales only the offset drawn. The shake's own state runs on under it.
+    // The offset is taken before the envelope falls, and a spent shake gives exactly zero without
+    // sampling. The run's shake strength scales only the offset drawn. The shake's own state runs on
+    // under it.
     private void StepShake(float seconds)
     {
-        Advance(ref _shakeCell, ref _shakeFraction, ShakeFrequency * seconds);
+        Advance(ref _phaseCell, ref _phaseFraction, PhaseFrequency * seconds);
 
         if (_envelope == 0f)
         {
@@ -175,23 +125,16 @@ public partial class Camera
             return;
         }
 
-        long cell = _isProfile ? _profileCell : _shakeCell;
-        float fraction = _isProfile ? _profileFraction : _shakeFraction;
         Vector2 wave = _wave switch
         {
-            ShakeWave.Sine => new Vector2(DeterministicMath.Cos(MathF.Tau * fraction)),
-            ShakeWave.Pulse => new Vector2(0.5f + (0.5f * DeterministicMath.Cos(MathF.Tau * fraction))),
-            _ => new Vector2(ValueNoise.Sample(0, cell, fraction), ValueNoise.Sample(1, cell, fraction)),
+            ShakeWave.Sine => new Vector2(DeterministicMath.Cos(MathF.Tau * _fraction)),
+            ShakeWave.Pulse => new Vector2(0.5f + (0.5f * DeterministicMath.Cos(MathF.Tau * _fraction))),
+            _ => new Vector2(ValueNoise.Sample(0, _cell, _fraction), ValueNoise.Sample(1, _cell, _fraction)),
         };
-        Vector2 amplitude = _isProfile ? _profileAmplitude : ShakeAmplitude;
         float fall = Fall;
         float strength = _scene?.RunOrNull?.Display.ShakeStrength ?? 1f;
-        ShakeOffset = amplitude * (_intensity * fall * fall * strength) * wave;
-
-        if (_isProfile)
-        {
-            Advance(ref _profileCell, ref _profileFraction, _profileFrequency * seconds);
-        }
+        ShakeOffset = _amplitude * (fall * fall * strength) * wave;
+        Advance(ref _cell, ref _fraction, _frequency * seconds);
 
         // A shake held to its end stops by its elapsed time. The subtracted envelope's error grows with
         // the square of its length in steps and would end it early or late. A shake with a fade ends on
@@ -208,9 +151,7 @@ public partial class Camera
 
         if (_envelope == 0f)
         {
-            _intensity = 0f;
             _hold = 1f;
-            _isProfile = false;
         }
     }
 }

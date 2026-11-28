@@ -1057,8 +1057,7 @@ internal sealed partial class FrameRenderer : IDisposable
 
     // The engine's radial light: full at the centre, falling to nothing at the edge as one minus the squared distance.
     // Most of its radius reads lit. Its texels are premultiplied, white at the falloff's opacity, and a PNG copying
-    // them channel for channel would be premultiplied again on load. Computed once. The engine ships no PNG and no
-    // byte table for it.
+    // them channel for channel would be premultiplied again on load.
     private static DecodedTexture LightTexels()
     {
         const int Size = 128;

@@ -86,7 +86,7 @@ public sealed class FirstComposeAllocationTests(ITestOutputHelper output)
     }
 
     private static Scene Load(string document) =>
-        Registry.Value.Create(new SceneKey("scenes/level"), SceneDocument.ParseUtf8(Encoding.UTF8.GetBytes(document)));
+        Registry.Value.Create(new SceneKey("scenes/level"), SceneDocumentJson.Read(Encoding.UTF8.GetBytes(document)));
 
     // Loads document once to warm, then measures loading a copy of it, parse and composition both.
     private void Report(string label, string document, int count, long budget)
@@ -95,7 +95,7 @@ public sealed class FirstComposeAllocationTests(ITestOutputHelper output)
 
         byte[] utf8 = Encoding.UTF8.GetBytes(document);
         long before = StepMeasurement.Start();
-        _ = Registry.Value.Create(new SceneKey("scenes/level"), SceneDocument.ParseUtf8(utf8));
+        _ = Registry.Value.Create(new SceneKey("scenes/level"), SceneDocumentJson.Read(utf8));
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
         output.WriteLine(FormattableString.Invariant($"{label}: {bytes} bytes for {count}, {bytes / count} each, budget {budget / count} each"));

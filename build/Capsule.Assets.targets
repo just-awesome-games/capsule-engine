@@ -1,12 +1,8 @@
 <Project>
 
-  <!-- The asset pipeline, on when CapsuleBuildAssets is true. MSBuild never walks Assets/. Every
-       build runs the game's build project before the compile (CapsuleRunBuildTool), which writes everything
-       under obj/capsule/, or obj/capsule-shipping/ for a publish: imported/, assets/, CapsuleAssets.g.cs,
-       CapsuleStrings.g.cs when the game authors texts, icon/ when it authors an Icon.png, tile-maps.txt and
-       derivation-cache.json. A compile that writes a new logic assembly runs it once more
-       (CapsuleReadTileMapKeys). CapsuleAddBuildOutputs hands assets/ and the generated sources to MSBuild,
-       and CapsuleGetApplicationIcon hands icon/ to the shell. -->
+  <!-- The asset pipeline, on when CapsuleBuildAssets is true. MSBuild never walks Assets/. Every build
+       runs the game's build project before the compile, which writes under obj/capsule/, or
+       obj/capsule-shipping/ for a publish. A compile that writes a new logic assembly runs it once more. -->
 
   <!-- Every path the run is handed starts from _CapsuleProjectDirectory, Capsule.Defaults.props's
        spelling of the project directory. -->
@@ -92,11 +88,9 @@
           StandardOutputImportance="normal" />
   </Target>
 
-  <!-- Only the compiled logic assembly knows which entry types are TileMap classes, whose cells a scene document
-       ships compiled. Its generator records their keys. Once a compile writes a new assembly, the tool reads
-       them and builds again only when they differ from those tile-maps.txt keeps, the keys every document
-       was last built with. The touch dates the file past the assembly. A build whose compile wrote nothing
-       then skips this target. -->
+  <!-- Only the compiled logic assembly knows the TileMap classes, whose cells a document ships compiled.
+       After a compile writes one, the tool builds again only when their keys differ from tile-maps.txt's.
+       The touch dates the file past the assembly. A build whose compile wrote nothing then skips this. -->
   <Target Name="CapsuleReadTileMapKeys"
           Condition="'$(CapsuleBuildAssets)' == 'true' and '$(CapsuleGameLogic)' == 'true' and '$(DesignTimeBuild)' != 'true'"
           AfterTargets="CoreCompile"

@@ -33,6 +33,9 @@ internal sealed unsafe class WindowHost
 
     private readonly EngineBuilder _builder;
     private readonly SceneHost _scenes;
+
+    // Saves the run's recording, ends the run and persists it, once, before the window goes.
+    private readonly Action _endRun;
     private readonly MouseSampler _mouse = new();
     private readonly FixedStepScheduler _scheduler;
     private readonly GamepadRumble _rumble = new(GamepadRumble.WriteToPad);
@@ -46,6 +49,9 @@ internal sealed unsafe class WindowHost
 
     // Null unless the builder opted in. The builder owns it.
     private readonly FrameDiagnostics? _diagnostics;
+
+    // The frame times the overlay and the diagnostics read, null in a shipping build.
+    private readonly FrameClock? _clock;
 
     // The host reaches the overlay through delegates built in the guarded block, which lets a shipping
     // publish trim the overlay's methods away.
@@ -133,11 +139,12 @@ internal sealed unsafe class WindowHost
     private float _sizedScale = 1f;
 
     // recorder records the run and replay replays one into it. Both are null in a shipping build.
-    internal WindowHost(EngineBuilder builder, SceneHost scenes, FrameDiagnostics? diagnostics, Recorder? recorder = null, Replay? replay = null)
+    internal WindowHost(EngineBuilder builder, SceneHost scenes, FrameDiagnostics? diagnostics, Action endRun, Recorder? recorder = null, Replay? replay = null)
     {
         _builder = builder;
         _diagnostics = diagnostics;
         _scenes = scenes;
+        _endRun = endRun;
 
         // The renderer keeps what it drew on the device and writes it again only where it changed.
         scenes.RetainsDrawState = true;
@@ -163,7 +170,9 @@ internal sealed unsafe class WindowHost
 
         if (Development.IsSupported)
         {
-            DebugOverlay overlay = new(builder.Input.DebugOverlayButton, _scheduler, scenes, builder.Scenes, recordings: recorder is null ? null : builder.RecordingsDirectory());
+            FrameClock clock = diagnostics?.Clock ?? new FrameClock(builder.Timestamp);
+            _clock = clock;
+            DebugOverlay overlay = new(builder.Input.DebugOverlayButton, _scheduler, scenes, clock, builder.Scenes, recordings: recorder is null ? null : builder.RecordingsDirectory());
             _overlayHost = overlay;
             _holdOverlay = overlay.HoldAt;
             _leaveOverlayScene = overlay.LeaveScene;
@@ -172,7 +181,7 @@ internal sealed unsafe class WindowHost
                 renderer.ScreenLayer,
                 DebugOverlay.ScaleFor(renderer.WindowSize.Height),
                 renderer.WorldPlacement);
-            _updateOverlay = renderer => overlay.Update(renderer, renderer.LastFrameMs);
+            _updateOverlay = overlay.Update;
             _drawOverlay = overlay.Draw;
             _overlayHeld = () => overlay.IsOpen || overlay.IsHidden;
             // Built here so the sound device is reachable from the overlay only through this block, and
@@ -279,11 +288,25 @@ internal sealed unsafe class WindowHost
         }
     }
 
-    // SDL quits once this returns, after a failure as after an exit.
+    // SDL quits once this returns, after a failure as after an exit. A run that did not fail ends before its
+    // window closes, while a session's end would still wait for it.
     [UnmanagedCallersOnly]
     private static void OnQuit(nint appState, Sdl3.AppResult result)
     {
         WindowHost host = Running!;
+
+        try
+        {
+            host._diagnostics?.EndFrames();
+            if (host._failure is null)
+            {
+                host._endRun();
+            }
+        }
+        catch (Exception exception)
+        {
+            host.Fail(exception);
+        }
 
         try
         {
@@ -296,12 +319,12 @@ internal sealed unsafe class WindowHost
     }
 
     // The session's end, from inside the window procedure: the process ends once it returns, and the run
-    // ends and persists first. The next iteration quits.
+    // ends first. The next iteration quits.
     private void EndSession()
     {
         try
         {
-            _scenes.EndAndPersist();
+            _endRun();
         }
         catch (Exception exception)
         {
@@ -451,6 +474,7 @@ internal sealed unsafe class WindowHost
         double elapsedSeconds = (double)Math.Max(frameStarted - _frameStarted, 0) / Stopwatch.Frequency;
         _frameStarted = frameStarted;
 
+        _clock?.BeginUpdate(_renderer.LastFrameMs);
         _diagnostics?.BeginUpdate();
 
         // Sampled every frame, including one that drains no step, and the latch carries that frame's
@@ -598,7 +622,8 @@ internal sealed unsafe class WindowHost
         // A drawn frame ends a timed diagnostics run once it is submitted. A minimized one draws none.
         exiting |= _minimized && _diagnostics is { Expired: true };
 
-        _diagnostics?.EndUpdate(_scheduler.StepsThisFrame, _scheduler.Tick);
+        _clock?.EndUpdate(_scheduler.StepsThisFrame);
+        _diagnostics?.EndUpdate(_scheduler.Tick);
 
         // A minimized window shows nothing. Its frames build and draw nothing. A run that is exiting
         // draws nothing either: its scenes have released what the frame would draw. Nor does a replay

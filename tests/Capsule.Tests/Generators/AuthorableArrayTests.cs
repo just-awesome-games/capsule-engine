@@ -5,6 +5,7 @@ using Capsule.Assets;
 using Capsule.Audio;
 using Capsule.Scenes;
 using Microsoft.CodeAnalysis;
+using static Capsule.Tests.Generators.GeneratorHarness;
 
 namespace Capsule.Tests.Generators;
 
@@ -106,7 +107,7 @@ public sealed class AuthorableArrayTests
     [Fact]
     public void AnArrayIsEachScenesOwn_AndAMemoryIsSharedByEveryScene()
     {
-        SceneDocument document = SceneDocument.Parse(Document(
+        SceneDocument document = SceneDocument.Parse(Entities(
             """{"id": 1, "type": "lift"}, {"type": "gate", "path": [[0, 0], [48, -8]], "weights": [0.5, 2], "lifts": [1]}"""));
         SceneRegistry registry = Registry.Value;
         Entity first = registry.Create(new SceneKey("scenes/room"), document).Entities.ToArray()[1];
@@ -126,7 +127,6 @@ public sealed class AuthorableArrayTests
     // is shared by every scene. It holds only values whose read takes nothing from the scene.
     [Theory]
     [InlineData("System.Collections.Generic.List<int> Stops { get; set; } = [];", "Declare 'int[]'")]
-    [InlineData("System.Collections.Generic.IReadOnlyList<int> Stops { get; set; } = [];", "Declare 'int[]'")]
     [InlineData("Route Stops { get; set; } = new();", null)]
     [InlineData("ITrack Stops { get; set; } = null!;", null)]
     [InlineData("System.ReadOnlyMemory<int> Stops { get; set; }", null)]
@@ -267,11 +267,6 @@ public sealed class AuthorableArrayTests
         GeneratorHarness.AssertLoadRefused(() => Composed(entries), "scene document 'scenes/room': entities[1] ('gate') ", fix);
     }
 
-    private static string Document(string entries) =>
-        "{\"entities\": [" + entries + "]}";
-
     // Composes the room through the generated registry.
-    private static Scene Composed(string entries) => GeneratorHarness.Composed(Registry.Value, Document(entries));
-
-    private static object? Member(Entity entity, string name) => GeneratorHarness.Member(entity, name);
+    private static Scene Composed(string entries) => GeneratorHarness.Composed(Registry.Value, Entities(entries));
 }

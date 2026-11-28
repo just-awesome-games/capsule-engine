@@ -8,16 +8,10 @@ namespace Capsule.UI;
 /// </summary>
 /// <remarks>
 /// Each column is as wide as the largest preferred width among its cells, and each row as tall as the
-/// largest preferred height. A screen entity's preferred extent is its <see cref="ScreenEntity.Size"/>, and
-/// a container's is its fitted extent. The tracks never stretch to fill the grid. The child's own
-/// <see cref="ScreenEntity.Anchor"/> places it in its cell as it would in a plain parent's padded rect, and
-/// its <see cref="Scenes.Entity.Position"/> stays an offset from that anchor that never moves a sibling. A
-/// child whose own <see cref="Scenes.Entity.Visible"/> is false takes no cell. A plain entity child is not
-/// placed.
+/// largest preferred height. The tracks never stretch to fill the grid.
 /// <para>
 /// On each axis the grid is at least its <see cref="ScreenEntity.Size"/> and grows past it to fit its
 /// tracks and its <see cref="ScreenEntity.Padding"/>. An axis its own anchor spans takes the span instead.
-/// The layout is cached and correct whenever it is read.
 /// </para>
 /// </remarks>
 public class GridContainer : ScreenEntity

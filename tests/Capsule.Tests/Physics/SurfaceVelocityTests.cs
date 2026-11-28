@@ -19,12 +19,7 @@ public sealed class SurfaceVelocityTests
     [InlineData(true)]
     public void ABelt_CarriesTheBodyStandingOnIt_OneStepOfItsVelocityEachStep(bool collider)
     {
-        Scene scene = collider ? new Scene() : SceneFixtures.Terrain(Grid("......", "......", ">>>>>>"));
-        if (collider)
-        {
-            scene.Add(new Conveyor(new Vector2(0f, 32f), Speed));
-        }
-
+        Scene scene = Belted(collider);
         Rider walker = new(new Vector2(8f, 16f), Belt) { Falls = true };
         Run(scene, walker, 10);
 
@@ -37,19 +32,18 @@ public sealed class SurfaceVelocityTests
     public void ASurfaceVelocitySetAtRuntime_StartsAndStopsTheCarry()
     {
         Scene scene = new();
-        Conveyor conveyor = new(new Vector2(0f, 32f), Vector2.Zero);
-        scene.Add(conveyor);
+        Slab conveyor = scene.Add(Conveyor(new Vector2(0f, 32f), Vector2.Zero));
         Rider walker = new(new Vector2(8f, 16f), Belt) { Falls = true };
         SceneSimulation simulation = Start(scene, walker);
-        Advance(simulation, 0, 5);
+        CollisionFixtures.Advance(simulation, 0, 5);
         Assert.Equal(8f, walker.Position.X);
 
-        conveyor.Surface.SurfaceVelocity = Speed;
-        Advance(simulation, 5, 10);
+        conveyor.Collider.SurfaceVelocity = Speed;
+        CollisionFixtures.Advance(simulation, 5, 10);
         Assert.Equal(18f, walker.Position.X, CollisionFixtures.Tolerance);
 
-        conveyor.Surface.SurfaceVelocity = Vector2.Zero;
-        Advance(simulation, 15, 5);
+        conveyor.Collider.SurfaceVelocity = Vector2.Zero;
+        CollisionFixtures.Advance(simulation, 15, 5);
         Assert.Equal(18f, walker.Position.X, CollisionFixtures.Tolerance);
     }
 
@@ -59,17 +53,12 @@ public sealed class SurfaceVelocityTests
     [InlineData(true)]
     public void AHeldBelt_CarriesABodyThatSteps(bool collider)
     {
-        Scene scene = collider ? new Scene() : SceneFixtures.Terrain(Grid("......", "......", ">>>>>>"));
-        if (collider)
-        {
-            scene.Add(new Conveyor(new Vector2(0f, 32f), Speed));
-        }
-
+        Scene scene = Belted(collider);
         Rider walker = new(new Vector2(8f, 16f), Belt) { StepMode = StepMode.Always };
         SceneSimulation simulation = Start(scene, walker);
         scene.Paused = true;
 
-        Advance(simulation, 0, 10);
+        CollisionFixtures.Advance(simulation, 0, 10);
 
         Assert.Equal(18f, walker.Position.X, CollisionFixtures.Tolerance);
     }
@@ -78,12 +67,12 @@ public sealed class SurfaceVelocityTests
     public void AHeldBody_IsNotCarriedByABeltThatSteps()
     {
         Scene scene = new();
-        scene.Add(new Conveyor(new Vector2(0f, 32f), Speed) { StepMode = StepMode.Always });
+        scene.Add(Conveyor(new Vector2(0f, 32f))).StepMode = StepMode.Always;
         Rider walker = new(new Vector2(8f, 16f), Belt);
         SceneSimulation simulation = Start(scene, walker);
         scene.Paused = true;
 
-        Advance(simulation, 0, 10);
+        CollisionFixtures.Advance(simulation, 0, 10);
 
         Assert.Equal(8f, walker.Position.X);
     }
@@ -93,16 +82,16 @@ public sealed class SurfaceVelocityTests
     [Fact]
     public void AMapThatLeftTheWorldAndReturned_NoLongerCarriesTheBodyThatRodeIt()
     {
-        Scene scene = SceneFixtures.Terrain(Grid("......", "......", ">>>>>>"));
+        Scene scene = Belted(collider: false);
         Rider walker = new(new Vector2(8f, 16f), Belt);
         SceneSimulation simulation = Start(scene, walker);
-        Advance(simulation, 0, 1);
+        CollisionFixtures.Advance(simulation, 0, 1);
         float carried = walker.Position.X;
         TileMapCollider2D ground = SceneFixtures.TerrainOf(scene).Get<TileMapCollider2D>();
 
         ground.Enabled = false;
         ground.Enabled = true;
-        Advance(simulation, 1, 5);
+        CollisionFixtures.Advance(simulation, 1, 5);
 
         Assert.Equal(carried, walker.Position.X);
     }
@@ -113,14 +102,14 @@ public sealed class SurfaceVelocityTests
     public void ABodyCrossingTheSeamBetweenTwoBelts_IsCarriedOnceThatStep()
     {
         Scene scene = new();
-        scene.Add(new Conveyor(new Vector2(0f, 32f), Speed));
-        scene.Add(new Conveyor(new Vector2(96f, 32f), Speed));
+        scene.Add(Conveyor(new Vector2(0f, 32f)));
+        scene.Add(Conveyor(new Vector2(96f, 32f)));
         Rider walker = new(new Vector2(80f, 16f), Belt);
         SceneSimulation simulation = Start(scene, walker);
-        Advance(simulation, 0, 15);
+        CollisionFixtures.Advance(simulation, 0, 15);
         Assert.Equal(95f, walker.Position.X, CollisionFixtures.Tolerance);
 
-        Advance(simulation, 15, 1);
+        CollisionFixtures.Advance(simulation, 15, 1);
 
         Assert.Equal(96f, walker.Position.X, CollisionFixtures.Tolerance);
     }
@@ -130,16 +119,16 @@ public sealed class SurfaceVelocityTests
     public void ABodyReusedInANewScene_IsCarriedOnItsFirstStepThere()
     {
         Scene first = new();
-        first.Add(new Conveyor(new Vector2(0f, 32f), Speed));
+        first.Add(Conveyor(new Vector2(0f, 32f)));
         Rider walker = new(new Vector2(8f, 16f), Belt);
-        Advance(Start(first, walker), 0, 1);
+        CollisionFixtures.Advance(Start(first, walker), 0, 1);
         first.Remove(walker);
 
         Scene second = new();
-        second.Add(new Conveyor(new Vector2(0f, 32f), Speed));
+        second.Add(Conveyor(new Vector2(0f, 32f)));
         SceneSimulation simulation = Start(second, walker);
         float before = walker.Position.X;
-        Advance(simulation, 0, 1);
+        CollisionFixtures.Advance(simulation, 0, 1);
 
         Assert.Equal(before + 1f, walker.Position.X, CollisionFixtures.Tolerance);
     }
@@ -157,7 +146,7 @@ public sealed class SurfaceVelocityTests
             slabs[index] = scene.Add(new Slab(new Vector2(500f, 32f), CollisionFixtures.Solid, new Vector2(96f, 16f)));
         }
 
-        scene.Add(new Conveyor(new Vector2(0f, 32f), Speed));
+        scene.Add(Conveyor(new Vector2(0f, 32f)));
         Rider walker = new(new Vector2(8f, 16f), Belt);
         SceneSimulation simulation = Start(scene, walker);
         walker.Mover.Mode = BodyMode.Floating;
@@ -166,7 +155,7 @@ public sealed class SurfaceVelocityTests
             slab.Position = new Vector2(0f, 32f);
         }
 
-        Advance(simulation, 0, 10);
+        CollisionFixtures.Advance(simulation, 0, 10);
 
         Assert.Equal(18f, walker.Position.X, CollisionFixtures.Tolerance);
     }
@@ -174,7 +163,7 @@ public sealed class SurfaceVelocityTests
     [Fact]
     public void AMirroredBeltCell_CarriesTheOtherWay()
     {
-        Scene scene = SceneFixtures.Terrain(Grid("......", "......", ">>>>>>"));
+        Scene scene = Belted(collider: false);
         TileMap map = SceneFixtures.TerrainOf(scene);
         for (int x = 0; x < map.Width; x++)
         {
@@ -201,7 +190,7 @@ public sealed class SurfaceVelocityTests
     public void ABodyNotMovedByTheBeltsLayer_IsNotCarried()
     {
         Rider walker = new(new Vector2(8f, 16f)) { Falls = true };
-        Run(SceneFixtures.Terrain(Grid("......", "......", ">>>>>>")), walker, 10);
+        Run(Belted(collider: false), walker, 10);
 
         Assert.Equal(8f, walker.Position.X);
     }
@@ -213,11 +202,11 @@ public sealed class SurfaceVelocityTests
     {
         Rider walker = new(new Vector2(36f, 16f), Belt);
         SceneSimulation simulation = Start(SceneFixtures.Terrain(Grid("......", "......", ">>>###")), walker);
-        Advance(simulation, 0, 20);
+        CollisionFixtures.Advance(simulation, 0, 20);
         float left = walker.Position.X;
         Assert.InRange(left, 48f, 49f + CollisionFixtures.Tolerance);
 
-        Advance(simulation, 20, 20);
+        CollisionFixtures.Advance(simulation, 20, 20);
 
         Assert.Equal(left, walker.Position.X);
     }
@@ -246,7 +235,25 @@ public sealed class SurfaceVelocityTests
         Assert.Equal(80f - Rider.Edge, walker.Position.Y, 0.01f);
     }
 
-    private static void Run(Scene scene, Rider walker, int steps) => Advance(Start(scene, walker), 0, steps);
+    // A belt along y = 32 from x = 0 to 96, as a collider or as a row of belt tiles.
+    private static Scene Belted(bool collider)
+    {
+        if (!collider)
+        {
+            return SceneFixtures.Terrain(Grid("......", "......", ">>>>>>"));
+        }
+
+        Scene scene = new();
+        scene.Add(Conveyor(new Vector2(0f, 32f)));
+
+        return scene;
+    }
+
+    // A belt that is an entity rather than tiles, 96 wide and 16 tall, running at Speed unless given another.
+    private static Slab Conveyor(Vector2 position, Vector2? velocity = null) =>
+        new(position, Belt, new Vector2(96f, 16f)) { Collider = { SurfaceVelocity = velocity ?? Speed } };
+
+    private static void Run(Scene scene, Rider walker, int steps) => CollisionFixtures.Advance(Start(scene, walker), 0, steps);
 
     // Grounds the body, adds it and lands it once.
     private static SceneSimulation Start(Scene scene, Rider walker)
@@ -257,14 +264,6 @@ public sealed class SurfaceVelocityTests
         CollisionFixtures.Land(walker.Mover, 64f);
 
         return simulation;
-    }
-
-    private static void Advance(SceneSimulation simulation, int from, int steps)
-    {
-        for (int step = from; step < from + steps; step++)
-        {
-            simulation.Step(SceneFixtures.Step(step));
-        }
     }
 
     // '#' is solid ground, '>' a belt running right and '\' a slide slope falling to the right that
@@ -300,18 +299,5 @@ public sealed class SurfaceVelocityTests
             cells,
             SceneFixtures.Atlas,
             1);
-    }
-
-    /// <summary>A belt that is an entity rather than tiles, 96 wide and 16 tall.</summary>
-    private sealed class Conveyor : Entity
-    {
-        internal BoxCollider2D Surface { get; }
-
-        internal Conveyor(Vector2 position, Vector2 velocity)
-            : base(position)
-        {
-            Surface = new BoxCollider2D(new Vector2(96f, 16f)) { Layer = Belt, SurfaceVelocity = velocity };
-            Add(Surface);
-        }
     }
 }

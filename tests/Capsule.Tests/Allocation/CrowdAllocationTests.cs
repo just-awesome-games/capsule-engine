@@ -13,7 +13,6 @@ public sealed class CrowdAllocationTests
 
         StepSample[] samples = StepMeasurement.Measure(simulation, warmupSteps: 180);
 
-        Assert.Equal(0, samples.Sum(static sample => sample.StepBytes));
-        Assert.Equal(0, samples.Sum(static sample => sample.ViewBytes));
+        StepMeasurement.AssertNoAllocation(samples);
     }
 }

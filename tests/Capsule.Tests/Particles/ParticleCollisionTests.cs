@@ -4,6 +4,7 @@ using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
+using static Capsule.Tests.Particles.ParticleFixtures;
 
 namespace Capsule.Tests.Particles;
 
@@ -11,7 +12,6 @@ public sealed class ParticleCollisionTests
 {
     private const float Dt = 1f / 60f;
 
-    private static readonly Sprite Tile = SceneFixtures.Frame(4, 4);
     private static readonly CollisionMask Solid = new("solid");
 
     // A step carries a particle from above the one-row floor, whose top is y = 32, to below it: at 2 400 units a second

@@ -4,6 +4,13 @@ namespace Capsule.Tests.Input;
 
 public sealed class DeviceSnapshotTests
 {
+    public static TheoryData<InputButton, Func<DeviceSnapshot, DeviceSnapshot>> Releases => new()
+    {
+        { Key.A, static held => held.Without(Key.A) },
+        { PadButton.South, static held => held.Without(PadButton.South) },
+        { MouseButton.Left, static held => held.Without(MouseButton.Left) },
+    };
+
     [Fact]
     public void EveryDeviceConstant_FitsItsBitset()
     {
@@ -12,14 +19,18 @@ public sealed class DeviceSnapshotTests
         Assert.All(Enum.GetValues<MouseButton>(), button => Assert.InRange((int)button, 0, DeviceSnapshot.MouseCapacity - 1));
     }
 
-    [Fact]
-    public void Without_ReleasesOnlyThatKey()
+    // Each device's overload and the InputButton one release that button alone.
+    [Theory]
+    [MemberData(nameof(Releases))]
+    public void Without_ReleasesOnlyThatButton_ByItsDeviceOrAsAnInputButton(InputButton button, Func<DeviceSnapshot, DeviceSnapshot> byDevice)
     {
-        DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.A, Key.B, Key.F12).Without(Key.A);
+        InputButton[] down = [Key.A, Key.F12, PadButton.South, MouseButton.Left];
+        DeviceSnapshot held = DeviceSnapshot.Of(Key.A, Key.F12).With(PadButton.South).With(MouseButton.Left);
 
-        Assert.False(snapshot.IsDown(Key.A));
-        Assert.True(snapshot.IsDown(Key.B));
-        Assert.True(snapshot.IsDown(Key.F12));
+        DeviceSnapshot released = held.Without(button);
+
+        Assert.Equal(byDevice(held), released);
+        Assert.All(down, other => Assert.Equal(other != button, other.IsDown(released)));
     }
 
     [Fact]
@@ -112,7 +123,6 @@ public sealed class DeviceSnapshotTests
 
         Assert.Equal(PadFamily.Generic, DeviceSnapshot.Empty.PadFamily);
         Assert.NotEqual(DeviceSnapshot.Empty, xbox);
-        Assert.Equal(DeviceSnapshot.Empty.WithPadFamily(PadFamily.Xbox).GetHashCode(), xbox.GetHashCode());
         Assert.Equal(PadFamily.PlayStation, xbox.LatchedWith(DeviceSnapshot.Empty.WithPadFamily(PadFamily.PlayStation)).PadFamily);
         Assert.Throws<ArgumentOutOfRangeException>(() => DeviceSnapshot.Empty.WithPadFamily((PadFamily)4));
     }
@@ -131,7 +141,6 @@ public sealed class DeviceSnapshotTests
         Assert.False(DeviceSnapshot.Empty.PadHas((PadButton)DeviceSnapshot.PadCapacity));
 
         Assert.NotEqual(DeviceSnapshot.Empty, noTriggers);
-        Assert.Equal(DeviceSnapshot.Empty.WithPadLacking(PadButton.RightTrigger, PadButton.LeftTrigger).GetHashCode(), noTriggers.GetHashCode());
         Assert.Equal(DeviceSnapshot.Empty, noTriggers.WithPadLacking());
         Assert.True(noTriggers.WithPadLacking(PadButton.East).PadHas(PadButton.RightTrigger));
         Assert.True(noTriggers.LatchedWith(DeviceSnapshot.Empty).PadHas(PadButton.RightTrigger));

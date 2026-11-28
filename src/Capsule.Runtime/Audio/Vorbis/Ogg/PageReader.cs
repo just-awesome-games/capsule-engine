@@ -1,15 +1,17 @@
 #nullable disable
 #pragma warning disable
 using System;
-using System.Collections.Generic;
 using System.IO;
 
 namespace Capsule.Runtime.Audio.Vorbis.Ogg
 {
+    // Capsule: reads the file's first logical stream alone. Upstream kept a reader per stream serial and
+    // offered each new one to a callback. A page of another stream, chained after the first or
+    // interleaved with it, is skipped, and so is a page of the first after its end-of-stream page.
     sealed class PageReader : PageReaderBase
     {
-        private readonly Dictionary<int, StreamPageReader> _streamReaders = new Dictionary<int, StreamPageReader>();
-        private readonly Func<PacketProvider, bool> _newStreamCallback;
+        private StreamPageReader _firstStream;
+        private int _firstSerial;
 
         private long _nextPageOffset;
         private ushort _pageSize;
@@ -38,13 +40,15 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             return offsets;
         }
 
-        public PageReader(Stream stream, Func<PacketProvider, bool> newStreamCallback)
+        public PageReader(Stream stream)
             : base(stream)
         {
-            _newStreamCallback = newStreamCallback;
         }
 
-        private ushort ParsePageHeader(byte[] pageBuf, int? streamSerial, bool? isResync)
+        // The first logical stream's packets, or null until a page of it has been read.
+        public PacketProvider FirstStream => _firstStream?.PacketProvider;
+
+        private ushort ParsePageHeader(byte[] pageBuf, bool? isResync)
         {
             var segCnt = pageBuf[26];
             var dataLen = 0;
@@ -72,15 +76,13 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
                 ++pktCnt;
             }
 
-            StreamSerial = streamSerial ?? BitConverter.ToInt32(pageBuf, 14);
             SequenceNumber = BitConverter.ToInt32(pageBuf, 18);
             PageFlags = (PageFlags)pageBuf[5];
             GranulePosition = BitConverter.ToInt64(pageBuf, 6);
             PacketCount = (short)pktCnt;
             IsResync = isResync;
             IsContinued = isContinued;
-            PageOverhead = 27 + segCnt;
-            return (ushort)(PageOverhead + dataLen);
+            return (ushort)(27 + segCnt + dataLen);
         }
 
         // Capsule: instance method (was static) so it can rent from the page ring instead of
@@ -132,39 +134,33 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
 
         protected override bool AddPage(int streamSerial, byte[] pageBuf, int pageLength, bool isResync)
         {
+            if (_firstStream != null && (streamSerial != _firstSerial || _firstStream.HasAllPages))
+            {
+                return false;
+            }
+
             // Capsule: pageBuf may be larger than pageLength (a ring-rented buffer grown for an
             // earlier, bigger page). Every offset below is computed from pageLength, never
             // pageBuf.Length.
             PageOffset = StreamPosition - pageLength;
-            ParsePageHeader(pageBuf, streamSerial, isResync);
+            ParsePageHeader(pageBuf, isResync);
 
-            // if the page doesn't have any packets, we can't use it
-            if (PacketCount == 0) return false;
+            // Capsule: a page with no packets is unusable, and the first stream ends at it, as it ends at
+            // the empty last page some encoders write.
+            if (PacketCount == 0)
+            {
+                _firstStream?.SetEndOfStream();
+                return false;
+            }
 
             _packets = ReadPackets(new Span<byte>(pageBuf, 27, pageBuf[26]), new Memory<byte>(pageBuf, 27 + pageBuf[26], pageLength - 27 - pageBuf[26]));
 
-            if (_streamReaders.TryGetValue(streamSerial, out var spr))
+            if (_firstStream == null)
             {
-                spr.AddPage();
-
-                // if we've read the last page, remove from our list so cleanup can happen.
-                // this is safe because the instance still has access to us for reading.
-                if ((PageFlags & PageFlags.EndOfStream) == PageFlags.EndOfStream)
-                {
-                    _streamReaders.Remove(StreamSerial);
-                }
+                _firstStream = new StreamPageReader(this);
+                _firstSerial = streamSerial;
             }
-            else
-            {
-                var streamReader = new StreamPageReader(this);
-                streamReader.AddPage();
-                _streamReaders.Add(StreamSerial, streamReader);
-                if (!_newStreamCallback(streamReader.PacketProvider))
-                {
-                    _streamReaders.Remove(StreamSerial);
-                    return false;
-                }
-            }
+            _firstStream.AddPage();
             return true;
         }
 
@@ -188,27 +184,21 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             {
                 // don't read the whole page yet; if our caller is seeking, they won't need packets anyway
                 _packets = null;
-                _pageSize = ParsePageHeader(hdrBuf, null, null);
+                _pageSize = ParsePageHeader(hdrBuf, null);
                 return true;
             }
             return false;
         }
 
-        protected override void SetEndOfStreams()
+        protected override void SetEndOfStream()
         {
-            foreach (var kvp in _streamReaders)
-            {
-                kvp.Value.SetEndOfStream();
-            }
-            _streamReaders.Clear();
+            _firstStream?.SetEndOfStream();
         }
 
 
         #region IPacketData
 
         public long PageOffset { get; private set; }
-
-        public int StreamSerial { get; private set; }
 
         public int SequenceNumber { get; private set; }
 
@@ -221,8 +211,6 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
         public bool? IsResync { get; private set; }
 
         public bool IsContinued { get; private set; }
-
-        public int PageOverhead { get; private set; }
 
         public Memory<byte>[] GetPackets()
         {

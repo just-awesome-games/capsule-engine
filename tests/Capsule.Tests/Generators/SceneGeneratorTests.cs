@@ -45,7 +45,7 @@ public sealed class SceneGeneratorTests
         Assert.DoesNotContain("opening-room", generated, StringComparison.Ordinal);
     }
 
-    // AssetKeyTests holds every spelling the key rule refuses. This holds which refusal names which defect.
+    // RegistryKeyTests holds every spelling the key rule refuses. This holds which refusal names which defect.
     [Theory]
     [InlineData("01-intro/opening", "CAP021", "'01-intro'")]
     [InlineData("rooms/nul", "CAP006", "'rooms/nul'")]
@@ -123,11 +123,7 @@ public sealed class SceneGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
         Assembly assembly = GeneratorHarness.Loaded(compiled);
-        SceneRegistry registry = GeneratorHarness.Registry(assembly);
-
-        SceneDocument document = SceneDocument.Parse(
-            """{"entities": [{"type": "tile-map", "tileSize": 16, "width": 1, "height": 1, "tileTypes": [{"name": "empty"}], "tiles": [0]}]}""");
-        Scene composed = registry.Create(new SceneKey("scenes/halls/hall"), document);
+        Scene composed = ComposedHall(assembly);
 
         Assert.True(assembly.GetType("Game.Z.PlayableRoom")!.IsInstanceOfType(composed));
     }
@@ -219,11 +215,7 @@ public sealed class SceneGeneratorTests
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
         Assembly assembly = GeneratorHarness.Loaded(compiled);
-        SceneRegistry registry = GeneratorHarness.Registry(assembly);
-
-        SceneDocument document = SceneDocument.Parse(
-            """{"entities": [{"type": "tile-map", "tileSize": 16, "width": 1, "height": 1, "tileTypes": [{"name": "empty"}], "tiles": [0]}]}""");
-        Scene composed = registry.Create(new SceneKey("scenes/halls/hall"), document);
+        Scene composed = ComposedHall(assembly);
 
         Assert.True(assembly.GetType("Game.PlayableRoom")!.IsInstanceOfType(composed));
         Assert.IsType<TileMap>(composed.Entities[0]);
@@ -260,4 +252,11 @@ public sealed class SceneGeneratorTests
         Assert.NotNull(compiled.GetTypeByMetadataName("Capsule.Generated.CapsuleScenes"));
         Assert.Empty(GeneratorHarness.Errors(compiled.GetDiagnostics()));
     }
+
+    // The hall's document, one empty tile, composed through the generated registry.
+    private static Scene ComposedHall(Assembly assembly) =>
+        GeneratorHarness.Composed(
+            GeneratorHarness.Registry(assembly),
+            """{"entities": [{"type": "tile-map", "tileSize": 16, "width": 1, "height": 1, "tileTypes": [{"name": "empty"}], "tiles": [0]}]}""",
+            "scenes/halls/hall");
 }

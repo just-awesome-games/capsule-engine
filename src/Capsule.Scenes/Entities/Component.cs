@@ -8,12 +8,8 @@ namespace Capsule.Scenes;
 /// animator, or a game's own.
 /// </summary>
 /// <remarks>
-/// Make something a component when another entity type would attach it unchanged. A component has
-/// no position of its own and reads its entity's position and scene through the entity. The scene
-/// steps components after their entity, in attachment order. Override <see cref="OnAttached"/> and
-/// <see cref="OnDetached"/> to bring and release the components it needs, <see cref="OnStart"/> to find
-/// what it needs, <see cref="OnStep"/> to advance it, <see cref="OnDebugPanel"/> to expose it to
-/// the overlay, and <see cref="CollectAssets"/> to declare what it loads.
+/// A component has no position of its own and reads its entity's position and scene through the
+/// entity. The scene steps components after their entity, in attachment order.
 /// </remarks>
 public abstract class Component
 {
@@ -41,10 +37,7 @@ public abstract class Component
         ? scene.Run
         : throw new InvalidOperationException($"{GetType().Name} is on no entity in a scene and has no run yet. {Scene.NoRunYet}");
 
-    /// <summary>
-    /// The run's default deterministic random stream. A domain whose draws must not disturb another takes
-    /// its own stream, as <c>new RandomSource(Random.Seed, MyStreams.Map)</c>.
-    /// </summary>
+    /// <summary>The run's deterministic random source, <see cref="Capsule.Run.Random"/>.</summary>
     public RandomSource Random => Run.Random;
 
     /// <summary>Runs as this component is attached to <paramref name="entity"/>, before any scene hook.</summary>

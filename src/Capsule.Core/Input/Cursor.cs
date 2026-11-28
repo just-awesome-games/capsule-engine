@@ -43,11 +43,9 @@ public sealed class Cursor
     /// <remarks>
     /// The sprite's pivot is the hotspot, the texel that points. Any unflipped sprite cut from the game's
     /// textures works, including an atlas-packed texture or a frame of a sheet. A flipped frame is
-    /// refused, because the operating system draws a cursor from the region's own texels. The host
-    /// scales the image with the canvas by the nearest whole factor, at least 1, with
-    /// nearest-neighbour sampling. The image then keeps its size against the game's art. The factor is
-    /// lowered, down to 1, to keep each side within 256 window pixels, and a region already wider than
-    /// that stays at 1.
+    /// refused. The host scales the image with the canvas by the nearest whole factor, at least 1, with
+    /// nearest-neighbour sampling. The factor is lowered, down to 1, to keep each side within 256 window
+    /// pixels, and a region already wider than that stays at 1.
     /// </remarks>
     /// <example>
     /// An animated cursor is a clip the game steps and assigns every step:
@@ -76,10 +74,7 @@ public sealed class Cursor
     }
 
     /// <summary>Makes the cursor as it stands the one every later scene starts with.</summary>
-    /// <remarks>
-    /// Until it is called, a scene starts with the cursor shown, unconfined, as the system arrow. Call it again
-    /// whenever a run-wide setting changes the cursor, such as a larger image chosen in the options.
-    /// </remarks>
+    /// <remarks>Until it is called, a scene starts with the cursor shown, unconfined, as the system arrow.</remarks>
     public void MakeDefault()
     {
         _defaultVisible = Visible;

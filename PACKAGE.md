@@ -10,7 +10,7 @@ Capsule is a deterministic, code-first 2D game engine for C#. Scenes are authore
 | `JAG.Capsule.Build` | The build a game's build project runs through `CapsuleBuild`: asset naming, scene, sprite, font, audio and shader compilation, and atlas packing. An importer package implements its `IAssetImporter`. Only build projects and importer libraries reference it. |
 | `JAG.Capsule.Runtime` | The host a shell references, on SDL3 for Windows, Linux and macOS: window, device, clock, input sampling, renderer, sound playback, scene hosting, content and saves, and the `HostPlatform` a port overrides. |
 
-`JAG.Capsule.Runtime` carries the [third-party notices](https://github.com/just-awesome-games/capsule-engine/blob/main/THIRD-PARTY-NOTICES.md).
+Each package carries the [third-party notices](https://github.com/just-awesome-games/capsule-engine/blob/main/THIRD-PARTY-NOTICES.md).
 
 Start with the [repository quickstart](https://github.com/just-awesome-games/capsule-engine#quick-start). The [README](https://github.com/just-awesome-games/capsule-engine#documentation) indexes the task pages.
 

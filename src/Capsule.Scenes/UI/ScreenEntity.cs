@@ -12,10 +12,12 @@ namespace Capsule.UI;
 /// <remarks>
 /// A screen entity is placed in the slot its parent gives it, or in the canvas when it is a root, by its
 /// <see cref="Anchor"/> and its <see cref="Entity.Position"/>. A plain parent's slot is its rect inset by
-/// its <see cref="Padding"/>, and a container's is the child's cell. The canvas is the run's
-/// (<see cref="Run.Canvas"/>), not the window's. Its <see cref="Entity.Parent"/> may
-/// be another screen entity but never a plain one. A plain entity parented under one joins the group
-/// and draws on the screen layer in canvas pixels from this entity's top-left corner.
+/// its <see cref="Padding"/>, and a container's is the child's cell. A container gives a cell only to a
+/// screen entity child whose own <see cref="Entity.Visible"/> is true, and a child's position never moves a
+/// sibling. A child's preferred extent is its <see cref="Size"/> grown to fit what it holds, up to
+/// <see cref="MaxSize"/>. The canvas is the run's (<see cref="Run.Canvas"/>), not the window's. Its
+/// <see cref="Entity.Parent"/> may be another screen entity but never a plain one. A plain entity parented
+/// under one joins the group and draws on the screen layer in canvas pixels from this entity's top-left corner.
 /// </remarks>
 /// <example>
 /// A panel centred on the canvas, with a caption along the top of its padded inside:

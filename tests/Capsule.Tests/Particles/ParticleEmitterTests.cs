@@ -3,13 +3,12 @@ using Capsule.Particles;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
+using static Capsule.Tests.Particles.ParticleFixtures;
 
 namespace Capsule.Tests.Particles;
 
 public sealed class ParticleEmitterTests
 {
-    private static readonly Sprite Tile = SceneFixtures.Frame(4, 4);
-
     [Fact]
     public void TwoHeadlessRuns_EmitIdenticalIntentsOnTheSameTick()
     {

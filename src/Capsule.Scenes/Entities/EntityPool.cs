@@ -25,8 +25,7 @@ internal interface IEntityPool
 /// <remarks>
 /// A spawner takes from its scene's pool of a type, <see cref="Scene.Pool{T}"/>, by default. It builds its own
 /// pool only where a type cannot name the pool: its entities take constructor arguments, or one pool of a base
-/// type is filled by several factories. The game writes no release call, and the pooled class holds no pool
-/// reference. Idle entities sit outside any scene. The pool's owner forwards it from its own
+/// type is filled by several factories. Idle entities sit outside any scene. The pool's owner forwards it from its own
 /// <c>CollectAssets</c> through <see cref="CollectAssets"/> to preload what they draw and play. The first take
 /// logs once at <see cref="Log.Info"/> when no preload collection has reached the pool and its entities hold
 /// assets to preload.
@@ -94,16 +93,10 @@ public sealed class EntityPool<T> : IEntityPool
     /// <summary>Entities taken and not yet returned.</summary>
     public int Active => Capacity - Available;
 
-    /// <summary>
-    /// Pops the most recently returned idle entity, or builds one more when none is idle. Never
-    /// null.
-    /// </summary>
+    /// <summary>Pops the most recently returned idle entity, or builds one more when none is idle.</summary>
     /// <remarks>
-    /// The entity returns to this pool when it leaves its scene.
-    /// <para>
     /// The first build past the constructed capacity logs once at <see cref="Log.Debug"/>. Size the
     /// pool for its peak.
-    /// </para>
     /// </remarks>
     public T Take()
     {
@@ -141,7 +134,6 @@ public sealed class EntityPool<T> : IEntityPool
     /// entities it holds.
     /// </summary>
     /// <remarks>
-    /// Call it from the <c>CollectAssets</c> override of the entity or scene that declares the pool.
     /// A pool nothing forwards preloads nothing, and its entities' textures and sounds load on first
     /// use mid-play. A scene's preload also reserves room for every entity a forwarded pool holds. Its
     /// first takes then attach and leave without allocating.
@@ -153,7 +145,6 @@ public sealed class EntityPool<T> : IEntityPool
     /// protected override void CollectAssets(AssetCollection assets) =&gt; _ripples.CollectAssets(assets);
     /// </code>
     /// </example>
-    /// <param name="assets">The collection the owner's hook was handed.</param>
     public void CollectAssets(AssetCollection assets)
     {
         ArgumentNullException.ThrowIfNull(assets);

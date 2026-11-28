@@ -10,15 +10,12 @@ namespace Capsule.UI;
 /// <remarks>
 /// Each visible child gets a cell as wide as its preferred width and as tall as its row, and each row is as
 /// tall as its tallest cell. A row holds at least one child, and a child wider than the inside overflows a
-/// row of its own. The child's own <see cref="ScreenEntity.Anchor"/> places it in its cell as it would in a plain
-/// parent's padded rect, and its <see cref="Scenes.Entity.Position"/> stays an offset from that anchor that
-/// never moves a sibling. A child whose own <see cref="Scenes.Entity.Visible"/> is false takes no cell. A
-/// plain entity child is not placed.
+/// row of its own.
 /// <para>
 /// The flow prefers the width of its widest row and its padding, once the rows break under the tighter of its
 /// <see cref="ScreenEntity.MaxSize"/> and the width its parent gives it. With neither bound it prefers one row.
 /// That width is then bounded as any screen entity's is: by <see cref="ScreenEntity.MaxSize"/>, by
-/// <see cref="ScreenEntity.Size"/>, and by a span of its anchor. The rows break again at the width it takes. The layout is cached and correct whenever it is read.
+/// <see cref="ScreenEntity.Size"/>, and by a span of its anchor. The rows break again at the width it takes.
 /// </para>
 /// </remarks>
 /// <example>

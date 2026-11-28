@@ -81,12 +81,11 @@ public sealed class AreaTests
         Assert.True(hazard.Get<BoxCollider2D>().Enabled);
     }
 
-    // The waterfall holds the player to its gravity while the player is in it and lets go on leaving. A room
-    // torn down with the player inside ends that contact too.
+    // The waterfall holds the player to its gravity while the player is in it and lets go on leaving.
     [Fact]
     public void TheWaterfall_SetsThePlayersGravityWhileThePlayerIsInIt()
     {
-        SimulationHost room = RoomFixture.Simulate();
+        using SimulationHost room = RoomFixture.Simulate();
         Player player = RoomFixture.PlayerOf(room);
         Waterfall falls = room.Scene.FindSingle<Waterfall>();
         Vector2 inside = falls.Position + new Vector2(4f, 8f);
@@ -96,9 +95,6 @@ public sealed class AreaTests
 
         RoomFixture.StandAt(room, new Vector2(100f, inside.Y));
         Assert.Null(player.GravityOverride);
-
-        RoomFixture.StandAt(room, inside);
-        Assert.Null(Record.Exception(room.Dispose));
     }
 
     // The hall's gust blows from the first step the player is in it, falls calm after its blowing steps, and

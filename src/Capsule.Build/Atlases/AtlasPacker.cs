@@ -4,11 +4,9 @@ namespace Capsule.Build.Atlases;
 /// MaxRects, bottom-left fit, no rotation, searched for the smallest page that holds each page's cells.
 /// </summary>
 /// <remarks>
-/// One input packs the same way on every machine. Cells are sorted by height, then width, then key,
-/// and fill full-size pages. Every open page is tried before a new one opens. Each page's cells are
-/// then packed again in the same order into strips of up to <see cref="WidthsTried"/> widths. The
-/// smallest page wins, then the squarer one, then the earlier attempt. The full-size layout is the
-/// first attempt, and no page comes out larger than it.
+/// One input packs the same way on every machine. Each page's cells pack again at up to
+/// <see cref="WidthsTried"/> widths after the full-size layout, the smallest page winning, and no page
+/// comes out larger than the full-size layout.
 /// </remarks>
 internal static class AtlasPacker
 {

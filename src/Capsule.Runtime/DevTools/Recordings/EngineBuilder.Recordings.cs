@@ -3,7 +3,6 @@ using System.Numerics;
 using Capsule.Diagnostics;
 using Capsule.Runtime.DevTools.Recordings;
 using Capsule.Runtime.Platform;
-using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 
 namespace Capsule.Runtime;
@@ -24,7 +23,7 @@ public sealed partial class EngineBuilder
             using RunTrace? trace = OpenTrace();
             using RunCapture? capture = OpenCapture();
 
-            return RunReplayHeadless(recording, in opening, watch: null, trace, capture).DivergedAt is null ? 0 : 1;
+            return RunHeadless(in opening, driver: null, recording, watch: null, trace, capture).DivergedAt is null ? 0 : 1;
         }
 
         RunRecorded(in opening, recording, RunHost);
@@ -82,33 +81,6 @@ public sealed partial class EngineBuilder
         {
             throw CommandLine.Refuse(_gameName, $"--capture could not open a GPU to draw on: {failure.Message}");
         }
-    }
-
-    // Builds the headless host over the recording's boot state and replays it to its end. Its saves are
-    // kept in memory and persist nowhere.
-    private HeadlessRunResult RunReplayHeadless(Recording recording, in SceneTransition opening, Action<Scene, long>? watch, RunTrace? trace = null, RunCapture? capture = null)
-    {
-        InstallLogging();
-
-        // Declared first so the host is disposed before it, with its last frame already written.
-        using FrameDiagnostics? diagnostics = OpenFrameDiagnostics();
-
-        RecordingHeader header = recording.Header;
-        using SceneHost scenes = CreateHost(opening, new RecordedSaveStorage(header.Saves), header.Seed, header.PreferredLanguages, header.LanguageOverride);
-        diagnostics?.Mark(FrameDiagnostics.Stage.HostConstructed);
-        Replay replay = new(recording, scenes, Scenes, recorder: null, holdsAtEnd: false);
-        if (Development.IsSupported && trace is not null)
-        {
-            replay.Acted = (tick, subject, act) => trace.Act(tick + 1, subject, act);
-        }
-
-        HeadlessHost host = new(this, scenes, driver: null, replay, diagnostics, watch, trace, capture);
-        using TickStamp stamp = StampTicks(() => host.SimulationTick);
-
-        HeadlessRunResult result = host.Run();
-        scenes.End();
-
-        return Finished(result, trace, capture);
     }
 
     // A run that exits ends on the tick before its exiting step. A run a trace or a capture halted is refused

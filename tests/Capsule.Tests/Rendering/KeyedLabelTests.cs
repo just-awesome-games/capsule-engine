@@ -18,24 +18,24 @@ public sealed class KeyedLabelTests
         Run run = new() { Language = "de" };
         int applied = run.LanguageVersion;
         run.Language = "de";
-        using SceneSimulation simulation = Started(label, run);
+        using SimulationHost simulation = FontFixtures.Shown(label, run);
 
         Assert.Equal(applied, run.LanguageVersion);
         Assert.Equal("Titel", label.Text);
 
-        simulation.Step(SceneFixtures.Step());
+        simulation.Step();
         run.Language = "fr-CA";
 
         Assert.Equal("fr-CA", run.Language);
         Assert.Equal("Titel", label.Text);
 
-        simulation.Step(SceneFixtures.Step(1));
+        simulation.Step();
 
         Assert.Equal("Titre", label.Text);
 
         applied = run.LanguageVersion;
         run.Language = "fr-CA";
-        simulation.Step(SceneFixtures.Step(2));
+        simulation.Step();
 
         Assert.Equal(applied, run.LanguageVersion);
     }
@@ -53,7 +53,7 @@ public sealed class KeyedLabelTests
     public void APluralLabel_ShowsTheFormItsCountSelects(string language, int count, string shown)
     {
         Label label = new(FontFixtures.Font());
-        using SceneSimulation simulation = Started(label, new Run { Language = language });
+        using SimulationHost simulation = FontFixtures.Shown(label, new Run { Language = language });
 
         label.SetText(StringTableFixtures.Bolts, count);
 
@@ -65,11 +65,11 @@ public sealed class KeyedLabelTests
     {
         Label label = new(FontFixtures.Font());
         Run run = new() { Language = "pl" };
-        using SceneSimulation simulation = Started(label, run);
+        using SimulationHost simulation = FontFixtures.Shown(label, run);
         label.SetText(StringTableFixtures.Bolts, 3UL);
 
         run.Language = "fr";
-        simulation.Step(SceneFixtures.Step());
+        simulation.Step();
 
         Assert.Equal("3 boulons", label.Text);
     }
@@ -81,13 +81,13 @@ public sealed class KeyedLabelTests
     {
         Label label = new(FontFixtures.Font());
         Run run = new();
-        using SceneSimulation simulation = Started(label, run);
+        using SimulationHost simulation = FontFixtures.Shown(label, run);
 
         label.SetText(StringTableFixtures.Pair, 1.5f, "Avatar");
         Assert.Equal("1.5 of Avatar", label.Text);
 
         run.Language = "de";
-        simulation.Step(SceneFixtures.Step());
+        simulation.Step();
 
         Assert.Equal("Avatar hat 1.5", label.Text);
     }
@@ -102,7 +102,7 @@ public sealed class KeyedLabelTests
     {
         Label label = new(FontFixtures.Font());
         Run run = new() { Language = "de" };
-        using SceneSimulation simulation = Started(label, run);
+        using SimulationHost simulation = FontFixtures.Shown(label, run);
 
         switch (shape)
         {
@@ -120,7 +120,7 @@ public sealed class KeyedLabelTests
         Assert.Equal("Punkte: An", label.Text);
 
         run.Language = "pl";
-        simulation.Step(SceneFixtures.Step());
+        simulation.Step();
 
         Assert.Equal("Wynik: Wł.", label.Text);
     }
@@ -129,7 +129,7 @@ public sealed class KeyedLabelTests
     public void AKeyArgumentATranslationLacks_ShowsTheSourceText()
     {
         Label label = new(FontFixtures.Font());
-        using SceneSimulation simulation = Started(label, new Run { Language = "fr" });
+        using SimulationHost simulation = FontFixtures.Shown(label, new Run { Language = "fr" });
 
         label.SetText(StringTableFixtures.Pair, StringTableFixtures.On, StringTableFixtures.Title);
 
@@ -141,11 +141,11 @@ public sealed class KeyedLabelTests
     {
         Label label = new(FontFixtures.Font(), StringTableFixtures.Title);
         Run run = new();
-        using SceneSimulation simulation = Started(label, run);
+        using SimulationHost simulation = FontFixtures.Shown(label, run);
 
         label.Text = "AB";
         run.Language = "de";
-        simulation.Step(SceneFixtures.Step());
+        simulation.Step();
 
         Assert.Equal("AB", label.Text);
     }
@@ -171,11 +171,11 @@ public sealed class KeyedLabelTests
     public void AKeyedLabelMovedToAnotherRun_ShowsThatRunsLanguage()
     {
         Label label = new(FontFixtures.Font(), StringTableFixtures.Title);
-        using SceneSimulation german = Started(label, new Run { Language = "de" });
+        using SimulationHost german = FontFixtures.Shown(label, new Run { Language = "de" });
         Assert.Equal("Titel", label.Text);
 
         label.Entity!.Remove(label);
-        using SceneSimulation french = Started(label, new Run { Language = "fr" });
+        using SimulationHost french = FontFixtures.Shown(label, new Run { Language = "fr" });
 
         Assert.Equal("Titre", label.Text);
     }
@@ -232,13 +232,5 @@ public sealed class KeyedLabelTests
         });
 
         Assert.Contains(defect, refused.Message, StringComparison.Ordinal);
-    }
-
-    private static SceneSimulation Started(Label label, Run run)
-    {
-        Scene scene = new();
-        scene.Add(new SceneFixtures.Holder(Vector2.Zero, label));
-
-        return new SceneSimulation(scene, run: run);
     }
 }

@@ -77,15 +77,17 @@ public sealed class CameraViewTests
         Assert.True(view.Resolve(1f, Wider).IsEmpty);
     }
 
-    // Clamping an overshooting axis would pin one edge to the bounds and show world past the other.
+    // Clamping an overshooting axis would pin one edge to the bounds and show world past the other. The
+    // sweep has to overhang with it.
     [Fact]
-    public void Bounds_CentreAnAxisTheViewIsLargerThan()
+    public void Bounds_CentreAnAxisTheViewIsLargerThan_AndTheSweepOverhangsWithIt()
     {
         CameraView view = new(Vector2.Zero, Span) { Bounds = Rect.FromEdges(100f, 100f, 300f, 1000f) };
 
         // 320 wide against a 200-wide room: centred on it, overhanging both edges equally. The
         // vertical axis fits. It clamps as usual.
         Assert.Equal(Rect.FromEdges(40f, 100f, 360f, 280f), view.Resolve(1f, Wider));
+        Assert.Equal(view.Resolve(1f, Wider), view.SweptBounds);
     }
 
     // The confinement is the renderer's: the framing target the simulation settled is untouched.
@@ -161,19 +163,6 @@ public sealed class CameraViewTests
             Assert.True(swept.Left <= frame.Left && swept.Right >= frame.Right);
             Assert.True(swept.Top <= frame.Top && swept.Bottom >= frame.Bottom);
         }
-    }
-
-    // A span the bounds cannot hold overhangs them, and the sweep has to overhang with it.
-    [Fact]
-    public void SweptBounds_CoverAViewLargerThanItsBounds()
-    {
-        CameraView view = new(Vector2.Zero, Span) { Bounds = Rect.FromEdges(100f, 100f, 300f, 1000f) };
-
-        Rect swept = view.SweptBounds;
-        Rect frame = view.Resolve(1f, Wider);
-
-        Assert.Equal(frame, swept);
-        Assert.Equal(40f, swept.Left);
     }
 
     [Fact]

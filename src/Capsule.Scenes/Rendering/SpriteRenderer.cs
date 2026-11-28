@@ -16,8 +16,7 @@ namespace Capsule.Rendering;
 /// The frame's pivot lands on <see cref="Offset"/> as placed by the entity's world transform, and
 /// the frame turns about that point and takes its scale from the transform. A negative scale axis
 /// mirrors the frame about the pivot, the same way a flip does, and <see cref="FlipX"/> and
-/// <see cref="FlipY"/> mirror it again over any flip the frame carries. Coordinates are Y-down, in world
-/// units under a world root and canvas pixels under a screen root. A frame's
+/// <see cref="FlipY"/> mirror it again over any flip the frame carries. A frame's
 /// sockets are placed the same way, as child entities bound through <see cref="Socket"/>, and its
 /// boxes as colliders bound through <see cref="Box"/>. Detaching the renderer disables its boxes, and
 /// attaching it to the same entity again re-places them. Attaching a renderer with bound boxes to any
@@ -28,7 +27,6 @@ namespace Capsule.Rendering;
 /// does a frame that draws nothing. An unflipped, untiled frame pivoted at its top-left corner with no
 /// offset sizes the rect to itself.
 /// </remarks>
-/// <param name="sprite">The frame to draw.</param>
 public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: true)
 {
     private Sprite _sprite = sprite;
@@ -39,10 +37,7 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
     // The first Socket, Box or Variant call allocates this, because most renderers use none of them.
     private Extras? _extras;
 
-    /// <summary>
-    /// The frame this renderer holds, which it draws unless <see cref="Variant"/> maps it. Swap it to
-    /// animate, or to change a static frame.
-    /// </summary>
+    /// <summary>The frame this renderer holds, which it draws unless <see cref="Variant"/> maps it.</summary>
     /// <remarks>
     /// Writing it re-places every bound socket the new frame carries and every bound box, under the
     /// rules <see cref="Socket"/> and <see cref="Box"/> describe, before returning. Sockets and boxes
@@ -428,24 +423,13 @@ public sealed class SpriteRenderer(Sprite sprite) : Renderer(restsWhenStill: tru
         look.Drawn = look.Variant.TryGet(_sprite, out Sprite? drawn) ? drawn : _sprite;
     }
 
-    // A negative world scale axis mirrors the frame about the pivot as a flip does. It folds into the flip
-    // flags, and the renderer draws the magnitude of the extent.
+    // A negative world scale axis mirrors the frame about the pivot as a flip does.
     private SpriteIntent Intent(in Transform2D previous, in Transform2D current)
     {
         Sprite frame = _extras?.Look is { } look ? look.Drawn.GetValueOrDefault() : _sprite;
         Vector2 size = new Vector2(frame.Region.Width, frame.Region.Height) * current.Scale;
 
-        return new SpriteIntent(
-            frame,
-            previous.TransformPoint(Offset),
-            current.TransformPoint(Offset),
-            previous.Rotation,
-            current.Rotation,
-            Vector2.Abs(size),
-            FlipX ^ (size.X < 0f),
-            FlipY ^ (size.Y < 0f),
-            Color,
-            Blend);
+        return SpriteIntent.Signed(frame, previous.TransformPoint(Offset), current.TransformPoint(Offset), previous.Rotation, current.Rotation, size, FlipX, FlipY, Color, Blend);
     }
 
     // Names are interned literals in a generated sheet. The comparison usually matches on reference

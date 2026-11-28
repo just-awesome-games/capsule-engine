@@ -52,11 +52,6 @@ machines (`CAP107`), reflection (`CAP109`), and a dead method on an entity, comp
 or scene named like a lifecycle hook Capsule never calls, such as `Update` (`CAP110`). The one await `CAP103`
 allows is a `Routine` awaiting a `Wait` or another routine, which resumes only when its sequence steps.
 
-## Argument validation
-
-A null, non-finite or out-of-range argument throws from the `ArgumentException` family without an
-`<exception>` tag, which the XML keeps for a state rule a caller can violate.
-
 ## Determinism contract
 
 Given the same initial state, fixed-step duration, and sequences of `DeviceSnapshot` values, output
@@ -82,17 +77,14 @@ the same state transitions and render intents.
   `Run`'s seeded `RandomSource`, which persists across scene transitions. A windowed run no driver plays draws a fresh seed unless the shell
   configures one, and it logs the seed. A headless or driven run with no configured seed starts from
   `RandomSource.DefaultSeed`.
-- Simulation arithmetic is IEEE-exact. Transcendental functions differ between operating systems, and
-  simulation code calls `DeterministicMath` in place of `MathF`. The blends and transforms of `System.Numerics`,
-  such as `Vector2.Lerp`, fuse their multiplies where the build or the processor offers it. Simulation code
-  calls `DeterministicMath.Lerp` or writes plain arithmetic, whose operators stay exact.
+- Simulation arithmetic is IEEE-exact, and simulation code calls `DeterministicMath` in place of the
+  `MathF` functions and `System.Numerics` blends that differ between machines.
 - A frame runs at most the configured number of fixed steps, and starts no further step once its steps
   have taken one step length of real time. A frame cap, or vertical sync at the display's reported
   refresh rate, widens both to the steps and time a frame's period covers, and neither slows the
   simulation. Reaching either limit drops the remaining accumulated wall-clock time and alters no step
   that runs.
-- `Run.TimeScale` is host pace. It sets how many simulation seconds a wall second is worth. It alters no
-  step that runs. Simulation code may set it and must not read it.
+- `Run.TimeScale` is host pace, which simulation code may set and must not read.
 
 ## Simulation and host
 

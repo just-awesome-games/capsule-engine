@@ -86,8 +86,7 @@ public sealed class VoiceMixerTests
             joined.AddRange(clip.AsSpan(2 * Start, 2 * (End - Start)));
         }
 
-        (VoiceMixer looped, AudioRing<MixCommand> loopCommands, _) = Mixer();
-        loopCommands.TryWrite(new MixCommand(MixCommandKind.Buses, 0, 0) { Buses = [new MixBus()] });
+        (VoiceMixer looped, AudioRing<MixCommand> loopCommands, _) = OnBus(out _);
         loopCommands.TryWrite(Play(new PcmAudio(clip, 2, Rate), Pitch, loop: true, loopStart: Start, loopEnd: End, bus: 1));
 
         (VoiceMixer straight, AudioRing<MixCommand> straightCommands, _) = Mixer();

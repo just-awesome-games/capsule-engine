@@ -95,9 +95,9 @@ public partial class Entity
     /// Whether this entity and every entity beneath it draw at their own colours, untouched by the scene's light.
     /// </summary>
     /// <remarks>
-    /// Neither <see cref="Scene.Ambient"/> nor any light multiplies an unlit draw. No special material is needed:
-    /// every shader is also built in an unlit form. A child beneath an unlit entity cannot be lit again. A light
-    /// beneath it still lights, and a material it draws with can read the light itself through <c>SampleLight</c>.
+    /// Neither <see cref="Scene.Ambient"/> nor any light multiplies an unlit draw, whatever its material. A child
+    /// beneath an unlit entity cannot be lit again. A light beneath it still lights, and a material it draws with
+    /// can read the light itself through <c>SampleLight</c>.
     /// </remarks>
     public bool Unlit
     {
@@ -138,7 +138,7 @@ public partial class Entity
     /// </summary>
     /// <remarks>
     /// Unlike <see cref="Tint"/> and <see cref="Flash"/> it does not reach child entities, and each child sets its own.
-    /// Renderers sharing it batch as any sharing one instance do. A material held at construction is loaded with the
+    /// A material held at construction is loaded with the
     /// scene. One set later is too where this entity's class reads its shader and textures from <c>CapsuleAssets</c> or
     /// adds it in <see cref="CollectAssets"/>, and otherwise loads on its first draw.
     /// </remarks>

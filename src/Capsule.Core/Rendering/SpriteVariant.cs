@@ -22,8 +22,6 @@ public sealed class SpriteVariant
     private readonly TextureHandle[] _textures;
 
     /// <summary>Creates a variant drawing <paramref name="drawn"/>[i] in place of <paramref name="frames"/>[i].</summary>
-    /// <param name="frames">The frames this variant maps. A frame listed twice maps to one drawing both times.</param>
-    /// <param name="drawn">What each frame draws as, one per frame. A null entry draws nothing.</param>
     public SpriteVariant(ReadOnlySpan<Sprite> frames, ReadOnlySpan<Sprite?> drawn)
     {
         if (frames.Length != drawn.Length)
@@ -64,8 +62,6 @@ public sealed class SpriteVariant
     public ReadOnlySpan<TextureHandle> Textures => _textures;
 
     /// <summary>Joins <paramref name="variants"/> into one variant mapping every frame each of them maps.</summary>
-    /// <param name="variants">The variants to join. No two map the same frame.</param>
-    /// <returns>A new variant. Each of <paramref name="variants"/> is unchanged.</returns>
     public static SpriteVariant Combine(params ReadOnlySpan<SpriteVariant> variants)
     {
         int count = 0;

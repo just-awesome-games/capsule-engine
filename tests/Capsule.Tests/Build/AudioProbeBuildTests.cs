@@ -1,4 +1,3 @@
-using Capsule.Build.Audio;
 using Capsule.Tests.Documents;
 using static Capsule.Tests.Build.AudioProbeFixtures;
 
@@ -50,9 +49,7 @@ public sealed class AudioProbeBuildTests
     public void AClipTheProbeRefuses_IsReportedNamingTheDefect(string defect, string extension, string expected)
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        File.WriteAllBytes("clip" + extension, Malformed(defect));
-
-        FormatException refused = Assert.Throws<FormatException>(() => AudioProbe.Measure("clip" + extension));
+        FormatException refused = Assert.Throws<FormatException>(() => Measure(extension, Malformed(defect)));
 
         Assert.Contains(expected, refused.Message, StringComparison.Ordinal);
     }

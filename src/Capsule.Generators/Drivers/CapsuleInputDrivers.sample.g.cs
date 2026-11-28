@@ -8,10 +8,10 @@ namespace Capsule.Generated
     [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     internal static class CapsuleInputDrivers
     {
-        internal static global::Capsule.Input.InputDriverRegistration[] Registrations { get; } =
-            new global::Capsule.Input.InputDriverRegistration[]
+        internal static global::Capsule.Scenes.FactoryRegistration<global::Capsule.Input.IInputDriver>[] Registrations { get; } =
+            new global::Capsule.Scenes.FactoryRegistration<global::Capsule.Input.IInputDriver>[]
             {
-                new global::Capsule.Input.InputDriverRegistration("Walkthrough", static () => new global::Game.Walkthrough()),
+                new global::Capsule.Scenes.FactoryRegistration<global::Capsule.Input.IInputDriver>("Walkthrough", static () => new global::Game.Walkthrough()),
             };
     }
 }

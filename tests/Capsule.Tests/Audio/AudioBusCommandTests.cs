@@ -16,7 +16,7 @@ public sealed class AudioBusCommandTests
     public void ABusCommandForABusNeverPlayedOn_RegistersTheBusFirst(bool effects)
     {
         using Fixture fixture = new();
-        fixture.Apply(Bus(effects ? AudioCommandKind.SetBusEffects : AudioCommandKind.SetBusGain, Fx, gain: 0.5f, EffectLevels.None));
+        fixture.Apply(BusCommand(effects ? AudioCommandKind.SetBusEffects : AudioCommandKind.SetBusGain, Fx, gain: 0.5f, EffectLevels.None));
 
         Assert.Equal(MixCommandKind.Buses, fixture.Posted[0].Kind);
         Assert.Single(fixture.Posted[0].Buses!);
@@ -33,11 +33,11 @@ public sealed class AudioBusCommandTests
         EffectLevels echo = EffectLevels.None with { EchoDelaySeconds = 0.01f, EchoFeedback = 0.5f, EchoVolume = 0.5f };
 
         fixture.Apply(
-            Bus(AudioCommandKind.SetBusEffects, AudioBus.Master, 0f, echo),
-            Bus(AudioCommandKind.SetBusEffects, AudioBus.Master, 0f, echo with { EchoFeedback = 0.25f }),
-            Bus(AudioCommandKind.SetBusEffects, AudioBus.Master, 0f, echo with { EchoDelaySeconds = 0.010001f }),
-            Bus(AudioCommandKind.SetBusEffects, AudioBus.Master, 0f, echo with { EchoDelaySeconds = 0.02f }),
-            Bus(AudioCommandKind.SetBusEffects, AudioBus.Master, 0f, EffectLevels.None));
+            BusCommand(AudioCommandKind.SetBusEffects, AudioBus.Master, 0f, echo),
+            BusCommand(AudioCommandKind.SetBusEffects, AudioBus.Master, 0f, echo with { EchoFeedback = 0.25f }),
+            BusCommand(AudioCommandKind.SetBusEffects, AudioBus.Master, 0f, echo with { EchoDelaySeconds = 0.010001f }),
+            BusCommand(AudioCommandKind.SetBusEffects, AudioBus.Master, 0f, echo with { EchoDelaySeconds = 0.02f }),
+            BusCommand(AudioCommandKind.SetBusEffects, AudioBus.Master, 0f, EffectLevels.None));
 
         Assert.Equal(
             [480 * 2, 0, 480 * 2, 960 * 2, 0],
@@ -53,14 +53,11 @@ public sealed class AudioBusCommandTests
         using Fixture fixture = new();
         fixture.Player.Suspend();
         fixture.Apply(
-            Bus(AudioCommandKind.SetBusGain, AudioBus.Master, 0.25f, default),
-            Bus(AudioCommandKind.SetBusEffects, AudioBus.Master, 0f, EffectLevels.None with { LowPassHertz = 900f }));
+            BusCommand(AudioCommandKind.SetBusGain, AudioBus.Master, 0.25f, default),
+            BusCommand(AudioCommandKind.SetBusEffects, AudioBus.Master, 0f, EffectLevels.None with { LowPassHertz = 900f }));
 
         Assert.Equal(
             [(MixCommandKind.SetBusGain, 0.25f, 20_000f), (MixCommandKind.SetBusEffects, 0f, 900f)],
             fixture.Posted.Select(static command => (command.Kind, command.Gain, command.Kind == MixCommandKind.SetBusEffects ? command.Effects.LowPassHertz : 20_000f)));
     }
-
-    private static AudioCommand Bus(AudioCommandKind kind, AudioBus bus, float gain, EffectLevels effects) =>
-        new(kind, Voice.None, default, bus, gain, 0f, 0f, false, 0.0, effects);
 }

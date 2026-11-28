@@ -141,6 +141,15 @@ internal static class CollisionFixtures
         }
     }
 
+    /// <summary>Runs <paramref name="steps"/> steps of <paramref name="simulation"/>, ticking on from <paramref name="from"/>.</summary>
+    internal static void Advance(SceneSimulation simulation, int from, int steps)
+    {
+        for (int step = from; step < from + steps; step++)
+        {
+            simulation.Step(SceneFixtures.Step(step));
+        }
+    }
+
     /// <summary>Moves <paramref name="mover"/> down by <paramref name="drop"/> and asserts it landed.</summary>
     internal static void Land(KinematicBody2D mover, float drop = 40f)
     {
@@ -181,10 +190,11 @@ internal static class CollisionFixtures
     }
 }
 
-/// <summary>A bare collider with no body, which queries the world for itself and which nothing ever moves.</summary>
+/// <summary>A bare collider with no body, an 8x8 box unless given another, which queries the world for itself and which nothing ever moves.</summary>
+/// <remarks>A rounded collider's sweeps take the iterated narrowphase rather than the closed-form box path.</remarks>
 internal sealed class Prober : Entity
 {
-    internal BoxCollider2D Collider { get; }
+    internal Collider2D Collider { get; }
 
     internal Prober(Vector2 position, params string[] detects)
         : this(position, new Vector2(8f, 8f), detects)
@@ -192,23 +202,14 @@ internal sealed class Prober : Entity
     }
 
     internal Prober(Vector2 position, Vector2 size, params string[] detects)
-        : base(position)
+        : this(position, new BoxCollider2D(size), detects)
     {
-        Collider = new BoxCollider2D(size);
-        Collider.Detects = new(detects);
-        Add(Collider);
     }
-}
 
-/// <summary>The rounded <see cref="Prober"/>: its sweeps take the iterated narrowphase.</summary>
-internal sealed class RoundProber : Entity
-{
-    internal CircleCollider2D Collider { get; }
-
-    internal RoundProber(Vector2 position, float radius, params string[] detects)
+    internal Prober(Vector2 position, Collider2D collider, params string[] detects)
         : base(position)
     {
-        Collider = new CircleCollider2D(radius);
+        Collider = collider;
         Collider.Detects = new(detects);
         Add(Collider);
     }

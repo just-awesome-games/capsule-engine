@@ -37,9 +37,9 @@ internal static class BootRenderer
                 {
                     private static global::Capsule.Scenes.SceneRegistry Scenes { get; } = CreateScenes();
 
-                    private static global::Capsule.Input.InputDriverRegistry Drivers { get; } = CreateDrivers();
+                    private static {{NamedRegistry.InputDrivers.Registry}} Drivers { get; } = CreateDrivers();
 
-                    private static global::Capsule.Scenes.ScenePayloadRegistry Payloads { get; } = CreatePayloads();
+                    private static {{NamedRegistry.ScenePayloads.Registry}} Payloads { get; } = CreatePayloads();
 
                     /// <summary>Begins the engine's configuration with every registry this game generates.</summary>
                     /// <param name="gameName">The game's display name. It titles the window, and its slug names the local folder that holds the saves and the crash log.</param>
@@ -50,16 +50,16 @@ internal static class BootRenderer
                     {
             {{createScenes}}        }
 
-                    private static global::Capsule.Input.InputDriverRegistry CreateDrivers()
+                    private static {{NamedRegistry.InputDrivers.Registry}} CreateDrivers()
                     {
-                        var drivers = new global::System.Collections.Generic.List<global::Capsule.Input.InputDriverRegistration>();
-            {{addDrivers}}            return new global::Capsule.Input.InputDriverRegistry(drivers);
+                        var drivers = new global::System.Collections.Generic.List<{{NamedRegistry.InputDrivers.Registration}}>();
+            {{addDrivers}}            return new {{NamedRegistry.InputDrivers.Registry}}(drivers);
                     }
 
-                    private static global::Capsule.Scenes.ScenePayloadRegistry CreatePayloads()
+                    private static {{NamedRegistry.ScenePayloads.Registry}} CreatePayloads()
                     {
-                        var payloads = new global::System.Collections.Generic.List<global::Capsule.Scenes.ScenePayloadRegistration>();
-            {{addPayloads}}            return new global::Capsule.Scenes.ScenePayloadRegistry(payloads);
+                        var payloads = new global::System.Collections.Generic.List<{{NamedRegistry.ScenePayloads.Registration}}>();
+            {{addPayloads}}            return new {{NamedRegistry.ScenePayloads.Registry}}(payloads);
                     }
                 }
             """);

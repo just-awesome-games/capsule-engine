@@ -14,9 +14,7 @@ public sealed class AudioProbeOggTests
     public void AnOggsDuration_IsItsLastGranulePositionOverItsVorbisRate()
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        File.WriteAllBytes("clip.ogg", Ogg(48000, [0, 24000, -1]));
-
-        AudioProbe.Measurement measured = AudioProbe.Measure("clip.ogg");
+        AudioProbe.Measurement measured = Measure(".ogg", Ogg(48000, [0, 24000, -1]));
 
         Assert.Equal(0.5, measured.DurationSeconds, 9);
         Assert.Equal(AudioLoopRegion.None, measured.Loop);
@@ -31,9 +29,7 @@ public sealed class AudioProbeOggTests
     public void AnOggsLoopRegion_IsItsLoopComments(string[] tags, int end)
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        File.WriteAllBytes("clip.ogg", Ogg(48000, [0, 24000], Comments(tags)));
-
-        AudioLoopRegion region = AudioProbe.Measure("clip.ogg").Loop;
+        AudioLoopRegion region = Measure(".ogg", Ogg(48000, [0, 24000], Comments(tags))).Loop;
 
         Assert.Equal(0.125, region.StartSeconds, 12);
         Assert.Equal(end / 48000.0, region.EndSeconds, 12);
@@ -52,9 +48,7 @@ public sealed class AudioProbeOggTests
         List<string> tags = ["LOOPSTART=6000", "LOOPLENGTH=12000"];
         tags.Insert(position, "METADATA_BLOCK_PICTURE=" + new string('P', 80 * 1024));
 
-        File.WriteAllBytes("clip.ogg", Ogg(48000, [0, 24000], Comments([.. tags]), 255 * 255));
-
-        AudioLoopRegion region = AudioProbe.Measure("clip.ogg").Loop;
+        AudioLoopRegion region = Measure(".ogg", Ogg(48000, [0, 24000], Comments([.. tags]), 255 * 255)).Loop;
 
         Assert.Equal(0.125, region.StartSeconds, 12);
         Assert.Equal(18000 / 48000.0, region.EndSeconds, 12);
@@ -74,9 +68,7 @@ public sealed class AudioProbeOggTests
         Assert.InRange(straddling, 0, PageBytes - 1);
         Assert.InRange(straddling + "LOOPLENGTH=12000".Length, PageBytes + 1, header.Length);
 
-        File.WriteAllBytes("clip.ogg", Ogg(48000, [0, 24000], header, PageBytes));
-
-        AudioLoopRegion region = AudioProbe.Measure("clip.ogg").Loop;
+        AudioLoopRegion region = Measure(".ogg", Ogg(48000, [0, 24000], header, PageBytes)).Loop;
 
         Assert.Equal(0.125, region.StartSeconds, 12);
         Assert.Equal(18000 / 48000.0, region.EndSeconds, 12);
@@ -88,11 +80,7 @@ public sealed class AudioProbeOggTests
     public void AnOggWhoseSetupHeaderSharesTheCommentPage_IsMeasuredFromItsCommentsAlone()
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        File.WriteAllBytes(
-            "clip.ogg",
-            OggPairedOnAPage(48000, 24000, Comments(["LOOPSTART=6000", "LOOPLENGTH=12000"])));
-
-        AudioLoopRegion region = AudioProbe.Measure("clip.ogg").Loop;
+        AudioLoopRegion region = Measure(".ogg", OggPairedOnAPage(48000, 24000, Comments(["LOOPSTART=6000", "LOOPLENGTH=12000"]))).Loop;
 
         Assert.Equal(0.125, region.StartSeconds, 12);
         Assert.Equal(18000 / 48000.0, region.EndSeconds, 12);
@@ -105,11 +93,7 @@ public sealed class AudioProbeOggTests
     public void ARegionItsOwnClipCannotHold_IsRefused(int start, int end)
     {
         using SceneDocumentFixtures.Workspace workspace = new();
-        File.WriteAllBytes(
-            "clip.ogg",
-            Ogg(48000, [0, 24000], Comments([$"LOOPSTART={start}", $"LOOPEND={end}"])));
-
-        FormatException refused = Assert.Throws<FormatException>(() => AudioProbe.Measure("clip.ogg"));
+        FormatException refused = Assert.Throws<FormatException>(() => Measure(".ogg", Ogg(48000, [0, 24000], Comments([$"LOOPSTART={start}", $"LOOPEND={end}"]))));
 
         Assert.Contains($"[{start}, {end})", refused.Message, StringComparison.Ordinal);
         Assert.Contains("24000 sample(s)", refused.Message, StringComparison.Ordinal);

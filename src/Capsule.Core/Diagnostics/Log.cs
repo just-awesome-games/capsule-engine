@@ -35,9 +35,8 @@ public interface ILogSink
 /// <summary>How game logic says something out loud.</summary>
 /// <remarks>
 /// It is write-only telemetry. Installing a sink does not change the state a run reaches. Logging
-/// is silent until a sink is installed, which the runtime does at boot. A sink that throws is
-/// detached, and its line and everything after it are lost. A line a sink logs from inside its own
-/// <see cref="ILogSink.Write"/> is dropped.
+/// is silent until a sink is installed, which the runtime does at boot. A line a sink logs from inside
+/// its own <see cref="ILogSink.Write"/> is dropped.
 /// </remarks>
 public static class Log
 {

@@ -343,8 +343,9 @@ public sealed class TileMapTests
     // A box sweeping right along the bottom row from the cleared cell meets the face of the solid one beside it.
     private static void AssertSweepStopsAtWall(Scene scene)
     {
-        MoveResult2D swept = scene.Collision.MoveBox(
-            Aabb2D.FromCorner(new Vector2(16f, 36f), new Vector2(8f, 8f)),
+        MoveResult2D swept = scene.Collision.Move(
+            Shape2D.Box(Aabb2D.FromCorner(new Vector2(16f, 36f), new Vector2(8f, 8f))),
+            Vector2.Zero,
             new Vector2(20f, 0f),
             scene.Collision.CreateFilter("solid"),
             default);

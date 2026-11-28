@@ -4,16 +4,17 @@ namespace Capsule.Audio;
 
 /// <summary>
 /// Pure data naming the audio source <c>{Name}{Extension}</c>, with the duration the build measured
-/// from it and the loop region it read out of it. <c>Name</c> is the source's path under the
-/// <c>audio</c> root: one or more forward-slash-separated portable file-name segments, none of them
-/// empty, <c>.</c> or <c>..</c>, and no extension.
+/// from it and the loop region it read out of it.
 /// </summary>
 /// <remarks>
 /// <c>Extension</c> begins with one dot and contains no other dot or separator. A <c>.wav</c> of
 /// integer samples ships as <c>assets/{Name}.flac</c>, losslessly. A <c>.wav</c> of float samples and
 /// an <c>.ogg</c> ship as authored, as <c>assets/{Name}{Extension}</c>.
 /// </remarks>
-/// <param name="Name">The source's path under <c>Assets/</c>.</param>
+/// <param name="Name">
+/// The source's path under <c>Assets/</c>: one or more forward-slash-separated portable file-name
+/// segments, none of them empty, <c>.</c> or <c>..</c>, and no extension.
+/// </param>
 /// <param name="Extension">
 /// The source's extension, leading dot included, either <c>.wav</c> or <c>.ogg</c>. The host decodes a
 /// <c>.wav</c> clip, or a <c>.ogg</c> clip of 3 seconds or less, whole when it loads and holds it
@@ -47,11 +48,6 @@ public readonly record struct AudioClip(
     private bool FloatSamples { get; }
 
     /// <summary>A clip whose <c>.wav</c> source holds float samples, which ship as authored. Generated code calls it.</summary>
-    /// <param name="name">The source's path under <c>Assets/</c>.</param>
-    /// <param name="extension">The source's extension, leading dot included.</param>
-    /// <param name="durationSeconds">Seconds the clip runs at unit pitch, measured at build time.</param>
-    /// <param name="loopRegion">The stretch a looping voice repeats.</param>
-    /// <param name="floatSamples">Whether the source's samples are float, which FLAC cannot carry.</param>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public AudioClip(string name, string extension, double durationSeconds, AudioLoopRegion loopRegion, bool floatSamples)
         : this(name, extension, durationSeconds, loopRegion) => FloatSamples = floatSamples;

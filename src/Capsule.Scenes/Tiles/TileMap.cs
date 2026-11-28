@@ -69,10 +69,9 @@ public class TileMap : Entity
     /// <see cref="TileGrid.EmptyTileName"/>, and names are unique.
     /// </summary>
     /// <remarks>
-    /// Each entry composes a <see cref="TileType"/>, or the subclass its <c>type</c> names. <see cref="TileAt(int, int)"/>
-    /// and <c>TileContact2D.Type</c> return that instance, read as <c>map.TileAt(x, y).Name</c> or matched as
-    /// <c>map.TileAt(x, y) is Ice ice</c>. The palette is read once per document, and every scene composed from
-    /// that document holds the same instances.
+    /// Each entry composes a <see cref="TileType"/>, or the subclass its <c>type</c> names, and
+    /// <see cref="TileAt(int, int)"/> and <c>TileContact2D.Type</c> return that instance. The palette is read once
+    /// per document, and every scene composed from that document holds the same instances.
     /// </remarks>
     [Authorable(Required = true)]
     protected ReadOnlyMemory<TileType> TileTypes { get; set; }

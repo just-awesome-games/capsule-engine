@@ -42,8 +42,8 @@ internal static partial class PropertySchema
     // Every class the game declares deriving from type that generated code can name, deepest first.
     private static List<INamedTypeSymbol> Subclasses(INamedTypeSymbol type, Compilation compilation) =>
         [.. SourceClasses.GetValue(compilation, static declaring => [.. Declared(declaring.Assembly.GlobalNamespace)])
-            .Where(candidate => !candidate.IsGenericType && Named(candidate, compilation) && Depth(candidate, type) > 0)
-            .OrderByDescending(candidate => Depth(candidate, type))
+            .Where(candidate => !candidate.IsGenericType && Named(candidate, compilation) && SymbolShape.Inherits(candidate, type))
+            .OrderByDescending(candidate => SymbolShape.Depth(candidate, type))
             .ThenBy(static candidate => SymbolShape.QualifiedName(candidate), StringComparer.Ordinal)];
 
     private static IEnumerable<INamedTypeSymbol> Declared(INamespaceOrTypeSymbol container) =>
@@ -55,30 +55,12 @@ internal static partial class PropertySchema
             _ => [],
         });
 
-    // How many classes down from ancestor the type is, or 0 when it does not derive from it.
-    private static int Depth(INamedTypeSymbol type, INamedTypeSymbol ancestor)
-    {
-        int depth = 1;
-        for (INamedTypeSymbol? current = type.BaseType; current is not null; current = current.BaseType, depth++)
-        {
-            if (SymbolEqualityComparer.Default.Equals(current, ancestor))
-            {
-                return depth;
-            }
-        }
-
-        return 0;
-    }
-
     // Only code can satisfy C#'s required. A class carrying it is filled in place and never constructed.
     private static ObjectConstruction Construction(INamedTypeSymbol type, Compilation compilation)
     {
         IMethodSymbol? constructor = type.InstanceConstructors.FirstOrDefault(static constructor => constructor.Parameters.Length == 0);
-        bool required = false;
-        for (INamedTypeSymbol? current = type; current is not null && !required; current = current.BaseType)
-        {
-            required = current.GetMembers().Any(static member => member is IPropertySymbol { IsRequired: true } or IFieldSymbol { IsRequired: true });
-        }
+        bool required = SymbolShape.Ancestors(type).Prepend(type)
+            .Any(static current => current.GetMembers().Any(static member => member is IPropertySymbol { IsRequired: true } or IFieldSymbol { IsRequired: true }));
 
         return type.IsAbstract || type.IsStatic || constructor is null || required ? ObjectConstruction.None
             : compilation.IsSymbolAccessibleWithin(constructor, compilation.Assembly) ? ObjectConstruction.New
@@ -94,18 +76,9 @@ internal static partial class PropertySchema
     {
         INamedTypeSymbol? authorable = compilation.GetTypeByMetadataName(MetadataNames.AuthorableAttribute);
 
-        bool Declares(INamedTypeSymbol declaring)
-        {
-            for (INamedTypeSymbol? current = declaring; current is not null; current = current.BaseType)
-            {
-                if (current.GetMembers().Any(member => member.GetAttributes().Any(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, authorable))))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
+        bool Declares(INamedTypeSymbol declaring) =>
+            SymbolShape.Ancestors(declaring).Prepend(declaring)
+                .Any(current => current.GetMembers().Any(member => member.GetAttributes().Any(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, authorable))));
 
         return Declares(type) || Subclasses(type, compilation).Any(Declares);
     }

@@ -9,9 +9,10 @@ namespace Capsule.Runtime.DevTools.Recordings;
 // panels show at the named ticks, as CSV rows of tick, entity name, panel section, field and value. Scene
 // and Camera name the scene's own panel and its camera's. A tick is the overlay's, the state after that
 // many steps. A stretch of consecutive ticks in one scene opens with a row naming the scene by its key and
-// writes every row on its first tick. A replayed overlay act writes a row at the tick its result shows. Each later tick writes only a new or changed value, an empty value for a
-// field gone from a panel, and an empty section and field for an entity gone from the trace. A step
-// outside the ticks costs a range check, and a traced tick allocates its rows, which no live run ever pays.
+// writes every row on its first tick. A replayed overlay act writes a row at the tick its result shows.
+// Each later tick writes only a new or changed value, an empty value for a field gone from a panel, and an
+// empty section and field for an entity gone from the trace. A step outside the ticks costs a range check,
+// and a traced tick allocates its rows, which no live run ever pays.
 internal sealed class RunTrace : IDisposable
 {
     // The ticks a trace writes before the run halts, unless --force lifts it: a simulated minute at 60

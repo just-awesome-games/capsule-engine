@@ -14,30 +14,28 @@ public sealed class SceneViewTests
         SceneFixtures.Drifter second = new(new Vector2(2, 2));
         second.Add(new SceneFixtures.StripeRenderer(ColorRgba.Black));
 
-        SceneFixtures.HookScene scene = new();
-        scene.Add(first);
-        scene.Add(second);
-        SceneSimulation simulation = new(scene);
+        SpriteIntent[] drawn = Drawn(null, first, second);
 
-        simulation.Step(SceneFixtures.Step());
+        Assert.Equal(2, drawn.Length);
 
-        Assert.Equal(2, simulation.View.Sprites.Length);
-
-        SpriteIntent body = simulation.View.Sprites[0];
+        SpriteIntent body = drawn[0];
         Assert.Equal(new Vector2(7, 9), body.PreviousPosition);
         Assert.Equal(new Vector2(8, 9), body.Position);
         Assert.Equal(new Vector2(4, 8), body.Size);
 
-        SpriteIntent stripe = simulation.View.Sprites[1];
+        SpriteIntent stripe = drawn[1];
         Assert.Equal(new Vector2(1f, 64f), stripe.Size);
         Assert.Equal(ColorRgba.Black, stripe.Color);
     }
 
-    [Fact]
-    public void ARemovedEntity_LeavesTheFrameWithIt()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ARemovedEntityOrRenderer_LeavesTheFrameWithIt(bool rendererAlone)
     {
         SceneFixtures.Drifter leaving = new(new Vector2(3, 3));
-        leaving.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)));
+        SpriteRenderer renderer = new(SceneFixtures.Frame(1, 1));
+        leaving.Add(renderer);
 
         SceneFixtures.HookScene scene = new();
         scene.Add(leaving);
@@ -45,7 +43,15 @@ public sealed class SceneViewTests
 
         Assert.Equal(1, simulation.View.Sprites.Length);
 
-        scene.Remove(leaving);
+        if (rendererAlone)
+        {
+            leaving.Remove(renderer);
+        }
+        else
+        {
+            scene.Remove(leaving);
+        }
+
         simulation.Step(SceneFixtures.Step());
 
         Assert.Equal(0, simulation.View.Sprites.Length);
@@ -57,13 +63,7 @@ public sealed class SceneViewTests
         SceneFixtures.Drifter drifter = new(new Vector2(20, 20));
         drifter.Add(new SpriteRenderer(SceneFixtures.Frame(1, 1)) { Offset = new Vector2(-4, -8) });
 
-        SceneFixtures.HookScene scene = new();
-        scene.Add(drifter);
-        SceneSimulation simulation = new(scene);
-
-        simulation.Step(SceneFixtures.Step());
-
-        SpriteIntent body = simulation.View.Sprites[0];
+        SpriteIntent body = Drawn(null, drifter)[0];
         Assert.Equal(new Vector2(16, 12), body.PreviousPosition);
         Assert.Equal(new Vector2(17, 12), body.Position);
         Assert.Equal(new Vector2(21, 20), drifter.Position);
@@ -77,13 +77,7 @@ public sealed class SceneViewTests
         SceneFixtures.Drifter drifter = new(new Vector2(50, 50)) { Scale = new Vector2(2, 2) };
         drifter.Add(new SpriteRenderer(SceneFixtures.Frame(8, 8) with { Pivot = new Vector2(4, 4) }));
 
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(50, 50)));
-        scene.Add(drifter);
-        SceneSimulation simulation = new(scene);
-
-        simulation.Step(SceneFixtures.Step());
-
-        SpriteIntent body = simulation.View.Sprites[0];
+        SpriteIntent body = Drawn(new Vector2(50, 50), drifter)[0];
 
         Assert.Equal(new Vector2(16, 16), body.Size);
         Assert.Equal(new Vector2(51, 50), body.Position);
@@ -122,13 +116,7 @@ public sealed class SceneViewTests
         SceneFixtures.Drifter drifter = new(new Vector2(50, 50)) { Scale = new Vector2(0f, 1f) };
         drifter.Add(new SpriteRenderer(SceneFixtures.Frame(8, 8)));
 
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(50, 50)));
-        scene.Add(drifter);
-        SceneSimulation simulation = new(scene);
-
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.Empty(simulation.View.Sprites.ToArray());
+        Assert.Empty(Drawn(new Vector2(50, 50), drifter));
     }
 
     // A negative axis is a mirror about the pivot, exactly what a flip is. It folds into the
@@ -139,14 +127,18 @@ public sealed class SceneViewTests
         SceneFixtures.Drifter drifter = new(new Vector2(50, 50)) { Scale = new Vector2(-1f, 1f) };
         drifter.Add(new SpriteRenderer(SceneFixtures.Frame(8, 8)) { FlipX = true });
 
-        SceneFixtures.HookScene scene = new(start: SceneFixtures.Opens(new Vector2(50, 50)));
-        scene.Add(drifter);
-        SceneSimulation simulation = new(scene);
-
-        simulation.Step(SceneFixtures.Step());
-
-        SpriteIntent sprite = Assert.Single(simulation.View.Sprites.ToArray());
+        SpriteIntent sprite = Assert.Single(Drawn(new Vector2(50, 50), drifter));
         Assert.Equal(new Vector2(8f, 8f), sprite.Size);
         Assert.False(sprite.FlipX);
+    }
+
+    // The frame a scene of entities draws after one step, its camera opened on a centre when given one.
+    private static SpriteIntent[] Drawn(Vector2? center, params Entity[] entities)
+    {
+        SceneFixtures.HookScene scene = new(start: center is { } at ? SceneFixtures.Opens(at) : null);
+        using SceneSimulation simulation = SceneFixtures.Simulation(scene, entities);
+        simulation.Step(SceneFixtures.Step());
+
+        return simulation.View.Sprites.ToArray();
     }
 }

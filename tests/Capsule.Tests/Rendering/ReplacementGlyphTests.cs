@@ -58,14 +58,7 @@ public sealed class ReplacementGlyphTests : IDisposable
     private static BitmapFont Font(params Glyph[] stand) =>
         new(FontFixtures.LineHeight, 8, [FontFixtures.Page], [FontFixtures.A, FontFixtures.B, FontFixtures.Space, Tab, SoftHyphen, .. stand], [FontFixtures.AgainstB, new KerningPair('�', 'B', -1)]);
 
-    private static (Glyph Glyph, int PenX)[] Placements(BitmapFont font, string text)
-    {
-        List<(Glyph, int)> placed = [];
-        foreach (GlyphPlacement placement in new GlyphRun(font, text))
-        {
-            placed.Add((placement.Glyph, placement.PenX));
-        }
-
-        return [.. placed];
-    }
+    // Each glyph's pen along the one line text lays out on.
+    private static (Glyph Glyph, int PenX)[] Placements(BitmapFont font, string text) =>
+        [.. FontFixtures.Placements(font, text).Select(static placed => (placed.Glyph, placed.PenX))];
 }

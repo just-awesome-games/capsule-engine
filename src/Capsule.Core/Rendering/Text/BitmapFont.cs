@@ -55,12 +55,10 @@ public sealed partial class BitmapFont
     internal int Overhang { get; }
 
     /// <summary>Builds a font from the data the build read.</summary>
-    /// <remarks>Called by generated code. Every array is copied.</remarks>
-    /// <param name="lineHeight">Font pixels from one line's top edge to the next. Must be positive.</param>
-    /// <param name="baseline">Font pixels from a line's top edge down to the baseline.</param>
-    /// <param name="pages">The texture pages glyphs are cut from, in the order the font declares them. At least one.</param>
-    /// <param name="glyphs">Every glyph the font carries, in any order. Each names a page this font declares, and no codepoint appears twice. A glyph for a control or format character is dropped, since text never draws one.</param>
-    /// <param name="kernings">The kerning pairs the font carries, in any order. May be empty.</param>
+    /// <remarks>
+    /// Called by generated code. Every array is copied, and glyphs and kerning pairs may come in any
+    /// order. A glyph for a control or format character is dropped.
+    /// </remarks>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public BitmapFont(int lineHeight, int baseline, TextureHandle[] pages, Glyph[] glyphs, KerningPair[] kernings)
     {
@@ -130,6 +128,31 @@ public sealed partial class BitmapFont
         _replacement = replacement >= 0 ? replacement : _dense['?'];
     }
 
+    /// <summary>Builds a font from the rows of constant data the build wrote. Generated code calls it.</summary>
+    /// <param name="lineHeight">Font pixels from one line's top edge to the next. Must be positive.</param>
+    /// <param name="baseline">Font pixels from a line's top edge down to the baseline.</param>
+    /// <param name="pages">The texture pages glyphs are cut from, in the order the font declares them. At least one.</param>
+    /// <param name="glyphs">Nine values per glyph: its codepoint, page, region as x, y, width and height, offsets and advance.</param>
+    /// <param name="kernings">Three values per kerning pair: its first and second codepoints and its amount.</param>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static BitmapFont FromRows(int lineHeight, int baseline, TextureHandle[] pages, ReadOnlySpan<int> glyphs, ReadOnlySpan<int> kernings)
+    {
+        Glyph[] cut = new Glyph[glyphs.Length / 9];
+        for (int i = 0; i < cut.Length; i++)
+        {
+            ReadOnlySpan<int> glyph = glyphs.Slice(i * 9, 9);
+            cut[i] = new Glyph(glyph[0], glyph[1], new TextureRegion(glyph[2], glyph[3], glyph[4], glyph[5]), glyph[6], glyph[7], glyph[8]);
+        }
+
+        KerningPair[] pairs = new KerningPair[kernings.Length / 3];
+        for (int i = 0; i < pairs.Length; i++)
+        {
+            pairs[i] = new KerningPair(kernings[i * 3], kernings[(i * 3) + 1], kernings[(i * 3) + 2]);
+        }
+
+        return new BitmapFont(lineHeight, baseline, pages, cut, pairs);
+    }
+
     /// <summary>
     /// The texture pages this font's glyphs are cut from, in the order the font declares them.
     /// </summary>
@@ -140,7 +163,6 @@ public sealed partial class BitmapFont
     public ReadOnlySpan<TextureHandle> Pages => _pages;
 
     /// <summary>The glyph cut for <paramref name="codepoint"/>, if this font carries one.</summary>
-    /// <returns>Whether the font carries a glyph for it.</returns>
     public bool TryGetGlyph(int codepoint, out Glyph glyph)
     {
         int found = codepoint is >= 0 and < DenseLimit

@@ -51,9 +51,8 @@ public readonly record struct TextIntent(
     /// zero draws nothing, and a count past the end draws everything.
     /// </summary>
     /// <remarks>
-    /// Layout runs over the full text whatever this says. Revealing a run one codepoint at a time
-    /// does not reflow it. The count is in codepoints of <see cref="Text"/>. A line break and a
-    /// codepoint the font has no glyph for each spend one.
+    /// Layout runs over the full text whatever this says. The count is in codepoints of
+    /// <see cref="Text"/>. A line break and a codepoint the font has no glyph for each spend one.
     /// </remarks>
     public int? VisibleCharacters { get; init; }
 

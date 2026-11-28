@@ -6,13 +6,14 @@ using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 using Capsule.UI;
+using static Capsule.Tests.Particles.ParticleFixtures;
 
 namespace Capsule.Tests.Particles;
 
 public sealed class ParticleLightTests
 {
     // A light spans 2 * Radius at a particle scale of one, and the drawn scale, the fade and the mirror reach it as they
-    // reach the sprite. A negative scale folds into the light's flip, where the sprite carries it in its size.
+    // reach the sprite. A negative scale folds into both flips.
     [Fact]
     public void EachLiveParticle_AddsOneLightAtItsSpritesPositionScaleAndFade()
     {
@@ -42,9 +43,10 @@ public sealed class ParticleLightTests
             Assert.Equal(sprite.Position, light.Position);
             Assert.Equal(sprite.PreviousRotation, light.PreviousRotation);
             Assert.Equal(sprite.Rotation, light.Rotation);
-            Assert.Equal(Vector2.Abs(sprite.Size) * 16f / 4f, light.Size);
-            Assert.Equal(sprite.FlipX != sprite.Size.X < 0f, light.FlipX);
-            Assert.Equal(sprite.FlipY != sprite.Size.Y < 0f, light.FlipY);
+            Assert.Equal(sprite.Size * 16f / 4f, light.Size);
+            Assert.True(sprite.FlipX && sprite.FlipY);
+            Assert.Equal(sprite.FlipX, light.FlipX);
+            Assert.Equal(sprite.FlipY, light.FlipY);
             Assert.Equal(sprite.Color, light.Color);
             Assert.InRange(light.Color.A, 1, 254);
             Assert.Equal(2f, light.Intensity);
@@ -75,7 +77,7 @@ public sealed class ParticleLightTests
     public void ALitEmitterUnderAScreenEntity_ThrowsOnDrawWithNothingAlive()
     {
         ScreenEntity element = new(Anchor.TopLeft, Vector2.Zero);
-        element.Add(new ParticleEmitter(SceneFixtures.Frame(4, 4), capacity: 4) { Light = new ParticleLight(radius: 8f) });
+        element.Add(new ParticleEmitter(Tile, capacity: 4) { Light = new ParticleLight(radius: 8f) });
         SceneFixtures.HookScene scene = new();
         scene.Add(element);
 

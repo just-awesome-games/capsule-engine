@@ -10,13 +10,11 @@ namespace Capsule.Rendering;
 /// The rectangle's top-left corner lands on <see cref="Offset"/> placed by the entity's world
 /// transform, spans <see cref="Size"/> times the transform's scale from there, and turns about that
 /// corner by the transform's rotation. A negative scale axis swings the rectangle to the other side
-/// of the corner. Coordinates are Y-down, in world units under a world root and canvas pixels under
-/// a screen root.
+/// of the corner.
 /// <para>
 /// It draws the engine's white texel (<see cref="Sprite.White"/>) and loads no asset.
 /// </para>
 /// </remarks>
-/// <param name="size">The extent the rectangle covers. See <see cref="Size"/>.</param>
 public sealed class ColorRect(Vector2 size) : Renderer
 {
     /// <summary>
@@ -80,12 +78,12 @@ public sealed class ColorRect(Vector2 size) : Renderer
     }
 
     // The white texel anchors at its corner, and a flip swings the rect across that corner. A negative world
-    // scale axis folds into the flip flags, and the renderer draws the magnitude of the extent.
+    // scale axis flips the rect.
     private SpriteIntent Intent(in Transform2D previous, in Transform2D current)
     {
         Vector2 size = ScreenEntity.Fill(Entity, Size) * current.Scale;
 
-        return new SpriteIntent(Sprite.White, previous.TransformPoint(Offset), current.TransformPoint(Offset), previous.Rotation, current.Rotation, Vector2.Abs(size), size.X < 0f, size.Y < 0f, Color, Blend);
+        return SpriteIntent.Signed(Sprite.White, previous.TransformPoint(Offset), current.TransformPoint(Offset), previous.Rotation, current.Rotation, size, false, false, Color, Blend);
     }
 
     /// <inheritdoc/>

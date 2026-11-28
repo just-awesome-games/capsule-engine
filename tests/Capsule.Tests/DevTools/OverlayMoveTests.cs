@@ -12,9 +12,6 @@ namespace Capsule.Tests.DevTools;
 // G moves the entity whose panel is on top to the world point under the pointer, inside one stepped tick.
 public sealed class OverlayMoveTests
 {
-    // Over the world, clear of the menu. It lands inside the yard's zone.
-    private static readonly Vector2 WorldPoint = new(700f, 300f);
-
     // The camera follows the hero's child. It cuts with the subtree. A first step settles the camera,
     // whose first settle would cut anyway.
     [Fact]
@@ -73,23 +70,14 @@ public sealed class OverlayMoveTests
         Assert.Contains("Open its panel", rig.Overlay.Scene.Status, StringComparison.Ordinal);
     }
 
-    // Opens the named entity's panel and returns the world point under WorldPoint.
-    private static Vector2 OpenPanel(OverlayRig rig, string name)
-    {
-        rig.OpenEntityPanel(name);
-        rig.PlaceWorld();
-
-        return rig.World!.Value.ToWorld(WorldPoint);
-    }
-
     private static void PressAt(OverlayRig rig, Key key)
     {
         rig.Frame(DeviceSnapshot.Of(key).WithPointer(WorldPoint));
         rig.Frame(DeviceSnapshot.Empty.WithPointer(WorldPoint));
     }
 
-    // A hero left of a zone that holds every point the pointer can land on, and a camera following the
-    // hero's child.
+    // A hero left of a zone that holds every point the pointer can land on, WorldPoint among them, and a
+    // camera following the hero's child.
     private sealed class Yard : Scene
     {
         internal static readonly Vector2 HeroStart = new(-100f, 0f);

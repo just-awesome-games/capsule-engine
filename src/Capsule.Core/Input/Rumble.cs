@@ -88,12 +88,9 @@ public sealed class Rumble
     }
 
     /// <summary>
-    /// Plays a timed pulse on the two main motors that decays linearly over
-    /// <paramref name="seconds"/>. The pulse reads at full amplitude on the step it is played.
+    /// Plays a timed pulse on the low- and high-frequency motors, at amplitudes in [0, 1], that decays
+    /// linearly over <paramref name="seconds"/>. The pulse reads at full amplitude on the step it is played.
     /// </summary>
-    /// <param name="low">The low-frequency motor's amplitude in [0, 1].</param>
-    /// <param name="high">The high-frequency motor's amplitude in [0, 1].</param>
-    /// <param name="seconds">How long the pulse lasts, greater than zero and finite.</param>
     /// <returns>The pulse started. It is never <see cref="RumbleHandle.None"/>.</returns>
     public RumbleHandle Play(float low, float high, float seconds)
     {
@@ -108,10 +105,7 @@ public sealed class Rumble
     /// Plays a timed pulse. It ends after its seconds have elapsed in whole steps, and reads at
     /// full amplitude on the step it is played.
     /// </summary>
-    /// <remarks>
-    /// With no slot free, the live pulse with the lowest current peak is evicted and its slot
-    /// reused. A quiet tail never keeps a new hit off the pad.
-    /// </remarks>
+    /// <remarks>With no slot free, the live pulse with the lowest current peak is evicted and its slot reused.</remarks>
     /// <returns>The pulse started. It is never <see cref="RumbleHandle.None"/>.</returns>
     public RumbleHandle Play(in RumblePulse pulse)
     {
@@ -125,9 +119,7 @@ public sealed class Rumble
         return Start(pulse.Low, pulse.High, pulse.LeftTrigger, pulse.RightTrigger, pulse.Seconds, pulse.Fade, held: false);
     }
 
-    /// <summary>Holds the two main motors at a level until <see cref="Stop(RumbleHandle)"/>. No fade.</summary>
-    /// <param name="low">The low-frequency motor's amplitude in [0, 1].</param>
-    /// <param name="high">The high-frequency motor's amplitude in [0, 1].</param>
+    /// <summary>Holds the low- and high-frequency motors at amplitudes in [0, 1] until <see cref="Stop(RumbleHandle)"/>, with no fade.</summary>
     /// <returns>The pulse started. It is never <see cref="RumbleHandle.None"/>.</returns>
     public RumbleHandle Hold(float low, float high)
     {
@@ -152,12 +144,9 @@ public sealed class Rumble
     }
 
     /// <summary>
-    /// Retunes a live pulse's two main motors in place and rests its triggers. A timed pulse keeps
-    /// its clock and its fade.
+    /// Retunes a live pulse's low- and high-frequency motors in place, at amplitudes in [0, 1], and rests
+    /// its triggers. A timed pulse keeps its clock and its fade.
     /// </summary>
-    /// <param name="handle">The pulse to retune.</param>
-    /// <param name="low">The low-frequency motor's amplitude in [0, 1].</param>
-    /// <param name="high">The high-frequency motor's amplitude in [0, 1].</param>
     public void Set(RumbleHandle handle, float low, float high)
     {
         Guard.InUnit(low, nameof(low));
@@ -167,8 +156,6 @@ public sealed class Rumble
     }
 
     /// <summary>Retunes a live pulse's four motors in place. A timed pulse keeps its clock and its fade.</summary>
-    /// <param name="handle">The pulse to retune.</param>
-    /// <param name="level">The amplitudes to play from now on.</param>
     public void Set(RumbleHandle handle, RumbleLevel level)
     {
         RequireLevel(level, nameof(level));
@@ -185,7 +172,7 @@ public sealed class Rumble
         }
     }
 
-    /// <summary>Ends every pulse, held and timed. A pause menu calls this when it opens.</summary>
+    /// <summary>Ends every pulse, held and timed.</summary>
     public void Stop()
     {
         Span<Slot> slots = _slots;

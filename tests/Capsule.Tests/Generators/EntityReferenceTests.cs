@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using Capsule.Scenes;
 using Microsoft.CodeAnalysis;
+using static Capsule.Tests.Generators.GeneratorHarness;
 
 namespace Capsule.Tests.Generators;
 
@@ -55,7 +56,7 @@ public sealed class EntityReferenceTests
     [Fact]
     public void AForwardAndABackwardReference_ResolveAfterEveryEntryIsConstructed()
     {
-        (ImmutableArray<Diagnostic> diagnostics, _) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (Room, Document(Linked)));
+        (ImmutableArray<Diagnostic> diagnostics, _) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (Room, Entities(Linked)));
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
         Scene scene = Composed(Linked);
@@ -104,11 +105,6 @@ public sealed class EntityReferenceTests
         Assert.EndsWith("Drop Required = true and write C#'s required instead", refused.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
-    private static string Document(string entries) =>
-        "{\"entities\": [" + entries + "]}";
-
     // Composes the room through the generated registry.
-    private static Scene Composed(string entries) => GeneratorHarness.Composed(Registry.Value, Document(entries));
-
-    private static object? Member(Entity entity, string name) => GeneratorHarness.Member(entity, name);
+    private static Scene Composed(string entries) => GeneratorHarness.Composed(Registry.Value, Entities(entries));
 }

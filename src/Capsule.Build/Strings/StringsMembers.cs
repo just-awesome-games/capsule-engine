@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Text;
 using Capsule.Assets;
 using Capsule.Build.Registry;
@@ -47,7 +46,7 @@ internal static class StringsMembers
         (string Path, string File, string Text, int Arguments, byte Plurals)[] keys,
         (string Path, string File, int First, int Count)[] lists)
     {
-        Group root = new(Root, string.Empty);
+        NameTree<(int Key, int Count)> root = new(Root, string.Empty);
         bool refused = false;
         int list = 0;
         for (int i = 0; i < keys.Length; i++)
@@ -56,7 +55,7 @@ internal static class StringsMembers
             (string path, string file, int count) = list < lists.Length && lists[list].First == i
                 ? (lists[list].Path, lists[list].File, lists[list++].Count)
                 : (keys[i].Path, keys[i].File, 0);
-            if (root.Add(path, i, count) is { } because)
+            if (Declare(root, path, i, count) is { } because)
             {
                 pass.Fail(file, $"{path}: {because}");
                 refused = true;
@@ -89,7 +88,18 @@ internal static class StringsMembers
                     public static global::Capsule.Localization.StringTable Table { get; } = new global::Capsule.Generated.CapsuleStringTable();
 
             """);
-        root.AppendMembers(code, "        ", keys);
+        root.AppendMembers(
+            code,
+            "        ",
+            static group => $"Every text keyed under <c>{group}</c>.",
+            (output, indent, name, member) =>
+            {
+                output.Append(indent).Append("/// <summary>").Append(Summary(keys[member.Key].Text, indent));
+                output.AppendLine(member.Count > 1 ? $" and {Literal.Of(member.Count - 1)} more.</summary>" : "</summary>");
+                output.Append(indent).Append("public static ").Append(member.Count > 0 ? TextList : TextKey).Append(' ').Append(name)
+                    .Append(" => new(global::Capsule.Generated.CapsuleStrings.Table, ").Append(Literal.Of(member.Key));
+                output.AppendLine(member.Count > 0 ? $", {Literal.Of(member.Count)});" : ");");
+            });
         code.AppendLine("    }").AppendLine();
 
         code.AppendLine("    /// <summary>The texts <c>CapsuleStrings.Table</c> holds. Generated code.</summary>");
@@ -136,14 +146,14 @@ internal static class StringsMembers
         Categories(code, languages);
 
         // Every text and table is a span over constant bytes, read from the assembly's data with no
-        // allocation in any configuration. The offsets are little-endian 32-bit integers.
+        // allocation in any configuration.
         Bytes(code, "Counts", keys.Select(static key => (byte)key.Arguments));
         Bytes(code, "Plurals", keys.Select(static key => key.Plurals));
-        Ends(code, "KeyEnds", keys.Select(static key => key.Path));
-        Order(code, keys);
+        Bytes(code, "KeyEnds", Utf8Keys.Packed(Utf8Keys.Ends(keys.Select(static key => key.Path))));
+        Bytes(code, "KeyOrder", Utf8Keys.Packed(Utf8Keys.Sorted(Enumerable.Range(0, keys.Length), index => keys[index].Path)));
         for (int language = 0; language < languages.Length; language++)
         {
-            Ends(code, "Ends" + Literal.Of(language), texts[language]);
+            Bytes(code, "Ends" + Literal.Of(language), Utf8Keys.Packed(Utf8Keys.Ends(texts[language])));
         }
 
         code.AppendLine("    }");
@@ -194,36 +204,6 @@ internal static class StringsMembers
         return statements.ToString();
     }
 
-    // Every key index in ordinal order of its path's UTF-8 bytes, which the table's search compares.
-    private static void Order(StringBuilder code, (string Path, string File, string Text, int Arguments, byte Plurals)[] keys)
-    {
-        byte[][] paths = [.. keys.Select(static key => Encoding.UTF8.GetBytes(key.Path))];
-        int[] order = [.. Enumerable.Range(0, keys.Length)];
-        Array.Sort(order, (left, right) => paths[left].AsSpan().SequenceCompareTo(paths[right]));
-        byte[] bytes = new byte[order.Length * sizeof(int)];
-        for (int i = 0; i < order.Length; i++)
-        {
-            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(i * sizeof(int)), order[i]);
-        }
-
-        Bytes(code, "KeyOrder", bytes);
-    }
-
-    private static void Ends(StringBuilder code, string name, IEnumerable<string> texts)
-    {
-        int end = 0;
-        List<byte> bytes = [];
-        foreach (string text in texts)
-        {
-            end += Encoding.UTF8.GetByteCount(text);
-            byte[] offset = new byte[sizeof(int)];
-            BinaryPrimitives.WriteInt32LittleEndian(offset, end);
-            bytes.AddRange(offset);
-        }
-
-        Bytes(code, name, bytes);
-    }
-
     private static void Bytes(StringBuilder code, string name, IEnumerable<byte> bytes) =>
         code.AppendLine().Append("        private static ").Append(Span).Append("<byte> ").Append(name).Append(" => [")
             .AppendJoin(", ", bytes.Select(static value => Literal.Of(value))).AppendLine("];");
@@ -233,108 +213,34 @@ internal static class StringsMembers
         "\"" + text.Replace("&", "&amp;", StringComparison.Ordinal).Replace("<", "&lt;", StringComparison.Ordinal).Replace(">", "&gt;", StringComparison.Ordinal)
             .Replace("\n", "\n" + indent + "/// ", StringComparison.Ordinal) + "\"";
 
-    // One group as a class: its texts, lists and nested groups, in key order.
-    private sealed class Group(string identifier, string path)
+    // Declares the text at index, or the list of count texts from it, under its path, which names a class
+    // per group it walks through. Null when declared, else why C# would refuse it.
+    private static string? Declare(NameTree<(int Key, int Count)> root, string path, int index, int count)
     {
-        // A text's or list's first key and a list's count, else the nested group.
-        private readonly List<(Group? Group, int Key, int Count)> _members = [];
-
-        private readonly Dictionary<string, Group> _groups = new(StringComparer.Ordinal);
-
-        // The key path that already takes each identifier here.
-        private readonly Dictionary<string, string> _claimedBy = new(StringComparer.Ordinal);
-
-        private string Identifier { get; } = identifier;
-
-        private string KeyPath { get; } = path;
-
-        // Declares the text at index, or the list of count texts from it, under its path, creating each group
-        // class it walks through. Null when declared, else why C# would refuse it.
-        internal string? Add(string keyPath, int index, int count)
+        string[] names = path.Split('.');
+        string[] identifiers = new string[names.Length];
+        for (int i = 0; i < names.Length; i++)
         {
-            Group group = this;
-            string[] names = keyPath.Split('.');
-            for (int i = 0; i < names.Length; i++)
+            if (AssetPaths.ToIdentifier(names[i]) is not { } name)
             {
-                string prefix = string.Join('.', names, 0, i + 1);
-                if (AssetPaths.ToIdentifier(names[i]) is not { } name)
-                {
-                    return $"has \"{names[i]}\", which makes no C# name. A key's names are letters, digits, '-' and '_', and do not start with a digit.";
-                }
-
-                if (name == group.Identifier)
-                {
-                    return $"becomes '{name}' inside the class of that name, which C# refuses. Rename the key or its group.";
-                }
-
-                if (group == this && Reserved.Contains(name))
-                {
-                    return $"becomes '{name}', which {Root} declares itself. Rename the key.";
-                }
-
-                if (group._claimedBy.TryGetValue(name, out string? claimant)
-                    && !(i < names.Length - 1 && claimant == prefix))
-                {
-                    return $"becomes '{name}', which '{claimant}' already takes. Two keys differing only in case or separators are one C# name. Rename one.";
-                }
-
-                if (i == names.Length - 1)
-                {
-                    group._claimedBy.Add(name, prefix);
-                    group._members.Add((null, index, count));
-                }
-                else if (!group._groups.TryGetValue(name, out Group? child))
-                {
-                    child = new Group(name, prefix);
-                    group._groups.Add(name, child);
-                    group._claimedBy.Add(name, prefix);
-                    group._members.Add((child, -1, 0));
-                    group = child;
-                }
-                else
-                {
-                    group = child;
-                }
+                return $"has \"{names[i]}\", which makes no C# name. A key's names are letters, digits, '-' and '_', and do not start with a digit.";
             }
 
-            return null;
-        }
-
-        internal void AppendMembers(StringBuilder code, string indent, (string Path, string File, string Text, int Arguments, byte Plurals)[] keys)
-        {
-            bool first = true;
-            foreach ((Group? group, int key, int count) in _members)
+            if (i == 0 && Reserved.Contains(name))
             {
-                if (!first)
-                {
-                    code.AppendLine();
-                }
-
-                first = false;
-                if (group is not null)
-                {
-                    code.Append(indent).Append("/// <summary>Every text keyed under <c>").Append(group.KeyPath).AppendLine("</c>.</summary>");
-                    code.Append(indent).Append("public static class ").AppendLine(group.Identifier);
-                    code.Append(indent).AppendLine("{");
-                    group.AppendMembers(code, indent + "    ", keys);
-                    code.Append(indent).AppendLine("}");
-                    continue;
-                }
-
-                (string path, _, string text, _, _) = keys[key];
-                if (count > 0)
-                {
-                    // A list is named for its own key, its first text's path less the position.
-                    path = path[..path.LastIndexOf('.')];
-                }
-
-                string name = AssetPaths.ToIdentifier(path[(path.LastIndexOf('.') + 1)..])!;
-                code.Append(indent).Append("/// <summary>").Append(Summary(text, indent));
-                code.AppendLine(count > 1 ? $" and {Literal.Of(count - 1)} more.</summary>" : "</summary>");
-                code.Append(indent).Append("public static ").Append(count > 0 ? TextList : TextKey).Append(' ').Append(name)
-                    .Append(" => new(global::Capsule.Generated.CapsuleStrings.Table, ").Append(Literal.Of(key));
-                code.AppendLine(count > 0 ? $", {Literal.Of(count)});" : ");");
+                return $"becomes '{name}', which {Root} declares itself. Rename the key.";
             }
+
+            identifiers[i] = name;
         }
+
+        IEnumerable<(string, string)> groups = identifiers[..^1].Select((group, i) => (group, string.Join('.', names, 0, i + 1)));
+
+        return root.Add(groups, identifiers[^1], path, (index, count)) switch
+        {
+            null => null,
+            { Claimant: null } own => $"becomes '{own.Name}' inside the class of that name, which C# refuses. Rename the key or its group.",
+            { } taken => $"becomes '{taken.Name}', which '{taken.Claimant}' already takes. Two keys differing only in case or separators are one C# name. Rename one.",
+        };
     }
 }

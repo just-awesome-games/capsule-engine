@@ -13,8 +13,11 @@ namespace Capsule.Build.Caching;
 internal sealed record Derivation(string Name, IReadOnlyList<string> Inputs, string Settings, Assembly Tool)
 {
     /// <summary>The engine's own derivation of <paramref name="source"/> alone, which ships under its key.</summary>
+    internal static Derivation Of(Source source) => Of(source, string.Empty);
+
+    /// <summary>The engine's own derivation of <paramref name="source"/> under <paramref name="settings"/>, which ships under its key.</summary>
     /// <param name="settings">What else the result depends on, as <c>format=r8</c>, or empty.</param>
-    internal static Derivation Of(Source source, string settings = "") =>
+    internal static Derivation Of(Source source, string settings) =>
         new(
             source.Path,
             [source.Path],

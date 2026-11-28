@@ -99,12 +99,9 @@ public sealed class RandomSource
     }
 
     /// <summary>Draws an integer in [<paramref name="minInclusive"/>, <paramref name="maxExclusive"/> ).</summary>
-    /// <param name="minInclusive">Lowest value the draw can return.</param>
-    /// <param name="maxExclusive">One past the highest. Equal to the minimum returns it and draws nothing.</param>
-    /// <returns>A uniformly distributed value in the half-open range.</returns>
     /// <remarks>
     /// Usually one draw. A span that does not divide 2^32 rejects the outputs that would bias it, and
-    /// each rejection costs one more draw.
+    /// each rejection costs one more draw. Equal bounds return the minimum and draw nothing.
     /// </remarks>
     public int Range(int minInclusive, int maxExclusive)
     {
@@ -132,9 +129,7 @@ public sealed class RandomSource
     }
 
     /// <summary>Draws a float in [<paramref name="minInclusive"/>, <paramref name="maxExclusive"/> ). One draw.</summary>
-    /// <param name="minInclusive">Lowest value the draw can return. Must be finite.</param>
-    /// <param name="maxExclusive">One past the highest, and finite. Equal to the minimum returns it and draws nothing.</param>
-    /// <returns>A uniformly distributed value scaled from <see cref="NextFloat"/>, below the bound.</returns>
+    /// <remarks>Equal bounds return the minimum and draw nothing.</remarks>
     public float Range(float minInclusive, float maxExclusive)
     {
         Guard.Finite(minInclusive, nameof(minInclusive));
@@ -155,7 +150,7 @@ public sealed class RandomSource
     }
 
     /// <summary>Draws a float in [<see cref="FloatRange.Min"/>, <see cref="FloatRange.Max"/> ). One draw.</summary>
-    /// <param name="range">The span to draw from. A constant range returns <see cref="FloatRange.Min"/> and draws nothing.</param>
+    /// <remarks>A constant range returns <see cref="FloatRange.Min"/> and draws nothing.</remarks>
     public float Range(FloatRange range) => Range(range.Min, range.Max);
 
     /// <summary>Draws a float in [0, 1). One draw.</summary>
@@ -163,18 +158,16 @@ public sealed class RandomSource
     public float NextFloat() => (NextUInt64() >> 40) * (1.0f / (1 << 24));
 
     /// <summary>Draws a bool that is true with probability <paramref name="probability"/>. One draw.</summary>
-    /// <param name="probability">
-    /// In [0, 1]. At or below 0 never passes, at or above 1 always passes, and NaN never passes.
-    /// One draw is consumed whatever the value. Tuning a probability does not shift the stream.
-    /// </param>
+    /// <remarks>
+    /// At or below 0 never passes, at or above 1 always passes, and NaN never passes. The draw is
+    /// taken whatever the value.
+    /// </remarks>
     public bool Chance(float probability) => NextFloat() < probability;
 
     /// <summary>
     /// Draws from an approximately normal distribution of <paramref name="mean"/> and
     /// <paramref name="standardDeviation"/>. Always two draws.
     /// </summary>
-    /// <param name="mean">The distribution's centre. Must be finite.</param>
-    /// <param name="standardDeviation">The spread, finite and not negative, and 1 when omitted. A deviation of zero still takes both draws and returns the mean.</param>
     /// <returns>
     /// A finite value within six deviations of the mean. A value beyond what a float can hold
     /// saturates at <see cref="float.MaxValue"/>.
@@ -251,7 +244,7 @@ public sealed class RandomSource
     /// Draws an index of <paramref name="weights"/> with probability proportional to its weight.
     /// </summary>
     /// <remarks>Costs one <see cref="NextFloat"/>. A zero weight is never drawn.</remarks>
-    /// <param name="weights">Non-negative finite weights, at least one of them positive. They need not sum to 1.</param>
+    /// <param name="weights">Weights that need not sum to 1.</param>
     public int WeightedIndex(params ReadOnlySpan<float> weights)
     {
         double total = 0;

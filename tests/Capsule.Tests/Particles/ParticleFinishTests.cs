@@ -3,13 +3,12 @@ using Capsule.Particles;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
+using static Capsule.Tests.Particles.ParticleFixtures;
 
 namespace Capsule.Tests.Particles;
 
 public sealed class ParticleFinishTests
 {
-    private static readonly Sprite Tile = SceneFixtures.Frame(4, 4);
-
     [Fact]
     public void ABurst_RemovesItsEntityOnTheStepItsLastParticleDies()
     {
@@ -24,14 +23,21 @@ public sealed class ParticleFinishTests
         Assert.Null(burst.SceneOrNull);
     }
 
-    // Emitting stays true on a burst. The rate is what keeps this one unfinished.
-    [Fact]
-    public void ARateDrivenEmitter_FinishesOnlyOnceEmittingStopsAndItsParticlesDie()
+    // Emitting stays true on a burst. The rate is what keeps a stream unfinished, and it finishes only once
+    // emitting stops and its particles die. A pooled trail keeps the false its last life ended with, and one
+    // turned off before its add waits in the scene however long it is left off. Turning it off in the scene
+    // changes no value but still ends its run, and it leaves for its pool.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ARateDrivenEmitter_FinishesOnlyOnceEmittingStopsInTheSceneAndItsParticlesDie(bool offBeforeAdd)
     {
         SceneFixtures.HookScene scene = new();
         using SceneSimulation simulation = new(scene);
-        Burst stream = new();
+        EntityPool<Burst> pool = new(() => new Burst(), capacity: 1);
+        Burst stream = pool.Take();
         stream.Emitter.Rate = 60f;
+        stream.Emitter.Emitting = !offBeforeAdd;
         scene.Add(stream);
 
         for (int step = 0; step < 30; step++)
@@ -43,9 +49,17 @@ public sealed class ParticleFinishTests
         Assert.Same(scene, stream.SceneOrNull);
 
         stream.Emitter.Emitting = false;
-        StepUntilEmpty(simulation, stream);
+        if (offBeforeAdd)
+        {
+            simulation.Step(SceneFixtures.Step());
+        }
+        else
+        {
+            StepUntilEmpty(simulation, stream);
+        }
 
         Assert.Null(stream.SceneOrNull);
+        Assert.Same(stream, pool.Take());
     }
 
     // A reused burst emits before its add, as a spawner places and fires it before Scene.Add. Each life
@@ -80,34 +94,6 @@ public sealed class ParticleFinishTests
         secondScene.Add(discarded);
         secondScene.Remove(discarded);
         Assert.Equal(FirstStep(secondSimulation, secondScene, new Burst()), secondLife);
-    }
-
-    // A pooled trail keeps the false its last life ended with. Turning it off at its end changes no value but still
-    // ends its run. Until that write it waits in the scene however long it is left off.
-    [Fact]
-    public void ATrailTurnedOffBeforeItsAdd_WaitsInTheScene_ThenLeavesForItsPoolOnceTurnedOffInIt()
-    {
-        SceneFixtures.HookScene scene = new();
-        using SceneSimulation simulation = new(scene);
-        EntityPool<Burst> pool = new(() => new Burst(), capacity: 1);
-        Burst trail = pool.Take();
-        trail.Emitter.Rate = 60f;
-        trail.Emitter.Emitting = false;
-        scene.Add(trail);
-
-        for (int step = 0; step < 30; step++)
-        {
-            simulation.Step(SceneFixtures.Step(step));
-        }
-
-        Assert.False(trail.Emitter.IsFinished);
-        Assert.Same(scene, trail.SceneOrNull);
-
-        trail.Emitter.Emitting = false;
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.Null(trail.SceneOrNull);
-        Assert.Same(trail, pool.Take());
     }
 
     // Emits before the add, then steps once and reads where the particles drew.

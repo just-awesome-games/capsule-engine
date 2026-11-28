@@ -41,7 +41,6 @@ public sealed class PolygonLight : Renderer
     }
 
     /// <summary>A light with the outline <paramref name="points"/> describes. See <see cref="SetPoints"/>.</summary>
-    /// <param name="points">The outline, in the entity's own units.</param>
     public PolygonLight(ReadOnlySpan<Vector2> points) => SetPoints(points);
 
     /// <summary>The outline's points in order, in the entity's own units. Empty until an outline is set.</summary>
@@ -61,7 +60,6 @@ public sealed class PolygonLight : Renderer
     /// <see cref="ColorPolygon.SetPoints"/> takes them. An outline no longer than one the light has held allocates
     /// nothing.
     /// </remarks>
-    /// <param name="points">The outline's points, in order.</param>
     public void SetPoints(ReadOnlySpan<Vector2> points)
     {
         _outline.Set(points);

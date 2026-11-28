@@ -75,13 +75,9 @@ public sealed class SingleChannelPngTests
     [InlineData(1 << 28, 1, null)]
     public void AnOversizedOrWidestAllowedHeader_IsRefusedAsAFormatDefect(int width, int height, string? named)
     {
-        byte[] header = new byte[13];
-        BinaryPrimitives.WriteInt32BigEndian(header, width);
-        BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(4), height);
-        header[8] = 8;
         using MemoryStream png = new();
         png.Write(PngWriter.Signature);
-        PngWriter.Chunk(png, "IHDR"u8, header);
+        PngWriter.Chunk(png, "IHDR"u8, Header(width, height, depth: 8, colour: 0));
         PngWriter.Chunk(png, "IEND"u8, []);
 
         FormatException error = Assert.Throws<FormatException>(() => SingleChannelPng.Read(png.ToArray()));
@@ -156,15 +152,9 @@ public sealed class SingleChannelPngTests
             raw.CopyTo(deflate);
         }
 
-        byte[] header = new byte[13];
-        BinaryPrimitives.WriteInt32BigEndian(header, Width);
-        BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(4), Height);
-        header[8] = depth;
-        header[9] = colour;
-
         using MemoryStream png = new();
         png.Write(PngWriter.Signature);
-        PngWriter.Chunk(png, "IHDR"u8, header);
+        PngWriter.Chunk(png, "IHDR"u8, Header(Width, Height, depth, colour));
         if (palette is not null)
         {
             PngWriter.Chunk(png, "PLTE"u8, palette);
@@ -179,5 +169,17 @@ public sealed class SingleChannelPngTests
         PngWriter.Chunk(png, "IEND"u8, []);
 
         return png.ToArray();
+    }
+
+    // An IHDR body: the size, the bit depth and colour type, and no interlace.
+    private static byte[] Header(int width, int height, byte depth, byte colour)
+    {
+        byte[] header = new byte[13];
+        BinaryPrimitives.WriteInt32BigEndian(header, width);
+        BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(4), height);
+        header[8] = depth;
+        header[9] = colour;
+
+        return header;
     }
 }

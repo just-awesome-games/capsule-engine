@@ -5,6 +5,7 @@ using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Scenes;
 using static Capsule.Tests.Particles.ParticleCollisionTests;
+using static Capsule.Tests.Particles.ParticleFixtures;
 
 namespace Capsule.Tests.Particles;
 
@@ -117,7 +118,7 @@ public sealed class SubEmissionTests
 
     private static ParticleEmitter Still(float lifetime)
     {
-        ParticleEmitter emitter = new(SceneFixtures.Frame(4, 4), capacity: 1) { Lifetime = new FloatRange(lifetime, lifetime) };
+        ParticleEmitter emitter = new(Tile, capacity: 1) { Lifetime = new FloatRange(lifetime, lifetime) };
         emitter.Emit(1);
 
         return emitter;

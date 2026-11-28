@@ -97,8 +97,7 @@ public partial class Camera
     /// </summary>
     /// <remarks>
     /// <see cref="Bounds"/> reads <paramref name="bounds"/> at once. The change takes over from wherever a
-    /// running one has reached. Passing the rect the bounds already hold changes nothing, and a running
-    /// transition carries on.
+    /// running one has reached. Passing the rect the bounds already hold changes nothing.
     /// </remarks>
     /// <example>
     /// A door that cuts to the next room under a camera that otherwise settles softly:

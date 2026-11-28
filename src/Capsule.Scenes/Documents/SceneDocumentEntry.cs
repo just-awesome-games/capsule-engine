@@ -32,8 +32,6 @@ public readonly record struct SceneDocumentEntry(string Type, EntitySpawn Spawn,
     public int? Id { get; init; }
 
     /// <summary>An entry placing its entity at the world origin, unturned and at scale one.</summary>
-    /// <param name="type">The type key of the entity class the entry places.</param>
-    /// <param name="members">The entry's authorable member values as one JSON object, or null when it authors none.</param>
     public SceneDocumentEntry(string type, JsonElement? members = null)
         : this(type, new EntitySpawn(Vector2.Zero), members)
     {

@@ -23,7 +23,7 @@ public sealed class ClipRunTests
         ScreenEntity outsider = new(Anchor.TopLeft, new Vector2(100f, 100f)) { Size = new Vector2(8f, 8f), ZIndex = 1 };
         outsider.Add(new ColorRect());
 
-        using SceneSimulation simulation = Simulate(frame, outsider);
+        using SceneSimulation simulation = SpriteFixtures.Stepped(frame, outsider);
 
         ClipRegion region = new(Frame, Frame);
         Assert.Equal(3, simulation.View.ScreenSprites.Length);
@@ -69,7 +69,7 @@ public sealed class ClipRunTests
         inner.Parent = outer;
         inner.Add(new ColorRect());
 
-        using SceneSimulation simulation = Simulate(outer);
+        using SceneSimulation simulation = SpriteFixtures.Stepped(outer);
 
         // The inner rect is (70, 40) to (170, 100) and the outer is (10, 10) to (110, 70). The run keeps each
         // level whole for the renderer to interpolate, and the pointer reads their intersection.
@@ -125,23 +125,9 @@ public sealed class ClipRunTests
         ScreenEntity row = new(Anchor.TopLeft, new Vector2(0f, 60f)) { Parent = frame, Size = new Vector2(20f, 10f) };
         row.Add(new Label(FontFixtures.Font(), "AB"));
 
-        using SceneSimulation simulation = Simulate(frame);
+        using SceneSimulation simulation = SpriteFixtures.Stepped(frame);
 
         Assert.Equal([new Vector2(12f, 12f), new Vector2(46f, 12f)], simulation.View.ScreenSprites.ToArray().Select(sprite => sprite.Position));
-    }
-
-    private static SceneSimulation Simulate(params ReadOnlySpan<ScreenEntity> roots)
-    {
-        Scene scene = new();
-        foreach (ScreenEntity root in roots)
-        {
-            scene.Add(root);
-        }
-
-        SceneSimulation simulation = new(scene);
-        simulation.Step(SceneFixtures.Step());
-
-        return simulation;
     }
 
     // Steps once in place, then once more with `mover` moved to `to`. Its previous end is where it began.

@@ -129,8 +129,9 @@ public sealed class FramePaneTests
 
         Assert.Equal(lines, rig.PaneLines());
 
-        // 27 pairs of 16 and 20 reach 988 ms. The 56th frame crosses the second at 1008 ms, in which
-        // the scheduler ran ten fixed steps.
+        // Each frame shows the one before it, from that frame's start to its own. 27 pairs of 16 and 20 reach
+        // 988 ms. The 56th frame's start closes the second at 1008 ms, over which the scheduler ran nine fixed
+        // steps. The tenth runs in the 56th frame, which the next second counts.
         for (int frame = 11; frame <= 56; frame++)
         {
             rig.Frame(intervalMs: frame % 2 == 1 ? 16 : 20, updateMs: 2, elapsedSeconds: frame % 2 == 1 ? 0.016 : 0.020);
@@ -143,7 +144,7 @@ public sealed class FramePaneTests
         Assert.Equal(20.0, figures.WorstMs, 2);
         Assert.Equal(2.0, figures.UpdateMs, 2);
         Assert.Equal(1.5, figures.DrawMs, 2);
-        Assert.Equal(9.9, figures.StepsPerSecond, 1);
+        Assert.Equal(8.9, figures.StepsPerSecond, 1);
         Assert.Equal(10, rig.Recording.Steps);
 
         // Mid-second nothing moves, however the frames vary.
@@ -151,8 +152,8 @@ public sealed class FramePaneTests
 
         Assert.Equal(lines, rig.PaneLines());
 
-        // Ticks stepped by hand count too. The 250 ms frame ran two, three presses of Step run three
-        // more, and the second completes at 1002 ms.
+        // Ticks stepped by hand count too. The 56th frame, 250 ms long, ran one, the frame after it two, and
+        // three presses of Step run three more. The second completes at 1002 ms.
         rig.Open();
         rig.Press(Key.Right);
         rig.Press(Key.Right);
@@ -165,6 +166,6 @@ public sealed class FramePaneTests
             rig.Frame(intervalMs: 16, updateMs: 2);
         }
 
-        Assert.Equal(5.0, rig.Overlay.Scene.Pane.Figures.StepsPerSecond, 1);
+        Assert.Equal(6.0, rig.Overlay.Scene.Pane.Figures.StepsPerSecond, 1);
     }
 }

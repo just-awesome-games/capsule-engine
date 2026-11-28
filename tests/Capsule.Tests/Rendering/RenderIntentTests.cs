@@ -211,26 +211,8 @@ public sealed class RenderIntentTests
         new() { Camera = new CameraView(new Vector2(5, 5), new Vector2(10, 10)) };
 
     private static SpriteIntent Unit(Vector2 previous, Vector2 position) =>
-        new(
-            new Sprite(Atlas, new TextureRegion(0, 0, 1, 1)),
-            previous,
-            position,
-            PreviousRotation: 0f,
-            Rotation: 0f,
-            Vector2.One,
-            FlipX: false,
-            FlipY: false,
-            ColorRgba.White);
+        SpriteFixtures.Drawn(new Sprite(Atlas, new TextureRegion(0, 0, 1, 1)), previous, position);
 
     private static SpriteIntent Swept(Vector2 previous, Vector2 position, Vector2 pivot) =>
-        new(
-            new Sprite(Atlas, new TextureRegion(0, 0, 8, 8), pivot),
-            previous,
-            position,
-            PreviousRotation: 0f,
-            Rotation: 0f,
-            new Vector2(8, 8),
-            FlipX: false,
-            FlipY: false,
-            ColorRgba.White);
+        SpriteFixtures.Drawn(new Sprite(Atlas, new TextureRegion(0, 0, 8, 8), pivot), previous, position);
 }

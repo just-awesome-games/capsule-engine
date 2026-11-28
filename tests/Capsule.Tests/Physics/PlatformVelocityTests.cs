@@ -22,7 +22,7 @@ public sealed class PlatformVelocityTests
         (Slab platform, Rider rider, SceneSimulation simulation) = Stand(platformFirst, Platform);
         platform.Velocity = Slide;
 
-        Advance(simulation, 0, 5);
+        CollisionFixtures.Advance(simulation, 0, 5);
 
         AssertNear(Slide, rider.Read);
         AssertNear(Slide, rider.Mover.PlatformVelocity);
@@ -35,7 +35,7 @@ public sealed class PlatformVelocityTests
         (Slab belt, Rider rider, SceneSimulation simulation) = Stand(true, Platform);
         belt.Collider.SurfaceVelocity = new Vector2(-30f, 0f);
 
-        Advance(simulation, 0, 5);
+        CollisionFixtures.Advance(simulation, 0, 5);
 
         AssertNear(new Vector2(-30f, 0f), rider.Read);
     }
@@ -50,17 +50,17 @@ public sealed class PlatformVelocityTests
         (Slab platform, Rider rider, SceneSimulation simulation) = Stand(platformFirst, Platform);
         Vector2 back = new(-60f, 0f);
         platform.Velocity = Slide;
-        Advance(simulation, 0, 5);
+        CollisionFixtures.Advance(simulation, 0, 5);
 
         platform.Velocity = back;
-        Advance(simulation, 5, 1);
+        CollisionFixtures.Advance(simulation, 5, 1);
         AssertNear(Slide, rider.Read);
 
         platform.Velocity = Vector2.Zero;
-        Advance(simulation, 6, 1);
+        CollisionFixtures.Advance(simulation, 6, 1);
         AssertNear(back, rider.Read);
 
-        Advance(simulation, 7, 1);
+        CollisionFixtures.Advance(simulation, 7, 1);
         Assert.Equal(Vector2.Zero, rider.Read);
         Assert.Equal(Vector2.Zero, rider.Mover.PlatformVelocity);
     }
@@ -81,7 +81,7 @@ public sealed class PlatformVelocityTests
         scene.Add(top);
         scene.Add(middle);
 
-        Advance(simulation, 0, 5);
+        CollisionFixtures.Advance(simulation, 0, 5);
 
         AssertNear(new Vector2(90f, 0f), top.Read);
     }
@@ -92,12 +92,12 @@ public sealed class PlatformVelocityTests
     {
         (Slab platform, Rider unmoved, SceneSimulation simulation) = Stand(true);
         platform.Velocity = Slide;
-        Advance(simulation, 0, 5);
+        CollisionFixtures.Advance(simulation, 0, 5);
         Assert.Equal(Vector2.Zero, unmoved.Read);
 
         (platform, Rider rider, simulation) = Stand(true, Platform);
         platform.Velocity = Slide;
-        Advance(simulation, 0, 5);
+        CollisionFixtures.Advance(simulation, 0, 5);
         rider.Mover.Move(new Vector2(0f, -16f));
         Assert.Equal(Vector2.Zero, rider.Mover.PlatformVelocity);
     }
@@ -112,14 +112,6 @@ public sealed class PlatformVelocityTests
         scene.Add<Entity>(platformFirst ? rider : platform);
 
         return (platform, rider, simulation);
-    }
-
-    private static void Advance(SceneSimulation simulation, int from, int steps)
-    {
-        for (int step = from; step < from + steps; step++)
-        {
-            simulation.Step(SceneFixtures.Step(step));
-        }
     }
 
     private static void AssertNear(Vector2 expected, Vector2 actual)

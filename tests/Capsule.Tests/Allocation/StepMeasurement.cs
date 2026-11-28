@@ -96,6 +96,15 @@ internal static class StepMeasurement
         return samples;
     }
 
+    /// <summary>Asserts no measured step and no frame built after one allocated, naming the first that did.</summary>
+    internal static void AssertNoAllocation(StepSample[] samples)
+    {
+        int first = Array.FindIndex(samples, static sample => sample.StepBytes != 0 || sample.ViewBytes != 0);
+        Assert.True(
+            first < 0,
+            first < 0 ? null : FormattableString.Invariant($"measured step {first} allocated {samples[first].StepBytes} bytes stepping and {samples[first].ViewBytes} building its frame."));
+    }
+
     /// <summary>Writes <paramref name="bytes"/> to the test output and asserts they fit <paramref name="budget"/>.</summary>
     internal static void Report(ITestOutputHelper output, string label, long bytes, int steps = MeasuredSteps, long budget = 0)
     {
@@ -103,5 +112,14 @@ internal static class StepMeasurement
         Assert.True(
             bytes <= budget,
             FormattableString.Invariant($"{label} allocated {bytes} bytes over {steps} steps, over its budget of {budget}."));
+    }
+
+    /// <summary>Writes the share of <paramref name="bytes"/> each of <paramref name="count"/> units took and asserts it fits <paramref name="budgetPerUnit"/>.</summary>
+    internal static void ReportPer(ITestOutputHelper output, string unit, long bytes, int count, long budgetPerUnit)
+    {
+        output.WriteLine(FormattableString.Invariant($"{bytes / count} bytes per {unit}, budget {budgetPerUnit}"));
+        Assert.True(
+            bytes <= budgetPerUnit * count,
+            FormattableString.Invariant($"a {unit} took {bytes / count} bytes, over its budget of {budgetPerUnit}."));
     }
 }

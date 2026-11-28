@@ -8,11 +8,11 @@ namespace Capsule.Audio;
 
 /// <summary>Plays one clip for its entity and holds the voice.</summary>
 /// <remarks>
-/// The entity can then stop, pause and re-level it. The clip is declared as a preload, and the
-/// voice stops when the entity leaves the scene. A transition therefore silences what a scene's
-/// entities were playing, while anything started through <see cref="Run.Audio"/> keeps playing.
+/// The clip is declared as a preload, and the voice stops when the entity leaves the scene. A
+/// transition therefore silences what a scene's entities were playing, while anything started through
+/// <see cref="Run.Audio"/> keeps playing. <see cref="Volume"/>, <see cref="Pitch"/>, <see cref="Pan"/>
+/// and <see cref="Range"/> apply to the live voice at once and to every voice played after.
 /// </remarks>
-/// <param name="clip">The clip <see cref="Play()"/> starts.</param>
 /// <example>
 /// <code>
 /// _creak = new AudioSource(CapsuleAssets.Audio.DoorCreakSound) { Bus = AudioBuses.Sfx };
@@ -43,10 +43,7 @@ public sealed class AudioSource(AudioClip clip) : Component, IAudioAnchor
     /// <summary>The bus this source's voices mix and pause through. <see cref="AudioBus.Master"/> by default, and read at each play.</summary>
     public AudioBus Bus { get; set; } = AudioBus.Master;
 
-    /// <summary>
-    /// This source's linear amplitude in [0, 1], 1 by default. It applies to the live voice immediately
-    /// and to every voice played afterwards.
-    /// </summary>
+    /// <summary>This source's linear amplitude in [0, 1], 1 by default.</summary>
     public float Volume
     {
         get => _volume;
@@ -76,10 +73,7 @@ public sealed class AudioSource(AudioClip clip) : Component, IAudioAnchor
         _playing?.FadeVolume(_voice, volume, seconds, ease);
     }
 
-    /// <summary>
-    /// The playback-rate multiplier, positive and finite, 1 by default. It applies to the live voice
-    /// immediately and to every voice played afterwards.
-    /// </summary>
+    /// <summary>The playback-rate multiplier, positive and finite, 1 by default.</summary>
     public float Pitch
     {
         get => _pitch;
@@ -95,10 +89,9 @@ public sealed class AudioSource(AudioClip clip) : Component, IAudioAnchor
     /// centred and 1 is hard right. Centred by default.
     /// </summary>
     /// <remarks>
-    /// It applies to the live voice immediately and to every voice played afterwards. A mono clip
-    /// pans across the field at equal power. A stereo clip keeps its near side whole and fades its far
-    /// side, which is silent at a hard pan. While <see cref="Range"/> is positional the voice ignores
-    /// this and pans from its entity's position.
+    /// A mono clip pans across the field at equal power. A stereo clip keeps its near side whole and
+    /// fades its far side, which is silent at a hard pan. While <see cref="Range"/> is positional the
+    /// voice ignores this and pans from its entity's position.
     /// </remarks>
     public float Pan
     {
@@ -115,7 +108,6 @@ public sealed class AudioSource(AudioClip clip) : Component, IAudioAnchor
     /// <see cref="Entity.WorldPosition"/>. Not positional by default, which plays them at
     /// <see cref="Volume"/> and <see cref="Pan"/> wherever the entity stands.
     /// </summary>
-    /// <remarks>It applies to the live voice immediately and to every voice played afterwards.</remarks>
     public AudioRange Range
     {
         get => _range;
@@ -152,10 +144,7 @@ public sealed class AudioSource(AudioClip clip) : Component, IAudioAnchor
     /// bus's. It reads false before the first <see cref="Play()"/> and after the voice ends,
     /// whether stopped, expired or stolen.
     /// </summary>
-    /// <remarks>
-    /// This reports ownership, not audibility, and it is the check to make before starting another
-    /// voice. <see cref="IsPlaying"/> and <see cref="IsPaused"/> split it in two.
-    /// </remarks>
+    /// <remarks><see cref="IsPlaying"/> and <see cref="IsPaused"/> split it in two.</remarks>
     public bool IsLive => _playing?.IsLive(_voice) ?? false;
 
     /// <summary>Whether this source's voice is live and sounding. Reads false while it is held.</summary>

@@ -19,8 +19,7 @@ public interface IInputDriver
 {
     /// <summary>Supplies the snapshot that drives the step at <paramref name="tick"/>.</summary>
     /// <param name="scene">
-    /// The scene about to be stepped, which after a transition is the scene the run switched to. Read it to
-    /// decide what to press. Changing it here drives the game from outside its own logic.
+    /// The scene about to be stepped, which after a transition is the scene the run switched to.
     /// </param>
     /// <param name="tick">The fixed step about to run, counted from 0 across the whole run.</param>
     /// <param name="snapshot">What the devices would have reported for that step.</param>

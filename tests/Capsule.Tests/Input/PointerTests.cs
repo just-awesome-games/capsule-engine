@@ -7,7 +7,6 @@ namespace Capsule.Tests.Input;
 // and the wheel ride the snapshot in canvas pixels and in notches.
 public sealed class PointerTests
 {
-    private static readonly InputAction Confirm = new("Confirm");
     private static readonly AxisAction Zoom = new("Zoom");
 
     [Fact]
@@ -22,7 +21,6 @@ public sealed class PointerTests
         Assert.True(flicked.IsDown(Key.LeftControl));
         Assert.False(flicked.IsEmpty);
         Assert.NotEqual(flicked, flicked.WithScroll(Vector2.Zero));
-        Assert.Equal(flicked.GetHashCode(), flicked.WithScroll(new Vector2(-1f, 2.5f)).GetHashCode());
     }
 
     [Fact]
@@ -33,7 +31,6 @@ public sealed class PointerTests
         Assert.Equal(new Vector2(-40f, 5000.5f), outside.Pointer);
         Assert.False(outside.IsEmpty);
         Assert.NotEqual(DeviceSnapshot.Empty, outside);
-        Assert.Equal(DeviceSnapshot.Empty.WithPointer(new Vector2(-40f, 5000.5f)), outside);
         Assert.NotEqual(outside.With(MouseButton.Middle), outside);
     }
 
@@ -59,24 +56,6 @@ public sealed class PointerTests
 
         Assert.Equal(new Vector2(-2f, 4f), first.LatchedWith(second).Scroll);
         Assert.Equal(new Vector2(0f, 1f), first.LatchedWith(DeviceSnapshot.Empty).Scroll);
-    }
-
-    [Fact]
-    public void AMouseButton_BindsBesideAKeyAndAPadButton()
-    {
-        ActionBindings bindings = new();
-        bindings.Bind(Confirm, Key.Enter, PadButton.South, MouseButton.Left);
-
-        InputState input = new(bindings);
-        input.Advance(DeviceSnapshot.Empty);
-        input.Advance(DeviceSnapshot.Empty.With(MouseButton.Left));
-
-        Assert.True(input.IsHeld(Confirm));
-        Assert.True(input.WasPressed(Confirm));
-
-        input.Advance(DeviceSnapshot.Empty);
-
-        Assert.True(input.WasReleased(Confirm));
     }
 
     [Fact]

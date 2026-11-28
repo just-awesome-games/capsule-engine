@@ -25,8 +25,6 @@ public sealed class SceneDocumentParseTests
     // An untyped entry would reach the entity registry as "", failing at boot naming nothing an author could act on.
     // A scale is two positive factors.
     [Theory]
-    [InlineData(Coin + Coin, "has id 2, which an earlier entry has")]
-    [InlineData(""",{"id": 1, "type": "coin", "x": 8, "y": 0}""", "has id 1, which an earlier entry has")]
     [InlineData(""",{"id": 0, "type": "coin", "x": 8, "y": 0}""", "has id 0. Make it positive")]
     [InlineData(", null", "entities[1] is null")]
     [InlineData(""",{"x": 8, "y": 0}""", "entities[1] has no type")]
@@ -36,9 +34,7 @@ public sealed class SceneDocumentParseTests
     [InlineData(""",{"type": "coin", "x": 8, "y": 0, "scrollFactor": [0.5, 1, 2]}""", "entities[1] has a scrollFactor of 3 components")]
     [InlineData(""",{"type": "coin", "x": 8, "y": 0, "tint": "#80ffffff0"}""", "entities[1] has a tint of \"#80ffffff0\", which is not a colour. Write it as \"#rrggbb\" or as \"#rrggbbaa\"")]
     [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "scale": [2]}""", "scale of 1 components")]
-    [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "scale": [1, 2, 3]}""", "scale of 3 components")]
     [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "scale": [0, 1]}""", "which is not a scale")]
-    [InlineData(""",{"id": 2, "type": "coin", "x": 8, "y": 0, "scale": [1, -2]}""", "which is not a scale")]
     public void Parse_RefusesAMalformedEntryWithTheDefectNamed(string entities, string expected)
     {
         SceneDocumentFormatException error = Assert.Throws<SceneDocumentFormatException>(

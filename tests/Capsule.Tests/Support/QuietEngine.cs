@@ -12,8 +12,8 @@ internal static class QuietEngine
     internal static EngineBuilder Configure(
         SceneRegistration[] scenes,
         int hertz = 10,
-        InputDriverRegistry? drivers = null,
-        ScenePayloadRegistry? payloads = null,
+        FactoryRegistry<IInputDriver>? drivers = null,
+        FactoryRegistry<IScenePayload>? payloads = null,
         StringTable? strings = null) =>
         CapsuleEngine.Configure("Quiet Game", new SceneRegistry(new EntityRegistry([]), scenes), drivers, payloads, strings)
             .WithFixedStep(hertz)

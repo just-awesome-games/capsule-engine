@@ -28,9 +28,9 @@ public sealed class SpriteVariantTests
         root.Add(renderer);
         Entity muzzle = renderer.Socket(Muzzle);
 
-        using SimulationHost run = Running(root);
+        using SceneSimulation simulation = SpriteFixtures.Stepped(root);
 
-        Assert.Equal(Hat, Assert.Single(run.Simulation.View.Sprites.ToArray()).Sprite);
+        Assert.Equal(Hat, Assert.Single(simulation.View.Sprites.ToArray()).Sprite);
         Assert.Equal(Held, renderer.Sprite);
         Assert.Equal(new Vector2(104f, 46f), muzzle.WorldPosition);
     }
@@ -42,9 +42,9 @@ public sealed class SpriteVariantTests
         EntityHierarchyFixtures.Node root = new(Vector2.Zero);
         root.Add(renderer);
 
-        using SimulationHost run = Running(root);
+        using SceneSimulation simulation = SpriteFixtures.Stepped(root);
 
-        Assert.Equal(Other, Assert.Single(run.Simulation.View.Sprites.ToArray()).Sprite);
+        Assert.Equal(Other, Assert.Single(simulation.View.Sprites.ToArray()).Sprite);
     }
 
     // An empty mapping is a frame the look has no drawing for, such as a hat hidden behind a turn.
@@ -55,9 +55,9 @@ public sealed class SpriteVariantTests
         EntityHierarchyFixtures.Node root = new(Vector2.Zero);
         root.Add(renderer);
 
-        using SimulationHost run = Running(root);
+        using SceneSimulation simulation = SpriteFixtures.Stepped(root);
 
-        Assert.Empty(run.Simulation.View.Sprites.ToArray());
+        Assert.Empty(simulation.View.Sprites.ToArray());
         Assert.Equal(default, renderer.Bounds);
     }
 
@@ -68,15 +68,5 @@ public sealed class SpriteVariantTests
         SpriteVariant second = new([Held, Other], [null, Hat]);
 
         Assert.Throws<ArgumentException>(() => SpriteVariant.Combine(first, second));
-    }
-
-    private static SimulationHost Running(Entity root)
-    {
-        SceneFixtures.HookScene scene = new();
-        scene.Add(root);
-        SimulationHost run = new(scene);
-        run.Step();
-
-        return run;
     }
 }

@@ -15,10 +15,7 @@ namespace Capsule;
 /// </summary>
 /// <remarks>
 /// Bus volumes, the random sequence, the save documents, the clock and a pending frame capture survive
-/// transitions. Every member is fixed before the run starts or set by game code, except the clock, which
-/// each step advances. The host writes only
-/// the save stamps it restores and sets, and the debug overlay raises scene-flow requests
-/// through these same members.
+/// transitions.
 /// <para>
 /// At most one transition is pending at a time. Within a step the first transition request wins, and
 /// an exit request replaces it. The host takes the pending transition after the step. Every
@@ -68,9 +65,8 @@ public sealed class Run
     /// resizes. The canvas scales to fit the surface that presents the frame. A
     /// <see cref="ScreenEntity"/> anchors and hit-tests against this extent. A camera fit that reveals
     /// more world than the canvas covers keeps the screen layer at this extent, centred in the surface
-    /// the world was drawn on. The game may set it during the run for a UI-scale option: a larger canvas
-    /// draws a smaller interface. Screen entities lay out against the new value from the next step. The
-    /// host never refits the game's run.
+    /// the world was drawn on. A larger canvas draws a smaller interface, and screen entities lay out
+    /// against a new value from the next step.
     /// </remarks>
     public Vector2 Canvas
     {
@@ -96,8 +92,8 @@ public sealed class Run
     /// first step applies at once, and one made after it applies from the start of the next step. A tag no table ships
     /// shows the closest shipped language, else the fallback, and never throws. A windowed run no driver
     /// plays starts in the shipped language closest to the player's preference. A headless or driven run
-    /// starts in the fallback language, and a test shows the same text on every machine. <c>qps-ploc</c> shows
-    /// the fallback accented and lengthened in a development build, and as it is in a shipping one.
+    /// starts in the fallback language. <c>qps-ploc</c> shows the fallback accented and lengthened in a
+    /// development build, and as it is in a shipping one.
     /// </remarks>
     public string? Language
     {
@@ -182,7 +178,7 @@ public sealed class Run
     /// A voice an outgoing scene starts keeps playing across a transition until its starter stops it.
     /// Bus volumes and bus pause state set once hold for every later scene. Use an
     /// <see cref="Capsule.Audio.AudioSource"/> for per-entity sound and this mixer for sound no entity
-    /// owns. A scene constructor cannot reach the run. Level a bus from <c>OnStart</c> onward.
+    /// owns.
     /// </remarks>
     public AudioMixer Audio { get; }
 
@@ -191,9 +187,7 @@ public sealed class Run
     /// </summary>
     /// <remarks>
     /// A pulse an outgoing scene starts keeps playing across a transition until it ends or its starter
-    /// stops it. A settings screen writes <see cref="Capsule.Input.Rumble.Volume"/>, and a pause menu
-    /// calls <see cref="Capsule.Input.Rumble.Stop()"/> when it opens. The host reads the level after each
-    /// step and writes it to the pad. The host rests the motors on focus loss, disconnect, exit and crash,
+    /// stops it. The host rests the motors on focus loss, disconnect, exit and crash,
     /// while the keyboard or mouse is the active device, and while the debug overlay holds the run.
     /// A headless run reaches the same level with no pad.
     /// </remarks>
@@ -234,13 +228,11 @@ public sealed class Run
     /// </summary>
     /// <remarks>
     /// A different pace makes the run step more or less often per wall second. The fixed step, each
-    /// step's tick and each step's time stay identical at any pace. A run at 0.25 is the same run as at
-    /// 1, played slower.
+    /// step's tick and each step's time stay identical at any pace.
     /// <para>
     /// It is the whole game's speed, such as an assist option that plays everything slower, menus and
-    /// interface included. A game may set it from a step and reads it only from host-facing code. A
-    /// simulation that branches on it stops being a function of its snapshots, and a replay of it
-    /// diverges. A pause is <c>Scene.Paused</c>, a hit-stop is <c>Scene.Freeze</c>, and slow motion
+    /// interface included. A game may set it from a step and reads it only from host-facing code, or a
+    /// replay diverges. A pause is <c>Scene.Paused</c>, a hit-stop is <c>Scene.Freeze</c>, and slow motion
     /// inside the game is its entities' own stepping, never a pace. A headless run counts steps and
     /// ignores it. The per-frame step bound does not change. A pace that needs more steps than one frame
     /// allows runs that frame at its bound and drops the backlog.
@@ -281,17 +273,13 @@ public sealed class Run
     /// </remarks>
     public double TotalSeconds => Tick * _stepSeconds;
 
-    /// <summary>Starts a run with the default random seed, a 1280 by 720 canvas and pixel-perfect drawing off.</summary>
+    /// <summary>Starts a run with the default random seed.</summary>
     public Run()
         : this(new RandomSource())
     {
     }
 
-    /// <summary>
-    /// Starts a run using <paramref name="random"/> and keeps that source for the run's lifetime. The
-    /// canvas starts at 1280 by 720 pixels until the game changes it, and pixel-perfect drawing is off.
-    /// </summary>
-    /// <param name="random">The deterministic random source shared by every scene this run opens.</param>
+    /// <summary>Starts a run that keeps <paramref name="random"/> as its <see cref="Random"/> for its whole lifetime.</summary>
     public Run(RandomSource random)
     {
         ArgumentNullException.ThrowIfNull(random);
@@ -318,8 +306,6 @@ public sealed class Run
     /// using SimulationHost host = new(new Title(), run: run);
     /// </code>
     /// </example>
-    /// <param name="create">Builds the game object of the run it is handed.</param>
-    /// <returns>The game object <paramref name="create"/> built.</returns>
     /// <exception cref="InvalidOperationException">
     /// The run already holds a game object, or its first scene has started.
     /// </exception>
@@ -388,8 +374,7 @@ public sealed class Run
     /// with <paramref name="payload"/>, after the current step.
     /// </summary>
     /// <remarks>
-    /// Call it on intent, such as a highlighted menu item, not from a proximity sweep. A step that opens a
-    /// scene starts no prefetch, and one asked for in it starts after the next step. The prefetch constructs
+    /// A step that opens a scene starts no prefetch, and one asked for in it starts after the next step. The prefetch constructs
     /// the scene and runs its <c>CollectAssets</c> at the end of the step it starts after. When the scene's
     /// document is first read on a worker thread, it does so at the end of the step 0.1 seconds of simulated time
     /// later, or on the step that requests the scene if that comes first. Whichever step needs the document waits
@@ -452,13 +437,12 @@ public sealed class Run
     /// frame at its extent in pixels when the run declares none. It never shows the debug overlay. A
     /// capture is not tied to the step that requested it. The host
     /// may run more steps before it next draws, and the frame shows the last of them interpolated from
-    /// the one before. An event that lasts one step can be missing from the image. Requesting again
-    /// before the host takes the request replaces the path, and the request survives a scene transition.
+    /// the one before. Requesting again before the host takes the request replaces the path, and the
+    /// request survives a scene transition.
     /// A frame with no surface to draw on, such as a minimised window, leaves the request pending. A run
     /// with no window (<c>RunHeadless</c>, or <c>--headless</c>, under <c>--capture</c> too) clears the
     /// request and writes nothing. A failed save writes no file, reports through <see cref="Capsule.Diagnostics.Log"/> at
-    /// <see cref="Capsule.Diagnostics.LogLevel.Warning"/>, and drops the request instead of throwing
-    /// into the frame loop. See <c>docs/debugging.md</c> for the host side.
+    /// <see cref="Capsule.Diagnostics.LogLevel.Warning"/>, and drops the request without throwing.
     /// </remarks>
     public void CaptureFrame(string path)
     {

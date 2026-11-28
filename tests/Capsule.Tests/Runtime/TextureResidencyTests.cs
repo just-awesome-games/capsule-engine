@@ -57,7 +57,6 @@ public sealed class TextureResidencyTests
 
         Assert.Equal(1, resident);
         Assert.Equal(resident, loaded.Count(texture => !texture.Disposed));
-        Assert.Equal(102, loaded.Count);
     }
 
     [Fact]

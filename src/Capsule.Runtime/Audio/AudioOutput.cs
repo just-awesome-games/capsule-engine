@@ -10,7 +10,9 @@ namespace Capsule.Runtime.Audio;
 /// <see cref="Submit"/>. A platform whose device pulls frames through a callback keeps its own queue
 /// behind <see cref="Submit"/>. Following the system's default device as it changes is the output's own
 /// job. An output left with no device consumes submitted frames at <see cref="SampleRate"/> on the
-/// clock, as a device would play them. The host keeps one output for the whole run and disposes it on
+/// clock, as a device would play them. An output whose device fails throws from
+/// <see cref="QueuedFrames"/> or <see cref="Submit"/>, and the host logs the exception's message once
+/// and plays the rest of the run silent. The host keeps one output for the whole run and disposes it on
 /// the game thread once its mix thread has stopped.
 /// </remarks>
 public abstract class AudioOutput : IDisposable

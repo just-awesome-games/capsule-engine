@@ -10,7 +10,6 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
     abstract class PageReaderBase
     {
         private readonly Crc _crc = new Crc();
-        private readonly HashSet<int> _ignoredSerials = new HashSet<int>();
         private readonly byte[] _headerBuf = new byte[282]; // 27 + 255: a header and the longest segment table
 
         private Stream _stream;
@@ -152,20 +151,6 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
             return _crc.Test(BitConverter.ToUInt32(pageBuf, 22));
         }
 
-        private bool AddPage(byte[] pageBuf, int pageLength, bool isResync)
-        {
-            var streamSerial = BitConverter.ToInt32(pageBuf, 14);
-            if (!_ignoredSerials.Contains(streamSerial))
-            {
-                if (AddPage(streamSerial, pageBuf, pageLength, isResync))
-                {
-                    return true;
-                }
-                _ignoredSerials.Add(streamSerial);
-            }
-            return false;
-        }
-
         // Network streams don't always return the requested size immediately. This
         // method fills the buffer if it is possible.
         // Note that it will loop until getting a certain count of zero reads (default: 10).
@@ -230,7 +215,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
 
         abstract protected bool AddPage(int streamSerial, byte[] pageBuf, int pageLength, bool isResync);
 
-        abstract protected void SetEndOfStreams();
+        abstract protected void SetEndOfStream();
 
         // Capsule: a page that fails to verify is searched for again from the byte after the one it began at,
         // by seeking, which every stream Capsule opens allows. A page is read only from its first byte.
@@ -246,7 +231,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
                 var cnt = EnsureRead(_headerBuf, 0, 27);
                 if (cnt == 0)
                 {
-                    SetEndOfStreams();
+                    SetEndOfStream();
                     return false;
                 }
 
@@ -256,7 +241,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
                     SaveNextPageSearch();
 
                     // pass it to our inheritor
-                    if (AddPage(pageBuf, pageLength, isResync))
+                    if (AddPage(BitConverter.ToInt32(pageBuf, 14), pageBuf, pageLength, isResync))
                     {
                         return true;
                     }
@@ -282,7 +267,7 @@ namespace Capsule.Runtime.Audio.Vorbis.Ogg
 
         public void Dispose()
         {
-            SetEndOfStreams();
+            SetEndOfStream();
 
             _stream?.Dispose();
             _stream = null;

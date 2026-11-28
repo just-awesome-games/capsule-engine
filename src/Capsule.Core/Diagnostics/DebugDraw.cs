@@ -53,9 +53,6 @@ public static class DebugDraw
     /// Sets the colour <paramref name="channel"/>'s draws take when a call passes none, for the
     /// rest of the process. It is configuration, not a draw, and is never compiled out.
     /// </summary>
-    /// <remarks>
-    /// Call it from <c>Main</c> before the run starts or from a scene's <c>OnStart</c>.
-    /// </remarks>
     public static void SetColor(string channel, ColorRgba color)
     {
         ArgumentNullException.ThrowIfNull(channel);

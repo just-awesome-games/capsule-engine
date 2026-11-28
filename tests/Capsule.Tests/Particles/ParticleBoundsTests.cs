@@ -114,6 +114,27 @@ public sealed class ParticleBoundsTests
         Assert.Equal(new RenderMetrics(Submitted: 2, Visible: 2), view.Metrics);
     }
 
+    // A negative scale mirrors the frame about its pivot. A mirrored particle the emitter handed the view for its own
+    // test once carried a negative extent there and was dropped.
+    [Fact]
+    public void AMirroredParticle_HandedToTheViewsCull_StillDraws()
+    {
+        (_, ParticleEmitter emitter, SimulationHost host) = ParticleEmitterTests.Build(capacity: 2);
+        emitter.Scale = -1f;
+        emitter.Lifetime = new FloatRange(5f, 5f);
+        emitter.Emit(1, new Vector2(10f, 0f));
+        emitter.Emit(1, new Vector2(100f, 0f));
+
+        host.Step();
+        FrameView view = new() { Camera = new CameraView(Vector2.Zero, new Vector2(40f, 40f)) };
+        emitter.Draw(view);
+
+        Assert.Equal(new RenderMetrics(Submitted: 1, Visible: 1), view.Metrics);
+        SpriteIntent sprite = Assert.Single(view.Sprites.ToArray());
+        Assert.Equal(new Vector2(4f, 4f), sprite.Size);
+        Assert.True(sprite.FlipX && sprite.FlipY);
+    }
+
     // The emitter's own cull must never drop a sprite the view would keep. Its reach is worked out apart from the sprite
     // it builds. The levers that size or place a frame are drawn at random here, and the view keeps exactly what it
     // would keep from the whole unculled pool.

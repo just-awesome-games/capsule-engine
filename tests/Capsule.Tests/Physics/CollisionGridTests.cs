@@ -106,8 +106,9 @@ public sealed class CollisionGridTests
         Assert.Equal(body, contacts[0].Target.Collider);
 
         // And a move down through the floor is not stopped by it.
-        MoveResult2D through = world.MoveBox(
-            CollisionFixtures.Box(52f, 4f, 8f, 8f),
+        MoveResult2D through = world.Move(
+            Shape2D.Box(CollisionFixtures.Box(52f, 4f, 8f, 8f)),
+            Vector2.Zero,
             new Vector2(0f, 20f),
             CollisionFilter.Everything,
             default,
@@ -116,8 +117,9 @@ public sealed class CollisionGridTests
         Assert.Equal(20f, through.Translation.Y, CollisionFixtures.Tolerance);
 
         // The same move with nothing ignored still lands on it.
-        Assert.True(world.MoveBox(
-            CollisionFixtures.Box(52f, 4f, 8f, 8f),
+        Assert.True(world.Move(
+            Shape2D.Box(CollisionFixtures.Box(52f, 4f, 8f, 8f)),
+            Vector2.Zero,
             new Vector2(0f, 20f),
             CollisionFilter.Everything,
             default).Blocked);

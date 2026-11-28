@@ -21,9 +21,9 @@ public sealed class SceneAssetTests
 
     public static TheoryData<Func<Entity>, bool> PoolOwners => new()
     {
-        { static () => new PoolOwner(forwarded: true), true },
-        { static () => new PoolOwner(forwarded: false), false },
-        { static () => new ScenePoolForwarder(), true },
+        { static () => new SceneFixtures.PoolForwarder<TestEntity>(ExtraPool()), true },
+        { static () => new SceneFixtures.PoolForwarder<TestEntity>(ExtraPool(), forwards: false), false },
+        { static () => new SceneFixtures.PoolForwarder<ScenePoolDeclarer>(new(static () => new ScenePoolDeclarer(), capacity: 1)), true },
     };
 
     [Fact]
@@ -159,6 +159,8 @@ public sealed class SceneAssetTests
 
     private static Sprite Frame(TextureHandle texture) => SceneFixtures.Frame(1, 1, texture);
 
+    private static EntityPool<TestEntity> ExtraPool() => new(static () => new TestEntity(new SpriteRenderer(Frame(EntityExtra))), capacity: 2);
+
     private class TestEntity : Entity
     {
         internal TestEntity(params Component[] components)
@@ -186,27 +188,7 @@ public sealed class SceneAssetTests
         protected internal override void CollectAssets(AssetCollection assets) => assets.Add(EntityExtra);
     }
 
-    private sealed class PoolOwner(bool forwarded) : Entity(Vector2.Zero)
-    {
-        private readonly EntityPool<TestEntity> _pool = new(() => new TestEntity(new SpriteRenderer(Frame(EntityExtra))), capacity: 2);
-
-        protected internal override void CollectAssets(AssetCollection assets)
-        {
-            if (forwarded)
-            {
-                _pool.CollectAssets(assets);
-            }
-        }
-    }
-
-    // Forwards a pool whose idle entity declares a scene pool of entities drawing EntityExtra.
-    private sealed class ScenePoolForwarder() : Entity(Vector2.Zero)
-    {
-        private readonly EntityPool<ScenePoolDeclarer> _pool = new(static () => new ScenePoolDeclarer(), capacity: 1);
-
-        protected internal override void CollectAssets(AssetCollection assets) => _pool.CollectAssets(assets);
-    }
-
+    // Its idle entity declares a scene pool of entities drawing EntityExtra.
     private sealed class ScenePoolDeclarer() : Entity(Vector2.Zero)
     {
         protected internal override void CollectAssets(AssetCollection assets) => assets.Pool<ExtraDrawer>(capacity: 1);

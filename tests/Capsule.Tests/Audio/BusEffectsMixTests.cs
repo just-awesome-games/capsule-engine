@@ -285,15 +285,6 @@ public sealed class BusEffectsMixTests
     }
 
     // A mixer with one bus besides the master, at index 1.
-    private static (VoiceMixer Mixer, AudioRing<MixCommand> Commands, AudioRing<VoiceEnded> Ended) OnBus(out MixBus bus)
-    {
-        (VoiceMixer Mixer, AudioRing<MixCommand> Commands, AudioRing<VoiceEnded> Ended) mix = Mixer();
-        bus = new MixBus();
-        mix.Commands.TryWrite(new MixCommand(MixCommandKind.Buses, 0, 0) { Buses = [bus] });
-
-        return mix;
-    }
-
     private static MixCommand Effects(in EffectLevels levels, int lineFrames = 0) =>
         new(MixCommandKind.SetBusEffects, 0, 0)
         {

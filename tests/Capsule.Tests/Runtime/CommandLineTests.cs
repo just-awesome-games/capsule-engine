@@ -240,15 +240,15 @@ public sealed class CommandLineTests : IDisposable
                     ? Array.Empty<SceneRegistration>()
                     : [SceneRegistration.DocumentOnly(documentKey, content => new Hall(content!.Value, opened))],
             ],
-            drivers: new InputDriverRegistry(
+            drivers: new FactoryRegistry<IInputDriver>(
                 [
-                    new InputDriverRegistration("Idler", static () => new InputScript().Wait(3).Build()),
-                    new InputDriverRegistration("Presser", static () => new InputScript().Tap(Key.Space).Build()),
+                    new FactoryRegistration<IInputDriver>("Idler", static () => new InputScript().Wait(3).Build()),
+                    new FactoryRegistration<IInputDriver>("Presser", static () => new InputScript().Tap(Key.Space).Build()),
                 ]),
-            payloads: new ScenePayloadRegistry(
+            payloads: new FactoryRegistry<IScenePayload>(
                 [
-                    new ScenePayloadRegistration(nameof(Westward), static () => new Westward()),
-                    new ScenePayloadRegistration(nameof(Eastward), static () => new Eastward()),
+                    new FactoryRegistration<IScenePayload>(nameof(Westward), static () => new Westward()),
+                    new FactoryRegistration<IScenePayload>(nameof(Eastward), static () => new Eastward()),
                 ]));
 
     private sealed class Saver : Scene

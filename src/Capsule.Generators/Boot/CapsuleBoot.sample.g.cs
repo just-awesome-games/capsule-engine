@@ -10,9 +10,9 @@ namespace Capsule.Generated
     {
         private static global::Capsule.Scenes.SceneRegistry Scenes { get; } = CreateScenes();
 
-        private static global::Capsule.Input.InputDriverRegistry Drivers { get; } = CreateDrivers();
+        private static global::Capsule.Scenes.FactoryRegistry<global::Capsule.Input.IInputDriver> Drivers { get; } = CreateDrivers();
 
-        private static global::Capsule.Scenes.ScenePayloadRegistry Payloads { get; } = CreatePayloads();
+        private static global::Capsule.Scenes.FactoryRegistry<global::Capsule.Scenes.IScenePayload> Payloads { get; } = CreatePayloads();
 
         /// <summary>Begins the engine's configuration with every registry this game generates.</summary>
         /// <param name="gameName">The game's display name. It titles the window, and its slug names the local folder that holds the saves and the crash log.</param>
@@ -26,19 +26,19 @@ namespace Capsule.Generated
             return scenes.Build();
         }
 
-        private static global::Capsule.Input.InputDriverRegistry CreateDrivers()
+        private static global::Capsule.Scenes.FactoryRegistry<global::Capsule.Input.IInputDriver> CreateDrivers()
         {
-            var drivers = new global::System.Collections.Generic.List<global::Capsule.Input.InputDriverRegistration>();
+            var drivers = new global::System.Collections.Generic.List<global::Capsule.Scenes.FactoryRegistration<global::Capsule.Input.IInputDriver>>();
             global::Capsule.Generated.CapsuleRegistryProvider_GameSpecs_85683739.AddDrivers(drivers);
-            drivers.Add(new global::Capsule.Input.InputDriverRegistration("Replay", static () => new global::Shell.Replay()));
-            return new global::Capsule.Input.InputDriverRegistry(drivers);
+            drivers.Add(new global::Capsule.Scenes.FactoryRegistration<global::Capsule.Input.IInputDriver>("Replay", static () => new global::Shell.Replay()));
+            return new global::Capsule.Scenes.FactoryRegistry<global::Capsule.Input.IInputDriver>(drivers);
         }
 
-        private static global::Capsule.Scenes.ScenePayloadRegistry CreatePayloads()
+        private static global::Capsule.Scenes.FactoryRegistry<global::Capsule.Scenes.IScenePayload> CreatePayloads()
         {
-            var payloads = new global::System.Collections.Generic.List<global::Capsule.Scenes.ScenePayloadRegistration>();
+            var payloads = new global::System.Collections.Generic.List<global::Capsule.Scenes.FactoryRegistration<global::Capsule.Scenes.IScenePayload>>();
             global::Capsule.Generated.CapsuleRegistryProvider_GameSpecs_85683739.AddPayloads(payloads);
-            return new global::Capsule.Scenes.ScenePayloadRegistry(payloads);
+            return new global::Capsule.Scenes.FactoryRegistry<global::Capsule.Scenes.IScenePayload>(payloads);
         }
     }
 }

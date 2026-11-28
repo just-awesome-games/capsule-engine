@@ -177,7 +177,7 @@ public sealed class ColliderLifecycleTests
     public void AGameDefinedCollider_StepsAsItsEntitysOnlyComponent()
     {
         Scene scene = new();
-        Holder entity = new();
+        EntityHierarchyFixtures.Node entity = new(Vector2.Zero);
         SteppingCollider collider = new();
         entity.Add(collider);
         scene.Add(entity);
@@ -206,8 +206,8 @@ public sealed class ColliderLifecycleTests
         float right,
         float bottom)
     {
-        Placed root = new(new Vector2(100f, 50f));
-        Holder held = new();
+        EntityHierarchyFixtures.Node root = new(new Vector2(100f, 50f));
+        EntityHierarchyFixtures.Node held = new(Vector2.Zero);
         BoxCollider2D box = new(new Vector2(2f, 4f)) { Offset = new Vector2(1f, 2f) };
         held.Add(box);
         Scene scene = new Scene().Started();
@@ -243,10 +243,6 @@ public sealed class ColliderLifecycleTests
         Assert.Equal(new Aabb2D(new Vector2(100f + left, 50f + top), new Vector2(100f + right, 50f + bottom)), box.Bounds);
         Assert.Equal(box.Bounds, scene.Collision.WorldShapeOf(box.Handle).Bounds);
     }
-
-    private sealed class Holder() : Entity(Vector2.Zero);
-
-    private sealed class Placed(Vector2 position) : Entity(position);
 
     private sealed class SteppingCollider() : Collider2D(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)))
     {

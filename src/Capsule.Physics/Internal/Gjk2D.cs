@@ -15,7 +15,6 @@ internal static class Gjk2D
     // as apart is still measured here.
     private const float MinimumGap = 0.01f * CollisionTolerance.LinearSlop;
 
-    // The same threshold squared, for testing a search direction's squared length.
     private const float MinimumGapSquared = MinimumGap * MinimumGap;
 
     // How far apart two shapes are, negative when they overlap by less than their radii, with a

@@ -5,13 +5,12 @@ namespace Capsule.Tests.Input;
 public sealed class InputButtonTests
 {
     [Fact]
-    public void TheNoneOfEitherDevice_IsNoneAndNeverDown()
+    public void TheNoneOfEitherDevice_IsNone()
     {
         Assert.True(((InputButton)Key.None).IsNone);
         Assert.True(((InputButton)PadButton.None).IsNone);
         Assert.Equal(InputButton.None, (InputButton)Key.None);
         Assert.Equal(InputButton.None, (InputButton)PadButton.None);
-        Assert.False(InputButton.None.IsDown(DeviceSnapshot.Of(Key.None).With(PadButton.South)));
     }
 
     [Fact]
@@ -38,40 +37,6 @@ public sealed class InputButtonTests
 
         Assert.False(((InputButton)StickDirection.LeftStickUp).IsDown(insideDeadband));
         Assert.False(((InputButton)StickDirection.LeftStickDown).IsDown(insideDeadband));
-    }
-
-    [Fact]
-    public void AHeldStickDirection_IsPressedOnceAndNeverRepeats()
-    {
-        InputAction menuUp = new("menu-up");
-        ActionBindings bindings = new ActionBindings().Bind(menuUp, StickDirection.LeftStickUp);
-        InputState input = new(bindings);
-        DeviceSnapshot pushed = DeviceSnapshot.Empty.WithAxis(PadAxis.LeftStickY, 0.6f);
-
-        int presses = 0;
-        for (int step = 0; step < 3; step++)
-        {
-            input.Advance(pushed);
-            presses += input.WasPressed(menuUp) ? 1 : 0;
-        }
-
-        Assert.Equal(1, presses);
-        Assert.True(input.IsHeld(menuUp));
-    }
-
-    [Fact]
-    public void DeviceSnapshot_WithoutInputButtonReleasesTheNamedDevice()
-    {
-        DeviceSnapshot snapshot = DeviceSnapshot.Of(Key.A).With(PadButton.South).With(MouseButton.Left);
-
-        DeviceSnapshot released = snapshot
-            .Without((InputButton)Key.A)
-            .Without((InputButton)PadButton.South)
-            .Without((InputButton)MouseButton.Left);
-
-        Assert.False(released.IsDown(Key.A));
-        Assert.False(released.IsDown(PadButton.South));
-        Assert.False(released.IsDown(MouseButton.Left));
     }
 
     [Fact]

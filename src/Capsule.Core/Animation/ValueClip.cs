@@ -43,8 +43,6 @@ public sealed class ValueClip<T>
     public int Duration { get; }
 
     /// <summary>Creates a clip stepping through copies of <paramref name="keys"/>, each value shown whole for its ticks.</summary>
-    /// <param name="keys">The keys in play order, each a value and the fixed steps it is held for. At least one, and every hold positive.</param>
-    /// <param name="loop">Whether the last key wraps back to the first instead of finishing.</param>
     public ValueClip(ReadOnlySpan<(T Value, int Ticks)> keys, bool loop = false)
         : this(keys, loop, blend: null, equals: null)
     {
@@ -128,15 +126,12 @@ public sealed class ValueClip<T>
 /// <remarks>
 /// A blend weighs both keys' values, as <c>from * (1 - t) + to * t</c>, and never overflows between finite
 /// keys. The arithmetic is IEEE-exact on every platform. Two equal keys give their value exactly.
-/// A linear clip moves from each key's value toward the next across that key's ticks. It shows a key's
-/// own value on that key's first tick. A non-looping clip's last key holds its value, and a looping
-/// clip's last key moves back toward the first key's.
+/// A linear clip shows a key's own value on that key's first tick. A non-looping clip's last key holds
+/// its value, and a looping clip's last key moves back toward the first key's.
 /// </remarks>
 public static class ValueClip
 {
     /// <summary>Creates a clip of numbers blending linearly between copies of <paramref name="keys"/>.</summary>
-    /// <param name="keys">The keys in play order, each a finite value and the fixed steps it moves over. At least one, and every hold positive.</param>
-    /// <param name="loop">Whether the last key blends back to the first instead of holding.</param>
     public static ValueClip<float> Linear(ReadOnlySpan<(float Value, int Ticks)> keys, bool loop = false)
     {
         foreach ((float value, _) in keys)
@@ -148,8 +143,6 @@ public static class ValueClip
     }
 
     /// <summary>Creates a clip of vectors blending linearly between copies of <paramref name="keys"/>.</summary>
-    /// <param name="keys">The keys in play order, each a finite value and the fixed steps it moves over. At least one, and every hold positive.</param>
-    /// <param name="loop">Whether the last key blends back to the first instead of holding.</param>
     public static ValueClip<Vector2> Linear(ReadOnlySpan<(Vector2 Value, int Ticks)> keys, bool loop = false)
     {
         foreach ((Vector2 value, _) in keys)
@@ -161,8 +154,6 @@ public static class ValueClip
     }
 
     /// <summary>Creates a clip of four-component vectors blending linearly between copies of <paramref name="keys"/>.</summary>
-    /// <param name="keys">The keys in play order, each a finite value and the fixed steps it moves over. At least one, and every hold positive.</param>
-    /// <param name="loop">Whether the last key blends back to the first instead of holding.</param>
     public static ValueClip<Vector4> Linear(ReadOnlySpan<(Vector4 Value, int Ticks)> keys, bool loop = false)
     {
         foreach ((Vector4 value, _) in keys)
@@ -174,8 +165,6 @@ public static class ValueClip
     }
 
     /// <summary>Creates a clip of colours blending between copies of <paramref name="keys"/> through <see cref="ColorRgba.Lerp"/>.</summary>
-    /// <param name="keys">The keys in play order, each a colour and the fixed steps it moves over. At least one, and every hold positive.</param>
-    /// <param name="loop">Whether the last key blends back to the first instead of holding.</param>
     public static ValueClip<ColorRgba> Linear(ReadOnlySpan<(ColorRgba Value, int Ticks)> keys, bool loop = false) =>
         new(keys, loop, ColorRgba.Lerp, static (a, b) => a == b);
 }

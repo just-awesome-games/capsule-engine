@@ -33,6 +33,23 @@ public sealed class OverlayAllocationTests
         Assert.Equal(62.5, rig.Overlay.Scene.Pane.Figures.Fps, 1);
     }
 
+    // A figure past its field's width lengthens the pane's text, as a run's hundredth full collection does.
+    [Fact]
+    public void ASecondWhoseFigureOverflowsItsField_AllocatesNothing()
+    {
+        using OverlayRig rig = new();
+        rig.Overlay.ToggleFramePane();
+        AssertIdleStretchAllocatesNothing(rig);
+        int width = rig.Overlay.Scene.Pane.Text.Length;
+
+        long before = StepMeasurement.Start();
+        rig.Frame(intervalMs: 1_000.5, updateMs: 0.1);
+        long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.True(rig.Overlay.Scene.Pane.Text.Length > width);
+        Assert.Equal(0, bytes);
+    }
+
     // The panel's hook writes a long, a float, a Vector2 and a command. The Step after the idle
     // stretch still refreshes the readout and the field.
     [Fact]
@@ -98,7 +115,7 @@ public sealed class OverlayAllocationTests
 
     private static void Gesture(OverlayRig rig, int frame)
     {
-        Vector2 pointer = new(500f + (frame % 50), 250f);
+        Vector2 pointer = new(700f + (frame % 50), 250f);
         float notches = frame % 20 == 0 ? 1f : frame % 20 == 10 ? -1f : 0f;
         rig.Frame(DeviceSnapshot.Empty.With(Key.LeftControl).WithPointer(pointer).With(MouseButton.Middle).WithScroll(new Vector2(0f, notches)));
         _ = rig.Host.View;

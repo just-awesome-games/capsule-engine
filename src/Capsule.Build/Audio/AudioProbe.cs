@@ -12,7 +12,6 @@ internal static class AudioProbe
     /// <param name="FloatSamples">Whether the source is a WAVE of float samples, which ships as authored instead of as FLAC.</param>
     internal readonly record struct Measurement(double DurationSeconds, AudioLoopRegion Loop, bool FloatSamples = false);
 
-    /// <summary>Measures <paramref name="path"/>.</summary>
     /// <exception cref="FormatException">
     /// The file is malformed, truncated, of an unsupported shape, or names a loop region its own
     /// length cannot hold.

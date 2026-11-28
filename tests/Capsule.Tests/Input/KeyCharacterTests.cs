@@ -4,6 +4,7 @@ using Capsule.Runtime.Input;
 using Capsule.Runtime.Platform;
 using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
+using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Input;
 
@@ -68,21 +69,15 @@ public sealed class KeyCharacterTests
     [InlineData(true, "W")]
     public void ADrivenRun_IgnoresAnInstalledLayout(bool driven, string expected)
     {
-        CharacterRecorder scene = new();
-        using SceneHost host = new(SceneTransition.ToScene(typeof(CharacterRecorder), null), (in SceneTransition _) => scene, new Run());
+        List<string?> characters = [];
+        SceneFixtures.HookScene scene = new(step: (Scene _, in StepContext context) => characters.Add(context.Input.KeyCharacter(Key.W)));
+        using SceneHost host = new(SceneTransition.ToScene(typeof(SceneFixtures.HookScene), null), (in SceneTransition _) => scene, new Run());
         IInputDriver? driver = driven ? new InputScript().Wait(1).Build() : null;
         FixedStepScheduler scheduler = new(0.1, 1, new InputState(new ActionBindings()), driver, host);
         scheduler.UseKeyLayout(InputFixtures.Azerty());
 
         scheduler.Advance(0.1, DeviceSnapshot.Empty, host);
 
-        Assert.Equal([expected], scene.Characters);
-    }
-
-    private sealed class CharacterRecorder : Scene
-    {
-        internal List<string?> Characters { get; } = [];
-
-        protected override void OnStep(in StepContext context) => Characters.Add(context.Input.KeyCharacter(Key.W));
+        Assert.Equal([expected], characters);
     }
 }

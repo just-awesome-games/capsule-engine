@@ -15,7 +15,7 @@ namespace Capsule.UI;
 /// clipped item. Clips nest, and an inner clip shows only what the outer clips also show.
 /// <para>
 /// A clip cannot turn. Rotation anywhere in its entity's ancestry is refused while the component is
-/// present, as it is for a <see cref="Focusable"/>. An entity beneath the clip may turn freely.
+/// present. An entity beneath the clip may turn freely.
 /// </para>
 /// </remarks>
 /// <example>

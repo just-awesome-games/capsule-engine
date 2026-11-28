@@ -13,7 +13,6 @@ public readonly record struct AxisAction
     internal int Index { get; }
 
     /// <summary>Names an action.</summary>
-    /// <param name="name">The action's name, which binding requires to be more than whitespace.</param>
     public AxisAction(string name)
     {
         Name = name;

@@ -5,31 +5,30 @@ using System.IO;
 
 namespace Capsule.Runtime.Audio.Vorbis
 {
-    // Capsule: reduced to what VorbisPcmSource calls. It decodes the first logical stream, ignores
-    // any chained after it, and owns the stream.
+    // Capsule: reduced to what VorbisPcmSource calls. It decodes the file's first logical stream,
+    // ignores any other chained after it or interleaved with it, and owns the stream.
     internal sealed class VorbisReader : IDisposable
     {
-        private readonly Ogg.PageReaderBase _pageReader;
+        private readonly Ogg.PageReader _pageReader;
         private readonly StreamDecoder _decoder;
-        private Ogg.PacketProvider _packetProvider;
 
         public VorbisReader(Stream stream)
         {
             // Capsule: shipped content is seekable (HostPlatform.OpenContent). The reader needs no forward-only path.
-            _pageReader = new Ogg.PageReader(stream, AcceptFirstStream);
+            _pageReader = new Ogg.PageReader(stream);
 
             try
             {
-                while (_packetProvider == null && _pageReader.ReadNextPage())
+                while (_pageReader.FirstStream == null && _pageReader.ReadNextPage())
                 {
                 }
 
-                if (_packetProvider == null)
+                if (_pageReader.FirstStream == null)
                 {
                     throw new ArgumentException("Could not load the specified container!", nameof(stream));
                 }
 
-                _decoder = new StreamDecoder(_packetProvider);
+                _decoder = new StreamDecoder(_pageReader.FirstStream);
             }
             catch
             {
@@ -48,16 +47,5 @@ namespace Capsule.Runtime.Audio.Vorbis
         public int ReadSamples(Span<float> buffer) => _decoder.Read(buffer);
 
         public void Dispose() => _pageReader.Dispose();
-
-        private bool AcceptFirstStream(Ogg.PacketProvider packetProvider)
-        {
-            if (_packetProvider != null)
-            {
-                return false;
-            }
-
-            _packetProvider = packetProvider;
-            return true;
-        }
     }
 }

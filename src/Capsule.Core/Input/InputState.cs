@@ -35,8 +35,8 @@ public sealed class InputState
     /// Unclamped.
     /// </summary>
     /// <remarks>
-    /// A pointer off the canvas reads outside it. A still mouse reads a new position on a step the
-    /// canvas moved under it, as when the window is resized or the screen layer is placed anew.
+    /// A still mouse reads a new position on a step the canvas moved under it, as when the window is
+    /// resized or the screen layer is placed anew.
     /// </remarks>
     public Vector2 Pointer => _current.Pointer;
 
@@ -58,7 +58,7 @@ public sealed class InputState
     /// Wheel notches turned this step, and zero while the wheel rests. X positive scrolls right, Y
     /// positive scrolls away from the user.
     /// </summary>
-    /// <remarks>Unbounded. A flick reads several notches at once.</remarks>
+    /// <remarks>Unbounded.</remarks>
     public Vector2 Scroll => _current.Scroll;
 
     /// <summary>Whether the game's window has input focus this step.</summary>
@@ -87,10 +87,9 @@ public sealed class InputState
     /// Whether the pad the player was playing with disconnected on the edge into this step, where a game holds play.
     /// </summary>
     /// <remarks>
-    /// Set only while <see cref="ActiveDevice"/> was <see cref="InputDevice.Gamepad"/> before this step. An
-    /// idle pad switching itself off never stops a keyboard player. A loss after a step where the mouse moved
-    /// the device to <see cref="InputDevice.KeyboardMouse"/> is not reported either. The loss itself leaves
-    /// <see cref="ActiveDevice"/> where this step's input puts it.
+    /// Set only while <see cref="ActiveDevice"/> was <see cref="InputDevice.Gamepad"/> before this step. A
+    /// loss after a step where the mouse moved the device to <see cref="InputDevice.KeyboardMouse"/> is not
+    /// reported either. The loss itself leaves <see cref="ActiveDevice"/> where this step's input puts it.
     /// </remarks>
     public bool PadLost => _padLost;
 
@@ -99,9 +98,10 @@ public sealed class InputState
     /// It becomes <see cref="InputDevice.Gamepad"/> on a step a pad button goes down or a pad axis is
     /// off centre, and <see cref="InputDevice.KeyboardMouse"/> on a step a key or mouse button goes
     /// down, the wheel turns or the player moves the pointer more than two canvas pixels. A button that
-    /// stays held changes nothing, and the canvas moving under a still mouse is no use of it. The pad wins a step both devices act on. A run starts on
-    /// <see cref="InputDevice.Gamepad"/> when it finds a pad at boot and no input driver plays it.
-    /// Every later value is derived from the snapshots alone, and a replay reproduces it.
+    /// stays held changes nothing, and the canvas moving under a still mouse is no use of it. The pad wins
+    /// a step both devices act on. A run starts on <see cref="InputDevice.Gamepad"/> when it finds a pad at
+    /// boot and no input driver plays it. Every later value is derived from the snapshots alone, and a
+    /// replay reproduces it.
     /// </remarks>
     public InputDevice ActiveDevice => _activeDevice;
 
@@ -125,7 +125,7 @@ public sealed class InputState
     /// <remarks>
     /// The answer comes from the pad's mapping and not its hardware, and a button the mapping lacks can
     /// never be pressed. It keeps the last pad's buttons after the pad is disconnected, and a replay
-    /// reproduces it. A game fits its default bindings to it when <see cref="PadButtonsChanged"/> is set.
+    /// reproduces it.
     /// </remarks>
     public bool PadHas(PadButton button) => _current.PadHas(button);
 
@@ -139,10 +139,8 @@ public sealed class InputState
     /// <remarks>
     /// Null for a key that prints no character, such as <see cref="Key.LeftShift"/>, <see cref="Key.F1"/>,
     /// an arrow, <see cref="Key.Enter"/> or <see cref="Key.Space"/>, for every key of the numeric keypad,
-    /// which prints the same on every layout, and for a button that is not a key. A label given the button
-    /// names such a key in English, or by the game's own <c>buttons</c> text.
-    /// A run an input driver plays and a headless run read a US layout's characters. A repeated read
-    /// allocates nothing.
+    /// which prints the same on every layout, and for a button that is not a key. A run an input driver
+    /// plays and a headless run read a US layout's characters. A repeated read allocates nothing.
     /// </remarks>
     public string? KeyCharacter(InputButton button)
     {
@@ -157,8 +155,7 @@ public sealed class InputState
     /// </summary>
     /// <remarks>
     /// <see cref="InputButton.None"/> where the action has no button. A label given the action shows the
-    /// same button and follows it by itself. A game that draws its own button art reads this to pick the
-    /// art or hide the prompt.
+    /// same button and follows it by itself.
     /// </remarks>
     public InputButton ButtonFor(InputAction action)
     {

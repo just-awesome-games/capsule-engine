@@ -15,11 +15,6 @@ namespace Capsule.Scenes;
 /// <see cref="Collision"/> world it collides through. Mutations requested during a step are
 /// deferred until the step ends.
 /// </summary>
-/// <remarks>
-/// Populate the scene with <see cref="Add"/>, search it with <see cref="FindSingle{T}"/>, and override
-/// <see cref="OnStart"/>, <see cref="OnStep"/>, <see cref="OnLateStep"/> and
-/// <see cref="CollectAssets"/> to give it behaviour and assets.
-/// </remarks>
 public partial class Scene
 {
     internal const string NoRunYet =
@@ -131,10 +126,7 @@ public partial class Scene
     [Authorable]
     public ColorRgba ClearColor { get; protected set; } = ColorRgba.Black;
 
-    /// <summary>
-    /// The colour the world is lit by where no light reaches, defaulting to white. White draws the
-    /// world at its authored colour.
-    /// </summary>
+    /// <summary>The colour the world is lit by where no light reaches, defaulting to white.</summary>
     /// <remarks>
     /// Every world sprite is multiplied by the light at its pixel, which is this colour where no light reaches and
     /// each light added over it, with no ceiling. The screen layer and an <see cref="Entity.Unlit"/> entity are
@@ -183,8 +175,7 @@ public partial class Scene
     /// <remarks>
     /// The scene itself always steps, and <see cref="StepContext.Tick"/> and
     /// <see cref="StepContext.TotalSeconds"/> keep counting. A held camera skips its
-    /// <see cref="Scenes.Camera.OnLateStep"/>, and its follow, bounds and shake stand still. A timer
-    /// that should hold counts its own steps, as <see cref="Capsule.Animation.Countdown"/> does. A held
+    /// <see cref="Scenes.Camera.OnLateStep"/>, and its follow, bounds and shake stand still. A held
     /// entity skips its and its components' steps and late steps, and its colliders and screen notifiers
     /// settle nothing until it resumes. It still draws, collides with others, keeps its sounds and runs
     /// its structural hooks.
@@ -198,7 +189,6 @@ public partial class Scene
     /// <remarks>
     /// It reads true from the call through the last step the freeze holds. It first reads false at the
     /// top of the next step, the one whose entities step again unless <see cref="Paused"/> holds them.
-    /// A wait on it resumes on that step, however long a later call stretched the freeze.
     /// </remarks>
     /// <example>
     /// <code>
@@ -272,7 +262,6 @@ public partial class Scene
     /// Everything in this scene that can be collided with. A <see cref="Collider2D"/> or a
     /// <see cref="TileMapCollider2D"/> registers here when its entity joins the scene.
     /// </summary>
-    /// <remarks>Game code queries this world directly for rays, sweeps and overlaps.</remarks>
     /// <exception cref="InvalidOperationException">The scene has not started. Query it from <see cref="OnStart"/> onward, not from a constructor.</exception>
     public CollisionWorld2D Collision =>
         _started ? Physics.World : throw new InvalidOperationException($"A {GetType().Name} has not started and nothing has joined it yet. {NotJoinedYet}");
@@ -436,10 +425,6 @@ public partial class Scene
     /// The <see cref="Collider2D"/> a query hit names, or null when it names a tile map's grid, nothing,
     /// or a collider since removed.
     /// </summary>
-    /// <remarks>
-    /// Every hit a query returns names what it met as a <see cref="CollisionTarget.Collider"/> handle in
-    /// <see cref="Collision"/>. The collider's <see cref="Component.Entity"/> is the entity behind it.
-    /// </remarks>
     /// <example>
     /// An entity finding the trigger entities its box overlaps:
     /// <code>
@@ -581,7 +566,6 @@ public partial class Scene
             CollectAssetPreloads(entryPayload);
         }
 
-        // Join everything composed before the scene started, then start it as a batch.
         JoinComposed();
         StartPending();
 

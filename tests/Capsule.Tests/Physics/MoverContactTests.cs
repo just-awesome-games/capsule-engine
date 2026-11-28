@@ -8,15 +8,16 @@ public sealed class MoverContactTests
     private const float Tolerance = CollisionFixtures.Tolerance;
 
     [Fact]
-    public void MoveBox_IsBlockedByAnotherColliderAndIgnoresItsOwn()
+    public void Move_IsBlockedByAnotherColliderAndIgnoresItsOwn()
     {
         CollisionWorld2D world = new();
         CollisionLayer body = world.Layer("body");
         ColliderHandle self = world.Add(Shape2D.Box(Vector2.Zero, new Vector2(8f, 8f)), Vector2.Zero, body);
         world.Add(Shape2D.Box(new Vector2(40f, 0f), new Vector2(8f, 8f)), Vector2.Zero, body);
 
-        MoveResult2D blocked = world.MoveBox(
-            CollisionFixtures.Box(0f, 0f, 8f, 8f),
+        MoveResult2D blocked = world.Move(
+            Shape2D.Box(CollisionFixtures.Box(0f, 0f, 8f, 8f)),
+            Vector2.Zero,
             new Vector2(60f, 0f),
             CollisionFilter.Of(body),
             default,
@@ -25,8 +26,9 @@ public sealed class MoverContactTests
         Assert.True(blocked.Blocked);
         Assert.Equal(32f, blocked.Translation.X, Tolerance);
 
-        MoveResult2D unfiltered = world.MoveBox(
-            CollisionFixtures.Box(0f, 0f, 8f, 8f),
+        MoveResult2D unfiltered = world.Move(
+            Shape2D.Box(CollisionFixtures.Box(0f, 0f, 8f, 8f)),
+            Vector2.Zero,
             new Vector2(60f, 0f),
             CollisionFilter.None,
             default,
@@ -36,13 +38,14 @@ public sealed class MoverContactTests
     }
 
     [Fact]
-    public void MoveBox_LeavesAnOverlapItAlreadyStartedInsteadOfFreezingInIt()
+    public void Move_LeavesAnOverlapItAlreadyStartedInsteadOfFreezingInIt()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "..#", "..#");
 
-        MoveResult2D escaping = world.MoveBox(
-            CollisionFixtures.Box(34f, 4f, 8f, 8f),
+        MoveResult2D escaping = world.Move(
+            Shape2D.Box(CollisionFixtures.Box(34f, 4f, 8f, 8f)),
+            Vector2.Zero,
             new Vector2(-20f, 0f),
             CollisionFilter.Everything,
             default);
@@ -53,7 +56,7 @@ public sealed class MoverContactTests
     // Handles and layers never compare across worlds. What two runs owe each other is the same
     // surfaces in the same order: cells, layer names and normals.
     [Fact]
-    public void MoveBox_ProducesTheSameContactsForTheSameInputsOnAFreshWorld()
+    public void Move_ProducesTheSameContactsForTheSameInputsOnAFreshWorld()
     {
         static (Vector2 Translation, (bool Tile, int X, int Y, string Layer, Vector2 Normal)[] Contacts) Run()
         {
@@ -65,8 +68,9 @@ public sealed class MoverContactTests
                 world.Layer("pickup"));
 
             Contact2D[] contacts = new Contact2D[8];
-            MoveResult2D result = world.MoveBox(
-                CollisionFixtures.Box(0f, 8f, 8f, 8f),
+            MoveResult2D result = world.Move(
+                Shape2D.Box(CollisionFixtures.Box(0f, 8f, 8f, 8f)),
+                Vector2.Zero,
                 new Vector2(40f, 12f),
                 CollisionFilter.Everything,
                 contacts);
@@ -92,7 +96,7 @@ public sealed class MoverContactTests
     // The tree hands its proxies back in whatever shape it currently holds. The collider half of a
     // move's contacts is ordered by handle before the caller sees it.
     [Fact]
-    public void MoveBox_OrdersItsColliderContactsByHandleWhateverShapeTheTreeIsIn()
+    public void Move_OrdersItsColliderContactsByHandleWhateverShapeTheTreeIsIn()
     {
         CollisionWorld2D world = new();
         CollisionLayer wall = world.Layer("wall");
@@ -107,8 +111,9 @@ public sealed class MoverContactTests
         {
             CollisionFixtures.Rearrange(world, boxes, CollisionFixtures.Shuffled(boxes.Length, arrangement));
 
-            MoveResult2D result = world.MoveBox(
-                CollisionFixtures.Box(0f, 0f, 78f, 8f),
+            MoveResult2D result = world.Move(
+                Shape2D.Box(CollisionFixtures.Box(0f, 0f, 78f, 8f)),
+                Vector2.Zero,
                 new Vector2(0f, 40f),
                 CollisionFilter.Everything,
                 contacts);
@@ -125,7 +130,7 @@ public sealed class MoverContactTests
     [InlineData(0, 1, 2)]
     [InlineData(2, 1, 0)]
     [InlineData(1, 0, 2)]
-    public void MoveBox_ReportsTheSurfacesNearestItWhateverOrderTheyArrivedIn(int first, int second, int third)
+    public void Move_ReportsTheSurfacesNearestItWhateverOrderTheyArrivedIn(int first, int second, int third)
     {
         CollisionWorld2D world = new();
         float[] stops = [3f, 13.005f, 13.015f];
@@ -139,8 +144,9 @@ public sealed class MoverContactTests
         CollisionFixtures.Rearrange(world, boxes, order);
 
         Contact2D[] contacts = new Contact2D[4];
-        MoveResult2D result = world.MoveBox(
-            CollisionFixtures.Box(0f, 0f, 1f, 1f),
+        MoveResult2D result = world.Move(
+            Shape2D.Box(CollisionFixtures.Box(0f, 0f, 1f, 1f)),
+            Vector2.Zero,
             new Vector2(100100f, 0f),
             CollisionFilter.Everything,
             contacts);

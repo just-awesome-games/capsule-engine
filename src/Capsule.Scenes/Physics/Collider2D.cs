@@ -322,11 +322,7 @@ public abstract partial class Collider2D : Component, ISettleListEntry
         }
     }
 
-    /// <summary>The layer this collider is on.</summary>
-    /// <remarks>
-    /// Other queries' filters match against it. Defaults to
-    /// <see cref="CollisionWorld2D.DefaultLayerName"/>.
-    /// </remarks>
+    /// <summary>The layer this collider is on, <see cref="CollisionWorld2D.DefaultLayerName"/> by default.</summary>
     /// <exception cref="InvalidOperationException">The world has no room left to intern the name.</exception>
     public string Layer
     {
@@ -364,8 +360,7 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     /// <see cref="ReportsContacts"/> off, empties the list at once, and a scene removal made during a step
     /// empties it at the step's end. A collider out of the world at the settle holds an empty list until
     /// the next settle, and one on a held entity keeps the list from its last settle. A span read before
-    /// the list empties keeps its contents. A loop that can disable the collider checks
-    /// <see cref="Enabled"/> before each contact.
+    /// the list empties keeps its contents.
     /// <para>
     /// During a dispatch the span can hold contacts whose <see cref="ContactEntered"/> has not been raised
     /// yet. The enter and exit pairing is a guarantee about the events, not about this span.
@@ -387,10 +382,7 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     /// <see cref="CollisionTolerance.ContactSkin"/> of this collider that <paramref name="mask"/>
     /// matches, instead of <see cref="Detects"/>, for this call only.
     /// </summary>
-    /// <remarks>
-    /// All other rules of
-    /// <see cref="OverlapAll(Span{Contact2D})"/> apply.
-    /// </remarks>
+    /// <remarks>All other rules of <see cref="OverlapAll(Span{Contact2D})"/> apply.</remarks>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public int OverlapAll(CollisionMask mask, Span<Contact2D> contacts) =>
         RequireWorld().OverlapColliderAll(_handle, mask, contacts);
@@ -400,11 +392,7 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     /// <paramref name="other"/>, ignoring what either collider <see cref="Detects"/>. A collider never
     /// touches itself.
     /// </summary>
-    /// <remarks>
-    /// The test returns false when <paramref name="other"/> is disabled or in no scene.
-    /// </remarks>
-    /// <param name="other">The collider to test against.</param>
-    /// <returns>Whether the two are touching.</returns>
+    /// <remarks>The test returns false when <paramref name="other"/> is disabled or in no scene.</remarks>
     /// <exception cref="ArgumentException"><paramref name="other"/> is registered with another collision world.</exception>
     public bool Overlaps(Collider2D other) => Overlaps(other, out _);
 
@@ -413,8 +401,7 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     /// </summary>
     /// <remarks>
     /// All other rules of <see cref="Overlaps(Collider2D)"/> apply. The contact describes
-    /// <paramref name="other"/>'s surface, matching what an overlap query over the same pair
-    /// reports.
+    /// <paramref name="other"/>'s surface, as an overlap query over the same pair reports it.
     /// </remarks>
     public bool Overlaps(Collider2D other, out Contact2D contact)
     {
@@ -442,14 +429,11 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     /// <summary>
     /// Casts a ray from the centre of this collider's <see cref="Bounds"/>, matching
     /// <see cref="Detects"/> and never hitting this collider. Reports the nearest hit and breaks ties
-    /// the way
-    /// <see cref="CollisionWorld2D.Raycast(Vector2, Vector2, float, CollisionFilter, out RayHit2D, ColliderHandle)"/>
-    /// does.
+    /// the way <see cref="CollisionWorld2D.Raycast(Vector2, Vector2, float, CollisionFilter, out RayHit2D, ColliderHandle)"/> does.
     /// </summary>
     /// <param name="direction">Which way to look. Any non-zero length works.</param>
     /// <param name="distance">How far to look, in world units.</param>
     /// <param name="hit">The nearest hit, when there is one.</param>
-    /// <returns>Whether the ray hit anything.</returns>
     public bool Raycast(Vector2 direction, float distance, out RayHit2D hit) =>
         Raycast(direction, distance, Filter, out hit);
 
@@ -458,8 +442,7 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     /// only.
     /// </summary>
     /// <remarks>
-    /// <see cref="CollisionFilter.None"/> hits nothing. All other rules of
-    /// <see cref="Raycast(Vector2, float, out RayHit2D)"/> apply.
+    /// <see cref="CollisionFilter.None"/> hits nothing. All other rules of <see cref="Raycast(Vector2, float, out RayHit2D)"/> apply.
     /// </remarks>
     public bool Raycast(Vector2 direction, float distance, CollisionFilter filter, out RayHit2D hit)
     {
@@ -472,10 +455,7 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     /// Casts a ray against <paramref name="mask"/> instead of <see cref="Detects"/>, for this call
     /// only.
     /// </summary>
-    /// <remarks>
-    /// All other rules of
-    /// <see cref="Raycast(Vector2, float, out RayHit2D)"/> apply.
-    /// </remarks>
+    /// <remarks>All other rules of <see cref="Raycast(Vector2, float, out RayHit2D)"/> apply.</remarks>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public bool Raycast(Vector2 direction, float distance, CollisionMask mask, out RayHit2D hit)
     {
@@ -498,7 +478,6 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     /// </remarks>
     /// <param name="translation">How far and which way to sweep, in world units.</param>
     /// <param name="hit">The nearest hit, when there is one.</param>
-    /// <returns>Whether the sweep hit anything.</returns>
     public bool Cast(Vector2 translation, out ShapeCastHit2D hit) => Cast(translation, Filter, out hit);
 
     /// <summary>
@@ -506,8 +485,7 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     /// <see cref="Detects"/>, for this call only.
     /// </summary>
     /// <remarks>
-    /// <see cref="CollisionFilter.None"/> hits nothing. All other rules of
-    /// <see cref="Cast(Vector2, out ShapeCastHit2D)"/> apply.
+    /// <see cref="CollisionFilter.None"/> hits nothing. All other rules of <see cref="Cast(Vector2, out ShapeCastHit2D)"/> apply.
     /// </remarks>
     public bool Cast(Vector2 translation, CollisionFilter filter, out ShapeCastHit2D hit) =>
         RequireWorld().ShapeCast(_local, Entity!.WorldPosition, translation, filter, out hit, _handle);
@@ -516,9 +494,7 @@ public abstract partial class Collider2D : Component, ISettleListEntry
     /// Sweeps this collider's shape against <paramref name="mask"/> instead of
     /// <see cref="Detects"/>, for this call only.
     /// </summary>
-    /// <remarks>
-    /// All other rules of <see cref="Cast(Vector2, out ShapeCastHit2D)"/> apply.
-    /// </remarks>
+    /// <remarks>All other rules of <see cref="Cast(Vector2, out ShapeCastHit2D)"/> apply.</remarks>
     /// <example>
     /// A probe that sweeps an entity's collider sideways against door layers only:
     /// <code>
@@ -781,7 +757,7 @@ public abstract partial class Collider2D : Component, ISettleListEntry
         for (int index = 0; index < gather.Length; index++)
         {
             ref readonly Contact2D found = ref gather[index];
-            while (was < wasCount && world.OverlapOrder(_wasTouching[was].Target, found.Target) < 0)
+            while (was < wasCount && CollisionWorld2D.OverlapOrder(_wasTouching[was].Target, found.Target) < 0)
             {
                 _wasTouching[leftCount++] = _wasTouching[was++];
             }

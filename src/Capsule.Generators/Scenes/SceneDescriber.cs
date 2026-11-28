@@ -81,16 +81,7 @@ internal static class SceneDescriber
             DerivableContentConstructors: 1, AccessibleType: true, DeclaredAt.From(Location.None), properties, objects, string.Empty, Bases(scene));
     }
 
-    private static EquatableArray<string> Bases(INamedTypeSymbol type)
-    {
-        List<string> bases = [];
-        for (INamedTypeSymbol? current = type.BaseType; current is not null; current = current.BaseType)
-        {
-            bases.Add(SymbolShape.QualifiedName(current));
-        }
-
-        return new([.. bases]);
-    }
+    private static EquatableArray<string> Bases(INamedTypeSymbol type) => new([.. SymbolShape.Ancestors(type).Select(SymbolShape.QualifiedName)]);
 
     /// <summary>
     /// The document a key member the build marked describes, with the baseScene the build's own parser read out of

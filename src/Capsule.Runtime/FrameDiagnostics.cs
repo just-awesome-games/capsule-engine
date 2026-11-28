@@ -1,22 +1,24 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
+using Capsule.Diagnostics;
 
 namespace Capsule.Runtime;
 
 // Host timing capture written as the CSV EngineBuilder.WithFrameDiagnostics documents. The gen-0
 // count is cumulative, and a window of rows reads its own collections as a difference. A row's
 // interval and allocations cover the same span, from its frame's start to the next frame's, which
-// closes the row. The last row closes at disposal.
+// closes the row. The last row closes at disposal. The host begins and ends each update on Clock
+// before it calls BeginUpdate and EndUpdate here.
 internal sealed class FrameDiagnostics : IDisposable
 {
     // Rows fill one of two buffers. A full buffer is handed to the writer thread and the other takes
     // over. The frame path writes the file once, for the boot trace on the first frame, and never
     // waits on the disk unless the writer falls a full buffer behind. An ungraceful kill loses at most
     // the buffer being filled and the buffer being written.
-    private const int FlushEvery = 300;
+    internal const int FlushEvery = 300;
 
-    private readonly StreamWriter _writer;
+    private readonly TextWriter _writer;
 
     // One row's text, reused so writing a frame's row allocates nothing.
     private readonly char[] _row = new char[192];
@@ -30,6 +32,12 @@ internal sealed class FrameDiagnostics : IDisposable
     private readonly BlockingCollection<Row[]> _full = new(boundedCapacity: 2);
     private readonly Thread _writerThread;
     private Row[] _rows;
+
+    // The writer thread's failure, which the frame path logs once. The thread then drops what it is handed,
+    // and the frame path writes nothing more.
+    private string? _fault;
+    private bool _failed;
+    private bool _framesEnded;
 
     private int _count;
     private long _sectionStart;
@@ -52,24 +60,28 @@ internal sealed class FrameDiagnostics : IDisposable
     private int _steps;
     private long _tick;
 
+    // The frames' update times, which the host begins and ends.
+    internal FrameClock Clock { get; }
+
     // Whether seconds can bound a capture. NaN passes every comparison-based guard and an infinite budget
     // never binds.
     internal static bool IsExitAfter(double seconds) => double.IsFinite(seconds) && seconds > 0d;
 
     // builderEntered is the timestamp taken when the builder was created, the trace's first stage.
     internal FrameDiagnostics(string path, long builderEntered, double? exitAfterSeconds, Func<long> timestamp)
+        : this(OpenWriter(path), builderEntered, exitAfterSeconds, timestamp)
+    {
+    }
+
+    // The capture owns writer and disposes it.
+    internal FrameDiagnostics(TextWriter writer, long builderEntered, double? exitAfterSeconds, Func<long> timestamp)
     {
         _stages = [builderEntered, -1, -1, -1, -1, -1];
         // A positive duration under one tick still binds. Zero is no budget.
         _exitAfterTicks = exitAfterSeconds is { } seconds ? Math.Max(1L, (long)(seconds * Stopwatch.Frequency)) : 0;
         _timestamp = timestamp;
-
-        if (Path.GetDirectoryName(Path.GetFullPath(path)) is { Length: > 0 } directory)
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        _writer = new StreamWriter(path, append: false) { AutoFlush = false };
+        Clock = new FrameClock(timestamp);
+        _writer = writer;
 
         _rows = new Row[FlushEvery];
         _free.Add(new Row[FlushEvery]);
@@ -104,7 +116,7 @@ internal sealed class FrameDiagnostics : IDisposable
     // Closes the previous frame's row at this frame's start.
     internal void BeginUpdate()
     {
-        long now = _timestamp();
+        long now = Clock.Start;
         long allocated = GC.GetAllocatedBytesForCurrentThread();
         long processAllocated = GC.GetTotalAllocatedBytes(precise: false);
 
@@ -121,18 +133,14 @@ internal sealed class FrameDiagnostics : IDisposable
         _updateStart = now;
         _updateAllocated = allocated;
         _updateProcessAllocated = processAllocated;
-        _sectionStart = now;
     }
 
-    // steps: The fixed steps the update ran, zero on a frame that had not accumulated one. tick: The
-    // run's tick once they ran, the state the frame shows.
-    internal void EndUpdate(int steps, long tick)
+    // tick: The run's tick once the update's steps ran, the state the frame shows.
+    internal void EndUpdate(long tick)
     {
-        long now = _timestamp();
-        _updateMs = Milliseconds(now - _sectionStart);
-        _steps = steps;
+        _updateMs = FrameClock.Milliseconds(Clock.UpdateEnd - Clock.Start);
+        _steps = Clock.Steps;
         _tick = tick;
-        _sectionStart = now;
     }
 
     // Opens the frame's build, the first read of the view after a step, which BeginDraw closes.
@@ -141,7 +149,7 @@ internal sealed class FrameDiagnostics : IDisposable
     internal void BeginDraw()
     {
         long now = _timestamp();
-        _viewMs = Milliseconds(now - _sectionStart);
+        _viewMs = FrameClock.Milliseconds(now - _sectionStart);
         _sectionStart = now;
     }
 
@@ -150,7 +158,7 @@ internal sealed class FrameDiagnostics : IDisposable
     internal bool EndDraw(int uploadBytes = 0)
     {
         long now = _timestamp();
-        Open(_viewMs, Milliseconds(now - _sectionStart), uploadBytes);
+        Open(_viewMs, FrameClock.Milliseconds(now - _sectionStart), uploadBytes);
 
         if (_stages[^1] < 0)
         {
@@ -158,7 +166,15 @@ internal sealed class FrameDiagnostics : IDisposable
 
             // Written after the frame's own timestamps are taken. Resolving the process start costs
             // milliseconds, which then land on the first interval and not on the trace.
-            WriteBootTrace();
+            try
+            {
+                WriteBootTrace();
+            }
+            catch (IOException failure)
+            {
+                Fail(failure);
+                ReportFault();
+            }
         }
 
         return Spent(now);
@@ -170,31 +186,100 @@ internal sealed class FrameDiagnostics : IDisposable
 
     private bool Spent(long now) => _exitAfterTicks > 0 && _stages[^1] >= 0 && now - _stages[^1] >= _exitAfterTicks;
 
+    // Closes the open row at now and writes nothing. The window host calls it as it quits. The run's end and
+    // the window's close then cost no frame.
+    internal void EndFrames()
+    {
+        if (_framesEnded)
+        {
+            return;
+        }
+
+        _framesEnded = true;
+        OpenUndrawn();
+        Close(_timestamp(), GC.GetAllocatedBytesForCurrentThread(), GC.GetTotalAllocatedBytes(precise: false));
+    }
+
     // Every full buffer is written before the partial one. A graceful exit loses nothing and the rows
     // stay in frame order.
     public void Dispose()
     {
-        OpenUndrawn();
-        Close(_timestamp(), GC.GetAllocatedBytesForCurrentThread(), GC.GetTotalAllocatedBytes(precise: false));
+        EndFrames();
         _full.CompleteAdding();
         _writerThread.Join();
+        if (!_failed)
+        {
+            try
+            {
+                Write(_rows, _count);
+            }
+            catch (IOException failure)
+            {
+                Fail(failure);
+            }
+        }
 
-        Write(_rows, _count);
-        _writer.Dispose();
+        ReportFault();
+
+        // A writer that failed can fail again as it closes, and its failure is already logged.
+        try
+        {
+            _writer.Dispose();
+        }
+        catch (IOException) when (_failed)
+        {
+        }
+
         _free.Dispose();
         _full.Dispose();
     }
 
+    // This is not the frame's thread. It must not crash, and the frame path logs the failure. It goes on
+    // handing buffers back, which keeps the frame path from waiting on one.
     private void WriteFullBuffers()
     {
         foreach (Row[] rows in _full.GetConsumingEnumerable())
         {
-            Write(rows, rows.Length);
+            if (!_failed)
+            {
+                try
+                {
+                    Write(rows, rows.Length);
+                }
+                catch (Exception failure)
+                {
+                    Fail(failure);
+                }
+            }
+
             _free.Add(rows);
         }
     }
 
-    private static double Milliseconds(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
+    private static StreamWriter OpenWriter(string path)
+    {
+        if (Path.GetDirectoryName(Path.GetFullPath(path)) is { Length: > 0 } directory)
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        return new StreamWriter(path, append: false) { AutoFlush = false };
+    }
+
+    // Ends the capture. The frame thread logs the failure once, at its next report.
+    private void Fail(Exception failure)
+    {
+        _failed = true;
+        Volatile.Write(ref _fault, $"frame diagnostics: writing the capture failed, and it stops here. {failure.Message}");
+    }
+
+    private void ReportFault()
+    {
+        if (Interlocked.Exchange(ref _fault, null) is { } fault)
+        {
+            Log.Warning(fault);
+        }
+    }
 
     // The Stopwatch timestamp the process began at. StartTime is local wall clock and the markers
     // are a monotonic counter. The two are anchored once.
@@ -228,7 +313,7 @@ internal sealed class FrameDiagnostics : IDisposable
             stage.Add([char.ToLowerInvariant(name[0])]);
             stage.Add(name.AsSpan(1));
             stage.Add(",");
-            stage.Add(Milliseconds(_stages[i] - processStart), "F3");
+            stage.Add(FrameClock.Milliseconds(_stages[i] - processStart), "F3");
             _writer.WriteLine(stage.Written);
         }
 
@@ -274,7 +359,8 @@ internal sealed class FrameDiagnostics : IDisposable
         }
     }
 
-    // Writes the open row, its spans ending at now, and hands a full buffer to the writer.
+    // Writes the open row, its spans ending at now, and hands a full buffer to the writer, first logging what
+    // the writer met with the last one.
     private void Close(long now, long allocated, long processAllocated)
     {
         if (!_open)
@@ -284,14 +370,16 @@ internal sealed class FrameDiagnostics : IDisposable
 
         _rows[_count++] = _frame with
         {
-            IntervalMs = Milliseconds(now - _frameStart),
+            IntervalMs = FrameClock.Milliseconds(now - _frameStart),
             Bytes = allocated - _frameAllocated,
             ProcessBytes = processAllocated - _frameProcessAllocated,
         };
         _open = false;
 
-        if (_count == FlushEvery)
+        // A buffer the quit's row fills stays for Dispose to write. The quit never waits on the writer.
+        if (_count == FlushEvery && !_framesEnded)
         {
+            ReportFault();
             _full.Add(_rows);
             _rows = _free.Take();
             _count = 0;

@@ -271,12 +271,6 @@ public sealed class PrefetchedSceneTests
         }
     }
 
-    private sealed class Wanderer() : Entity(Vector2.Zero)
-    {
-        protected internal override void OnStep(in StepContext context) =>
-            Teleport(Position + new Vector2(Random.Range(-1f, 1f), 0f));
-    }
-
     private sealed class Tally(Run run) : GameInstance(run)
     {
         internal int Value { get; set; }

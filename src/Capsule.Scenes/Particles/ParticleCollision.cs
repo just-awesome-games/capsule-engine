@@ -39,6 +39,5 @@ public readonly record struct ParticleCollision
         new(with, false, Guard.InUnit(bounce, nameof(bounce)), Guard.InUnit(friction, nameof(friction)));
 
     /// <summary>Particles die where they meet what <paramref name="with"/> names, before they draw there.</summary>
-    /// <param name="with">The layers that end a particle.</param>
     public static ParticleCollision Kill(CollisionMask with) => new(with, true, 0f, 0f);
 }

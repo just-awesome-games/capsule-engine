@@ -60,8 +60,9 @@ public sealed class ShapeUnionTests
             out ShapeCastHit2D hit));
         Assert.InRange(hit.Fraction, 0.01f, 0.99f);
 
-        MoveResult2D moved = world.MoveBox(
-            Aabb2D.FromCorner(new Vector2(0f, 46f), new Vector2(8f, 8f)),
+        MoveResult2D moved = world.Move(
+            Shape2D.Box(Aabb2D.FromCorner(new Vector2(0f, 46f), new Vector2(8f, 8f))),
+            Vector2.Zero,
             new Vector2(100f, 0f),
             CollisionFilter.Everything,
             default);

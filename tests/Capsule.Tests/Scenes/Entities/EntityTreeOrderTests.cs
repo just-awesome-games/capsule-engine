@@ -65,7 +65,7 @@ public sealed class EntityTreeOrderTests
     }
 
     // Children joining held parents in one drain land in the middle of the tree. The drain places each
-    // where it belongs, and starts them parent-first in tree order.
+    // where it belongs, and starts them parent-first in tree order, not in the order they were queued.
     [Fact]
     public void ChildrenJoiningHeldParentsInOneStep_LandInTreeOrderAndStartInIt()
     {
@@ -84,6 +84,7 @@ public sealed class EntityTreeOrderTests
         {
             if (++steps == 2)
             {
+                scene.Add(last);
                 last.Parent = third;
                 elder.Parent = first;
                 middle.Parent = second;

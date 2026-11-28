@@ -301,13 +301,18 @@ namespace Capsule.Runtime.Audio.Vorbis
             }
 
             // if we get a max sample position, back off our valid length to match
-            if (samplePosition.HasValue && isEndOfStream)
+            // Capsule: a packet ending before the samples decoded through it is the stream's last when
+            // no packet follows it, though its page lacks the end-of-stream flag, and is cut the same.
+            if (samplePosition.HasValue)
             {
                 var actualEnd = _currentPosition + bufferedSamples + validLen - startIndex;
                 var diff = (int)(samplePosition.Value - actualEnd);
-                if (diff < 0)
+                if (diff < 0 && (isEndOfStream || _packetProvider.PeekNextPacket() == null))
                 {
-                    validLen += diff;
+                    // Capsule: a granule before the packet's first sample cuts the packet whole. A length
+                    // below its start left Read with no sample to copy and no end to reach.
+                    validLen = Math.Max(startIndex, validLen + diff);
+                    _eosFound = true;
                 }
             }
 
@@ -356,11 +361,8 @@ namespace Capsule.Runtime.Audio.Vorbis
                         _hasPosition = false;
                     }
 
-                    // make sure the packet starts with a 0 bit as per the spec
-                    if (!packet.ReadBit())
+                    if (ReadAudioMode(packet) is { } mode)
                     {
-                        // if we get here, we should have a good packet; decode it and add it to the buffer
-                        var mode = _modes[(int)packet.ReadBits(_modeFieldBits)];
                         // Capsule: allocated once for the decoder's life. The ping-pong swap in
                         // ReadNextPacket reuses the pair, and a seek or end of stream clears
                         // _hasPrevPacketBuf instead of the pair.
@@ -425,6 +427,11 @@ namespace Capsule.Runtime.Audio.Vorbis
             ResetDecoder();
             _hasPosition = true;
 
+            // Capsule: the position the actual packet's samples start at, which the end trim in
+            // ReadNextPacket reads. A position left from before the seek cut a last packet short of
+            // the seek's target, and Read then never advanced.
+            _currentPosition = samplePosition - rollForward;
+
             // read the pre-roll packet
             if (!ReadNextPacket(0, out _))
             {
@@ -458,18 +465,21 @@ namespace Capsule.Runtime.Audio.Vorbis
             // if it's a resync, there's not any audio data to return
             if (curPacket.IsResync) return 0;
 
-            // if it's not an audio packet, there's no audio data (seems obvious, though...)
-            if (curPacket.ReadBit()) return 0;
+            return ReadAudioMode(curPacket)?.GetPacketSampleCount(curPacket, isLastInPage) ?? 0;
+        }
 
-            // OK, let's ask the appropriate mode how long this packet actually is
+        // Capsule: the mode an audio packet names, or null for a packet that is not audio or names a
+        // mode the setup lacks. The mode field's bits can name more modes than a setup holds, and a
+        // packet naming one past them is skipped as one that is not audio is.
+        private Mode ReadAudioMode(Ogg.Packet packet)
+        {
+            if (packet.ReadBit())
+            {
+                return null;
+            }
 
-            // first we need to know which mode...
-            var modeIdx = (int)curPacket.ReadBits(_modeFieldBits);
-
-            // if we got an invalid mode value, we can't decode any audio data anyway...
-            if (modeIdx < 0 || modeIdx >= _modes.Length) return 0;
-
-            return _modes[modeIdx].GetPacketSampleCount(curPacket, isLastInPage);
+            var index = (int)packet.ReadBits(_modeFieldBits);
+            return index < _modes.Length ? _modes[index] : null;
         }
 
 

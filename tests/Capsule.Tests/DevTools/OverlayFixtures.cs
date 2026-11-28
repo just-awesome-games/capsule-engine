@@ -5,14 +5,17 @@ using Capsule.Scenes;
 
 namespace Capsule.Tests.DevTools;
 
-// The scenes and registry the overlay specs run over: one scene that counts its steps, two more to
-// transition to, and the two that refuse a transition.
+// The scenes and registry the overlay specs run over: one scene that counts its steps, the scenes to
+// transition to, one of them refusing to start without a payload, and a camera framing a walker.
 internal static class OverlayFixtures
 {
     internal const string NamedDocument = "levels/named";
 
     // A held run's window, wider than the 16:9 viewport so a fit other than Letterbox grows it.
     internal static readonly Vector2 Output = new(1000f, 500f);
+
+    // A window point over the world on Output, clear of the menu.
+    internal static readonly Vector2 WorldPoint = new(700f, 300f);
 
     // A run of one scene whose frame the scheduler places on Output.
     internal static OverlayRig Framing(Scene scene, SceneRegistry? registry = null)
@@ -21,6 +24,16 @@ internal static class OverlayFixtures
         rig.Scheduler.Output = Output;
 
         return rig;
+    }
+
+    // Opens the named entity's panel from the scene page, places the world and returns the world point
+    // under WorldPoint.
+    internal static Vector2 OpenPanel(OverlayRig rig, string name)
+    {
+        rig.OpenEntityPanel(name);
+        rig.PlaceWorld();
+
+        return rig.World!.Value.ToWorld(WorldPoint);
     }
 
     internal static SceneHost CreateHost(Run? run = null, List<SceneTransition>? resolved = null) =>
@@ -49,6 +62,19 @@ internal static class OverlayFixtures
                 SceneRegistration.Plain(typeof(PayloadScene), static _ => new PayloadScene()),
                 SceneRegistration.FromDocument(typeof(NamedScene), NamedDocument, static _ => new NamedScene()),
             ]);
+
+    // A Load Scene page of rowCount distinct classes borrowed from the runtime.
+    internal static SceneRegistry LongRegistry(int rowCount)
+    {
+        Type[] types = typeof(object).Assembly.GetExportedTypes();
+        List<SceneRegistration> registrations = [];
+        for (int index = 0; index < rowCount; index++)
+        {
+            registrations.Add(SceneRegistration.Plain(types[index], static _ => new PlainScene()));
+        }
+
+        return new SceneRegistry(new EntityRegistry([]), registrations);
+    }
 
     internal sealed class ReadoutScene : Scene
     {
@@ -96,16 +122,6 @@ internal static class OverlayFixtures
     }
 
     internal sealed class NamedScene : Scene;
-
-    internal sealed class ExitOnStartScene : Scene
-    {
-        protected override void OnStart() => Run.RequestExit();
-    }
-
-    internal sealed class RequestOnStartScene : Scene
-    {
-        protected override void OnStart() => Run.RequestScene<PlainScene>();
-    }
 
     // Refuses to start without a payload, which is how a load that fails mid-tick is provoked.
     internal sealed class PayloadScene : Scene

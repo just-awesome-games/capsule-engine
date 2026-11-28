@@ -13,19 +13,22 @@ public sealed class AtlasToolTests
 
     private const string Game = """{ "texture": { "atlas": "game" } }""";
 
+    // The runtime finds a packed texture by its handle, which the map spells in lower case. An
+    // extension or atlas name the author capitalized is lowered everywhere the build writes it.
     [Fact]
-    public void ARunWithAnAtlas_ShipsItsPagesAndMapInsteadOfItsMembers()
+    public void ARunWithAnAtlas_ShipsItsPagesAndMapInsteadOfItsMembers_AllInLowerCase()
     {
         using ToolWorkspace workspace = new();
-        workspace.WritePng("Assets/Textures/Actors/Hero.png", 4, 3);
-        workspace.WritePng("Assets/Textures/loose.png", 2, 2);
-        workspace.Write("Assets/Textures/Actors/.config.json", Game);
-        workspace.Write("Assets/Atlases/game.atlas.json", "{}");
+        workspace.WritePng("Assets/Textures/Actors/Hero.PNG", 4, 3);
+        workspace.WritePng("Assets/Textures/Loose.PNG", 2, 2);
+        workspace.Write("Assets/Textures/Actors/Hero.PNG.config.json", """{ "atlas": "game" }""");
+        workspace.Write("Assets/Atlases/Game.atlas.json", "{}");
 
         workspace.Succeed();
 
         Assert.Equal(["atlases/game.0.png", "textures.json", "textures/loose.png"], workspace.Shipped);
         Assert.Equal("""{"textures":{"textures/actors/hero":{"page":"atlases/game.0","x":1,"y":1,"width":4,"height":3}}}""", File.ReadAllText(Map));
+        Assert.Contains("TextureHandle(\"textures/actors/hero\", \".png\")", workspace.Generated, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -108,23 +111,6 @@ public sealed class AtlasToolTests
         string[] cells = [.. ((string[])["hero", "twin", "other"]).Select(key => map.RootElement.GetProperty("textures").GetProperty(key).GetRawText())];
         Assert.Equal(cells[0], cells[1]);
         Assert.NotEqual(cells[0], cells[2]);
-    }
-
-    // The runtime finds a packed texture by its handle, which the map spells in lower case. An
-    // extension the author capitalized is lowered everywhere the build writes it.
-    [Fact]
-    public void ATextureSpelledInUpperCase_IsNamedAndShippedInLowerCase()
-    {
-        using ToolWorkspace workspace = new();
-        workspace.WritePng("Assets/Textures/Hero.PNG", 4, 3);
-        workspace.WritePng("Assets/Textures/Loose.PNG", 2, 2);
-        workspace.Write("Assets/Textures/Hero.PNG.config.json", """{ "atlas": "game" }""");
-        workspace.Write("Assets/Game.atlas.json", "{}");
-
-        workspace.Succeed();
-
-        Assert.Contains("TextureHandle(\"textures/hero\", \".png\")", workspace.Generated, StringComparison.Ordinal);
-        Assert.Equal(["atlases/game.0.png", "textures.json", "textures/loose.png"], workspace.Shipped);
     }
 
     // Removing the last atlas leaves nothing of it shipping, the map included.

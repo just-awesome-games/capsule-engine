@@ -288,23 +288,16 @@ internal static partial class PropertySchema
             .FirstOrDefault(static candidate => candidate.OriginalDefinition.SpecialType == SpecialType.System_Collections_Generic_IEnumerable_T)
             ?.TypeArguments[0];
 
-    private static bool HasSettableMembers(INamedTypeSymbol record)
-    {
-        for (INamedTypeSymbol? current = record; current is { IsRecord: true }; current = current.BaseType)
-        {
-            if (current.GetMembers().Any(static member => member switch
+    private static bool HasSettableMembers(INamedTypeSymbol record) =>
+        SymbolShape.Ancestors(record).Prepend(record)
+            .TakeWhile(static current => current.IsRecord)
+            .SelectMany(static current => current.GetMembers())
+            .Any(static member => member switch
             {
                 IPropertySymbol { IsStatic: false, SetMethod.IsInitOnly: false } => true,
                 IFieldSymbol { IsStatic: false, IsReadOnly: false, IsConst: false, IsImplicitlyDeclared: false } => true,
                 _ => false,
-            }))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+            });
 
     // A converter the generated read can name and construct through a new() constraint, whose Read returns
     // exactly the member's type.
@@ -317,15 +310,10 @@ internal static partial class PropertySchema
                 constructor.Parameters.Length == 0 && constructor.DeclaredAccessibility == Accessibility.Public);
 
         INamedTypeSymbol? generic = compilation.GetTypeByMetadataName(MetadataNames.JsonConverter);
-        for (INamedTypeSymbol? current = converter; constructible && current is not null; current = current.BaseType)
-        {
-            if (SymbolEqualityComparer.Default.Equals(current.OriginalDefinition, generic))
-            {
-                return SymbolEqualityComparer.Default.Equals(current.TypeArguments[0], type);
-            }
-        }
 
-        return false;
+        return constructible
+            && SymbolShape.Ancestors(converter).Prepend(converter).FirstOrDefault(current => SymbolEqualityComparer.Default.Equals(current.OriginalDefinition, generic)) is { } read
+            && SymbolEqualityComparer.Default.Equals(read.TypeArguments[0], type);
     }
 
     // Each name is camel-cased, as the document writes its own enum values. A field whose name is already

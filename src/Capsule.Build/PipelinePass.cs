@@ -48,10 +48,8 @@ internal sealed class PipelinePass(string outputDirectory, CapsuleBuild configur
 
     private int _failures;
 
-    /// <summary>Where the run writes everything.</summary>
     internal string OutputDirectory { get; } = outputDirectory;
 
-    /// <summary>What the game's build project configured.</summary>
     internal CapsuleBuild Configuration { get; } = configuration;
 
     /// <summary>Everything the game ships, laid out under <c>assets/</c>.</summary>

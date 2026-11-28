@@ -12,8 +12,7 @@ namespace Capsule.Physics;
 /// stopped. The caller owns velocity, acceleration and every gameplay response.
 /// </summary>
 /// <remarks>
-/// This component applies no force. An entity holds at most one body, and attaching a second
-/// throws.
+/// An entity holds at most one body, and attaching a second throws.
 /// <para>
 /// <see cref="IsOnFloor"/>, <see cref="IsOnWall"/> and <see cref="IsOnCeiling"/> describe the last
 /// <see cref="Move(Vector2)"/> only. A move that pressed into nothing clears them, and so does a
@@ -303,13 +302,10 @@ public sealed partial class KinematicBody2D : Component
     /// units, where 0, the default, turns stepping in the air off.
     /// </summary>
     /// <remarks>
-    /// It applies to the walks <see cref="StepHeight"/> leaves alone: those of a body whose last move did not
-    /// end on a floor, and those of a move that rises. The body rises, walks on and settles onto a floor no
-    /// lower than where it started. Without headroom or such a floor, the wall stops it as usual. A move that
-    /// falls or keeps level ends on the lip with <see cref="IsOnFloor"/> true. A move that rises goes on rising
-    /// from the lip by its whole rise, and <see cref="IsOnFloor"/> and <see cref="IsOnWall"/> read false after
-    /// it. A move that follows <see cref="DropThrough"/> never steps. A body steps onto a one-way surface only
-    /// where that surface blocks it.
+    /// It steps up as <see cref="StepHeight"/> does, on the walks that leaves alone: those of a body whose last
+    /// move did not end on a floor, and those of a move that rises. A move that falls or keeps level ends on the
+    /// lip with <see cref="IsOnFloor"/> true. A move that rises goes on rising from the lip by its whole rise,
+    /// and <see cref="IsOnFloor"/> and <see cref="IsOnWall"/> read false after it.
     /// </remarks>
     public float AirStepHeight
     {
@@ -376,8 +372,7 @@ public sealed partial class KinematicBody2D : Component
     /// It counts every carry of that step, the floor's own motion and its surface velocity, whether or not a
     /// wall stopped it. A read during a step sees the step before, whichever of the floor and the body steps
     /// first. A floor that held still through that step reads zero. Only a floor on a <see cref="MovedBy"/>
-    /// layer is ridden. The move that leaves the floor ends the ride. A controller reads this before that move
-    /// and keeps what it chooses. The body never applies it.
+    /// layer is ridden. The move that leaves the floor ends the ride. The body never applies it.
     /// </remarks>
     public Vector2 PlatformVelocity
     {
@@ -401,10 +396,7 @@ public sealed partial class KinematicBody2D : Component
     /// <summary>
     /// The layers that stop this body besides its <see cref="MovedBy"/> layers, where the empty default adds none.
     /// </summary>
-    /// <remarks>
-    /// Blocking is separate from what the body's collider <see cref="Collider2D.Detects"/>. A
-    /// collider can report an overlap that does not change movement.
-    /// </remarks>
+    /// <remarks>Blocking is separate from what the body's collider <see cref="Collider2D.Detects"/>.</remarks>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public CollisionMask BlockedBy
     {
@@ -471,8 +463,7 @@ public sealed partial class KinematicBody2D : Component
     /// <remarks>
     /// One call adds the resolved translation to the entity's position, replaces
     /// <see cref="MoveContacts"/>, and sets <see cref="IsOnFloor"/>, <see cref="IsOnWall"/>,
-    /// <see cref="IsOnCeiling"/>, <see cref="FloorNormal"/> and <see cref="WallNormal"/>. Velocity
-    /// and force stay the caller's. <see cref="Mode"/> decides how the move meets what it hits.
+    /// <see cref="IsOnCeiling"/>, <see cref="FloorNormal"/> and <see cref="WallNormal"/>.
     /// </remarks>
     public MoveResult2D Move(Vector2 translation)
     {
@@ -515,8 +506,6 @@ public sealed partial class KinematicBody2D : Component
     /// translation is blocked when any part of it is stopped short. A surface reached exactly at the end
     /// of the translation does not count as a block.
     /// </remarks>
-    /// <param name="translation">The move to test, in world units.</param>
-    /// <returns>Whether something would stop the move short.</returns>
     public bool TestMove(Vector2 translation) => TestMove(translation, Vector2.Zero);
 
     /// <summary>
@@ -535,7 +524,6 @@ public sealed partial class KinematicBody2D : Component
     /// The surface that would first cut the move short, as <see cref="MoveContacts"/> describes one, or
     /// default when nothing would.
     /// </param>
-    /// <returns>Whether something would stop the move short.</returns>
     public bool TestMove(Vector2 translation, out ColliderContact2D contact) =>
         TestMove(translation, Vector2.Zero, out contact);
 

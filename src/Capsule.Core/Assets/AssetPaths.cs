@@ -118,6 +118,11 @@ internal static class AssetPaths
             ? key + extension.ToLowerInvariant()
             : null;
 
+    // The identifier of a name a caller already checked with ToIdentifier.
+    internal static string Identifier(string name) =>
+        ToIdentifier(name) ?? throw new ArgumentException($"\"{name}\" names no identifier. Check it with ToIdentifier first.", nameof(name));
+
+    // The PascalCase identifier a name's '-' and '_' separated words make, or null when it makes none.
     internal static string? ToIdentifier(string name)
     {
         StringBuilder identifier = new(name.Length);

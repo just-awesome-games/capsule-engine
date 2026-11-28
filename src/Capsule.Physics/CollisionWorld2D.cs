@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Capsule.Physics.Internal;
 
@@ -856,8 +857,11 @@ public sealed partial class CollisionWorld2D
     }
 
     // Orders two targets the way an overlap query writes them, which is the order a ray or sweep breaks
-    // a tie in. A target that has left the world keeps its place by slot and generation.
-    internal int OverlapOrder(in CollisionTarget left, in CollisionTarget right)
+    // a tie in: tiles before colliders, then by slot, then by cell. A target that has left the world keeps
+    // its place by slot and generation. A query never meets two generations of one slot, and the
+    // generation orders only a remembered target against a live one.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static int OverlapOrder(in CollisionTarget left, in CollisionTarget right)
     {
         if (left.IsGridCell != right.IsGridCell)
         {
@@ -1073,20 +1077,6 @@ public sealed partial class CollisionWorld2D
 
         return Slide(shape, origin, translation, filter, contacts, ignore);
     }
-
-    /// <summary>
-    /// Moves an axis-aligned box, already placed. The box form of
-    /// <see cref="Move(in Shape2D, Vector2, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/>.
-    /// </summary>
-    /// <returns>How far the box actually moved, whether anything stopped it, and how many surfaces it reached.</returns>
-    /// <exception cref="ArgumentException">The box is one <see cref="Shape2D.Box(in Aabb2D)"/> refuses, or <paramref name="ignore"/> names no live collider of this world, or the filter belongs to another one.</exception>
-    public MoveResult2D MoveBox(
-        in Aabb2D box,
-        Vector2 translation,
-        CollisionFilter filter,
-        Span<Contact2D> contacts,
-        ColliderHandle ignore = default) =>
-        Move(Shape2D.Box(box), Vector2.Zero, translation, filter, contacts, ignore);
 
     // Zeroes GridCellsTested and PairProxiesVisited and changes nothing else.
     internal void ResetDiagnostics()
@@ -1362,7 +1352,7 @@ public sealed partial class CollisionWorld2D
         internal float Lean;
 
         // Whether a target the shape starts more than a skin inside reports at fraction 0. Only the
-        // public cast sets it. A body's moves and probes pass such a target as they always have.
+        // public cast sets it. A body's moves and probes pass such a target.
         internal bool ReportsInside;
 
         // The nearest hit, which is the band's primary.

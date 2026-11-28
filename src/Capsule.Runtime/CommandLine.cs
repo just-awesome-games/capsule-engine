@@ -80,7 +80,6 @@ internal sealed class CommandLine
     // The saves directory, null unless --saves was given.
     internal string? SavesPath { get; private set; }
 
-    // Whether --low-latency was given.
     internal bool LowLatency { get; private set; }
 
     // The GPU driver's name, null unless --gpu-driver was given.

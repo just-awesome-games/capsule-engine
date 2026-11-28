@@ -1,5 +1,4 @@
 using System.Numerics;
-using Capsule.Diagnostics;
 using Capsule.Physics;
 using Capsule.Rendering;
 using Capsule.Scenes;
@@ -181,36 +180,6 @@ public sealed class EntityAttachmentTests
         entity.RunStep(SceneFixtures.Step());
 
         Assert.Equal(expected, log.Take(reattaches ? expected.Length : log.Count));
-    }
-
-    [Fact]
-    public void APanel_WritesLocalAndWorldRowsForAParentedEntity()
-    {
-        Scene scene = new();
-        Node parent = new(new Vector2(10f, 0f)) { Scale = new Vector2(2f, 2f) };
-        Entity child = new(parent, new Vector2(1f, 1f)) { Rotation = 0.5f };
-        scene.Add(parent);
-        using SimulationHost host = new(scene);
-        DebugPanel panel = new();
-
-        child.RunDebugPanel(panel);
-
-        Assert.Equal(
-            [
-                ("Entity", null),
-                ("Parent", "Node"),
-                ("Transform", "(1, 1) r 0.5 s (1, 1)"),
-                ("World Transform", "(12, 2) r 0.5 s (2, 2)"),
-                ("ZIndex", "0"),
-                ("ZIndexIsAbsolute", null),
-                ("ScrollFactor", "(1, 1)"),
-                ("Visible", null),
-                ("Tint", "#ffffffff"),
-                ("Flash", "0"),
-                ("StepMode", "Inherit"),
-                ("Remove", null),
-            ],
-            panel.Rows.ToArray().Select(row => (row.Label, row.Value)).ToArray());
     }
 
     private sealed class StepRecorder(Action record) : Component

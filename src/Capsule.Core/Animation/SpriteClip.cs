@@ -29,13 +29,10 @@ public sealed class SpriteClip
     public int Duration { get; }
 
     /// <summary>Creates a clip from copies of <paramref name="frames"/>, <paramref name="frameTicks"/> and <paramref name="frameEvents"/>.</summary>
-    /// <param name="frames">The frames in play order. At least one.</param>
-    /// <param name="frameTicks">How many fixed steps each frame is held for, one per frame and each positive.</param>
-    /// <param name="loop">Whether the last frame wraps back to the first instead of finishing.</param>
-    /// <param name="frameEvents">
-    /// The event names each entry raises as it starts, one array per frame, and none by default. An
-    /// empty array is an entry with no events. Names are non-empty and unique within an entry.
-    /// </param>
+    /// <remarks>
+    /// <paramref name="frameEvents"/> holds the event names each frame raises as it starts, one array per
+    /// frame, and an empty array raises none.
+    /// </remarks>
     public SpriteClip(
         ReadOnlySpan<Sprite> frames,
         ReadOnlySpan<int> frameTicks,

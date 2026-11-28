@@ -76,14 +76,14 @@ internal static class RegistryProviderRenderer
                 }
 
                 [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]
-                public static void AddDrivers(global::System.Collections.Generic.List<global::Capsule.Input.InputDriverRegistration> registrations)
+                public static void AddDrivers(global::System.Collections.Generic.List<{{NamedRegistry.InputDrivers.Registration}}> registrations)
                 {
                     global::System.ArgumentNullException.ThrowIfNull(registrations);
                     registrations.AddRange(global::Capsule.Generated.CapsuleInputDrivers.Registrations);
                 }
 
                 [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]
-                public static void AddPayloads(global::System.Collections.Generic.List<global::Capsule.Scenes.ScenePayloadRegistration> registrations)
+                public static void AddPayloads(global::System.Collections.Generic.List<{{NamedRegistry.ScenePayloads.Registration}}> registrations)
                 {
                     global::System.ArgumentNullException.ThrowIfNull(registrations);
                     registrations.AddRange(global::Capsule.Generated.CapsuleScenePayloads.Registrations);

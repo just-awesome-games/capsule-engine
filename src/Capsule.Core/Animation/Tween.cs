@@ -95,9 +95,6 @@ public struct Tween
     /// whatever the tween was running. <see cref="Value"/> is 0 until the first <see cref="Step"/>
     /// and <see cref="Passes"/> begins again at 0.
     /// </summary>
-    /// <param name="ticks">Fixed steps one pass of the run takes. At least one, and for a <see cref="LoopMode.PingPong"/> at most half of <see cref="int.MaxValue"/>.</param>
-    /// <param name="ease">The curve to read the run through. Linear by default.</param>
-    /// <param name="loop">What to do with the tick after the last. Finish by default.</param>
     public void Start(int ticks, Ease ease = Ease.Linear, LoopMode loop = LoopMode.Once)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ticks);
@@ -198,7 +195,6 @@ public struct Tween
     /// A looping run takes the tick within its period. On a <see cref="LoopMode.Once"/>, a tick at
     /// or past <see cref="Duration"/> gives the finished run.
     /// </remarks>
-    /// <param name="tick">Ticks into the run. Must not be negative.</param>
     /// <exception cref="InvalidOperationException">The tween has never been started.</exception>
     public void Seek(int tick)
     {

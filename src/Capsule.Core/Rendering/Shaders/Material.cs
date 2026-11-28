@@ -6,9 +6,8 @@ namespace Capsule.Rendering;
 /// <summary>A shader and the values of its parameters, drawn by every renderer that holds it.</summary>
 /// <remarks>
 /// Neighbouring renderers draw in one batch when they hold the same instance and the same texture.
-/// Share one material across the renderers that look alike. A parameter never set reads zero,
-/// whatever the shader source initializes it to, and a texture never set samples transparent black. A texture
-/// packed into an atlas reads as its own file would. <c>Set</c> throws when the shader declares no parameter of that name, or
+/// A parameter never set reads zero, whatever the shader source initializes it to, and a texture never
+/// set samples transparent black. <c>Set</c> throws when the shader declares no parameter of that name, or
 /// declares it as another kind, and the message lists what it declares. It also throws for a
 /// parameter the shader declares in its <c>SceneGlobals</c> block, which the scene sets for every
 /// material.

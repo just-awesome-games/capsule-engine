@@ -22,7 +22,7 @@ public sealed class ContainerAllocationTests
 
         StepSample[] samples = StepMeasurement.Measure(run.Simulation);
 
-        Assert.All(samples, static sample => Assert.Equal((0L, 0L), (sample.StepBytes, sample.ViewBytes)));
+        StepMeasurement.AssertNoAllocation(samples);
         Assert.True(samples[^1].Render.Visible > 0);
     }
 

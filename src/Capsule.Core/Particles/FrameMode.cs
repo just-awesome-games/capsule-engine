@@ -8,7 +8,6 @@ public enum FrameMode
     Clip,
 
     /// <summary>The clip's steps stretched or squeezed to fill the particle's life, played once.</summary>
-    /// <remarks>Frames held for 1 and 3 steps over an 8-step life hold 2 and 6.</remarks>
     OverLife,
 
     /// <summary>A frame picked at random at spawn and kept for the particle's life.</summary>

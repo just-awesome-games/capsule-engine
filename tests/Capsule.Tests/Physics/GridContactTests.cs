@@ -126,7 +126,7 @@ public sealed class GridContactTests
         (Vector2 Normal, Vector2 Landed) Move()
         {
             Contact2D[] contacts = new Contact2D[4];
-            MoveResult2D result = world.MoveBox(CollisionFixtures.Box(0f, 0f, 8f, 8f), translation, CollisionFilter.Everything, contacts);
+            MoveResult2D result = world.Move(Shape2D.Box(CollisionFixtures.Box(0f, 0f, 8f, 8f)), Vector2.Zero, translation, CollisionFilter.Everything, contacts);
             Assert.True(result.Blocked);
             Assert.Equal(16f, result.Translation.X, CollisionFixtures.Tolerance);
 
@@ -198,7 +198,7 @@ public sealed class GridContactTests
 
         (CollisionTarget, Vector2) Move()
         {
-            MoveResult2D result = world.MoveBox(Aabb2D.FromCenter(start, size), -40f * normal, filter, contacts);
+            MoveResult2D result = world.Move(Shape2D.Box(Aabb2D.FromCenter(start, size)), Vector2.Zero, -40f * normal, filter, contacts);
             Assert.True(result.Blocked);
             Assert.Equal(-22f, Vector2.Dot(result.Translation, normal), CollisionFixtures.Tolerance);
 
@@ -256,6 +256,6 @@ public sealed class GridContactTests
 
         Assert.Equal(contacts[0].Target.Collider, hits[0].Target.Collider);
         Assert.Equal(contacts[0].Target.Collider, swept.Target.Collider);
-        Assert.True(world.OverlapOrder(contacts[0].Target, contacts[1].Target) < 0);
+        Assert.True(CollisionWorld2D.OverlapOrder(contacts[0].Target, contacts[1].Target) < 0);
     }
 }

@@ -119,24 +119,6 @@ public sealed partial class CollisionWorld2D
         slots.Sort(contacts);
     }
 
-    // Tiles before colliders, then by slot, then by cell.
-    private static bool TargetPrecedes(in CollisionTarget left, in CollisionTarget right)
-    {
-        if (left.IsGridCell != right.IsGridCell)
-        {
-            return left.IsGridCell;
-        }
-
-        if (left.Collider.Index != right.Collider.Index)
-        {
-            return left.Collider.Index < right.Collider.Index;
-        }
-
-        return left.CellY != right.CellY
-            ? left.CellY < right.CellY
-            : left.CellX < right.CellX;
-    }
-
     // Nearest first, with a tie-break that does not read the tree's current arrangement.
     private static bool Precedes(in RayHit2D left, in RayHit2D right)
     {
@@ -145,7 +127,7 @@ public sealed partial class CollisionWorld2D
             return left.Distance < right.Distance;
         }
 
-        return TargetPrecedes(left.Target, right.Target);
+        return OverlapOrder(left.Target, right.Target) < 0;
     }
 
     // Records a sweep hit. The band is every hit within FractionBand of the nearest, and the nearest
@@ -204,7 +186,7 @@ public sealed partial class CollisionWorld2D
 
         if (!accumulator.Hit
             || fraction < accumulator.Fraction
-            || (fraction == accumulator.Fraction && TargetPrecedes(target, accumulator.Target)))
+            || (fraction == accumulator.Fraction && OverlapOrder(target, accumulator.Target) < 0))
         {
             if (accumulator.Hit && fraction < accumulator.Fraction)
             {

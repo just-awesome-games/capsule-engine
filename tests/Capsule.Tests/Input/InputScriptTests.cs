@@ -6,6 +6,14 @@ namespace Capsule.Tests.Input;
 
 public sealed class InputScriptTests
 {
+    public static TheoryData<Func<InputScript, InputScript>, Func<DeviceSnapshot, bool>, bool[]> HeldStates => new()
+    {
+        { static script => script.Wait(1).WindowFocus(false).Wait(1).WindowFocus(true).Wait(1), static snapshot => snapshot.HasWindowFocus, [true, false, true] },
+        { static script => script.Wait(1).PadFamily(PadFamily.Nintendo).Wait(2), static snapshot => snapshot.PadFamily == PadFamily.Nintendo, [false, true, true] },
+        { static script => script.Wait(1).PadFamily(PadFamily.Nintendo).Wait(2), static snapshot => snapshot.PadFamily == PadFamily.Generic, [true, false, false] },
+        { static script => script.Wait(1).PadLacking(PadButton.LeftShoulder, PadButton.RightShoulder).Wait(2), static snapshot => snapshot.PadHas(PadButton.LeftShoulder), [true, false, false] },
+    };
+
     [Fact]
     public void Tap_HoldsForExactlyOneStepOnTopOfWhatIsAlreadyHeld()
     {
@@ -124,43 +132,12 @@ public sealed class InputScriptTests
             });
     }
 
-    [Fact]
-    public void WindowFocus_IsHeldUntilTheScriptTakesItAway()
-    {
-        List<DeviceSnapshot> steps = Steps(new InputScript()
-            .Wait(1)
-            .WindowFocus(false)
-            .Wait(1)
-            .WindowFocus(true)
-            .Wait(1)
-            .Build());
-
-        Assert.Equal([true, false, true], steps.Select(snapshot => snapshot.HasWindowFocus));
-    }
-
-    [Fact]
-    public void PadFamily_IsHeldUntilTheScriptChangesIt()
-    {
-        List<DeviceSnapshot> steps = Steps(new InputScript()
-            .Wait(1)
-            .PadFamily(PadFamily.Nintendo)
-            .Wait(2)
-            .Build());
-
-        Assert.Equal([PadFamily.Generic, PadFamily.Nintendo, PadFamily.Nintendo], steps.Select(snapshot => snapshot.PadFamily));
-    }
-
-    [Fact]
-    public void PadLacking_IsHeldUntilTheScriptChangesIt()
-    {
-        List<DeviceSnapshot> steps = Steps(new InputScript()
-            .Wait(1)
-            .PadLacking(PadButton.LeftShoulder, PadButton.RightShoulder)
-            .Wait(2)
-            .Build());
-
-        Assert.Equal([true, false, false], steps.Select(snapshot => snapshot.PadHas(PadButton.LeftShoulder)));
-    }
+    // Window focus, the pad family and the pad's buttons each hold from the step the script sets them until it
+    // sets them again.
+    [Theory]
+    [MemberData(nameof(HeldStates))]
+    public void AStateTheScriptSets_IsHeldUntilTheScriptChangesIt(Func<InputScript, InputScript> script, Func<DeviceSnapshot, bool> read, bool[] expected) =>
+        Assert.Equal(expected, Steps(script(new InputScript()).Build()).Select(read));
 
     private static List<DeviceSnapshot> Steps(IInputDriver driver)
     {

@@ -35,7 +35,7 @@ public sealed partial class EngineBuilder
     /// <exception cref="SpawnException">A placement's type key is claimed by no entity.</exception>
     public HeadlessRunResult RunHeadless<TScene>(IInputDriver driver, IScenePayload? payload = null)
         where TScene : Scene
-        => RunHeadless(SceneTransition.ToScene(typeof(TScene), payload), driver);
+        => RunHeadless(SceneTransition.ToScene(typeof(TScene), payload), driver, recording: null);
 
     /// <summary>
     /// Runs the scene the named document backs from <paramref name="driver"/>, as
@@ -51,7 +51,7 @@ public sealed partial class EngineBuilder
     /// <exception cref="SceneDocumentFormatException">The scene document file is malformed.</exception>
     /// <exception cref="SpawnException">A placement's type key is claimed by no entity.</exception>
     public HeadlessRunResult RunHeadless(SceneKey scene, IInputDriver driver, IScenePayload? payload = null) =>
-        RunHeadless(SceneTransition.ToName(scene.Required(nameof(scene)), payload), driver);
+        RunHeadless(SceneTransition.ToName(scene.Required(nameof(scene)), payload), driver, recording: null);
 
     /// <summary>
     /// Replays <paramref name="recording"/> with no window, as <see cref="RunHeadless{TScene}(IInputDriver, IScenePayload?)"/>
@@ -90,7 +90,7 @@ public sealed partial class EngineBuilder
             throw new InvalidOperationException(refusal);
         }
 
-        return RunReplayHeadless(recording, in opening, watch);
+        return RunHeadless(in opening, driver: null, recording, watch);
     }
 
     /// <summary>
@@ -153,7 +153,7 @@ public sealed partial class EngineBuilder
             // The switch's check lets a trimmed publish drop the trace and the capture.
             using RunTrace? trace = Development.IsSupported ? OpenTrace() : null;
             using RunCapture? capture = Development.IsSupported ? OpenCapture() : null;
-            RunHeadless(in opening, driver, trace, capture);
+            RunHeadless(in opening, driver, recording: null, watch: null, trace, capture);
 
             return 0;
         }
@@ -163,10 +163,10 @@ public sealed partial class EngineBuilder
         return 0;
     }
 
-    // Builds the scenes a windowed run hosts, from replayed's boot state when given, and hands them to run.
-    // Everything from here on reaches the crash log and the run's recording, the first scene's composition
-    // included. The exception is rethrown to preserve the exit code and the debugger break.
-    internal void RunRecorded(in SceneTransition opening, Recording? replayed, Action<SceneHost, Recorder?, Replay?> run)
+    // Builds the scenes a windowed run hosts, from replayed's boot state when given, and hands them to run
+    // with the run's end. Everything from here on reaches the crash log and the run's recording, the first
+    // scene's composition included. The exception is rethrown to preserve the exit code and the debugger break.
+    internal void RunRecorded(in SceneTransition opening, Recording? replayed, Action<SceneHost, Recorder?, Replay?, Action> run)
     {
         Recorder? recorder = null;
         SceneHost? scenes = null;
@@ -194,14 +194,19 @@ public sealed partial class EngineBuilder
             using SceneHost host = CreateHost(in opening, storage, seed, languages, language, recorder);
             scenes = host;
             replay = Development.IsSupported && replayed is not null ? new Replay(replayed, host, Scenes, recorder, holdsAtEnd: true) : null;
-            run(host, recorder, replay);
+            run(host, recorder, replay, End);
+            End();
 
-            // Saved before the run ends. The recording's final checksum covers the run as its last step
-            // left it, which the scene's stop and the game object's end would change. An end that throws then
-            // reaches the crash log and saves no second recording.
-            SaveRecent(recorder, replay, scenes?.SceneKey ?? openingKey, crashed: false);
-            recorder = null;
-            host.End();
+            // The window host runs this before its window closes, after which the operating system may end the
+            // process, and it runs again here, where it does nothing more. The recording is saved first: its final
+            // checksum covers the run as its last step left it, which the scene's stop and the game object's end
+            // would change. An end that throws then reaches the crash log and saves no second recording.
+            void End()
+            {
+                SaveRecent(recorder, replay, host.SceneKey, crashed: false);
+                recorder = null;
+                host.EndAndPersist();
+            }
         }
         catch (Exception exception) when (_writesCrashLog || recorder is not null)
         {
@@ -227,31 +232,51 @@ public sealed partial class EngineBuilder
     }
 
     // Builds the window host and runs the scenes until they request exit or the window closes.
-    private void RunHost(SceneHost scenes, Recorder? recorder, Replay? replay)
+    private void RunHost(SceneHost scenes, Recorder? recorder, Replay? replay, Action end)
     {
         // Declared first so the host is disposed before it, with its last frame already written.
         using FrameDiagnostics? diagnostics = OpenFrameDiagnostics();
 
-        WindowHost window = new(this, scenes, diagnostics, recorder, replay);
+        WindowHost window = new(this, scenes, diagnostics, end, recorder, replay);
         using TickStamp stamp = StampTicks(() => window.SimulationTick);
 
         window.Run();
     }
 
-    // Builds the headless host and plays the driver until it finishes or the game requests exit.
-    private HeadlessRunResult RunHeadless(in SceneTransition initialTarget, IInputDriver driver, RunTrace? trace = null, RunCapture? capture = null)
+    // Builds the headless host and plays driver, or replays recording over its boot state, until the input
+    // runs out or the game requests exit. A driven run has no medium unless one was named, which keeps a
+    // developer's local folder out of it. A replay's saves are kept in memory and persist nowhere.
+    private HeadlessRunResult RunHeadless(
+        in SceneTransition opening,
+        IInputDriver? driver,
+        Recording? recording,
+        Action<Scene, long>? watch = null,
+        RunTrace? trace = null,
+        RunCapture? capture = null)
     {
-        ArgumentNullException.ThrowIfNull(driver);
+        if (recording is null)
+        {
+            ArgumentNullException.ThrowIfNull(driver);
+        }
 
         InstallLogging();
 
         // Declared first so the host is disposed before it, with its last frame already written.
         using FrameDiagnostics? diagnostics = OpenFrameDiagnostics();
 
-        // No medium unless one was named, which keeps a developer's local folder out of the run.
-        using SceneHost scenes = CreateHost(initialTarget, NamedSaveStorage(), RunSeed(played: false), preferredLanguages: null, _commandLineLanguage);
+        // The switch's check lets a trimmed publish drop the replay.
+        RecordingHeader? header = Development.IsSupported ? recording?.Header : null;
+        using SceneHost scenes = header is null
+            ? CreateHost(opening, NamedSaveStorage(), RunSeed(played: false), preferredLanguages: null, _commandLineLanguage)
+            : CreateHost(opening, new RecordedSaveStorage(header.Saves), header.Seed, header.PreferredLanguages, header.LanguageOverride);
         diagnostics?.Mark(FrameDiagnostics.Stage.HostConstructed);
-        HeadlessHost host = new(this, scenes, driver, replay: null, diagnostics, watch: null, trace, capture);
+        Replay? replay = header is null ? null : new Replay(recording!, scenes, Scenes, recorder: null, holdsAtEnd: false);
+        if (replay is not null && trace is not null)
+        {
+            replay.Acted = (tick, subject, act) => trace.Act(tick + 1, subject, act);
+        }
+
+        HeadlessHost host = new(this, scenes, driver, replay, diagnostics, watch, trace, capture);
         using TickStamp stamp = StampTicks(() => host.SimulationTick);
 
         HeadlessRunResult result = host.Run();
@@ -279,10 +304,6 @@ public sealed partial class EngineBuilder
 
         return BinaryPrimitives.ReadUInt64LittleEndian(entropy);
     }
-
-    // A played run asks the platform for its languages, and --language overrides.
-    internal SceneHost CreateHost(in SceneTransition opening, ISaveStorage? storage, ulong seed, bool played) =>
-        CreateHost(in opening, storage, seed, PreferredLanguages(played), _commandLineLanguage);
 
     // preferredLanguages is what the platform reported, null for a run that asked for none, and language
     // is the --language override. recorder records the host from its first step and copies every document

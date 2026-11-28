@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Reflection;
 using Capsule.Scenes;
 using Microsoft.CodeAnalysis;
+using static Capsule.Tests.Generators.GeneratorHarness;
 
 namespace Capsule.Tests.Generators;
 
@@ -179,6 +180,4 @@ public sealed class AuthorableObjectTests
     }
 
     private static Scene Composed(string json) => GeneratorHarness.Composed(Registry.Value, json);
-
-    private static object? Member(object owner, string name) => GeneratorHarness.Member(owner, name);
 }

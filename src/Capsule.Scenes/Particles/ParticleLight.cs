@@ -35,8 +35,6 @@ public readonly record struct ParticleLight
     public Sprite Sprite { get; init; } = Sprite.Light;
 
     /// <summary>Creates a light of <paramref name="radius"/> added <paramref name="intensity"/> times.</summary>
-    /// <param name="radius">World units from a particle to its light's falloff edge, at a particle scale of one.</param>
-    /// <param name="intensity">How many times each light's colour is added, 1 by default.</param>
     public ParticleLight(float radius, float intensity = 1f)
     {
         Radius = Guard.NonNegative(radius, nameof(radius));

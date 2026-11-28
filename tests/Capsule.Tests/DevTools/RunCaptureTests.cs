@@ -1,7 +1,6 @@
 using Capsule.Input;
 using Capsule.Runtime;
 using Capsule.Runtime.DevTools.Recordings;
-using Capsule.Scenes;
 using static Capsule.Tests.DevTools.RecordingFixtures;
 
 namespace Capsule.Tests.DevTools;
@@ -44,21 +43,11 @@ public sealed class RunCaptureTests : IDisposable
     public void AGpuThatWillNotOpen_IsRefusedBeforeTheRun()
     {
         EngineBuilder builder = Builder()
-            .WithInputDriver(new Idle())
+            .WithInputDriver(new InputScript().Wait(1).Build())
             .WithCommandLine(["--headless", "--capture", _workspace.PathTo("frames"), "0", "--gpu-driver", "nowhere"]);
 
         CommandLineException refused = Assert.Throws<CommandLineException>(() => builder.RunScene<Reading>());
 
         Assert.StartsWith("--capture could not open a GPU to draw on: ", refused.Message, StringComparison.Ordinal);
-    }
-
-    private sealed class Idle : IInputDriver
-    {
-        public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
-        {
-            snapshot = DeviceSnapshot.Empty;
-
-            return tick < 1;
-        }
     }
 }

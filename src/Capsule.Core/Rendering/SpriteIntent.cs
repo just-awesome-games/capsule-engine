@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace Capsule.Rendering;
 
@@ -39,6 +40,22 @@ public readonly record struct SpriteIntent(
     // The composed Entity.Flash of the renderer that stored this intent: the colour it mixes towards
     // in RGB and the amount in alpha. Set by the frame at store and by nothing a game writes.
     internal ColorRgba Flash { get; init; }
+
+    // The intent of a frame drawn at a signed size, where a negative axis mirrors the frame about the pivot as
+    // a flip does. The sign folds into that axis's flip, and the renderer draws the magnitude.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static SpriteIntent Signed(
+        Sprite sprite,
+        Vector2 previousPosition,
+        Vector2 position,
+        float previousRotation,
+        float rotation,
+        Vector2 size,
+        bool flipX,
+        bool flipY,
+        ColorRgba color,
+        BlendMode blend = BlendMode.Alpha) =>
+        new(sprite, previousPosition, position, previousRotation, rotation, Vector2.Abs(size), flipX ^ (size.X < 0f), flipY ^ (size.Y < 0f), color, blend);
 
     // Whether the texels read mirrored on each axis. The intent's flip and the frame's own cancel.
     internal bool MirrorsX => FlipX ^ Sprite.FlipX;

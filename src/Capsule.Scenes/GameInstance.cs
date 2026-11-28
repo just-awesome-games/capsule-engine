@@ -6,9 +6,7 @@ namespace Capsule.Scenes;
 /// </summary>
 /// <remarks>
 /// A shell passes its factory to <c>EngineBuilder.WithGame</c>, and a test that builds its run by hand
-/// passes it to <see cref="Run.StartGame{TGame}"/>. Hold every run-wide object as a member of it, and
-/// override <see cref="OnStart"/>, <see cref="OnStep"/> and <see cref="OnEnd"/> to give the run behaviour
-/// no scene owns.
+/// passes it to <see cref="Run.StartGame{TGame}"/>.
 /// </remarks>
 /// <example>
 /// <code>
@@ -26,7 +24,6 @@ public abstract class GameInstance
     protected Run Run { get; }
 
     /// <summary>Creates the game object of <paramref name="run"/>, the run whose factory builds it.</summary>
-    /// <param name="run">The run this object belongs to, the one its factory was handed.</param>
     protected GameInstance(Run run)
     {
         ArgumentNullException.ThrowIfNull(run);

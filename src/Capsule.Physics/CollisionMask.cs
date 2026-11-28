@@ -48,7 +48,6 @@ public sealed class CollisionMask
     }
 
     /// <summary>A mask matching every layer in <paramref name="names"/>.</summary>
-    /// <param name="names">The layer names to hit. An empty list hits nothing.</param>
     public CollisionMask(params ReadOnlySpan<string> names)
     {
         Validate(names);
@@ -62,18 +61,13 @@ public sealed class CollisionMask
     internal ReadOnlySpan<string> Names => _names;
 
     /// <summary>A mask matching this mask's layers and every layer in <paramref name="names"/>.</summary>
-    /// <remarks>
-    /// It returns this mask when it already holds every name and allocates a new one otherwise.
-    /// Re-applying a layer allocates nothing after the first time. Compose at setup, never in a
-    /// per-step query, where each new mask takes a slot in every world it reaches.
-    /// </remarks>
+    /// <remarks>It returns this mask when it already holds every name and allocates a new one otherwise.</remarks>
     /// <example>
     /// A component that adds a layer to a collider its owner configured, keeping what the owner set:
     /// <code>
     /// collider.Detects = collider.Detects.With(CollisionLayers.Wind);
     /// </code>
     /// </example>
-    /// <param name="names">The layer names to add.</param>
     public CollisionMask With(params ReadOnlySpan<string> names)
     {
         Validate(names);
@@ -107,11 +101,7 @@ public sealed class CollisionMask
     }
 
     /// <summary>A mask matching this mask's layers except every layer in <paramref name="names"/>.</summary>
-    /// <remarks>
-    /// It returns this mask when it holds none of the names and allocates a new one otherwise. Compose
-    /// at setup, never in a per-step query.
-    /// </remarks>
-    /// <param name="names">The layer names to remove.</param>
+    /// <remarks>It returns this mask when it holds none of the names and allocates a new one otherwise.</remarks>
     public CollisionMask Without(params ReadOnlySpan<string> names)
     {
         Validate(names);

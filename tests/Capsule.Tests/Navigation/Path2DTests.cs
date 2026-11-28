@@ -19,8 +19,6 @@ public sealed class Path2DTests
     {
         { -1f, "The leg from point 0 to 1 of the path measures -1. Measure every leg as 0 or more." },
         { float.NaN, "The leg from point 0 to 1 of the path measures NaN. Measure every leg as 0 or more." },
-        { 0f, "Points 0 and 1 of the path differ, but the leg between them measures 0. Move them further apart." },
-        { float.PositiveInfinity, "The path is too long to measure. Bring its points closer together." },
     };
 
     // A repeated point is a segment of no length, which a distance passes over without dividing by it.

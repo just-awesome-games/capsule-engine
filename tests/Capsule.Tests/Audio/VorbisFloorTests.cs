@@ -17,7 +17,7 @@ public sealed class VorbisFloorTests
         floor.Init(Setup(partitions: 9, dimensions: 7), channels: 1, BlockSize, BlockSize, []);
 
         // Both implicit posts are read. Every other post's book is unused, which is a valid stream.
-        BitWriter audio = new();
+        VorbisBitWriter audio = new();
         audio.Write(1, 1);
         audio.Write(10, 8);
         audio.Write(20, 8);
@@ -35,7 +35,7 @@ public sealed class VorbisFloorTests
     // two implicit posts plus partitions times dimensions.
     private static Packet Setup(int partitions, int dimensions)
     {
-        BitWriter setup = new();
+        VorbisBitWriter setup = new();
         setup.Write(partitions, 5);
         for (int i = 0; i < partitions; i++)
         {
@@ -59,7 +59,7 @@ public sealed class VorbisFloorTests
 
     // A one-part packet over the written bytes. The decoder builds its packets from an Ogg page reader.
     // This test has no stream for one and sets the bytes on the reader fields directly.
-    private static Packet Over(BitWriter bits)
+    private static Packet Over(VorbisBitWriter bits)
     {
         Packet packet = new();
         Type type = typeof(Packet);
@@ -69,32 +69,5 @@ public sealed class VorbisFloorTests
         type.GetField("_data", flags)!.SetValue(packet, new Memory<byte>(bits.ToArray()));
 
         return packet;
-    }
-
-    // Vorbis packs fields least significant bit first.
-    private sealed class BitWriter
-    {
-        private readonly List<byte> _bytes = [];
-        private int _bit;
-
-        internal void Write(int value, int bits)
-        {
-            for (int i = 0; i < bits; i++)
-            {
-                if (_bit == 0)
-                {
-                    _bytes.Add(0);
-                }
-
-                if (((value >> i) & 1) != 0)
-                {
-                    _bytes[^1] |= (byte)(1 << _bit);
-                }
-
-                _bit = (_bit + 1) % 8;
-            }
-        }
-
-        internal byte[] ToArray() => [.. _bytes, 0, 0, 0, 0, 0, 0, 0, 0];
     }
 }

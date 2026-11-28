@@ -8,14 +8,15 @@ public sealed class MoverSweepTests
     private const float Tolerance = CollisionFixtures.Tolerance;
 
     [Fact]
-    public void MoveBox_StopsAtTheSurfaceItRunsIntoAndReportsIt()
+    public void Move_StopsAtTheSurfaceItRunsIntoAndReportsIt()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "..#", "..#");
 
         Span<Contact2D> contacts = stackalloc Contact2D[8];
-        MoveResult2D result = world.MoveBox(
-            CollisionFixtures.Box(0f, 4f, 8f, 8f),
+        MoveResult2D result = world.Move(
+            Shape2D.Box(CollisionFixtures.Box(0f, 4f, 8f, 8f)),
+            Vector2.Zero,
             new Vector2(60f, 0f),
             CollisionFilter.Everything,
             contacts);
@@ -30,13 +31,14 @@ public sealed class MoverSweepTests
 
     // Meeting a wall must not stop the fall, or a box pressed against a wall hangs there.
     [Fact]
-    public void MoveBox_SlidesAlongASurfaceInsteadOfStoppingDead()
+    public void Move_SlidesAlongASurfaceInsteadOfStoppingDead()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "..#", "..#", "..#");
 
-        MoveResult2D result = world.MoveBox(
-            CollisionFixtures.Box(20f, 4f, 8f, 8f),
+        MoveResult2D result = world.Move(
+            Shape2D.Box(CollisionFixtures.Box(20f, 4f, 8f, 8f)),
+            Vector2.Zero,
             new Vector2(20f, 10f),
             CollisionFilter.Everything,
             default);
@@ -48,7 +50,7 @@ public sealed class MoverSweepTests
 
     // The seam between two tiles of one flat run is not a face and must never catch a box.
     [Fact]
-    public void MoveBox_CrossesEveryCellSeamOfAFlatRunWithoutCatching()
+    public void Move_CrossesEveryCellSeamOfAFlatRunWithoutCatching()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "........", "########");
@@ -59,7 +61,7 @@ public sealed class MoverSweepTests
         for (int step = 0; step < 60; step++)
         {
             // Pressed down into the ground every step, exactly as a falling character is.
-            MoveResult2D result = world.MoveBox(box, new Vector2(2f, 4f), CollisionFilter.Everything, default);
+            MoveResult2D result = world.Move(Shape2D.Box(box), Vector2.Zero, new Vector2(2f, 4f), CollisionFilter.Everything, default);
             box = box.Translated(result.Translation);
             travelled += result.Translation.X;
         }
@@ -69,7 +71,7 @@ public sealed class MoverSweepTests
     }
 
     [Fact]
-    public void MoveBox_RestsOnASurfaceWithoutDriftingOrJittering()
+    public void Move_RestsOnASurfaceWithoutDriftingOrJittering()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "####");
@@ -79,7 +81,7 @@ public sealed class MoverSweepTests
 
         for (int step = 0; step < 120; step++)
         {
-            MoveResult2D result = world.MoveBox(box, new Vector2(0f, 5f), CollisionFilter.Everything, default);
+            MoveResult2D result = world.Move(Shape2D.Box(box), Vector2.Zero, new Vector2(0f, 5f), CollisionFilter.Everything, default);
             box = box.Translated(result.Translation);
 
             if (step == 8)
@@ -93,15 +95,16 @@ public sealed class MoverSweepTests
     }
 
     [Fact]
-    public void MoveBox_NeverPassesThroughAWallAtAnySpeed()
+    public void Move_NeverPassesThroughAWallAtAnySpeed()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "..#", "..#");
 
         foreach (float speed in new[] { 40f, 400f, 40_000f, 4_000_000f })
         {
-            MoveResult2D result = world.MoveBox(
-                CollisionFixtures.Box(0f, 4f, 8f, 8f),
+            MoveResult2D result = world.Move(
+                Shape2D.Box(CollisionFixtures.Box(0f, 4f, 8f, 8f)),
+                Vector2.Zero,
                 new Vector2(speed, 0f),
                 CollisionFilter.Everything,
                 default);
@@ -113,13 +116,14 @@ public sealed class MoverSweepTests
     // The mover insets a box on the axis it is not travelling along. A box thinner than twice the
     // point tolerance has no room for one, and the inset clamps to zero rather than inverting it.
     [Fact]
-    public void MoveBox_ThinnerThanTwiceThePointTolerance_StillSweeps()
+    public void Move_ThinnerThanTwiceThePointTolerance_StillSweeps()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "####");
 
-        MoveResult2D result = world.MoveBox(
-            new Aabb2D(Vector2.Zero, new Vector2(4f, 0.008f)),
+        MoveResult2D result = world.Move(
+            Shape2D.Box(new Aabb2D(Vector2.Zero, new Vector2(4f, 0.008f))),
+            Vector2.Zero,
             new Vector2(10f, 0f),
             CollisionFilter.Everything,
             default);

@@ -16,7 +16,7 @@ public sealed class LabelExclusionTests
     public void LinesBesideACornerBox_EndAtItsEdgeAndLinesBelowSpanTheBox()
     {
         Label label = Flowing(Words, Shape2D.Box(new Vector2(20f, 0f), new Vector2(10f, 10f)));
-        using SimulationHost host = RichLabelTests.Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
 
         // "AB" beside the box, then "AB AB" and "AB" across the box.
         Assert.Equal(3, label.LineCount);
@@ -40,7 +40,7 @@ public sealed class LabelExclusionTests
     {
         Label label = Flowing(Words, Shape2D.Circle(new Vector2(30f, 0f), 20f));
         label.HorizontalAlignment = HorizontalAlignment.Right;
-        using SimulationHost host = RichLabelTests.Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
         host.Step();
 
         SpriteIntent[] drawn = host.Simulation.View.Sprites.ToArray();
@@ -56,7 +56,7 @@ public sealed class LabelExclusionTests
     public void ShapesOnOppositeEdges_NarrowTheSameRowFromBothSides()
     {
         Label label = Flowing(Words, Shape2D.Box(Vector2.Zero, new Vector2(5f, 10f)), Shape2D.Circle(new Vector2(30f, 5f), 5f));
-        using SimulationHost host = RichLabelTests.Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
         host.Step();
 
         Assert.Equal(3, label.LineStart(1));
@@ -69,7 +69,7 @@ public sealed class LabelExclusionTests
     public void AShapeInTheMiddle_LeavesTheLineOnTheWiderSideAlone()
     {
         Label label = Flowing(Words, Shape2D.Circle(new Vector2(12f, 5f), 3f));
-        using SimulationHost host = RichLabelTests.Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
         host.Step();
 
         Assert.Equal(3, label.LineStart(1));
@@ -91,7 +91,7 @@ public sealed class LabelExclusionTests
             Shape2D.Box(new Vector2(13f, 0f), new Vector2(6f, 10f)),
             Shape2D.Box(new Vector2(9f, 0f), new Vector2(6f, 10f)),
             Shape2D.Box(new Vector2(thirdLeft, 0f), new Vector2(30f - thirdLeft, 10f)));
-        using SimulationHost host = RichLabelTests.Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
         host.Step();
 
         Assert.Equal(3, label.LineStart(1));
@@ -105,7 +105,7 @@ public sealed class LabelExclusionTests
     {
         Label label = Flowing("AB AB AB AB AB AB", Shape2D.Box(new Vector2(20f, 0f), new Vector2(10f, 10f)));
         label.MaxLines = 2;
-        using SimulationHost host = RichLabelTests.Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
 
         int[] starts = [.. Enumerable.Range(0, 5).Select(label.LineStart)];
         Assert.Equal([0, 3, 9, 12, 17], starts);
@@ -132,7 +132,7 @@ public sealed class LabelExclusionTests
     {
         Label label = Flowing(Words, Shape2D.Box(new Vector2(boxLeft, 0f), new Vector2(boxWidth, 10f)));
         label.HorizontalAlignment = alignment;
-        using SimulationHost host = RichLabelTests.Host(label);
+        using SimulationHost host = FontFixtures.Shown(label);
         host.Step();
 
         SpriteIntent[] drawn = host.Simulation.View.Sprites.ToArray();

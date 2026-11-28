@@ -48,6 +48,22 @@ internal static class RecordingFixtures
         };
     }
 
+    // Over a rig holding a Reading, nudges the walker through its panel and moves it with G under the
+    // pointer, then closes the overlay and steps once more so the result shows.
+    internal static void ActThroughOverlay(OverlayRig rig)
+    {
+        rig.Scheduler.Output = OverlayFixtures.Output;
+        rig.Frame();
+        rig.OpenEntityPanel("Walker");
+        rig.SelectRow("Nudge");
+        rig.PlaceWorld();
+        rig.Frame(DeviceSnapshot.Of(Key.G).WithPointer(OverlayFixtures.WorldPoint));
+        rig.Frame(DeviceSnapshot.Empty.WithPointer(OverlayFixtures.WorldPoint));
+        Assert.Contains("Moved Walker", rig.Overlay.Scene.Status, StringComparison.Ordinal);
+        rig.Press(Key.Grave);
+        rig.Frame();
+    }
+
     // A host and recorder made as a windowed run makes them, restoring one save, and a scheduler stepping
     // it one step a call. A run given a recording replays it from that recording's boot state, holding at
     // its end as a windowed replay does.
@@ -70,9 +86,21 @@ internal static class RecordingFixtures
             Scheduler = new FixedStepScheduler(builder.StepSeconds, 8, Host.Run.InputState, scenes: Host, recorder: Recorder, replay: replay) { Output = FirstOutput };
         }
 
+        internal Vector2 WalkerPosition => ((Reading)Host.Scene).Walker.Position;
+
         private static RecordedSave Save => new("settings", "{\"volume\":3}", new SaveMetadata(DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
 
         internal void Step(in DeviceSnapshot snapshot) => Scheduler.Advance(1.0 / Hertz, snapshot, Host);
+
+        // Steps the run steps times on Varied input, calling stepped after each step with its index.
+        internal void Play(int steps, Action<int>? stepped = null)
+        {
+            for (int step = 0; step < steps; step++)
+            {
+                Step(Varied(this, step));
+                stepped?.Invoke(step);
+            }
+        }
 
         // The run so far as a file would hold it.
         internal Recording Saved()

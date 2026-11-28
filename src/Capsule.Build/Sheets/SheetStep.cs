@@ -17,14 +17,10 @@ internal static class SheetStep
         List<(Source Source, Sheet Document)> read = pass.Each(
             Step,
             pass.Of(AssetType.Sheets),
-            source => Derivation.Of(source),
+            Derivation.Of,
             (source, _) => SheetFile.Read(source.Path),
             DerivationCacheJsonContext.Default.Sheet);
         Dictionary<string, Sheet> byKey = read.ToDictionary(static sheet => sheet.Source.Key, static sheet => sheet.Document, StringComparer.Ordinal);
-        if (read.Count > 0)
-        {
-            pass.Assets.Beside(SheetMembers.BuilderDeclaration);
-        }
 
         foreach ((Source sheet, Sheet document) in read)
         {

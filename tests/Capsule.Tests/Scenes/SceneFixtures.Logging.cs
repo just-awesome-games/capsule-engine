@@ -63,6 +63,12 @@ internal static partial class SceneFixtures
         }
     }
 
+    /// <summary>A camera logging <paramref name="name"/> in each late step.</summary>
+    internal sealed class RecordingCamera(List<string> log, string name = "camera") : Camera
+    {
+        protected internal override void OnLateStep(in StepContext context) => log.Add(name);
+    }
+
     internal sealed class Twin(string name, List<string> log) : Entity(Vector2.Zero)
     {
         public override bool Equals(object? obj) => obj is Twin;

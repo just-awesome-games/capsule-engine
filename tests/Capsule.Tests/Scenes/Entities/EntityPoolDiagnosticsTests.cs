@@ -82,18 +82,21 @@ public sealed class EntityPoolDiagnosticsTests : IDisposable
     {
         EntityPool<Pooled> pool = new(static () => new Pooled(ShotTexture), capacity: 1);
         Scene scene = new();
-        scene.Add(new Forwarder(pool));
+        scene.Add(new SceneFixtures.PoolForwarder<Pooled>(pool));
         Assert.True(scene.CollectPreloads().Contains(ShotTexture));
         pool.Take();
 
         return "EntityPool<Pooled>";
     }
 
-    // A headless host collects before the scene starts even after a read, which forwards the owner's pool.
+    // A headless host collects before the scene starts even after a read, which forwards the owner's pool. The
+    // pool is taken from in a start hook, the earliest a game can.
     private static string HeadlessAfterARead(bool forwarded)
     {
+        EntityPool<Pooled> pool = new(static () => new Pooled(ShotTexture), capacity: 1);
         Scene scene = new();
-        scene.Add(new PoolOwner(forwarded));
+        scene.Add(new SceneFixtures.PoolForwarder<Pooled>(pool, forwarded));
+        scene.Add(new SceneFixtures.Starter(_ => pool.Take()));
         scene.CollectPreloads();
         using SimulationHost host = new(scene);
 
@@ -113,27 +116,6 @@ public sealed class EntityPoolDiagnosticsTests : IDisposable
         scene.Add(scene.Pool<ScenePooled>().Take());
 
         return "assets.Pool<ScenePooled>";
-    }
-
-    private sealed class Forwarder(EntityPool<Pooled> pool) : Entity(Vector2.Zero)
-    {
-        protected internal override void CollectAssets(AssetCollection assets) => pool.CollectAssets(assets);
-    }
-
-    // Takes in its start hook, the earliest a game can.
-    private sealed class PoolOwner(bool forwards) : Entity(Vector2.Zero)
-    {
-        private readonly EntityPool<Pooled> _pool = new(() => new Pooled(ShotTexture), capacity: 1);
-
-        protected internal override void CollectAssets(AssetCollection assets)
-        {
-            if (forwards)
-            {
-                _pool.CollectAssets(assets);
-            }
-        }
-
-        protected internal override void OnStart() => _pool.Take();
     }
 
     private sealed class Declarer() : Entity(Vector2.Zero)

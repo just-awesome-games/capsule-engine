@@ -165,6 +165,20 @@ public sealed class OverlayScrollTests
         Assert.True(fitting.Thumb.IsEmpty);
     }
 
+    // A row's text holding a line break still draws one line, and the pointer finds the row below it.
+    [Fact]
+    public void ARowWhoseTextBreaksALine_StaysOneLineForThePointer()
+    {
+        using OverlayRig rig = new(CreateHost());
+        rig.Open();
+        OverlayScene scene = rig.Overlay.Scene;
+        scene.ShowPage(null, [new OverlayRow("first\nsecond", null), new OverlayRow("third", null)]);
+        scene.Place(focus: 0, top: 0);
+        rig.Frame();
+
+        Assert.Equal(1, scene.RowAt(scene.RowBounds(1).Center));
+    }
+
     // The middle of a root row on the overlay's canvas, under the readout's three lines and the blank row.
     private static Vector2 RowPoint(int row)
     {
@@ -175,17 +189,10 @@ public sealed class OverlayScrollTests
 
     private static string FirstShown(OverlayRig rig) => rig.Overlay.Scene.ShownRows()[0];
 
-    // An open Load Scene page of rowCount distinct classes borrowed from the runtime.
+    // An open Load Scene page of rowCount rows.
     private static OverlayRig OpenLongPage(int rowCount)
     {
-        Type[] types = typeof(object).Assembly.GetExportedTypes();
-        List<SceneRegistration> registrations = [];
-        for (int index = 0; index < rowCount; index++)
-        {
-            registrations.Add(SceneRegistration.Plain(types[index], static _ => new PlainScene()));
-        }
-
-        OverlayRig rig = new(CreateHost(), new SceneRegistry(new EntityRegistry([]), registrations));
+        OverlayRig rig = new(CreateHost(), LongRegistry(rowCount));
         rig.Open();
         rig.Press(Key.L);
 

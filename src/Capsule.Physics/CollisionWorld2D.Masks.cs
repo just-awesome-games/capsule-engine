@@ -10,7 +10,6 @@ public sealed partial class CollisionWorld2D
     /// The first thing a ray meets, matching by <paramref name="mask"/>. All other rules of
     /// <see cref="Raycast(Vector2, Vector2, float, CollisionFilter, out RayHit2D, ColliderHandle)"/> apply.
     /// </summary>
-    /// <returns>Whether the ray met anything. <paramref name="hit"/> is the nearest when it did.</returns>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public bool Raycast(
         Vector2 origin,
@@ -29,7 +28,6 @@ public sealed partial class CollisionWorld2D
     /// The nearest things a ray meets, matching by <paramref name="mask"/>. All other rules of
     /// <see cref="RaycastAll(Vector2, Vector2, float, CollisionFilter, Span{RayHit2D}, ColliderHandle)"/> apply.
     /// </summary>
-    /// <returns>How many hits were written, at most the length of <paramref name="hits"/>.</returns>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public int RaycastAll(
         Vector2 origin,
@@ -48,7 +46,6 @@ public sealed partial class CollisionWorld2D
     /// Where a swept shape first meets something, matching by <paramref name="mask"/>. All other
     /// rules of <see cref="ShapeCast(in Shape2D, Vector2, Vector2, CollisionFilter, out ShapeCastHit2D, ColliderHandle)"/> apply.
     /// </summary>
-    /// <returns>Whether the sweep met anything. <paramref name="hit"/> is the nearest when it did.</returns>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public bool ShapeCast(
         in Shape2D shape,
@@ -67,7 +64,6 @@ public sealed partial class CollisionWorld2D
     /// Everything a shape is inside or touching, matching by <paramref name="mask"/>. All other rules
     /// of <see cref="OverlapAll(in Shape2D, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/> apply.
     /// </summary>
-    /// <returns>How many overlaps were written, at most the span's length. A full span means there may have been more.</returns>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public int OverlapAll(
         in Shape2D shape,
@@ -85,7 +81,6 @@ public sealed partial class CollisionWorld2D
     /// Everything a placed box is inside or touching, matching by <paramref name="mask"/>. All other
     /// rules of <see cref="OverlapBoxAll(in Aabb2D, CollisionFilter, Span{Contact2D}, ColliderHandle)"/> apply.
     /// </summary>
-    /// <returns>How many overlaps were written, at most the span's length. A full span means there may have been more.</returns>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public int OverlapBoxAll(
         in Aabb2D box,
@@ -99,7 +94,6 @@ public sealed partial class CollisionWorld2D
     /// <paramref name="mask"/>. All other rules of
     /// <see cref="OverlapPointAll(Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/> apply.
     /// </summary>
-    /// <returns>How many overlaps were written, at most the span's length. A full span means there may have been more.</returns>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public int OverlapPointAll(
         Vector2 point,
@@ -116,7 +110,6 @@ public sealed partial class CollisionWorld2D
     /// Everything a registered collider is touching, matching by <paramref name="mask"/>. All other
     /// rules of <see cref="OverlapColliderAll(ColliderHandle, CollisionFilter, Span{Contact2D})"/> apply.
     /// </summary>
-    /// <returns>How many overlaps were written, at most the span's length. A full span means there may have been more.</returns>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public int OverlapColliderAll(ColliderHandle handle, CollisionMask mask, Span<Contact2D> contacts)
     {
@@ -129,7 +122,6 @@ public sealed partial class CollisionWorld2D
     /// Moves a shape as far as it can go, stopped by what <paramref name="mask"/> matches. All other
     /// rules of <see cref="Move(in Shape2D, Vector2, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/> apply.
     /// </summary>
-    /// <returns>How far the shape actually moved, whether anything stopped it, and how many surfaces it reached.</returns>
     /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
     public MoveResult2D Move(
         in Shape2D shape,
@@ -143,20 +135,6 @@ public sealed partial class CollisionWorld2D
 
         return Slide(shape, origin, translation, Resolve(mask), contacts, ignore);
     }
-
-    /// <summary>
-    /// Moves a placed box as far as it can go, stopped by what <paramref name="mask"/> matches. All
-    /// other rules of <see cref="MoveBox(in Aabb2D, Vector2, CollisionFilter, Span{Contact2D}, ColliderHandle)"/> apply.
-    /// </summary>
-    /// <returns>How far the box actually moved, whether anything stopped it, and how many surfaces it reached.</returns>
-    /// <exception cref="InvalidOperationException">The world has no room left to intern a name of the mask.</exception>
-    public MoveResult2D MoveBox(
-        in Aabb2D box,
-        Vector2 translation,
-        CollisionMask mask,
-        Span<Contact2D> contacts,
-        ColliderHandle ignore = default) =>
-        Move(Shape2D.Box(box), Vector2.Zero, translation, mask, contacts, ignore);
 
     // The filter a mask stands for in this world. The first call per mask interns its names and
     // stores the result. Later calls read it back by index. Every query validates its other arguments

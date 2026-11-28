@@ -28,11 +28,7 @@ public readonly ref struct PolygonIntent
     /// <summary>How the polygon's colour combines with what is already drawn.</summary>
     public BlendMode Blend { get; }
 
-    /// <summary>A polygon whose outline moves from <paramref name="previousPoints"/> to <paramref name="points"/> across the step.</summary>
-    /// <param name="previousPoints">The outline at the end of the previous step, in the drawn space's units.</param>
-    /// <param name="points">The outline now, point for point with <paramref name="previousPoints"/>.</param>
-    /// <param name="color">The colour filled, with straight alpha.</param>
-    /// <param name="blend">How the polygon's colour combines with what is already drawn.</param>
+    /// <summary>A polygon whose outline moves from <paramref name="previousPoints"/> to <paramref name="points"/>, point for point, across the step.</summary>
     public PolygonIntent(ReadOnlySpan<Vector2> previousPoints, ReadOnlySpan<Vector2> points, ColorRgba color, BlendMode blend = BlendMode.Alpha)
     {
         if (points.Length < 3)
@@ -54,9 +50,6 @@ public readonly ref struct PolygonIntent
     }
 
     /// <summary>A polygon whose outline stays at <paramref name="points"/> across the step.</summary>
-    /// <param name="points">The outline, in the drawn space's units.</param>
-    /// <param name="color">The colour filled, with straight alpha.</param>
-    /// <param name="blend">How the polygon's colour combines with what is already drawn.</param>
     public PolygonIntent(ReadOnlySpan<Vector2> points, ColorRgba color, BlendMode blend = BlendMode.Alpha)
         : this(points, points, color, blend)
     {

@@ -1,0 +1,555 @@
+{
+  "timestamp": "2026-11-28T16:54:44Z",
+  "label": "audit-base",
+  "lane": "paced",
+  "uncapped": false,
+  "commit": "82f4c9a3",
+  "configuration": "Release",
+  "nativeAot": true,
+  "os": "Microsoft Windows 10.0.26200",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor",
+  "gpu": "AMD Radeon RX 9070 XT",
+  "engineVersion": "0.0.0+82f4c9a34b32ed739f037c70be71d38a76840cd8",
+  "workloads": [
+    {
+      "name": "Beams1k",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 2.529,
+        "p95": 2.894,
+        "max": 4.967
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.07,
+        "p95": 0.073
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 1526760,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.667
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "LevelPrefetch",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 302,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.014,
+        "p95": 0.02,
+        "max": 3.573
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.012,
+        "p95": 0.015
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 4830712,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.743
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "LevelCold",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.014,
+        "p95": 0.018,
+        "max": 10.676
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.012,
+        "p95": 0.014
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 6936952,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.667
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "LevelPrefetchHuge",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 302,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.158,
+        "p95": 0.167,
+        "max": 23.807
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.001,
+        "p95": 0.002
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 36744984,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 23.809
+      },
+      "gen0Collections": 1,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "LevelColdHuge",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 302,
+      "frames": 299,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.137,
+        "p95": 0.161,
+        "max": 65.17
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.001,
+        "p95": 0.002
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 55159304,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 65.29
+      },
+      "gen0Collections": 1,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "Overlap2k",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.364,
+        "p95": 0.39,
+        "max": 0.595
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.004,
+        "p95": 0.005
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 1438584,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.667
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "Overload",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 87,
+      "frames": 87,
+      "drawMs": null,
+      "updateMs": {
+        "median": 57.254,
+        "p95": 57.54,
+        "max": 58.58
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.001,
+        "p95": 0.001
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 56,
+      "intervalMs": {
+        "median": 57.256,
+        "p95": 57.544,
+        "max": 58.581
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "ShoveCrowd",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.063,
+        "p95": 0.1,
+        "max": 0.111
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0,
+        "p95": 0.002
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 56,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.667
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "Waves2k",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.101,
+        "p95": 0.878,
+        "max": 1.183
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0,
+        "p95": 0.082
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 32848,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.669
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "Bullets2k",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.182,
+        "p95": 0.2,
+        "max": 0.434
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.01,
+        "p95": 0.013
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 51280,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.668
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "Bullets2kStacked",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.199,
+        "p95": 0.212,
+        "max": 0.324
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.011,
+        "p95": 0.013
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 1504168,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.668
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "Bullets2kTargeted",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.232,
+        "p95": 0.245,
+        "max": 0.494
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.011,
+        "p95": 0.013
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 1504112,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.667
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "Crowd1k",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.435,
+        "p95": 0.476,
+        "max": 0.721
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.048,
+        "p95": 0.051
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 56,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.667
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "Crowd1kStacked",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.46,
+        "p95": 0.506,
+        "max": 0.723
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.048,
+        "p95": 0.05
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 56,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.668
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "Platforms64",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.744,
+        "p95": 0.77,
+        "max": 1.078
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.003,
+        "p95": 0.005
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 56,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.667
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "Platforms64Stacked",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 302,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 1.495,
+        "p95": 2.278,
+        "max": 3.87
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.004,
+        "p95": 0.006
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 694080,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.672
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "Triggers200",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 0.235,
+        "p95": 0.441,
+        "max": 0.616
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.006,
+        "p95": 0.008
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 28736,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.667
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    },
+    {
+      "name": "Triggers200Stacked",
+      "mode": "paced",
+      "surface": "640x360-pixel-perfect",
+      "steps": 301,
+      "frames": 301,
+      "drawMs": null,
+      "updateMs": {
+        "median": 1.775,
+        "p95": 1.942,
+        "max": 3.693
+      },
+      "stepMs": null,
+      "viewMs": {
+        "median": 0.004,
+        "p95": 0.005
+      },
+      "stepBytes": null,
+      "viewBytes": null,
+      "frameBytes": 56,
+      "intervalMs": {
+        "median": 16.667,
+        "p95": 16.667,
+        "max": 16.667
+      },
+      "gen0Collections": 0,
+      "captureSha256": null,
+      "recordedDrawMs": null,
+      "uploadBytes": null
+    }
+  ]
+}

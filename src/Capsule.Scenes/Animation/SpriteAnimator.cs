@@ -19,9 +19,7 @@ namespace Capsule.Animation;
 /// drawn over an avatar. Construction writes the renderer's frame into each layer.
 /// </para>
 /// <para>
-/// A component steps after its entity. An entity reading the animator in <see cref="Entity.OnStep"/>
-/// sees the frame the previous step drew. Put logic that depends on the frame drawn in a component
-/// attached after the animator.
+/// An entity reading the animator in <see cref="Entity.OnStep"/> sees the frame the previous step drew.
 /// </para>
 /// </remarks>
 /// <example>
@@ -98,8 +96,7 @@ public sealed class SpriteAnimator : Component
     /// <remarks>
     /// A held clip keeps drawing its frame, and <see cref="Tick"/> and <see cref="IsFinished"/> do
     /// not change. A held step spends the step a <c>Play</c> holds its first frame for. <c>Play</c>
-    /// leaves this as it is. Removal from the scene clears it. Hit-stop and a pause menu hold whole
-    /// entities with <see cref="Scene.Freeze(int)"/> and <see cref="Scene.Paused"/>.
+    /// leaves this as it is. Removal from the scene clears it.
     /// </remarks>
     /// <example>
     /// Showing one frame of a clip, frozen:
@@ -117,10 +114,10 @@ public sealed class SpriteAnimator : Component
     /// <remarks>
     /// The animator calls <see cref="Scene.Remove(Entity)"/> on its own entity in the step that finds
     /// <see cref="IsFinished"/>, and the removal lands at that step's end. The last frame draws for its
-    /// own ticks. A pooled entity returns to its <see cref="EntityPool{T}"/> as any removal returns it,
-    /// and replays the clip from its first frame when reused. The setting survives removal.
+    /// own ticks. A pooled entity replays the clip from its first frame when reused. The setting survives
+    /// removal.
     /// <para>
-    /// A looping clip never removes its entity. A <see cref="Paused"/> animator keeps its entity until it
+    /// A <see cref="Paused"/> animator keeps its entity until it
     /// is unpaused. A hold by <see cref="Scene.Freeze(int)"/> or <see cref="Scene.Paused"/> delays the
     /// removal by as many steps as the hold lasts.
     /// </para>
@@ -159,8 +156,8 @@ public sealed class SpriteAnimator : Component
     /// <remarks>
     /// A fraction of a tick carries over to later steps. The carry restarts on every <c>Play</c> and
     /// on removal from the scene. <see cref="Tick"/> and <see cref="FrameTick"/> stay whole ticks. A
-    /// frame crossed inside one step is never drawn and never places its boxes. Above one, an attack's
-    /// one-tick active frame can be skipped. <see cref="Paused"/> holds the clip whatever the speed.
+    /// frame crossed inside one step is never drawn and never places its boxes. <see cref="Paused"/> holds
+    /// the clip whatever the speed.
     /// Removal from the scene keeps the speed, unlike <see cref="Paused"/>. Reverse playback is a
     /// reversed clip.
     /// </remarks>
@@ -212,7 +209,6 @@ public sealed class SpriteAnimator : Component
     /// </code>
     /// </example>
     /// <param name="name">The event's name as the sheet declared it. The sheet's generated <c>Events</c> class lists them.</param>
-    /// <returns>Whether the event was reported and is still readable.</returns>
     public bool Reached(string name)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
@@ -220,22 +216,16 @@ public sealed class SpriteAnimator : Component
         return Holds(_readable, _readableCount, name);
     }
 
-    /// <summary>
-    /// Plays <paramref name="clip"/> from its first frame and draws that frame immediately. The
-    /// change shows on this step instead of the next.
-    /// </summary>
+    /// <summary>Plays <paramref name="clip"/> from its first frame and draws that frame on this step.</summary>
     /// <remarks>
     /// The first frame holds for exactly its own ticks, counted from the tick of this call wherever
     /// in the step it came from. Called outside a step, it holds from the next step. Called on an
-    /// animator in no scene, it counts from the tick its entity joins one, as a pooled entity played
-    /// and then added mid-step needs.
+    /// animator in no scene, it counts from the tick its entity joins one.
     /// <para>
     /// Playing the clip already playing leaves it where it is unless <paramref name="restart"/> is true,
     /// and drops any clip chained after it. A finished non-looping clip still counts as playing.
     /// </para>
     /// </remarks>
-    /// <param name="clip">The clip to play.</param>
-    /// <param name="restart">Whether to restart the clip when it is already playing.</param>
     public void Play(SpriteClip clip, bool restart = false)
     {
         ArgumentNullException.ThrowIfNull(clip);
@@ -288,21 +278,13 @@ public sealed class SpriteAnimator : Component
 
     /// <summary>
     /// Plays <paramref name="clip"/> positioned as though it had started <paramref name="atTick"/>
-    /// ticks ago, and draws that frame immediately. The change shows on this step instead of the
-    /// next.
+    /// ticks ago, and draws that frame on this step.
     /// </summary>
     /// <remarks>
     /// The frame reached holds for the rest of its ticks, counted from the tick of this call. A
     /// looping clip wraps the tick. A non-looping clip clamps a tick at or past its total to the last
     /// frame, finished. This overload always repositions, even onto the clip already playing.
-    /// <para>
-    /// Played at <see cref="Tick"/>, a variant with the same per-frame ticks continues from the
-    /// frame the outgoing clip stood on. <see cref="PlayAtFrame"/> keeps the frame across clips of
-    /// any shape.
-    /// </para>
     /// </remarks>
-    /// <param name="clip">The clip to play.</param>
-    /// <param name="atTick">How many ticks have elapsed since the clip would have started. Not negative.</param>
     public void Play(SpriteClip clip, int atTick)
     {
         ArgumentNullException.ThrowIfNull(clip);
@@ -314,7 +296,7 @@ public sealed class SpriteAnimator : Component
 
     /// <summary>
     /// Plays <paramref name="clip"/> on frame <paramref name="frameIndex"/> with
-    /// <paramref name="frameTick"/> of its ticks already spent, and draws that frame immediately.
+    /// <paramref name="frameTick"/> of its ticks already spent, and draws that frame on this step.
     /// </summary>
     /// <remarks>
     /// The frame holds for the rest of its own ticks, counted from the tick of this call. This method

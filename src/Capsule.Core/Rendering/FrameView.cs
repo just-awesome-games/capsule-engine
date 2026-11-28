@@ -11,7 +11,6 @@ namespace Capsule.Rendering;
 /// in canvas pixels, and the screen layer draws over the world layer.
 /// </summary>
 /// <remarks>
-/// Text and nine-sliced panels expand onto those lists, one sprite per glyph and one per slice.
 /// Each <c>Add</c> draws onto the layer of the running renderer's entity, or onto the world outside
 /// a renderer, and culls against the camera in world space and against <see cref="Canvas"/> in
 /// screen space. Screen intent from under a root that sorts with the world lands on the world's list in
@@ -91,8 +90,7 @@ public sealed class FrameView
     /// Inside a renderer on an entity whose scroll factor is not one, this is the view that entity
     /// is drawn by: the swept region moved by the factor about the camera's scroll centre, widened
     /// where the factor holds the layer back from the frame. Its <see cref="CameraView.SweptBounds"/>
-    /// cover everything the frame can draw of that entity. A renderer can cull against them without
-    /// knowing the factor.
+    /// cover everything the frame can draw of that entity.
     /// </remarks>
     public CameraView Camera
     {
@@ -105,7 +103,7 @@ public sealed class FrameView
     }
 
     // The scroll factor of the entity whose renderer is running, and one outside a renderer. Each change
-    // opens a run in PlacementRuns. An unchanged factor between two entities costs one comparison.
+    // opens a run in PlacementRuns.
     internal Vector2 ScrollFactor
     {
         get => _scrollFactor;
@@ -123,7 +121,7 @@ public sealed class FrameView
     }
 
     // Whether the running renderer's entity draws at its own colour in a lit frame, and false outside a renderer.
-    // Each change opens a run in PlacementRuns. An unchanged value between two entities costs one comparison.
+    // Each change opens a run in PlacementRuns.
     internal bool Unlit
     {
         get => _unlit;
@@ -140,8 +138,7 @@ public sealed class FrameView
     }
 
     // Whether the running renderer's root sorts with the world, and false outside a renderer. While it
-    // does, screen intent lands on the world's list under a run placed in canvas pixels. An unchanged
-    // value between two renderers costs one comparison.
+    // does, screen intent lands on the world's list under a run placed in canvas pixels.
     internal bool SortsWithWorld
     {
         get => _screenRoute.Canvas;
@@ -354,14 +351,7 @@ public sealed class FrameView
     // next mutation.
     internal ReadOnlySpan<ClipRegion> ClipLevels => CollectionsMarshal.AsSpan(_clipLevels);
 
-    /// <summary>
-    /// Submission counts from the current rewrite, across both layers, polygons and lines included.
-    /// </summary>
-    /// <remarks>
-    /// One submission is one sprite, polygon or line offered to the culler. Text, a panel and a tiling
-    /// count the copies they expand to, and an expansion that produces nothing counts nothing. A text run
-    /// rejected whole before layout counts nothing.
-    /// </remarks>
+    /// <summary>Submission counts from the current rewrite, across both layers.</summary>
     public RenderMetrics Metrics => new(
         _submitted,
         WorldList.Sprites.Count + ScreenList.Sprites.Count + WorldList.Polygons.Count + ScreenList.Polygons.Count
@@ -546,9 +536,9 @@ public sealed class FrameView
 
     /// <summary>Adds a light, culled through its swept region against the world layer as a sprite is.</summary>
     /// <remarks>
-    /// A light is world-only. Attach a <c>PointLight</c> to a world entity. A light whose
-    /// <see cref="LightIntent.Intensity"/> is not positive and finite is dropped. Adding one makes the frame
-    /// lit, and every world sprite not drawn unlit is then multiplied by the light at its pixel.
+    /// Attach a <c>PointLight</c> to a world entity. A light whose <see cref="LightIntent.Intensity"/> is
+    /// not positive and finite is dropped. Adding one makes the frame lit, and every world sprite not drawn
+    /// unlit is then multiplied by the light at its pixel.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The running renderer's space is the screen layer.</exception>
     public void Add(in LightIntent light)
@@ -589,7 +579,7 @@ public sealed class FrameView
     /// </summary>
     /// <remarks>
     /// The polygon lights where it covers and draws nothing of its own, and its <see cref="PolygonIntent.Blend"/> is
-    /// ignored. A light is world-only. Attach a <c>PolygonLight</c> to a world entity for a polygon that follows it.
+    /// ignored. Attach a <c>PolygonLight</c> to a world entity for a polygon that follows it.
     /// A light whose <paramref name="intensity"/> is not positive and finite, or whose outline holds a point that is
     /// not finite, is dropped. Adding one makes the frame lit, as <see cref="Add(in LightIntent)"/> does.
     /// </remarks>
@@ -628,7 +618,7 @@ public sealed class FrameView
         int first = _points.Count;
         _points.AddRange(previous);
         _points.AddRange(current);
-        _lightPolygons.Add(new StoredLightPolygon(first, current.Length, _tinted ? ColorRgba.Multiply(polygon.Color, _tint) : polygon.Color, intensity));
+        _lightPolygons.Add(new StoredLightPolygon(first, current.Length, Tinted(polygon.Color), intensity));
         _stores++;
         LitWorld = true;
     }
@@ -643,11 +633,7 @@ public sealed class FrameView
     /// towards +X or +Y and crops the copy at the far edge. <see cref="float.PositiveInfinity"/>
     /// repeats without bound, and draws the frame once when culling is disabled. A negative or NaN
     /// extent draws nothing. A turned sprite tiles in its own frame, and the whole run turns about
-    /// its pivot.
-    /// <para>
-    /// At most 1024 copies are emitted per axis. An extent far larger than the period covers only
-    /// what those copies reach.
-    /// </para>
+    /// its pivot. At most 1024 copies are emitted per axis.
     /// </remarks>
     public void Add(in SpriteIntent sprite, Vector2 tiling) => Add(in sprite, tiling, Space);
 
@@ -916,7 +902,7 @@ public sealed class FrameView
             layer.Sprites.Count,
             first,
             current.Length,
-            _tinted ? ColorRgba.Multiply(polygon.Color, _tint) : polygon.Color,
+            Tinted(polygon.Color),
             polygon.Blend,
             _flashing ? _flash : default,
             swept));
@@ -1145,6 +1131,10 @@ public sealed class FrameView
         _placements.Add(new PlacementRun(WorldList.Stored, WorldList.Lines.Count, _scrollFactor, _lights.Count, canvas, WorldList.Polygons.Count, _unlit, _lightPolygons.Count));
         WorldList.RunKey = (WorldList.RunKey & ~1) | (canvas ? 1 : 0);
     }
+
+    // A colour under the running renderer's tint.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ColorRgba Tinted(ColorRgba color) => _tinted ? ColorRgba.Multiply(color, _tint) : color;
 
     private SpriteIntent Styled(in SpriteIntent sprite) => Styled(in sprite, _tint, _flash);
 

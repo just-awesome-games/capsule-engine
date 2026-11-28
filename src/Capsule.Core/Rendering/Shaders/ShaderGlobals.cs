@@ -39,51 +39,39 @@ public sealed class ShaderGlobals
     }
 
     /// <summary>Sets the <c>float</c> global <paramref name="name"/>.</summary>
-    /// <param name="name">The name in the shader's <c>SceneGlobals</c> block.</param>
-    /// <param name="value">The value every material of a shader declaring it reads.</param>
     public void Set(string name, float value) => Store(name, ShaderParameterKind.Float, ShaderValue.Of(value));
 
     /// <summary>Sets the <c>float2</c> global <paramref name="name"/>.</summary>
-    /// <inheritdoc cref="Set(string, float)" path="/param"/>
     public void Set(string name, Vector2 value) => Store(name, ShaderParameterKind.Vector2, ShaderValue.Of(value));
 
     /// <summary>Sets the <c>float3</c> global <paramref name="name"/>.</summary>
-    /// <inheritdoc cref="Set(string, float)" path="/param"/>
     public void Set(string name, Vector3 value) => Store(name, ShaderParameterKind.Vector3, ShaderValue.Of(value));
 
     /// <summary>Sets the <c>float4</c> global <paramref name="name"/>.</summary>
-    /// <inheritdoc cref="Set(string, float)" path="/param"/>
     public void Set(string name, Vector4 value) => Store(name, ShaderParameterKind.Vector4, ShaderValue.Of(value));
 
     /// <summary>
     /// Sets the <c>float4</c> global <paramref name="name"/> to <paramref name="value"/>, straight
     /// alpha, each channel from 0 to 1.
     /// </summary>
-    /// <param name="name">The name in the shader's <c>SceneGlobals</c> block.</param>
-    /// <param name="value">The colour every material of a shader declaring it reads.</param>
     public void Set(string name, ColorRgba value) => Store(name, ShaderParameterKind.Vector4, ShaderValue.Of(value));
 
     /// <summary>Reads the <c>float</c> global <paramref name="name"/>, zero until it is set.</summary>
-    /// <param name="name">The name in the shader's <c>SceneGlobals</c> block.</param>
     public float GetFloat(string name) => Read(name, ShaderParameterKind.Float).X;
 
     /// <summary>Reads the <c>float2</c> global <paramref name="name"/>, zero until it is set.</summary>
-    /// <param name="name">The name in the shader's <c>SceneGlobals</c> block.</param>
     public Vector2 GetVector2(string name) => ShaderValue.AsVector2(Read(name, ShaderParameterKind.Vector2));
 
     /// <summary>Reads the <c>float3</c> global <paramref name="name"/>, zero until it is set.</summary>
-    /// <param name="name">The name in the shader's <c>SceneGlobals</c> block.</param>
     public Vector3 GetVector3(string name) => ShaderValue.AsVector3(Read(name, ShaderParameterKind.Vector3));
 
     /// <summary>Reads the <c>float4</c> global <paramref name="name"/>, zero until it is set.</summary>
-    /// <param name="name">The name in the shader's <c>SceneGlobals</c> block.</param>
     public Vector4 GetVector4(string name) => Read(name, ShaderParameterKind.Vector4);
 
     /// <summary>
     /// Reads the <c>float4</c> global <paramref name="name"/> as a straight-alpha colour, each channel
     /// clamped to 0 to 1 and rounded to the nearest byte. Transparent black until it is set.
     /// </summary>
-    /// <param name="name">The name in the shader's <c>SceneGlobals</c> block.</param>
     public ColorRgba GetColor(string name) => ShaderValue.ColorOf(Read(name, ShaderParameterKind.Vector4));
 
     // The index of name among the names set, or -1.

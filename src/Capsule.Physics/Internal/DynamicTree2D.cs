@@ -25,8 +25,8 @@ internal interface IRayVisitor2D
 // is inserted at once. One on an unindexed layer is loose and holds only its fat bounds. Moving it
 // writes them, and removing it unlinks it. The first walk naming an unindexed layer that holds loose
 // proxies builds them top-down into its tree, as when a scene's start makes a crowd at once, and the
-// layer is indexed from then on. A layer stays indexed when it empties, which is deliberate: a layer
-// that churns after its first walk pays one insertion per proxy and never a rebuild.
+// layer is indexed from then on. A layer stays indexed when it empties. A layer that churns after its
+// first walk pays one insertion per proxy and never a rebuild.
 //
 // Each layer's proxies form a tree of their own, rooted apart from the others in one shared node
 // pool, and a walk descends only the roots its filter names. Bodies crowding round the surfaces they

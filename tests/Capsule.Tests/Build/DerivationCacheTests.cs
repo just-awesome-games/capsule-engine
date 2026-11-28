@@ -13,15 +13,6 @@ public sealed class DerivationCacheTests
 
     private const string Room = "Assets/Scenes/room.scene.json";
 
-    private const string Font = """
-        info face="Test" size=12
-        common lineHeight=15 base=12 scaleW=32 scaleH=32 pages=1 packed=0
-        page id=0 file="menu.png"
-        char id=65 x=0 y=0 width=4 height=6 xoffset=1 yoffset=2 xadvance=5 page=0 chnl=15
-        char id=66 x=4 y=0 width=4 height=6 xoffset=0 yoffset=2 xadvance=6 page=0 chnl=15
-        kerning first=65 second=66 amount=-2
-        """;
-
     // Every cached kind. The generated code a reused run renders is rendered from every kind's kept facts.
     [Fact]
     public void ARunOverAnUnchangedTree_DerivesNothingAndGeneratesWhatTheFirstRunDid()
@@ -34,7 +25,7 @@ public sealed class DerivationCacheTests
         workspace.Write("Assets/game.atlas.json", "{}");
         workspace.Write("Assets/Audio/hum.wav", AudioProbeFixtures.Wav(1, 16, 8000, 800, loop: (100, 700)));
         workspace.Write("Assets/Sprites/prop.sheet.json", """{ "formatVersion": 1, "texture": "sprites/packed.png", "sockets": [ { "name": "hand" } ], "frames": [ { "name": "a", "x": 0, "y": 0, "width": 2, "height": 2, "pivot": [1, 0.5], "sockets": { "hand": [0, 1.5] } } ], "clips": [ { "name": "idle", "loop": true, "frames": [ { "frame": "a", "ticks": 6 } ] } ] }""");
-        workspace.Write("Assets/Fonts/menu.fnt", Font);
+        workspace.Write("Assets/Fonts/menu.fnt", FontBuildTests.Menu);
         workspace.WritePng("Assets/Fonts/menu.png", 8, 8);
         workspace.Write("Assets/Shaders/tint.fx", "float Amount;\nfloat4 Fragment(SpritePixel pixel)\n{\n    return pixel.Texel * pixel.Tint * Amount;\n}\n");
         workspace.Succeed();

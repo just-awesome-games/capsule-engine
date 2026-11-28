@@ -27,7 +27,7 @@ public sealed class StreamingFaultTests : IDisposable
         AudioClip clip = new("hum", ".ogg", 1.0, default);
 
         // The first read is the game thread's, inside Start. The worker's next read throws.
-        AudioStream stream = streamer.Play(new FailingSource(readsBeforeFault: 1), clip, loop: true);
+        AudioStream stream = streamer.Play(new FaultingSource(readsBeforeFault: 1), clip, loop: true);
 
         Assert.True(SpinWait.SpinUntil(() => stream.Ended, Patience), "the stream did not fault in time");
         Assert.Empty(_sink.Lines);
@@ -47,7 +47,7 @@ public sealed class StreamingFaultTests : IDisposable
         AudioClip clip = new("hum", ".ogg", 1.0, default);
 
         // Closing the source happens outside Fill's containment, which stops the worker.
-        streamer.Play(new FailingSource(readsBeforeFault: int.MaxValue, failOnDispose: true), clip, loop: true).Retire();
+        streamer.Play(new FaultingSource(readsBeforeFault: int.MaxValue, failOnDispose: true), clip, loop: true).Retire();
 
         Assert.True(
             SpinWait.SpinUntil(
@@ -72,7 +72,7 @@ public sealed class StreamingFaultTests : IDisposable
         using AudioStreamer streamer = new();
         AudioClip clip = Retire(streamer);
 
-        streamer.Play(new FailingSource(readsBeforeFault: int.MaxValue), clip, loop: true).Retire();
+        streamer.Play(new FaultingSource(readsBeforeFault: int.MaxValue), clip, loop: true).Retire();
 
         (int thread, string message) = Assert.Single(_sink.Lines);
         Assert.Equal(Environment.CurrentManagedThreadId, thread);
@@ -97,7 +97,7 @@ public sealed class StreamingFaultTests : IDisposable
     private AudioClip Retire(AudioStreamer streamer)
     {
         AudioClip clip = new("hum", ".ogg", 1.0, default);
-        HeldFaultSource source = new();
+        FaultingSource source = new(readsBeforeFault: 1, held: true);
 
         AudioStream stream = streamer.Play(source, clip, loop: true);
         Assert.True(source.Reading.Wait(Patience), "the worker did not read in time");
@@ -117,45 +117,12 @@ public sealed class StreamingFaultTests : IDisposable
         public void Write(LogLevel level, string message) => Lines.Enqueue((Environment.CurrentManagedThreadId, message));
     }
 
-    private sealed class FailingSource(int readsBeforeFault, bool failOnDispose = false) : IPcmSource
+    // Reads silence readsBeforeFault times, then fails every read. A held source first signals Reading and
+    // waits for Release. failOnDispose fails the first close.
+    private sealed class FaultingSource(int readsBeforeFault, bool held = false, bool failOnDispose = false) : IPcmSource
     {
         private int _reads;
         private bool _failOnDispose = failOnDispose;
-
-        public int Channels => 1;
-
-        public int SampleRate => Rate;
-
-        public void SeekTo(long frame)
-        {
-        }
-
-        public int Read(Span<float> target)
-        {
-            if (_reads++ >= readsBeforeFault)
-            {
-                throw new InvalidDataException("corrupt packet");
-            }
-
-            target.Clear();
-
-            return target.Length;
-        }
-
-        public void Dispose()
-        {
-            if (_failOnDispose)
-            {
-                _failOnDispose = false;
-                throw new IOException("handle lost");
-            }
-        }
-    }
-
-    // Lets the game thread's read inside Start through. Holds the worker's next read until released, then fails it.
-    private sealed class HeldFaultSource : IPcmSource
-    {
-        private int _reads;
 
         internal ManualResetEventSlim Reading { get; } = new();
 
@@ -171,21 +138,29 @@ public sealed class StreamingFaultTests : IDisposable
 
         public int Read(Span<float> target)
         {
-            if (_reads++ == 0)
+            if (_reads++ < readsBeforeFault)
             {
                 target.Clear();
 
                 return target.Length;
             }
 
-            Reading.Set();
-            Release.Wait(Patience);
+            if (held)
+            {
+                Reading.Set();
+                Release.Wait(Patience);
+            }
 
             throw new InvalidDataException("corrupt packet");
         }
 
         public void Dispose()
         {
+            if (_failOnDispose)
+            {
+                _failOnDispose = false;
+                throw new IOException("handle lost");
+            }
         }
     }
 }

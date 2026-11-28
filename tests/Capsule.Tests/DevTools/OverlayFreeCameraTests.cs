@@ -11,9 +11,6 @@ namespace Capsule.Tests.DevTools;
 // The free camera stands in for the game's view and never touches the run.
 public sealed class OverlayFreeCameraTests
 {
-    // Over the world, clear of the menu, on the output's letterboxed world region.
-    private static readonly Vector2 WorldPoint = new(700f, 300f);
-
     // Held before the first step, the game's frame carries an unconfined centre the bounds confine,
     // then the offset moves it. Expand grows the span on the wide output.
     [Theory]
@@ -175,7 +172,8 @@ public sealed class OverlayFreeCameraTests
     [Fact]
     public void TheWheel_ScrollsTheRowsOverTheMenuAndScrollsOrZoomsTheViewOverTheWorld()
     {
-        using OverlayRig rig = Framing(new FramedScene(), LongRegistry());
+        // A Load Scene page longer than the menu's window.
+        using OverlayRig rig = Framing(new FramedScene(), LongRegistry(OverlayScene.MaxRows + 4));
         rig.Open();
         rig.Press(Key.L);
         rig.PlaceWorld();
@@ -238,18 +236,5 @@ public sealed class OverlayFreeCameraTests
         ScreenLayout layout = FrameLayout.Layout(null, camera, view.Canvas, (int)Output.X, (int)Output.Y, integerScaling: false);
 
         return camera.Place(1f, layout.Span);
-    }
-
-    // A Load Scene page longer than the menu's window.
-    private static SceneRegistry LongRegistry()
-    {
-        Type[] types = typeof(object).Assembly.GetExportedTypes();
-        List<SceneRegistration> registrations = [];
-        for (int index = 0; index < OverlayScene.MaxRows + 4; index++)
-        {
-            registrations.Add(SceneRegistration.Plain(types[index], static _ => new PlainScene()));
-        }
-
-        return new SceneRegistry(new EntityRegistry([]), registrations);
     }
 }

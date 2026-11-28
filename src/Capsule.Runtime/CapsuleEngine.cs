@@ -21,8 +21,8 @@ public static class CapsuleEngine
     public static EngineBuilder Configure(
         string gameName,
         SceneRegistry scenes,
-        InputDriverRegistry? drivers = null,
-        ScenePayloadRegistry? payloads = null,
+        FactoryRegistry<IInputDriver>? drivers = null,
+        FactoryRegistry<IScenePayload>? payloads = null,
         StringTable? strings = null) =>
-        new(gameName, scenes, drivers ?? InputDriverRegistry.Empty, payloads ?? ScenePayloadRegistry.Empty, strings);
+        new(gameName, scenes, drivers ?? FactoryRegistry<IInputDriver>.Empty, payloads ?? FactoryRegistry<IScenePayload>.Empty, strings);
 }

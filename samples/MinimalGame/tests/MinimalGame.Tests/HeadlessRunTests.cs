@@ -29,25 +29,21 @@ public sealed class HeadlessRunTests
         Assert.True(result.Steps < driver.Budget);
     }
 
-    // A window focus loss in play opens the pause menu as Escape does. Regaining window focus on the
-    // next step leaves the menu open, and the same Down and Confirm quit from it.
-    [Fact]
-    public void LosingWindowFocusInPlay_OpensThePauseMenu()
+    // A window focus loss in play opens the pause menu as Escape does, and so does losing the pad the player
+    // confirmed Start on. Regaining window focus on the next step leaves the menu open, and the same Down and
+    // Confirm quit from it on the keyboard.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LosingWindowFocusOrThePadInPlay_OpensThePauseMenu(bool pad)
     {
-        HeadlessRunResult result = Boot().RunHeadless<MainMenu>(new StartThenQuit(DeviceSnapshot.Empty.WithWindowFocus(false)));
-
-        Assert.True(result.ExitRequested, "the window focus loss did not open the pause menu");
-    }
-
-    // A player who confirmed Start on the pad and then lost it is paused, and quits from the menu on the keyboard.
-    [Fact]
-    public void LosingThePadInPlay_OpensThePauseMenu()
-    {
-        StartThenQuit driver = new(DeviceSnapshot.Empty.WithPad(false), confirm: DeviceSnapshot.Empty.With(PadButton.South));
+        StartThenQuit driver = pad
+            ? new(DeviceSnapshot.Empty.WithPad(false), confirm: DeviceSnapshot.Empty.With(PadButton.South))
+            : new(DeviceSnapshot.Empty.WithWindowFocus(false));
 
         HeadlessRunResult result = Boot().RunHeadless<MainMenu>(driver);
 
-        Assert.True(result.ExitRequested, "losing the pad did not open the pause menu");
+        Assert.True(result.ExitRequested, "the loss did not open the pause menu");
     }
 
     // The shell's own driver, handed to the same run the shell boots. It ends on the pause menu's Quit,

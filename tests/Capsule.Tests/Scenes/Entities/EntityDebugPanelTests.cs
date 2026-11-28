@@ -56,6 +56,22 @@ public sealed class EntityDebugPanelTests
         Assert.Equal([.. EntitySection("(0, 0) r 0 s (1, 1)"), ("[ReportingComponent]", null)], Rows(panel));
     }
 
+    // A child's section adds its parent, its world transform and whether its band is absolute.
+    [Fact]
+    public void AParentedEntity_ReportsItsLocalAndWorldRows()
+    {
+        Scene scene = new();
+        EntityHierarchyFixtures.Node parent = new(new Vector2(10f, 0f)) { Scale = new Vector2(2f, 2f) };
+        Entity child = new(parent, new Vector2(1f, 1f)) { Rotation = 0.5f };
+        scene.Add(parent);
+        using SimulationHost host = new(scene);
+        DebugPanel panel = new();
+
+        child.RunDebugPanel(panel);
+
+        Assert.Equal(EntitySection("(1, 1) r 0.5 s (1, 1)", parented: ("Node", "(12, 2) r 0.5 s (2, 2)")), Rows(panel));
+    }
+
     // The collider's Enabled is a toggle that round-trips through the collider.
     [Fact]
     public void ABoxCollider_ReportsItsSharedFieldsThenItsSizeAndItsEnabledToggleRoundTrips()
@@ -161,19 +177,23 @@ public sealed class EntityDebugPanelTests
             rows[(heading + 1)..]);
     }
 
-    // The rows every entity's section opens with.
-    private static (string Label, string? Value)[] EntitySection(string transform, string zIndex = "0") =>
-    [
-        ("[Entity]", null),
-        ("Transform", transform),
-        ("ZIndex", zIndex),
-        ("ScrollFactor", "(1, 1)"),
-        ("Visible", null),
-        ("Tint", "#ffffffff"),
-        ("Flash", "0"),
-        ("StepMode", "Inherit"),
-        ("Remove", null),
-    ];
+    // The rows every entity's section opens with, and a child's parent, world transform and absolute band among them.
+    private static (string Label, string? Value)[] EntitySection(string transform, string zIndex = "0", (string Parent, string World)? parented = null)
+    {
+        List<(string Label, string? Value)> rows = [("[Entity]", null)];
+        if (parented is { } above)
+        {
+            rows.AddRange([("Parent", above.Parent), ("Transform", transform), ("World Transform", above.World), ("ZIndex", zIndex), ("ZIndexIsAbsolute", null)]);
+        }
+        else
+        {
+            rows.AddRange([("Transform", transform), ("ZIndex", zIndex)]);
+        }
+
+        rows.AddRange([("ScrollFactor", "(1, 1)"), ("Visible", null), ("Tint", "#ffffffff"), ("Flash", "0"), ("StepMode", "Inherit"), ("Remove", null)]);
+
+        return [.. rows];
+    }
 
     private static (string Label, string? Value)[] Rows(DebugPanel panel)
     {

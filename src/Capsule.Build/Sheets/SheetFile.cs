@@ -1,5 +1,6 @@
 using Capsule.Assets;
 using Capsule.Build.Configuration;
+using Capsule.Build.Registry;
 
 namespace Capsule.Build.Sheets;
 
@@ -414,7 +415,7 @@ internal static class SheetFile
     private sealed class Names(string reserved)
     {
         private readonly HashSet<string> _byName = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, string> _byIdentifier = new(StringComparer.Ordinal);
+        private readonly NameTree<bool> _declared = new(reserved, string.Empty);
 
         internal string Read(string? authored, string position)
         {
@@ -435,21 +436,14 @@ internal static class SheetFile
                     $"has {position} named \"{name}\", which is no C# name. A name is letters, digits, '-' and '_', and does not start with a digit. Rename it.");
             }
 
-            if (string.Equals(identifier, reserved, StringComparison.Ordinal))
+            return _declared.Add([], identifier, name, true) switch
             {
-                throw new FormatException(
-                    $"has {position} named \"{name}\", which is the generated '{reserved}' class it would be declared on. Rename it.");
-            }
-
-            if (_byIdentifier.TryGetValue(identifier, out string? claimed))
-            {
-                throw new FormatException(
-                    $"has {position} named \"{name}\" where \"{claimed}\" is already declared as '{identifier}'. Two names differing only in their separators are one C# name. Rename one.");
-            }
-
-            _byIdentifier[identifier] = name;
-
-            return name;
+                null => name,
+                { Claimant: null } => throw new FormatException(
+                    $"has {position} named \"{name}\", which is the generated '{reserved}' class it would be declared on. Rename it."),
+                { } refused => throw new FormatException(
+                    $"has {position} named \"{name}\" where \"{refused.Claimant}\" is already declared as '{identifier}'. Two names differing only in their separators are one C# name. Rename one."),
+            };
         }
     }
 }

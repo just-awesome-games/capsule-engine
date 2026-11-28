@@ -3,6 +3,7 @@ using Capsule.Assets;
 using Capsule.Audio;
 using Capsule.Runtime.Audio;
 using Capsule.Scenes;
+using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Audio;
 
@@ -40,6 +41,20 @@ internal static class AudioPlaybackFixtures
         return (new VoiceMixer(commands, ended), commands, ended);
     }
 
+    // A mixer with one bus, index 1, under the master.
+    internal static (VoiceMixer Mixer, AudioRing<MixCommand> Commands, AudioRing<VoiceEnded> Ended) OnBus(out MixBus bus)
+    {
+        (VoiceMixer Mixer, AudioRing<MixCommand> Commands, AudioRing<VoiceEnded> Ended) mix = Mixer();
+        bus = new MixBus();
+        mix.Commands.TryWrite(new MixCommand(MixCommandKind.Buses, 0, 0) { Buses = [bus] });
+
+        return mix;
+    }
+
+    // A bus's gain or effects as the game thread raises them.
+    internal static AudioCommand BusCommand(AudioCommandKind kind, AudioBus bus, float gain, EffectLevels effects) =>
+        new(kind, Voice.None, default, bus, gain, 0f, 0f, false, 0.0, effects);
+
     // A resident play of samples on slot 0 at generation 1, looping over the whole clip unless a region
     // is named.
     internal static MixCommand Play(PcmAudio samples, float pitch = 1f, bool loop = false, long loopStart = 0, long loopEnd = -1, long startFrame = 0, int bus = 0, int slot = 0, float gain = 1f) =>
@@ -73,6 +88,15 @@ internal static class AudioPlaybackFixtures
         }
 
         return noise;
+    }
+
+    // A run of one entity at position carrying source, under a camera, the listener, on the origin.
+    internal static SimulationHost Hosting(AudioSource source, Vector2 position = default, Run? run = null, int stepHertz = StepContext.DefaultStepHertz)
+    {
+        SceneFixtures.HookScene scene = new(SceneFixtures.Opens(Vector2.Zero));
+        scene.Add(new SceneFixtures.Holder(position, source));
+
+        return new SimulationHost(scene, stepHertz, run);
     }
 
     internal sealed class StartupScene : Scene

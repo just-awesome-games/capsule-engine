@@ -53,11 +53,14 @@ public sealed class PointLightTests
         Assert.True(light.Bounds.IsEmpty);
     }
 
-    [Fact]
-    public void APointLightUnderAScreenEntity_ThrowsOnDraw()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ALightUnderAScreenEntity_ThrowsOnDraw(bool polygon)
     {
         ScreenEntity element = new(Anchor.TopLeft, Vector2.Zero);
-        element.Add(new PointLight());
+        Component light = polygon ? new PolygonLight([Vector2.Zero, new(10f, 0f), new(0f, 10f)]) : new PointLight();
+        element.Add(light);
 
         SceneFixtures.HookScene scene = new();
         scene.Add(element);

@@ -10,9 +10,8 @@ namespace Capsule.Build;
 /// <remarks>
 /// The key pass then reads each output as though it were authored at its path below the asset root. A
 /// shipping pass imports no source under a development-only directory and drops it from the requests.
-/// An import is a cached derivation of its source and every file it read through its
-/// <see cref="AssetImportContext"/>. A reused import keeps the outputs it wrote. An output no import
-/// claims this run is deleted.
+/// <see cref="IAssetImporter"/> states when a source imports again. An output no import claims this
+/// run is deleted.
 /// </remarks>
 internal static class ImportStep
 {

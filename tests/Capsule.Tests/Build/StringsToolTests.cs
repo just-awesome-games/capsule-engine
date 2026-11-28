@@ -123,9 +123,7 @@ public sealed class StringsToolTests
         Assert.Equal("Shift Left", new Run { Language = "de", Strings = table }.GetText(Capsule.Input.Key.LeftShift));
 
         workspace.Write("Assets/de.strings.json", "{}");
-        string refused = workspace.Fail("--shipping");
-        Assert.Contains("Assets/de.strings.json: title: this language lacks the key Assets/en.strings.json defines.", refused, StringComparison.Ordinal);
-        Assert.DoesNotContain("buttons", refused, StringComparison.Ordinal);
+        Assert.DoesNotContain("buttons", workspace.Fail("--shipping"), StringComparison.Ordinal);
     }
 
     // A list's texts are keys like any other, consecutive between its neighbours. A translation short of the

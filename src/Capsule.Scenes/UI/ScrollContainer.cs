@@ -21,7 +21,7 @@ namespace Capsule.UI;
 /// </para>
 /// <para>
 /// A <see cref="FocusNavigator"/> focus landing on an item inside by a direction, a
-/// <see cref="FocusNavigator.Focus"/> call or the start scrolls the item into view by the smallest scroll,
+/// <see cref="FocusNavigator.Focus"/> call, the start or a repair scrolls the item into view by the smallest scroll,
 /// within <see cref="ScreenEntity.Padding"/>. A pointer hover or click never scrolls. A scroll bar or a drag is
 /// the game's, written through <see cref="ScrollOffset"/>.
 /// </para>

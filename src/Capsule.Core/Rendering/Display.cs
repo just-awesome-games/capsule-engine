@@ -7,11 +7,10 @@ namespace Capsule.Rendering;
 /// sync, the frame caps and the shake strength. Reached as <c>Run.Display</c> and held for the run.
 /// </summary>
 /// <remarks>
-/// The shell's builder sets where each starts, and game code changes them from a settings screen. The
-/// game object's <c>OnStart</c> runs before the window opens, and the window opens in the settings a game
-/// restores there. The host applies a change to the window after the frame's steps. <see cref="RefreshRate"/> is
-/// the one value the host writes, before a frame's steps. A headless run ignores the window settings and
-/// reads a refresh rate of 0.
+/// The shell's builder sets where each starts. The game object's <c>OnStart</c> runs before the window
+/// opens, and the window opens in the settings a game restores there. The host applies a change to the
+/// window after the frame's steps. <see cref="RefreshRate"/> is the one value the host writes, before a
+/// frame's steps. A headless run ignores the window settings and reads a refresh rate of 0.
 /// </remarks>
 /// <example>
 /// A game keeps its player's choices in a save document of its own and applies them at run start:
@@ -50,8 +49,7 @@ public sealed class Display
     /// <summary>How each frame waits for the display, <see cref="VSyncMode.On"/> by default.</summary>
     /// <remarks>
     /// Under <see cref="VSyncMode.Mailbox"/> or <see cref="VSyncMode.Off"/> the window draws as often as
-    /// <see cref="MaxFrameRate"/> allows, and with no cap as often as the machine can. A settings screen
-    /// that offers them offers the cap beside them.
+    /// <see cref="MaxFrameRate"/> allows, and with no cap as often as the machine can.
     /// </remarks>
     public VSyncMode VSync { get; set; }
 
@@ -107,11 +105,7 @@ public sealed class Display
     public bool IntegerScaling { get; set; }
 
     /// <summary>The refresh rate in hertz of the display the window is on, or 0 where the platform reports none.</summary>
-    /// <remarks>
-    /// It follows the window to another display and a change of the display's mode. Under
-    /// <see cref="VSyncMode.On"/> each frame already waits for a refresh. A settings screen offers it as a
-    /// <see cref="MaxFrameRate"/> beside <see cref="VSyncMode.Mailbox"/> or <see cref="VSyncMode.Off"/>.
-    /// </remarks>
+    /// <remarks>It follows the window to another display and a change of the display's mode.</remarks>
     public double RefreshRate { get; internal set; }
 
     /// <summary>
@@ -119,9 +113,9 @@ public sealed class Display
     /// who turn screen shake off.
     /// </summary>
     /// <remarks>
-    /// A settings screen writes it, and it holds for every later scene. Each camera reads it as the
-    /// step settles, and a change applies from the next step. Every shake still runs its course, and
-    /// one still playing when the strength rises again draws again.
+    /// It holds for every later scene. Each camera reads it as the step settles, and a change applies
+    /// from the next step. Every shake still runs its course, and one still playing when the strength
+    /// rises again draws again.
     /// </remarks>
     public float ShakeStrength
     {

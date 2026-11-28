@@ -10,8 +10,7 @@ namespace Capsule.Tiles;
 /// <remarks>
 /// It registers one grid of the map's cells with the scene's world while it is enabled and its map
 /// is in a scene. Each cell collides on its tile type's layer, as its shape, one-way or solid-sided as
-/// the palette entry says. It is not a <see cref="Collider2D"/>, because each cell takes its layer and
-/// shape from the palette and the component has no single shape, offset or layer of its own. Bodies
+/// the palette entry says. Bodies
 /// report the tiles they touch, and the grid raises no contacts of its own. The map keeps a
 /// <see cref="Entity.ScrollFactor"/> of one while the component is attached. A map holds at most
 /// one, and a map whose palette names no layer refuses it.

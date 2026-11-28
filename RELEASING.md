@@ -26,15 +26,11 @@ If CI on `HEAD` is red or still running, stop: a tag publishes whatever it point
 
 ## 2. Run the gates locally
 
-The pre-commit hook runs the first four. The last one runs the NativeAOT smoke, which the build
-compiles but does not run. The smoke plays twice and expects the second run to read the first's
-save. It needs a saves directory, because a headless run persists nothing unless one is named.
+Run [the gate](CONTRIBUTING.md#the-gate), then the NativeAOT smoke, which the build compiles but
+does not run. The smoke plays twice and expects the second run to read the first's save. It needs a
+saves directory, because a headless run persists nothing unless one is named.
 
 ```bash
-dotnet format whitespace . --folder --verify-no-changes --exclude "**/bin/**" "**/obj/**" "**/artifacts/**"
-dotnet restore --locked-mode
-dotnet build --no-restore
-dotnet test --no-build
 dotnet run --no-build --project tests/Capsule.AotSmoke/Capsule.AotSmoke.csproj -- --saves "$(mktemp -d)"
 ```
 

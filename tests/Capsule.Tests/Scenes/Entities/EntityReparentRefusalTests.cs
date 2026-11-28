@@ -59,7 +59,7 @@ public sealed class EntityReparentRefusalTests
         Node queuedKid = new(Vector2.Zero) { Parent = queuedRoot };
         Node outsider = new(Vector2.Zero);
         bool hooked = false;
-        Selfish self = new();
+        SceneFixtures.Leaver self = new();
         self.OnLeave = () =>
         {
             Assert.Throws<InvalidOperationException>(() => self.Parent = target);
@@ -71,19 +71,23 @@ public sealed class EntityReparentRefusalTests
             self.OnLeave = null;
         }
 
-        _ = new Leaver(home, () =>
+        _ = new SceneFixtures.Leaver
         {
-            if (refusal == Refusal.LandingRemoval)
+            Parent = home,
+            OnLeave = () =>
             {
-                Assert.Throws<InvalidOperationException>(() => mover.Parent = null);
-                hooked = true;
-            }
-            else if (refusal == Refusal.LandingParent)
-            {
-                Assert.Throws<InvalidOperationException>(() => outsider.Parent = home);
-                hooked = true;
-            }
-        });
+                if (refusal == Refusal.LandingRemoval)
+                {
+                    Assert.Throws<InvalidOperationException>(() => mover.Parent = null);
+                    hooked = true;
+                }
+                else if (refusal == Refusal.LandingParent)
+                {
+                    Assert.Throws<InvalidOperationException>(() => outsider.Parent = home);
+                    hooked = true;
+                }
+            },
+        };
         scene.Add(home);
         scene.Add(target);
         scene.Add(flat);
@@ -173,12 +177,16 @@ public sealed class EntityReparentRefusalTests
         Node inner = new(Vector2.Zero);
         Entity child = new(outer);
         bool refused = false;
-        _ = new Leaver(inner, () =>
+        _ = new SceneFixtures.Leaver
         {
-            Assert.Throws<InvalidOperationException>(() => child.Parent = null);
-            refused = true;
-        });
-        _ = new Leaver(outer, () => scene.Remove(inner));
+            Parent = inner,
+            OnLeave = () =>
+            {
+                Assert.Throws<InvalidOperationException>(() => child.Parent = null);
+                refused = true;
+            },
+        };
+        _ = new SceneFixtures.Leaver { Parent = outer, OnLeave = () => scene.Remove(inner) };
         scene.Add(outer);
         scene.Add(inner);
 
@@ -188,19 +196,7 @@ public sealed class EntityReparentRefusalTests
         Assert.Same(outer, child.Parent);
     }
 
-    private sealed class Selfish() : Entity(Vector2.Zero)
-    {
-        internal Action? OnLeave { get; set; }
-
-        protected internal override void OnRemovedFromScene() => OnLeave?.Invoke();
-    }
-
     private sealed class Cleanup(Action onRemoved) : Component
-    {
-        protected internal override void OnRemovedFromScene() => onRemoved();
-    }
-
-    private sealed class Leaver(Entity parent, Action onRemoved) : Entity(parent)
     {
         protected internal override void OnRemovedFromScene() => onRemoved();
     }

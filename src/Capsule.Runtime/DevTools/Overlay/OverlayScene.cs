@@ -6,19 +6,14 @@ using Capsule.UI;
 
 namespace Capsule.Runtime.DevTools.Overlay;
 
-// Draws the overlay. It is told what to show only on the frames that change it.
+// Draws the overlay. It is told what to show only on the frames that change it. The menu is a column of
+// lines, each one line tall: the readout, the title, the rows, the status and the legend.
 internal sealed class OverlayScene : Scene
 {
     internal const int MaxRows = 24;
 
     // Between a backdrop's edge and its text, on every side.
     internal const int Padding = 4;
-
-    // Scene, tick and pointer.
-    private const int ReadoutLines = 3;
-
-    // Blank, status, legend.
-    private const int RowsBelowItems = 3;
 
     // Columns for each of the pointer's world figures. A figure past ten million overruns them.
     private const int PointerFigureWidth = 9;
@@ -40,8 +35,8 @@ internal sealed class OverlayScene : Scene
     // The font is monospace. The pointer line is cut to the menu's width in these.
     private static readonly float GlyphWidth = Font.Measure("0").X;
 
-    private readonly ScreenEntity _menu;
-    private readonly ColorRect _backdrop;
+    // The backdrop, the highlight and the scrollbar draw on the column itself and take no line.
+    private readonly BoxContainer _menu;
     private readonly ColorRect _highlight;
     private readonly Label _sceneName;
     private readonly Label _tick;
@@ -52,6 +47,9 @@ internal sealed class OverlayScene : Scene
     private readonly ColorRect _track;
     private readonly ColorRect _thumb;
     private readonly Label[] _rows = new Label[MaxRows];
+
+    // The blank line between a title and the rows. Without a title the empty title line is the gap.
+    private readonly Entity _titleGap;
 
     // A value row's text as drawn. ShowPage grows it to the page's longest value row.
     private char[] _text = [];
@@ -75,7 +73,6 @@ internal sealed class OverlayScene : Scene
     private int _column;
     private int _top;
     private int _shown;
-    private int _rowsAbove;
     private int _width;
 
     private bool _menuShown = true;
@@ -85,37 +82,32 @@ internal sealed class OverlayScene : Scene
 
     internal OverlayScene(string toggleName)
     {
-        _menu = new ScreenEntity(Anchor.TopLeft, Vector2.Zero);
-        _backdrop = new ColorRect(Vector2.Zero) { Color = BackdropColor };
+        _menu = new BoxContainer(Axis.Vertical, Anchor.TopLeft, Vector2.Zero) { Padding = new Insets(Padding) };
+        _menu.Add(new ColorRect(Vector2.Zero) { Color = BackdropColor });
         _highlight = new ColorRect(Vector2.Zero) { Color = ColorRgba.White with { A = 64 } };
-        _sceneName = new Label(Font);
-        _tick = new Label(Font);
-        _pointer = new Label(Font);
-        _title = new Label(Font);
-        _status = new Label(Font);
-        // Abbreviated by hand from OverlayActions' bindings. The menu is as wide as its widest line.
-        _legend = new Label(Font, $"[{toggleName}] close   [Up/Dn] move   [Enter] select   [Bksp/Left] back");
         _track = new ColorRect(Vector2.Zero) { Color = TrackColor };
         _thumb = new ColorRect(Vector2.Zero) { Color = ThumbColor };
-
-        _menu.Add(_backdrop);
         _menu.Add(_highlight);
-        _menu.Add(_sceneName);
-        _menu.Add(_tick);
-        _menu.Add(_pointer);
-        _menu.Add(_title);
-
-        // Added before the first frame. A later label would not show until a step settles it.
-        for (int index = 0; index < _rows.Length; index++)
-        {
-            _rows[index] = new Label(Font);
-            _menu.Add(_rows[index]);
-        }
-
-        _menu.Add(_status);
-        _menu.Add(_legend);
         _menu.Add(_track);
         _menu.Add(_thumb);
+
+        // Added before the first frame. A later line would not show until a step settles it.
+        _sceneName = AddLine();
+        _tick = AddLine();
+        _pointer = AddLine();
+        _title = AddLine();
+        _titleGap = AddLine().Entity!;
+        // A row draws one line even when its text breaks one. RowAt counts on that.
+        for (int index = 0; index < _rows.Length; index++)
+        {
+            _rows[index] = AddLine();
+            _rows[index].MaxLines = 1;
+        }
+
+        AddLine();
+        _status = AddLine();
+        _legend = AddLine();
+        _legend.Text = OverlayActions.Legend(toggleName);
         Add(_menu);
     }
 
@@ -127,6 +119,8 @@ internal sealed class OverlayScene : Scene
     internal Rect ScrollTrack => _track.Visible ? _track.Bounds : default;
 
     internal Rect ScrollThumb => _thumb.Visible ? _thumb.Bounds : default;
+
+    internal Rect RowBounds(int row) => _rows[row].Bounds;
 
     internal string[] ShownRows()
     {
@@ -224,10 +218,17 @@ internal sealed class OverlayScene : Scene
     }
 
     // Whether a point on the overlay's canvas lies on the menu's backdrop.
-    internal bool CoversMenu(Vector2 pointer) =>
-        _menuShown
-        && pointer.X >= 0f && pointer.X <= _backdrop.Size.X
-        && pointer.Y >= 0f && pointer.Y <= _backdrop.Size.Y;
+    internal bool CoversMenu(Vector2 pointer)
+    {
+        if (!_menuShown)
+        {
+            return false;
+        }
+
+        Vector2 extent = _menu.Extent;
+
+        return pointer.X >= 0f && pointer.X <= extent.X && pointer.Y >= 0f && pointer.Y <= extent.Y;
+    }
 
     // The status row is one line. It shows the first line of text.
     internal void SetStatus(string text)
@@ -240,7 +241,7 @@ internal sealed class OverlayScene : Scene
     {
         _page = rows;
         _title.Text = title ?? string.Empty;
-        _rowsAbove = ReadoutLines + (title is null ? 1 : 2);
+        _titleGap.Visible = title is not null;
         _shown = Math.Min(rows.Count, MaxRows);
 
         // Two spaces past the widest valued label. Spaces align it because the font is monospace.
@@ -271,31 +272,19 @@ internal sealed class OverlayScene : Scene
         }
 
         _width = (int)width + (Padding * 2);
+        _menu.Size = new Vector2(_width, 0f);
 
         // The pointer line is cut again at the new width.
         _pointerWorld = null;
-        int lines = _rowsAbove + _shown + RowsBelowItems;
-        _backdrop.Size = new Vector2(_width, (lines * Font.LineHeight) + (Padding * 2));
-        _sceneName.Offset = new Vector2(Padding, RowTop(0));
-        _tick.Offset = new Vector2(Padding, RowTop(1));
-        _pointer.Offset = new Vector2(Padding, RowTop(2));
-        _title.Offset = new Vector2(Padding, RowTop(ReadoutLines));
-        _status.Offset = new Vector2(Padding, RowTop(lines - 2));
-        _legend.Offset = new Vector2(Padding, RowTop(lines - 1));
-
         for (int index = 0; index < _rows.Length; index++)
         {
-            _rows[index].Offset = new Vector2(Padding, RowTop(_rowsAbove + index));
-            if (index >= _shown)
-            {
-                _rows[index].SetText(ReadOnlySpan<char>.Empty);
-            }
+            _rows[index].Entity!.Visible = index < _shown;
         }
 
-        // Shown only past the window. The thumb is the window's share of the page.
+        // Shown only past the window, in the right padding. The thumb is the window's share of the page.
         bool scrolls = rows.Count > MaxRows;
         float height = MaxRows * Font.LineHeight;
-        _track.Offset = new Vector2(_width - Padding + ((Padding - ScrollbarWidth) / 2f), RowTop(_rowsAbove));
+        _track.Offset = new Vector2(_width - Padding + ((Padding - ScrollbarWidth) / 2f), RowTop(0));
         _track.Size = new Vector2(ScrollbarWidth, height);
         _thumb.Size = new Vector2(ScrollbarWidth, height * _shown / rows.Count);
         _track.Visible = scrolls;
@@ -319,9 +308,12 @@ internal sealed class OverlayScene : Scene
 
         int focusedRow = focus - top;
         bool focused = focusedRow >= 0 && focusedRow < _shown && _page[focus].Activate is not null;
-        _highlight.Offset = new Vector2(0f, RowTop(_rowsAbove + Math.Max(focusedRow, 0)));
-        _highlight.Size = new Vector2(_width, Font.LineHeight);
         _highlight.Visible = focused;
+        if (focused)
+        {
+            _highlight.Offset = new Vector2(0f, RowTop(focusedRow));
+            _highlight.Size = new Vector2(_width, Font.LineHeight);
+        }
 
         if (_page.Count > MaxRows)
         {
@@ -333,15 +325,23 @@ internal sealed class OverlayScene : Scene
     // Returns -1 off the rows. The menu hangs top-left, which makes a canvas position a menu one.
     internal int RowAt(Vector2 pointer)
     {
-        if (!_menuShown || pointer.X < 0f || pointer.X > _width)
+        if (!_menuShown || _shown == 0 || pointer.X < 0f || pointer.X > _width)
         {
             return -1;
         }
 
-        float top = RowTop(_rowsAbove);
-        int row = (int)MathF.Floor((pointer.Y - top) / Font.LineHeight);
+        // The shown rows are one line each, stacked with no spacing under the first.
+        int index = (int)MathF.Floor((pointer.Y - RowTop(0)) / Font.LineHeight);
 
-        return pointer.Y >= top && row < _shown ? _top + row : -1;
+        return index >= 0 && index < _shown ? _top + index : -1;
+    }
+
+    // A line one line tall at the column's next place, holding the label returned.
+    private Label AddLine()
+    {
+        ScreenEntity line = new(Anchor.TopLeft, Vector2.Zero) { Parent = _menu, Size = new Vector2(0f, Font.LineHeight) };
+
+        return line.Add(new Label(Font));
     }
 
     private bool Show(ScreenEntity entity, ref bool isShown, bool shown)
@@ -364,7 +364,8 @@ internal sealed class OverlayScene : Scene
         return true;
     }
 
-    private static float RowTop(int row) => Padding + (row * Font.LineHeight);
+    // Where the column laid out the row line at index, in menu pixels.
+    private float RowTop(int index) => ClipRect.OuterRect(_rows[index].Entity!, previous: false).Top;
 
     private ReadOnlySpan<char> RowText(in OverlayRow row)
     {

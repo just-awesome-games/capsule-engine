@@ -20,7 +20,7 @@ internal static class AudioStep
         foreach ((Source clip, AudioProbe.Measurement measured) in pass.Each(
             Step,
             pass.Of(AssetType.Audio),
-            source => Derivation.Of(source),
+            Derivation.Of,
             (source, files) =>
             {
                 AudioProbe.Measurement measured = AudioProbe.Measure(source.Path);

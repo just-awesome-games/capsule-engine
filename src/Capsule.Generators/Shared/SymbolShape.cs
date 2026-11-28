@@ -29,17 +29,31 @@ internal static class SymbolShape
     internal static bool DerivesFrom(INamedTypeSymbol type, Compilation compilation, string baseTypeName) =>
         compilation.GetTypeByMetadataName(baseTypeName) is { } baseType && Inherits(type, baseType);
 
-    internal static bool Inherits(INamedTypeSymbol type, INamedTypeSymbol baseType)
+    internal static bool Inherits(INamedTypeSymbol type, INamedTypeSymbol baseType) => Depth(type, baseType) > 0;
+
+    /// <summary>Every class the type derives from, its base first.</summary>
+    internal static IEnumerable<INamedTypeSymbol> Ancestors(INamedTypeSymbol type)
     {
         for (INamedTypeSymbol? current = type.BaseType; current is not null; current = current.BaseType)
         {
-            if (SymbolEqualityComparer.Default.Equals(current, baseType))
+            yield return current;
+        }
+    }
+
+    /// <summary>How many classes down from <paramref name="ancestor"/> the type is, or 0 when it does not derive from it.</summary>
+    internal static int Depth(INamedTypeSymbol type, INamedTypeSymbol ancestor)
+    {
+        int depth = 0;
+        foreach (INamedTypeSymbol current in Ancestors(type))
+        {
+            depth++;
+            if (SymbolEqualityComparer.Default.Equals(current, ancestor))
             {
-                return true;
+                return depth;
             }
         }
 
-        return false;
+        return 0;
     }
 
     internal static bool Implements(INamedTypeSymbol type, Compilation compilation, string interfaceName) =>

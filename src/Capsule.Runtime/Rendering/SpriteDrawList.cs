@@ -294,20 +294,7 @@ internal sealed class SpriteDrawList : IDisposable
             return;
         }
 
-        TextureRegion region = sprite.Sprite.Region;
-        ref SpriteInstance instance = ref _instances[_count - 1];
-        instance.PreviousPosition = sprite.PreviousPosition;
-        instance.Position = sprite.Position;
-        instance.PreviousRotation = sprite.PreviousRotation;
-        instance.Rotation = sprite.Rotation;
-        instance.Origin = sprite.DrawOrigin;
-        instance.Size = sprite.Size;
-        instance.Region = SpriteInstance.Pack(region.X + offsetX, region.Y + offsetY);
-        instance.Extent = SpriteInstance.Pack(region.Width, region.Height);
-        instance.Tint = Tint(sprite.Color, sprite.Blend);
-        instance.Flash = Flash(sprite.Flash, sprite.Color.A);
-        instance.Flags = FlagsOf(in sprite);
-        instance.Intensity = intensity;
+        Fill(ref _instances[_count - 1], in sprite, offsetX, offsetY, Tint(sprite.Color, sprite.Blend), intensity);
     }
 
     // Consecutive sprites whose regions sit at offsetX, offsetY on texture, as Add records each. Neighbours
@@ -338,20 +325,7 @@ internal sealed class SpriteDrawList : IDisposable
                 tint = Tint(color, blend);
             }
 
-            TextureRegion region = sprite.Sprite.Region;
-            ref SpriteInstance instance = ref instances[index];
-            instance.PreviousPosition = sprite.PreviousPosition;
-            instance.Position = sprite.Position;
-            instance.PreviousRotation = sprite.PreviousRotation;
-            instance.Rotation = sprite.Rotation;
-            instance.Origin = sprite.DrawOrigin;
-            instance.Size = sprite.Size;
-            instance.Region = SpriteInstance.Pack(region.X + offsetX, region.Y + offsetY);
-            instance.Extent = SpriteInstance.Pack(region.Width, region.Height);
-            instance.Tint = tint;
-            instance.Flash = Flash(sprite.Flash, color.A);
-            instance.Flags = FlagsOf(in sprite);
-            instance.Intensity = 1f;
+            Fill(ref instances[index], in sprite, offsetX, offsetY, tint, 1f);
         }
     }
 
@@ -448,7 +422,6 @@ internal sealed class SpriteDrawList : IDisposable
         return bytes;
     }
 
-    // Records each pass into commands.
     internal void Execute(GpuCommandBuffer commands)
     {
         for (int p = 0; p < _passCount; p++)
@@ -660,6 +633,25 @@ internal sealed class SpriteDrawList : IDisposable
         (color.G * color.A / 255) / 255f,
         (color.B * color.A / 255) / 255f,
         color.A / 255f);
+
+    // The instance of a sprite whose region sits at offsetX, offsetY, with its packed tint drawn intensity times.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Fill(ref SpriteInstance instance, in SpriteIntent sprite, int offsetX, int offsetY, uint tint, float intensity)
+    {
+        TextureRegion region = sprite.Sprite.Region;
+        instance.PreviousPosition = sprite.PreviousPosition;
+        instance.Position = sprite.Position;
+        instance.PreviousRotation = sprite.PreviousRotation;
+        instance.Rotation = sprite.Rotation;
+        instance.Origin = sprite.DrawOrigin;
+        instance.Size = sprite.Size;
+        instance.Region = SpriteInstance.Pack(region.X + offsetX, region.Y + offsetY);
+        instance.Extent = SpriteInstance.Pack(region.Width, region.Height);
+        instance.Tint = tint;
+        instance.Flash = Flash(sprite.Flash, sprite.Color.A);
+        instance.Flags = FlagsOf(in sprite);
+        instance.Intensity = intensity;
+    }
 
     private static void Grow<T>(ref T[] array, int count)
     {

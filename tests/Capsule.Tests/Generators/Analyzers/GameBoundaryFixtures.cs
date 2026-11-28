@@ -23,11 +23,7 @@ internal static class GameBoundaryFixtures
         ImmutableArray<MetadataReference> references = extraReferences.IsDefaultOrEmpty
             ? References
             : References.AddRange(extraReferences);
-        CSharpCompilation compilation = CSharpCompilation.Create(
-            "AnalyzerSpecs",
-            [CSharpSyntaxTree.ParseText(source)],
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        CSharpCompilation compilation = GeneratorHarness.Created("AnalyzerSpecs", source, references);
 
         CompilationWithAnalyzers analyzed = compilation.WithAnalyzers(
             [analyzer ?? new GameBoundaryAnalyzer()],
@@ -42,11 +38,7 @@ internal static class GameBoundaryFixtures
 
     internal static MetadataReference EmptyAssembly(string assemblyName)
     {
-        CSharpCompilation compilation = CSharpCompilation.Create(
-            assemblyName,
-            [CSharpSyntaxTree.ParseText("internal static class Marker { }")],
-            References,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        CSharpCompilation compilation = GeneratorHarness.Created(assemblyName, "internal static class Marker { }", References);
         using MemoryStream image = new();
         Microsoft.CodeAnalysis.Emit.EmitResult result = compilation.Emit(image);
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));

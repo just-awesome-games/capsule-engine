@@ -74,11 +74,8 @@ internal static class Keys
 
     /// <summary>The key of <paramref name="path"/>, a key or an authored path with no extension.</summary>
     /// <remarks>
-    /// Sheets and scenes both key the textures they name here, and check them in different places. A
-    /// sheet's texture is checked against what the game ships in <c>SheetStep</c>, because the sheet
-    /// compiles into members holding its handle. A scene document ships as data. An asset an entity's
-    /// properties name is checked as the scene loads, against <c>CapsuleAssetIndex</c>, and a tile map's
-    /// texture is only keyed.
+    /// A key names no file. <c>SheetStep</c> checks a sheet's texture, a scene checks its entities' assets
+    /// as it loads, and a tile map's texture is only keyed.
     /// </remarks>
     /// <param name="subject">What a refusal says of the source, as <c>is authored at "x"</c>.</param>
     /// <exception cref="FormatException">A segment is no C# name, or names a reserved device.</exception>
@@ -98,7 +95,6 @@ internal static class Keys
     }
 
     /// <summary><paramref name="path"/> below <paramref name="root"/>, forward slashes.</summary>
-    /// <remarks>A path the walk spelled from the root is cut below it without asking the file system.</remarks>
     internal static string Below(string root, string path) =>
         path.Length > root.Length + 1 && path[root.Length] == '/' && path.StartsWith(root, StringComparison.Ordinal)
             ? path[(root.Length + 1)..]

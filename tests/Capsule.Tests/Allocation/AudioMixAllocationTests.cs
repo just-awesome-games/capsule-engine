@@ -18,8 +18,7 @@ public sealed class AudioMixAllocationTests
     [Fact]
     public void MixingSixtyFourVoicesWithAStreamLoopWrapsAndFadingEffects_AllocatesNothing()
     {
-        (VoiceMixer mixer, AudioRing<MixCommand> commands, _) = Mixer();
-        commands.TryWrite(new MixCommand(MixCommandKind.Buses, 0, 0) { Buses = [new MixBus()] });
+        (VoiceMixer mixer, AudioRing<MixCommand> commands, _) = OnBus(out _);
         EffectLevels effects = new(120f, 6000f, 0.05f, 0.6f, 0.7f, 300f, 8000f);
         commands.TryWrite(new MixCommand(MixCommandKind.SetBusEffects, 0, 0) { Bus = 1, Effects = effects, Line = new float[2400 * VoiceMixer.Channels] });
 
@@ -89,8 +88,8 @@ public sealed class AudioMixAllocationTests
             Command(AudioCommandKind.SetPitch, Slot(0, 1), pitch: 1.5f),
             Command(AudioCommandKind.Stop, Slot(0, 1)),
             Command(AudioCommandKind.SetBusGain, Voice.None, gain: 0.5f, bus: sfx),
-            new(AudioCommandKind.SetBusEffects, Voice.None, default, sfx, 0f, 0f, 0f, false, 0.0, EffectLevels.None with { EchoDelaySeconds = 0.1f, EchoVolume = 0.5f }),
-            new(AudioCommandKind.SetBusEffects, Voice.None, default, sfx, 0f, 0f, 0f, false, 0.0, EffectLevels.None with { EchoDelaySeconds = 0.1f, LowPassHertz = 900f }),
+            BusCommand(AudioCommandKind.SetBusEffects, sfx, 0f, EffectLevels.None with { EchoDelaySeconds = 0.1f, EchoVolume = 0.5f }),
+            BusCommand(AudioCommandKind.SetBusEffects, sfx, 0f, EffectLevels.None with { EchoDelaySeconds = 0.1f, LowPassHertz = 900f }),
         ];
         AudioCommand[] streamed =
         [

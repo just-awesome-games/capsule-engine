@@ -33,8 +33,6 @@ public sealed class SheetVariantToolTests
         Assert.Null(game.GetType("Capsule.Generated.CapsuleAssets+Sprites+Actors+PlayerHatSheet+Frames")!.GetProperty("Walk0"));
         Assert.True(variant.TryGet(SheetToolTests.Member<Sprite>(game, "Actors+PlayerSheet+Frames", "Idle0"), out Sprite? idle));
         Assert.Equal(hat, idle);
-        Assert.True(variant.TryGet(SheetToolTests.Member<Sprite>(game, "Actors+PlayerSheet+Frames", "Walk0"), out Sprite? walk));
-        Assert.Null(walk);
     }
 
     // A base frame found by its sprite is found with its flip, two frames of one region mirrored apart are two

@@ -11,8 +11,6 @@ public sealed class SpriteMarks
     private readonly SpriteBox[] _boxes;
 
     /// <summary>Creates marks from copies of <paramref name="sockets"/> and <paramref name="boxes"/>.</summary>
-    /// <param name="sockets">The frame's sockets. Names are unique among them.</param>
-    /// <param name="boxes">The frame's boxes, each with a finite area on both axes. Names are unique among them.</param>
     public SpriteMarks(ReadOnlySpan<SpriteSocket> sockets = default, ReadOnlySpan<SpriteBox> boxes = default)
     {
         for (int i = 0; i < sockets.Length; i++)

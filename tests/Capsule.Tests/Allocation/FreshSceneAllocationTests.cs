@@ -27,18 +27,9 @@ public sealed class FreshSceneAllocationTests(ITestOutputHelper output)
         scene.Add(new CollisionWorkload.Lift(new Vector2(96f, 632f)));
         scene.Add(new CollisionWorkload.Hauled(new Vector2(140f, 620f), walk: -1f));
         CollisionWorkload.Hauled crate = scene.Add(new CollisionWorkload.Hauled(new Vector2(1040f, 620f), walk: 0f));
+        CollisionWorkload.Lift lift = new(new Vector2(996f, 632f));
 
-        using SceneSimulation simulation = new(scene, run: StageWorkload.Defaults);
-        InputState input = new(new ActionBindings());
-        for (int step = 0; step < StepMeasurement.WarmupSteps; step++)
-        {
-            simulation.Step(new StepContext(StepMeasurement.StepSeconds, input, step));
-        }
-
-        CollisionWorkload.Lift lift = scene.Add(new CollisionWorkload.Lift(new Vector2(996f, 632f)));
-        long bytes = StepMeasurement.Bytes(
-            step => simulation.Step(new StepContext(StepMeasurement.StepSeconds, input, StepMeasurement.WarmupSteps + step)),
-            warmup: 0);
+        long bytes = BytesAfterJoining(scene, lift);
 
         StepMeasurement.Report(output, "a lift's first shoves", bytes);
         Assert.True(crate.Position.X > 1040f, $"the crate stayed at {crate.Position.X}");
@@ -53,19 +44,9 @@ public sealed class FreshSceneAllocationTests(ITestOutputHelper output)
         Scene scene = CollisionWorkload.Room();
         scene.Add(new CollisionWorkload.Lift(new Vector2(96f, 632f)));
         scene.Add(new CollisionWorkload.Hauled(new Vector2(96f, 620f), walk: 0f));
+        CollisionWorkload.Hauled rider = new(new Vector2(996f, 620f), walk: 0f);
 
-        using SceneSimulation simulation = new(scene, run: StageWorkload.Defaults);
-        InputState input = new(new ActionBindings());
-        for (int step = 0; step < StepMeasurement.WarmupSteps; step++)
-        {
-            simulation.Step(new StepContext(StepMeasurement.StepSeconds, input, step));
-        }
-
-        scene.Add(new CollisionWorkload.Lift(new Vector2(996f, 632f)));
-        CollisionWorkload.Hauled rider = scene.Add(new CollisionWorkload.Hauled(new Vector2(996f, 620f), walk: 0f));
-        long bytes = StepMeasurement.Bytes(
-            step => simulation.Step(new StepContext(StepMeasurement.StepSeconds, input, StepMeasurement.WarmupSteps + step)),
-            warmup: 0);
+        long bytes = BytesAfterJoining(scene, new CollisionWorkload.Lift(new Vector2(996f, 632f)), rider);
 
         StepMeasurement.Report(output, "a first ride on a collider joining mid-run", bytes);
         Assert.True(rider.Position.X != 996f, $"the body never rode the lift, and stayed at {rider.Position.X}");
@@ -123,6 +104,26 @@ public sealed class FreshSceneAllocationTests(ITestOutputHelper output)
 
         Assert.Equal(0, bytes);
         AssertTrainsAt(trains, 12f);
+    }
+
+    // Steps scene through the warm-up, adds joining to it, and returns the bytes of the measured steps after.
+    private static long BytesAfterJoining(Scene scene, params Entity[] joining)
+    {
+        using SceneSimulation simulation = new(scene, run: StageWorkload.Defaults);
+        InputState input = new(new ActionBindings());
+        for (int step = 0; step < StepMeasurement.WarmupSteps; step++)
+        {
+            simulation.Step(new StepContext(StepMeasurement.StepSeconds, input, step));
+        }
+
+        foreach (Entity entity in joining)
+        {
+            scene.Add(entity);
+        }
+
+        return StepMeasurement.Bytes(
+            step => simulation.Step(new StepContext(StepMeasurement.StepSeconds, input, StepMeasurement.WarmupSteps + step)),
+            warmup: 0);
     }
 
     private static void AssertTrainsAt(Rider[,] trains, float lead)

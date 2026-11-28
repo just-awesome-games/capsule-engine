@@ -119,6 +119,14 @@ internal sealed class ToolWorkspace : IDisposable
         return workspace;
     }
 
+    /// <summary>Runs the build once over <paramref name="files"/>, as <see cref="Authored"/> writes them, and hands back what its failure reported.</summary>
+    internal static string Refused(params IEnumerable<(string Path, string? Text)> files)
+    {
+        using ToolWorkspace workspace = Authored(files);
+
+        return workspace.Fail();
+    }
+
     /// <summary>Generated <paramref name="sources"/> compiled and loaded as the game runs them. A member hands back what it declares.</summary>
     internal static Assembly Loaded(params string[] sources) =>
         GeneratorHarness.Loaded(CSharpCompilation.Create(

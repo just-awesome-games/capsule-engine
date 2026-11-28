@@ -44,17 +44,31 @@ public sealed class CameraBoundsLandingTests
         Assert.False(camera.IsTransitioning);
     }
 
-    [Fact]
-    public void ATeleport_LandsARunningChangeAtOnce()
+    // A teleport lands a running change at once, and null bounds end it.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ATeleportOrNullBounds_EndARunningChangeAtOnce(bool teleport)
     {
         (SceneSimulation simulation, Camera camera) = Running();
 
-        camera.Teleport(new Vector2(480f, 90f));
+        if (teleport)
+        {
+            camera.Teleport(new Vector2(480f, 90f));
+        }
+        else
+        {
+            camera.Bounds = null;
+        }
+
         Assert.False(camera.IsTransitioning);
 
         simulation.Step(SceneFixtures.Step(2));
         Assert.False(camera.IsTransitioning);
-        Assert.Equal(NextScreen, camera.VisibleRegion);
+        if (teleport)
+        {
+            Assert.Equal(NextScreen, camera.VisibleRegion);
+        }
     }
 
     // A change replaced mid-run carries on toward the new rect.
@@ -73,16 +87,6 @@ public sealed class CameraBoundsLandingTests
         }
 
         Assert.Equal(OneScreen, camera.VisibleRegion);
-    }
-
-    [Fact]
-    public void NullBounds_EndARunningChangeAtOnce()
-    {
-        (_, Camera camera) = Running();
-
-        camera.Bounds = null;
-
-        Assert.False(camera.IsTransitioning);
     }
 
     // A change before the camera's first settle lands with that settle, and an edge opening to infinity

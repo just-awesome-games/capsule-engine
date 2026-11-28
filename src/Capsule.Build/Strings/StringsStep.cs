@@ -34,7 +34,7 @@ internal static class StringsStep
         List<(Source Source, StringDocument Document)> read = pass.Each(
             Step,
             sources,
-            source => Derivation.Of(source),
+            Derivation.Of,
             (source, _) => StringFile.Read(source.Path),
             DerivationCacheJsonContext.Default.StringDocument);
         if (read.Count < sources.Length)

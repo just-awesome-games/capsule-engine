@@ -180,6 +180,5 @@ public sealed class FontBakeTests
 
     private static BitmapFont Body(ToolWorkspace workspace) => Font(ToolWorkspace.Loaded(workspace.Generated), "BodyFont");
 
-    private static BitmapFont Font(Assembly game, string name) =>
-        (BitmapFont)game.GetType("Capsule.Generated.CapsuleAssets")!.GetNestedType("Fonts")!.GetProperty(name)!.GetValue(null)!;
+    private static BitmapFont Font(Assembly game, string name) => FontBuildTests.Font(game, "Fonts", name);
 }

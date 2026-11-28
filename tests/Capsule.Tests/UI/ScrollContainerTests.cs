@@ -184,6 +184,18 @@ public sealed class ScrollContainerTests
     // A tap followed by a step with the key up. The next tap is a fresh press edge.
     private static void Press(Menu menu, Key key) => menu.Tap(key).Rest();
 
+    // Adds count 10-pixel rows under parent, each holding an item appended to items.
+    private static void AddRows(ScreenEntity parent, int count, List<Focusable> items)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            ScreenEntity row = new(Anchor.TopWide, Vector2.Zero) { Parent = parent, Size = new Vector2(0f, 10f) };
+            Focusable item = new();
+            row.Add(item);
+            items.Add(item);
+        }
+    }
+
     // A 20x40 frame padded 3 pixels top and bottom, over a column of six 10-pixel rows that each hold an item.
     private sealed class Rig
     {
@@ -199,15 +211,7 @@ public sealed class ScrollContainerTests
         {
             Frame = new ScrollContainer(Anchor.TopLeft, Vector2.Zero) { Size = new Vector2(20f, 40f), MaxSize = new Vector2(20f, 40f), Padding = new Insets(0f, PaddedTop, 0f, 3f) };
             Rows = new BoxContainer(Axis.Vertical, Anchor.TopWide, Vector2.Zero) { Parent = Frame };
-
-            for (int i = 0; i < 6; i++)
-            {
-                ScreenEntity row = new(Anchor.TopWide, Vector2.Zero) { Parent = Rows, Size = new Vector2(0f, 10f) };
-                Focusable item = new();
-                row.Add(item);
-                Items.Add(item);
-            }
-
+            AddRows(Rows, 6, Items);
             Menu = new Menu([.. Items]);
         }
     }
@@ -231,21 +235,10 @@ public sealed class ScrollContainerTests
             Inner = new ScrollContainer(Anchor.TopWide, Vector2.Zero) { Parent = column, Size = new Vector2(0f, 20f), MaxSize = new Vector2(float.PositiveInfinity, 20f) };
             BoxContainer innerRows = new(Axis.Vertical, Anchor.TopWide, Vector2.Zero) { Parent = Inner };
 
-            Fill(innerRows, 6);
-            Fill(column, 3);
+            AddRows(innerRows, 6, Items);
+            AddRows(column, 3, Items);
 
             Menu = new Menu([.. Items]);
-        }
-
-        private void Fill(ScreenEntity parent, int count)
-        {
-            for (int i = 0; i < count; i++)
-            {
-                ScreenEntity row = new(Anchor.TopWide, Vector2.Zero) { Parent = parent, Size = new Vector2(0f, 10f) };
-                Focusable item = new();
-                row.Add(item);
-                Items.Add(item);
-            }
         }
     }
 }

@@ -35,6 +35,5 @@ public readonly record struct AudioRange
     }
 
     /// <summary>A range that silences its voice at <paramref name="maxDistance"/> world units from the listener.</summary>
-    /// <param name="maxDistance">The distance the voice falls silent at, finite and non-negative. 0 makes it not positional.</param>
     public AudioRange(float maxDistance) => MaxDistance = Guard.NonNegative(maxDistance, nameof(maxDistance));
 }

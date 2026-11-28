@@ -16,6 +16,8 @@ internal sealed class CapsuleAssetsFile
 {
     internal const string FileName = "CapsuleAssets.g.cs";
 
+    private const string Root = "CapsuleAssets";
+
     private readonly List<(Source Source, MemberWriter Write)> _declared = [];
 
     private readonly SortedSet<string> _beside = new(StringComparer.Ordinal);
@@ -36,15 +38,15 @@ internal sealed class CapsuleAssetsFile
     /// <param name="pass">The run, which each refusal fails against the file that caused it.</param>
     internal string? Render(PipelinePass pass)
     {
-        RegistryFolder root = new("CapsuleAssets", string.Empty);
+        NameTree<MemberWriter> root = new(Root, string.Empty);
         bool refused = false;
 
         foreach ((Source source, MemberWriter write) in _declared
             .OrderBy(static entry => entry.Source.Key, StringComparer.Ordinal)
             .ThenBy(static entry => entry.Source.Type.Suffix, StringComparer.Ordinal))
         {
-            string name = AssetPaths.ToIdentifier(source.Key[(source.Key.LastIndexOf('/') + 1)..]) + source.Type.Suffix;
-            if (root.Add(source.Key, name, source.Path, write) is { } because)
+            string name = AssetPaths.Identifier(source.Key[(source.Key.LastIndexOf('/') + 1)..]) + source.Type.Suffix;
+            if (DeclareIn(root, source.Key, name, source.Path, write) is { } because)
             {
                 pass.Fail(source.Path, $"is keyed \"{source.Key}\", {because}");
                 refused = true;
@@ -57,7 +59,10 @@ internal sealed class CapsuleAssetsFile
         }
 
         StringBuilder classes = new();
-        root.Append(classes, "    ", "Every asset this game ships. Generated code. Do not edit.");
+        string members = GeneratedClass.Open(
+            classes, "    ", "Every asset this game ships. Generated code. Do not edit.", Root, "[global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
+        root.AppendMembers(classes, members, static key => $"Every asset authored under <c>{key[..^1]}</c>.", static (code, indent, name, write) => write(code, indent, name));
+        GeneratedClass.Close(classes, "    ");
         foreach (string type in _beside)
         {
             classes.AppendLine().Append(type);
@@ -74,5 +79,25 @@ internal sealed class CapsuleAssetsFile
             {{classes}}}
 
             """;
+    }
+
+    /// <summary>
+    /// Declares the member <paramref name="name"/> in the class of the folder <paramref name="key"/> sits in,
+    /// creating the folder classes it walks through.
+    /// </summary>
+    /// <param name="key">The file's key, forward slashes and no extension.</param>
+    /// <param name="display">The file's path, as a refusal names it.</param>
+    /// <returns>Null when declared, else why C# would refuse it, as a clause following the key.</returns>
+    internal static string? DeclareIn(NameTree<MemberWriter> root, string key, string name, string display, MemberWriter write)
+    {
+        string[] folders = key.Split('/')[..^1];
+        IEnumerable<(string, string)> classes = folders.Select((folder, i) => (AssetPaths.Identifier(folder), string.Concat(folders.Take(i + 1).Select(static nested => nested + "/"))));
+
+        return root.Add(classes, name, display, write) switch
+        {
+            null => null,
+            { Claimant: null } own => $"whose '{own.Name}' would be declared inside a generated class of that name. Rename the file or its folder.",
+            { } refused => $"whose '{refused.Name}' is already declared in that folder by \"{refused.Claimant}\". Two names differing only in their separators are one C# name. Rename one of the files.",
+        };
     }
 }

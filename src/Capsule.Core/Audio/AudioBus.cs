@@ -14,9 +14,7 @@ namespace Capsule.Audio;
 /// <see cref="InvalidOperationException"/>, reads included, and changes nothing.
 /// <para>
 /// A bus runs its own effects and volume, then adds into its parent, which runs its own on the sum.
-/// The two volumes multiply, and pausing the parent holds every voice under it. Give each owner of a
-/// level its own bus: a settings slider sets the parent's volume while a duck fades the child's, and
-/// neither overwrites the other.
+/// The two volumes multiply, and pausing the parent holds every voice under it.
 /// </para>
 /// </remarks>
 /// <example>
@@ -39,18 +37,12 @@ public sealed record AudioBus
     public AudioBus? Parent { get; }
 
     /// <summary>A bus that adds into <see cref="Master"/>.</summary>
-    /// <param name="name">The bus's name, which no other bus with a different parent may share.</param>
     public AudioBus(string name)
         : this(name, Master)
     {
     }
 
     /// <summary>A bus that adds into <paramref name="parent"/>.</summary>
-    /// <param name="name">The bus's name, which no other bus with a different parent may share.</param>
-    /// <param name="parent">
-    /// The bus it adds into. A static field declared below its child is still null as the child is made, and
-    /// throws here.
-    /// </param>
     public AudioBus(string name, AudioBus parent)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);

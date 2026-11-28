@@ -45,9 +45,7 @@ public sealed class SaveStore
                 key.FallbackJson ?? throw new KeyNotFoundException($"No save document is named '{key.Name}' and the key declares no fallback."),
                 key.TypeInfo)!;
 
-    /// <summary>Reads the document when present, reporting absence instead of using the key's fallback.</summary>
-    /// <param name="key">The document to read.</param>
-    /// <param name="value">The document, deserialized afresh, or default when absent.</param>
+    /// <summary>Reads the document when present, deserialized afresh, reporting absence instead of using the key's fallback.</summary>
     /// <exception cref="JsonException">The document no longer deserializes as <typeparamref name="T"/>.</exception>
     public bool TryRead<T>(SaveKey<T> key, out T value)
     {

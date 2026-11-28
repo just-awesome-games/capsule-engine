@@ -15,19 +15,13 @@ internal enum AudioCommandKind : byte
     // Continue a paused voice from where it was held.
     Resume,
 
-    // Set this voice's gain to the command's Gain.
     SetGain,
-
-    // Set this voice's playback rate to the command's Pitch.
     SetPitch,
-
-    // Set this voice's stereo position to the command's Pan.
     SetPan,
 
     // Set the named bus's gain, applied after its effects, to the command's Gain.
     SetBusGain,
 
-    // Set the named bus's effects to the command's Effects.
     SetBusEffects,
 }
 

@@ -2,6 +2,7 @@ using Capsule.Input;
 using Capsule.Persistence;
 using Capsule.Runtime;
 using Capsule.Runtime.DevTools.Recordings;
+using Capsule.Runtime.Scenes;
 using Capsule.Scenes;
 using Capsule.Tests.Persistence;
 using static System.FormattableString;
@@ -32,14 +33,7 @@ public sealed class RunEndTests
 
         Assert.Equal(exits ? 2 : 3, result.Steps);
         Assert.Equal(["stop", Ended(result.Steps)], events);
-
-        int read = 0;
-        Registered(() => new Ending([]))
-            .WithGame(CallbackGame.Starting(run => read = run.Saves.Read(Length)))
-            .WithSaveDirectory(workspace.Root)
-            .RunHeadless<Ending>(new InputScript().Build());
-
-        Assert.Equal(result.Steps, read);
+        Assert.Equal(result.Steps, SavedLength(workspace.Root));
     }
 
     [Fact]
@@ -65,14 +59,7 @@ public sealed class RunEndTests
             .WithSaveStorage(new RecordedSaveStorage([]))
             .WithCommandLine(["--recordings", workspace.Root]);
 
-        builder.RunRecorded(SceneTransition.ToScene(typeof(Ending), null), replayed: null, (host, recorder, _) =>
-        {
-            FixedStepScheduler scheduler = new(builder.StepSeconds, 8, host.Run.InputState, scenes: host, recorder: recorder);
-            for (int step = 0; step < 3; step++)
-            {
-                scheduler.Advance(builder.StepSeconds, DeviceSnapshot.Empty, host);
-            }
-        });
+        builder.RunRecorded(SceneTransition.ToScene(typeof(Ending), null), replayed: null, (host, recorder, _, _) => StepThree(builder, host, recorder));
 
         Assert.Equal(["stop", Ended(3)], events);
 
@@ -83,41 +70,57 @@ public sealed class RunEndTests
         Assert.Equal(["stop", Ended(3), "stop", Ended(3)], events);
     }
 
-    // The operating system ending the process, as a Windows session's end does, ends the run and persists what its
-    // end wrote before the host returns, after which nothing runs. The host's own end then adds nothing.
+    // The window host ends the run before its window closes, after which the operating system may end the
+    // process, as a Windows session's end does. The end saves the recording, then ends the run and persists what
+    // its end wrote, before the host returns. The end after the host returns then adds nothing.
     [Fact]
-    public void ARunTheSystemTerminates_EndsAndPersistsBeforeTheHostReturns()
+    public void ARunEndedByItsHost_SavesItsRecordingAndPersistsBeforeTheHostReturns()
     {
         using TempWorkspace workspace = new(nameof(RunEndTests));
         string saves = Path.Combine(workspace.Root, "saves");
+        string recent = Path.Combine(workspace.Root, "recordings", "Recent");
         List<string> events = [];
         EngineBuilder builder = Builder(events, () => new Ending(events))
             .WithSaveDirectory(saves)
             .WithCommandLine(["--recordings", Path.Combine(workspace.Root, "recordings")]);
         bool persisted = false;
+        bool recorded = false;
 
-        builder.RunRecorded(SceneTransition.ToScene(typeof(Ending), null), replayed: null, (host, recorder, _) =>
+        builder.RunRecorded(SceneTransition.ToScene(typeof(Ending), null), replayed: null, (host, recorder, _, end) =>
         {
-            FixedStepScheduler scheduler = new(builder.StepSeconds, 8, host.Run.InputState, scenes: host, recorder: recorder);
-            for (int step = 0; step < 3; step++)
-            {
-                scheduler.Advance(builder.StepSeconds, DeviceSnapshot.Empty, host);
-            }
-
-            host.EndAndPersist();
+            StepThree(builder, host, recorder);
+            end();
             persisted = Directory.Exists(saves) && Directory.GetFiles(saves).Length > 0;
+            recorded = Directory.Exists(recent) && Directory.GetFiles(recent).Length == 1;
         });
 
         Assert.True(persisted, "nothing was written before the host returned");
+        Assert.True(recorded, "the recording was not saved before the host returned");
+        Assert.Single(Directory.GetFiles(recent));
         Assert.Equal(["stop", Ended(3)], events);
+        Assert.Equal(3, SavedLength(saves));
+    }
 
+    // Three steps of a windowed run, as its scheduler takes them.
+    private static void StepThree(EngineBuilder builder, SceneHost host, Recorder? recorder)
+    {
+        FixedStepScheduler scheduler = new(builder.StepSeconds, 8, host.Run.InputState, scenes: host, recorder: recorder);
+        for (int step = 0; step < 3; step++)
+        {
+            scheduler.Advance(builder.StepSeconds, DeviceSnapshot.Empty, host);
+        }
+    }
+
+    // The length an ended run persisted in saves, read back by a fresh run.
+    private static int SavedLength(string saves)
+    {
         int read = 0;
         Registered(() => new Ending([]))
             .WithGame(CallbackGame.Starting(run => read = run.Saves.Read(Length)))
             .WithSaveDirectory(saves)
             .RunHeadless<Ending>(new InputScript().Build());
 
-        Assert.Equal(3, read);
+        return read;
     }
 
     private static EngineBuilder Builder(List<string> events, Func<Ending> scene) =>

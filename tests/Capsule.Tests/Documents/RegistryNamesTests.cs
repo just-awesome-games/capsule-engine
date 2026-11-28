@@ -43,10 +43,10 @@ public sealed class RegistryNamesTests
     // The first refusal adding every file in order meets, or null when all were declared.
     private static string? Refused(params (string Key, string Name)[] files)
     {
-        RegistryFolder root = new("CapsuleAssets", string.Empty);
+        NameTree<MemberWriter> root = new("CapsuleAssets", string.Empty);
 
         return files
-            .Select(file => root.Add(file.Key, file.Name, file.Key, static (_, _, _) => { }))
+            .Select(file => CapsuleAssetsFile.DeclareIn(root, file.Key, file.Name, file.Key, static (_, _, _) => { }))
             .FirstOrDefault(static because => because is not null);
     }
 }

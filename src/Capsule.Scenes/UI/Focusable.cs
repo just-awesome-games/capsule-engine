@@ -18,7 +18,6 @@ namespace Capsule.UI;
 /// and the neighbours it names are data until a navigator reads them.
 /// </para>
 /// </remarks>
-/// <param name="size">The extent the hit box covers. See <see cref="Size"/>.</param>
 public sealed class Focusable(Vector2 size) : Component
 {
     /// <summary>
@@ -55,11 +54,7 @@ public sealed class Focusable(Vector2 size) : Component
     /// The item a navigator's up direction moves to from this one, read before the geometry. Null,
     /// the default, leaves that direction to the geometry and its wrap.
     /// </summary>
-    /// <remarks>
-    /// Naming this item blocks the direction and moves nothing. A named item that is not live hands
-    /// the move on to its own <see cref="Up"/>. See <see cref="FocusNavigator"/> for the chain and
-    /// the geometry.
-    /// </remarks>
+    /// <remarks>Naming this item blocks the direction. <see cref="FocusNavigator"/> states the chain and the geometry.</remarks>
     public Focusable? Up { get; set; }
 
     /// <summary>The item a navigator's down direction moves to, read as <see cref="Up"/> is.</summary>
@@ -97,8 +92,7 @@ public sealed class Focusable(Vector2 size) : Component
     /// the navigator's <see cref="FocusNavigator.FocusChanged"/>.
     /// </summary>
     /// <remarks>
-    /// Handlers run synchronously, in subscription order. A handler that changes the navigator's
-    /// focus or items throws <see cref="InvalidOperationException"/>.
+    /// A handler that changes the navigator's focus or items throws <see cref="InvalidOperationException"/>.
     /// </remarks>
     public event Action? Focused;
 
@@ -126,7 +120,8 @@ public sealed class Focusable(Vector2 size) : Component
     /// <remarks>
     /// It follows the same press edge and hold repeat as a focus move, and comes after that step's focus
     /// events and before its press. It is also raised once per whole wheel notch turned while the pointer
-    /// is over this item and it has the focus. Away from the user and right count as +1.
+    /// is over this item and it has the focus, by the vertical wheel on either axis and by the horizontal
+    /// wheel on a horizontal item. Away from the user and right count as +1.
     /// </remarks>
     public event Action<int>? Adjusted;
 

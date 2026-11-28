@@ -17,15 +17,14 @@ namespace Capsule.Rendering;
 /// <see cref="Entity.WorldTransform"/>, and it spans <see cref="Size"/> times that transform's
 /// scale. The corners keep their own texel size whatever the scale, and a negative or zero axis of
 /// the product draws nothing. A panel cannot turn. Rotation anywhere in the entity's ancestry is
-/// refused while a panel is present. Coordinates are Y-down, in world units under a world root and
-/// canvas pixels under a screen root.
+/// refused while a panel is present.
 /// </remarks>
 /// <param name="sprite">The frame to cut into slices. Its pivot is not read.</param>
 /// <param name="insets">Where the cuts fall inside the frame's region, in texels.</param>
 /// <param name="size">The extent the panel covers. A non-positive axis draws nothing.</param>
 public sealed class NineSlice(Sprite sprite, SliceInsets insets, Vector2 size) : Renderer
 {
-    /// <summary>The frame cut into slices. Swap it to change the panel's skin.</summary>
+    /// <summary>The frame cut into slices.</summary>
     public Sprite Sprite { get; set; } = sprite;
 
     /// <summary>Where the cuts fall inside the frame's region, in texels of that region.</summary>

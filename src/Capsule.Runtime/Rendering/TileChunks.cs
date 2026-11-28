@@ -60,7 +60,6 @@ internal sealed class TileChunks : IDisposable
 
     internal TileChunks(bool checks) => _checks = checks;
 
-    // How many chunks are kept.
     internal int Count => _chunks.Count;
 
     // Begins a frame. No chunk a frame draws gives up its slot before the next one begins. Writes no upload took,

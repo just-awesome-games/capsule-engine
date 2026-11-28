@@ -1,7 +1,7 @@
 # Debugging
 
 After this page you can open the debug overlay, hold and step a run, record, replay and trace it, capture its frames, and add
-your own rows and geometry to it. Each type's XML docs hold its rules.
+your own rows and geometry to it. Each type's XML docs hold its rules, and `--help` lists the flags.
 
 The debug overlay is development code. It holds the run while it is open, and a game writes to it
 through three seams and reads nothing back.
@@ -110,7 +110,6 @@ named ticks of the run a recording or a driver plays, with no overlay opened:
 
 ```text
 --replay run.recording --headless --trace avatar.csv 1180..1200 Avatar
---driver Walkthrough --headless --trace avatar.csv 600.. Scene,Camera,Avatar
 ```
 
 The ticks are one tick, a range such as `100..160`, an open range such as `600..` that runs to the end, or a
@@ -146,7 +145,6 @@ divergence is no longer the run that was recorded.
 driver plays, as `<dir>/<tick>.png` with the tick padded to six digits, such as `001180.png`:
 
 ```text
---replay run.recording --headless --capture frames 1180..1200
 --driver Walkthrough --headless --capture frames 600,900 --trace avatar.csv 600..900 Avatar
 ```
 

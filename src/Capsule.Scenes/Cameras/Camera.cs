@@ -8,11 +8,6 @@ namespace Capsule.Scenes;
 /// A scene's world-space viewport. Its centre, zoom and offset interpolate between steps, and
 /// <see cref="Teleport"/> cuts without interpolating.
 /// </summary>
-/// <remarks>
-/// A non-positive <see cref="ViewportSize"/> draws nothing. A scene installs a subclass to keep
-/// framing in one place: the subclass picks its subject in <see cref="OnStart"/> and steers the
-/// framing in <see cref="OnLateStep"/> when it needs to.
-/// </remarks>
 /// <example>
 /// <code>
 /// public sealed class GameCamera : Camera
@@ -287,10 +282,6 @@ public partial class Camera
     /// <summary>
     /// Runs after <see cref="Teleport"/> cuts, whoever called it, but not for the cut a scene opens on.
     /// </summary>
-    /// <remarks>
-    /// A camera holding state that its subject's old place implied, such as bounds an area set, lets
-    /// it go here.
-    /// </remarks>
     protected virtual void OnTeleported()
     {
     }
@@ -332,7 +323,6 @@ public partial class Camera
     /// <see cref="Fit"/>, <see cref="Offset"/>, <see cref="Bounds"/>, <see cref="VisibleRegion"/>,
     /// <see cref="Subject"/> and <see cref="Listener"/> before this call.
     /// </summary>
-    /// <remarks>The overlay opens the panel from the Camera row of its scene page.</remarks>
     /// <example>
     /// <code>
     /// protected override void OnDebugPanel(DebugPanel panel)

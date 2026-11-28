@@ -11,7 +11,6 @@ public sealed class RegistryGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // What the project is.
         IncrementalValueProvider<GeneratorRole> role = context.AnalyzerConfigOptionsProvider
             .Select(static (options, _) => GeneratorRoles.Read(options.GlobalOptions));
         IncrementalValueProvider<ProjectConfiguration> project = context.CompilationProvider

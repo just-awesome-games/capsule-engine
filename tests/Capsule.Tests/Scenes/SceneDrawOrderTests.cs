@@ -15,7 +15,7 @@ public sealed class SceneDrawOrderTests
             SceneFixtures.Room(new SceneDocumentEntry("prop", new EntitySpawn(Vector2.Zero) { ZIndex = 10 })),
             SceneFixtures.Registry(("prop", Spawns(2))));
 
-        Layered background = new() { ZIndex = -5 };
+        Node background = new(Vector2.Zero) { ZIndex = -5 };
         background.Add(Tag(1));
         scene.Add(background);
 
@@ -28,11 +28,11 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void EntitiesSharingABand_KeepInsertionAndAttachmentOrder()
     {
-        Layered first = new() { ZIndex = 3 };
+        Node first = new(Vector2.Zero) { ZIndex = 3 };
         first.Add(Tag(11));
         first.Add(Tag(12));
 
-        Layered second = new() { ZIndex = 3 };
+        Node second = new(Vector2.Zero) { ZIndex = 3 };
         second.Add(Tag(21));
         second.Add(Tag(22));
 
@@ -49,9 +49,9 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void ABandChangedAfterAttaching_ReordersTheFrame()
     {
-        Layered first = new();
+        Node first = new(Vector2.Zero);
         first.Add(Tag(1));
-        Layered second = new();
+        Node second = new(Vector2.Zero);
         SpriteRenderer offset = Tag(2);
         second.Add(offset);
 
@@ -75,10 +75,10 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void ARendererOffset_ComposesWithItsEntitysBand()
     {
-        Layered banded = new() { ZIndex = 5 };
+        Node banded = new(Vector2.Zero) { ZIndex = 5 };
         banded.Add(Tag(2));
 
-        Layered split = new();
+        Node split = new(Vector2.Zero);
         split.Add(Tag(1));
         split.Add(Tag(3, zIndex: 10));
 
@@ -98,10 +98,10 @@ public sealed class SceneDrawOrderTests
     [InlineData(true)]
     public void ASumPastAnInt_StillDrawsOverTheBandBelowIt(bool beyondFirst)
     {
-        Layered ceiling = new() { ZIndex = int.MaxValue };
+        Node ceiling = new(Vector2.Zero) { ZIndex = int.MaxValue };
         ceiling.Add(Tag(1));
 
-        Layered beyond = new() { ZIndex = int.MaxValue };
+        Node beyond = new(Vector2.Zero) { ZIndex = int.MaxValue };
         beyond.Add(Tag(2, zIndex: 1));
 
         SceneFixtures.HookScene scene = new();
@@ -118,7 +118,7 @@ public sealed class SceneDrawOrderTests
     [Fact]
     public void AnEntityMovedToAnotherSimulation_DrawsInThatSimulationsFirstFrame()
     {
-        Layered traveller = new();
+        Node traveller = new(Vector2.Zero);
         traveller.Add(Tag(1));
 
         SceneFixtures.HookScene origin = new();
@@ -157,24 +157,11 @@ public sealed class SceneDrawOrderTests
 
     private static EntitySpawner Spawns(int tag) => spawn =>
     {
-        Layered marker = new(spawn);
+        SceneFixtures.Placed marker = new(spawn);
         marker.Add(Tag(tag));
 
         return marker;
     };
-
-    private sealed class Layered : Entity
-    {
-        internal Layered()
-            : base(Vector2.Zero)
-        {
-        }
-
-        internal Layered(EntitySpawn spawn)
-            : base(spawn)
-        {
-        }
-    }
 
     /// <summary>An entity that bands itself over whatever its placement authored.</summary>
     private sealed class Banded : Entity

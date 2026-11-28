@@ -249,26 +249,7 @@ public sealed class TilingTests
 
     // A 2x8 frame at its corner, turned to a quarter by the step's end.
     private static SpriteIntent Strip(Vector2 previous, Vector2 position, float previousRotation) =>
-        new(
-            new Sprite(Atlas, new TextureRegion(4, 2, 2, 8)),
-            previous,
-            position,
-            previousRotation,
-            Rotation: MathF.PI / 2f,
-            new Vector2(2, 8),
-            FlipX: false,
-            FlipY: false,
-            ColorRgba.White);
+        SpriteFixtures.Drawn(new Sprite(Atlas, new TextureRegion(4, 2, 2, 8)), previous, position, previousRotation, MathF.PI / 2f);
 
-    private static SpriteIntent At(Vector2 corner) =>
-        new(
-            Frame,
-            corner,
-            corner,
-            PreviousRotation: 0f,
-            Rotation: 0f,
-            new Vector2(16, 8),
-            FlipX: false,
-            FlipY: false,
-            ColorRgba.White);
+    private static SpriteIntent At(Vector2 corner) => SpriteFixtures.Drawn(Frame, corner, corner);
 }

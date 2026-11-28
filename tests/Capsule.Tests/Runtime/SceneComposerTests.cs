@@ -53,8 +53,7 @@ public sealed class SceneComposerTests : IDisposable
     [Fact]
     public void AShippedDocumentThatIsNotGzip_FailsAsAMalformedDocumentNamingItsFile()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(DocumentPath)!);
-        File.WriteAllText(DocumentPath, SceneFixtures.Room().ToJson());
+        Write(SceneFixtures.Room(), gzipped: false);
         SceneComposer composer = new(Registry(), new HostPlatform());
 
         SceneDocumentFormatException failure = Assert.Throws<SceneDocumentFormatException>(
@@ -125,8 +124,7 @@ public sealed class SceneComposerTests : IDisposable
     [Fact]
     public void APrefetchedDocumentThatIsNotGzip_FailsTheStepThatBuildsItsScene()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(DocumentPath)!);
-        File.WriteAllText(DocumentPath, SceneFixtures.Room().ToJson());
+        Write(SceneFixtures.Room(), gzipped: false);
         SceneComposer composer = new(Registry(), new SlowPlatform(50));
         using SceneHost host = new(SceneTransition.ToScene(typeof(Lobby), null), composer.Resolve, new Run(), composer: composer);
 
@@ -191,7 +189,8 @@ public sealed class SceneComposerTests : IDisposable
     }
 
     // A host torn down with a read still waiting for a turn or still reading owns nothing after, and a read that
-    // had not taken its turn never opens its file. One already reading runs to its end.
+    // had not taken its turn never opens its file, even when a turn frees the moment the host is torn down. One
+    // already reading runs to its end.
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -202,9 +201,14 @@ public sealed class SceneComposerTests : IDisposable
         SceneComposer composer = new(Registry(), platform);
         SceneHost host = new(SceneTransition.ToScene(typeof(Lobby), null), composer.Resolve, new Run(), composer: composer);
         using CountdownEvent turnsTaken = new(AssetDecodes.Concurrency);
+        using ManualResetEventSlim firstBack = new();
         using ManualResetEventSlim turnsBack = new();
+
+        // The first holder tears the host down and frees its turn straight after, on one thread.
         Task<int>[] holders = queued
-            ? [.. Enumerable.Range(0, AssetDecodes.Concurrency).Select(_ => AssetDecodes.Run(() => Hold(turnsTaken, turnsBack), CancellationToken.None))]
+            ? [.. Enumerable.Range(0, AssetDecodes.Concurrency).Select(i => AssetDecodes.Run(
+                () => Hold(turnsTaken, i == 0 ? firstBack : turnsBack, i == 0 ? host.Dispose : null),
+                CancellationToken.None))]
             : [];
         if (queued)
         {
@@ -221,8 +225,17 @@ public sealed class SceneComposerTests : IDisposable
             Assert.True(platform.Entered.Wait(TimeSpan.FromSeconds(10)), "the read never opened its file");
         }
 
-        host.Dispose();
         int opened = platform.Opens;
+        if (queued)
+        {
+            firstBack.Set();
+            await holders[0];
+        }
+        else
+        {
+            host.Dispose();
+        }
+
         turnsBack.Set();
         platform.Gate.Set();
         await Task.WhenAll(holders);
@@ -233,17 +246,25 @@ public sealed class SceneComposerTests : IDisposable
 
     public void Dispose() => File.Delete(DocumentPath);
 
-    private static int Hold(CountdownEvent taken, ManualResetEventSlim back)
+    private static int Hold(CountdownEvent taken, ManualResetEventSlim back, Action? beforeFreeing)
     {
         taken.Signal();
         back.Wait();
+        beforeFreeing?.Invoke();
 
         return 0;
     }
 
-    private static void Write(SceneDocument document)
+    // Ships document at DocumentPath, or writes its plain JSON there when it is not to be gzipped.
+    private static void Write(SceneDocument document, bool gzipped = true)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DocumentPath)!);
+        if (!gzipped)
+        {
+            File.WriteAllText(DocumentPath, document.ToJson());
+            return;
+        }
+
         ShippedSceneDocument.Write(document, DocumentPath, CompressionLevel.Fastest);
     }
 

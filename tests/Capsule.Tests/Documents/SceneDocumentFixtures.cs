@@ -13,16 +13,6 @@ internal static class SceneDocumentFixtures
             { "id": 2, "type": "player", "x": 8, "y": 0 } ] }
         """;
 
-    internal const string Coin = """
-        ,
-            {
-              "id": 2,
-              "type": "coin",
-              "x": 8,
-              "y": 0
-            }
-        """;
-
     /// <summary>A document of one coin with id 1, then <paramref name="entities"/>.</summary>
     internal static string DocumentText(string entities = "") =>
         $$"""

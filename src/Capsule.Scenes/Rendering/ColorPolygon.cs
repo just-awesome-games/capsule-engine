@@ -9,8 +9,7 @@ namespace Capsule.Rendering;
 /// <remarks>
 /// The points are in the entity's own units, placed by its world transform: its position, turn and scale.
 /// Between steps each point moves in a straight line from where the entity's last step left it, and a new
-/// outline shows from the step that sets it. Coordinates are Y-down, in world units under a world root and canvas
-/// pixels under a screen root.
+/// outline shows from the step that sets it.
 /// <para>
 /// It draws the engine's white texel and loads no asset. The same points can shape a
 /// <see cref="PolygonCollider2D"/>, and what is drawn is then what collides.
@@ -47,7 +46,6 @@ public sealed class ColorPolygon : Renderer
     }
 
     /// <summary>A polygon with the outline <paramref name="points"/> describes. See <see cref="SetPoints"/>.</summary>
-    /// <param name="points">The outline, in the entity's own units.</param>
     public ColorPolygon(ReadOnlySpan<Vector2> points) => SetPoints(points);
 
     /// <summary>The outline's points in order, in the entity's own units. Empty until an outline is set.</summary>
@@ -67,7 +65,6 @@ public sealed class ColorPolygon : Renderer
     /// one line, and an outline with no area, are allowed and draw nothing where they have no width, as a shape
     /// that opens from nothing does. An outline no longer than one the polygon has held allocates nothing.
     /// </remarks>
-    /// <param name="points">The outline's points, in order.</param>
     public void SetPoints(ReadOnlySpan<Vector2> points)
     {
         _outline.Set(points);

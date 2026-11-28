@@ -28,11 +28,7 @@ internal static partial class PropertySchema
     /// </summary>
     internal static EquatableArray<string> AssignableTo(INamedTypeSymbol type)
     {
-        IEnumerable<INamedTypeSymbol> types = type.AllInterfaces;
-        for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
-        {
-            types = types.Append(current);
-        }
+        IEnumerable<INamedTypeSymbol> types = type.AllInterfaces.Append(type).Concat(SymbolShape.Ancestors(type));
 
         return new(types.Select(static assignable => assignable.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)).ToImmutableArray());
     }
@@ -66,7 +62,7 @@ internal static partial class PropertySchema
         INamedTypeSymbol? authorable = compilation.GetTypeByMetadataName(MetadataNames.AuthorableAttribute);
         HashSet<string> hidden = new(StringComparer.Ordinal);
         List<PropertyModel> properties = [];
-        for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
+        foreach (INamedTypeSymbol current in SymbolShape.Ancestors(type).Prepend(type))
         {
             ImmutableArray<ISymbol> members = current.GetMembers();
             Role role = RoleOf(current, compilation);

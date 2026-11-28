@@ -13,7 +13,7 @@ public sealed class SceneDrawOrderPatchTests
     public void ARootArrivingAndOneLeaving_PatchTheOrderWithoutARebuild()
     {
         Node[] held = [Holding(2), Holding(0), Holding(1)];
-        using SimulationHost run = Started(out Scene scene, held);
+        using SimulationHost run = DrawnOnce(out Scene scene, held);
         int rebuilds = scene.Drawing.Rebuilds;
 
         scene.Remove(held[1]);
@@ -30,7 +30,7 @@ public sealed class SceneDrawOrderPatchTests
     public void AChildArrivingUnderAnEarlierRoot_PatchesTheOrderWithoutARebuild()
     {
         Node[] held = [Holding(1), Holding(1), Holding(0)];
-        using SimulationHost run = Started(out Scene scene, held);
+        using SimulationHost run = DrawnOnce(out Scene scene, held);
         int rebuilds = scene.Drawing.Rebuilds;
 
         Node child = Holding(1);
@@ -46,7 +46,7 @@ public sealed class SceneDrawOrderPatchTests
     public void AnArrivalLeavingBeforeTheOrderIsRead_PatchesTheOrderWithoutARebuild()
     {
         Node kept = Holding(0);
-        using SimulationHost run = Started(out Scene scene, kept);
+        using SimulationHost run = DrawnOnce(out Scene scene, kept);
         int rebuilds = scene.Drawing.Rebuilds;
 
         Node brief = Holding(0);
@@ -70,7 +70,7 @@ public sealed class SceneDrawOrderPatchTests
     public void AnEntityWithNoChildChangingItsBandOrItsRenderers_PatchesTheOrderWithoutARebuild(int change)
     {
         Node[] held = [Holding(1), Holding(1), Holding(1)];
-        using SimulationHost run = Started(out Scene scene, held);
+        using SimulationHost run = DrawnOnce(out Scene scene, held);
         int rebuilds = scene.Drawing.Rebuilds;
 
         Logged renderer = held[0].Get<Logged>();
@@ -98,7 +98,7 @@ public sealed class SceneDrawOrderPatchTests
     public void AnArrivalSettlingItsBandAndRenderersInItsHooks_DrawsAsTheyEndWithoutARebuild()
     {
         Node first = Holding(1);
-        using SimulationHost run = Started(out Scene scene, first);
+        using SimulationHost run = DrawnOnce(out Scene scene, first);
         int rebuilds = scene.Drawing.Rebuilds;
 
         Settling arrival = new(new Logged(_log));
@@ -115,7 +115,7 @@ public sealed class SceneDrawOrderPatchTests
     {
         Node kept = Holding(2);
         Node first = Holding(1);
-        using SimulationHost run = Started(out Scene scene, kept, first);
+        using SimulationHost run = DrawnOnce(out Scene scene, kept, first);
         int rebuilds = scene.Drawing.Rebuilds;
 
         scene.Remove(first);
@@ -133,29 +133,29 @@ public sealed class SceneDrawOrderPatchTests
         Assert.Equal(rebuilds, scene.Drawing.Rebuilds);
     }
 
-    [Fact]
-    public void ARendererRemovingItsOwnerAsItAttaches_LeavesTheOrderDrawable()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ARendererRemovingItsOwnerAsItAttachesOrDetaches_LeavesTheOrderDrawable(bool detaching)
     {
         Node stays = Holding(0);
         Node owner = new(Vector2.Zero);
-        using SimulationHost run = Started(out Scene scene, stays, owner);
+        Logged sole = detaching ? new(_log, detached: RemoveOwner) : new(_log, attached: RemoveOwner);
+        if (detaching)
+        {
+            owner.Add(sole);
+        }
 
-        owner.Add(new Logged(_log, attached: RemoveOwner));
+        using SimulationHost run = DrawnOnce(out Scene scene, stays, owner);
 
-        Assert.Null(owner.SceneOrNull);
-        Assert.Equal([stays.Get<Logged>()], Drawn(scene));
-    }
-
-    [Fact]
-    public void ARendererRemovingItsOwnerAsItDetaches_LeavesTheOrderDrawable()
-    {
-        Node stays = Holding(0);
-        Node owner = new(Vector2.Zero);
-        Logged sole = new(_log, detached: RemoveOwner);
-        owner.Add(sole);
-        using SimulationHost run = Started(out Scene scene, stays, owner);
-
-        owner.Remove(sole);
+        if (detaching)
+        {
+            owner.Remove(sole);
+        }
+        else
+        {
+            owner.Add(sole);
+        }
 
         Assert.Null(owner.SceneOrNull);
         Assert.Equal([stays.Get<Logged>()], Drawn(scene));
@@ -166,7 +166,7 @@ public sealed class SceneDrawOrderPatchTests
     public void ARendererWhoseHookReadsTheOrderThenThrows_LeavesTheOrderDrawable()
     {
         Node owner = Holding(0);
-        using SimulationHost run = Started(out Scene scene, owner);
+        using SimulationHost run = DrawnOnce(out Scene scene, owner);
 
         Logged refused = new(_log, attached: entity =>
         {
@@ -221,22 +221,6 @@ public sealed class SceneDrawOrderPatchTests
     private static void Build(Scene scene) => scene.Drawing.DrawFrame(new FrameView());
 
     private static void RemoveOwner(Entity owner) => owner.SceneOrNull?.Remove(owner);
-
-    // A scene holding nodes that has stepped and read its order, which a change then patches.
-    private static SimulationHost Started(out Scene scene, params Node[] nodes)
-    {
-        scene = new SceneFixtures.HookScene();
-        foreach (Node node in nodes)
-        {
-            scene.Add(node);
-        }
-
-        SimulationHost run = new(scene);
-        run.Step();
-        Build(scene);
-
-        return run;
-    }
 
     private List<Logged> Drawn(Scene scene)
     {

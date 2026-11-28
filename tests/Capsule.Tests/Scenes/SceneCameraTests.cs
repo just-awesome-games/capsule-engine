@@ -134,7 +134,7 @@ public sealed class SceneCameraTests
     public void AScenesOwnLateStep_RunsBeforeItsCameras()
     {
         List<string> order = [];
-        RecordingCamera camera = new(order) { ViewportSize = new Vector2(320, 180) };
+        SceneFixtures.RecordingCamera camera = new(order) { ViewportSize = new Vector2(320, 180) };
 
         void NoteScene(Scene scene, in StepContext context) => order.Add("scene");
 
@@ -170,7 +170,7 @@ public sealed class SceneCameraTests
     public void ACameraInstalledDuringTheLateStep_SettlesInThatSameStep()
     {
         List<string> order = [];
-        RecordingCamera arriving = new(order) { ViewportSize = new Vector2(320, 180) };
+        SceneFixtures.RecordingCamera arriving = new(order) { ViewportSize = new Vector2(320, 180) };
 
         void Swap(Scene scene, in StepContext context) => ((SceneFixtures.HookScene)scene).Install(arriving);
 
@@ -301,11 +301,6 @@ public sealed class SceneCameraTests
         protected internal override void OnStart() => Follow(Scene!.FindSingle<SceneFixtures.Drifter>());
 
         protected override void OnTeleported() => Teleports++;
-    }
-
-    private sealed class RecordingCamera(List<string> log) : Camera
-    {
-        protected internal override void OnLateStep(in StepContext context) => log.Add("camera");
     }
 
     private sealed class StructuralCamera(string name, List<string> log) : Camera

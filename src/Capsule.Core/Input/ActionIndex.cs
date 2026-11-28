@@ -2,8 +2,7 @@ namespace Capsule.Input;
 
 // The dense index every action name is resolved to once. A step then reads a binding out of an array
 // instead of hashing a string. Indices start at 1, leaving 0 for an unnamed action, and are never reused.
-// A name interned here stays interned for the process. Construct an action once and keep it instead of
-// building one per step.
+// A name interned here stays interned for the process.
 internal static class ActionIndex
 {
     private static readonly Lock Gate = new();

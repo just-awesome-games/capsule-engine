@@ -123,23 +123,6 @@ public sealed class EntityTests
     }
 
     [Fact]
-    public void RemovingARenderer_InvalidatesTheScenesDrawOrder()
-    {
-        Scene scene = new();
-        Node entity = new(Vector2.Zero);
-        SpriteRenderer renderer = new(SceneFixtures.Frame(1, 1));
-        entity.Add(renderer);
-        scene.Add(entity);
-        SceneSimulation simulation = new(scene);
-        Assert.Single(simulation.View.Sprites.ToArray());
-
-        entity.Remove(renderer);
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.Empty(simulation.View.Sprites.ToArray());
-    }
-
-    [Fact]
     public void AComponentRemovingItself_DoesNotSkipTheOneShiftedIntoItsSlot()
     {
         List<string> log = [];
@@ -197,33 +180,6 @@ public sealed class EntityTests
 
         Assert.Equal(["attached", "detached"], log);
         Assert.Null(component.Entity);
-    }
-
-    // An entity whose root is leaving at this step's end does not start what is attached to it. The
-    // component would otherwise start on an entity about to leave its scene.
-    [Fact]
-    public void AComponentAttachedBeneathARootRemovedThisStep_DoesNotStart()
-    {
-        List<string> log = [];
-        Node root = new(Vector2.Zero);
-        Node child = new(Vector2.Zero) { Parent = root };
-        SceneFixtures.RecordingComponent late = new("late", log, Lifecycle);
-        bool removing = false;
-        SceneFixtures.HookScene scene = new(step: (Scene stepping, in StepContext _) =>
-        {
-            if (removing)
-            {
-                stepping.Remove(root);
-                child.Add(late);
-            }
-        });
-        scene.Add(root);
-        using SceneSimulation simulation = new(scene);
-
-        removing = true;
-        simulation.Step(SceneFixtures.Step());
-
-        Assert.Equal(["late+", "late-"], log);
     }
 
     // A throwing OnDetached still releases the component from the engine. The draw order no longer

@@ -17,15 +17,10 @@ internal static class FontStep
     internal static void Run(PipelinePass pass)
     {
         HashSet<string> pages = new(StringComparer.Ordinal);
-        if (pass.Of(AssetType.Fonts).Any())
-        {
-            pass.Assets.Beside(FontMembers.BuilderDeclaration);
-        }
-
         foreach ((Source font, BmFontDescription description) in pass.Each(
             Step,
             pass.Of(AssetType.Fonts),
-            source => Derivation.Of(source),
+            Derivation.Of,
             (source, _) => BmFontParser.Parse(File.ReadAllBytes(source.Path)),
             DerivationCacheJsonContext.Default.BmFontDescription))
         {

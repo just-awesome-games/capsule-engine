@@ -6,9 +6,6 @@ using Capsule.UI;
 
 namespace Capsule.Runtime.DevTools.Overlay;
 
-// One host frame in wall-clock milliseconds, and the fixed steps it ran.
-internal readonly record struct FrameSample(double IntervalMs, double UpdateMs, double DrawMs, int Steps);
-
 // One published second. Every field is zero until a whole second has been pushed.
 internal readonly record struct FrameFigures(
     double Fps,
@@ -51,6 +48,10 @@ internal sealed class FramePane : ScreenEntity
         Add(_backdrop);
         Add(_label);
 
+        // The label lays out the whole buffer once. A figure that later overflows its field then grows none of its storage.
+        Array.Fill(_text, '0');
+        _label.SetText(_text);
+        _ = _label.Bounds;
         Reset();
     }
 

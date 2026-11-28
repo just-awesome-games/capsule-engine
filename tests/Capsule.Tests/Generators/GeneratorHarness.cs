@@ -179,6 +179,9 @@ internal static partial class GeneratorHarness
     internal static SceneRegistry Registry(Assembly game) =>
         (SceneRegistry)game.GetType("Capsule.Generated.CapsuleScenes")!.GetProperty("Registry")!.GetValue(null)!;
 
+    /// <summary>A scene document of <paramref name="entries"/>, the entity objects written between its brackets.</summary>
+    internal static string Entities(string entries) => "{\"entities\": [" + entries + "]}";
+
     /// <summary>Composes the scene <paramref name="key"/> names from the document <paramref name="json"/>.</summary>
     internal static Scene Composed(SceneRegistry registry, string json, string key = "scenes/room") =>
         registry.Create(new SceneKey(key), SceneDocument.Parse(json));

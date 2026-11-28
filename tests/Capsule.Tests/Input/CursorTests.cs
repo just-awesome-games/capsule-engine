@@ -3,6 +3,7 @@ using Capsule.Assets;
 using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
+using Capsule.Tests.Scenes;
 
 namespace Capsule.Tests.Input;
 
@@ -47,15 +48,10 @@ public sealed class CursorTests
         run.Cursor.MakeDefault();
         Sprite arrow = new(new TextureHandle("cursors", ".png"), new TextureRegion(0, 0, 9, 9));
 
-        using SceneSimulation menu = new(new StartHook(cursor => (cursor.Visible, cursor.Confined, cursor.Image) = (true, false, arrow)), run: run);
+        using SceneSimulation menu = new(new SceneFixtures.HookScene(start: scene => (scene.Run.Cursor.Visible, scene.Run.Cursor.Confined, scene.Run.Cursor.Image) = (true, false, arrow)), run: run);
         (bool Visible, bool Confined, Sprite? Image) seen = default;
-        using SceneSimulation next = new(new StartHook(cursor => seen = (cursor.Visible, cursor.Confined, cursor.Image)), run: run);
+        using SceneSimulation next = new(new SceneFixtures.HookScene(start: scene => seen = (scene.Run.Cursor.Visible, scene.Run.Cursor.Confined, scene.Run.Cursor.Image)), run: run);
 
         Assert.Equal((false, true, null), seen);
-    }
-
-    private sealed class StartHook(Action<Cursor> onStart) : Scene
-    {
-        protected override void OnStart() => onStart(Run.Cursor);
     }
 }

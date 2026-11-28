@@ -14,13 +14,14 @@ public sealed class SlopeTests
     // A floating move into a slope keeps what the slope does not take. The box's bottom-right corner
     // meets the diagonal x + y = 64 after 4 units, and the other 16 slide up it as (8, -8).
     [Fact]
-    public void MoveBox_IntoADiagonalWall_SlidesAlongItInsteadOfStopping()
+    public void Move_IntoADiagonalWall_SlidesAlongItInsteadOfStopping()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "../#", "####");
 
-        MoveResult2D result = world.MoveBox(
-            CollisionFixtures.Box(20f, 24f - CollisionTolerance.LinearSlop, 8f, 8f),
+        MoveResult2D result = world.Move(
+            Shape2D.Box(CollisionFixtures.Box(20f, 24f - CollisionTolerance.LinearSlop, 8f, 8f)),
+            Vector2.Zero,
             new Vector2(20f, 0f),
             CollisionFilter.Everything,
             default);
@@ -34,7 +35,7 @@ public sealed class SlopeTests
     // starts half a unit below the vertex. The face chosen at the graze is the box's floor, not the
     // slope's side it started level with, and the box keeps its travel across.
     [Fact]
-    public void MoveBox_GrazingASlopesTopVertex_KeepsItsTravelAcross()
+    public void Move_GrazingASlopesTopVertex_KeepsItsTravelAcross()
     {
         CollisionWorld2D world = new();
         world.Add(
@@ -42,8 +43,9 @@ public sealed class SlopeTests
             Vector2.Zero,
             world.Layer(CollisionFixtures.Solid));
 
-        MoveResult2D result = world.MoveBox(
-            CollisionFixtures.Box(-28f, -7.5055f, 8f, 8f),
+        MoveResult2D result = world.Move(
+            Shape2D.Box(CollisionFixtures.Box(-28f, -7.5055f, 8f, 8f)),
+            Vector2.Zero,
             new Vector2(40f, -1f),
             CollisionFilter.Everything,
             default);
@@ -56,7 +58,7 @@ public sealed class SlopeTests
     // short of the seam the edge's endpoint is the nearest feature to the corner, and the narrowphase
     // normal there leans toward the box's side, which a fall would pass straight down.
     [Fact]
-    public void MoveBox_FallingOntoASlopeAtACellSeam_LandsOnTheSlope()
+    public void Move_FallingOntoASlopeAtACellSeam_LandsOnTheSlope()
     {
         CollisionWorld2D world = new();
         CollisionLayer solid = world.Layer(CollisionFixtures.Solid);
@@ -76,8 +78,9 @@ public sealed class SlopeTests
         for (float right = 15.98f; right <= 16.02f; right += 0.0005f)
         {
             float bottom = 24f - (right / 4f) - 0.0088f;
-            MoveResult2D result = world.MoveBox(
-                CollisionFixtures.Box(right - 15f, bottom - 16f, 15f, 16f),
+            MoveResult2D result = world.Move(
+                Shape2D.Box(CollisionFixtures.Box(right - 15f, bottom - 16f, 15f, 16f)),
+                Vector2.Zero,
                 new Vector2(0f, 4f),
                 CollisionFilter.Everything,
                 contacts);
@@ -151,7 +154,7 @@ public sealed class SlopeTests
     }
 
     // A walk on a slope covers its speed horizontally by default. With KeepsHorizontalSpeedOnSlopes off
-    // it covers its speed along the surface. The wedge rises to the right one unit for every `run`.
+    // it covers its speed along the surface. The 256-wide wedge rises to the right one unit for every `run`.
     [Theory]
     [InlineData(2f, 1f, true)]
     [InlineData(2f, -1f, true)]
@@ -162,7 +165,7 @@ public sealed class SlopeTests
     public void AGroundedBodyWalkingASlope_CoversItsSpeedAcross_OrAlongTheSurfaceWhenOff(float run, float way, bool keepsHorizontalSpeed)
     {
         Scene scene = new Scene(SceneFixtures.Content(SceneFixtures.Room(), SceneFixtures.Registry())).Started();
-        scene.Add(new Wedge(run));
+        scene.Add(new Block([new(0f, 256f / run), new(256f, 0f), new(256f, 256f / run)]));
         SceneFixtures.Body body = CollisionFixtures.Grounded(scene, new Vector2(124f, 20f));
         body.Mover.KeepsHorizontalSpeedOnSlopes = keepsHorizontalSpeed;
         Vector2 start = body.Position;
@@ -308,14 +311,6 @@ public sealed class SlopeTests
         }
 
         return points;
-    }
-
-    // A 256-wide wedge on "solid" that rises to the right one unit for every `run`.
-    private sealed class Wedge : Entity
-    {
-        internal Wedge(float run)
-            : base(Vector2.Zero) =>
-            Add(new PolygonCollider2D([new(0f, 256f / run), new(256f, 0f), new(256f, 256f / run)]) { Layer = "solid" });
     }
 
     // Flat ground, a 1:4 descent, a 1:2 descent whose foot is at 16, and a 1:4 descent that starts

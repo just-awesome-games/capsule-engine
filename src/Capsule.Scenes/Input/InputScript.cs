@@ -15,8 +15,7 @@ namespace Capsule.Input;
 /// Editing the held state emits no step. Press a chord with several <see cref="Down"/> calls
 /// followed by one <see cref="Wait"/>. The emitted sequence accumulates, and a script may be built
 /// more than once. Each build covers ticks 0 to n - 1 of everything scripted so far, including
-/// ticks an earlier driver already served. Write a driver that must react to the scene as a class
-/// instead.
+/// ticks an earlier driver already served.
 /// </para>
 /// </remarks>
 public sealed class InputScript
@@ -26,7 +25,6 @@ public sealed class InputScript
     private DeviceSnapshot _held;
 
     /// <summary>Holds <paramref name="button"/> down from the next emitted step on.</summary>
-    /// <param name="button">The key, pad button, mouse button or stick direction to hold.</param>
     public InputScript Down(InputButton button)
     {
         _held = _held.With(button);
@@ -34,7 +32,6 @@ public sealed class InputScript
     }
 
     /// <summary>Releases <paramref name="button"/>. Releasing a button that is not held changes nothing.</summary>
-    /// <param name="button">The key, pad button, mouse button or stick direction to release.</param>
     public InputScript Up(InputButton button)
     {
         _held = _held.Without(button);
@@ -97,7 +94,6 @@ public sealed class InputScript
     }
 
     /// <summary>Emits one step with <paramref name="button"/> held on top of the held state, then releases it.</summary>
-    /// <param name="button">The key, pad button, mouse button or stick direction to tap.</param>
     /// <exception cref="InvalidOperationException">The button is already held. Release it with <see cref="Up"/> first.</exception>
     public InputScript Tap(InputButton button)
     {
@@ -125,7 +121,6 @@ public sealed class InputScript
     }
 
     /// <summary>Emits <paramref name="steps"/> steps of the current held state.</summary>
-    /// <param name="steps">A count of fixed steps, never seconds. Zero emits nothing.</param>
     public InputScript Wait(int steps)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(steps);
@@ -144,13 +139,7 @@ public sealed class InputScript
     /// </summary>
     /// <remarks>
     /// <c>n</c> steps drive ticks 0 to <c>n</c> - 1, and every tick at or past <c>n</c> is declined
-    /// and ends the run.
-    /// <para>
-    /// Positions are absolute, not relative to where the driver was built. Given a run already at
-    /// tick 30, the script serves its position 30, which exists only when it emitted more than 30
-    /// steps. A shorter script ends the run without a step, and a script that emitted nothing ends
-    /// any run before its first step.
-    /// </para>
+    /// and ends the run. Positions are absolute, not relative to where the driver was built.
     /// </remarks>
     public IInputDriver Build() => new ScriptedInputDriver([.. _steps]);
 }

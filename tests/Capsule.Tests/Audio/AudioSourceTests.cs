@@ -283,14 +283,6 @@ public sealed class AudioSourceTests
         return Voice.None;
     }
 
-    private static SimulationHost Run(AudioSource source, int stepHertz = StepContext.DefaultStepHertz)
-    {
-        AudioPlaybackFixtures.Speaker entity = new();
-        entity.Add(source);
-
-        Scene scene = new();
-        scene.Add(entity);
-
-        return new SimulationHost(scene, stepHertz: stepHertz);
-    }
+    private static SimulationHost Run(AudioSource source, int stepHertz = StepContext.DefaultStepHertz) =>
+        AudioPlaybackFixtures.Hosting(source, stepHertz: stepHertz);
 }

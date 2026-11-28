@@ -152,23 +152,15 @@ Run.Audio.SetEffects(AudioBuses.Sfx, new AudioEffects
 });
 ```
 
-A bus sums its voices, then runs the echo, the high-pass and the low-pass in that order, then applies its
-volume. A filter therefore muffles the echo's repeats too, and the bus's volume silences them. A voice
-stopped on an echoing bus leaves its repeats ringing, as does a paused bus. A parent takes the voices on
-it and its children's output, then runs its own effects and volume, and the master does the same last.
-
-`FadeEffects` ramps only the settings whose target it changes, and leaves any other ramp running.
-Cutoffs move in octaves, and a cutoff faded to null slides to the end of the range and turns off. An
-echo fades its volume in as it turns on and out as it turns off. Building the fade from `GetEffects`
-changes one setting and keeps the rest:
+`AudioEffects` states the order a bus runs its effects in. A fade built from `GetEffects` changes one
+setting and keeps the rest:
 
 ```csharp
 Run.Audio.FadeEffects(AudioBuses.Score, Run.Audio.GetEffects(AudioBuses.Score) with { LowPassHertz = 900f }, 0.2f);
 ```
 
-An echo's `DelaySeconds` and `InvertLeft` never fade. A changed delay takes effect on the call and cuts the repeats
-already ringing. Setting a bus's effects to what they already are changes nothing, and a scene may set
-its space on every load.
+Setting a bus's effects to what they already are changes nothing, and a scene may set its space on
+every load.
 
 ## Formats and streaming
 

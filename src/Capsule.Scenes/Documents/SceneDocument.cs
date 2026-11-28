@@ -77,18 +77,11 @@ public sealed class SceneDocument
     {
         ArgumentNullException.ThrowIfNull(json);
 
-        return ParseUtf8(Encoding.UTF8.GetBytes(json));
-    }
-
-    // Reads a document from its JSON form as UTF-8. The document keeps utf8 as its members' bytes. The caller
-    // never changes them afterwards.
-    internal static SceneDocument ParseUtf8(byte[] utf8)
-    {
-        return SceneDocumentJson.Read(utf8);
+        return SceneDocumentJson.Read(Encoding.UTF8.GetBytes(json));
     }
 
     /// <summary>Writes the document as compact JSON, which <see cref="Parse"/> reads back to the same entries and members.</summary>
-    /// <remarks>An importer writes the document it builds with this. The same document always writes the same text.</remarks>
+    /// <remarks>The same document always writes the same text.</remarks>
     public string ToJson() => SceneDocumentJson.Write(this);
 
     // How a message names the entry at index: its place in the list and what it places.

@@ -45,8 +45,10 @@ public sealed class FrameDiagnosticsTests
 
         using (FrameDiagnostics diagnostics = new(path, Stopwatch.GetTimestamp(), exitAfterSeconds: null, Stopwatch.GetTimestamp))
         {
+            diagnostics.Clock.BeginUpdate(lastDrawMs: 0);
             diagnostics.BeginUpdate();
-            diagnostics.EndUpdate(steps: 1, tick: 1);
+            diagnostics.Clock.EndUpdate(steps: 1);
+            diagnostics.EndUpdate(tick: 1);
             diagnostics.BeginView();
             diagnostics.BeginDraw();
             diagnostics.EndDraw();
@@ -105,6 +107,37 @@ public sealed class FrameDiagnosticsTests
         Assert.Equal("4096", rows[0][10]);
         Assert.Equal("0.000", rows[1][1]);
         Assert.InRange(long.Parse(rows[1][7], CultureInfo.InvariantCulture), 0, allocated.Length - 1);
+    }
+
+    // The window host ends the frames as it quits. What the run allocates after that, as its end and the
+    // window's close do, is no row's cost.
+    [Fact]
+    public void EndFrames_LeavesWhatFollowsOutOfTheLastRow()
+    {
+        using Capture capture = new();
+        capture.Frame();
+        capture.EndFrames();
+        byte[] allocated = new byte[100_000];
+
+        string[][] rows = [.. capture.ReadLines().Where(IsRow).Select(static row => row.Split(','))];
+        GC.KeepAlive(allocated);
+
+        Assert.InRange(long.Parse(Assert.Single(rows)[7], CultureInfo.InvariantCulture), 0, allocated.Length - 1);
+    }
+
+    // A last row that fills a buffer at the quit stays with the capture, which still writes every row in order.
+    [Fact]
+    public void EndFrames_OnAFullBuffer_KeepsEveryRow()
+    {
+        using Capture capture = new();
+        for (int i = 0; i < FrameDiagnostics.FlushEvery * 2; i++)
+        {
+            capture.Frame();
+        }
+
+        capture.EndFrames();
+
+        Assert.Equal(FrameDiagnostics.FlushEvery * 2, capture.ReadLines().Count(IsRow));
     }
 
     // A minimized or exiting frame updates and draws nothing. Its row keeps the run's ticks and allocations
@@ -203,10 +236,12 @@ public sealed class FrameDiagnosticsTests
         {
             FrameDiagnostics diagnostics = _diagnostics ?? throw new InvalidOperationException("The capture is closed.");
 
+            diagnostics.Clock.BeginUpdate(lastDrawMs: 0);
             diagnostics.BeginUpdate();
             _clock?.Advance(updateSeconds);
             _tick += steps;
-            diagnostics.EndUpdate(steps, _tick);
+            diagnostics.Clock.EndUpdate(steps);
+            diagnostics.EndUpdate(_tick);
             diagnostics.BeginView();
             _clock?.Advance(viewSeconds);
             diagnostics.BeginDraw();
@@ -220,12 +255,16 @@ public sealed class FrameDiagnosticsTests
         {
             FrameDiagnostics diagnostics = _diagnostics ?? throw new InvalidOperationException("The capture is closed.");
 
+            diagnostics.Clock.BeginUpdate(lastDrawMs: 0);
             diagnostics.BeginUpdate();
             _tick += steps;
-            diagnostics.EndUpdate(steps, _tick);
+            diagnostics.Clock.EndUpdate(steps);
+            diagnostics.EndUpdate(_tick);
         }
 
         internal bool Expired => (_diagnostics ?? throw new InvalidOperationException("The capture is closed.")).Expired;
+
+        internal void EndFrames() => _diagnostics?.EndFrames();
 
         internal void Close()
         {

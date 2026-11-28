@@ -140,16 +140,7 @@ public sealed class ViewportFitTests
         Assert.Equal(400f, camera.ResolveSpan(new Vector2(1600f, 400f)).X);
         Assert.True(placed.Left >= swept.Left && placed.Right <= swept.Right);
         Assert.True(placed.Top >= swept.Top && placed.Bottom <= swept.Bottom);
-
-        Scene scene = new();
-        scene.Camera.ViewportSize = new Vector2(300f, 100f);
-        scene.Camera.Fit = ViewportFit.Expand;
-        Entity edge = new SceneFixtures.Drifter(new Vector2(placed.Right - 0.5f, 0f));
-        edge.Add(new SpriteRenderer(SceneFixtures.Frame(8, 8)));
-        scene.Add(edge);
-        using SimulationHost host = new(scene);
-
-        Assert.Equal(1, host.Simulation.View.Sprites.Length);
+        Assert.Equal(1, EdgeSpritesDrawn(camera, 8, placed.Right - 0.5f));
     }
 
     // On a surface 181 pixels tall the camera's half-span is 45.25 units, a quarter pixel. A
@@ -294,20 +285,7 @@ public sealed class ViewportFitTests
         Assert.Equal(new Letterbox(200, 0, 100, 100, 1f), layout.World);
         Assert.Equal(Rect.FromEdges(-50f, -50f, 50f, 50f), placed);
         Assert.Equal(Rect.FromEdges(-200f, -200f, 200f, 200f), swept);
-
-        Scene scene = new();
-        scene.Camera.ViewportSize = new Vector2(100f, 100f);
-        scene.Camera.Fit = ViewportFit.Expand;
-        foreach (float x in new[] { -49f, 49f })
-        {
-            Entity edge = new SceneFixtures.Drifter(new Vector2(x, 0f));
-            edge.Add(new SpriteRenderer(SceneFixtures.Frame(2, 2)));
-            scene.Add(edge);
-        }
-
-        using SimulationHost host = new(scene);
-
-        Assert.Equal(2, host.Simulation.View.Sprites.Length);
+        Assert.Equal(2, EdgeSpritesDrawn(camera, 2, -49f, 49f));
     }
 
     // With the camera still, a sprite advancing half a unit (one pixel) a step lands one pixel
@@ -325,6 +303,24 @@ public sealed class ViewportFitTests
             Assert.Equal(previous + 1f, pixel);
             previous = pixel;
         }
+    }
+
+    // How many sprites a scene framed as camera draws, one size pixels square at each x along its axis.
+    private static int EdgeSpritesDrawn(in CameraView camera, int size, params ReadOnlySpan<float> xs)
+    {
+        Scene scene = new();
+        scene.Camera.ViewportSize = camera.Size;
+        scene.Camera.Fit = camera.Fit;
+        foreach (float x in xs)
+        {
+            Entity edge = new SceneFixtures.Drifter(new Vector2(x, 0f));
+            edge.Add(new SpriteRenderer(SceneFixtures.Frame(size, size)));
+            scene.Add(edge);
+        }
+
+        using SimulationHost host = new(scene);
+
+        return host.Simulation.View.Sprites.Length;
     }
 
     // The sprite's surface pixel from the camera's corner, along one axis.

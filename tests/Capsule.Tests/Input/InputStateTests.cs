@@ -7,16 +7,20 @@ public sealed class InputStateTests
     private static readonly InputAction Jump = new("Jump");
     private static readonly AxisAction Move = new("Move");
 
+    public static TheoryData<InputButton> OneOfEachKind => new() { Key.Space, PadButton.South, MouseButton.Left, StickDirection.LeftStickUp };
+
     private static InputState Bound(params ReadOnlySpan<InputButton> buttons) =>
         new(new ActionBindings().Bind(Jump, buttons));
 
-    // The whole edge walk: the press on the first step down, held only while it stays down, the
-    // release on the first step up, and nothing on the step after that.
-    [Fact]
-    public void AKeyHeldAndThenReleased_EdgesOnceEachWay()
+    // The whole edge walk, for a button of each kind bound beside the others: the press on the first step
+    // down and never again while it stays down, held only while it does, the release on the first step up,
+    // and nothing on the step after that.
+    [Theory]
+    [MemberData(nameof(OneOfEachKind))]
+    public void AButtonHeldAndThenReleased_EdgesOnceEachWay(InputButton button)
     {
-        InputState input = Bound(Key.Space);
-        DeviceSnapshot down = DeviceSnapshot.Of(Key.Space);
+        InputState input = Bound(Key.Space, PadButton.South, MouseButton.Left, StickDirection.LeftStickUp);
+        DeviceSnapshot down = DeviceSnapshot.Empty.With(button);
 
         input.Advance(down);
 

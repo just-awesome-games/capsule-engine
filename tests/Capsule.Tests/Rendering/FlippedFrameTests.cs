@@ -109,15 +109,5 @@ public sealed class FlippedFrameTests
         Assert.Equal(new Vector2(101f, 53f), box.Bounds.Max);
     }
 
-    private static SpriteIntent At(in Sprite frame, Vector2 position) =>
-        new(
-            frame,
-            position,
-            position,
-            PreviousRotation: 0f,
-            Rotation: 0f,
-            new Vector2(frame.Region.Width, frame.Region.Height),
-            FlipX: false,
-            FlipY: false,
-            ColorRgba.White);
+    private static SpriteIntent At(in Sprite frame, Vector2 position) => SpriteFixtures.Drawn(frame, position, position);
 }

@@ -75,8 +75,8 @@ public sealed class VisibleOnScreenNotifier2D : Component, ISettleListEntry
     /// and <see cref="Rendering.Rect.Bottom"/> each a distance out from that edge.
     /// </summary>
     /// <remarks>
-    /// An edge at zero, as every edge is by default, tests against the region's own edge. Each edge is a distance rather
-    /// than a coordinate. Its size means nothing here.
+    /// An edge at zero, as every edge is by default, tests against the region's own edge. The rect's size means
+    /// nothing here.
     /// </remarks>
     /// <exception cref="InvalidOperationException">Set from inside this notifier's own handler.</exception>
     public Rect Margin

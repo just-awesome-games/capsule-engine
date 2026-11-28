@@ -193,15 +193,7 @@ public sealed class RunTraceTests : IDisposable
         using (RecordedRun run = new(Builder()))
         using (OverlayRig rig = new(run.Host, scheduler: run.Scheduler))
         {
-            rig.Scheduler.Output = OverlayFixtures.Output;
-            rig.Frame();
-            rig.OpenEntityPanel("Walker");
-            rig.SelectRow("Nudge");
-            rig.PlaceWorld();
-            rig.Frame(DeviceSnapshot.Of(Key.G).WithPointer(new Vector2(700f, 300f)));
-            rig.Frame(DeviceSnapshot.Empty.WithPointer(new Vector2(700f, 300f)));
-            rig.Press(Key.Grave);
-            rig.Frame();
+            ActThroughOverlay(rig);
 
             using FileStream file = File.Create(recording);
             run.Recorder.Write(file, crashed: false);
@@ -289,12 +281,8 @@ public sealed class RunTraceTests : IDisposable
         string recording = _workspace.PathTo("run.recording");
         using (RecordedRun run = new(Builder(scene)))
         {
-            _positions[0] = ((Reading)run.Host.Scene).Walker.Position;
-            for (int step = 0; step < Steps; step++)
-            {
-                run.Step(Varied(run, step));
-                _positions[step + 1] = ((Reading)run.Host.Scene).Walker.Position;
-            }
+            _positions[0] = run.WalkerPosition;
+            run.Play(Steps, step => _positions[step + 1] = run.WalkerPosition);
 
             using FileStream file = File.Create(recording);
             run.Recorder.Write(file, crashed: false);

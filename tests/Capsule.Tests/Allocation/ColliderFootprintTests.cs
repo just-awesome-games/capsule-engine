@@ -30,10 +30,7 @@ public sealed class ColliderFootprintTests(ITestOutputHelper output)
 
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        output.WriteLine(FormattableString.Invariant($"{bytes / Colliders} bytes per collider, budget {BytesPerCollider}"));
-        Assert.True(
-            bytes <= BytesPerCollider * Colliders,
-            FormattableString.Invariant($"a collider took {bytes / Colliders} bytes, over its budget of {BytesPerCollider}."));
+        StepMeasurement.ReportPer(output, "collider", bytes, Colliders, BytesPerCollider);
     }
 
     // A reservation holds a slot, two tree nodes and the build's lists for each collider, about 350
@@ -50,10 +47,7 @@ public sealed class ColliderFootprintTests(ITestOutputHelper output)
         world.Reserve(Reserved, 0, 0);
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        output.WriteLine(FormattableString.Invariant($"{bytes / Reserved} bytes per reserved collider, budget {BytesPerReserved}"));
-        Assert.True(
-            bytes <= BytesPerReserved * Reserved,
-            FormattableString.Invariant($"a reserved collider took {bytes / Reserved} bytes, over its budget of {BytesPerReserved}."));
+        StepMeasurement.ReportPer(output, "reserved collider", bytes, Reserved, BytesPerReserved);
     }
 
     // A tile palette is mostly art that collides as nothing. Such an entry costs a grid its flags and
@@ -73,9 +67,6 @@ public sealed class ColliderFootprintTests(ITestOutputHelper output)
         world.AddGrid(CollisionFixtures.TileSize, cells, lookup, 1, profiles);
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        output.WriteLine(FormattableString.Invariant($"{bytes / Entries} bytes per palette entry, budget {BytesPerEntry}"));
-        Assert.True(
-            bytes <= BytesPerEntry * Entries,
-            FormattableString.Invariant($"a palette entry took {bytes / Entries} bytes, over its budget of {BytesPerEntry}."));
+        StepMeasurement.ReportPer(output, "palette entry", bytes, Entries, BytesPerEntry);
     }
 }

@@ -237,9 +237,7 @@ public sealed class AudioPositionTests
     // at position, and the voice the source played on starting.
     internal static SimulationHost Simulate(Vector2 position, AudioSource source, out Voice voice, Run? on = null)
     {
-        SceneFixtures.HookScene scene = new(SceneFixtures.Opens(Vector2.Zero));
-        scene.Add(new SceneFixtures.Holder(position, source));
-        SimulationHost run = new(scene, run: on);
+        SimulationHost run = AudioPlaybackFixtures.Hosting(source, position, on);
         voice = LastOf(run.Run.Audio, default, AudioCommandKind.Play).Voice;
 
         return run;

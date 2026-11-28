@@ -15,7 +15,7 @@ public sealed class SceneDrawOrderBandTests
         Node parent = Tagged(1);
         Node child = Tagged(2);
         child.Parent = parent;
-        using SimulationHost run = Drawn(out _, parent, Tagged(3));
+        using SimulationHost run = DrawnOnce(out _, parent, Tagged(3));
 
         parent.Get<SpriteRenderer>().ZIndex = 1;
         parent.ZIndex = 5;
@@ -31,7 +31,7 @@ public sealed class SceneDrawOrderBandTests
     {
         Node high = Tagged(3);
         high.ZIndex = 2;
-        using SimulationHost run = Drawn(out Scene scene, Tagged(1), high);
+        using SimulationHost run = DrawnOnce(out Scene scene, Tagged(1), high);
 
         Node child = Tagged(2);
         scene.Add(child);
@@ -42,22 +42,6 @@ public sealed class SceneDrawOrderBandTests
         run.Step();
 
         Assert.Equal([1, 3, 2], Order(run.Simulation.View.Sprites));
-    }
-
-    // A scene holding the nodes that has stepped and built a frame, which a change then patches.
-    private static SimulationHost Drawn(out Scene scene, params Node[] nodes)
-    {
-        scene = new SceneFixtures.HookScene();
-        foreach (Node node in nodes)
-        {
-            scene.Add(node);
-        }
-
-        SimulationHost run = new(scene);
-        run.Step();
-        Assert.False(run.Simulation.View.Sprites.IsEmpty);
-
-        return run;
     }
 
     private static Node Tagged(int tag)

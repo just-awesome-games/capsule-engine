@@ -1,8 +1,7 @@
 <Project>
 
-  <!-- What a shell's publish holds. It carries no symbols and no method names. The build's symbols go
-       to CapsuleSymbolsDirectory beside it, where a crash log's addresses decode against them. Every
-       part answers to the shell role, and a role-free project publishes as the SDK does. -->
+  <!-- What a shell's publish holds. Its symbols go beside it to CapsuleSymbolsDirectory, where a crash
+       log decodes against them. A role-free project publishes as the SDK does. -->
 
   <!-- Defaults a project can override, for a native publish only. Its crash log's addresses decode
        against the native symbols, and a managed publish keeps its method names. Code compiled for
@@ -35,14 +34,20 @@
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
 
-  <!-- The GPU formats a publish carries, by runtime identifier: those SDL's GPU drivers read there. A
-       publish for no known runtime identifier carries every format, and a private platform module names
-       its own. -->
+  <!-- The desktop platform the runtime identifier publishes for, or empty for none. -->
+  <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
+    <_CapsulePlatform Condition="$(RuntimeIdentifier.StartsWith('win-'))">windows</_CapsulePlatform>
+    <_CapsulePlatform Condition="$(RuntimeIdentifier.StartsWith('linux-'))">linux</_CapsulePlatform>
+    <_CapsulePlatform Condition="$(RuntimeIdentifier.StartsWith('osx-'))">macos</_CapsulePlatform>
+  </PropertyGroup>
+
+  <!-- The GPU formats a publish carries, by platform: those SDL's GPU drivers read there. A publish for
+       no known platform carries every format, and a private platform module names its own. -->
   <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
     <_CapsuleEngineShaderFormats>spirv;dxil;msl</_CapsuleEngineShaderFormats>
-    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and $(RuntimeIdentifier.StartsWith('win-'))">dxil;spirv</CapsuleShaderFormats>
-    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and $(RuntimeIdentifier.StartsWith('linux-'))">spirv</CapsuleShaderFormats>
-    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and $(RuntimeIdentifier.StartsWith('osx-'))">msl</CapsuleShaderFormats>
+    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and '$(_CapsulePlatform)' == 'windows'">dxil;spirv</CapsuleShaderFormats>
+    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and '$(_CapsulePlatform)' == 'linux'">spirv</CapsuleShaderFormats>
+    <CapsuleShaderFormats Condition="'$(CapsuleShaderFormats)' == '' and '$(_CapsulePlatform)' == 'macos'">msl</CapsuleShaderFormats>
   </PropertyGroup>
 
   <!-- A shader ships as <key>.<format>.shader. One in a format the publish does not carry leaves it. -->
@@ -61,15 +66,7 @@
 
   <!-- The engine embeds its own sprite shader in every format and the controller database once per
        desktop platform. A native publish removes the formats it does not carry and every platform's
-       database but its runtime identifier's. The compiler ignores a resource the assembly does not
-       hold. -->
-  <PropertyGroup Condition="'$(CapsuleGameShell)' == 'true'">
-    <_CapsuleGamepadMappingsPlatforms>windows;linux;macos</_CapsuleGamepadMappingsPlatforms>
-    <_CapsuleGamepadMappingsPlatform Condition="$(RuntimeIdentifier.StartsWith('win-'))">windows</_CapsuleGamepadMappingsPlatform>
-    <_CapsuleGamepadMappingsPlatform Condition="$(RuntimeIdentifier.StartsWith('linux-'))">linux</_CapsuleGamepadMappingsPlatform>
-    <_CapsuleGamepadMappingsPlatform Condition="$(RuntimeIdentifier.StartsWith('osx-'))">macos</_CapsuleGamepadMappingsPlatform>
-  </PropertyGroup>
-
+       database but its own. The compiler ignores a resource the assembly does not hold. -->
   <Target Name="CapsuleRemoveUnreadEngineResources"
           Condition="'$(CapsuleGameShell)' == 'true' and '$(PublishAot)' == 'true'"
           BeforeTargets="WriteIlcRspFileForCompilation">
@@ -77,7 +74,7 @@
       <_CapsuleUnreadEngineShader Include="$(_CapsuleEngineShaderFormats)" Exclude="$(CapsuleShaderFormats)" Condition="'$(CapsuleShaderFormats)' != ''" />
       <_CapsuleUnreadEngineResource Include="@(_CapsuleUnreadEngineShader->'Capsule.Runtime.Rendering.Shaders.sprite.%(Identity).shader')" />
       <_CapsuleUnreadEngineResource Include="@(_CapsuleUnreadEngineShader->'Capsule.Runtime.Rendering.Shaders.vertex.%(Identity).shader')" />
-      <_CapsuleUnreadGamepadMappings Include="$(_CapsuleGamepadMappingsPlatforms)" Exclude="$(_CapsuleGamepadMappingsPlatform)" Condition="'$(_CapsuleGamepadMappingsPlatform)' != ''" />
+      <_CapsuleUnreadGamepadMappings Include="windows;linux;macos" Exclude="$(_CapsulePlatform)" Condition="'$(_CapsulePlatform)' != ''" />
       <_CapsuleUnreadEngineResource Include="@(_CapsuleUnreadGamepadMappings->'Capsule.Runtime.Input.gamecontrollerdb.%(Identity).txt.gz')" />
       <_CapsuleUnreadEngineResourceLine Include="@(_CapsuleUnreadEngineResource->'    &lt;resource name=&quot;%(Identity)&quot; action=&quot;remove&quot; /&gt;')" />
     </ItemGroup>
@@ -95,8 +92,7 @@
     </PropertyGroup>
   </Target>
 
-  <!-- The removal hooks the compiler's own target. A publish that compiled native code without
-       running it fails here rather than ship the formats and databases it never reads. -->
+  <!-- A native publish whose compiler skipped the removal fails rather than ship what it never reads. -->
   <Target Name="CapsuleRequireUnreadEngineResourcesRemoved"
           Condition="'$(CapsuleGameShell)' == 'true' and '$(PublishAot)' == 'true' and '$(NativeCompilationDuringPublish)' != 'false'"
           AfterTargets="Publish">

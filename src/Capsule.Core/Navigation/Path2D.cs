@@ -37,7 +37,6 @@ public sealed class Path2D
     public Rect Bounds { get; }
 
     /// <summary>Creates a path through a copy of <paramref name="points"/>, in order, measured by the straight length of each leg.</summary>
-    /// <param name="points">At least two finite points, not all the same.</param>
     public Path2D(params ReadOnlySpan<Vector2> points)
         : this(points, Vector2.Distance)
     {
@@ -46,10 +45,9 @@ public sealed class Path2D
     /// <summary>Creates a path through a copy of <paramref name="points"/>, in order, with each leg as long as <paramref name="measure"/> says.</summary>
     /// <remarks>
     /// <see cref="Length"/>, <see cref="PointAt"/> and a follower's speed all read in the measure's unit. The measure
-    /// runs once a leg while the path is built. A point repeated with a leg of some length holds a follower on it.
+    /// runs once a leg while the path is built, and must give at least 0, and more than 0 between points
+    /// that differ. A point repeated with a leg of some length holds a follower on it.
     /// </remarks>
-    /// <param name="points">At least two finite points, not all the same.</param>
-    /// <param name="measure">How long the leg from one point to the next is: 0 or more, and more than 0 between points that differ.</param>
     public Path2D(ReadOnlySpan<Vector2> points, Func<Vector2, Vector2, float> measure)
     {
         ArgumentNullException.ThrowIfNull(measure);

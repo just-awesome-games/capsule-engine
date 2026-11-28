@@ -3,6 +3,7 @@ using Capsule.Input;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Capsule.Tests.Allocation;
+using Capsule.Tests.Input;
 using Capsule.Tests.Rendering;
 using Capsule.Tests.Scenes;
 
@@ -53,7 +54,7 @@ public sealed class ButtonNameTests
         label.SetText(Key.LeftShift);
 
         Assert.Equal("W", run.GetText(Key.W));
-        run.InputState.UseKeyLayout(Azerty());
+        run.InputState.UseKeyLayout(InputFixtures.Azerty());
         Assert.Equal("Z", run.GetText(Key.W));
         Assert.Equal("Shift Left", label.Text);
         Assert.Equal("A", run.GetText(PadButton.South));
@@ -124,7 +125,7 @@ public sealed class ButtonNameTests
 
         host.Step();
         string kept = plain.Text;
-        run.InputState.UseKeyLayout(Azerty());
+        run.InputState.UseKeyLayout(InputFixtures.Azerty());
         Assert.Equal("Press Z", label.Text);
 
         run.Input.Rebind(Act, Key.LeftShift, PadButton.South);
@@ -241,14 +242,5 @@ public sealed class ButtonNameTests
             _act?.Invoke();
             _act = null;
         }
-    }
-
-    // AZERTY prints Z on W's position.
-    private static string?[] Azerty()
-    {
-        string?[] layout = new string?[(int)Key.NumpadDecimal + 1];
-        layout[(int)Key.W] = "Z";
-
-        return layout;
     }
 }

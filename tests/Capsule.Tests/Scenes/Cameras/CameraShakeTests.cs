@@ -41,51 +41,22 @@ public sealed class CameraShakeTests
         Assert.Equal(Shaken(), Shaken());
     }
 
-    // The noise phase runs whether or not the camera shakes. Runs that differ only in their calls
-    // compare step for step.
-    [Fact]
-    public void AWeakShake_ChangesNothingUnderAStrongOne_AndTakesOverAtItsOwnIntensityOnceTheStrongOneFades()
+    // An intensity scales a default half-second shake reaching 8 units on each axis, capped at 1.
+    [Theory]
+    [InlineData(0.5f, 4f)]
+    [InlineData(2f, 8f)]
+    public void TheShorthand_DrawsADefaultShakeScaledByItsIntensity(float intensity, float reach)
     {
-        static Rect Shaken(float? strong, int after, float? weak)
+        static Rect[] Shaken(Action<Camera> shake)
         {
             (SceneSimulation simulation, Camera camera) = SceneFixtures.Pinned();
-            if (strong is { } first)
-            {
-                camera.Shake(first);
-            }
+            Steps(simulation, camera, 3);
+            shake(camera);
 
-            Steps(simulation, camera, after);
-            if (weak is { } second)
-            {
-                camera.Shake(second);
-            }
-
-            return Steps(simulation, camera, 1)[0];
+            return Steps(simulation, camera, 31);
         }
 
-        Assert.Equal(Shaken(1f, 2, null), Shaken(1f, 2, 0.2f));
-        Assert.Equal(Shaken(null, 25, 0.2f), Shaken(1f, 25, 0.2f));
-    }
-
-    // The offsets the shorthand drew before shake profiles existed, bit for bit. The second run changes
-    // the camera-wide amplitude mid-shake, which the shorthand reads live.
-    [Fact]
-    public void TheShorthand_DrawsTheOffsetsItDrewBeforeProfiles()
-    {
-        (SceneSimulation simulation, Camera camera) = SceneFixtures.Pinned();
-        camera.Shake(1f, 0.25f);
-        Rect[] regions = Steps(simulation, camera, 15);
-
-        Assert.Equal(new Vector2(-6.4704437f, 6.8266983f), regions[0].Position);
-        Assert.Equal(new Vector2(1.4763184f, 0.49692535f), regions[7].Position);
-        Assert.Equal(new Vector2(-0.0011291504f, -0.00920105f), regions[14].Position);
-
-        (simulation, camera) = SceneFixtures.Pinned();
-        camera.Shake(0.9f, 0.4f);
-        Steps(simulation, camera, 5);
-        camera.ShakeAmplitude = new Vector2(3f, 12f);
-
-        Assert.Equal(new Vector2(0.7381439f, 2.9030533f), Steps(simulation, camera, 1)[0].Position);
+        Assert.Equal(Shaken(c => c.Shake(new CameraShake(new Vector2(reach), 0.5f))), Shaken(c => c.Shake(intensity)));
     }
 
     // A cosine at half the step rate lands on its peak every step. Nine steps leave the envelope a
@@ -176,23 +147,27 @@ public sealed class CameraShakeTests
         Assert.Equal(draws, simulation.Run.Random.DrawCount);
     }
 
-    // A still sine holds a known offset. A call that changes nothing leaves it in place. A profile leaves
-    // the camera-wide phase be. A shorthand call that takes over draws what it draws alone.
+    // A still sine holds a known offset. A call that changes nothing leaves it in place. The noise phase runs
+    // whether or not the camera shakes, and a profile leaves it be. Runs that differ only in their calls then
+    // compare step for step. A call that takes over draws what it draws alone, once a stronger shake has faded too.
     [Fact]
     public void AProfileAndTheShorthand_EachChangeNothingUnderAStrongerShake_AndReplaceAWeakerOne()
     {
         static CameraShake Still(float amplitude) =>
             new(new Vector2(0f, amplitude), 1f) { Wave = ShakeWave.Sine, Frequency = 0f, Sustain = 1f };
 
-        static Rect Shaken(Action<Camera>? first, Action<Camera> second)
+        static Rect Shaken(Action<Camera>? first, Action<Camera> second, int after = 2)
         {
             (SceneSimulation simulation, Camera camera) = SceneFixtures.Pinned();
             first?.Invoke(camera);
-            Steps(simulation, camera, 2);
+            Steps(simulation, camera, after);
             second(camera);
 
             return Steps(simulation, camera, 1)[0];
         }
+
+        Assert.Equal(Shaken(c => c.Shake(1f), _ => { }), Shaken(c => c.Shake(1f), c => c.Shake(0.2f)));
+        Assert.Equal(Shaken(null, c => c.Shake(0.2f), 25), Shaken(c => c.Shake(1f), c => c.Shake(0.2f), 25));
 
         // A full shorthand shake reaches the default amplitude's length, about 11.3, and about 9.9 two
         // steps into its half second.
@@ -217,6 +192,18 @@ public sealed class CameraShakeTests
         CameraShake shake = new(new Vector2(0f, amplitude), seconds) { Frequency = frequency, Sustain = sustain, Wave = wave };
 
         Assert.Throws<ArgumentOutOfRangeException>(() => camera.Shake(shake));
+    }
+
+    [Theory]
+    [InlineData(-0.1f, 1f, "intensity")]
+    [InlineData(float.NaN, 1f, "intensity")]
+    [InlineData(1f, 0f, "seconds")]
+    [InlineData(1f, float.PositiveInfinity, "seconds")]
+    public void AShorthandOutOfRange_IsRefusedNamingItsArgument(float intensity, float seconds, string argument)
+    {
+        (_, Camera camera) = SceneFixtures.Pinned();
+
+        Assert.Equal(argument, Assert.Throws<ArgumentOutOfRangeException>(() => camera.Shake(intensity, seconds)).ParamName);
     }
 
     // A twin camera at full strength draws the offset the strength scales, step for step, to the float

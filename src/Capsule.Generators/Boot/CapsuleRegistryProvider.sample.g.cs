@@ -52,14 +52,14 @@ namespace Capsule.Generated
         }
 
         [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]
-        public static void AddDrivers(global::System.Collections.Generic.List<global::Capsule.Input.InputDriverRegistration> registrations)
+        public static void AddDrivers(global::System.Collections.Generic.List<global::Capsule.Scenes.FactoryRegistration<global::Capsule.Input.IInputDriver>> registrations)
         {
             global::System.ArgumentNullException.ThrowIfNull(registrations);
             registrations.AddRange(global::Capsule.Generated.CapsuleInputDrivers.Registrations);
         }
 
         [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Never)]
-        public static void AddPayloads(global::System.Collections.Generic.List<global::Capsule.Scenes.ScenePayloadRegistration> registrations)
+        public static void AddPayloads(global::System.Collections.Generic.List<global::Capsule.Scenes.FactoryRegistration<global::Capsule.Scenes.IScenePayload>> registrations)
         {
             global::System.ArgumentNullException.ThrowIfNull(registrations);
             registrations.AddRange(global::Capsule.Generated.CapsuleScenePayloads.Registrations);

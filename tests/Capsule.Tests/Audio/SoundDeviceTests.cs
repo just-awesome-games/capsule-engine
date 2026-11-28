@@ -117,6 +117,18 @@ public sealed class SoundDeviceTests : IDisposable
         Assert.Equal(bufferFrames, SdlAudioOutput.BufferFramesFor(leadFrames));
     }
 
+    // A queue SDL could not read or a put it refused would otherwise look like room in the queue, and
+    // the mix would top it up without end. Each throws SDL's reason, which stops the mix and is logged
+    // once. The output is not disposed, because this test never started SDL's audio.
+    [Fact]
+    public void TheDefaultOutput_ThrowsSdlsReasonForAFailedQueueReadOrPut()
+    {
+        SdlAudioOutput output = new(nint.Zero);
+
+        Assert.Contains("'stream'", Assert.Throws<InvalidOperationException>(() => output.QueuedFrames).Message, StringComparison.Ordinal);
+        Assert.Contains("'stream'", Assert.Throws<InvalidOperationException>(() => output.Submit(new float[AudioOutput.Channels])).Message, StringComparison.Ordinal);
+    }
+
     // A platform that opens the one output a test hands it, and serves the effect for a .wav and the
     // shipped Ogg fixture for an .ogg.
     private sealed class OutputPlatform(AudioOutput output) : HostPlatform

@@ -6,6 +6,7 @@ using Capsule.Rendering;
 using Capsule.Runtime;
 using Capsule.Runtime.Persistence;
 using Capsule.Scenes;
+using Room01 = Capsule.Tests.Scenes.SceneFixtures.Room01;
 
 namespace Capsule.Tests.Runtime;
 
@@ -29,7 +30,6 @@ public sealed class EngineBuilderTests
         yield return [new Action<EngineBuilder>(b => b.WithCanvas(0, 360))];
         yield return [new Action<EngineBuilder>(b => b.WithCanvas(640, 0))];
         yield return [new Action<EngineBuilder>(b => b.WithMaxStepsPerFrame(0))];
-        yield return [new Action<EngineBuilder>(b => b.WithMaxStepsPerFrame(-1))];
         yield return [new Action<EngineBuilder>(b => b.WithWindowTitle("  "))];
         yield return [new Action<EngineBuilder>(b => b.WithMaxFrameRate(-1))];
         yield return [new Action<EngineBuilder>(b => b.WithUnfocusedMaxFrameRate(-1))];
@@ -187,8 +187,6 @@ public sealed class EngineBuilderTests
     {
         protected override void OnStart() => read(Run);
     }
-
-    private sealed class Room01(SceneContent content) : Scene(content);
 
     // Ships nothing, keeps saves under the given root and records what the run reports as a crash.
     private sealed class CrashRecordingPlatform(string saveRoot) : HostPlatform

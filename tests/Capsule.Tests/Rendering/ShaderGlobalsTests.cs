@@ -77,20 +77,14 @@ public sealed class ShaderGlobalsTests
         Assert.Equal("Scene global 'WorldAdd' was set as a float, but shader 'effects/graded' declares it as a float3. Set it with a Vector3.", drawn.Message);
     }
 
+    // Each kind's getter converts through the conversions MaterialTests reads back once.
     [Fact]
     public void Get_ReadsBackWhatSetStored_AndZeroForANameNeverSet()
     {
         ShaderGlobals scene = new();
         scene.Set("Fade", 0.5f);
-        scene.Set("Scroll", new Vector2(1f, 2f));
-        scene.Set("WorldAdd", new Vector3(1f, 2f, 3f));
-        scene.Set("Glow", new ColorRgba(255, 128, 0, 64));
 
         Assert.Equal(0.5f, scene.GetFloat("Fade"));
-        Assert.Equal(new Vector2(1f, 2f), scene.GetVector2("Scroll"));
-        Assert.Equal(new Vector3(1f, 2f, 3f), scene.GetVector3("WorldAdd"));
-        Assert.Equal(new ColorRgba(255, 128, 0, 64), scene.GetColor("Glow"));
-        Assert.Equal(new Vector4(1f, 128f / 255f, 0f, 64f / 255f), scene.GetVector4("Glow"));
         Assert.Equal(0f, scene.GetFloat("Never"));
         Assert.Equal(default, scene.GetColor("Never"));
     }

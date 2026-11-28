@@ -75,7 +75,6 @@ public sealed class MouseSamplerTests
         ScreenPlacement whole = new(new Vector2(40f, 10f), 3f);
 
         Assert.False(sampler.Resume(none, still, fitted, Vector2.Zero, [], []).PointerRemapped);
-        Assert.False(sampler.Resume(none, still, fitted, Vector2.Zero, [], []).PointerRemapped);
 
         DeviceSnapshot remapped = sampler.Resume(none, still, whole, Vector2.Zero, [], []);
         Assert.True(remapped.PointerRemapped);

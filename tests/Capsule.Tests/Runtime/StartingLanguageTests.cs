@@ -2,7 +2,7 @@ using Capsule.Input;
 using Capsule.Localization;
 using Capsule.Persistence;
 using Capsule.Runtime;
-using Capsule.Runtime.Scenes;
+using Capsule.Runtime.DevTools.Recordings;
 using Capsule.Scenes;
 using Capsule.Tests.Localization;
 
@@ -31,7 +31,7 @@ public sealed class StartingLanguageTests
             builder.WithGame(CallbackGame.Starting(run => run.Language = saved));
         }
 
-        using SceneHost host = builder.CreateHost(Opening, null, 0, played: true);
+        Start(builder, played: true);
 
         Assert.Equal(expected, _seen);
         Assert.Equal(1, platform.Asked);
@@ -42,7 +42,7 @@ public sealed class StartingLanguageTests
     {
         Preferring platform = new("fr-CA");
 
-        Builder(platform).RunHeadless<Recording>(new InputScript().Wait(1).Build());
+        Start(Builder(platform), played: false);
 
         Assert.Null(_seen);
         Assert.Equal(0, platform.Asked);
@@ -60,7 +60,7 @@ public sealed class StartingLanguageTests
             .WithGame(CallbackGame.Starting(static run => run.Language = "en"))
             .WithCommandLine(["--language", flag]);
 
-        using SceneHost host = builder.CreateHost(Opening, null, 0, played);
+        Start(builder, played);
 
         Assert.Equal(expected, _seen);
     }
@@ -77,7 +77,20 @@ public sealed class StartingLanguageTests
         Assert.Contains(defect, refused.Message, StringComparison.Ordinal);
     }
 
-    private static SceneTransition Opening => SceneTransition.ToScene(typeof(Recording), null);
+    // A played run is windowed with no driver, here with no window, a medium in memory and no recording. Any
+    // other is headless or driven. Either ends at its first step.
+    private static void Start(EngineBuilder builder, bool played)
+    {
+        if (played)
+        {
+            builder.WithSaveStorage(new RecordedSaveStorage([])).WithoutRecording()
+                .RunRecorded(SceneTransition.ToScene(typeof(Recording), null), replayed: null, static (_, _, _, _) => { });
+        }
+        else
+        {
+            builder.RunHeadless<Recording>(new InputScript().Wait(1).Build());
+        }
+    }
 
     private EngineBuilder Builder(HostPlatform platform) => Builder(platform, EnglishAndFrench);
 

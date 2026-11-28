@@ -112,15 +112,9 @@ public static class DeterministicMath
     private const double SixthPi = Math.PI / 6.0;
 
     /// <summary>The value <paramref name="amount"/> of the way from <paramref name="from"/> to <paramref name="to"/>, which is exactly <c>from * (1 - amount) + to * amount</c>.</summary>
-    /// <param name="from">The value at an amount of 0.</param>
-    /// <param name="to">The value at an amount of 1.</param>
-    /// <param name="amount">The fraction of the way. Outside 0 to 1 it extrapolates.</param>
     public static float Lerp(float from, float to, float amount) => (from * (1f - amount)) + (to * amount);
 
     /// <summary>The point <paramref name="amount"/> of the way from <paramref name="from"/> to <paramref name="to"/>, each axis as <see cref="Lerp(float, float, float)"/> takes it.</summary>
-    /// <param name="from">The point at an amount of 0.</param>
-    /// <param name="to">The point at an amount of 1.</param>
-    /// <param name="amount">The fraction of the way. Outside 0 to 1 it extrapolates.</param>
     public static Vector2 Lerp(Vector2 from, Vector2 to, float amount) =>
         new(Lerp(from.X, to.X, amount), Lerp(from.Y, to.Y, amount));
 
@@ -128,9 +122,6 @@ public static class DeterministicMath
     /// <paramref name="current"/> moved toward <paramref name="target"/> by <paramref name="maxDelta"/>, or
     /// exactly <paramref name="target"/> once it is within that reach. It never passes the target.
     /// </summary>
-    /// <param name="current">The value to move from.</param>
-    /// <param name="target">The value to move toward.</param>
-    /// <param name="maxDelta">The most the value moves. Not negative, and zero holds it.</param>
     public static float MoveToward(float current, float target, float maxDelta)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maxDelta);
@@ -149,9 +140,6 @@ public static class DeterministicMath
     /// <paramref name="current"/> moved along the line to <paramref name="target"/> by a distance of
     /// <paramref name="maxDelta"/>, or exactly <paramref name="target"/> once it is within that reach.
     /// </summary>
-    /// <param name="current">The point to move from.</param>
-    /// <param name="target">The point to move toward.</param>
-    /// <param name="maxDelta">The most distance the point moves. Not negative, and zero holds it.</param>
     public static Vector2 MoveToward(Vector2 current, Vector2 target, float maxDelta)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maxDelta);
@@ -308,8 +296,7 @@ public static class DeterministicMath
     /// The angle in radians from the positive X axis to the point (<paramref name="x"/>,
     /// <paramref name="y"/>), in [-pi, pi] and within 1.2e-7 of the true angle in absolute terms.
     /// </summary>
-    /// <param name="y">The point's Y. World Y runs down, and a positive angle turns clockwise on screen.</param>
-    /// <param name="x">The point's X.</param>
+    /// <remarks>World Y runs down, and a positive angle turns clockwise on screen.</remarks>
     public static float Atan2(float y, float x)
     {
         if (float.IsNaN(y) || float.IsNaN(x))

@@ -8,13 +8,14 @@ public sealed class MoverFaceTests
     private const float Tolerance = CollisionFixtures.Tolerance;
 
     [Fact]
-    public void MoveBox_IsNeverStoppedSidewaysByAOneWayEdge()
+    public void Move_IsNeverStoppedSidewaysByAOneWayEdge()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "----", "----");
 
-        MoveResult2D sideways = world.MoveBox(
-            CollisionFixtures.Box(0f, 12f, 8f, 8f),
+        MoveResult2D sideways = world.Move(
+            Shape2D.Box(CollisionFixtures.Box(0f, 12f, 8f, 8f)),
+            Vector2.Zero,
             new Vector2(40f, 0f),
             CollisionFilter.Everything,
             default);
@@ -24,13 +25,14 @@ public sealed class MoverFaceTests
     }
 
     [Fact]
-    public void MoveBox_FallsPastAOneWayEdgeItAlreadyStartedBelow()
+    public void Move_FallsPastAOneWayEdgeItAlreadyStartedBelow()
     {
         CollisionWorld2D world = new();
         CollisionFixtures.Paint(world, "....", "----", "....");
 
-        MoveResult2D result = world.MoveBox(
-            CollisionFixtures.Box(20f, 20f, 8f, 8f),
+        MoveResult2D result = world.Move(
+            Shape2D.Box(CollisionFixtures.Box(20f, 20f, 8f, 8f)),
+            Vector2.Zero,
             new Vector2(0f, 20f),
             CollisionFilter.Everything,
             default);

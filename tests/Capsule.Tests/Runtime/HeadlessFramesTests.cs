@@ -40,7 +40,7 @@ public sealed class HeadlessFramesTests
         string path = workspace.PathTo("frames.csv");
         ManualClock clock = Clock();
 
-        Builder(path, clock).WithCommandLine(["--uncapped"]).RunHeadless<SceneFixtures.Idle>(new Free());
+        Builder(path, clock).WithCommandLine(["--uncapped"]).RunHeadless<SceneFixtures.Idle>(new InputScript().Wait(12).Build());
 
         string[][] rows = [.. Rows(File.ReadAllLines(path))];
 
@@ -63,17 +63,6 @@ public sealed class HeadlessFramesTests
 
     private static IEnumerable<string[]> Rows(string[] lines) =>
         lines.SkipWhile(static line => line != FrameDiagnosticsTests.Header).Skip(1).Select(static row => row.Split(','));
-
-    // Twelve steps that cost nothing.
-    private sealed class Free : IInputDriver
-    {
-        public bool TryNext(Scene scene, long tick, out DeviceSnapshot snapshot)
-        {
-            snapshot = DeviceSnapshot.Empty;
-
-            return tick < 12;
-        }
-    }
 
     // Each step costs two and a half times the 10 ms step, and the run ends after twelve.
     private sealed class Overrunning(ManualClock clock) : IInputDriver

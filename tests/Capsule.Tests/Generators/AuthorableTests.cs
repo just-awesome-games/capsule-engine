@@ -5,6 +5,7 @@ using Capsule.Navigation;
 using Capsule.Rendering;
 using Capsule.Scenes;
 using Microsoft.CodeAnalysis;
+using static Capsule.Tests.Generators.GeneratorHarness;
 
 namespace Capsule.Tests.Generators;
 
@@ -267,7 +268,7 @@ public sealed class AuthorableTests
     public void ThePlacementFacts_StayOutOfTheCompiledAssembly()
     {
         string entry = """{"id": 3, "type": "lift", "x": 0, "y": 0, "rise": 1}""";
-        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (Room, Document(entry)));
+        (ImmutableArray<Diagnostic> diagnostics, Compilation compiled) = GeneratorHarness.CompileAgainstSources(Game, logic: true, (Room, Entities(entry)));
         Assert.Empty(GeneratorHarness.Errors(diagnostics));
 
         Type documents = GeneratorHarness.Loaded(compiled).GetType("Capsule.Generated.Documents")!;
@@ -294,12 +295,9 @@ public sealed class AuthorableTests
     public void AnEntryItsClassRefusesAtLoad_ThrowsNamingTheDocumentEntryAndFix(string entry, string fix) =>
         GeneratorHarness.AssertLoadRefused(() => Composed(entry), "scene document 'scenes/room': entities[0] (", fix);
 
-    private static string Document(string entry) =>
-        "{\"entities\": [" + entry + "]}";
-
     // Composes the room through the generated registry.
     private static Entity Composed(string entry) =>
-        Assert.Single(GeneratorHarness.Composed(Registry.Value, Document(entry)).Entities.ToArray());
+        Assert.Single(GeneratorHarness.Composed(Registry.Value, Entities(entry)).Entities.ToArray());
 
     private static string? Seen(Entity lift) => Text(lift.GetType().GetProperty("Seen")!.GetValue(lift));
 

@@ -104,14 +104,11 @@ public partial class Camera
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A subject whose position jumps a few units in one step is reached by a pan at this speed rather
-    /// than a cut. Each axis is capped on its own. A diagonal pan can move up to 1.41 times the cap. The cap
-    /// measures from where the view settled at the previous step. A subject newly followed, or one resuming
-    /// after it was paused or left the scene, is reached the same way.
+    /// The cap measures from where the view settled at the previous step. A subject newly followed, or one
+    /// resuming after it was paused or left the scene, is reached the same way.
     /// </para>
     /// <para>
-    /// The cap applies to the centre with the lookahead's lead included. A camera that looks ahead needs a
-    /// cap above the subject's top speed plus the rate its lead grows, or it trails. The subject's own
+    /// The cap applies to the centre with the lookahead's lead included. The subject's own
     /// position still never leaves the frame inside <see cref="Bounds"/>, and the bounds move the view
     /// faster than the cap when a closing edge or a <see cref="BoundsTransition.Snap"/> pushes it. A caller
     /// that moves the subject far away and wants the view there at once calls <see cref="Teleport"/>.

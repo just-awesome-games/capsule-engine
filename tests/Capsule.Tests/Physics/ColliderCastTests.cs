@@ -120,7 +120,7 @@ public sealed class ColliderCastTests
     public void Cast_OfARoundedColliderAlongAFloorItRestsOn_MeetsNothing()
     {
         Scene scene = SceneFixtures.Terrain("....", "....", "####").Started();
-        RoundProber prober = new(new Vector2(24f, 24f), 8f, "solid");
+        Prober prober = new(new Vector2(24f, 24f), new CircleCollider2D(8f), "solid");
         scene.Add(prober);
 
         Assert.False(prober.Collider.Cast(new Vector2(6f, 0f), out _));

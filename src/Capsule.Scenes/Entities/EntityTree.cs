@@ -26,7 +26,6 @@ internal sealed class EntityTree(Scene scene)
     // The step walk reads the list, and they follow once it may change.
     private readonly List<Entity> _moved = [];
 
-    // The ends of the chain.
     private Entity? _first;
     private Entity? _last;
 

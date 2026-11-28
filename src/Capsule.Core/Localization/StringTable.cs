@@ -1,6 +1,6 @@
-using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Text;
+using Capsule.Assets;
 
 namespace Capsule.Localization;
 
@@ -71,39 +71,10 @@ public abstract class StringTable
     [EditorBrowsable(EditorBrowsableState.Never)]
     public TextKey? Find(string path)
     {
-        ArgumentNullException.ThrowIfNull(path);
-
-        // Only a scene's composition searches. A path too long for the stack allocates its bytes.
-        const int StackBytes = 256;
-        int length = Encoding.UTF8.GetByteCount(path);
-        Span<byte> query = length <= StackBytes ? stackalloc byte[StackBytes] : new byte[length];
-        query = query[..Encoding.UTF8.GetBytes(path, query)];
-
         ReadOnlySpan<byte> paths = GetKeyPaths(out ReadOnlySpan<byte> ends);
-        ReadOnlySpan<byte> sorted = SortedKeys;
-        int low = 0;
-        int high = (sorted.Length / sizeof(int)) - 1;
-        while (low <= high)
-        {
-            int middle = low + ((high - low) / 2);
-            int index = BinaryPrimitives.ReadInt32LittleEndian(sorted[(middle * sizeof(int))..]);
-            int order = Entry(paths, ends, index).SequenceCompareTo(query);
-            if (order == 0)
-            {
-                return new TextKey(this, index);
-            }
+        int index = PackedKeys.Find(paths, ends, SortedKeys, path);
 
-            if (order < 0)
-            {
-                low = middle + 1;
-            }
-            else
-            {
-                high = middle - 1;
-            }
-        }
-
-        return null;
+        return index < 0 ? null : new TextKey(this, index);
     }
 
     // The language a requested tag shows: the closest shipped one, or the fallback for null or no match.
@@ -127,7 +98,7 @@ public abstract class StringTable
     {
         ReadOnlySpan<byte> texts = Text(language, out ReadOnlySpan<byte> ends);
 
-        return Entry(texts, ends, index);
+        return PackedKeys.Entry(texts, ends, index);
     }
 
     internal int ArgumentCount(int index) => ArgumentCounts[index];
@@ -142,7 +113,7 @@ public abstract class StringTable
     {
         ReadOnlySpan<byte> paths = GetKeyPaths(out ReadOnlySpan<byte> ends);
 
-        return Encoding.UTF8.GetString(Entry(paths, ends, index));
+        return Encoding.UTF8.GetString(PackedKeys.Entry(paths, ends, index));
     }
 
     // The body of the branch a plural block selects for a count of magnitude and sign: an exact branch
@@ -195,14 +166,5 @@ public abstract class StringTable
     protected abstract ReadOnlySpan<byte> GetKeyPaths(out ReadOnlySpan<byte> ends);
 
     /// <summary>The plural category the rules of the language at <paramref name="language"/> select for a count of magnitude <paramref name="count"/>.</summary>
-    /// <param name="language">The index of the language in the shipped tags.</param>
-    /// <param name="count">The count's magnitude, its sign dropped.</param>
     protected abstract PluralCategory SelectCategory(int language, ulong count);
-
-    private static ReadOnlySpan<byte> Entry(ReadOnlySpan<byte> blob, ReadOnlySpan<byte> ends, int index)
-    {
-        int start = index == 0 ? 0 : BinaryPrimitives.ReadInt32LittleEndian(ends[((index - 1) * sizeof(int))..]);
-
-        return blob[start..BinaryPrimitives.ReadInt32LittleEndian(ends[(index * sizeof(int))..])];
-    }
 }

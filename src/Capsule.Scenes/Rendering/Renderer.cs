@@ -11,9 +11,11 @@ namespace Capsule.Rendering;
 /// </summary>
 /// <remarks>
 /// A renderer's key is its entity's <see cref="Entity.ZIndex"/> summed up the ancestry, as far as an
-/// entity whose <see cref="Entity.ZIndexIsAbsolute"/> is set, plus this renderer's <see cref="ZIndex"/>. Equal keys keep entity order, and attachment order within an
-/// entity, which draws a later renderer over an earlier one. A renderer is placed by its entity's
-/// <see cref="RenderTransform"/> and carries no turn or size of its own.
+/// entity whose <see cref="Entity.ZIndexIsAbsolute"/> is set, plus this renderer's <see cref="ZIndex"/>.
+/// Equal keys keep entity order, and attachment order within an entity, which draws a later renderer over
+/// an earlier one. A renderer is placed by its entity's <see cref="RenderTransform"/> and carries no turn
+/// or size of its own. Coordinates are Y-down, in world units under a world root and canvas pixels under a
+/// screen root.
 /// </remarks>
 public abstract class Renderer : Component
 {
@@ -36,14 +38,8 @@ public abstract class Renderer : Component
     // every write calls Wake. The scene then lets it rest while it stands still out of view.
     private readonly bool _restsWhenStill;
 
-    /// <summary>
-    /// This renderer's offset from its entity's summed <see cref="Entity.ZIndex"/>, zero by default. A
-    /// higher sum draws later.
-    /// </summary>
-    /// <remarks>
-    /// The two values add as a <see cref="long"/> and neither is clamped. Equal sums draw in attachment
-    /// order.
-    /// </remarks>
+    /// <summary>This renderer's offset from its entity's summed <see cref="Entity.ZIndex"/>, zero by default.</summary>
+    /// <remarks>The two values add as a <see cref="long"/> and neither is clamped.</remarks>
     /// <exception cref="InvalidOperationException">It is changed inside a <see cref="Draw"/>.</exception>
     public int ZIndex
     {

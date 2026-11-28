@@ -35,7 +35,6 @@ public readonly partial struct Wait
     /// <summary>
     /// Resumes on the <paramref name="ticks"/>th <see cref="Sequence.Step"/> after the await. Zero continues at once.
     /// </summary>
-    /// <param name="ticks">Fixed steps to wait. Must not be negative.</param>
     public static Wait Ticks(int ticks)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(ticks);
@@ -71,7 +70,6 @@ public readonly partial struct Wait
     /// await Wait.Until(this, static avatar =&gt; avatar.IsOnFloor);
     /// </code>
     /// </example>
-    /// <typeparam name="TState">The type of the state the condition reads. A class, which the wait holds unboxed.</typeparam>
     public static Wait Until<TState>(TState state, Func<TState, bool> condition)
         where TState : class
     {

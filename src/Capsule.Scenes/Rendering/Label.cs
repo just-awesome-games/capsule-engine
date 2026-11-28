@@ -17,24 +17,16 @@ namespace Capsule.Rendering;
 /// </summary>
 /// <remarks>
 /// Rotation anywhere in the entity's ancestry is refused while a label is present. A negative scale
-/// axis mirrors the placed run about the entity's position. Coordinates are Y-down, in world units under a world root and canvas pixels
-/// under a screen root.
-/// <para>
-/// The box's <see cref="Pivot"/> sits at the entity's position plus <see cref="Offset"/>.
-/// <see cref="HorizontalAlignment"/> and <see cref="VerticalAlignment"/> move the text inside the box
-/// and never move the box. A <see cref="Size"/> of zero makes the box the rect of the
-/// <see cref="ScreenEntity"/> holding it, or else the measured run.
-/// </para>
+/// axis mirrors the placed run about the entity's position.
 /// <para>
 /// A <see cref="ScreenEntity"/>'s rect fits the label: the measured run, or <see cref="Size"/> on an axis
 /// that sets one. Wrapped text takes the width the rect is given and asks for none, or under a
 /// <see cref="ScreenEntity.MaxSize"/> its unwrapped width up to that bound. Its height follows from the width.
 /// </para>
 /// <para>
-/// A label given a <see cref="TextKey"/> shows that text in its run's active language, and shows the
-/// new one from the step a <see cref="Run.Language"/> request applies. A label given a button or an
-/// action shows its name as the run's input stands when it is read, after a device or pad switch, a
-/// keyboard layout change or a rebind. Its text and measures are readable from <c>OnStart</c> on.
+/// A keyed label shows the new language from the step a <see cref="Run.Language"/> request applies. A
+/// label naming a button reads the run's input as it stands, after a device switch, layout change or
+/// rebind. Either one's text and measures are readable from <c>OnStart</c> on.
 /// </para>
 /// </remarks>
 /// <param name="font">The font the run is drawn with.</param>
@@ -182,10 +174,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     }
 
     /// <summary>Shows <paramref name="text"/> in the run's active language with its two placeholders filled.</summary>
-    /// <remarks>
-    /// Each argument is formatted once, or shown in the active language when it is or holds a
-    /// <see cref="TextKey"/>, as <see cref="SetText{T0}(TextKey, T0)"/> fills one.
-    /// </remarks>
+    /// <remarks>Each argument fills its placeholder as <see cref="SetText{T0}(TextKey, T0)"/> fills one.</remarks>
     /// <example>
     /// <code>
     /// label.SetText(CapsuleStrings.Status.Holds, CapsuleStrings.Names.Avatar, CapsuleStrings.Items.Lamp); // "{who} holds {what}"
@@ -201,10 +190,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     }
 
     /// <summary>Shows <paramref name="text"/> in the run's active language with its three placeholders filled.</summary>
-    /// <remarks>
-    /// Each argument is formatted once, or shown in the active language when it is or holds a
-    /// <see cref="TextKey"/>, as <see cref="SetText{T0}(TextKey, T0)"/> fills one.
-    /// </remarks>
+    /// <remarks>Each argument fills its placeholder as <see cref="SetText{T0}(TextKey, T0)"/> fills one.</remarks>
     /// <param name="text">A <c>CapsuleStrings</c> member taking three arguments.</param>
     /// <param name="arg0">The value of the text's first placeholder.</param>
     /// <param name="arg1">The value of the text's second placeholder.</param>
@@ -430,7 +416,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// <see cref="MaxLines"/>. Turning a page never reflows. They shape only a word-wrapped, top-aligned
     /// label with a box of positive width, and shapes that leave no room on any row of a page shape
     /// nothing. <see cref="LineCount"/>, <see cref="LineStart"/>, <see cref="ContentSize"/> and
-    /// <see cref="Bounds"/> read the narrowed lines. Assign a new array to change them.
+    /// <see cref="Bounds"/> read the narrowed lines.
     /// </remarks>
     /// <example>
     /// A portrait in the box's top-left corner:
@@ -568,17 +554,8 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     }
 
     /// <summary>
-    /// The box this label lays its text out in. It uses <see cref="Size"/> on each axis where that
-    /// is positive and the measured run elsewhere, placed by <see cref="Pivot"/> at the entity's
-    /// position plus <see cref="Offset"/>.
+    /// The box this label lays its text out in, in the space and under the rules <see cref="Renderer.Bounds"/> states.
     /// </summary>
-    /// <remarks>
-    /// The layout is kept until the text, the font, the box width, <see cref="Wrap"/>,
-    /// <see cref="HorizontalAlignment"/>, <see cref="RichText"/>, <see cref="Case"/> or the casing rules it
-    /// reads, the line window,
-    /// <see cref="LineSpacing"/> or <see cref="Exclusions"/> changes, in the space and under the rules <see cref="Renderer.Bounds"/>
-    /// states.
-    /// </remarks>
     /// <exception cref="InvalidOperationException">The label is keyed, and its entity is in no running scene yet.</exception>
     public override Rect Bounds
     {
@@ -602,9 +579,7 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
     /// when it draws nothing.
     /// </summary>
     /// <remarks>
-    /// It ignores the box and counts only the lines <see cref="FirstLine"/> and <see cref="MaxLines"/>
-    /// draw. A parent can fit itself to what a label filling it draws, or place something where the text
-    /// ends.
+    /// It ignores the box and counts only the lines <see cref="FirstLine"/> and <see cref="MaxLines"/> draw.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The label is keyed, and its entity is in no running scene yet.</exception>
     public Vector2 ContentSize
@@ -668,20 +643,11 @@ public sealed class Label(BitmapFont font, string text = "") : Renderer
 
             Sprite sprite = new(pages[glyph.Page], glyph.Region);
             Vector2 at = origin + (new Vector2(glyph.X, glyph.Y) * scale);
-            // A negative scale axis folds into the flip, and the renderer draws the magnitude of the extent.
             Vector2 extent = new Vector2(sprite.Region.Width, sprite.Region.Height) * scale;
+            ColorRgba tint = glyph.Tint == ColorRgba.White ? Color : ColorRgba.Multiply(glyph.Tint, Color);
 
-            view.Add(
-                new SpriteIntent(
-                    sprite,
-                    at + travel,
-                    at,
-                    PreviousRotation: 0f,
-                    Rotation: 0f,
-                    Vector2.Abs(extent),
-                    FlipX: extent.X < 0f,
-                    FlipY: extent.Y < 0f,
-                    glyph.Tint == ColorRgba.White ? Color : ColorRgba.Multiply(glyph.Tint, Color)));
+            // A negative scale axis mirrors the glyph.
+            view.Add(SpriteIntent.Signed(sprite, at + travel, at, 0f, 0f, extent, false, false, tint));
         }
     }
 

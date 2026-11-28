@@ -8,7 +8,6 @@ internal interface IPcmSource : IDisposable
 
     int SampleRate { get; }
 
-    // Positions the next read at this frame.
     void SeekTo(long frame);
 
     // Fills what it can of target from the current position and returns how many interleaved samples

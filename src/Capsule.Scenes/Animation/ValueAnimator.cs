@@ -18,9 +18,7 @@ namespace Capsule.Animation;
 /// entity next joins a scene. Only a <c>Play</c> made out of a scene runs it there.
 /// </para>
 /// <para>
-/// A component steps after its entity. An entity reading the animator in <see cref="Entity.OnStep"/>
-/// sees the value the previous step set. Put logic that depends on the value set in a late step or in
-/// a component attached after the animator.
+/// An entity reading the animator in <see cref="Entity.OnStep"/> sees the value the previous step set.
 /// </para>
 /// </remarks>
 /// <example>
@@ -64,8 +62,7 @@ public sealed class ValueAnimator<T> : Component
     /// <summary>Whether the clip holds its current value while the entity keeps stepping.</summary>
     /// <remarks>
     /// A held clip neither moves nor finishes. A held step spends the step a <c>Play</c> holds its first
-    /// value for. <c>Play</c> leaves this as it is. Removal from the scene clears it. A pause menu holds
-    /// whole entities with <see cref="Scene.Paused"/>.
+    /// value for. <c>Play</c> leaves this as it is. Removal from the scene clears it.
     /// </remarks>
     public bool Paused { get; set; }
 
@@ -91,10 +88,7 @@ public sealed class ValueAnimator<T> : Component
         set => _clock.Speed = value;
     }
 
-    /// <summary>
-    /// Plays <paramref name="clip"/> from its first key and hands that value to the setter
-    /// immediately. The change shows on this step instead of the next.
-    /// </summary>
+    /// <summary>Plays <paramref name="clip"/> from its first key and hands that value to the setter on this step.</summary>
     /// <remarks>
     /// The first key holds for exactly its own ticks, counted from the tick of this call wherever in the
     /// step it came from. Called outside a step, it holds from the next step. Called on an animator in
@@ -104,8 +98,6 @@ public sealed class ValueAnimator<T> : Component
     /// finished non-looping clip still counts as playing.
     /// </para>
     /// </remarks>
-    /// <param name="clip">The clip to play.</param>
-    /// <param name="restart">Whether to restart the clip when it is already playing.</param>
     public void Play(ValueClip<T> clip, bool restart = false)
     {
         ArgumentNullException.ThrowIfNull(clip);

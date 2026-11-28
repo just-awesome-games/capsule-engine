@@ -5,27 +5,17 @@ internal static class GeneratedTypes
 {
     internal const string TextureHandle = "global::Capsule.Assets.TextureHandle";
 
+    internal const string PackedKeys = "global::Capsule.Assets.PackedKeys";
+
+    internal const string SheetTables = "global::Capsule.Assets.SheetTables";
+
     internal const string AudioClip = "global::Capsule.Audio.AudioClip";
 
     internal const string AudioLoopRegion = "global::Capsule.Audio.AudioLoopRegion";
 
     internal const string BitmapFont = "global::Capsule.Rendering.BitmapFont";
 
-    internal const string Glyph = "global::Capsule.Rendering.Glyph";
-
-    internal const string KerningPair = "global::Capsule.Rendering.KerningPair";
-
-    internal const string TextureRegion = "global::Capsule.Rendering.TextureRegion";
-
     internal const string Sprite = "global::Capsule.Rendering.Sprite";
-
-    internal const string SpriteSocket = "global::Capsule.Rendering.SpriteSocket";
-
-    internal const string SpriteBox = "global::Capsule.Rendering.SpriteBox";
-
-    internal const string SpriteMarks = "global::Capsule.Rendering.SpriteMarks";
-
-    internal const string Rect = "global::Capsule.Rendering.Rect";
 
     internal const string SpriteVariant = "global::Capsule.Rendering.SpriteVariant";
 
@@ -40,8 +30,6 @@ internal static class GeneratedTypes
     internal const string ShaderParameterKind = "global::Capsule.Rendering.ShaderParameterKind";
 
     internal const string SceneKey = "global::Capsule.Scenes.SceneKey";
-
-    internal const string Vector2 = "global::System.Numerics.Vector2";
 
     internal const string CapsuleAssets = "global::Capsule.Generated.CapsuleAssets";
 }

@@ -2,8 +2,8 @@ using Capsule.Input;
 
 namespace Capsule.Runtime.DevTools.Overlay;
 
-// The only place the overlay's devices are bound. The Help page names its keys from these bindings, and
-// the menu's legend abbreviates them.
+// The only place the overlay's devices are bound. The Help page and the menu's legend name their keys from
+// these bindings.
 internal static class OverlayActions
 {
     internal static readonly InputAction MenuUp = new("debug-overlay.up");
@@ -95,6 +95,10 @@ internal static class OverlayActions
     ];
 
     internal static string KeyName(InputAction action) => KeyName(Bindings.ButtonsFor(action)[0]);
+
+    // The menu's last line, which names the keys that move through it. toggleName is the game's toggle's.
+    internal static string Legend(string toggleName) =>
+        $"[{toggleName}] close   [{Keys(MenuUp, MenuDown)}] move   [{Keys(Confirm)}] select   [{Keys(Back)}] back";
 
     // What a row shows for button: the character a US layout prints on a key, else the constant's bare
     // name, as F1. The rows are built before the player's layout is read, and the overlay is English.

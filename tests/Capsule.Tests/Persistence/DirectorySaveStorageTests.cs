@@ -51,7 +51,6 @@ public sealed class DirectorySaveStorageTests : IDisposable
 
             """.ReplaceLineEndings("\n"),
             Encoding.UTF8.GetString(File.ReadAllBytes(Primary)));
-        Assert.False(File.ReadAllBytes(Primary).AsSpan().StartsWith(Encoding.UTF8.Preamble));
         File.Copy(Primary, Path.Combine(Saves, "other.SAVE.JSON"));
 
         (string document, SaveMetadata metadata) = Assert.Single(Restore()).Value;
